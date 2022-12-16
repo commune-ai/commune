@@ -1,5 +1,4 @@
 import datetime
-import streamlit as st
 def isoformat2datetime(isoformat:str):
     dt, _, us = isoformat.partition(".")
     dt = datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
@@ -80,6 +79,7 @@ class Timer:
     seconds = elapsed_seconds
 
     def __exit__(self, *args):
+        import streamlit as st
         if self.verbose:
             if self.streamlit:
                 st.write(self.text.format(t=self.elapsed_time))

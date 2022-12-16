@@ -2,7 +2,7 @@ from __future__ import annotations
 from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema, kill_pid
 import datetime
 
-import streamlit as st
+
 import os
 import subprocess, shlex
 import ray
@@ -22,7 +22,6 @@ import psutil
 import gradio
 import asyncio
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
-import streamlit as st
 import nest_asyncio
 from typing import *
 from glob import glob
@@ -609,12 +608,14 @@ class Module:
 
     @classmethod
     def streamlit(cls):
+        import streamlit as st
         st.write(f'HELLO from {cls.__name__}')
         st.write(cls)
 
 
     @classmethod
     def describe(cls, obj=None, streamlit=False, sidebar=True,**kwargs):
+        import streamlit as st
         if obj == None:
             obj = cls
 

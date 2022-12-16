@@ -1,9 +1,9 @@
 version: "3.2"
 
 services:
-  backend:
+  commune:
     # image: commune/bittensor/backend
-    container_name: backend
+    container_name: commune
     build: ./
     shm_size: '20gb'
     environment:
@@ -17,7 +17,6 @@ services:
       - 7865-7870:7865-7870 # gradio ports
       - 8000:8000 # api
       - 8888:8888 # jupyterlab
-      - ${RAY_PORT}:${RAY_PORT}
     
     # run_options: ["-v", "/home/ubuntu/efs:/efs", "--shm-size=16.89gb"]
 
@@ -41,13 +40,13 @@ services:
       - /tmp:/tmp # TMP FILE SYSTEM MOUNT
       - /home/ubuntu/efs:/efs
 
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 
     command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"

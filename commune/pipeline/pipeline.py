@@ -1,7 +1,7 @@
 from __future__ import annotations
 from munch import Munch
 import commune
-import streamlit as st
+
 import os
 
 # pipeline_config = commune.load_config(os.path.dirname(__file__).replace(os.getenv('PWD'), ''))
@@ -132,6 +132,7 @@ def get_annotations(fn:callable):
 
 
 if __name__ == '__main__':
+    import streamlit as st
 
     # st.write(commune.Module.get_module_python_paths())
     # st.write(commune.Module.simple2import('commune.sandbox.paper'))

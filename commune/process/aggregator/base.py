@@ -1,7 +1,7 @@
 
 from munch import Munch
 import commune
-import streamlit as st
+
 import os
 import ray
 
@@ -82,6 +82,7 @@ class BaseAggregator:
 
     @staticmethod
     def test_sequential_pipeline():
+        import streamlit as st
         commune.init_ray()
         blocks = [
          {

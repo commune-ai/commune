@@ -238,7 +238,6 @@ class BittensorModule(Module):
         if return_type in ['coldkey', 'cold']:
             wallets = self._get_coldkey_wallets_for_path(path=wallet_path)
         elif return_type in ['hot', 'hotkey', 'all']:
-            st.write(wallet_path)
             wallets  = self._get_all_wallets_for_path(path=wallet_path)
         else:
             raise NotImplementedError
@@ -394,11 +393,11 @@ class BittensorModule(Module):
                 return torch.argsort(metric_tensor, descending=descending, dim=0).tolist()    
     @property
     def blocks_behind_threshold(self):
-        return self.config.get('blocks_behind_sync_threshold', 1)
+        return self.config.get('blocks_behind_sync_threshold', 50)
 
     @property
     def sync_metagraph_bool(self):
-        return self.blocks_behind
+        return self.blocks_behind > self.blocks_behind_threshold
 
     @property
     def block(self):
@@ -410,7 +409,7 @@ class BittensorModule(Module):
 
 
 
-    def set_network(self,  network:Optional[str]=None, block:Optional[int]=None, subtensor:Optional[str]=None,  **kwargs):
+    def set_network(self,  network:Optional[str]=None, block:Optional[int]=None, subtensor:Optional[str]=None, force_sync:bool=False, **kwargs):
         '''
         The subtensor.network should likely be one of the following choices:
             -- local - (your locally running node)
@@ -419,17 +418,21 @@ class BittensorModule(Module):
         '''
         # Load the subtensor graph
         self.subtensor = subtensor if subtensor else bittensor.subtensor(network=network, **kwargs)
-        
+        st.write('loading subtensor')
         
         # Load the metagraph
-        self.metagraph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
-        self.metagraph.load()
 
+        self.metagraph = bittensor.metagraph(network=self.network, subtensor=self.subtensor)
+        st.write('loaded metagraph')
+        self.metagraph.load()
+        st.write('loading metagraph')
         sync_metagraph_bool = self.sync_metagraph_bool or force_sync
+        st.write(sync_metagraph_bool)
         if sync_metagraph_bool:
             self.metagraph.sync(block=block)
+            self.metagraph.save()
 
-        self.metagraph.save()
+
         self.set_metagraph_state()
     
     
@@ -715,22 +718,24 @@ if __name__ == '__main__':
     st.set_page_config(layout="wide")
     # st.write(module.blocks_behind)
     # st.write(module.register())
+    st.write('fam')
+    # parser = argparse.ArgumentParser()
+    # # ML model arguements
+    # parser.add_argument('--index', type=int, help='device i', default=0)
+    # args = parser.parse_args()
 
-    parser = argparse.ArgumentParser()
-    # ML model arguements
-    parser.add_argument('--index', type=int, help='device i', default=0)
-    args = parser.parse_args()
-
-    actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
-    actor = False
-    module = BittensorModule(hotkey=f'hotkey-{args.index}')
-    module.wallet.create_new_hotkey(use_password=False, overwrite=False)
-    st.write(module.register(dev_id=list(range(8))))
+    # actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
+    # actor = False
+    module = BittensorModule()
+    st.write(module.set_network('nobunaga'))
+    # # module.wallet.create_new_hotkey(use_password=False, overwrite=False)
+    # # st.write(module.register(dev_id=list(range(8))))
+    # st.write(module.wallet.get_balance())
 
 
     
 
     # st.write(module.list_wallets())
-    # st.write(module.register())
+    module.register()
     # st.write(module.wallet.get_balance())
     # st.write(module.wallet.regenerate_coldkey(menmonic))
