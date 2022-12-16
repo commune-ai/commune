@@ -1,0 +1,26 @@
+
+module: OceanModule
+wallet:
+  alice: 96e91d1c5eb836330b86c7f16ad7da4b0c923bccda1c427a3c70a8372415b715
+  bob: TEST_PRIVATE_KEY2
+
+network: mumbai
+
+save:
+  datanfts:
+    module: local
+    fn: put_object
+    params:
+      path: 'tmp/algocean/data_nfts.json'
+
+load:
+  datanfts:
+    module: local
+    fn: get_object
+    params:
+      path: 'tmp/algocean/data_nfts.json'
+
+    default: {}
+
+  
+client: {}

@@ -1,0 +1,13 @@
+module: 'DiffuserModule'
+
+pipeline:
+  path: runwayml/stable-diffusion-v1-5
+  revision: fp16
+  enable_attention_slicing: True
+
+schedular:
+  beta_start: 0.00085
+  beta_end: 0.012
+  beta_schedule: scaled_linear
+
+hf_token: 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

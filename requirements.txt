@@ -1,0 +1,16 @@
+datasets
+streamlit
+aiofiles
+aiohttp
+ray[default]
+gradio
+plotly
+jupyterlab
+accelerate
+web3
+
+-e ./bittensor
+-e ./cortex
+-e ./ocean.py
+
+httpcore==0.15

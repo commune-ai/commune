@@ -1,0 +1,20 @@
+wallet: 
+  name: const
+  hotkey: Tiberius
+
+split: train
+idx_bounds: [0, 1000]
+
+dataset:
+  module: cortex.dataset.huggingface.HuggingfaceDataset
+
+
+tokenizer:
+  module: bittensor.tokenizer
+
+receptor_pool:
+  module: bittensor.receptor_pool
+  kwargs:
+    max_active_receptors: 0
+
+

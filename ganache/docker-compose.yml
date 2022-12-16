@@ -1,0 +1,24 @@
+
+version: "3.9"
+services:
+  ganache:
+    cpu_count: 2
+    container_name: ganache
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    ports:
+      - ${GANACHE_PORT}:${GANACHE_PORT}
+    environment:
+      OCEAN_NETWORK_URL: ${NETWORK_RPC_URL}
+      MNEMONIC: ${GANACHE_MNEMONIC}
+      WEB3_INFURA_PROJECT_ID: ${WEB3_INFURA_PROJECT_ID}
+      WEB3_INFURA_URL: ${WEB3_INFURA_URL}
+      WEB3_ALCHEMY_PROJECT_ID: ${WEB3_ALCHEMY_PROJECT_ID}
+      WEB3_ALCHEMY_URL: ${WEB3_ALCHEMY_URL}
+      PRIVATE_KEY: ${PRIVATE_KEY}
+      
+
+    restart: always
+    command: bash -c "./scripts/setup.sh"
+

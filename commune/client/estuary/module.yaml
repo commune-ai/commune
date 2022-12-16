@@ -1,0 +1,5 @@
+api_key: EST429a2adc-a85a-49ec-bcea-e3249633670bARY
+url: 
+  get: https://api.estuary.tech
+  post: https://shuttle-4.estuary.tech
+  dweb: https://dweb.link/ipfs

@@ -1,0 +1,21 @@
+
+module: ContractManagerModule
+
+
+network:
+  module: commune.web3.network
+  kwargs:
+    network: local.main
+  actor: False
+  wrap: False
+
+account:
+  module: commune.web3.account
+  kwargs:
+    private_key: '0xbbfbee4961061d506ffbb11dfea64eba16355cbf1d9c29613126ba7fec0aed5d'
+  actor:  False
+  wrap: False
+
+client: [local]
+
+

@@ -1,0 +1,25 @@
+module: Sandbox
+
+wallet: 
+    name: const
+    hotkey: Tiberius
+
+client: [local]
+split: train
+idx_bounds: [0, 1000]
+
+dataset:
+  module: commune.dataset.text.huggingface
+  actor: {refresh: False, wrap: True}
+
+tokenizer:
+  module: bittensor.tokenizer
+
+receptor_pool:
+  module: commune.model.moe.receptor_pool
+  kwargs: {}
+  actor: False
+  wrap: True
+  # wrap: True
+
+

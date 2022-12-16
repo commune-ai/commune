@@ -1,0 +1,13 @@
+[eth-network]
+
+network = https://polygon-mumbai.g.alchemy.com/v2/YtTw29fEGWDXcMKpljSM63DbOrgXgJRx
+network_name = mumbai
+block_confirmations = 1
+
+[resources]
+metadata_cache_uri = https://aquarius.algovera.ai/
+provider.url = https://provider.algovera.ai/
+provider.address = 0xe2DD09d719Da89e5a3D0F2549c7E24566e947260
+
+downloads.path = consume-downloads
+

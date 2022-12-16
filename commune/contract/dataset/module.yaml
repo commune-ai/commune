@@ -1,0 +1,18 @@
+module: BaseContract
+
+network:
+  module: web3.network
+  kwargs:
+    network: skale.test
+
+
+contract: 
+  name: token.ERC20.ModelToken
+  args: ['ModelToken', 'MDL']
+
+account: alice
+
+clients: [local]
+
+
+  
