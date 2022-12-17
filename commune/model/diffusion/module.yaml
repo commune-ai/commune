@@ -4,7 +4,7 @@ pipeline:
   path: runwayml/stable-diffusion-v1-5
   revision: fp16
   enable_attention_slicing: True
-
+device: cuda
 schedular:
   beta_start: 0.00085
   beta_end: 0.012

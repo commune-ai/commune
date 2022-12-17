@@ -33,14 +33,17 @@ RUN python3 -m pip install -U accelerate
 RUN python3 -m pip install jupyterlab
 RUN python3 -m pip install aiofiles
 RUN python3 -m pip install web3
+# RUN python3 -m pip install deepseed
+RUN python3 -m pip install diffusers
 
 ADD ./bittensor /app/bittensor
 RUN python3 -m pip install -e /app/bittensor
 
-# JAVASCRIPT LAND
-
 ADD ./ocean.py /app/ocean.py
 RUN python3 -m pip install -e /app/ocean.py
+
+
+# JAVASCRIPT LAND
 
 # we add sprinkle of npm for hardhat smart contract tings
 ENV NODE_VERSION=16.17.1

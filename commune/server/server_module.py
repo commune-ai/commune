@@ -21,7 +21,8 @@ from commune.server.server_interceptor import ServerInterceptor
 from commune.serializer import SerializerModule
 from commune.proto import CommuneServicer
 import bittensor
-
+from psutil import process_iter
+import signal
 
 
 
@@ -260,6 +261,18 @@ class ServerModule(CommuneServicer, SerializerModule):
         self.started = False
 
         return self
+
+    @staticmethod
+    def kill_port(port:int):
+        for proc in process_iter():
+            for conns in proc.connections(kind='inet'):
+                if conns.laddr.port == port:
+                    proc.send_signal(signal.SIGKILL) # or SIGKILL
+        return port
+
+    # def close(self):
+    #     self.kill_port(self.port)
+
 
 class DemoModule:
     def __call__(self, data:dict, metadata:dict) -> dict:

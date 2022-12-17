@@ -36,13 +36,23 @@ class RemoteModel:
         output_data = {'logits': logits}
         return {'data': output_data, 'metadata': metadata}
 
-model = commune.launch(module=RemoteModel, actor=False)
-server = commune.server.ServerModule(module = model ,ip='0.0.0.0')
-server.start()
-client = commune.server.ClientModule(ip=server.ip, port=server.port)
-st.write(client.forward(data={'input': 'hey'}))
 
-# st.write(server)
-# data = model.forward(['hey man, how is it', 'I have a red car and it sells for'])
-# st.write(data)
-# st.write(model.tokenizer.batch_decode(data))
+
+if __name__ == "__main__":
+
+    model = commune.launch(module=RemoteModel, actor=False)
+
+    st.write(model)
+    server = commune.server.ServerModule(module = model ,ip='0.0.0.0')
+    st.write(server.port )
+    server.start()
+    st.write(server.module)
+    client = commune.server.ClientModule(ip=server.ip, port=server.port)
+
+    st.write(client.forward(data={'input': 'hey, whadup'}))
+
+
+    # st.write(server)
+    # data = model.forward(['hey man, how is it', 'I have a red car and it sells for'])
+    # st.write(data)
+    # st.write(model.tokenizer.batch_decode(data))
