@@ -29,7 +29,7 @@ from commune.server import ServerModule
 import streamlit as st
 import cortex
 
-class ServerClientModule(nn.Module, SerializerModule):
+class ClientModule(nn.Module, SerializerModule):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
     """
     
@@ -149,7 +149,7 @@ class ServerClientModule(nn.Module, SerializerModule):
         return  wrapper_fn
 
 if __name__ == "__main__":
-    module = ServerClientModule(ip='0.0.0.0', port=8091)
+    module = ClientModule(ip='0.0.0.0', port=8091)
 
 
     data = {

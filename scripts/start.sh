@@ -94,12 +94,12 @@ while :; do
         ;;
 
         --commune)
-        COMPOSE_FILES+=" -f docker-compose.yml"
+        COMPOSE_FILES+=" -f ./docker-compose.yml"
         
         ;;
 
         --ipfs)
-        COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
+        COMPOSE_FILES+=" -f ./ipfs/docker-compose.yml"
         
         ;;
 

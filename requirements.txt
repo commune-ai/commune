@@ -1,3 +1,5 @@
+
+
 datasets
 streamlit
 aiofiles
@@ -8,8 +10,9 @@ plotly
 jupyterlab
 accelerate
 web3
+httpcore==0.15
 
 -e ./bittensor
--e ./cortex
 
-httpcore==0.15
+
+

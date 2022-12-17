@@ -1,6 +1,7 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import asyncio 
 
+
 import os, sys
 sys.path.append(os.getenv('PWD'))
 asyncio.set_event_loop(asyncio.new_event_loop())
@@ -28,10 +29,20 @@ class RemoteModel:
             ).to(self.model.device)
         st.write(input.input_ids)
         return self.model(**input)
-st.write('bro')
 
-import torch
+    def __call__(self, data:dict, metadata:dict={}):
+        input = data['input']
+        logits = self.forward(input = input).logits
+        output_data = {'logits': logits}
+        return {'data': output_data, 'metadata': metadata}
+
 model = commune.launch(module=RemoteModel, actor=False)
-data = model.forward(['hey man, how is it', 'I have a red car and it sells for'])
-st.write(data)
-st.write(model.tokenizer.batch_decode(data))
+server = commune.server.ServerModule(module = model ,ip='0.0.0.0')
+server.start()
+client = commune.server.ClientModule(ip=server.ip, port=server.port)
+st.write(client.forward(data={'input': 'hey'}))
+
+# st.write(server)
+# data = model.forward(['hey man, how is it', 'I have a red car and it sells for'])
+# st.write(data)
+# st.write(model.tokenizer.batch_decode(data))

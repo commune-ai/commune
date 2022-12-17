@@ -1,6 +1,10 @@
 import inspect
 from typing import Callable, List, Optional, Union
 import os, sys
+import asyncio
+asyncio.set_event_loop(asyncio.new_event_loop())
+sys.path.append(os.getenv('PWD'))
+
 from  commune import Module
 import torch
 from copy import deepcopy
@@ -471,10 +475,10 @@ class DiffuserModule(Module, DiffusionPipeline):
 
 if __name__ == '__main__':
     import ray
-    st.write(torch.cuda.is_available())
-    Module.init_ray()
-    Module.kill_actor('model.diffusion.stable')
-    st.write(Module.list_actors())
+    # st.write(torch.cuda.is_available())
+    # Module.init_ray()
+    # Module.kill_actor('model.diffusion.stable')
+    DiffuserModule.st_demo()
     # Module.kill_actor('DiffuserModule')
     # # st.write(module)
     # # st.write(module.device)

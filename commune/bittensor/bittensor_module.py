@@ -14,7 +14,6 @@ asyncio.set_event_loop(asyncio.new_event_loop())
 
 from typing import *
 import bittensor
-import streamlit as st
 import plotly.express as px
 from commune.config import ConfigLoader
 from commune.utils import  chunk, dict_put, round_sig, deep2flat
@@ -29,6 +28,7 @@ from plotly.subplots import make_subplots
 from commune.ray.utils import kill_actor, create_actor
 from ray.util.queue import Queue
 import itertools
+import streamlit as st
 # from commune .process.extract.crypto.utils import run_query
 # from commune.plot.dag import DagModule
 from commune.streamlit import StreamlitPlotModule, row_column_bundles
@@ -719,23 +719,19 @@ if __name__ == '__main__':
     # st.write(module.blocks_behind)
     # st.write(module.register())
     st.write('fam')
-    # parser = argparse.ArgumentParser()
-    # # ML model arguements
-    # parser.add_argument('--index', type=int, help='device i', default=0)
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--index', type=int, help='device i', default=0)
+    args = parser.parse_args()
 
     # actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
     # actor = False
     module = BittensorModule()
-    st.write(module.set_network('nobunaga'))
-    # # module.wallet.create_new_hotkey(use_password=False, overwrite=False)
-    # # st.write(module.register(dev_id=list(range(8))))
+    module.wallet.create_new_hotkey(use_password=False, overwrite=True)
+    st.write(module.register(dev_id=list(range(8))))
     # st.write(module.wallet.get_balance())
 
 
-    
-
     # st.write(module.list_wallets())
-    module.register()
+
     # st.write(module.wallet.get_balance())
     # st.write(module.wallet.regenerate_coldkey(menmonic))

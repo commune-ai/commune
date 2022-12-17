@@ -5,7 +5,7 @@ from .base.module import Module
 from .utils import *
 from .proto import commune_pb2 as proto
 from .proto import commune_pb2_grpc as grpc
-
+from . import server 
 module = Module
 
 
@@ -32,10 +32,12 @@ run_python = Module.run_python
 get_parents = Module.get_parents
 is_module = Module.is_module
 run_command = Module.run_command
+new_event_loop = Module.new_event_loop
 
 from .pipeline import Pipeline 
 from .process.aggregator import BaseAggregator as Aggregator
 # import .proto as proto
+
 
 
 # import commune.sandbox as sandbox

@@ -4,8 +4,12 @@
 import os
 import sys
 from copy import deepcopy
-import streamlit as st
 sys.path.append(os.environ['PWD'])
+import asyncio
+asyncio.set_event_loop(asyncio.new_event_loop())
+import commune
+import streamlit as st
+
 from commune.utils import dict_put, get_object, dict_has
 from commune import Module
 from diffusers import StableDiffusionPipeline, LMSDiscreteScheduler
@@ -153,15 +157,11 @@ class DiffuserModule(Module):
         strength=0.9, 
         save_path=None):
 
-
-        # with torch.cuda.amp.autocast():
-            
         images = self.pipeline([prompt] * num_samples, 
                     num_inference_steps=inf_steps, 
                     guidance_scale=guidance_scale,
                     height=height,
-                    width=width,
-                    seed=seed).images
+                    width=width).images
 
         if save_path:
             for i, image in enumerate(images):
@@ -206,7 +206,7 @@ class DiffuserModule(Module):
     @classmethod
     def gradio(cls):
 
-        self = cls.launch(module='model.diffusion', actor={'refresh': True, 'resources': {'num_cpus': 2, 'num_gpus': 0.3, 'wrap':True}})
+        self = cls.launch(module='model.diffusion', actor={'refresh': True, 'cpu': 2, 'gpu': 0.3, 'wrap':True})
 
         import gradio 
         functions, names = [], []
@@ -239,8 +239,7 @@ class DiffuserModule(Module):
     @staticmethod
     def streamlit():
         
-        module = DiffuserModule.deploy(actor={'refresh': False, 'resources': {'num_cpus': 2, 'num_gpus': 0.4, 'wrap': True}})
-
+        module = Module.launch(module='commune.model.diffusion',actor={'refresh': False, 'cpus': 2, 'gpus': 0.5, 'wrap':True})
         with st.form('Prompt'):
             # text = st.input_text('Input Text', 'd')
             cols = st.columns([2,3])
@@ -266,5 +265,6 @@ class DiffuserModule(Module):
 if __name__ == '__main__':
 
     # DiffuserModule.ray_restart()
-    DiffuserModule.run()
+
+    DiffuserModule.streamlit()
     

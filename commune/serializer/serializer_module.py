@@ -42,7 +42,7 @@ class SerializerModule:
                 v = object_map[k]
                 k_metadata = {'block_ref_path': k, 'block_ref_idx': k_index}
                 sub_blocks.append(self.serialize(data=v, metadata=deepcopy(k_metadata)))
-                k_list = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split())
+                k_list = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split()))
                 dict_put(data, k_list , k_metadata)
 
             # st.write(sub_blocks)
@@ -137,7 +137,7 @@ class SerializerModule:
         return str(type(data)).split("'")[1]
 
     @classmethod
-    def get_non_json_objects(cls,x:dict, object_map:dict = {}, root_key:str='', python_types:Optional[list]=[int, bool, float, tuple, dict, list]):
+    def get_non_json_objects(cls,x:dict, object_map:dict = {}, root_key:str='', python_types:Optional[list]=[int, bool, float, tuple, dict, list, str]):
 
         k_list = []
         if isinstance(x, dict):

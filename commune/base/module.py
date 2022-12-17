@@ -284,15 +284,15 @@ class Module:
     def launch(cls, module:str=None, fn:str=None ,kwargs:dict={}, args:list=[], actor:Union[bool, dict]=False, ray_init:dict={}, **additional_kwargs):
         
 
+        # ensure the ray cluster
         cls.ray_init(ray_init)
-
-
-        if module == None:
-            module = cls.get_module_path()
 
         if cls.is_class(module):
             module_class = module
         elif isinstance(module, str):
+            module_class = cls.import_object(module)
+        elif module == None:
+            module = cls.get_module_path()
             module_class = cls.import_object(module)
         else:
             raise NotImplementedError(f'Type ({type(module)}) for module is not implemented')
