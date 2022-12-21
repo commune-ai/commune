@@ -3,8 +3,6 @@ from .config.loader import ConfigLoader as config_loader
 from .config import Config
 from .base.module import Module
 from .utils import *
-from .proto import commune_pb2 as proto
-from .proto import commune_pb2_grpc as grpc
 from . import server 
 module = Module
 

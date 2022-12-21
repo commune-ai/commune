@@ -14,21 +14,16 @@ import asyncio
 from copy import deepcopy
 asyncio.set_event_loop(asyncio.new_event_loop())
 sys.path.append(os.getenv('PWD'))
-from commune.proto import DataBlock
-import commune
+from commune.server.proto import DataBlock
+from commune.utils import dict_put, dict_get
+
 import json
 import streamlit as st
-from commune.utils import dict_put, dict_get
 
 class SerializerModule:
     r""" Bittensor base serialization object for converting between DataBlock and their
     various python tensor equivalents. i.e. torch.Tensor or tensorflow.Tensor
     """
-
-    @staticmethod
-    def empty():
-        """Returns an empty DataBlock message with the version"""
-        return DataBlock()
 
     def serialize (self, data: object, metadata:dict={}) -> DataBlock:
         data_type = self.get_str_type(data)
@@ -40,10 +35,14 @@ class SerializerModule:
 
             for k_index ,k in enumerate(object_map.keys()):
                 v = object_map[k]
-                k_metadata = {'block_ref_path': k, 'block_ref_idx': k_index}
+                block_ref_path = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split('.')))
+
+                k_metadata = {'block_ref_path': block_ref_path, 'block_ref_idx': k_index}
+
+
                 sub_blocks.append(self.serialize(data=v, metadata=deepcopy(k_metadata)))
-                k_list = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split()))
-                dict_put(data, k_list , k_metadata)
+                dict_put(data, block_ref_path , k_metadata)
+
 
             # st.write(sub_blocks)
 
@@ -67,8 +66,6 @@ class SerializerModule:
                 block = self.deserialize(proto=proto_block)
                 dict_put(data, block['metadata']['block_ref_path'], block['data'])
 
-        st.write(len(proto.blocks))
-        
         output_dict = dict(data= data, metadata = metadata)
         return output_dict
 
@@ -154,24 +151,33 @@ class SerializerModule:
             if v_type not in python_types:
                 object_map[current_root_key] = v
             
-            if v_type in [dict, list]:
+            if v_type in [dict, list, tuple]:
                 cls.get_non_json_objects(x=v, object_map=object_map, root_key=current_root_key)
+
 
 
         return object_map
     
-    
-    
+   
+    @staticmethod
+    def empty():
+        """Returns an empty DataBlock message with the version"""
+        return DataBlock()
+
+    @classmethod
+    def test_serialize(cls):
+        module = SerializerModule()
+        data = {'bro': {'fam': torch.ones(100,1000), 'bro': [torch.ones(1,1)]}}
+        proto = module.serialize(data)
+
+    @classmethod
+    def test_deserialize(cls):
+        module = SerializerModule()
+        data = {'bro': {'fam':[[torch.ones(100,1000), torch.ones(100,1000)]], 'bro': [torch.ones(1,1)]}}
+        proto = module.serialize(data)
+        data = module.deserialize(proto)
+        st.write(data)
+        return True
 if __name__ == "__main__":
-    module = SerializerModule()
-    # data = {'bro': [10, 10, 10]}
-    data = {'bro': {'fam': torch.ones(100,1000), 'bro': torch.ones(1,1)}}
+    SerializerModule.test_deserialize()
 
-
-    # st.write(data)
-
-    # st.write(dict_get(data, 'bro.bro'))
-    
-    # st.write(module.get_non_json_objects(x=data))
-    proto = module.serialize(data)
-    st.write(module.deserialize(proto))

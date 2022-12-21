@@ -17,9 +17,10 @@ import asyncio
 asyncio.set_event_loop(asyncio.new_event_loop())
 sys.path.append(os.getenv('PWD'))
 import commune
-from commune.server.server_interceptor import ServerInterceptor
-from commune.serializer import SerializerModule
-from commune.proto import CommuneServicer
+from .interceptor_module import ServerInterceptor
+from .serializer_module import SerializerModule
+from .proto import ServerServicer
+from .proto import DataBlock
 import bittensor
 from psutil import process_iter
 import signal
@@ -27,7 +28,7 @@ import signal
 
 
 
-class ServerModule(CommuneServicer, SerializerModule):
+class ServerModule(ServerServicer, SerializerModule):
     """ The factory class for bittensor.Axon object
     The Axon is a grpc server for the bittensor network which opens up communication between it and other neurons.
     The server protocol is defined in bittensor.proto and describes the manner in which forward and backwards requests
@@ -37,12 +38,9 @@ class ServerModule(CommuneServicer, SerializerModule):
     def __init__(
             self,
             config: Optional['commune.Config'] = None,
-            wallet: Optional['bittensor.Wallet'] = None,
-            server: Optional['grpc._Server'] = None,
-            port: Optional[int] = None,
+            module: Union['Callable', object]= None,
             ip: Optional[str] = None,
-            module: 'AxonModule'= None,
-            serializer: 'SerializerModule'= None,
+            port: Optional[int] = None,
             external_ip: Optional[str] = None,
             external_port: Optional[int] = None,
             max_workers: Optional[int] = None, 
@@ -51,14 +49,14 @@ class ServerModule(CommuneServicer, SerializerModule):
             thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
             compression:Optional[str] = None,
+            serializer: 'SerializerModule'= None,
+            server: Optional['grpc._Server'] = None,
 
         ) -> 'bittensor.Axon':
         r""" Creates a new bittensor.Axon object from passed arguments.
             Args:
                 config (:obj:`Optional[bittensor.Config]`, `optional`): 
-                    bittensor.Server.config()
-                wallet (:obj:`Optional[bittensor.Wallet]`, `optional`):
-                    bittensor wallet with hotkey and coldkeypub.    
+                    bittensor.Server.config()  
                 thread_pool (:obj:`Optional[ThreadPoolExecutor]`, `optional`):
                     Threadpool used for processing server queries.
                 server (:obj:`Optional[grpc._Server]`, `required`):
@@ -113,7 +111,7 @@ class ServerModule(CommuneServicer, SerializerModule):
         self.server = server
         self.module = module
 
-        commune.grpc.add_CommuneServicer_to_server( self, server )
+        commune.server.grpc.add_ServerServicer_to_server( self, server )
         full_address = str( config.ip ) + ":" + str( config.port )
         self.server.add_insecure_port( full_address )
         self.check_config( config )
@@ -183,7 +181,7 @@ class ServerModule(CommuneServicer, SerializerModule):
     def __repr__(self) -> str:
         return self.__str__()
 
-    def Forward(self, request: commune.proto.DataBlock, context: grpc.ServicerContext) -> commune.proto.DataBlock:
+    def Forward(self, request: DataBlock, context: grpc.ServicerContext) -> DataBlock:
         r""" The function called by remote GRPC Forward requests. The Datablock is a generic formatter.
             
             Args:
@@ -241,7 +239,6 @@ class ServerModule(CommuneServicer, SerializerModule):
     def start(self) -> 'ServerModule':
         r""" Starts the standalone axon GRPC server thread.
         """
-        st.write(self.__dict__)
         if self.server != None:
             self.server.stop( grace = 1 )  
             logger.success("Axon Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
@@ -282,7 +279,6 @@ class DemoModule:
 if __name__ == '__main__':
     module = ServerModule(module=DemoModule())
     module.start()
-    st.write(module)
 
 
     # request = module.serialize(data=torch.ones(10,10))

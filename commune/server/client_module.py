@@ -23,11 +23,11 @@ asyncio.set_event_loop(asyncio.new_event_loop())
 
 import bittensor
 import commune
-from commune.proto import DataBlock
-from commune.serializer import SerializerModule
-from commune.server import ServerModule
+from .proto  import DataBlock, ServerStub
+from .serializer_module import SerializerModule
+from .server_module import ServerModule
 import streamlit as st
-import cortex
+
 
 class ClientModule(nn.Module, SerializerModule):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
@@ -51,7 +51,7 @@ class ClientModule(nn.Module, SerializerModule):
             options=[('grpc.max_send_message_length', -1),
                      ('grpc.max_receive_message_length', -1),
                      ('grpc.keepalive_time_ms', 100000)])
-        stub = commune.grpc.CommuneStub( channel )
+        stub = ServerStub( channel )
 
         self.loop = asyncio.get_event_loop()
         self.channel = channel
@@ -147,6 +147,8 @@ class ClientModule(nn.Module, SerializerModule):
         def wrapper_fn(*args, **kwargs):
             return asyncio.run(fn(*args, **kwargs))
         return  wrapper_fn
+
+
 
 if __name__ == "__main__":
     module = ClientModule(ip='0.0.0.0', port=8091)

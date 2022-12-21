@@ -18,18 +18,15 @@ class Config ( Munch ):
     """
     Implementation of the config class, which manages the config of different bittensor modules.
     """
+    root = '/'.join(__file__.split('/')[:-2]) # get root from __file__ == {root}/config/config_module.py
 
-    MAIN_DIRECTORY = 'commune'
-    root =  os.path.join(os.environ['PWD'],MAIN_DIRECTORY)
-
-    def __init__(self, config=None, *args, **kwargs,   ):
-
-        self.config = kwargs.pop('config', {})
+    def __init__(self, config={}, *args, **kwargs,   ):
 
         if isinstance(config, str) :
             self.config_path = config
-            self.config = self.load_config(path=self.config_path)
+            config = self.load_config(path=self.config_path)
         
+        self.config = config
         assert isinstance(self.config, dict) ,  f'The self.config should be a dictionary but is {type(self.config)}'
 
         Munch.__init__(self, self.config, *args, **kwargs)
@@ -401,17 +398,23 @@ class Config ( Munch ):
         return input
 
 
-    @staticmethod
-    def override_config(config, override={}):
+    def override(self, override={}, config=None):
         """
         
         """
+        if config == None:
+            config = self.config
+
         for k,v in override.items():
             dict_put(input_dict=config,keys=k, value=v)
 
         return config
     
 
+
+
+if __name__== "__main__":
+    pass
 
 
 if __name__== "__main__":

@@ -250,7 +250,7 @@ class BittensorModule(Module):
 
         return wallets
     @property
-    def wallets(self):
+    def wallets(self, registered=True):
         wallet_dict ={}
 
         for w in self.list_wallets():
@@ -725,13 +725,16 @@ if __name__ == '__main__':
 
     # actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
     # actor = False
-    module = BittensorModule()
-    module.wallet.create_new_hotkey(use_password=False, overwrite=True)
-    st.write(module.register(dev_id=list(range(8))))
+    module = BittensorModule(coldkey='bit', hotkey=f'connect-{args.index}', network='nakamoto')
+    module.wallet.create()
+    # module.set_network('nobunaga')
+    
+    # module.wallet.create_new_hotkey(use_password=False, overwrite=True)
+    module.register(dev_id=list(range(8)))
     # st.write(module.wallet.get_balance())
 
-
-    # st.write(module.list_wallets())
+    st.write(module.list_wallets(registered=True))
+    
 
     # st.write(module.wallet.get_balance())
     # st.write(module.wallet.regenerate_coldkey(menmonic))

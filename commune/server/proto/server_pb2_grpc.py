@@ -2,10 +2,9 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-from . import commune_pb2 as commune__pb2
+from . import server_pb2 as server__pb2
 
-
-class CommuneStub(object):
+class ServerStub(object):
     """Service definition for tensor processing servers.
     """
 
@@ -16,13 +15,13 @@ class CommuneStub(object):
             channel: A grpc.Channel.
         """
         self.Forward = channel.unary_unary(
-                '/Commune/Forward',
-                request_serializer=commune__pb2.DataBlock.SerializeToString,
-                response_deserializer=commune__pb2.DataBlock.FromString,
+                '/Server/Forward',
+                request_serializer=server__pb2.DataBlock.SerializeToString,
+                response_deserializer=server__pb2.DataBlock.FromString,
                 )
 
 
-class CommuneServicer(object):
+class ServerServicer(object):
     """Service definition for tensor processing servers.
     """
 
@@ -34,21 +33,21 @@ class CommuneServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_CommuneServicer_to_server(servicer, server):
+def add_ServerServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'Forward': grpc.unary_unary_rpc_method_handler(
                     servicer.Forward,
-                    request_deserializer=commune__pb2.DataBlock.FromString,
-                    response_serializer=commune__pb2.DataBlock.SerializeToString,
+                    request_deserializer=server__pb2.DataBlock.FromString,
+                    response_serializer=server__pb2.DataBlock.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'Commune', rpc_method_handlers)
+            'Server', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
 
 
  # This class is part of an EXPERIMENTAL API.
-class Commune(object):
+class Server(object):
     """Service definition for tensor processing servers.
     """
 
@@ -63,8 +62,8 @@ class Commune(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/Commune/Forward',
-            commune__pb2.DataBlock.SerializeToString,
-            commune__pb2.DataBlock.FromString,
+        return grpc.experimental.unary_unary(request, target, '/Server/Forward',
+            server__pb2.DataBlock.SerializeToString,
+            server__pb2.DataBlock.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

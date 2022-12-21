@@ -1,3 +1,11 @@
+
+import asyncio 
+import torch
+asyncio.set_event_loop(asyncio.new_event_loop())
+import os,sys
+sys.path.append(os.getenv('PWD'))
+import streamlit as st
+
 import argparse
 import math
 import bittensor
@@ -24,29 +32,47 @@ import torch.nn.functional as F
 from torch.nn.utils import clip_grad_norm_
 
 
-class RemoteNucleus(torch.nn.Module):
+class Nucleus(torch.nn.Module):
     def __init__(self, 
-                config: 'bittensor.config' = None,
-                subtensor: 'bittensor.subtensor': None,
-                wallet: 'bittensor.wallet': None,
-                metagraph: 'bittensor.metagraph': None,
-                axon: 'bittensor.axon': None,
+
+                model: 'Model' = None,
+                tokenizer:'huggingfadce.tokenizer' = None,
+
                 padding: bool =None, 
                 interpolate: bool =None,
                 inter_degree: str = None,
-                model = None,
-                tokenizer = None,
-                mapping_function = None,
-                token_remap = None,
-                checking= None):
+                mapping_function:'Callable' = None,
+                token_remap:'Callable' = None,
+
+                ## All of the bittensor sutff
+                config: 'bittensor.config' = None,
+                subtensor: 'bittensor.subtensor'= None,
+                wallet: 'bittensor.wallet'= None,
+                metagraph: 'bittensor.metagraph'= None,
+                axon: 'bittensor.axon'= None,
+                
+                # Enabling synapses
+                lasthidden:bool = None,
+                causallm:bool = None,
+                causallmnext: bool = None,
+                seq2seq: bool = None,
+
+                # Stake per synapse
+                lasthidden_stake:float = None,
+                causallm_stake:float = None,
+                causallmnext_stake: float = None,
+                seq2seq_stake: float = None,
+
+                port:int = None,
+                ):
+
         r"""" Creates a server that serves up a pretrained miner on the bittensor network
         Args:
                 config (:obj:`bittensor.Config`, `required`): 
                     bittensor.server.config()
-                pretrained (:obj:bool , `optional`):
-                    if the model should pretrained or not
-                model_name (:obj:string , `optional`):
-                    name of the pretrained model from huggingface to use
+
+                model (:obj:string , `object`):
+                    The model.
                 padding (:obj:bool, `optional`):
                     If the server should pad out to match the hidden units that the bittensor network is using
                     If set to False, it will instead create a mapping layer to do the same thing.
@@ -64,97 +90,79 @@ class RemoteNucleus(torch.nn.Module):
                 token_remap (:obj:Callable, `optional`):
                     Custom function that maps between tokenizers (defaults to self.remapping_token)
         """
-        super(server, self).__init__()
-        self.config = config = if config else  server.config()
-        self.std_tokenizer = bittensor.tokenizer()
-        self.device = config.neuron.device
-        self.axon = bittensor.axon(
-            config = self.config,
-            wallet = self.wallet,
-            synapse_checks=self.synapse_check,
-            synapse_last_hidden =  None,
-            synapse_causal_lm =  None,
-            synapse_causal_lm_next = self.forward_casual_lm_next if self.config.neuron.causallmnext else None,
-            synapse_seq_2_seq =  None ,
-            blacklist = self.blacklist if not self.config.neuron.disable_blacklist else None,
-            priority = self.priority if not self.config.neuron.disable_priority else None,
-        )
-
-        if tokenizer is None:
-            self.tokenizer = bittensor.tokenizer()
-        elif isinstance(tokenizer, str):
-            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
-
-        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
-        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
-        self.split_map_cache = {}
-
-        #parameters of the models
-        self.final_dim =  bittensor.__network_dim__
-        self.pre_dimension = self.pre_model.config.hidden_size
-        self.padding = padding if padding != None else config.neuron.padding
-        self.interpolate = interpolate if interpolate != None else config.neuron.interpolate
-        self.inter_degree = inter_degree if inter_degree != None else config.neuron.inter_degree
-        self.checking = checking if checking != None else config.neuron.checking
-        self.mapping_function= mapping_function
-        self.token_remap = token_remap if token_remap is not None else self.remapping_token
-
-        if self.config.neuron.padding == False:
-            self.mapping = torch.nn.Linear( self.pre_dimension, self.final_dim)
-
-        self.loss_fct = torch.nn.CrossEntropyLoss()
-    
-
-        #checking if the parameters of the server makes sense
-        if self.checking:
-            self.check()
-
-
-        # Create Subtensor connection
-        self.subtensor = bittensor.subtensor(config = config) if subtensor == None else subtensor
-
-        # Load/Create our bittensor wallet.
-        if wallet == None:
-            wallet = bittensor.wallet( config = config ).create().reregister(subtensor=subtensor) 
-        else:
-            wallet.reregister(subtensor=subtensor)
-        self.wallet = wallet
-
-        # Load/Sync/Save our metagraph.
-        self.metagraph = metagraph if metagraph else bittensor.metagraph ( subtensor = subtensor)
-        self.metagraph.load().sync().save()
-
-        # Create our optimizer.
-        self.optimizer = torch.optim.SGD(
-            [ {"params": model.parameters()} ],
-            lr = config.neuron.learning_rate,
-            momentum = config.neuron.momentum,
-        )
-        self.mutex = Lock()
-
- 
- 
-
-    def __init__(
-        self, 
-        config: 'bittensor.config' = None,
-        subtensor: 'bittensor.subtensor' = None,
-        wallet: 'bittensor.wallet' = None,
-        axon: 'bittensor.axon' = None,
-        metagraph: 'bittensor.metagraph' = None,
-    ):
-        if config == None: config = server.config()
-        config = config; 
+        super().__init__()
+        config = config if config else  self.default_config()
 
         config.neuron.lasthidden = lasthidden if lasthidden != None else config.neuron.lasthidden
         config.neuron.causallm = causallm if causallm != None else config.neuron.causallm
         config.neuron.causallmnext = causallmnext if causallmnext is not None else config.neuron.causallmnext
         config.neuron.seq2seq = seq2seq if seq2seq != None else config.neuron.seq2seq
 
+        config.neuron.lasthidden_stake = lasthidden_stake if lasthidden_stake != None else config.neuron.lasthidden_stake
+        config.neuron.causallm_stake = causallm_stake if causallm_stake != None else config.neuron.causallm_stake
+        config.neuron.causallmnext_stake = causallmnext_stake if causallmnext_stake is not None else config.neuron.causallmnext_stake
+        config.neuron.seq2seq_stake = seq2seq_stake if seq2seq_stake != None else config.neuron.seq2seq_stake
 
 
+        self.std_tokenizer = bittensor.tokenizer()
+        self.device = config.neuron.device
+        self.model = model
+
+        if hasattr(self.model, 'tokenizer'):
+            self.tokenizer = self.model.tokenizer
+        elif isinstance(tokenizer, str):
+            self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
+        elif tokenizer is None:
+            self.tokenizer = bittensor.tokenizer()
+        
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
+        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
+        self.split_map_cache = {}
+        #parameters of the models
+        self.final_dim =  bittensor.__network_dim__
+
+        self.padding = padding if padding != None else config.neuron.padding
+        self.interpolate = interpolate if interpolate != None else config.neuron.interpolate
+        self.inter_degree = inter_degree if inter_degree != None else config.neuron.inter_degree
+        self.mapping_function= mapping_function
+        self.token_remap = token_remap if token_remap is not None else self.remapping_token
+
+        self.timecheck_dicts = {bittensor.proto.RequestType.FORWARD:{}, bittensor.proto.RequestType.BACKWARD:{}}
+        self.loss_fct = torch.nn.CrossEntropyLoss()
+    
+        #checking if the parameters of the server makes sense
+        self.check()
+
+        # Create Subtensor connection
+        self.subtensor = bittensor.subtensor(config = config) if subtensor == None else subtensor
+        
+        # Load/Create our bittensor wallet.
+        self.wallet = wallet if wallet else bittensor.wallet( config = config ).create()
+        self.wallet.reregister(subtensor=subtensor)
+
+        # Load/Sync/Save our metagraph.
+        self.metagraph = metagraph if metagraph else bittensor.metagraph ( subtensor = subtensor)
+        self.metagraph.load().sync().save()
+
+        self.mutex = Lock()
+        self.config = config
  
+        self.axon = bittensor.axon(
+            config = self.config,
+            wallet = self.wallet,
+            synapse_checks=self.synapse_check,
+            synapse_last_hidden =  self.forward_last_hidden if self.config.neuron.lasthidden else None,
+            synapse_causal_lm = self.forward_casual_lm if self.config.neuron.causallm else None,
+            synapse_causal_lm_next = self.forward_casual_lm_next if self.config.neuron.causallmnext else None,
+            synapse_seq_2_seq =  self.forward_seq_2_seq if self.config.neuron.seq2seq else None, 
+            blacklist = self.blacklist if not self.config.neuron.disable_blacklist else None,
+            priority = self.priority if not self.config.neuron.disable_priority else None,
+            port = port
+        )
+
+
+
     def remapping_token(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
         r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
             Args:
@@ -247,110 +255,6 @@ class RemoteNucleus(torch.nn.Module):
                                                     output_hidden_states=True)
 
         return None, model_output, model_output.logits
-    
-    def encode_forward(self,inputs,tokenizer=None, model_output = None):
-        r""" Forward pass through the pretrained model and possible mappings between hidden units. 
-             The response tensor should be the hidden units computed using the local context and with shape: [batch_size, sequence_len, __network_dim__].
-
-            Args:
-                inputs ( :obj:`torch.Tensor`, `required`):
-                    torch inputs to be forward processed.
-                tokenizer ( huggingface.tokenizer, `optional`):
-                    The tokenizer which was used to tokenize the inputs
-                model_outputs (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `optional`):
-                    The output of huggingface auto model.
-
-            Returns:
-                model_outputs (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `required`):
-                    The output of huggingface auto model.
-                    
-                encoded_hidden (:type:`torch.Tensor`, `required`)
-                    The hidden layer output as a torch tensor of shape [batch_size, sequence_len, __network_dim__ ]
-        """
-        transformers.set_seed(0)
-        transformers.enable_full_determinism(0)
-
-        sen_len = inputs.size()
-        tokens = self.token_remap(inputs, tokenizer)  # remap to server tokenizer
-
-        model_output = self.model(input_ids=tokens['input_ids'],
-                                        attention_mask=tokens['attention_mask'],
-                                        output_hidden_states=True)
-
-        pre_hidden = model_output.hidden_states[-1]
-
-        if self.interpolate and sen_len[1] != pre_hidden.size()[1]:
-            down= F.interpolate(pre_hidden.unsqueeze(1),size=[sen_len[1],pre_hidden.size()[2]],mode=self.inter_degree).squeeze(1)
-        elif self.mapping_function:
-            down = self.mapping_function(pre_hidden)
-        else:
-            down = pre_hidden
-
-        if self.padding:
-            padding_l = (self.final_dim-self.pre_dimension)//2
-            padding_r = (self.final_dim-self.pre_dimension) - padding_l
-            encoded_hidden = F.pad(down, (padding_l, padding_r),  "constant", 0)
-        else:
-            encoded_hidden = self.mapping(down)
-
-        return None, model_output, encoded_hidden
-
-    def encode_forward_causallm(self, token_batch, tokenizer=None, encode_len=bittensor.__network_dim__, model_output=None):
-        r""" Forward pass through the pretrained model and possible mappings between hidden units.
-             The response tensor should be the hidden units computed using the local context and
-             with shape: [batch_size, sequence_len, __vocab_size__].
-
-            Args:
-                token_batch ( :obj:`torch.LongTensor`, `required`):
-                    torch inputs to be forward processed, [batch_size, sequence_len]
-                tokenizer ( huggingface.tokenizer, `optional`):
-                    The tokenizer which was used to tokenize the inputs
-                encode_len ( :obj:`int`, `optional`):
-                    logit encoding length, default bittensor.__network_dim__ length
-                model_output (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `optional`):
-                    The output of huggingface auto model.
-
-            Returns:
-                model_outputs (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `required`):
-                    The output of huggingface auto model.
-                
-                logits_std (:obj:`torch.FloatTensor`):
-                    The nucleus's logit outputs as a torch tensor of shape [batch_size, sequence_len, __vocab_size__]
-        """
-        transformers.set_seed(0)
-        transformers.enable_full_determinism(0)
-
-        tokens = self.token_remap(token_batch, std_tokenizer=tokenizer, return_offsets_mapping=True)  # remap to server tokenizer
-
-        def _forward(_model_output=model_output):
-            if _model_output is None:
-                # transformer models like gerpt2 typically perform worse with left-side attention mask, so turning it off
-                _model_output = self.pre_model(input_ids=tokens['input_ids'],
-                                                #attention_mask=tokens['attention_mask'],
-                                               output_hidden_states=True)
-            pre_logits = _model_output.logits  # [batch_size, sequence_len, self.tokenizer.vocab_len]
-
-            probs_std = translate_logits_to_probs_std(pre_logits,
-                                                      tokens['offset_mapping'], tokens['offset_mapping_std'],
-                                                      self.tokenizer, self.std_tokenizer,
-                                                      self.split_map_cache,
-                                                      self.to_translation_map, self.from_translation_map,
-                                                      tokens['input_ids'], token_batch)
-            probs_std = probs_std.to(self.device)
-            logits_std = torch.log(probs_std + 1e-40)
-
-            #removing the loss calculation for stablity testing
-            original_loss = self.get_loss_fct(pre_logits, tokens['input_ids']).item()
-            translated_loss = self.get_loss_fct(logits_std, token_batch).item()
-            message = f'Loss: {original_loss:.2f} → {translated_loss:.2f}'
-            
-            return message, _model_output, logits_std
-
-        if self.config.neuron.remote_train:
-            return _forward()  # track gradients for training
-
-        with torch.no_grad():
-            return _forward()  # no gradients
 
     def encode_forward_causallmnext(self, token_batch, std_tokenizer=None, topk: int = 4096, model_output=None):
         r"""
@@ -396,23 +300,32 @@ class RemoteNucleus(torch.nn.Module):
         tokens = self.token_remap(token_batch, std_tokenizer)
 
 
-        if _model_output is None:
-            _model_output = self.pre_model(input_ids=tokens['input_ids'],
+        if model_output is None:
+            model_output = self.model(input_ids=tokens['input_ids'],
                                             attention_mask=tokens['attention_mask'],
                                             output_hidden_states=True)
 
         # model_output.logits: [batch_size, sequence_len, server_vocab_size]
-        last_logits = _model_output.logits[:, -1, :]  # [batch_size] server prediction of continuation, right-aligned
+        last_logits = model_output.logits[:, -1, :]  # [batch_size] server prediction of continuation, right-aligned
 
         # Select topk tokenizer logits and retokenize with std_tokenizer,
         # then compact new token phrases and probabilities into 1-D tensor
         topk_tensor = topk_token_phrases(last_logits, self.tokenizer, topk=topk)  # [batch_size, (topk + 1), max_len]
 
-        original_loss = self.get_loss_fct(_model_output.logits, tokens['input_ids']).item()
-        message = f'Loss: {original_loss:.2f}'
+        message = f'Hello from Deepseed'
 
-        _model_output.loss = original_loss
-        return message, _model_output, topk_tensor
+        return message, model_output, topk_tensor
+
+
+    def forward_casual_lm_next(self, inputs_x: torch.FloatTensor, synapse, model_output=None):
+        with self.mutex:
+            message, model_output, topk_token_phrases = self.encode_forward_causallmnext(inputs_x,
+                                                                                        topk=synapse.topk,
+                                                                                        model_output=model_output)
+        # topk_token_phrases: [sum_b(sum_k(len(phrase_k) + 1)_b)] contains topk token phrases and probabilities
+        #   Compacted 1-D tensor >= batch_size * (2 * topk + 1)
+        return message, model_output, topk_token_phrases
+
 
     def get_loss_fct(self, logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
         """
@@ -427,8 +340,8 @@ class RemoteNucleus(torch.nn.Module):
                 loss (:obj:`torch.FloatTensor`):
                     scalar
         """
-        shift_logits = logits[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
+        shift_logits = logits[..., :-1, :]
+        shift_labels = labels[..., 1:]
         loss = self.loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
         return loss
@@ -441,30 +354,19 @@ class RemoteNucleus(torch.nn.Module):
 
 
     @staticmethod
-    def config ():
+    def default_config ():
         parser = argparse.ArgumentParser()
         parser.add_argument('--config', type=str, help='If set, defaults are overridden by passed file.')
 
         # ML model arguements
-        parser.add_argument('--neuron.learning_rate', type=float, help='Training initial learning rate.', default=0.01)
-        parser.add_argument('--neuron.momentum', type=float, help='optimizer momentum.', default=0.8)
-        parser.add_argument('--neuron.clip_gradients', type=float, help='Implement gradient clipping to avoid exploding loss on smaller architectures.', default=1.0)
         parser.add_argument('--neuron.device', type=str, help='miner default training device cpu/cuda', default=("cuda" if torch.cuda.is_available() else "cpu"))
-        parser.add_argument('--neuron.model_name', type=str, help='pretrained model from hugging face',default='gpt2')
-        parser.add_argument('--neuron.pretrained', action='store_false', help='if the model should be pretrained',default=True)
         parser.add_argument('--neuron.padding', action='store_false', help='To pad out final dimensions',default=True)
         parser.add_argument('--neuron.interpolate', action='store_false', help='To interpolate between sentence length',default=True)
         parser.add_argument('--neuron.inter_degree', type=str, help='Interpolate algorithm (nearest | linear | bilinear | bicubic | trilinear | area)', default='nearest')
         parser.add_argument('--neuron.autocast',  action='store_true', help='(experimental) autocasts the model to float16. Must require cuda', default=False)
-        parser.add_argument('--neuron.local_train', action='store_true', help='''If true, allow local training''', default=False)
-        parser.add_argument('--neuron.remote_train', action='store_true', help='''If true, allow remote training''', default=False)
-        parser.add_argument('--neuron.finetune.all', action='store_true', help='Finetune your whole model instead of only on the last (few) layers', default=False)
-        parser.add_argument('--neuron.finetune.num_layers', type=int, help='The number of layers to finetune on your model.', default=1)
-        parser.add_argument('--neuron.finetune.layer_name', type=str, help='Specify since which layer to finetune. eg. encoder.layer.11', default=None)
         
         # Miner arguements
         parser.add_argument('--neuron.name', type=str, help='Trials for this miner go in miner.root / (wallet_cold - wallet_hot) / miner.name ', default='core_server')
-        parser.add_argument('--neuron.checking', action='store_false', help='To check if server settings are correct',default=True)
         parser.add_argument('--neuron.restart', action='store_true', help='If True, train the neuron from the beginning', default=False)
         parser.add_argument('--neuron.no_set_weights', action='store_true', help='If True, the model does not set weights.', default=False)
         parser.add_argument('--neuron.blacklist.stake', type=float, help='Amount of stake (tao) in order not to get blacklisted', default=10)
@@ -475,13 +377,12 @@ class RemoteNucleus(torch.nn.Module):
         parser.add_argument('--neuron.blacklist_allow_non_registered', action='store_true', help='''If true, allow non-registered peers''', default=False)
         parser.add_argument('--neuron.disable_blacklist', action='store_true', help='Turns off blacklisting', default=False)
         parser.add_argument('--neuron.disable_priority', action='store_true', help='Turns off priority threadpool', default=False)
-        parser.add_argument('--neuron.num_remote_loss', type=int, help='Number of past remote loss to keep in stat.', default=20)
 
         # Synapse Arguements
-        parser.add_argument('--neuron.lasthidden', action='store_false', help='To turn off last hidden synapse', default=True)
-        parser.add_argument('--neuron.causallm', action='store_false', help='To turn off causallm synapse', default=True)
+        parser.add_argument('--neuron.lasthidden', action='store_false', help='To turn off last hidden synapse', default=False)
+        parser.add_argument('--neuron.causallm', action='store_false', help='To turn off causallm synapse', default=False)
         parser.add_argument('--neuron.causallmnext', action='store_false', help='To turn off causallmnext synapse', default=True)
-        parser.add_argument('--neuron.seq2seq', action='store_false', help='To turn off seq2seq synapse', default=True)
+        parser.add_argument('--neuron.seq2seq', action='store_false', help='To turn off seq2seq synapse', default=False)
         parser.add_argument('--neuron.lasthidden_stake', type = float, help='the amount of stake to run last hidden synapse',default=0)
         parser.add_argument('--neuron.causallm_stake',  type = float, help='the amount of stake to run causallm synapse',default=0)
         parser.add_argument('--neuron.causallmnext_stake', type=float, help='the amount of stake to run causallmnext synapse', default=0)
@@ -560,20 +461,6 @@ class RemoteNucleus(torch.nn.Module):
 
         return priority
 
-
-    def forward_casual_lm_next(self, inputs_x: torch.FloatTensor, synapse, model_output=None):
-        with self.mutex:
-            message, model_output, topk_token_phrases = self.encode_forward_causallmnext(inputs_x,
-                                                                                        topk=synapse.topk,
-                                                                                        model_output=model_output)
-        # topk_token_phrases: [sum_b(sum_k(len(phrase_k) + 1)_b)] contains topk token phrases and probabilities
-        #   Compacted 1-D tensor >= batch_size * (2 * topk + 1)
-        return message, model_output, topk_token_phrases
-
-    def optimizer_step(self):
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-
     def blacklist(self, pubkey:str, request_type:bittensor.proto.RequestType) -> bool:
         r"""Axon security blacklisting, used to blacklist message from low stake members
             Args:
@@ -605,14 +492,13 @@ class RemoteNucleus(torch.nn.Module):
         # Check for time
         def time_check():
             current_time = datetime.now()
-            # Only check if the request are forward requests
+            timecheck = self.timecheck_dicts[request_type]
             if pubkey in timecheck.keys():
                 prev_time = timecheck[pubkey]
-                if current_time - prev_time >= timedelta(seconds=config.neuron.blacklist.time):
+                if current_time - prev_time >= timedelta(seconds=self.config.neuron.blacklist.time):
                     timecheck[pubkey] = current_time
                 else:
                     timecheck[pubkey] = current_time
-
                     raise Exception('Time blacklist')
             else:
                 timecheck[pubkey] = current_time
@@ -635,9 +521,6 @@ class RemoteNucleus(torch.nn.Module):
 
         # Create our axon server and subscribe it to the network.
         self.axon.start().serve(subtensor=self.subtensor)
-
-        # only in the axon backward callback
-        self.axon.optimizer_step = self.optimizer_step
 
         last_set_block = self.subtensor.get_current_block()
         blocks_per_epoch = self.subtensor.blocks_per_epoch if self.config.neuron.blocks_per_epoch == -1 else self.config.neuron.blocks_per_epoch
@@ -692,15 +575,7 @@ class RemoteNucleus(torch.nn.Module):
                         logger.error('Failure setting weights on chain with error: {}', e)
 
 
-    def run(self):
-        serve(
-            self.config,
-            self.model,
-            subtensor = self.subtensor,
-            wallet = self.wallet,
-            axon = self.axon,
-            metagraph = self.metagraph,
-        )
+    run = serve
 
 
     @staticmethod
@@ -720,3 +595,171 @@ class RemoteNucleus(torch.nn.Module):
         if not os.path.exists(config.neuron.full_path):
             os.makedirs(config.neuron.full_path)
 
+
+    
+    def encode_forward(self,inputs,tokenizer=None, model_output = None):
+        r""" Forward pass through the pretrained model and possible mappings between hidden units. 
+             The response tensor should be the hidden units computed using the local context and with shape: [batch_size, sequence_len, __network_dim__].
+
+            Args:
+                inputs ( :obj:`torch.Tensor`, `required`):
+                    torch inputs to be forward processed.
+                tokenizer ( huggingface.tokenizer, `optional`):
+                    The tokenizer which was used to tokenize the inputs
+                model_outputs (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `optional`):
+                    The output of huggingface auto model.
+
+            Returns:
+                model_outputs (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `required`):
+                    The output of huggingface auto model.
+                    
+                encoded_hidden (:type:`torch.Tensor`, `required`)
+                    The hidden layer output as a torch tensor of shape [batch_size, sequence_len, __network_dim__ ]
+        """
+        transformers.set_seed(0)
+        transformers.enable_full_determinism(0)
+
+        input_shape = inputs.shape
+        seq_len = input_shape[1]
+        tokens = self.token_remap(inputs, tokenizer)  # remap to server tokenizer
+
+        model_output = self.model(input_ids=tokens['input_ids'],
+                                        attention_mask=tokens['attention_mask'],
+                                        output_hidden_states=True)
+
+
+        pre_hidden = model_output.hidden_states[-1] 
+        model_hidden_seq_len = pre_hidden.shape[1]
+
+
+        if self.interpolate and seq_len != model_hidden_seq_len:
+            interpolated_pre_hidden= F.interpolate(pre_hidden.unsqueeze(1),size=[sen_len[1],pre_hidden.size()[2]],mode=self.inter_degree).squeeze(1)
+        elif self.mapping_function:
+            interpolated_pre_hidden = self.mapping_function(pre_hidden)
+        else:
+            interpolated_pre_hidden = pre_hidden
+
+        if self.padding:
+            padding_l = (self.final_dim-self.pre_dimension)//2
+            padding_r = (self.final_dim-self.pre_dimension) - padding_l
+            encoded_hidden = F.pad(interpolated_pre_hidden, (padding_l, padding_r),  "constant", 0)
+        else:
+            assert self.mapping != None
+            encoded_hidden = self.mapping(interpolated_pre_hidden)
+
+        return None, model_output, encoded_hidden
+
+    def encode_forward_causallm(self, token_batch, tokenizer=None, encode_len=bittensor.__network_dim__, model_output=None):
+        r""" Forward pass through the pretrained model and possible mappings between hidden units.
+             The response tensor should be the hidden units computed using the local context and
+             with shape: [batch_size, sequence_len, __vocab_size__].
+
+            Args:
+                token_batch ( :obj:`torch.LongTensor`, `required`):
+                    torch inputs to be forward processed, [batch_size, sequence_len]
+                tokenizer ( huggingface.tokenizer, `optional`):
+                    The tokenizer which was used to tokenize the inputs
+                encode_len ( :obj:`int`, `optional`):
+                    logit encoding length, default bittensor.__network_dim__ length
+                model_output (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `optional`):
+                    The output of huggingface auto model.
+
+            Returns:
+                model_outputs (:obj:`transformers.modeling_outputs.BaseModelOutputWithCrossAttentions`, `required`):
+                    The output of huggingface auto model.
+                
+                logits_std (:obj:`torch.FloatTensor`):
+                    The nucleus's logit outputs as a torch tensor of shape [batch_size, sequence_len, __vocab_size__]
+        """
+        transformers.set_seed(0)
+        transformers.enable_full_determinism(0)
+
+        tokens = self.token_remap(token_batch, std_tokenizer=tokenizer, return_offsets_mapping=True)  # remap to server tokenizer
+
+        def _forward(_model_output=model_output):
+            if _model_output is None:
+                # transformer models like gerpt2 typically perform worse with left-side attention mask, so turning it off
+                _model_output = self.model(input_ids=tokens['input_ids'],
+                                                #attention_mask=tokens['attention_mask'],
+                                               output_hidden_states=True)
+            pre_logits = _model_output.logits  # [batch_size, sequence_len, self.tokenizer.vocab_len]
+
+            probs_std = translate_logits_to_probs_std(pre_logits,
+                                                      tokens['offset_mapping'], tokens['offset_mapping_std'],
+                                                      self.tokenizer, self.std_tokenizer,
+                                                      self.split_map_cache,
+                                                      self.to_translation_map, self.from_translation_map,
+                                                      tokens['input_ids'], token_batch)
+            probs_std = probs_std.to(self.device)
+            logits_std = torch.log(probs_std + 1e-40)
+
+            #removing the loss calculation for stablity testing
+            original_loss = self.get_loss_fct(pre_logits, tokens['input_ids']).item()
+            translated_loss = self.get_loss_fct(logits_std, token_batch).item()
+            message = f'Loss: {original_loss:.2f} → {translated_loss:.2f}'
+            
+            return message, _model_output, logits_std
+
+        if self.config.neuron.remote_train:
+            return _forward()  # track gradients for training
+
+        with torch.no_grad():
+            return _forward()  # no gradients
+
+
+    def forward_last_hidden(self, inputs_x:torch.FloatTensor, synapse, model_output = None):
+        with self.mutex:
+            message, model_output, hidden = self.encode_forward(inputs_x.to(model.device), model_output=model_output)
+        return message, model_output, hidden
+
+    def forward_casual_lm(self,inputs_x:torch.FloatTensor, synapse, model_output = None):
+        with self.mutex:
+            message, model_output, logits = self.encode_forward_causallm(inputs_x.to(model.device), model_output=model_output)
+        return message, model_output, logits
+
+    def forward_casual_lm_next(self, inputs_x: torch.FloatTensor, synapse, model_output=None):
+        with self.mutex:
+            message, model_output, topk_token_phrases = self.encode_forward_causallmnext(inputs_x.to(model.device),
+                                                                                        topk=synapse.topk,
+                                                                                        model_output=model_output)
+        # topk_token_phrases: [sum_b(sum_k(len(phrase_k) + 1)_b)] contains topk token phrases and probabilities
+        #   Compacted 1-D tensor >= batch_size * (2 * topk + 1)
+        return message, model_output, topk_token_phrases
+
+
+    def forward_seq_2_seq(self, inputs_x:torch.FloatTensor, synapse, model_output = None):
+        tokens = self.token_remap(inputs_x.to(model.device))
+        output = self.generate(
+            input_ids=tokens['input_ids'],
+            attention_mask=tokens['attention_mask'],
+            max_length=max(tokens['input_ids'].shape[1] + 1, synapse.num_to_generate),
+            num_beams=synapse.num_beams,
+            no_repeat_ngram_size=synapse.no_repeat_ngram_size,
+            early_stopping = synapse.early_stopping,
+            do_sample=synapse.do_sample,
+            top_p=synapse.top_p,
+            num_return_sequences=synapse.num_return_sequences,
+            temperature = synapse.temperature,
+            repetition_penalty = synapse.repetition_penalty,
+            length_penalty = synapse.length_penalty,
+            max_time = synapse.max_time,
+            num_beam_groups = synapse.num_beam_groups,
+        )
+        raw_texts = [self.tokenizer.decode(out) for out in output]
+        tokens = [self.std_tokenizer.encode(raw_text, return_tensors="pt")[:,:synapse.num_to_generate].view(-1) for raw_text in raw_texts]
+        bittensor_output = pad_sequence(tokens, batch_first=True)
+        return None, model_output, bittensor_output
+
+    @staticmethod
+    def test_remote_server():
+        from commune.model.remote import RemoteModelClient
+        module = Nucleus(model=RemoteModelClient())
+        raw_text = ['hey whats up', 'hey sup']
+        token_batch = module.std_tokenizer(raw_text, max_length=64, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
+        st.write(module.encode_forward_causallmnext(token_batch=token_batch))
+
+
+if __name__ == "__main__":
+    # Nucleus.test_deepseed()
+    Nucleus.test_remote_server(key='fish.100', port=8093)
+    # Nucleus.test_remote_server()

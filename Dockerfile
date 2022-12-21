@@ -1,22 +1,16 @@
 # syntax=docker/dockerfile:1
-FROM nvidia/cuda:11.7.0-base-ubuntu20.04
+FROM nvidia/cuda:12.0.0-base-ubuntu20.04
 
-# Remove any third-party apt sources to avoid issues with expiring keys.
 RUN rm -f /etc/apt/sources.list.d/*.list
 WORKDIR /app
 
 ARG DEBIAN_FRONTEND=noninteractive
-# #nvidia key migration
-# RUN apt-key del 7fa2af80
-# RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/3bf863cc.pub
-# RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu2004/x86_64/7fa2af80.pub
-# Update the base image
+
 RUN apt update && apt upgrade -y
 RUN apt install -y curl sudo nano git htop netcat wget unzip python3-dev python3-pip tmux apt-utils cmake build-essential
 
 ## Upgrade pip
 RUN pip3 install --upgrade pip
-
 RUN apt install -y protobuf-compiler
 
 # PYTHON LAND
@@ -33,15 +27,23 @@ RUN python3 -m pip install -U accelerate
 RUN python3 -m pip install jupyterlab
 RUN python3 -m pip install aiofiles
 RUN python3 -m pip install web3
-# RUN python3 -m pip install deepseed
-RUN python3 -m pip install diffusers
+
 
 ADD ./bittensor /app/bittensor
 RUN python3 -m pip install -e /app/bittensor
 
-ADD ./ocean.py /app/ocean.py
-RUN python3 -m pip install -e /app/ocean.py
+# BITTENSOR USES AN OLDER PROTOBUF, SO LETS OVERRIDE IT
+RUN python3 -m pip install --upgrade protobuf
 
+# BITTENSOR USES AN OLDER PROTOBUF, SO LETS OVERRIDE IT
+RUN python3 -m pip install --upgrade torch
+
+# This makes it compatible with streamlit
+ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python 
+
+RUN alias python=python3
+# ADD /usr/local/cuda/bin/nvcc /usr/local/cuda/bin/nvcc
+# RUN python3 -m pip install deepspeed
 
 # JAVASCRIPT LAND
 

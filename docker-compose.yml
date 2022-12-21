@@ -2,7 +2,6 @@ version: "3.2"
 
 services:
   commune:
-    # image: commune/bittensor/backend
     container_name: commune
     build: ./
     shm_size: '20gb'
@@ -18,8 +17,6 @@ services:
       - 8000:8000 # api
       - 8888:8888 # jupyterlab
     
-    # run_options: ["-v", "/home/ubuntu/efs:/efs", "--shm-size=16.89gb"]
-
     volumes:
       # BITTENSOR
       - ./bittensor/bittensor:/app/bittensor/bittensor
@@ -33,12 +30,13 @@ services:
       - ./artifacts:/app/artifacts
 
       - ./cortex/cortex:/app/cortex
-      - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
+      # - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
 
       # OTHER MOUNTS
       - ./scripts:/app/scripts
       - /tmp:/tmp # TMP FILE SYSTEM MOUNT
       - /home/ubuntu/efs:/efs
+      - /usr/local/cuda/bin/nvcc:/usr/local/cuda/bin/nvcc 
 
     deploy:
       resources:
@@ -47,7 +45,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
 
     command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"
 

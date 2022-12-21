@@ -3,7 +3,7 @@
 syntax = "proto3";
 
 // Service definition for tensor processing servers.
-service Commune {
+service Server {
 	// Forward tensor request. 
 	rpc Forward (DataBlock) returns (DataBlock) {}
 	
