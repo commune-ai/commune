@@ -22,10 +22,9 @@ from .serializer_module import SerializerModule
 from .proto import ServerServicer
 from .proto import DataBlock
 import bittensor
-from psutil import process_iter
+import psutil
 import signal
-
-
+import socket
 
 
 class ServerModule(ServerServicer, SerializerModule):
@@ -41,6 +40,7 @@ class ServerModule(ServerServicer, SerializerModule):
             module: Union['Callable', object]= None,
             ip: Optional[str] = None,
             port: Optional[int] = None,
+            refresh: bool = False,
             external_ip: Optional[str] = None,
             external_port: Optional[int] = None,
             max_workers: Optional[int] = None, 
@@ -78,9 +78,13 @@ class ServerModule(ServerServicer, SerializerModule):
           
         """ 
 
+        self.ensure_ip(port=port, ip=ip, refresh=refresh)
         config = copy.deepcopy(config if config else self.default_config())
+        
         self.port = config.port = port if port != None else config.port
         self.ip = config.ip = ip if ip != None else config.ip
+
+
         self.external_ip = config.external_ip = external_ip if external_ip != None else config.external_ip
         self.external_port = config.external_port = external_port if external_port != None else config.external_port
         self.max_workers = config.max_workers = max_workers if max_workers != None else config.max_workers
@@ -239,6 +243,7 @@ class ServerModule(ServerServicer, SerializerModule):
     def start(self) -> 'ServerModule':
         r""" Starts the standalone axon GRPC server thread.
         """
+        
         if self.server != None:
             self.server.stop( grace = 1 )  
             logger.success("Axon Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
@@ -261,16 +266,28 @@ class ServerModule(ServerServicer, SerializerModule):
 
     @staticmethod
     def kill_port(port:int):
-        for proc in process_iter():
+        for proc in psutil.process_iter():
             for conns in proc.connections(kind='inet'):
                 if conns.laddr.port == port:
                     proc.send_signal(signal.SIGKILL) # or SIGKILL
         return port
 
-    # def close(self):
-    #     self.kill_port(self.port)
+    @staticmethod
+    def port_connected(ip:str, port : int ):
+        """
+            Check if the given param port is already running
+        """
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
+        result = s.connect_ex((ip, port))
+        return result == 0
 
 
+    def ensure_ip(self, ip:str, port:int, refresh:bool=False):
+        if refresh:
+            if self.port_connected(ip=ip, port=port):
+                self.kill_port(port=port)
+        assert self.port_connected(ip=ip, port=port) == False, \
+                     f'{ip}:{port} is already used fam, try a new port or kill the existing process on the port'
 class DemoModule:
     def __call__(self, data:dict, metadata:dict) -> dict:
         return {'data': data, 'metadata': {}}

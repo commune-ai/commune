@@ -1,4 +1,5 @@
 import datetime
+from contextlib import contextmanager
 def isoformat2datetime(isoformat:str):
     dt, _, us = isoformat.partition(".")
     dt = datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
@@ -86,4 +87,35 @@ class Timer:
             else: 
                 print(self.text.format(t=self.elapsed_time))
 
+
+
+def hour_rounder(t):
+    # Rounds to nearest hour by adding a timedelta hour if minute >= 30
+    return (t.replace(second=0, microsecond=0, minute=0, hour=t.hour)
+            + datetime.timedelta(hours=t.minute // 30))
+
+
+
+def roundTime(dt=None, roundTo=60):
+   """Round a datetime object to any time lapse in seconds
+   dt : datetime.datetime object, default now.
+   roundTo : Closest number of seconds to round to, default 1 minute.
+   Author: Thierry Husson 2012 - Use it as you want but don't blame me.
+   """
+   if dt == None : dt = datetime.datetime.now()
+   seconds = (dt.replace(tzinfo=None) - dt.min).seconds
+   rounding = (seconds+roundTo/2) // roundTo * roundTo
+   return dt + datetime.timedelta(0,rounding-seconds,-dt.microsecond)
+
+
+
+def get_current_time():
+    return strftime("%m%d%H%M%S", gmtime())
+
+@contextmanager
+def timer(name: str) -> None:
+
+    t0 = time.time()
+    yield
+    print(f"[{name}] done in {time.time() - t0:.3f} s")
 

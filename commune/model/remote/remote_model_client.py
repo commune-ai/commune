@@ -7,16 +7,13 @@ from typing import Union, Optional
 from munch import Munch
 import os,sys
 
-sys.path = list(set(sys.path + [os.getenv('PWD')])) 
-asyncio.set_event_loop(asyncio.new_event_loop())
-import tuwang
-from tuwang.server import ServerModule
+# sys.path = list(set(sys.path + [os.getenv('PWD')])) 
+# asyncio.set_event_loop(asyncio.new_event_loop())
+import commune
+from commune.server import ServerModule
 import streamlit as st
 import bittensor
-from tuwang.model.remote.utils import encode_topk, decode_topk
-
-
-
+from commune.model.remote.utils import encode_topk, decode_topk
 
 class RemoteModelClient:
     def __init__(self,

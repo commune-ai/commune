@@ -4,62 +4,54 @@ from copy import deepcopy
 from typing import Union, Optional
 from concurrent import futures
 import os, sys
-
+import socket
 sys.path = list(set(sys.path + [os.getenv('PWD')])) 
 asyncio.set_event_loop(asyncio.new_event_loop())
 import torch
-from tuwang.server import ServerModule
-from tuwang.model.remote.utils import encode_topk, decode_topk
+from commune.server import ServerModule
+from commune.model.remote.utils import encode_topk, decode_topk
 
 import streamlit as st
 import bittensor
-import tuwang
+import commune
 
-class RemoteModelServer:
+class RemoteModelServer(torch.nn.Module):
+    model_options = ["EleutherAI/gpt-j-6B", "EleutherAI/gpt-neo-2.7B"]
     def __init__(self,
-                # model: Union[str, 'Model']="EleutherAI/gpt-j-6B", 
-                model: Union[str, 'Model']="EleutherAI/gpt-neo-2.7B", 
+                model: Union[str, 'Model'] = 'EleutherAI/gpt-neo-125M',
                 tokenizer:Union[str, 'tokenizer'] = None,
                 ip: str = '0.0.0.0',
                 port: int = 50056, 
-                config: Optional['tuwang.Config'] = None,
-                module: Union['Callable', object]= None,
-                external_ip: Optional[str] = None,
-                external_port: Optional[int] = None,
-                max_workers: Optional[int] = None, 
-                maximum_concurrent_rpcs: Optional[int] = None,
-                blacklist: Optional['Callable'] = None,
-                thread_pool: Optional[futures.ThreadPoolExecutor] = None,
-                timeout: Optional[int] = None,
-                compression:Optional[str] = None,
-                serializer: 'SerializerModule'= None,
-                server: Optional['grpc._Server'] = None,
+                config: Optional['commune.Config'] = None,
                 serve:bool = None,
                 device:str = 'cuda:3',
-                eval= True,
+                eval_mode: bool= True,
+                refresh:bool = False
                 ):
+
+        torch.nn.Module.__init__(self)
+        
+        # set server
+        self.set_server(ip=ip, port=port, refresh=refresh)
         
         # set model
-        self.set_model(model=model)
-        # st.write(self.model)
-        self.model = self.model.to(device)
-        if eval:
-            self.model.eval()
-
-
+        self.set_model(model=model, device=device, eval_mode=eval_mode)
+        
         # set tokenizer to model name (HF only) if tokenizer == None
-        tokenizer = tokenizer if tokenizer == None else model
-        self.set_tokenizer(tokenizer=tokenizer)
+        self.set_tokenizer(tokenizer=tokenizer if tokenizer else model)
 
-        # Setup server
-        self.server = tuwang.server.ServerModule(module = self ,ip=ip, port=port)
-        self.ip = self.server.ip
-        self.port = self.server.port
 
         if serve:
             self.serve()
 
     
+    def set_server(self, ip:str, port:int, refresh:bool):
+        # Setup server
+        self.server = commune.server.ServerModule(module = self ,ip=ip, port=port, refresh=refresh)
+        self.ip = self.server.ip
+        self.port = self.server.port
+        return self.server
+
     def forward(self, *args,no_grad=True, **kwargs):
         if no_grad:
             with torch.no_grad():
@@ -67,7 +59,6 @@ class RemoteModelServer:
         else:
             return self._forward(*args,**kwargs)
     def _forward(self, input:str = None, input_ids: torch.Tensor = None, attention_mask: torch.Tensor= None, output_hidden_states:bool=True, topk:int=None, **kwargs):
-
 
         if type(input) in [list, str]:
             if isinstance(input, str):
@@ -96,8 +87,6 @@ class RemoteModelServer:
         return output_dict
 
 
-
-
     def __call__(self, data:dict, metadata:dict={}):
         if 'fn' in data and 'kwargs' in data:
             data =getattr(self, data['fn'])(**data['kwargs'])
@@ -107,22 +96,24 @@ class RemoteModelServer:
         return {'data': data, 'metadata': metadata}
 
 
-    def serve(self, wait_for_termination:bool=False):
-        self.server.start(wait_for_termination=wait_for_termination)
-
-
-    def set_model(self, model:str):
+    def serve(self):
+        self.server.start()
+        
+    def set_model(self, model:str, device:str, eval_mode:bool):
         if isinstance(model, str):
             model = AutoModelForCausalLM.from_pretrained(model)
         else:
             raise NotImplemented
-        self.model = model
+        self.model = model.to(device)
+        if eval_mode:
+            self.model = self.model.eval()
+
         return self.model
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         if isinstance(tokenizer, str):
-            tokenizer = AutoTokenizer.from_pretrained(model)
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer)
         elif tokenizer == None:
             tokenizer = bittensor.tokenizer()
 
@@ -142,7 +133,7 @@ class RemoteModelServer:
         st.write(f'## {cls.__name__}')
         st.write('LOCATION: ', __file__)
         
-        model_client = tuwang.model.remote.RemoteModelClient(ip=model_server.ip, port=model_server.port)
+        model_client = commune.model.remote.RemoteModelClient(ip=model_server.ip, port=model_server.port)
 
 
         with st.expander('STEP 1: GET RAW TEXT', True):
@@ -162,7 +153,6 @@ class RemoteModelServer:
     def streamlit_server(cls):
         
         model_server = cls(serve=True)
-        model_server = cls(serve=True)
         st.write(f'## {cls.__name__}')
         st.write('LOCATION: ', __file__)
         st.write(model_server.__dict__)
@@ -174,8 +164,8 @@ class RemoteModelServer:
         st.write(model_server(data=data))
 
 
-
 if __name__ == "__main__":
     RemoteModelServer.streamlit_server()
+    # from commune.utils import *
 
 

@@ -206,3 +206,21 @@ def try_n_times(fn, max_trials:int=10, args:list=[],kwargs:dict={}):
         except Exception as e:
             continue
     raise(e)
+
+def has_fn(obj, fn_name):
+    return callable(getattr(obj, fn_name, None))
+
+
+def try_fn_n_times(fn, kwargs, try_count_limit):
+    '''
+    try a function n times
+    '''
+    try_count = 0
+    return_output = None
+    while try_count < try_count_limit:
+        try:
+            return_output = fn(**kwargs)
+            break
+        except RuntimeError:
+            try_count += 1
+    return return_output

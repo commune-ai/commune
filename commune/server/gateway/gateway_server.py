@@ -27,6 +27,7 @@ class GatewayServer(commune.Module):
         return output
 
 
+
 model = commune.launch(module=GatewayServer, actor=False)
 st.write(model.call_function(module='commune.dataset.text.huggingface', fn='sample'))
 st.write(model.list_modules())

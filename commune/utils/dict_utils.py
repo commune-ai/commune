@@ -3,6 +3,7 @@ import time
 from time import gmtime, strftime
 import random
 import yaml
+import json
 from copy import deepcopy
 import numpy as np
 from contextlib import contextmanager
@@ -11,6 +12,8 @@ from importlib import import_module
 import pickle
 import math
 import datetime
+from .asyncio_utils import async_read, async_write, sync_wrapper
+from .os_utils import ensure_path, path_exists
 
 def round_sig(x, sig=6, small_value=1.0e-9):
     """
@@ -23,32 +26,38 @@ def round_sig(x, sig=6, small_value=1.0e-9):
     return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
 
-def ensure_dir(file_path):
-    directory = os.path.dirname(file_path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
 
-def load_yaml(fn):
-    with open(fn, "r") as stream:
-        cfg = yaml.load(stream)
+def nan_check(input, key_list=[], root_key=''):
+    if isinstance(input, dict):
+        for k, v in input.items():
 
-    return cfg
-
-def load_pickle(file_path, verbose=True):
-
-    with open(file_path, 'rb') as f:
-        object = pickle.load(f)
-    if verbose:
-        print("Loaded: ", file_path)
-    return object
-
-
-def dump_pickle(object, file_path, verbose=True):
-    ensure_dir(file_path=file_path)
-    with open(file_path, 'wb') as f:
-        pickle.dump(object, f)
-    if verbose:
-        print("Saved: ", file_path)
+            new_root_key = '.'.join([root_key, k])
+            if type(v) in [dict, list]:
+                nan_check(input=v,
+                                    key_list=key_list,
+                                    root_key=new_root_key)
+            else:
+                if isinstance(v, torch.Tensor):
+                    if any(torch.isnan(v)):
+                        key_list.append(new_root_key)
+                else:
+                    if math.isnan(v):
+                        key_list.append(new_root_key)
+    elif isinstance(input, list):
+        for k, v in enumerate(input):
+            new_root_key = '.'.join([root_key, str(k)])
+            if type(v) in [dict, list]:
+                nan_check(input=v,
+                                    key_list=key_list,
+                                    root_key=new_root_key)
+            else:
+                if isinstance(v, torch.Tensor):
+                    if any(torch.isnan(v)):
+                        key_list.append(new_root_key)
+                else:
+                    if math.isnan(v):
+                        key_list.append(new_root_key)
+    return key_list
 
 
         
@@ -79,9 +88,6 @@ def hour_rounder(t):
             + datetime.timedelta(hours=t.minute // 30))
 
 
-def check_distributions(kwargs):
-    return {k: {"mean": round(v.double().mean().item(), 2), "std": round(v.double().std().item(), 2)} for k, v in
-            kwargs.items() if isinstance(v, torch.Tensor)}
 
 def seed_everything(seed: int) -> None:
     "seeding function for reproducibility"
@@ -476,24 +482,6 @@ def dict_get(input_dict,keys, default_value=False):
         return next_object_list[-1]
     except Exception as e:
         return default_value
-  
-def dict_put(input_dict,keys, value ):
-    """
-    insert keys that are dot seperated (key1.key2.key3) recursively into a dictionary
-    """
-    if isinstance(keys, str):
-        keys = keys.split('.')
-    key = keys[0]
-    if len(keys) == 1:
-        if  isinstance(input_dict,dict):
-            input_dict[key] = value
-
-    elif len(keys) > 1:
-        if key not in input_dict:
-            input_dict[key] = {}
-        dict_put(input_dict=input_dict[key],
-                             keys=keys[1:],
-                             value=value)
 
 def dict_put(input_dict,keys, value ):
     """
@@ -600,15 +588,6 @@ def any_get(x:dict, keys:list , default=None):
 dict_any = any_get
 
 
-def check_pid(pid):        
-    """ Check For the existence of a unix pid. """
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    else:
-        return True
-
 
 
 def dict_override(input_dict, override={}):      
@@ -627,3 +606,76 @@ def dict_merge(*args):
         output_dict.update(arg)
     return output_dict
 
+
+
+async def async_get_json(path, return_type='dict'):
+    try:  
+        
+        data = json.loads(await async_read(path))
+    except FileNotFoundError as e:
+        if handle_error:
+            return None
+        else:
+            raise e
+
+    if return_type in ['dict', 'json']:
+        data = data
+    elif return_type in ['pandas', 'pd']:
+        data = pd.DataFrame(data)
+    elif return_type in ['torch']:
+        torch.tensor
+    return data
+
+read_json = load_json = get_json = sync_wrapper(async_get_json)
+
+async def async_put_json( path, data):
+        # Directly from dictionary
+    path = ensure_path(path)
+    data_type = type(data)
+    if data_type in [dict, list, tuple, set, float, str, int]:
+        json_str = json.dumps(data)
+    elif data_type in [pd.DataFrame]:
+        json_str = json.dumps(data.to_dict())
+    else:
+        raise NotImplementedError(f"{data_type}, is not supported")
+    
+    return await async_write(path, json_str)
+
+put_json = save_json = sync_wrapper(async_put_json)
+
+
+
+async def async_get_yaml(path, return_type='dict'):
+    try:  
+        
+        data = yaml.load(await async_read(path), Loader=yaml.Loader)
+    except FileNotFoundError as e:
+        if handle_error:
+            return None
+        else:
+            raise e
+
+    if return_type in ['dict', 'yaml']:
+        data = data
+    elif return_type in ['pandas', 'pd']:
+        data = pd.DataFrame(data)
+    elif return_type in ['torch']:
+        torch.tensor
+    return data
+
+read_yaml = load_yaml = get_yaml = sync_wrapper(async_get_yaml)
+
+async def async_put_yaml( path, data):
+        # Directly from dictionary
+    path = ensure_path(path)
+    data_type = type(data)
+    if data_type in [dict, list, tuple, set, float, str, int]:
+        yaml_str = yaml.dump(data)
+    elif data_type in [pd.DataFrame]:
+        yaml_str = yaml.dump(data.to_dict())
+    else:
+        raise NotImplementedError(f"{data_type}, is not supported")
+    
+    return await async_write(path, yaml_str)
+
+put_yaml = save_yaml = sync_wrapper(async_put_yaml)
