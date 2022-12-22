@@ -1,0 +1,10 @@
+
+tokenizer:
+  module: bittensor.tokenizer
+
+path: glue
+name: cola
+text_field: sentence
+split: 'train'
+
+

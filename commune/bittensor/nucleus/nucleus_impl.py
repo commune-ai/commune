@@ -761,5 +761,5 @@ class Nucleus(torch.nn.Module):
 
 if __name__ == "__main__":
     # Nucleus.test_deepseed()
-    Nucleus.test_remote_server(key='fish.100', port=8093)
+    Nucleus.test_remote_server(key='default.default', port=8093)
     # Nucleus.test_remote_server()
