@@ -2,66 +2,62 @@
 
 
 import os, sys
-sys.path.append(os.environ['PWD'])
-import gradio
-from commune import Module
+import commune
 from commune.utils import *
+import gradio
+
 import shlex
 import subprocess
-
-class SubprocessModule(Module):
+class SubprocessModule(commune.Module):
     subprocess_map = {}
-    def __init__(self, config=None, **kwargs):
-        Module.__init__(self, config=config)
-        self.subprocess_map_path = self.cache_path
 
-    def __reduce__(self):
-        deserializer = self.__class__
-        serialized_data = (self.config,)
-        return deserializer, serialized_data
+    def __init__(self, *args, **kwargs):
+        commune.Module.__init__(self, *args,  **kwargs)
+        self.load()
+
 
     def submit(command):
         return self.run_command(command)
     
     @property
-    def subprocess_map(self):
-        self.load_cache()
-        return self.cache
+    def load(self):
+        self.subprocess_map = self.get_json('subprocess_map')
+    def save(self):
+        self.put_json('subprocess_map',  self.subprocess_map)
 
     def rm_subprocess(self, key):
+        self.load()
         subprocess_dict = self.subprocess_map[key]
-        pid = subprocess_dict['pid']
-        try:
-            self.kill_pid(pid)
-        except ProcessLookupError:
-            pass
-        self.pop_cache(key)
-        
+        self.kill_pid(subprocess_dict['pid'])
+        del self.subprocess_map[key]
+        self.save()
         return pid
 
     rm = rm_subprocess
 
     def rm_all(self):
+        self.load()
         rm_dict = {}
         for k in self.list_keys():
             rm_dict[k] = self.rm(key=k, load=False, save=False)
 
+        self.save()
         return rm_dict
 
     def add_subprocess(self, command:str,key=None, cache=True, add_info={}):
+
 
         process = subprocess.Popen(shlex.split(command))
         process_state_dict = process.__dict__
         # process_state_dict.pop('_waitpid_lock')
 
-        subprocess_dict = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
+        self.subprocess_map = {k:v for k,v in process_state_dict.items() if k != '_waitpid_lock'}
         if cache == True:
             if key == None or key == 'pid':
                 key= str(process.pid)
-            subprocess_dict = dict_override(subprocess_dict, add_info)
-            self.put_cache(key, subprocess_dict)
+            self.subprocess_map[key] = add_info
 
-        return subprocess_dict
+        return self.subprocess_map
 
     submit = add = add_subprocess  
     
@@ -79,12 +75,8 @@ class SubprocessModule(Module):
         if result == 0: return True
         return False
 
-    @classmethod
-    def streamlit(cls):
-        st.write(cls().subprocess_map)
-
 if __name__ == "__main__":
-    SubprocessModule.run()
+    SubprocessModule()
     # import stre=amlit as st
     # module = SubprocessModule.deploy(actor=False, override={'refresh':True})
     # st.write(module)
