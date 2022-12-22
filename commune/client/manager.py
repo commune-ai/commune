@@ -5,14 +5,14 @@ import streamlit as st
 import os, sys
 sys.path.append(os.getenv('PWD'))
 import datasets
+from typing import *
 from copy import deepcopy
 from commune import Module
 class ClientModule(Module):
     registered_clients = {}
 
-    def __init__(self, config=None ):
-        Module.__init__(self, config=config,get_clients=False)
-        self.register_clients(clients=self.include_clients)
+    def __init__(self, clients:Union[List, Dict]):
+        self.register_clients(clients=clients)
     def get_default_clients(self):
         client_path_dict = dict(
         ipfs = 'commune.client.ipfs.module.IPFSModule',
@@ -47,8 +47,6 @@ class ClientModule(Module):
         else:
             raise NotImplementedError(f'{clients} is not supported')
 
-
-
     def get_client_class(self, client:str):
         assert client in self.client_path_dict, f"{client} is not in {self.default_clients}"
         return self.get_object(self.client_path_dict[client])
@@ -79,17 +77,6 @@ class ClientModule(Module):
     def get_registered_clients(self):
         return list(self.registered_clients.keys())
 
-    @property
-    def blocked_clients(self):
-        return self.config.get('block', [])
-    ignored_clients = blocked_clients
-
-    @property
-    def include_clients(self):
-        include_clients = self.config.get('include', self.default_clients)
-        block_clients = self.blocked_clients
-        include_clients =  [c for c in include_clients if c not in block_clients]
-        return include_clients
 
 if __name__ == '__main__':
     import streamlit as st

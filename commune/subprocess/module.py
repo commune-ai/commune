@@ -5,7 +5,6 @@ import os, sys
 import commune
 from commune.utils import *
 import gradio
-
 import shlex
 import subprocess
 class SubprocessModule(commune.Module):

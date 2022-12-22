@@ -1,6 +1,6 @@
 module: DatasetModule
 
-client: {}
+client: ['local']
 
 tokenizer:
   module: bittensor.tokenizer

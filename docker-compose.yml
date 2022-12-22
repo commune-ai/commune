@@ -2,21 +2,13 @@ version: "3.2"
 
 services:
   commune:
+    network_mode: host
     container_name: commune
     build: ./
     shm_size: '20gb'
     environment:
       - LOCAL_SUBTENSOR_HOST=node-subtensor
       - RAY_PORT=6378
-    ports:
-      # - 5000:5000
-      - 8501-8505:8501-8505
-      - 8080:8080 # 
-      - 8266:8265 # ray dashboard 
-      - 7865-7870:7865-7870 # gradio ports
-      - 8000:8000 # api
-      - 8888:8888 # jupyterlab
-    
     volumes:
       # BITTENSOR
       - ./bittensor/bittensor:/app/bittensor/bittensor

@@ -5,9 +5,14 @@ import os
 import sys
 from copy import deepcopy
 import streamlit as st
+import asyncio
+import transformers
+sys.path = list(set(sys.path + [os.getenv('PWD')])) 
+asyncio.set_event_loop(asyncio.new_event_loop())
 from commune.utils import dict_put, get_object, dict_has
+
+
 from commune import Module
-from diffusers import StableDiffusionPipeline, LMSDiscreteScheduler
 import torch
 import os
 import io
@@ -18,12 +23,11 @@ import pandas as pd
 from PIL import Image
 import torch
 import ray
-from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
 
 
 class TransformerModel(Module):
 
-    def __init__(self, config=None, model=None, tokenizer=None,  **kwargs):
+    def __init__(self, config=None, model:str=None, tokenizer=None,  **kwargs):
         Module.__init__(self, config=config, **kwargs)
 
         self.load_model(model)
@@ -32,12 +36,23 @@ class TransformerModel(Module):
     @property
     def hf_token(self):
         return self.config['hf_token']
+    @property
+    def model_path(self):
+        return self.config['model_path']
 
     def load_tokenizer(self, tokenizer=None):
-        self.tokenizer = tokenizer if tokenizer else self.launch(**self.config['tokenizer'])
+        tokenizer = tokenizer if tokenizer else self.model_path
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer)
+        if self.tokenizer.pad_token == None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token 
+    @property
+    def model_loader(self):
+        return self.config['loader']
 
-    def load_model(self, model=None):
-        self.model =  model if model else self.launch(**self.config['model'])
+    def load_model(self, model=None, loader=None, *args, **kwargs ):
+        loader = loader if loader else self.model_loader
+        model = model if model else self.model_path
+        self.model =  getattr(transformers, loader).from_pretrained(model, *args, **kwargs )
         self.model.to(self.device)
 
     @property
@@ -52,12 +67,14 @@ class TransformerModel(Module):
             ).to(self.model.device)
         return self.model(**input)
 
-    def streamlit_pipeline(self):
-        dataset = Module.launch('dataset.text', actor={'cpus':1})
-        model = Module.launch('model.transformer', actor={'gpus': 0.1, 'cpus':1, 'wrap':True} )
+    @staticmethod
+    def streamlit_pipeline():
+        dataset = Module.launch('commune.dataset.text.huggingface', actor=False )
+        model = Module.launch('commune.model.transformer', actor=False )
         st.write(model.get_default_actor_name())
         st.write(model.actor_name)
-        x = dataset.sample(tokenize=False)
+        x = dataset.sample(tokenize=False)['text']
+        st.write(x)
         st.write(model.forward(x))
 
     @classmethod
@@ -67,5 +84,5 @@ class TransformerModel(Module):
         
 
 if __name__ == '__main__':
-    TransformerModel
+    TransformerModel.streamlit_pipeline()
 

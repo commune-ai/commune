@@ -46,7 +46,6 @@ class ServerModule(ServerServicer, SerializerModule):
             max_workers: Optional[int] = None, 
             maximum_concurrent_rpcs: Optional[int] = None,
             blacklist: Optional['Callable'] = None,
-            thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
             compression:Optional[str] = None,
             serializer: 'SerializerModule'= None,
@@ -78,7 +77,6 @@ class ServerModule(ServerServicer, SerializerModule):
           
         """ 
 
-        self.ensure_ip(port=port, ip=ip, refresh=refresh)
         config = copy.deepcopy(config if config else self.default_config())
         
         self.port = config.port = port if port != None else config.port
@@ -91,8 +89,7 @@ class ServerModule(ServerServicer, SerializerModule):
         self.maximum_concurrent_rpcs  = config.maximum_concurrent_rpcs = maximum_concurrent_rpcs if maximum_concurrent_rpcs != None else config.maximum_concurrent_rpcs
         self.compression = config.compression = compression if compression != None else config.compression
         self.timeout = timeout if timeout else config.timeout
-
-
+        self.module = module
         # Determine the grpc compression algorithm
         if config.compression == 'gzip':
             compress_alg = grpc.Compression.Gzip
@@ -101,28 +98,43 @@ class ServerModule(ServerServicer, SerializerModule):
         else:
             compress_alg = grpc.Compression.NoCompression
         
-        
-        if thread_pool == None:
-            thread_pool = futures.ThreadPoolExecutor( max_workers = config.max_workers )
-
-        if server == None:
-            server = grpc.server( thread_pool,
-                                #   interceptors=(ServerInterceptor(blacklist=blacklist,receiver_hotkey=self.wallet.hotkey.ss58_address),),
-                                  maximum_concurrent_rpcs = config.maximum_concurrent_rpcs,
-                                  options = [('grpc.keepalive_time_ms', 100000),
-                                             ('grpc.keepalive_timeout_ms', 500000)]
-                                )
-        self.server = server
-        self.module = module
-
-        commune.server.grpc.add_ServerServicer_to_server( self, server )
-        full_address = str( config.ip ) + ":" + str( config.port )
-        self.server.add_insecure_port( full_address )
         self.check_config( config )
         self.config = config
 
+        self.set_server(refresh=refresh)
+
         self.started = False
 
+    def set_server(self, 
+                    ip:str= None, 
+                    port:int=None, 
+                    max_workers:int=None, 
+                    maximum_concurrent_rpcs: int = None,
+                    refresh:bool=False):
+        ip = ip if ip else self.config.ip
+        port = port if port else self.config.port
+        max_workers = max_workers if max_workers else self.config.max_workers
+        maximum_concurrent_rpcs = maximum_concurrent_rpcs if maximum_concurrent_rpcs else self.config.maximum_concurrent_rpcs
+
+        # is port already connected
+        assert not self.port_connected(ip=ip, port=port)
+
+        self.thread_pool = futures.ThreadPoolExecutor( max_workers = max_workers )
+
+        self.server = grpc.server( self.thread_pool,
+                            #   interceptors=(ServerInterceptor(blacklist=blacklist,receiver_hotkey=self.wallet.hotkey.ss58_address),),
+                                maximum_concurrent_rpcs = maximum_concurrent_rpcs,
+                                options = [('grpc.keepalive_time_ms', 100000),
+                                            ('grpc.keepalive_timeout_ms', 500000)]
+                            )
+        commune.server.grpc.add_ServerServicer_to_server( self, self.server )
+        full_address = str( self.config.ip ) + ":" + str( self.config.port )
+        self.server.add_insecure_port( full_address )
+
+        self.ip = ip
+        self.port = port
+
+        
 
     @classmethod   
     def help(cls):
@@ -257,10 +269,11 @@ class ServerModule(ServerServicer, SerializerModule):
     def stop(self) -> 'ServerModule':
         r""" Stop the axon grpc server.
         """
-        if self.server != None:
-            self.server.stop( grace = 1 )
+
+        while self.port_connected(ip=self.ip, port=self.port):
+            self.server.stop( grace = 1 ).wait()
             logger.success("Axon Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
-        self.started = False
+            self.started = False
 
         return self
 
@@ -281,13 +294,6 @@ class ServerModule(ServerServicer, SerializerModule):
         result = s.connect_ex((ip, port))
         return result == 0
 
-
-    def ensure_ip(self, ip:str, port:int, refresh:bool=False):
-        if refresh:
-            if self.port_connected(ip=ip, port=port):
-                self.kill_port(port=port)
-        assert self.port_connected(ip=ip, port=port) == False, \
-                     f'{ip}:{port} is already used fam, try a new port or kill the existing process on the port'
 class DemoModule:
     def __call__(self, data:dict, metadata:dict) -> dict:
         return {'data': data, 'metadata': {}}

@@ -11,7 +11,6 @@ import psutil
 from ray.experimental.state.api import list_actors, list_objects, list_tasks
 
 sys.path.append(os.environ['PWD'])
-from commune.config import ConfigLoader
 import ray
 from ray.util.queue import Queue
 import torch

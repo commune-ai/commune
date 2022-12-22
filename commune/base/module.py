@@ -32,7 +32,6 @@ import inspect
 class Module:
     client = None
     pwd = os.getenv('PWD')
-    client_module_class_path = 'commune.client.manager.ClientModule'
     root_dir = __file__[len(pwd)+1:].split('/')[0]
     root_path = os.path.join(pwd, root_dir)
     root = root_path
@@ -41,6 +40,7 @@ class Module:
         
         self.config = Config()
         self.config = self.resolve_config(config=config, override=override)
+
         self.client = self.get_clients(client=client) 
         
         self.start_timestamp =self.current_timestamp
@@ -59,35 +59,18 @@ class Module:
         return client_config
 
 
+
     def get_clients(self, client=None):
-        if self.class_name == 'client.manager':
-            # if this is the client manager, do not return clients
+        client_module_class_path = 'commune.client.manager.ClientModule'
+        client = client if client else self.config.get('client')
+        if client == False or client == None:
             return None
-        if client == False:
-            return None
-        elif client == None:
-            if self.client_config == None and client == None:
-                return None
-            client_module_class = self.import_object(self.client_module_class_path)
-            client_config = client_module_class.default_config()
-            # does the config have clients
-            if isinstance(self.client_config, list):
-                client_config['include'] = self.client_config
-            elif isinstance(self.client_config, dict):
-                client_config  = self.client_config
-            elif self.client_config == None:
-                return 
-            return client_module_class(client_config)
-        elif isinstance(client, client_module_class):
-            return client
         elif isinstance(client, dict):
-            client_module_class = self.import_object(self.client_module_class_path)
-            client_config = client
-            return client_module_class(client_config)
+            client_module_class = self.import_object(client_module_class_path)
+            return client_module_class(client)
         elif isinstance(client, list):
-            client_module_class = self.import_object(self.client_module_class_path)
-            client_config['include'] = client
-            return client_module_class(client_config)
+            client_module_class = self.import_object(client_module_class_path)
+            return client_module_class(client)
         else:
             raise NotImplementedError
 
@@ -200,6 +183,7 @@ class Module:
     def get_simple_paths(cls) -> List[str]:
         return [cls.path2simple(f) for f in cls.get_module_python_paths()]
     list_modules = get_simple_paths
+    
     @property
     def module_tree(self): 
         return self.list_modules()
@@ -1306,93 +1290,7 @@ class Module:
     def state_staleness(self):
         return self.current_timestamp - self.last_saved_timestamp
 
-    ############ LOCAL CACHE LAND ##############
 
-    ############################################
-
-    cache = {}
-
-    @enable_cache()
-    def put_cache(self, k, v, **kwargs):
-        dict_put(self.cache, k, v)
-    @enable_cache()
-    def get_cache(self, k, default=None, **kwargs):
-        return dict_get(self.cache, k,default)
-
-    @enable_cache(save= {'disable':True})
-    def in_cache(self, k):
-        return dict_has(self,cache, k)
-    has_cache = in_cache
-    @enable_cache()
-    def pop_cache(self, k):
-        return dict_pop(self.cache, k)
-
-
-    def load_cache(self, **kwargs):
-        enable_bool =  kwargs.get('enable', True)
-        assert isinstance(enable_bool, bool), f'{disable_bool}'
-        if not enable_bool:
-            return None
-        path = kwargs.get('path',  self.cache_path)
-
-        self.client.local.makedirs(os.path.dirname(path), True)
-        data = self.client.local.get_json(path=path, handle_error=True)
-        
-        if data == None:
-            data  = {}
-        self.cache = data
-
-    def save_cache(self, **kwargs):
-        enable_bool =  kwargs.get('enable', True)
-        assert isinstance(enable_bool, bool), f'{disable_bool}'
-        if not enable_bool:
-            return None
-
-        path = kwargs.get('path',  self.cache_path)
-
-        staleness_period=kwargs.get('statelness_period', 100)
-  
-        self.client.local.makedirs(os.path.dirname(path), True)
-        data =  self.cache
-        self.client.local.put_json(path=path, data=data)
-
-    save_state = save_cache
-    load_state = load_cache
-    
-    @property
-    def refresh_cache_bool(self):
-        refresh_bool = self.config.get('refresh_cache', False)
-        if refresh_bool == False:
-            refresh_bool = self.config.get('cache', False)
-        
-        return refresh_bool
-
-    def init_cache(self):
-        if self.refresh_cache_bool:
-            self.cache = {}
-            self.save_cache()
-        self.load_cache()
-
-    def reset_cache(self):
-        self.cache = {}
-        self.save_cache()
-
-
-    del_cache = delete_cache = pop_cache 
-    has_cache = cache_has = cache_exists = exists_cache =in_cache
-    last_saved_timestamp=0
-    @staticmethod
-    def enable_cache(**input_kwargs):
-        return enable_cache(**input_kwargs)
-
-    @classmethod
-    def cache(cls,keys=None,**kwargs):
-        return cache(keys=keys, **kwargs)
-    enable_cache = cache_enable = cache_wrap = enable_cache
-
-    @property
-    def cache_path(self):
-        return os.path.join(self.tmp_dir, 'cache.json')
 
 
     @staticmethod

@@ -7,8 +7,8 @@ from typing import Union, Optional
 from munch import Munch
 import os,sys
 
-# sys.path = list(set(sys.path + [os.getenv('PWD')])) 
-# asyncio.set_event_loop(asyncio.new_event_loop())
+sys.path = list(set(sys.path + [os.getenv('PWD')])) 
+asyncio.set_event_loop(asyncio.new_event_loop())
 import commune
 from commune.server import ServerModule
 import streamlit as st
@@ -32,7 +32,7 @@ class RemoteModelClient:
         # Setup the Client
         self.ip = ip
         self.port = port
-        self.client = tuwang.server.ClientModule(ip=self.ip, port=self.port)
+        self.client = commune.server.ClientModule(ip=self.ip, port=self.port)
 
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor, output_hidden_states:bool = True, topk:int=4096 ):
         data = {
@@ -110,7 +110,7 @@ class RemoteModelClient:
         #     st.write('INPUT TOKENS',input)
         #     st.write('SHAPE ',torch.tensor(input['input_ids']).shape)
         with st.expander('OUTPUT', True):
-            from tuwang.utils import Timer  
+            from commune.utils import Timer  
             input = dict(model_client.tokenizer(input_text_batch))
             import time
             with Timer() as t:

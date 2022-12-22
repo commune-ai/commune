@@ -18,7 +18,7 @@ build:
 	./scripts/start.sh --build --${arg}
 
 
-bash_commune: 
+enter: 
 	make bash arg=commune
 
 restart:
@@ -70,3 +70,9 @@ build_commune_protos:
 
 build_bittensor_protos:
 	python -m grpc_tools.protoc --proto_path=${PWD}/bittensor/bittensor/_proto ${PWD}/bittensor/bittensor/_proto/bittensor.proto --python_out=${PWD}/bittensor/bittensor/_proto --grpc_python_out=${PWD}/bittensor/bittensor/_proto
+
+server:
+	docker exec -it commune bash -c "streamlit run commune/model/remote/remote_model_server.py "
+
+client:
+	docker exec -it commune bash -c "streamlit run commune/model/remote/remote_model_client.py"

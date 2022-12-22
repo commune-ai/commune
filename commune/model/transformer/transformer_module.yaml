@@ -1,0 +1,9 @@
+module: 'TransformerModel'
+
+model_path: EleutherAI/gpt-neo-125M
+loader: AutoModelForCausalLM
+hf_token: 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
+# hf_token: local_copy::hf_token
+# use_auth_token: True
+
+  

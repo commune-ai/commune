@@ -152,7 +152,7 @@ class RemoteModelServer(torch.nn.Module):
     @classmethod
     def streamlit_server(cls):
         
-        model_server = cls(serve=True)
+        model_server = cls(serve=True, refresh=True)
         st.write(f'## {cls.__name__}')
         st.write('LOCATION: ', __file__)
         st.write(model_server.__dict__)
@@ -165,7 +165,9 @@ class RemoteModelServer(torch.nn.Module):
 
 
 if __name__ == "__main__":
-    RemoteModelServer.streamlit_server()
+    # RemoteModelServer.streamlit_server()
+    commune.ray_init()
+    st.write(commune.list_modules())
     # from commune.utils import *
 
 

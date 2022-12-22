@@ -25,7 +25,8 @@ class Config ( Munch ):
         if isinstance(config, str) :
             self.config_path = config
             config = self.load_config(path=self.config_path)
-        
+        elif config == None:
+            config = {}
         self.config = config
         assert isinstance(self.config, dict) ,  f'The self.config should be a dictionary but is {type(self.config)}'
 
