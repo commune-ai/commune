@@ -3,19 +3,19 @@
 
 
 down:
-	./scripts/start.sh --all --down
+	./start.sh --all --down
 
 stop:
 	make down
 up:
-	./scripts/start.sh --light
+	./start.sh --light
 start:
-	./scripts/start.sh --${arg} 
+	./start.sh --${arg} 
 logs:
-	./scripts/start.sh --${arg}
+	./start.sh --${arg}
 
 build:
-	./scripts/start.sh --build --${arg}
+	./start.sh --build --${arg}
 
 
 enter: 
