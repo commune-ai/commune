@@ -40,9 +40,13 @@ class TransformerModel(Module):
     def model_path(self):
         return self.config['model_path']
 
-    def load_tokenizer(self, tokenizer=None):
+    def load_tokenizer(self, tokenizer: Union[str, 'tokenizer']=None):
         tokenizer = tokenizer if tokenizer else self.model_path
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer)
+        if isinstance(tokenizer, str)
+            self.tokenizer = transformers.AutoTokenizer.from_pretrained(tokenizer)
+        else:
+            raise NotImplemented(type(tokenizer))
+        # fixes the tokenizer
         if self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token 
     @property
@@ -55,10 +59,11 @@ class TransformerModel(Module):
         self.model =  getattr(transformers, loader).from_pretrained(model, *args, **kwargs )
         self.model.to(self.device)
 
+    default_device = 'cuda:0'
     @property
     def device(self):
-        st.write(self.config.get('device', 'cuda'))
-        return self.config.get('device', 'cuda')
+        st.write(self.config.get('device', default_device))
+        return self.config.get('device', default_device)
 
     def forward(self, input:str="This is the first sentence. This is the second sentence.", tokenize=False):
     
