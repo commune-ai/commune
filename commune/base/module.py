@@ -40,9 +40,7 @@ class Module:
         
         self.config = Config()
         self.config = self.resolve_config(config=config, override=override)
-
         self.client = self.get_clients(client=client) 
-        
         self.start_timestamp =self.current_timestamp
         self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
         self.cache = {}
@@ -61,7 +59,7 @@ class Module:
 
 
     def get_clients(self, client=None):
-        client_module_class_path = 'commune.client.manager.ClientModule'
+        client_module_class_path = 'commune.client.ClientModule'
         client = client if client else self.config.get('client')
         if client == False or client == None:
             return None

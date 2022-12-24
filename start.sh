@@ -83,10 +83,6 @@ while :; do
             break
             ;;
 
-        --subtensor)
-        COMPOSE_FILES+=" -f subtensor/docker-compose.yml"
-
-        ;;
 
         --ganache)
         COMPOSE_FILES+=" -f ganache/docker-compose.yml"
@@ -97,30 +93,25 @@ while :; do
         COMPOSE_FILES+=" -f ./docker-compose.yml"
         
         ;;
+        # BLOCKCHAIN NODES
+        --subspace)
+        COMPOSE_FILES+=" -f ./subspace/docker-compose.yml"
+        ;;
+        --subtensor)
+        COMPOSE_FILES+=" -f subtensor/docker-compose.yml"
+        ;;
 
         --ipfs)
         COMPOSE_FILES+=" -f ./ipfs/docker-compose.yml"
         
         ;;
 
-        # --frontend)
-        # COMPOSE_FILES+=" -f frontend/docker-compose.yml"
-        # ;;
-
         --light)
         COMPOSE_FILES=""
         COMPOSE_FILES+=" -f ./docker-compose.yml"
         COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
         COMPOSE_FILES+=" -f ganache/docker-compose.yml"
-        
-        ;;
-
-        --all)
-        COMPOSE_FILES=""
-        COMPOSE_FILES+=" -f ./docker-compose.yml"
-        COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
-        COMPOSE_FILES+=" -f ganache/docker-compose.yml"
-        COMPOSE_FILES+=" -f subtensor/docker-compose.yml"
+        COMPOSE_FILES+=" -f subspace/docker-compose.yml"
         
         ;;
         --pull)

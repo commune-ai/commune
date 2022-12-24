@@ -11,7 +11,17 @@ from commune import Module
 class ClientModule(Module):
     registered_clients = {}
 
-    def __init__(self, clients:Union[List, Dict]):
+    def __init__(self, clients:Union[List, Dict, Bool, None]):
+
+        if clients == False or clients == None:
+            return None
+        elif isinstance(client, dict):
+            return ClientModule(client)
+        elif isinstance(client, list):
+            return ClientModule(client)
+        else:
+            raise NotImplementedError
+
         self.register_clients(clients=clients)
     def get_default_clients(self):
         client_path_dict = dict(
