@@ -1,7 +1,0 @@
-nohup: ignoring input
-2022-12-20 23:35:15.503 
-  [33m[1mWarning:[0m to view this Streamlit app on a browser, run it with the following
-  command:
-
-    streamlit run commune/bittensor/bittensor_module.py [ARGUMENTS]
-📡 Registering...(1/3)
