@@ -8,7 +8,7 @@ down:
 stop:
 	make down
 up:
-	./start.sh --light
+	./start.sh --all
 start:
 	./start.sh --${arg} 
 logs:

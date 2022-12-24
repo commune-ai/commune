@@ -106,7 +106,7 @@ while :; do
         
         ;;
 
-        --light)
+        --all)
         COMPOSE_FILES=""
         COMPOSE_FILES+=" -f ./docker-compose.yml"
         COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
