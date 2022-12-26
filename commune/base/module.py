@@ -16,13 +16,11 @@ import types
 import inspect
 from commune.ray.utils import kill_actor
 from commune.config import Config
-from commune.client import ClientModule
 from copy import deepcopy
 import argparse
 import psutil
 import gradio
 import asyncio
-from ray.experimental.state.api import list_actors, list_objects, list_tasks
 import nest_asyncio
 from typing import *
 from glob import glob
@@ -63,9 +61,9 @@ class Module:
         if client == False or client == None:
             return None
         elif isinstance(client, dict):
-            return ClientModule(client)
+            return self.get_object('commune.client.ClientModule')(client)
         elif isinstance(client, list):
-            return ClientModule(client)
+            return self.get_object('commune.client.ClientModule')(client)
         else:
             raise NotImplementedError
 
@@ -1133,7 +1131,7 @@ class Module:
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
         kwargs['detail'] = detail
 
-        actor_info_list =  list_actors(*args, **kwargs)
+        actor_info_list =  ray.experimental.state.api.list_actors(*args, **kwargs)
         final_info_list = []
         for i, actor_info in enumerate(actor_info_list):
             resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}

@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM nvidia/cuda:12.0.0-base-ubuntu20.04
+FROM nvidia/cuda:12.0.0-runtime-ubuntu22.04
 
 RUN rm -f /etc/apt/sources.list.d/*.list
 WORKDIR /app
@@ -69,10 +69,15 @@ RUN npm install @uniswap/v2-periphery
 
 # RUST LAND
 
-# lets add a sprinkle of rust
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+
+# Install cargo and Rust
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive \
+    apt-get install --no-install-recommends --assume-yes \
+      protobuf-compiler
 
 RUN rustup update nightly
 RUN rustup target add wasm32-unknown-unknown --toolchain nightly
