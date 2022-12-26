@@ -69,6 +69,7 @@ mod erc20 {
                 allowances: Default::default(),
             }
         }
+        
 
         /// Returns the total token supply.
         #[ink(message)]

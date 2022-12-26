@@ -688,11 +688,13 @@ class Module:
         return self.get_module_path()
 
     @staticmethod
-    def run_command(command:str):
+    def run_command(command:str, cwd:str=None, universal_newlines=True, *args, **kwargs):
 
         process = subprocess.run(shlex.split(command), 
                             stdout=subprocess.PIPE, 
-                            universal_newlines=True)
+                            cwd=cwd,
+                            universal_newlines=universal_newlines,
+                            *args, **kwargs)
         return process
 
     @property
@@ -1124,6 +1126,7 @@ class Module:
 
     @staticmethod
     def list_objects( *args, **kwargs):
+        
         return ray.experimental.state.api.list_objects(*args, **kwargs)
 
     @staticmethod

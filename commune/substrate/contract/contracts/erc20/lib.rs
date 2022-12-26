@@ -63,7 +63,19 @@ mod erc20 {
             ink_lang::utils::initialize_contract(|contract| {
                 Self::new_init(contract, total_supply)
             })
-
+            // let mut balances = Mapping::default();
+            // let caller = Self::env().caller();
+            // balances.insert(caller, &total_supply);
+            // Self::env().emit_event(Transfer {
+            //     from: None,
+            //     to: Some(caller),
+            //     value: total_supply,
+            // });
+            // Self {
+            //     total_supply,
+            //     balances,
+            //     allowances: Default::default(),
+            // }
         }
 
 
