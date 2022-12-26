@@ -67,7 +67,7 @@ COLOR_C="\033[0;36m"    # cyan
 
 # reset
 COLOR_RESET="\033[00m"
-
+export SUBSPACE_PATH="./subspace"
 while :; do
     case $1 in
         #################################################
@@ -95,7 +95,8 @@ while :; do
         ;;
         # BLOCKCHAIN NODES
         --subspace)
-        COMPOSE_FILES+=" -f ./subspace/docker-compose.yml"
+
+        COMPOSE_FILES+=" -f subspace/docker-compose.yml"
         ;;
         --subtensor)
         COMPOSE_FILES+=" -f subtensor/docker-compose.yml"

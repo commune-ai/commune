@@ -16,6 +16,7 @@ import types
 import inspect
 from commune.ray.utils import kill_actor
 from commune.config import Config
+from commune.client import ClientModule
 from copy import deepcopy
 import argparse
 import psutil
@@ -59,16 +60,12 @@ class Module:
 
 
     def get_clients(self, client=None):
-        client_module_class_path = 'commune.client.ClientModule'
-        client = client if client else self.config.get('client')
         if client == False or client == None:
             return None
         elif isinstance(client, dict):
-            client_module_class = self.import_object(client_module_class_path)
-            return client_module_class(client)
+            return ClientModule(client)
         elif isinstance(client, list):
-            client_module_class = self.import_object(client_module_class_path)
-            return client_module_class(client)
+            return ClientModule(client)
         else:
             raise NotImplementedError
 

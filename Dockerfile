@@ -72,3 +72,17 @@ RUN npm install @uniswap/v2-periphery
 # lets add a sprinkle of rust
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+
+RUN rustup update nightly
+RUN rustup target add wasm32-unknown-unknown --toolchain nightly
+RUN apt-get install make
+RUN apt-get install -y pkg-config
+
+# CONTRACTS STUFF
+RUN apt install binaryen
+RUN apt-get install libssl-dev
+RUN cargo install cargo-dylint dylint-link
+RUN cargo install cargo-contract --force
+
+RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu

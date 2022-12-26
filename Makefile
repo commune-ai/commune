@@ -17,6 +17,8 @@ logs:
 build:
 	./start.sh --build --${arg}
 
+subspace:
+	make bash arg=subspace
 
 enter: 
 	make bash arg=commune

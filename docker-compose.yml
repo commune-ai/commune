@@ -17,10 +17,6 @@ services:
 
       # COMMUNE MOUNTS
       - ./commune:/app/commune
-      - ./contracts:/app/contracts
-      - ./interfaces:/app/interfaces
-      - ./artifacts:/app/artifacts
-
       - ./cortex/cortex:/app/cortex
       # - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
 
@@ -28,7 +24,8 @@ services:
       - ./scripts:/app/scripts
       - /tmp:/tmp # TMP FILE SYSTEM MOUNT
       - /home/ubuntu/efs:/efs
-      - /usr/local/cuda/bin/nvcc:/usr/local/cuda/bin/nvcc 
+      - /usr/local/cuda/bin/nvcc:/usr/local/cuda/bin/nvcc
+      - ./make 
 
     deploy:
       resources:

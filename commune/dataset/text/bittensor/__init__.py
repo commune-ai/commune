@@ -134,7 +134,7 @@ class dataset:
         )
 
     @classmethod
-    def config(cls) -> 'bittensor.Config':
+    def config(cls) -> 'commune.Config':
         """ 
         Get config from the argument parser.
             
@@ -179,25 +179,6 @@ class dataset:
         cls.add_args( parser )
         print (cls.__new__.__doc__)
         parser.print_help()
-
-    @classmethod   
-    def add_defaults(cls, defaults):
-        """ Adds parser defaults to object from enviroment variables.
-        """
-        defaults.dataset = bittensor.Config()
-        defaults.dataset.batch_size = os.getenv('BT_DATASET_BATCH_SIZE') if os.getenv('BT_DATASET_BATCH_SIZE') != None else 10
-        defaults.dataset.block_size = os.getenv('BT_DATASET_BLOCK_SIZE') if os.getenv('BT_DATASET_BLOCK_SIZE') != None else 20
-        defaults.dataset.num_workers = os.getenv('BT_DATASET_NUM_WORKERS') if os.getenv('BT_DATASET_NUM_WORKERS') != None else 0
-        defaults.dataset.dataset_name = os.getenv('BT_DATASET_DATASET_NAME') if os.getenv('BT_DATASET_DATASET_NAME') != None else 'default'
-        defaults.dataset.data_dir = os.getenv('BT_DATASET_DATADIR') if os.getenv('BT_DATASET_DATADIR') != None else os.path.expanduser('~/./bittensor/data')
-        defaults.dataset.save_dataset = os.getenv('BT_DATASET_SAVE_DATASET') if os.getenv('BT_DATASET_SAVE_DATASET') != None else False
-        defaults.dataset.max_datasets = os.getenv('BT_DATASET_MAX_DATASETS') if os.getenv('BT_DATASET_MAX_DATASETS') != None else 3
-        defaults.dataset.num_batches = os.getenv('BT_DATASET_NUM_BATCHES') if os.getenv('BT_DATASET_NUM_BATCHES') != None else 500
-        defaults.dataset.max_directories = os.getenv('BT_DATASET_MAX_DIRECTORIES') if os.getenv('BT_DATASET_MAX_DIRECTORIES') != None else 250
-        defaults.dataset.buffer_size = os.getenv('BT_DATASET_BUFFER_SIZE') if os.getenv('BT_DATASET_BUFFER_SIZE') != None else 1000
-        defaults.dataset.buffer_calls_per_update = os.getenv('BT_DATASET_BUFFER_CALLS_PER_UPDATE') if os.getenv('BT_DATASET_BUFFER_CALLS_PER_UPDATE') != None else 100
-        defaults.dataset.max_hash_size = os.getenv('BT_DATASET_MAX_HASH_SIZE') if os.getenv('BT_DATASET_MAX_HASH_SIZE') != None else 100_000
-        defaults.dataset.block_size_bytes = os.getenv('BT_DATASET_BLOCK_SIZE_BYTES') if os.getenv('BT_DATASET_BLOCK_SIZE_BYTES') != None else 1500
 
 
     @classmethod
