@@ -1,6 +1,6 @@
 
 from substrateinterface import SubstrateInterface, Keypair, ContractCode, ContractInstance
-
+import shutil
 import streamlit as st
 # from commune.substrate.account import SubstrateAccount
 import os
@@ -9,16 +9,15 @@ from glob import glob
 import os, sys
 sys.path.append(os.getenv('PWD'))
 import commune
-
 class SubstrateContract:
-    contracts_dir_path = f'{os.getenv("PWD")}/commune/substrate/contract/contracts'
+    contracts_dir_path = f'{os.getenv("PWD")}/commune/contracts/ink'
     default_url = "ws://127.0.0.1:9944"
     def __init__(self, keypair:Keypair = None, substrate:'SubstrateInterface' = None):
         self.set_keypair(keypair)
         self.set_substrate(substrate)
 
 
-    tmp_dir = os.path.dirname(__file__)
+    tmp_dir = '/tmp/'+os.path.dirname(__file__)
 
     @classmethod
     def put_json(cls, path:str, data):
@@ -62,7 +61,6 @@ class SubstrateContract:
 
             compiled = False
             if os.path.isdir(target_path):
-                file_list = os.listdir(target_path+ '/ink')
                 build_path_dict = {}
                 build_path_dict['metadata'] = f'{target_path}/ink/metadata.json'
                 build_path_dict['wasm'] =  f'{target_path}/ink/{contract_name}.wasm'
@@ -90,19 +88,27 @@ class SubstrateContract:
             gas_limit:int=1000000000000,
             constructor:str="new",
             args:dict={'total_supply': 100000},
-            upload_code:bool=True):
+            upload_code:bool=True,
+            refresh:bool = False,
+            compile:bool=False):
         # Deploy contract
 
-        contract_instance = self.get_contract(contract)
-        if contract_instance != None:
-            return contract_instance
+        # If refresh is false, lets see if the contract exists
+        if compile:
+            self.compile(contract)
+        
+        if refresh == False:
+            contract_instance = self.get_contract(contract)
+            if contract_instance != None:
+                self.contract = contract_instance
+                return self.contract
 
-        if deployment_salt == None:
-            deployment_salt = str(time.time())
+        deployment_salt = deployment_salt if deployment_salt else str(time.time())
 
         contract_file_info = self.contract_file_info[contract]
         if contract_file_info['compiled'] == False:
             contract_file_info = self.compile(contract=contract)
+
 
         code = ContractCode.create_from_contract_files(
                     metadata_file=contract_file_info['metadata'],
@@ -110,6 +116,7 @@ class SubstrateContract:
                     substrate=self.substrate
                 )
 
+        st.write(deployment_salt)
         self.contract = code.deploy(
             keypair=self.keypair,
             endowment=endowment,
@@ -126,8 +133,6 @@ class SubstrateContract:
             deployed_contracts[contract] = {}
         deployed_contracts[contract][deployment_salt] = self.contract.contract_address
         self.deployed_contracts = deployed_contracts
-        st.write(self.deployed_contracts)
-        st.write(self.contract.contract_address)
 
         return self.contract
 
@@ -153,6 +158,13 @@ class SubstrateContract:
 
 
 
+    def set_contract(self, contract:Union[str, ContractInstance], deployment_salt:str=None) -> ContractInstance:
+        if isinstance(contract, str):
+            contract = self.get_contract(contract=contract,deployment_salt=deployment_salt)
+        elif isinstance(contract, ContractInstance):
+            contract = contract
+        self.contract = contract
+        return self.contract
 
     def get_contract(self, contract:str, deployment_salt:str=None) -> Union['Contract', 'contract_addresses']:
 
@@ -229,19 +241,67 @@ class SubstrateContract:
         return self.deployed_contracts
 
 
-    def new_contract(self, contract:str, compile=False):
-        assert contract not in self.contract_names, f'{contract} already exists'
+    def rm_contract (self, contract:str):
+        return shutil.rmtree(self.contract_file_info[contract]['path'])
+
+    def new_contract(self, contract:str, compile:bool=True, refresh:bool=False):
+        contract_file_info = self.contract_file_info.get(contract,{})
+        contract_path = contract_file_info.get('path', ' This is hundo p not a file')
+        contract_project_exists = lambda : os.path.exists(contract_path)
+
+        if contract_project_exists():
+            if refresh:
+                os.rmdir(self.rm_contract(contract))
+                
+        
+        # if not contract_project_exists():
         commune.run_command(f'cargo contract new {contract}', cwd=self.contracts_dir_path)
+        
         if compile:
-            self.compile(name=name)
+            self.compile(contract)
+
+
+    def read_contract_value(self):
+        # Read current value
+        result = contract.read(self.keypair, 'get')
+        return result.contract_result_data
+
+    def call(self,  method:str, args:dict={}):
+        # Do a gas estimation of the message
+        gas_predit_result = self.contract.read(self.keypair, method)
+
+        # print('Result of dry-run: ', gas_predit_result.value)
+        # print('Gas estimate: ', gas_predit_result.gas_required)
+
+        # Do the actual call
+        # print('Executing contract call...')
+        contract_receipt = self.contract.exec(self.keypair, method, args={
+
+        }, gas_limit=gas_predit_result.gas_required)
+
+        if contract_receipt.is_success:
+            print(f'Events triggered in contract: {contract_receipt.contract_events}')
+        else:
+            raise Exception(f'Error message: {contract_receipt.error_message}')
+
+        result = self.contract.read(self.keypair, 'get')
+
+        print('Current value of "get":', result.contract_result_data)
+        return result
 
 import time
 if __name__ == "__main__":
     self = SubstrateContract()
-    st.write(self.deployed_contracts)
-    # st.write(self.new_contract('fam'))
-    st.write(self.compile('fam'))
-    # st.write(self.deploy(contract='erc21', args={'initial_supply': 100}).contract_address)
+    self.compile('subspace')
+    
+    # self.new_contract('flipper', compile=True)
+    # st.write(self.deploy('flipper', args={'init_value': True}, compile=True))
+    # st.write(self.call('flip'))
+    # st.write(self.compile('fam'))
+    # self.deploy(contract='fam', args={'init_value': True})
+    # st.write(self.contract.__dict__)
+    # st.write(self.contract)
+    # st.write(self.deploy(contract='fam', args={'init_value': True}, refresh=False))
     # st.write(self.put_json('contract_file_info',self.contract_file_info))
     # st.write(self.get_json('contract_file_info'))
     # st.write(subprocess.r('ls', shell=False, cwd='./commune/substrate'))
