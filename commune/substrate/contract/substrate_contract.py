@@ -229,9 +229,11 @@ class SubstrateContract:
         return self.deployed_contracts
 
 
-    def new_contract(self, name:str):
-        assert name not in self.contract_names, f'{name} already exists'
-        commune.run_command(f'cargo contract new {name}', cwd=self.contracts_dir_path)
+    def new_contract(self, contract:str, compile=False):
+        assert contract not in self.contract_names, f'{contract} already exists'
+        commune.run_command(f'cargo contract new {contract}', cwd=self.contracts_dir_path)
+        if compile:
+            self.compile(name=name)
 
 import time
 if __name__ == "__main__":

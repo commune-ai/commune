@@ -74,7 +74,7 @@ class Module:
         
     @staticmethod
     def dict_override(*args, **kwargs):
-        return dict_override(*args,**kwargs)
+        return dict_override(*resolve_pathargs,**kwargs)
 
     def resolve_path(self, path, extension = '.json'):
         path = path.replace('.', '/')
