@@ -608,13 +608,13 @@ def dict_merge(*args):
 
 
 
-async def async_get_json(path, return_type='dict'):
+async def async_get_json(path, return_type='dict', handle_error=True, default_return = {}):
     try:  
         
         data = json.loads(await async_read(path))
     except FileNotFoundError as e:
         if handle_error:
-            return None
+            return default_return
         else:
             raise e
 

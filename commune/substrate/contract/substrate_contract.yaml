@@ -1,0 +1,6 @@
+!munch.Munch
+actor: !munch.Munch
+  name: Module
+  refresh: false
+client: []
+module: Module
