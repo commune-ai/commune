@@ -25,19 +25,19 @@ from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, PretrainedConfig
 
-
+import streamlit as st
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.10.0.dev0")
 
 logger = get_logger(__name__)
 
 
-class TrainerDream:
+class DreamTrainer:
 
     def __init__(self, 
                 model = None,
-                dataset=None,
-                )
+                dataset=None, 
+                ):
 
         self.args = self.parse_args()
         self.logging_dir = Path(self.args.output_dir, self.args.logging_dir)
@@ -78,21 +78,7 @@ class TrainerDream:
             elif self.args.output_dir is not None:
                 os.makedirs(self.args.output_dir, exist_ok=True)
 
-        # Load the tokenizer
-        if self.args.tokenizer_name:
-            tokenizer = AutoTokenizer.from_pretrained(
-                self.args.tokenizer_name,
-                revision=self.args.revision,
-                use_fast=False,
-            )
-        elif self.args.pretrained_model_name_or_path:
-            tokenizer = AutoTokenizer.from_pretrained(
-                self.args.pretrained_model_name_or_path,
-                subfolder="tokenizer",
-                revision=self.args.revision,
-                use_fast=False,
-            )
-
+          
         # import correct text encoder class
         text_encoder_cls = import_model_class_from_model_name_or_path(self.args.pretrained_model_name_or_path, self.args.revision)
 
@@ -112,6 +98,14 @@ class TrainerDream:
             subfolder="unet",
             revision=self.args.revision,
         )
+
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+                        self.args.pretrained_model_name_or_path,
+                        subfolder="tokenizer",
+                        revision=self.args.revision,
+                        use_fast=False,
+                    )
 
         if self.args.enable_xformers_memory_efficient_attention:
             if is_xformers_available():
@@ -162,19 +156,11 @@ class TrainerDream:
         self.dataset = DreamBoothDataset(
             instance_data_root=self.args.instance_data_dir,
             instance_prompt=self.args.instance_prompt,
-            class_data_root=self.args.class_data_dir
+            class_data_root=self.args.class_data_dir,
             class_prompt=self.args.class_prompt,
             tokenizer=tokenizer,
             size=self.args.resolution,
             center_crop=self.args.center_crop,
-        )
-
-        self.dataloader = torch.utils.data.DataLoader(
-            self.dataset,
-            batch_size=self.args.train_batch_size,
-            shuffle=True,
-            collate_fn=lambda examples: collate_fn(examples, self.args.with_prior_preservation),
-            num_workers=1,
         )
 
         # Scheduler and math around the number of training steps.
@@ -291,7 +277,7 @@ class TrainerDream:
         parser.add_argument(
             "--pretrained_model_name_or_path",
             type=str,
-            default=None,
+            default='',
             required=True,
             help="Path to pretrained model or model identifier from huggingface.co/models.",
         )
@@ -309,7 +295,7 @@ class TrainerDream:
             help="Pretrained tokenizer name or path if not the same as model_name",
         )
         parser.add_argument(
-            "--dataset.instance_data_dir",
+            "--instance_data_dir",
             type=str,
             default=None,
             required=True,
@@ -598,8 +584,8 @@ class TrainerDream:
         if self.accelerator.is_main_process:
             pipeline = DiffusionPipeline.from_pretrained(
                 self.args.pretrained_model_name_or_path,
-                self.unet=self.accelerator.unwrap_model(self.unet),
-                self.text_encoder=self.accelerator.unwrap_model(self.text_encoder),
+                unet=self.accelerator.unwrap_model(self.unet),
+                text_encoder=self.accelerator.unwrap_model(self.text_encoder),
                 revision=self.args.revision,
             )
             pipeline.save_pretrained(self.args.output_dir)
@@ -609,10 +595,16 @@ class TrainerDream:
 
         self.accelerator.end_training()
 
+    @classmethod
+    def demo(cls):
+
+        self = cls()
+        st.write()
 
 
 
 
 if __name__ == "__main__":
+    DreamTrainer.demo()
 
-    main(args)
+    

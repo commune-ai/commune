@@ -15,3 +15,6 @@
 [submodule "subspace"]
 	path = subspace
 	url = https://github.com/commune-ai/subspace.git
+[submodule "diffusers"]
+	path = diffusers
+	url = https://github.com/huggingface/diffusers.git

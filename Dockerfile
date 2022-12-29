@@ -39,6 +39,9 @@ RUN python3 -m pip install --upgrade protobuf
 RUN python3 -m pip install --upgrade torch
 
 RUN pip install --upgrade substrate-interface
+
+RUN pip install diffusers
+
 # This makes it compatible with streamlit
 ENV PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python 
 
@@ -92,5 +95,4 @@ RUN cargo install cargo-dylint dylint-link
 RUN cargo install cargo-contract --force
 
 RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
-
 
