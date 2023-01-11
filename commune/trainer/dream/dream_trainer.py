@@ -25,6 +25,11 @@ from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, PretrainedConfig
 
+
+import sys, os
+sys.append(os.getenv('PWD'))
+from commune.dataset.dream import DreamDataset
+
 import streamlit as st
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.10.0.dev0")
@@ -37,98 +42,93 @@ class DreamTrainer:
     def __init__(self, 
                 model = None,
                 dataset=None, 
+                config = None
                 ):
 
-        self.args = self.parse_args()
-        self.logging_dir = Path(self.args.output_dir, self.args.logging_dir)
+
+        self.get_config(config)
+        self.logging_dir = Path(self.config.output_dir, self.config.logging_dir)
 
         self.accelerator = Accelerator(
-            gradient_accumulation_steps=self.args.gradient_accumulation_steps,
-            mixed_precision=self.args.mixed_precision,
+            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+            mixed_precision=self.config.mixed_precision,
             log_with="tensorboard",
-            logging_dir=logging_dir,
+            logging_dir=self.logging_dir,
         )
 
         # Currently, it's not possible to do gradient accumulation when training two models with accelerate.accumulate
         # This will be enabled soon in accelerate. For now, we don't allow gradient accumulation when training two models.
         # TODO (patil-suraj): Remove this check when gradient accumulation with two models is enabled in accelerate.
-        if self.args.train_text_encoder and self.args.gradient_accumulation_steps > 1 and self.accelerator.num_processes > 1:
+        if self.config.train_text_encoder and self.config.gradient_accumulation_steps > 1 and self.accelerator.num_processes > 1:
             raise ValueError(
                 "Gradient accumulation is not supported when training the text encoder in distributed training. "
                 "Please set gradient_accumulation_steps to 1. This feature will be supported in the future."
             )
 
-        if self.args.seed is not None:
-            set_seed(self.args.seed)
+        if self.config.seed is not None:
+            set_seed(self.config.seed)
 
         # Handle the repository creation
         if self.accelerator.is_main_process:
-            if self.args.push_to_hub:
-                if self.args.hub_model_id is None:
-                    repo_name = get_full_repo_name(Path(self.args.output_dir).name, token=self.args.hub_token)
-                else:
-                    repo_name = self.args.hub_model_id
-                repo = Repository(self.args.output_dir, clone_from=repo_name)
-
-                with open(os.path.join(self.args.output_dir, ".gitignore"), "w+") as gitignore:
-                    if "step_*" not in gitignore:
-                        gitignore.write("step_*\n")
-                    if "epoch_*" not in gitignore:
-                        gitignore.write("epoch_*\n")
-            elif self.args.output_dir is not None:
-                os.makedirs(self.args.output_dir, exist_ok=True)
+            if self.config.push_to_hub:
+                self.connect_to_hf_hub()
+            elif self.config.output_dir is not None:
+                os.makedirs(self.config.output_dir, exist_ok=True)
 
           
         # import correct text encoder class
-        text_encoder_cls = import_model_class_from_model_name_or_path(self.args.pretrained_model_name_or_path, self.args.revision)
-
+        text_encoder_cls = self.import_model_class_from_model_name_or_path(self.config.pretrained_model_name_or_path, self.config.revision)
         # Load models and create wrapper for stable diffusion
-        self.text_encoder = self.text_encoder_cls.from_pretrained(
-            self.args.pretrained_model_name_or_path,
+        self.text_encoder = text_encoder_cls.from_pretrained(
+            self.config.pretrained_model_name_or_path,
             subfolder="text_encoder",
-            revision=self.args.revision,
+            revision=self.config.revision,
         )
+        if not self.config.train_text_encoder:
+            self.text_encoder.requires_grad_(False)
+
         self.vae = AutoencoderKL.from_pretrained(
-            self.args.pretrained_model_name_or_path,
+            self.config.pretrained_model_name_or_path,
             subfolder="vae",
-            revision=self.args.revision,
+            revision=self.config.revision,
         )
+        
+        self.vae.requires_grad_(False)
+
+
         self.unet = UNet2DConditionModel.from_pretrained(
-            self.args.pretrained_model_name_or_path,
+            self.config.pretrained_model_name_or_path,
             subfolder="unet",
-            revision=self.args.revision,
+            revision=self.config.revision,
         )
-
-
         self.tokenizer = AutoTokenizer.from_pretrained(
-                        self.args.pretrained_model_name_or_path,
+                        self.config.pretrained_model_name_or_path,
                         subfolder="tokenizer",
-                        revision=self.args.revision,
+                        revision=self.config.revision,
                         use_fast=False,
                     )
 
-        if self.args.enable_xformers_memory_efficient_attention:
+        if self.config.enable_xformers_memory_efficient_attention:
             if is_xformers_available():
-                unet.enable_xformers_memory_efficient_attention()
+                self.unet.enable_xformers_memory_efficient_attention()
             else:
                 raise ValueError("xformers is not available. Make sure it is installed correctly")
 
-        self.vae.requires_grad_(False)
-        if not self.args.train_text_encoder:
-            self.text_encoder.requires_grad_(False)
 
-        if self.args.gradient_checkpointing:
+
+
+        if self.config.gradient_checkpointing:
             self.unet.enable_gradient_checkpointing()
-            if self.args.train_text_encoder:
+            if self.config.train_text_encoder:
                 self.text_encoder.gradient_checkpointing_enable()
 
-        if self.args.scale_lr:
-            self.args.learning_rate = (
-                self.args.learning_rate * self.args.gradient_accumulation_steps * self.args.train_batch_size * self.accelerator.num_processes
+        if self.config.scale_lr:
+            self.config.learning_rate = (
+                self.config.learning_rate * self.config.gradient_accumulation_steps * self.config.train_batch_size * self.accelerator.num_processes
             )
 
         # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
-        if self.args.use_8bit_adam:
+        if self.config.use_8bit_adam:
             try:
                 import bitsandbytes as bnb
             except ImportError:
@@ -141,45 +141,45 @@ class DreamTrainer:
             optimizer_class = torch.optim.AdamW
 
         params_to_optimize = (
-            itertools.chain(self.unet.parameters(), self.text_encoder.parameters()) if self.args.train_text_encoder else self.unet.parameters()
+            itertools.chain(self.unet.parameters(), self.text_encoder.parameters()) if self.config.train_text_encoder else self.unet.parameters()
         )
         self.optimizer = optimizer_class(
             params_to_optimize,
-            lr=self.args.learning_rate,
-            betas=(self.args.adam_beta1, self.args.adam_beta2),
-            weight_decay=self.args.adam_weight_decay,
-            eps=self.args.adam_epsilon,
+            lr=self.config.learning_rate,
+            betas=(self.config.adam_beta1, self.config.adam_beta2),
+            weight_decay=self.config.adam_weight_decay,
+            eps=self.config.adam_epsilon,
         )
 
-        self.noise_scheduler = DDPMScheduler.from_pretrained(self.args.pretrained_model_name_or_path, subfolder="scheduler")
+        self.noise_scheduler = DDPMScheduler.from_pretrained(self.config.pretrained_model_name_or_path, subfolder="scheduler")
 
-        self.dataset = DreamBoothDataset(
-            instance_data_root=self.args.instance_data_dir,
-            instance_prompt=self.args.instance_prompt,
-            class_data_root=self.args.class_data_dir,
-            class_prompt=self.args.class_prompt,
-            tokenizer=tokenizer,
-            size=self.args.resolution,
-            center_crop=self.args.center_crop,
+        self.dataset = DreamDataset(
+            instance_data_root=self.config.instance_data_dir,
+            instance_prompt=self.config.instance_prompt,
+            class_data_root=self.config.class_data_dir,
+            class_prompt=self.config.class_prompt,
+            tokenizer=self.tokenizer,
+            size=self.config.resolution,
+            center_crop=self.config.center_crop,
         )
 
         # Scheduler and math around the number of training steps.
         overrode_max_train_steps = False
-        num_update_steps_per_epoch = math.ceil(len(self.dataloader) / self.args.gradient_accumulation_steps)
-        if self.args.max_train_steps is None:
-            self.args.max_train_steps = self.args.num_train_epochs * num_update_steps_per_epoch
+        self.num_update_steps_per_epoch = math.ceil(len(self.dataloader) / self.config.gradient_accumulation_steps)
+        if self.config.max_train_steps is None:
+            self.config.max_train_steps = self.config.num_train_epochs * self.num_update_steps_per_epoch
             overrode_max_train_steps = True
 
         self.lr_scheduler = get_scheduler(
-            self.args.self.lr_scheduler,
-            optimizer=optimizer,
-            num_warmup_steps=self.args.lr_warmup_steps * self.args.gradient_accumulation_steps,
-            num_training_steps=self.args.max_train_steps * self.args.gradient_accumulation_steps,
-            num_cycles=self.args.lr_num_cycles,
-            power=self.args.lr_power,
+            self.config.lr_scheduler,
+            optimizer=self.optimizer,
+            num_warmup_steps=self.config.lr_warmup_steps * self.config.gradient_accumulation_steps,
+            num_training_steps=self.config.max_train_steps * self.config.gradient_accumulation_steps,
+            num_cycles=self.config.lr_num_cycles,
+            power=self.config.lr_power,
         )
 
-        if self.args.train_text_encoder:
+        if self.config.train_text_encoder:
             self.unet, self.text_encoder, self.optimizer, self.dataloader, self.lr_scheduler = self.accelerator.prepare(
                 self.unet, self.text_encoder, self.optimizer, self.dataloader, self.lr_scheduler
             )
@@ -189,75 +189,77 @@ class DreamTrainer:
             )
         self.accelerator.register_for_checkpointing(self.lr_scheduler)
 
-        weight_dtype = torch.float32
+        self.weight_dtype = torch.float32
         if self.accelerator.mixed_precision == "fp16":
-            weight_dtype = torch.float16
+            self.weight_dtype = torch.float16
         elif self.accelerator.mixed_precision == "bf16":
-            weight_dtype = torch.bfloat16
+            self.weight_dtype = torch.bfloat16
 
         # Move text_encode and vae to gpu.
         # For mixed precision training we cast the self.text_encoder and vae weights to half-precision
         # as these models are only used for inference, keeping weights in full precision is not required.
-        self.vae.to(self.accelerator.device, dtype=weight_dtype)
-        if not self.args.train_text_encoder:
-            self.text_encoder.to(self.accelerator.device, dtype=weight_dtype)
+        self.vae.to(self.accelerator.device, dtype=self.weight_dtype)
+        if not self.config.train_text_encoder:
+            self.text_encoder.to(self.accelerator.device, dtype=self.weight_dtype)
 
         # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-        num_update_steps_per_epoch = math.ceil(len(self.dataset) / self.args.gradient_accumulation_steps)
+        self.num_update_steps_per_epoch = math.ceil(len(self.dataset) / self.config.gradient_accumulation_steps)
         if overrode_max_train_steps:
-            self.args.max_train_steps = self.args.num_train_epochs * num_update_steps_per_epoch
+            self.config.max_train_steps = self.config.num_train_epochs * self.num_update_steps_per_epoch
         # Afterwards we recalculate our number of training epochs
-        self.args.num_train_epochs = math.ceil(self.args.max_train_steps / num_update_steps_per_epoch)
+        self.config.num_train_epochs = math.ceil(self.config.max_train_steps / self.num_update_steps_per_epoch)
 
         # We need to initialize the trackers we use, and also store our configuration.
         # The trackers initializes automatically on the main process.
         if self.accelerator.is_main_process:
-            self.accelerator.init_trackers("dreambooth", config=vars(args))
+            self.accelerator.init_trackers("dreambooth", config=vars(self.config))
+
+        self.global_step = 0
+        self.first_epoch = 0
+
 
         # Train!
-        total_batch_size = self.args.train_batch_size * self.accelerator.num_processes * self.args.gradient_accumulation_steps
+        total_batch_size = self.config.train_batch_size * self.accelerator.num_processes * self.config.gradient_accumulation_steps
 
         logger.info("***** Running training *****")
         logger.info(f"  Num examples = {len(self.dataset)}")
         logger.info(f"  Num batches each epoch = {len(self.dataloader)}")
-        logger.info(f"  Num Epochs = {self.args.num_train_epochs}")
-        logger.info(f"  Instantaneous batch size per device = {self.args.train_batch_size}")
+        logger.info(f"  Num Epochs = {self.config.num_train_epochs}")
+        logger.info(f"  Instantaneous batch size per device = {self.config.train_batch_size}")
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-        logger.info(f"  Gradient Accumulation steps = {self.args.gradient_accumulation_steps}")
-        logger.info(f"  Total optimization steps = {self.args.max_train_steps}")
-        global_step = 0
-        first_epoch = 0
+        logger.info(f"  Gradient Accumulation steps = {self.config.gradient_accumulation_steps}")
+        logger.info(f"  Total optimization steps = {self.config.max_train_steps}")
+        
 
-        if self.args.resume_from_checkpoint:
-            if self.args.resume_from_checkpoint != "latest":
-                path = os.path.basename(self.args.resume_from_checkpoint)
+        if self.config.resume_from_checkpoint:
+            if self.config.resume_from_checkpoint != "latest":
+                path = os.path.basename(self.config.resume_from_checkpoint)
             else:
                 # Get the mos recent checkpoint
-                dirs = os.listdir(self.args.output_dir)
+                dirs = os.listdir(self.config.output_dir)
                 dirs = [d for d in dirs if d.startswith("checkpoint")]
                 dirs = sorted(dirs, key=lambda x: int(x.split("-")[1]))
                 path = dirs[-1]
+                
             self.accelerator.print(f"Resuming from checkpoint {path}")
-            self.accelerator.load_state(os.path.join(self.args.output_dir, path))
-            global_step = int(path.split("-")[1])
+            self.accelerator.load_state(os.path.join(self.config.output_dir, path))
+            self.global_step = int(path.split("-")[1])
 
-            resume_global_step = global_step * self.args.gradient_accumulation_steps
-            first_epoch = resume_global_step // num_update_steps_per_epoch
-            resume_step = resume_global_step % num_update_steps_per_epoch
+            self.resume_global_step = self.global_step * self.config.gradient_accumulation_steps
+            self.first_epoch = self.resume_global_step // self.num_update_steps_per_epoch
+            self.resume_step = self.resume_global_step % self.num_update_steps_per_epoch
 
-        # Only show the progress bar once on each machine.
-        progress_bar = tqdm(range(global_step, self.args.max_train_steps), disable=not self.accelerator.is_local_main_process)
-        progress_bar.set_description("Steps")
+
 
 
     @staticmethod
     def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
-        self.text_encoder_config = PretrainedConfig.from_pretrained(
+        text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
             subfolder="self.text_encoder",
             revision=revision,
         )
-        model_class = self.text_encoder_config.architectures[0]
+        model_class = text_encoder_config.architectures[0]
 
         if model_class == "CLIPTextModel":
             from transformers import CLIPTextModel
@@ -270,6 +272,19 @@ class DreamTrainer:
         else:
             raise ValueError(f"{model_class} is not supported.")
 
+    def connect_to_hf_hub(self):
+
+        if self.config.hub_model_id is None:
+            repo_name = self.get_full_repo_name(Path(self.config.output_dir).name, token=self.config.hub_token)
+        else:
+            repo_name = self.config.hub_model_id
+        self.repo = Repository(self.config.output_dir, clone_from=repo_name)
+
+        with open(os.path.join(self.config.output_dir, ".gitignore"), "w+") as gitignore:
+            if "step_*" not in gitignore:
+                gitignore.write("step_*\n")
+            if "epoch_*" not in gitignore:
+                gitignore.write("epoch_*\n")
 
     @staticmethod
     def parse_args(input_args=None):
@@ -488,8 +503,8 @@ class DreamTrainer:
             args = parser.parse_args()
 
         env_local_rank = int(os.environ.get("LOCAL_RANK", -1))
-        if env_local_rank != -1 and env_local_rank != self.args.local_rank:
-            self.args.local_rank = env_local_rank
+        if env_local_rank != -1 and env_local_rank != self.config.local_rank:
+            self.config.local_rank = env_local_rank
         return args
 
 
@@ -504,107 +519,115 @@ class DreamTrainer:
             return f"{organization}/{model_id}"
 
 
-    def train_epoch():
-        for epoch in range(first_epoch, self.args.num_train_epochs):
-            self.unet.train()
-            if self.args.train_text_encoder:
-                self.text_encoder.train()
-            for step, batch in enumerate(self.dataloader):
-                # Skip steps until we reach the resumed step
-                if self.args.resume_from_checkpoint and epoch == first_epoch and step < resume_step:
-                    if step % self.args.gradient_accumulation_steps == 0:
-                        progress_bar.update(1)
-                    continue
+    def train_epoch(self, epoch:int):
+        self.unet.train()
+        if self.config.train_text_encoder:
+            self.text_encoder.train()
+        for step, batch in enumerate(self.dataloader):
+            # Skip steps until we reach the resumed step
+            if self.config.resume_from_checkpoint and epoch == self.first_epoch and step < self.resume_step:
+                if step % self.config.gradient_accumulation_steps == 0:
+                    self.progress_bar.update(1)
+                continue
 
-                with self.accelerator.accumulate(self.unet):
-                    # Convert images to latent space
-                    latents = self.vae.encode(batch["pixel_values"].to(dtype=weight_dtype)).latent_dist.sample()
-                    latents = latents * 0.18215
+            with self.accelerator.accumulate(self.unet):
+                # Convert images to latent space
+                latents = self.vae.encode(batch["pixel_values"].to(dtype=self.weight_dtype)).latent_dist.sample()
+                latents = latents * 0.18215
 
-                    # Sample noise that we'll add to the latents
-                    noise = torch.randn_like(latents)
-                    bsz = latents.shape[0]
-                    # Sample a random timestep for each image
-                    timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (bsz,), device=latents.device)
-                    timesteps = timesteps.long()
+                # Sample noise that we'll add to the latents
+                noise = torch.randn_like(latents)
+                batch_size = latents.shape[0]
+                # Sample a random timestep for each image
+                timesteps = torch.randint(0, self.noise_scheduler.config.num_train_timesteps, (batch_size,), device=latents.device)
+                timesteps = timesteps.long()
 
-                    # Add noise to the latents according to the noise magnitude at each timestep
-                    # (this is the forward diffusion process)
-                    noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
+                # Add noise to the latents according to the noise magnitude at each timestep
+                # (this is the forward diffusion process)
+                noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
 
-                    # Get the text embedding for conditioning
-                    encoder_hidden_states = self.text_encoder(batch["input_ids"])[0]
+                # Get the text embedding for conditioning
+                encoder_hidden_states = self.text_encoder(batch["input_ids"])[0]
 
-                    # Predict the noise residual
-                    model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample
+                # Predict the noise residual
+                model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample
 
-                    # Get the target for loss depending on the prediction type
-                    if self.noise_scheduler.config.prediction_type == "epsilon":
-                        target = noise
-                    elif self.noise_scheduler.config.prediction_type == "v_prediction":
-                        target = self.noise_scheduler.get_velocity(latents, noise, timesteps)
-                    else:
-                        raise ValueError(f"Unknown prediction type {self.noise_scheduler.config.prediction_type}")
+                # Get the target for loss depending on the prediction type
+                if self.noise_scheduler.config.prediction_type == "epsilon":
+                    target = noise
+                elif self.noise_scheduler.config.prediction_type == "v_prediction":
+                    target = self.noise_scheduler.get_velocity(latents, noise, timesteps)
+                else:
+                    raise ValueError(f"Unknown prediction type {self.noise_scheduler.config.prediction_type}")
 
-                    loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
+                loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
-                    self.accelerator.backward(loss)
-                    if self.accelerator.sync_gradients:
-                        params_to_clip = (
-                            itertools.chain(self.unet.parameters(), self.text_encoder.parameters())
-                            if self.args.train_text_encoder
-                            else self.unet.parameters()
-                        )
-                        self.accelerator.clip_grad_norm_(params_to_clip, self.args.max_grad_norm)
-                    optimizer.step()
-                    self.lr_scheduler.step()
-                    optimizer.zero_grad()
-
-                # Checks if the self.accelerator has performed an optimization step behind the scenes
+                self.accelerator.backward(loss)
                 if self.accelerator.sync_gradients:
-                    progress_bar.update(1)
-                    global_step += 1
+                    params_to_clip = (
+                        itertools.chain(self.unet.parameters(), self.text_encoder.parameters())
+                        if self.config.train_text_encoder
+                        else self.unet.parameters()
+                    )
+                    self.accelerator.clip_grad_norm_(params_to_clip, self.config.max_grad_norm)
+                self.optimizer.step()
+                self.lr_scheduler.step()
+                self.optimizer.zero_grad()
 
-                    if global_step % self.args.checkpointing_steps == 0:
-                        if self.accelerator.is_main_process:
-                            save_path = os.path.join(self.args.output_dir, f"checkpoint-{global_step}")
-                            self.accelerator.save_state(save_path)
-                            logger.info(f"Saved state to {save_path}")
+            # Checks if the self.accelerator has performed an optimization step behind the scenes
+            if self.accelerator.sync_gradients:
+                self.progress_bar.update(1)
+                self.global_step += 1
 
-                logs = {"loss": loss.detach().item(), "lr": self.lr_scheduler.get_last_lr()[0]}
-                progress_bar.set_postfix(**logs)
-                self.accelerator.log(logs, step=global_step)
+                if self.global_step % self.config.checkpointing_steps == 0:
+                    if self.accelerator.is_main_process:
+                        save_path = os.path.join(self.config.output_dir, f"checkpoint-{self.global_step}")
+                        self.accelerator.save_state(save_path)
+                        logger.info(f"Saved state to {save_path}")
 
-                if global_step >= self.args.max_train_steps:
-                    break
+            logs = {"loss": loss.detach().item(), "lr": self.lr_scheduler.get_last_lr()[0]}
+            self.progress_bar.set_postfix(**logs)
+            self.accelerator.log(logs, step=self.global_step)
 
-            self.accelerator.wait_for_everyone()
+            if self.global_step >= self.config.max_train_steps:
+                break
+        self.accelerator.wait_for_everyone()
 
+    def train(self,):
+                # Only show the progress bar once on each machine.
+        self.progress_bar = tqdm(range(self.global_step, self.config.max_train_steps), disable=not self.accelerator.is_local_main_process)
+        self.progress_bar.set_description("Steps")
+        for epoch in range(0, self.config.num_train_epochs):
+            self.train_epoch(epoch=epoch)
         # Create the pipeline using using the trained modules and save it.
         if self.accelerator.is_main_process:
-            pipeline = DiffusionPipeline.from_pretrained(
-                self.args.pretrained_model_name_or_path,
+            self.pipeline = DiffusionPipeline.from_pretrained(
+                self.config.pretrained_model_name_or_path,
                 unet=self.accelerator.unwrap_model(self.unet),
                 text_encoder=self.accelerator.unwrap_model(self.text_encoder),
-                revision=self.args.revision,
+                revision=self.config.revision,
             )
-            pipeline.save_pretrained(self.args.output_dir)
+            self.pipeline.save_pretrained(self.config.output_dir)
 
-            if self.args.push_to_hub:
-                repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
-
+            if self.config.push_to_hub:
+                self.repo.push_to_hub(commit_message="End of training", blocking=False, auto_lfs_prune=True)
         self.accelerator.end_training()
 
     @classmethod
     def demo(cls):
 
         self = cls()
-        st.write()
 
 
+    def get_config(self, config: Union[ dict, 'parser'] = None):
+        config = config if config else self.parse_args()
+        return config
 
 
 if __name__ == "__main__":
+    
+
+
     DreamTrainer.demo()
 
     

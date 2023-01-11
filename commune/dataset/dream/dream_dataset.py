@@ -364,7 +364,6 @@ class DreamDataset(Dataset):
     def demo(cls):
         import streamlit as st
         class_path = os.path.dirname(__file__) + '/demo_data/python'
-        model = 'hf-models/stable-diffusion-v2-768x768/tokenizer'
         self = cls(class_path=class_path, tokenizer=model)
 
 
