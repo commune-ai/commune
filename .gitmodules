@@ -2,10 +2,6 @@
 	path = bittensor
 	url = https://github.com/commune-ai/bittensor.git
 	branch = bitconnect
-[submodule "cortex"]
-	path = cortex
-	url = https://github.com/commune-ai/cortex.git
-	branch = main
 [submodule "ocean.py"]
 	path = ocean.py
 	url = https://github.com/commune-ai/ocean.py

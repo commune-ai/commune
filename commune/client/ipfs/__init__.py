@@ -1,1 +1,1 @@
-from .module import IPFSModule
+from .ipfs import IPFSModule

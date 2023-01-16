@@ -1,1 +1,1 @@
-from .module import GraphQLModule
+from .graphql import GraphQLModule

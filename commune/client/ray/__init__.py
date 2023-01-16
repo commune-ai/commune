@@ -1,1 +1,1 @@
-# from .module import RayModule
+from .ray import RayModule

@@ -1,1 +1,1 @@
-from .module import S3Module
+from .s3 import S3Module

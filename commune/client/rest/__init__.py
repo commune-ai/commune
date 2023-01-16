@@ -1,1 +1,1 @@
-from .module import RestModule
+from .rest import RestModule

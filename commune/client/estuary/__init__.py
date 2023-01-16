@@ -1,1 +1,1 @@
-from .module import EstuaryModule
+from .estuary import EstuaryModule
