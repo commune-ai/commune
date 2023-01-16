@@ -1,8 +1,8 @@
 from substrateinterface import SubstrateInterface
+from substrateinterface import SubstrateInterface
 
 import streamlit as st
 from commune.substrate.account import SubstrateAccount
-
 
 class SubstrateNetwork(SubstrateInterface):
     default_url = "127.0.0.1:9944"

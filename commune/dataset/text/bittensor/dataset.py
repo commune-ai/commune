@@ -28,116 +28,83 @@ import os
 import torch
 from torch.utils.data.dataloader import DataLoader
 from typing import Optional, Union, Dict, List, Any
-from .utils import sync_wrapper
-import commune
+from tuwang import Module
+from tuwang.utils import chunk
+
 logger = logger.opt(colors=True)
 
-class BittensorTextDataset(commune.Module):
+
+
+class BittensorDataset(Module):
     """ Implementation for the dataset class, which handles dataloading from ipfs
     """
-    __ipfs_url__ = 'http://global.ipfs.opentensor.ai/api/v0'
-    __dataset_dir__ = 'http://global.ipfs.opentensor.ai/api/v0/cat' 
-    __text_dir__ = 'http://global.ipfs.opentensor.ai/api/v0/object/get'
-    __mountain_hash__ = 'QmSdDg6V9dgpdAFtActs75Qfc36qJtm9y8a7yrQ1rHm7ZX'
 
-
+    ipfs_url = 'http://global.ipfs.opentensor.ai/api/v0'
+    mountain_hash = 'QmSdDg6V9dgpdAFtActs75Qfc36qJtm9y8a7yrQ1rHm7ZX'
+    
+    
     def __init__(
             self, 
-            config: 'commune.Config' = None,
-            sequence_length: Optional[int] = None,
-            block_size: Optional[int] = None,
-            block_size_bytes: Optional[int] = None,
-            max_hash_size: Optional[int] = None,
-            batch_size: Optional[int] = None,
-            num_workers: Optional[int] = None,
-            datasets: Optional[list] = None,
-            max_directories: Optional[int] = None,
-            max_datasets: Optional[int] = None,
-            save_dataset: Optional[bool] = False,
-            load_dataset: Optional[bool] = False,
-            no_tokenizer: Optional[bool] = None,
-
-            num_batches: Optional[int] = None,
-            buffer_size: Optional[int] = None, 
-            buffer_calls_per_update: Optional[int] = None
+            batch_size: int = 32, 
+            sequence_length: int = 256,
+            block_size_bytes: int  = 10000,
+            tokenizer: bittensor.tokenizer = None,
+            no_tokenizer: bool = False,
+            max_hash_size:int = 10000000,
+            num_workers: int = 1,
+            datasets: Union[List[str], str] = None, 
+            max_datasets: int = 10,
+            max_directories: int = 100000,
+            save_dataset : bool = True,
+            load_dataset : bool = True,
+            buffer_size:int = 1,
+            buffer_calls_per_update: int = 1,
+            enable_background_download: bool = True,
             loop: Optional['asyncio.loop'] = None ):
-        """
-        The genesis dataset that represents interfacing with the mountain stored in IPFS hosted by Bittensor's IPFS nodes.
-        Args:
-            batch_size (int, required):
-                The size of the batch.
-            sequence_length (int, required):
-                The length of the seqeunce (tokenwise).
-            block_size_bytes (int, required): 
-                The  size of the text data block which is used to create. 
-                multiple samples.
-            max_hash_size (int, required): 
-                The maximum size of the block that represents the hash.
-            num_workers (int, required):
-                Number of workers for pytorch Dataset.
-            datasets (Optional[Union[List[str], str]]):
-                List of dataset names to include from the pile.
-            no_tokenizer (bool, required):
-                Do not inlcude tokenizer.
-            data_dir (str, required):
-                Directory for saving assets.
-            save_dataset (bool, required):
-                Save the dataset text hashes.
-            load_dataset (bool, required):
-                Load the dataset text hashes.
-            num_batches (int, required):
-                Number of generated batches in epoch.
-            max_datasets (int, required):
-                Max number of datasets.
-            buffer_size (int, required):
-                Size of blocks to buffer while training.
-            buffer_calls_per_update (int, required):
-                Calls per block when caching.
-            loop ('asyncio.loop',  optional):
-                Asyncio loop for class, defaults to default event loop.
-        """
-        commune.Module.__init__(self)
-        
-        self.__infinite_dataset_iterator = None
-        self.set_event_loop(loop=loop)
 
-        self.block_size_bytes = config.block_size_bytes = block_size_bytes if block_size_bytes  else config.block_size_bytes
-        self.block_size =  config.block_size = block_size if block_size else config.block_size
-        self.sequence_length config.sequence_length = config.block_size
-        self.batch_size = config.batch_size = batch_size if batch_size else config.batch_size
-        self.num_workers = config.num_workers = num_workers if num_workers  else config.num_workers
-        self.datasets = config.datasets = datasets if datasets else config.datasets
+        self.kwargs = locals()
+        self.kwargs.pop('self')
+        
+        self.__dict__.update(self.kwargs)
+        
+        self.buffer_size = self.batch_size * self.buffer_size
+        
+        self.set_event_loop(loop=self.loop)
         if self.datasets == 'default' or self.datasets == None:
             self.datasets = self.available_datasets
-        self.max_datasets = config.max_datasets = max_datasets if max_datasets  else config.max_datasets
+
         self.datasets = self.datasets[:self.max_datasets]
-
-        self.save_dataset = config.save_dataset = save_dataset if save_dataset  else config.save_dataset
-        self.load_dataset = config.load_dataset = load_dataset if load_dataset else config.load_dataset
-        self.no_tokenizer = config.no_tokenizer = no_tokenizer if no_tokenizer  else config.no_tokenizer
-        self.num_batches = config.num_batches = num_batches if num_batches  else config.num_batches
-        self.max_directories = config.max_directories = max_directories if max_directories else config.max_directories
-        self.buffer_size = config.buffer_size = buffer_size if buffer_size  else config.buffer_size
-        self.buffer_calls_per_update = config.buffer_calls_per_update = buffer_calls_per_update if buffer_calls_per_update  else config.buffer_calls_per_update
-        self.max_hash_size = config.max_hash_size = max_hash_size if max_hash_size  else config.max_hash_size
-
-        self.check_config( config )
-        self.config = config
-        self.sample_cat_tasks = []
+        self.fetch_text_tasks = []
         self.sample_buffer = []
 
-        # Tokenizer 
-        self.tokenizer =  bittensor.tokenizer()
-        self.pad_token = self.tokenizer.pad_token
-        self.pad_token_idx = self.tokenizer(self.pad_token)['input_ids'][0]
-        self.data_dir =  data_dir
+
+        self.save_dataset = save_dataset
+        self.load_dataset = load_dataset
+        self.set_tokenizer(tokenizer=self.tokenizer)
+
+        # set the buffer
+        self.set_buffer(buffer_size=buffer_size)
+
+        # TODO: currently the number of batches is inert as this loop runs forever
         self.sample_count = 0
         self.batch_count = 0
 
         # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
         self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
+        
+        if self.enable_background_download:
+            self.background_download()
+      
+      
+    def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
+        if tokenizer == None:
+            tokenizer =   bittensor.tokenizer()
+        self.tokenizer = tokenizer
+        self.pad_token = self.tokenizer.pad_token
+        self.pad_token_idx = self.tokenizer(self.pad_token)['input_ids'][0]
+        return self.tokenizer
 
-    def construct_text_corpus(self, datasets:Optional[List[str]] = None, save:bool = False, load:bool = False) -> None :
+    def construct_text_corpus(self, datasets:Optional[List[str]] = None, save:bool = False, load:bool = True) -> None :
         """ Building all of the datasets specified by getting each of their 
             text hashes from IPFS or local
         Args:
@@ -153,7 +120,8 @@ class BittensorTextDataset(commune.Module):
         all_text_file_metas = []
         dataset_hash_map = {}
         tasks = []
-        self.dataset_size_map = {d:0 for d in datasets}
+        self.dataset_byte_size_map = {d:0 for d in datasets}
+        self.dataset_hash_size_map = {d:0 for d in datasets}
         
         # Gather dataset hashes async as their state is independent.
         for dataset in datasets:
@@ -161,110 +129,25 @@ class BittensorTextDataset(commune.Module):
 
         # Get the hashes asynchronously for each dataset.
         dataset_hashes = asyncio.run(asyncio.gather(*tasks))
-
         # Create a hash map of dataset -> text hashes.
         for k,v in zip(datasets, dataset_hashes):
             if len(v) > 0:
                 dataset_hash_map[k] = v
+                self.dataset_hash_size_map[k] = len(v)
         
         self.dataset_hash_map = dataset_hash_map
 
         # Flatten the hashes to a list of hashes.
-        for k,file_meta_list in dataset_hash_map.items():
-            all_text_file_metas += [fm  for fm in file_meta_list if fm['Size'] >= self.block_size_bytes]
-        
-        # Ensure the hash list is not empty.
-        assert len(all_text_file_metas) > 0
-        self.all_text_file_metas = all_text_file_metas
-
-    async def async_save_json(self, path:str, obj:Union[dict, list], include_root:Optional[bool]=True) -> str:
-        """ 
-        Async save of json for storing text hashes
-
-        Args:
-            path (str, required):
-                Path of json to save. If include_root is true, then it is suffixed with {self.data_dir}.
-            obj (bool, required):
-                The object to save locally
-            include_root (bool, optional):
-                Include self.data_dir as the prefix.
-                    - if True, ths meants shortens the batch and 
-                    specializes it to be with respect to the dataset's 
-                    root path which is in ./bittensor/dataset
+        self.hash_dataset_map = {}
+        self.all_text_file_metas = []
+        for dataset_name,file_meta_list in dataset_hash_map.items():
+            for fm in file_meta_list:
+                if fm['Size'] >= self.block_size_bytes:
+                    self.hash_dataset_map[fm['Hash']] = dataset_name
+                    self.all_text_file_metas += [fm]
             
-        Returns: 
-            path (str)
-                Path of the saved JSON.
-        """
-        
-        if include_root:
-            path = os.path.join(self.data_dir, path)
-
-        dir_path = os.path.dirname(path)
-
-        # Ensure the json is the prefix.
-        if path[-len('.json'):] != '.json':
-            path += '.json'
-
-        # Ensure the directory exists, make otherwise.
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
-
-        assert os.access( dir_path , os.W_OK ), f'dir_path:{dir_path} is not writable'
-        with open(path, 'w') as outfile:
-            json.dump(obj, outfile)
-
-        return path
-
-    save_json = sync_wrapper(async_save_json)
-
-    async def async_load_json(self, path:str, include_root:Optional[bool] = True, default:Optional[Union[list, dict]] = {}) -> Union[list, dict]:
-
-        """ 
-        Async save of json for storing text hashes
-        Args:
-            path (str, required):
-                Path of the loaded json
-            include_root (bool, optional):
-                Include self.data_dir as the prefix.
-                    - if True, ths meants shortens the batch and 
-                    specializes it to be with respect to the dataset's 
-                    root path which is in ./bittensor/dataset
-            default (dict, optional):
-                If there is a file not found, what is the default value.
-        Returns: 
-            obj (dict)
-                Object of the saved JSON as a dictionary.
-        """
-        
-        # Include the root if true (self.data_dir).
-        if include_root:
-            if self.data_dir != path[:len(self.data_dir)]:
-                path = os.path.join(self.data_dir, path)
-
-        # Ensure extension.
-        dir_path = os.path.dirname(path)
-        if os.path.splitext(path)[-1] != '.json':
-            path += '.json'
-
-        # Ensure dictionary.
-        if not os.path.isdir(dir_path):
-            os.makedirs(dir_path)
-
-        # Load default if file does not exist.
-        try:
-            with open(path, 'r') as f:
-                obj = json.load(f)
-        except FileNotFoundError:
-            obj = default
-        except json.JSONDecodeError:
-            obj = default
-        if isinstance(obj, str):
-            obj = json.loads(obj)
-
-        return obj
-
-    load_json = sync_wrapper(async_load_json)
+        # Ensure the hash list is not empty.
+        assert len(self.all_text_file_metas) > 0
 
     async def async_build_single_dataset(self, dataset:str , save:Optional[bool]=False, load:Optional[bool]=True) -> List[dict] :
         """ Building a single dataset by fetching its text file metas ({Hash:str, Name:str, Size: int})
@@ -285,14 +168,21 @@ class BittensorTextDataset(commune.Module):
 
         # If load is true, load the hashes, otherwise, fetch them from ipfs.
         if load:
-            loaded_file_metas =  self.load_json(path=f'{dataset}/file_metas', default=[])
+            try:
+                loaded_file_metas =  self.load_json(path=f'{dataset}/file_metas', default=[])
+            except FileNotFoundError as e:
+                loaded_file_metas = []
+                
             for file_meta in loaded_file_metas:
                 hash2file_meta[file_meta['Hash']] = file_meta
             
             text_file_metas = list(hash2file_meta.values())
                         
-        else:
-            # Get the folder_hashes from the dataset.
+
+        if len(text_file_metas) == 0:
+        # Get the folder_hashes from the dataset.
+
+            
             folder_hashes = (await self.get_folder_hashes(self.dataset2hash[dataset]))[:self.max_directories]
 
             # For each folder, get the text hashes.
@@ -307,411 +197,14 @@ class BittensorTextDataset(commune.Module):
                         hash2file_meta[file_meta['Hash']] = file_meta   
                     
             text_file_metas = list(hash2file_meta.values())
-
-            # If save is true, then save the hashes into the {self.data_dir}/{dataset}/file_metas.
-            if save:
-                self.save_json(path=f'{dataset}/file_metas', obj=text_file_metas)
         
+        if save:
+            self.save_json(path=f'{dataset}/file_metas', data=text_file_metas)
+    
         # Calculate the size.
-        self.dataset_size_map[dataset]  = sum([fm['Size'] for fm in text_file_metas])
+        self.dataset_byte_size_map[dataset]  = sum([fm['Size'] for fm in text_file_metas])
 
         return text_file_metas
-   
-    async def async_generate_sample(self)-> List[str]:
-        '''
-        Checks the sample buffer, and builds it if it is empty
-
-        Returns:
-            self.sample_buffer (List[str]): 
-                The sample buffer.
-        '''
-        # See if there is free space, if so, add jobs to fill the free space with samples.
-        buffer_free_space = self.buffer_size - len(self.sample_buffer) 
-        
-        if buffer_free_space > 0  :
-            
-            # Sample the file_metas randomly.
-            sample_cat_params_list = random.sample(self.all_text_file_metas, buffer_free_space)
-
-            # Build the asyncio jobs.
-            self.sample_cat_tasks += [self.cat(cid=sample_cat_params['Hash'], offset=0, length=self.max_hash_size) for sample_cat_params in sample_cat_params_list]
-            
-            # This currently synchronytes on all of the self.sample_cat_tasks, completing when they all are finished.
-            finished_tasks, running_tasks  = await asyncio.wait(self.sample_cat_tasks) 
-            self.sample_cat_tasks = list(running_tasks)
-            finished_tasks = list(finished_tasks)
-
-            # Add the finished task results into the buffer.
-            for finished_task in finished_tasks:
-                sample = finished_task.result()
-                self.sample_buffer += [finished_task.result()]
-
-        # Randomly sample the text file from the buffer.
-        random_idx = random.randint(0,len(self.sample_buffer)-1)
-        raw_chunk = self.sample_buffer[random_idx]
-
-        # Increment the counters.
-        self.sample_count += 1
-        self.batch_count += self.sample_count //  self.batch_size
-
-
-        if self.block_size_bytes < len(raw_chunk):
-            start_idx = random.randint(0, len(raw_chunk) - self.block_size_bytes)
-        else:
-            start_idx = 0
-        
-        end_idx = start_idx + self.block_size_bytes
-        sample = raw_chunk[start_idx:end_idx]
-
-        # If the batch count exceeds the calls per update, pop the first elemetn out of the buffer.
-        if (self.batch_count) >= self.buffer_calls_per_update:
-            self.sample_count = 0 
-            self.sample_buffer.pop(0)
-        
-        return sample
-
-    def __getitem__(self, idx: Optional[int] = None) -> Union[List[str], torch.tensor]:
-        '''
-        Sample from the sample_buffer via self.async_generate_sample. This fetches a random block of text
-        with a size of self.block_size_bytes in bytes.
-        Args:
-            idx (int):
-                Sample index of dataset.
-            
-        Returns:
-            output (Union[str, torch.tensor])
-        '''
-        # Random sampel idx if None.
-        if idx == None:
-            idx = random.randint(0, self.__len__())
-
-        # only sample if the buffer is less than the buffer_size
-
-        raw_text_bytes = asyncio.run(self.async_generate_sample())
-
-        # Decode the bytes into a string.
-        try:
-            raw_text = raw_text_bytes.decode()
-        except UnicodeDecodeError as e:
-            raw_text = str(raw_text_bytes[2:-1])
-
-        # If there is no tokenizer specified return text with the seqeunce length being the number of " " split elements.
-
-        if self.no_tokenizer:
-            raw_text =raw_text.split()
-            output = raw_text[:self.sequence_length]
-            remainder = self.sequence_length - len(output)
-
-            if remainder > 0:
-                # left side padding
-                output = [self.pad_token]*remainder + output 
-
-            output = ' '.join(output)
-        else:
-            output = self.tokenizer(raw_text, max_length=self.sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
-            output = output.to(torch.long).squeeze(0) #  [1,seq_len] -> [seq_len]
-
-        return output
-    
-    async def get_dataset_hashes(self)-> List[dict]:
-        '''
-        Get the hashes representing the root of each dataset
-        
-        Returns
-            response (dict):
-            
-        '''
-        mountain_meta = {'Name': 'mountain', 'Folder': 'meta_data', 'Hash': self.mountain_hash}
-        response = await self.api_post( 'object/get',  params={'arg': mountain_meta['Hash']}, return_json= True)
-        response = response.get('Links', None)
-        return response
-
-    async def get_folder_hashes(self, file_meta:dict) -> List[str]:
-        '''
-        Get the folder hashes from the dataset.
-
-        Args:
-            file_meta (dict):
-                File meta contianing the hash and name of the link.
-        Returns folder_hashes (List[str])
-        
-        '''
-
-        links = (await self.get_links(file_meta))
-        
-        # Build the tasks to fetch the links of the folder.
-        unfinished = [asyncio.create_task(self.api_post('object/get', params={'arg':link['Hash']}, return_json=True)) for link in links]
-        folder_hashes = []
-        just_links = []
-
-        # Gather results until all tasks are finished.
-        while len(unfinished)>0:
-            finished, unfinished = await asyncio.wait(unfinished, return_when=asyncio.FIRST_COMPLETED)
-            for res in await asyncio.gather(*finished):
-                folder_hashes.extend(res.get('Links'))
-        
-        # Sometimes, the folder_hashes are empty with some datasets.
-        # This means the root links are the folder links.
-        # TODO (for constructing text corpus): We need the root links to be 1 level for more consistancy.
-        if len(folder_hashes) == 0:
-            folder_hashes = links
-
-        return folder_hashes
-
-    async def cat(self, cid:str, offset:int = 0, length:int = None)->bytes:
-        '''
-        Cat endpoint.
-        Args:
-            cid (str):
-                CID of the object.
-            offset (int):
-                The offset in bytes.
-            length  (int):
-                The length in bytes.
-            
-        Returns:
-            response (bytes):
-                The response from the cat call.
-                
-        '''
-        params = dict(arg=cid, offset=offset)
-        params['length'] = length
-        headers = {}
-        response = await self.api_post('cat', params=params, headers=headers, chunk_size=10000000, num_chunks=1)
-        return response
-
-    async def get_folder_text_hashes(
-                                    self, 
-                                    file_meta:dict, 
-                                    dataset:str, 
-                                    max_chunks:int = 1, 
-                                    chunk_size:int = 100000000) -> List[Dict[str, Union[str, int]]]:
-        """
-        Get text hashes from a folder
-
-        Args:
-            file_meta (dict):
-                File meta contianing the hash and name of the link.
-            dataset (str):
-                The name of the dataset for self.dataset_hash_map.
-            max_chunks (int): 
-                Max number of chunks to call when fetching file metas.
-        
-        Returns 
-            text_file_metas (List[Dict[str, Union[str, int]]):
-                List of the text file_metas of the folder.
-        """
-        text_file_metas = []
-        
-        for chunk_i in range(max_chunks):
-            data = await self.cat(file_meta['Hash'], offset=chunk_i*chunk_size ,length=chunk_size)
-            hashes = ['['+h + '}]'for h in data.decode().split('},')]
-            for i in range(len(hashes)-1):
-                try:
-                    decoded_hash = json.loads(hashes[i+1][1:-1])
-                    decoded_hash_size_bytes = decoded_hash.get('Size', 0)
-                    if decoded_hash_size_bytes > 0:
-                        self.dataset_size_map[dataset] += decoded_hash_size_bytes
-                        text_file_metas.append(decoded_hash)
-                except json.JSONDecodeError:
-                    pass
-                
-                hashes[i] ='{'+ hashes[i+1] + '}'
-
-        return text_file_metas
-
-    async def get_links(self, file_meta:dict) -> List[dict]:
-        '''
-        Get Links from file_meta
-
-        Args
-            file_meta (dict, required): 
-                Dictionary containing hash and name of root link.
-        '''
-        response = await self.api_post( 'object/get',  params={'arg': file_meta['Hash']}, return_json= True)
-        response_links = response.get('Links', [])
-        return response_links
-
-    async def api_post(
-                    self, 
-                    endpoint:str, 
-                    params:Optional[Dict[str, Any]] = {}, 
-                    headers:Optional[Dict[str, Any]] = {}, 
-                    return_json:Optional[bool] = False,  
-                    content_type:Optional[str] = None, 
-                    chunk_size:Optional[int] = 1024, 
-                    num_chunks:Optional[int] = None, 
-                    sock_connect:Optional[int]=20, 
-                    sock_read:Optional[int]=20) -> Union[Dict, 'aiohttp.Response', bytes]:
-        '''
-        Async api post to ipfs server.
-
-        Args:
-            endpoint (str):
-                Endpoint path with such that path is "self.ipfs_url/{endpoint}".
-            params (Dict[str, Any], optional):
-                Params for api request.
-            headers (Dict[str, Any], optional): 
-                Headers for api request.
-            return_json (bool, optional): 
-                Return repsonse as json.
-            content_type (str, optional):
-                Content type of request.
-            chunk_size (int, optional):
-                Chunk size of streaming endpoint.
-            num_chunks (int, optional):
-                Number of chunks to stream.
-            sock_connect (int, optional):
-                The timeout for connecting to a socket.
-            sock_read (int, optional):
-                The timeout for reading a socket.
-        Returns:
-            return_result (Union[Dict, 'aiohttp.Response', bytes]):
-                The result of the response. 
-                    - Dictionary if return_json = True. 
-                    - Bytes if num_chunks > 0
-                    - aiohttp.Response if num_chunks == 0 and return_json == False
-        '''
-        url = os.path.join(self.ipfs_url, endpoint)
-        return_result = None
-        timeout = aiohttp.ClientTimeout(sock_connect=sock_connect, sock_read=sock_read)
-        
-        async with aiohttp.ClientSession( timeout=timeout) as session:
-            async with session.post(url,params=params,headers=headers) as res:
-                # Return a Json of the response.
-                if return_json: 
-                    return_result = await res.json(content_type=content_type)
-                else:
-                    return_result = res
-
-                # If num_chunks is not None, iterate through the chunks of chunk_size.
-                if num_chunks:
-                    return_result = b''
-                    async for data in res.content.iter_chunked(chunk_size):
-                        return_result += data
-                        num_chunks-= 1
-                        if num_chunks == 0:
-                            break
-        return return_result
-
-    @property
-    def available_datasets(self) -> List[str]:
-        '''
-        List of available datasets.
-
-        Retuns:
-            List of available datasets.
-        '''
-        return list(self.dataset2hash.keys())
-
-    @property
-    def dataset_hashes(self) -> List[str]:
-        '''
-        Return the dataset hashes:
-
-        Returns
-            self._dataset_hashes (List[str]):
-                A list of the dataset hashes
-        '''
-        # This avoids us from having to call this multiple times from IPFS.
-        if not hasattr(self, '_dataset_hashes'):
-            self._dataset_hashes = asyncio.run(self.get_dataset_hashes())
-        return self._dataset_hashes
-
-    @property
-    def dataset2hash(self) -> Dict:
-        '''
-        Dictionary to hash
-        '''
-        return {v['Name'].replace('.txt', '') :v for v in self.dataset_hashes}
-    
-    @property
-    def dataset_size(self) -> int:
-        '''
-        The size of the dataset in bytes.
-        '''
-        return sum(list(self.dataset_size_map.values()))
-
-
-    def dataloader(self, epoch_length:Optional[int] = 100) -> DataLoader:
-        """ 
-        Creates a torch dataloader out of a subclass of this class.
-
-        Args:
-            epoch_length (int, optional): 
-                
-                The epoch length of the miner. If this length is not set or if it is larger than the dataset,
-                then a dataloader for the entire dataset is returned. Otherwise, a dataloader for a subset of the dataset of epoch_length
-                is returned. 
-
-        Returns:
-            torch.utils.data.dataloader.DataLoader: Pytorch dataloader.
-        """
-        return DataLoader(self,
-                    shuffle=True,
-                    batch_size=self.batch_size,
-                    num_workers=self.num_workers,
-                    drop_last=True)
-    
-    def __next__(self) -> Dict[str, torch.tensor]:
-        """
-        Returns the next element from the dataset. 
-        """
-        if self.__infinite_dataset_iterator == None:
-            self.__infinite_dataset_iterator = iter(self.dataloader())
-
-        try:
-            return next(self.__infinite_dataset_iterator)
-        except StopIteration:
-            self.__infinite_dataset_iterator = iter(list(self.dataloader()))
-            return next(self.__infinite_dataset_iterator)
-
-    def set_event_loop(self, loop = None) -> 'asyncio.loop':
-        '''
-        Sets the event loop.
-
-        Args:
-            loop (asyncio.loop, optional):
-                The asyncio loop you want to set to self.loop
-        
-        Returns:
-            self.loop (asyncio.loop)
-        '''
-        if loop == None:
-            loop = asyncio.get_event_loop()
-        self.loop = loop
-        return self.loop
-
-    def __len__(self) -> int:
-        """
-        Returns number of samples (blocks) of dataset
-
-        Returns:
-            length: int
-        """
-        return self.dataset_size // self.block_size_bytes
-
-    def __del__(self) -> None:
-        self.close()
-
-    def close(self) -> None:
-        # Cancel sample tasks.
-        if len(self.sample_cat_tasks)> 0:
-            for t in self.sample_cat_tasks:
-                t.cancel()
-
-        
-
-    @classmethod
-    def check_config( cls, config: 'bittensor.Config' ):
-        """ Check config for batch size, block size, corpus size, num_workers and dataset
-        """
-        assert config.batch_size > 0, 'Batch size must be larger than 0'
-        assert config.block_size > 0, 'Block size must be larger than 0'
-        assert config.num_workers >= 0, 'num_workers must be equal to or larger than 0'
-        assert isinstance(config.save_dataset, bool) , 'save_dataset must be True/False only'
-
-
 
     def set_data_size(self, batch_size:Optional[int] = None, block_size:Optional[int] = None, sequence_length:Optional[int] = None,  block_size_bytes:Optional[int]= None, buffer_size:Optional[int]=None) -> None:
         r""" 
@@ -773,4 +266,516 @@ class BittensorTextDataset(commune.Module):
         # If the buffer is smaller than the current buffer, trim it to match the new size.
         if len(self.sample_buffer) > self.buffer_size:
             self.sample_buffer = self.sample_buffer[:self.buffer_size]
-         
+            
+            
+    def suggest_samples(self, sample_size:int, loaded_fraction = 1.0):
+        suggest_samples = []
+        if loaded_fraction > 0 :
+            suggest_samples += random.sample(self.saved_hashes, int(sample_size * loaded_fraction))
+        
+        if loaded_fraction < 1:
+            suggest_samples += random.sample(self.all_text_file_metas,  int((1-loaded_fraction)*sample_size))
+        return suggest_samples
+    
+    async def async_generate_sample(self)-> List[str]:
+        '''
+        Checks the sample buffer, and builds it if it is empty
+
+        Returns:
+            self.sample_buffer (List[str]): 
+                The sample buffer.
+        '''
+        # See if there is free space, if so, add jobs to fill the free space with samples.
+        buffer_free_space = self.buffer_size - len(self.sample_buffer) 
+        
+        if buffer_free_space > 0  :
+            
+            # Sample the file_metas randomly.
+            sample_cat_params_list = self.suggest_samples(buffer_free_space)
+
+            # Build the asyncio jobs.
+            self.fetch_text_tasks += [asyncio.create_task(self.fetch_text(file_meta=sample_cat_params, offset=0, length=self.max_hash_size, load=True, save=False)) for sample_cat_params in sample_cat_params_list]
+            
+            # This currently synchronytes on all of the self.fetch_text_tasks, completing when they all are finished.
+            finished_tasks, running_tasks  = await asyncio.wait(self.fetch_text_tasks) 
+            self.fetch_text_tasks = list(running_tasks)
+            finished_tasks = list(finished_tasks)
+
+            # Add the finished task results into the buffer.
+            for finished_task in finished_tasks:
+                sample = finished_task.result()
+                if sample == None:
+                    continue
+                self.sample_buffer += [finished_task.result()]
+
+        # Randomly sample the text file from the buffer.
+        random_idx = random.randint(0,len(self.sample_buffer)-1)
+        raw_chunk = self.sample_buffer[random_idx]
+
+        # Increment the counters.
+        self.sample_count += 1
+        self.batch_count += self.sample_count //  self.batch_size
+
+
+        if self.block_size_bytes < len(raw_chunk):
+            start_idx = random.randint(0, len(raw_chunk) - self.block_size_bytes)
+        else:
+            start_idx = 0
+        
+        end_idx = start_idx + self.block_size_bytes
+        sample = raw_chunk[start_idx:end_idx]
+
+        if (self.batch_count) >= self.buffer_calls_per_update:
+            self.sample_count = 0 
+            self.sample_buffer = self.sample_buffer[self.buffer_calls_per_update*self.batch_size:]
+            self.batch_count = 0
+        
+        return sample
+
+    def __getitem__(self, idx: Optional[int] = None, *args, **kwargs) -> Union[List[str], torch.tensor]:
+        return asyncio.run(self.__async_getitem__(idx=idx, *args, **kwargs))
+
+    def sample(self, batch_size:int=None, sequence_length:int = None, no_tokenizer:bool = None):
+        batch_size = batch_size if batch_size else self.batch_size
+        sequence_length = sequence_length if sequence_length else self.sequence_length
+        no_tokenizer = no_tokenizer if no_tokenizer else self.no_tokenizer
+        getitem_jobs = asyncio.gather(*[self.__async_getitem__(sequence_length=sequence_length, no_tokenizer=True) for i in range(batch_size)])
+        sample_text = asyncio.run(getitem_jobs)
+        output = {}
+        if no_tokenizer:
+            output['text'] =sample_text
+        else:
+            output['input_ids'] =self.tokenizer(sample_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
+        
+        return output
+
+    __next__ = sample
+    async def __async_getitem__(self, idx: Optional[int] = None, sequence_length:int=None, no_tokenizer:bool = None) -> Union[List[str], torch.tensor]:
+        '''
+        Sample from the sample_buffer via self.async_generate_sample. This fetches a random block of text
+        with a size of self.block_size_bytes in bytes.
+        Args:
+            idx (int):
+                Sample index of dataset.
+            
+        Returns:
+            output (Union[str, torch.tensor])
+        '''
+        sequence_length = sequence_length if sequence_length else self.sequence_length
+        no_tokenizer = no_tokenizer if no_tokenizer else self.no_tokenizer
+        # Random sampel idx if None.
+        if idx == None:
+            idx = random.randint(0, self.__len__())
+
+        # only sample if the buffer is less than the buffer_size
+
+        raw_text = await self.async_generate_sample()
+
+        # Decode the bytes into a string.
+
+
+        # If there is no tokenizer specified return text with the seqeunce length being the number of " " split elements.
+
+        if no_tokenizer:
+            raw_text =raw_text.split()
+            output = raw_text[:sequence_length]
+            remainder = sequence_length - len(output)
+
+            if remainder > 0:
+                # left side padding
+                output = [self.pad_token]*remainder + output 
+
+            output = ' '.join(output)
+        else:
+            output = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
+            output = output.to(torch.long).squeeze(0) #  [1,seq_len] -> [seq_len]
+
+        return output
+    
+    
+    async def get_dataset_hashes(self)-> List[dict]:
+        '''
+        Get the hashes representing the root of each dataset
+        
+        Returns
+            response (dict):
+            
+        '''
+        mountain_meta = {'Name': 'mountain', 'Folder': 'meta_data', 'Hash': self.mountain_hash}
+        response = await self.api_post( 'object/get',  params={'arg': mountain_meta['Hash']}, return_json= True)
+        response = response.get('Links', None)
+        return response
+
+    async def get_folder_hashes(self, file_meta:dict) -> List[str]:
+        '''
+        Get the folder hashes from the dataset.
+
+        Args:
+            file_meta (dict):
+                File meta contianing the hash and name of the link.
+        Returns folder_hashes (List[str])
+        
+        '''
+
+        links = (await self.get_links(file_meta))
+        
+        # Build the tasks to fetch the links of the folder.
+        unfinished = [asyncio.create_task(self.api_post('object/get', params={'arg':link['Hash']}, return_json=True)) for link in links]
+        folder_hashes = []
+        just_links = []
+
+        # Gather results until all tasks are finished.
+        while len(unfinished)>0:
+            finished, unfinished = await asyncio.wait(unfinished, return_when=asyncio.FIRST_COMPLETED)
+            for res in await asyncio.gather(*finished):
+                folder_hashes.extend(res.get('Links'))
+        
+        # Sometimes, the folder_hashes are empty with some datasets.
+        # This means the root links are the folder links.
+        # TODO (for constructing text corpus): We need the root links to be 1 level for more consistancy.
+        if len(folder_hashes) == 0:
+            folder_hashes = links
+
+        return folder_hashes
+    
+    
+    
+    def download(self, chunk_size:int=500, background_thread:bool=False):
+        
+        if background_thread: 
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        else:
+            loop = self.loop
+        
+        file_meta_chunks = chunk(self.all_text_file_metas, chunk_size=chunk_size)
+        
+        random.shuffle(file_meta_chunks)
+        
+        total_hash_count = len(self.all_text_file_metas)
+        fail_count = 0
+        for i,  file_meta_chunk in enumerate(file_meta_chunks):
+            if i % 5:
+                print(f'{i} hashes downloaded -> Total Saved Hashes {len(self.saved_hashes)}/{total_hash_count} fails: {fail_count}')
+            # Build the asyncio jobs.
+            try:
+                loop.run_until_complete(asyncio.gather(*[self.fetch_text(file_meta=file_meta, offset=0, length=self.max_hash_size) for file_meta in file_meta_chunk ]))
+            except:
+                fail_count += 1
+        # This currently synchronytes on all of the self.fetch_text_tasks, completing when they all are finished.
+        # finished_tasks, running_tasks  = await asyncio.wait(self.fetch_text_tasks) 
+            
+    def background_download(self):
+        from threading import Thread
+        self.download_thread = Thread(target=self.download, kwargs= {'chunk_size':100,'background_thread': True}, daemon=True, name='IPFS Download')
+        
+        self.download_thread.start()   
+    
+    @property
+    def saved_hashes(self) -> List[Dict[str, dict]]:
+        if not hasattr(self, '_saved_hashes'):
+            hash_urls = self.glob('saved_file_metas/*')
+            self._saved_hashes = []
+            for hash_url in hash_urls:
+                self._saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
+        return self._saved_hashes
+            
+    async def fetch_text(self, file_meta:dict, offset:int=0, length:int=None, save:bool = True, load:bool = True ):
+        
+        if isinstance(file_meta, str):
+            file_meta = {'Hash': file_meta}
+        
+        length = length if length else self.max_hash_size
+        cid = file_meta['Hash']
+        path=f'saved_file_metas/{cid}'
+        
+        try:
+            response = self.get_json(path=path, handle_error=True, default={}) if load else {}
+        except json.decoder.JSONDecodeError:
+            response = {}
+            
+        if 'text'in response:
+            return response['text']
+        
+        else:
+            response  = await self.cat(cid=cid, offset=offset, length=length)
+            try:
+                response = response.decode()
+            except UnicodeDecodeError as e:
+                response = str(response[2:-1])
+            if save:
+                file_meta['text'] = response
+                self.put_json(path=path, data= file_meta)
+        
+            return response
+    async def cat(self, cid:str, offset:int = 0, length:int = None)->bytes:
+        '''
+        Cat endpoint.
+        Args:
+            cid (str):
+                CID of the object.
+            offset (int):
+                The offset in bytes.
+            length  (int):
+                The length in bytes.
+            
+        Returns:
+            response (bytes):
+                The response from the cat call.
+                
+        '''
+        params = dict(arg=cid, offset=offset)
+        params['length'] = length
+        headers = {}
+        try: 
+            response = await self.api_post('cat', params=params, headers=headers, chunk_size=10000000, num_chunks=1)
+        
+        except:
+            response = None
+            
+            
+        return response
+
+    async def get_folder_text_hashes(
+                                    self, 
+                                    file_meta:dict, 
+                                    dataset:str, 
+                                    max_chunks:int = 1, 
+                                    chunk_size:int = 100000000) -> List[Dict[str, Union[str, int]]]:
+        """
+        Get text hashes from a folder
+
+        Args:
+            file_meta (dict):
+                File meta contianing the hash and name of the link.
+            dataset (str):
+                The name of the dataset for self.dataset_hash_map.
+            max_chunks (int): 
+                Max number of chunks to call when fetching file metas.
+        
+        Returns 
+            text_file_metas (List[Dict[str, Union[str, int]]):
+                List of the text file_metas of the folder.
+        """
+        text_file_metas = []
+        
+        for chunk_i in range(max_chunks):
+            data = await self.cat(file_meta['Hash'], offset=chunk_i*chunk_size ,length=chunk_size)
+            hashes = ['['+h + '}]'for h in data.decode().split('},')]
+            for i in range(len(hashes)-1):
+                try:
+                    decoded_hash = json.loads(hashes[i+1][1:-1])
+                    decoded_hash_size_bytes = decoded_hash.get('Size', 0)
+                    if decoded_hash_size_bytes > 0:
+                        self.dataset_byte_size_map[dataset] += decoded_hash_size_bytes
+                        text_file_metas.append(decoded_hash)
+                except json.JSONDecodeError:
+                    pass
+                except AttributeError as e:
+                    continue
+                
+                hashes[i] ='{'+ hashes[i+1] + '}'
+
+        return text_file_metas
+
+    async def get_links(self, file_meta:dict) -> List[dict]:
+        '''
+        Get Links from file_meta
+
+        Args
+            file_meta (dict, required): 
+                Dictionary containing hash and name of root link.
+        '''
+        response = await self.api_post( 'object/get',  params={'arg': file_meta['Hash']}, return_json= True)
+        response_links = response.get('Links', [])
+        return response_links
+
+    async def api_post(
+                    self, 
+                    endpoint:str, 
+                    params:Optional[Dict[str, Any]] = {}, 
+                    headers:Optional[Dict[str, Any]] = {}, 
+                    return_json:Optional[bool] = False,  
+                    content_type:Optional[str] = None, 
+                    chunk_size:Optional[int] = 1024, 
+                    num_chunks:Optional[int] = None, 
+                    sock_connect:Optional[int]=2, 
+                    sock_read:Optional[int]=2) -> Union[Dict, 'aiohttp.Response', bytes]:
+        '''
+        Async api post to ipfs server.
+
+        Args:
+            endpoint (str):
+                Endpoint path with such that path is "self.ipfs_url/{endpoint}".
+            params (Dict[str, Any], optional):
+                Params for api request.
+            headers (Dict[str, Any], optional): 
+                Headers for api request.
+            return_json (bool, optional): 
+                Return repsonse as json.
+            content_type (str, optional):
+                Content type of request.
+            chunk_size (int, optional):
+                Chunk size of streaming endpoint.
+            num_chunks (int, optional):
+                Number of chunks to stream.
+            sock_connect (int, optional):
+                The timeout for connecting to a socket.
+            sock_read (int, optional):
+                The timeout for reading a socket.
+        Returns:
+            return_result (Union[Dict, 'aiohttp.Response', bytes]):
+                The result of the response. 
+                    - Dictionary if return_json = True. 
+                    - Bytes if num_chunks > 0
+                    - aiohttp.Response if num_chunks == 0 and return_json == False
+        '''
+        url = os.path.join(self.ipfs_url, endpoint)
+        return_result = None
+        
+        timeout = aiohttp.ClientTimeout(sock_connect=sock_connect, sock_read=sock_read)
+        
+        async with aiohttp.ClientSession( timeout=timeout) as session:
+            async with session.post(url,params=params,headers=headers) as res:
+                # Return a Json of the response.
+                if return_json: 
+                    return_result = await res.json(content_type=content_type)
+                else:
+                    return_result = res
+
+                # If num_chunks is not None, iterate through the chunks of chunk_size.
+                if num_chunks:
+                    return_result = b''
+                    async for data in res.content.iter_chunked(chunk_size):
+                        return_result += data
+                        num_chunks-= 1
+                        if num_chunks == 0:
+                            break
+        return return_result
+
+    @property
+    def available_datasets(self) -> List[str]:
+        '''
+        List of available datasets.
+
+        Retuns:
+            List of available datasets.
+        '''
+        return list(self.dataset2hash.keys())
+
+    @property
+    def dataset_hashes(self) -> List[str]:
+        '''
+        Return the dataset hashes:
+
+        Returns
+            self._dataset_hashes (List[str]):
+                A list of the dataset hashes
+        '''
+        # This avoids us from having to call this multiple times from IPFS.
+        if not hasattr(self, '_dataset_hashes'):
+            self._dataset_hashes = asyncio.run(self.get_dataset_hashes())
+        return self._dataset_hashes
+
+    @property
+    def dataset2hash(self) -> Dict:
+        '''
+        Dictionary to hash
+        '''
+        
+        return {v['Name'].replace('.txt', '') :v for v in self.dataset_hashes}
+    
+    @property
+    def dataset_size(self) -> int:
+        '''
+        The size of the dataset in bytes.
+        '''
+        return sum(list(self.dataset_byte_size_map.values()))
+
+    @property
+    def dataset_size_map(self):
+        return {k:len(v) for k,v in self.dataset_hash_map.items()}
+
+
+    def dataloader(self, epoch_length:Optional[int] = 100) -> DataLoader:
+        """ 
+        Creates a torch dataloader out of a subclass of this class.
+
+        Args:
+            epoch_length (int, optional): 
+                
+                The epoch length of the miner. If this length is not set or if it is larger than the dataset,
+                then a dataloader for the entire dataset is returned. Otherwise, a dataloader for a subset of the dataset of epoch_length
+                is returned. 
+
+        Returns:
+            torch.utils.data.dataloader.DataLoader: Pytorch dataloader.
+        """
+        return DataLoader(self,
+                    shuffle=True,
+                    batch_size=self.batch_size,
+                    num_workers=self.num_workers,
+                    drop_last=True)
+
+    def set_event_loop(self, loop = None) -> 'asyncio.loop':
+        '''
+        Sets the event loop.
+
+        Args:
+            loop (asyncio.loop, optional):
+                The asyncio loop you want to set to self.loop
+        
+        Returns:
+            self.loop (asyncio.loop)
+        '''
+        if loop == None:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        self.loop = loop
+        return self.loop
+
+    def __len__(self) -> int:
+        """
+        Returns number of samples (blocks) of dataset
+
+        Returns:
+            length: int
+        """
+        return self.dataset_size // self.block_size_bytes
+
+    def __del__(self) -> None:
+        self.close()
+        if self.enable_background_download:
+            self.download_thread.join()
+
+    def close(self) -> None:
+        # Cancel sample tasks.
+        if len(self.fetch_text_tasks)> 0:
+            for t in self.fetch_text_tasks:
+                t.cancel()
+
+    
+    @classmethod
+    def test_dataset(cls):
+        import tuwang
+        # self = bittensor.dataset(batch_size=32, block_size=256)
+        self = cls(batch_size=32, sequence_length=256, max_datasets=10)
+        # print(self.download(chunk_size=200))
+        self.download()
+        
+        # t = tuwang.timer()
+
+        # for i in range(100):
+            
+        #     x = next(self)
+        #     print(f'Sample per Second: {i} {i/t.seconds}, SHAPE: {x["input_ids"].shape}')
+            
+    @classmethod
+    def sandbox(cls):
+        self = cls(batch_size=32, sequence_length=256, max_datasets=10)
+        print(len(self.saved_hashes))
+
+if __name__ == "__main__":
+    print('FUCK')
+
+    BittensorDataset.run()

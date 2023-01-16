@@ -1,7 +1,5 @@
-module: DatasetModule
 
-client: ['local']
-
+module: HFDataset
 tokenizer:
   module: bittensor.tokenizer
 
@@ -9,5 +7,9 @@ path: glue
 name: cola
 text_field: sentence
 split: 'train'
+
+ip: '0.0.0.0'
+port: 50070
+serve: False
 
 
