@@ -121,7 +121,6 @@ class Module:
     
         return self.client.local.rm(path,recursive=recursive, **kwargs)
 
-    
     def glob_json(self, pattern ='**',  tmp_dir=None):
         if tmp_dir == None:
             tmp_dir = self.tmp_dir
@@ -509,9 +508,10 @@ class Module:
         else:
             raise NotImplemented(f'{fn}')
 
-    @staticmethod
-    def get_functions(object):
-        functions = get_functions(object)
+    @classmethod
+    def get_functions(cls,obj=None):
+        obj = obj if obj else cls
+        functions = get_functions(obj)
         return functions
 
     @staticmethod
