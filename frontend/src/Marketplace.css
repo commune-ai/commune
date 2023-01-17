@@ -1,0 +1,101 @@
+.marketplace {
+    background-color: #87CEFA; /* pastel blue color */
+    font-family: 'Montserrat', sans-serif;
+    color: black; /* font color is black */
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 100px;
+    position: relative;
+    height: 100vh;
+}
+
+.marketplace-items {
+    display: grid; /* sets the items to be in a grid layout */
+    grid-template-columns: repeat(4, 1fr); /* creates a 4x4 grid */
+    grid-gap: 20px; /* adds space between the items */
+    width: 100%; /* makes the items take up the entire width of the page */
+}
+
+.marketplace-header {
+    position: absolute; /* positions the header on top of the page */
+    top: 0; /* sets the header to the top of the page */
+    width: 100%; /* spans the entire width of the page */
+    background-color: #f8f8ff;
+    color: black;
+    padding: 10px;
+    text-align: left;
+    z-index: 1; /* to keep the header on top of other elements */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.marketplace-title {
+    font-size: 2rem;
+    text-align: left;
+}
+
+
+
+
+.marketplace-tabs {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100%; /* sets the height of the tabs to be the same as the header */
+    width: 100%; /* sets the width of the tabs to be the same as the header */
+}
+
+.tab {
+    font-size: 2rem; /* increases the font size */
+    text-transform: uppercase; /* makes the text uppercase */
+    color: #050105; /* changes the text color to purple */
+    background-color: #ffccff; /* changes the background color to a light purple */
+    border: 2px solid #ff00ff; /* adds a thicker purple border */
+    padding: 10px ; /* increases the padding */
+    height: 100%; /* sets the height of the individual tabs to be the same as the header */
+    width: 100%; /* sets the width of the individual tabs to be the same as the header */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.tab:hover {
+    background-color: #ffffcc; /* changes the background color to pastel yellow on hover */
+}
+
+.dropdown {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+}
+
+.dropdown-title {
+    padding: 10px 20px;
+    margin-left: 10px;
+    border: 1px solid black;
+}
+
+.dropdown-content {
+    display: none; /* by default, the content is hidden */
+    position: absolute;
+    background-color: #f8f8ff;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 1;
+    padding: 12px 16px;
+}
+
+.dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+
+.dropdown-content.open {
+    display: block; /* when the dropdown is open, the content is visible */
+}
+
