@@ -1,0 +1,14 @@
+version : "3.9"
+services:
+  frontend :
+    container_name: frontend
+    image : commune/frontend
+    build :
+      context : ./
+      dockerfile : Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - './src:/app/src'
+      - './public:/app/public'
+    command: "npm start"
