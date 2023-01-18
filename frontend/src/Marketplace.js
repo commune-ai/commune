@@ -1,12 +1,47 @@
 import React, { useState } from 'react';
-import Item from './Item';
+// import Item from './Item';
 import './Marketplace.css';
-import HandleBar from './HandleBar';
 
 
+const HandleBar = (props) => {
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    return (
+        <div className="handle-bar">
+            <div className="handle-bar-tabs">
+                <div className="tab">Models</div>
+                <div className="tab">Datasets</div>
+                <div className="tab">Pipelines</div>
+            </div>
+            <div className="dropdown" onClick={() => setDropdownOpen(!dropdownOpen)}>
+                <div className="dropdown-title">Menu</div>
+                <div className={`dropdown-content ${dropdownOpen ? 'open' : ''}`}>
+                    <a href="/documentation">Documentation</a>
+                    <a href="/contact">Contact</a>
+                    <a href="/about">About</a>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+
+const Item = (props) => {
+    
+    const [expanded, setExpanded] = useState(false);
+
+    const handleClick = () => {
+        setExpanded(!expanded);
+    }
+
+    return (
+        <div className={`marketplace-item tab ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
+            {/* item content */}
+        </div>
+    )
+}
 
 const Marketplace = (props) => {
-    const [expandedItem, setExpandedItem] = useState(null);
 
 
     return (
@@ -15,30 +50,19 @@ const Marketplace = (props) => {
                 <div className="marketplace-title">
                     <h1>Marketplace</h1>
                 </div>
-                <div className="marketplace-tabs">
+                {/* <div className="marketplace-tabs">
                     <div className={`tab ${props.selectedTab === 'models' ? 'selected' : ''}`} onClick={() => props.setSelectedTab('models')}>Models</div>
                     <div className={`tab ${props.selectedTab === 'datasets' ? 'selected' : ''}`} onClick={() => props.setSelectedTab('datasets')}>Datasets</div>
                     <div className={`tab ${props.selectedTab === 'pipelines' ? 'selected' : ''}`} onClick={() => props.setSelectedTab('pipelines')}>Pipelines</div>
-                </div>
+                </div> */}
+                <HandleBar></HandleBar>
+
             </div>
 
             <div className="marketplace-items-container">
                 {props.items.map((item, index) => {
                     return (
-                        <div 
-                            key={index}
-                            className={`marketplace-item tab ${expandedItem === item ? 'expanded' : ''}`}
-                            onClick={() => {
-                                if(expandedItem === item) {
-                                    setExpandedItem(null);
-                                } else {
-                                    setExpandedItem(item);
-                                }
-                            }
-                            }
-                        >
-                            {item}
-                        </div>
+                        <Item></Item>         
                     )
                 })}
             </div>

@@ -6,6 +6,7 @@
     bottom: 0;
     background-color: #E9F9FF;
     padding: 40px;
+    height: 1200%;
 }
 
 
@@ -37,14 +38,14 @@
     transition: all 0.2s ease-in-out;
     cursor: pointer;
 }
-
 .tab:hover {
-    background-color: #E9F9FF;
+    background-color: #efb52d;
+    border: 3px solid #050105;
 }
 
 .tab.selected {
     background-color: #050105;
-    color: #E9F9FF;
+    color: #3298bd;
 }
 
 .marketplace-items-container {
@@ -81,6 +82,7 @@
     transition: transform 0.3s ease-in-out;
 }
 .marketplace-item.expanded {
+    background-color: #efb52d;
     width: 100%;
     height: 100%;
     top: 0;
@@ -138,3 +140,60 @@
         grid-gap: 10px;
 }
     
+
+.handle-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.handle-bar-tabs {
+    display: flex;
+}
+
+.dropdown {
+    
+    position: relative;
+    cursor: pointer;
+}
+
+.dropdown-title {
+    
+    padding: 10px 20px;
+    margin-right: 10px;
+    border: 1px solid black;
+}
+.dropdown-title:hover {
+    border: 3px solid #050105;
+}
+
+
+.dropdown-content {
+    display: none; /* by default, the content is hidden */
+    position: absolute;
+    top: 100%;
+    right: 0;
+    min-width: 160px;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0);
+    z-index: 1;
+    padding: 12px 16px;
+    background-color: #f0bef6;
+    
+
+}
+.dropdown-content:hover {
+    border: 3px solid #050105;
+}
+.dropdown-content a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    width: 100%; 
+    display: block;
+    /* border: 3px solid #050105; */
+
+}
+
+.dropdown-content.open {
+    display: block; /* when the dropdown is open, the content is visible */
+}
