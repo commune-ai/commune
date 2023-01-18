@@ -1,1 +1,1 @@
-from .module import PinataModule
+from .pinata import PinataModule

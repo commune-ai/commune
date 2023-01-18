@@ -112,5 +112,13 @@ RUN pip install accelerate
 RUN pip install --upgrade torch
 RUN pip install nvidia-ml-py3
 
+COPY ./langchain /app/langchain
+RUN pip install -e /app/langchain
+
+COPY ./langchain /app/langchain
+RUN pip install -e /app/langchain
+
+COPY ./diffusers /app/diffusers
+RUN pip install -e /app/diffusers
 
 RUN pip install -e .

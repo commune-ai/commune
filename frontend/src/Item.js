@@ -1,15 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './Item.css';
 
+
 const Item = (props) => {
+    const [expanded, setExpanded] = useState(false);
+
+    const handleClick = () => {
+        setExpanded(!expanded);
+    }
+
     return (
-        <div className="item">
-            {/* <img src={props.item.image} alt={props.item.name} /> */}
-            <h3>{props.item.name}</h3>
-            <p>{props.item.price}</p>
-            {/* <button>Add to cart</button> */}
+        <div className={`item ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
+            {props.name}
         </div>
     )
 }
+
 
 export default Item;

@@ -1,1 +1,1 @@
-from .module import LocalModule
+from .local import LocalModule

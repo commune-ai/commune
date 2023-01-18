@@ -564,6 +564,8 @@ class Module:
         else:
             raise NotImplementedError
 
+
+
     @classmethod
     def hasfunc(cls, key):
         fn_list = cls.functions()

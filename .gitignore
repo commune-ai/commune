@@ -425,3 +425,6 @@ yarn-error.log*
 **/.replicate
 replicate.yaml
 **/run.sh
+
+frontend/node_modules/**
+node_modules/

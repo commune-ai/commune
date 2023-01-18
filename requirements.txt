@@ -1,5 +1,10 @@
 
 
+-e ./bittensor
+-e ./langchain
+-e ./diffusers
+
+
 datasets
 streamlit
 aiofiles
@@ -11,8 +16,4 @@ jupyterlab
 accelerate
 web3
 httpcore==0.15
-
--e ./bittensor
-
-
 

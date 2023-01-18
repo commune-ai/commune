@@ -1,21 +1,12 @@
 
-.marketplace-items {
-    display: grid; /* sets the items to be in a grid layout */
-    grid-template-columns: repeat(4, 1fr); /* creates a 4x4 grid */
-    grid-gap: 20px; /* adds space between the items */
-    width: 100%; /* makes the items take up the entire width of the page */
-}
+
+
 
 .item {
-    width: 100%; /* makes the individual items take up the entire width of their grid cell */
-    height: 400px; /* increases the height of the individual items */
-    background-color: #f8f8ff; /* adds a background color to the items */
-    border: 1px solid black; /* adds a black border to the items */
-    display: flex; /* centers the content of the items */
-    justify-content: center;
-    align-items: center;
+    border-radius: 50px;
+    background-color: rgb(57, 103, 220);
+    box-shadow: 0px 0px 10px 2px rgba(234, 18, 245, 0.1);
 }
-
 
 
 .item:hover {

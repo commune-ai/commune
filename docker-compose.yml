@@ -10,14 +10,24 @@ services:
       - LOCAL_SUBTENSOR_HOST=node-subtensor
       - RAY_PORT=6378
     volumes:
+
+      # COMMUNE 
+      - ./commune:/app/commune
+
+
+      # EXTERNAL LIBRARIES
+
       # BITTENSOR
       - ./bittensor/bittensor:/app/bittensor/bittensor
       - ~/.bittensor:/root/.bittensor
-      - ./bittensor/tests:/app/bittensor/tests
 
-      # COMMUNE MOUNTS
-      - ./commune:/app/commune
-      - ./cortex/cortex:/app/cortex
+      # DIFFUSERS
+      - ./diffusers/diffusers:/app/diffusers/diffusers
+
+      #LANGCHAIN
+      - ./langchain/langchain:/app/langchain/langchain
+
+      #OCEAN
       # - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
 
       # OTHER MOUNTS
