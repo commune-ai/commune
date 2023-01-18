@@ -4,14 +4,10 @@ import './Item.css';
 
 const Item = (props) => {
     const [showModel, setShowModel] = useState(false);
-    // const { item } = props;
-    const [expanded, setExpanded] = useState(false);
-    const item = props;
-    const handleClick = () => {
-        setExpanded(!expanded);
-    }
+    const item  = props;
+    
     return (
-        <div key={item.name} className={`item ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
+        <div  className="item">
             <div className="item-header">
                 <h3>{item.name}</h3>
             </div>
@@ -25,8 +21,5 @@ const Item = (props) => {
         </div>
     )
 }
-
-
-
 
 export default Item;

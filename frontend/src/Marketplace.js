@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-// import Item from './Item';
+import Item from './Item';
 import './Marketplace.css';
 
 
@@ -26,8 +26,7 @@ const HandleBar = (props) => {
 }
 
 
-const Item = (props) => {
-    
+const Marketplace = (props) => {
     const [expanded, setExpanded] = useState(false);
 
     const handleClick = () => {
@@ -35,34 +34,23 @@ const Item = (props) => {
     }
 
     return (
-        <div className={`marketplace-item tab ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
-            {/* item content */}
-        </div>
-    )
-}
-
-const Marketplace = (props) => {
-
-
-    return (
         <div className="marketplace">
             <div className="marketplace-header">
-                <div className="marketplace-title">
+                <div className="marketplace-title" onClick={handleClick}>
                     <h1>Marketplace</h1>
                 </div>
-                {/* <div className="marketplace-tabs">
-                    <div className={`tab ${props.selectedTab === 'models' ? 'selected' : ''}`} onClick={() => props.setSelectedTab('models')}>Models</div>
-                    <div className={`tab ${props.selectedTab === 'datasets' ? 'selected' : ''}`} onClick={() => props.setSelectedTab('datasets')}>Datasets</div>
-                    <div className={`tab ${props.selectedTab === 'pipelines' ? 'selected' : ''}`} onClick={() => props.setSelectedTab('pipelines')}>Pipelines</div>
-                </div> */}
+                <div className={`sidebar ${expanded ? 'expanded' : ''}`}>
+                    {/* sidebar content */}
+                </div>
                 <HandleBar></HandleBar>
 
             </div>
-
+        
             <div className="marketplace-items-container">
-                {props.items.map((item, index) => {
+                {props.items.map(( item, index) => {
+                    console.log(index, item, 'DEBUG')
                     return (
-                        <Item></Item>         
+                        <Item key={item.name} {...item}></Item>         
                     )
                 })}
             </div>

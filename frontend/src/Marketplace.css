@@ -197,3 +197,19 @@
 .dropdown-content.open {
     display: block; /* when the dropdown is open, the content is visible */
 }
+
+
+
+.sidebar {
+    width: 0;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: #fff;
+    transition: width 0.3s ease;
+}
+
+.sidebar.expanded {
+    width: 300px;
+}
