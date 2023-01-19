@@ -1,32 +1,34 @@
 import React, { useState } from 'react';
-import ModelPage from './ModelPage';
 import './Item.css';
 
 const Item = (props) => {
-    const [showModel, setShowModel] = useState(false);
-    // const { item } = props;
     const [expanded, setExpanded] = useState(false);
-    const item = props;
+    const [status, setStatus] = useState("online");
+
     const handleClick = () => {
         setExpanded(!expanded);
     }
+
     return (
-        <div key={item.name} className={`item ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
-            <div className="item-header">
-                <h3>{item.name}</h3>
+        <div className={`item ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
+            <div className="item-title-container">
+                <h2 className="item-title">{props.item.title}</h2>
+                <div className={`status-indicator ${status === 'online' ? 'online' : 'offline'}`}>
+                    {status}
+                </div>
             </div>
             <div className="item-description">
-                <p>{item.description}</p>
+                {props.item.description}
             </div>
-            <div className="item-footer">
-                <button onClick={() => setShowModel(!showModel)}>View Model</button>
+            <div className="item-attributes-container">
+                <div className="item-attributes">
+                {props.item.attributes.map((attribute, index) => {
+                    return <div className="attribute-tag" key={index}>{attribute}</div>
+                })}
+                </div>
             </div>
-            {showModel && <ModelPage model={item} onClose={() => setShowModel(false)} />}
         </div>
     )
 }
-
-
-
 
 export default Item;

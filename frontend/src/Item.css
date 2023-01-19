@@ -4,16 +4,38 @@
     width: 200px;
     height: 200px;
     margin: 10px;
-    padding: 20px;
+    padding: 10px;
     border-radius: 10px;
-    border: 1px solid black;
+    border: 2px solid black;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     transition: transform 0.3s ease-in-out;
 }
+.item-title {
+    font-size: 2rem;
+    top: 10px;
+    font-weight: bold;
+    color: #050105;
+}
 
+
+.status-indicator {
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+}
+
+.online {
+    background-color: green;
+    color: white;
+}
+
+.offline {
+    background-color: red;
+    color: white;
+}
 
 .item.expanded {
     background-color: #efb52d;
@@ -39,23 +61,30 @@
     padding: 10px;
 }
 
-.item-footer {
+
+
+.attributes {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+
+    display: flex;
+    flex-wrap: wrap;
+}
+.attributes-container {
     width: 100%;
-    text-align: center;
-}
+    margin-top: 30px;
+    left : 10;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: left;
 
-.item button {
-    background-color: #050105;
-    color: #ffccff;
-    font-size: 1.2rem;
-    padding: 10px 20px;
-    border-radius: 10px;
-    border: none;
-    cursor: pointer;
-    margin-top: 10px;
-    transition: background-color 0.2s ease-in-out;
 }
-.item button:hover {
-    background-color: #ff00ff;
+.attribute-tag {
+    background-color: #ffccff;
+    color: #050105;
+    padding: 5px 10px;
+    border-radius: 20px;
+    margin-right: 10px;
+    font-size: 1rem;
 }
-
