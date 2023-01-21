@@ -1,0 +1,100 @@
+{
+  "@context": "https://w3id.org/future-method/v1",
+  "created": "2019-04-09T19:02:11Z",
+  "id": "did:op:8d1b4d73e7af4634958f071ab8dfe7ab0df14019",
+  "proof": {
+    "created": "2019-04-09T19:02:11Z",
+    "creator": "0x00Bd138aBD70e2F00903268F3Db08f2D25677C9e",
+    "signatureValue": "1cd57300733bcbcda0beb59b3e076de6419c0d7674e7befb77820b53c79e3aa8f1776effc64cf088bad8cb694cc4d71ebd74a13b2f75893df5a53f3f318f6cf828",
+    "type": "DDOIntegritySignature"
+  },
+  "service": [
+    {
+      "type": "metadata",
+      "index": 0,
+      "serviceEndpoint": "http://myaquarius.org/api/v1/provider/assets/metadata/{did}",
+      "attributes": {
+        "main": {
+          "author": "Met Office",
+          "dateCreated": "2019-02-08T08:13:49Z",
+          "files": [
+            {
+              "url": "https://raw.githubusercontent.com/tbertinmahieux/MSongsDB/master/Tasks_Demos/CoverSongs/shs_dataset_test.txt",
+              "index": 0,
+              "checksum": "efb2c764274b745f5fc37f97c6b0e764",
+              "contentLength": "4535431",
+              "contentType": "text/csv",
+              "encoding": "UTF-8",
+              "compression": "zip"
+            }
+          ],
+          "license": "CC-BY",
+          "name": "UK Weather information 2011",
+          "type": "dataset"
+        },
+        "additionalInformation": {}
+      }
+    },
+    {
+      "type": "compute",
+      "index": 2,
+      "serviceEndpoint": "http://myprovider.org",
+      "templateId": "",
+      "attributes": {
+        "main": {
+          "name": "dataAssetComputingServiceAgreement",
+          "creator": "0x00Bd138aBD70e2F00903268F3Db08f2D25677C9e",
+          "datePublished": "2019-04-09T19:02:11Z",
+          "cost": "1.0",
+          "timeout": 86400,
+          "privacy": {},
+          "provider": {
+            "type": "Azure",
+            "description": "",
+            "environment": {
+              "cluster": {
+                "type": "Kubernetes",
+                "url": "http://10.0.0.17/xxx"
+              },
+              "supportedContainers": [
+                {
+                  "image": "tensorflow/tensorflow",
+                  "tag": "latest",
+                  "checksum": "sha256:cb57ecfa6ebbefd8ffc7f75c0f00e57a7fa739578a429b6f72a0df19315deadc"
+                },
+                {
+                  "image": "tensorflow/tensorflow",
+                  "tag": "latest",
+                  "checksum": "sha256:cb57ecfa6ebbefd8ffc7f75c0f00e57a7fa739578a429b6f72a0df19315deadc"
+                }
+              ],
+              "supportedServers": [
+                {
+                  "serverId": "1",
+                  "serverType": "xlsize",
+                  "price": "50",
+                  "cpu": "16",
+                  "gpu": "0",
+                  "memory": "128gb",
+                  "disk": "160gb",
+                  "maxExecutionTime": 86400
+                },
+                {
+                  "serverId": "2",
+                  "serverType": "medium",
+                  "price": "10",
+                  "cpu": "2",
+                  "gpu": "0",
+                  "memory": "8gb",
+                  "disk": "80gb",
+                  "maxExecutionTime": 86400
+                }
+              ]
+            }
+          }
+        },
+        "additionalInformation": {}
+      }
+    }
+  ]
+}

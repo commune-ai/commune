@@ -1,0 +1,17 @@
+##
+## Copyright 2022 Ocean Protocol Foundation
+## SPDX-License-Identifier: Apache-2.0
+##
+name: black
+
+on: [push]
+
+jobs:
+  black:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Black Code Formatter
+        uses: lgeiger/black-action@master
+        with:
+          args: ". --check"
