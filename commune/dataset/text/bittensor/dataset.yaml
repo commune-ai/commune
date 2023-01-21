@@ -1,14 +1,1 @@
-batch_size : 10
-block_size : 20
-num_workers : 0
-dataset_name : 'default'
-data_dir : '/tmp/bittensor/data'
-save_dataset : False
-max_datasets : 3
-num_batches : 500
-max_directories : 250
-buffer_size : 1000
-buffer_calls_per_update : 100
-max_hash_size : 100_000
-block_size_bytes : 1500
-
+module: BittensorDataset

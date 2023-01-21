@@ -59,7 +59,7 @@ class BittensorDataset(Module):
             load_dataset : bool = True,
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
-            enable_background_download: bool = True,
+            enable_background_download: bool = False,
             loop: Optional['asyncio.loop'] = None ):
 
         self.kwargs = locals()
@@ -479,6 +479,18 @@ class BittensorDataset(Module):
             for hash_url in hash_urls:
                 self._saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
         return self._saved_hashes
+
+    @property
+    def unsaved_hashes(self) -> List[str]:
+        
+        if not hasattr(self, '_unsaved_hashes'):
+            hash_dataset_map = deepcopy(self.hash_dataset_map)
+            for k in self.saved_hashes:
+                hash_dataset_map.pop(k['Hash']) 
+            unsaved_hashes = [{'Hash': h} for h in list(hash_dataset_map.keys())]
+        
+        return unsaved_hashes
+        
             
     async def fetch_text(self, file_meta:dict, offset:int=0, length:int=None, save:bool = True, load:bool = True ):
         
@@ -717,7 +729,7 @@ class BittensorDataset(Module):
                     num_workers=self.num_workers,
                     drop_last=True)
 
-    def set_event_loop(self, loop = None) -> 'asyncio.loop':
+    def set_event_loop(self, loop = None, new_loop:bool = False) -> 'asyncio.loop':
         '''
         Sets the event loop.
 
@@ -728,9 +740,13 @@ class BittensorDataset(Module):
         Returns:
             self.loop (asyncio.loop)
         '''
-        if loop == None:
+        if new_loop:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            
+        if loop == None:
+            loop = asyncio.get_event_loop()
+            # asyncio.set_event_loop(loop)
         self.loop = loop
         return self.loop
 
@@ -773,9 +789,7 @@ class BittensorDataset(Module):
     @classmethod
     def sandbox(cls):
         self = cls(batch_size=32, sequence_length=256, max_datasets=10)
-        print(len(self.saved_hashes))
+        print(len(self.unsaved_hashes))
 
 if __name__ == "__main__":
-    print('FUCK')
-
     BittensorDataset.run()

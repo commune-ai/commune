@@ -1,197 +1,436 @@
-from __future__ import annotations
-from commune.utils import get_object, dict_any, dict_put, dict_get, dict_has, dict_pop, deep2flat, Timer, dict_override, get_functions, get_function_schema, kill_pid
-import datetime
-
-
+import inspect
 import os
-import subprocess, shlex
-import ray
-import torch
-import gradio as gr
-import socket
-import json
-from importlib import import_module
-from munch import Munch
-import types
-import inspect
-from commune.ray.utils import kill_actor
-from commune.config import Config
 from copy import deepcopy
-import argparse
-import psutil
-import gradio
-import asyncio
-import nest_asyncio
-from typing import *
+from typing import Optional, Union, Dict, List, Any, Tuple
+from tuwang.utils import *
+from munch import Munch
+import json
 from glob import glob
-
-from .utils import enable_cache
-import inspect
+import ray
+import sys
 
 class Module:
-    client = None
+    port_range = [50050, 50150] # the range of ports the moddule can be a server for
+    default_ip = '0.0.0.0'
+    root_path  = root = '/'.join(os.path.dirname(__file__).split('/')[:-1])
     pwd = os.getenv('PWD')
-    root_dir = __file__[len(pwd)+1:].split('/')[0]
-    root_path = os.path.join(pwd, root_dir)
-    root = root_path
+    root_dir = root_path.split('/')[-1]
+    def __init__(self, config:dict=None, *args,  **kwargs):
+        self.set_config(config=config, kwargs =  kwargs)        
 
-    def __init__(self, config=None, override={}, client=None , **kwargs):
+    def getattr(self, k)-> Any:
+        return getattr(self,  k)
+
+    @classmethod
+    def get_module_path(cls, obj: Any =None,  simple:bool=True) -> str:
+        if obj == None:
+            obj = cls
+        module_path =  inspect.getmodule(obj).__file__
+        # convert into simple
+        if simple:
+            module_path = cls.path2simple(path=module_path)
+
+        return module_path
+
+
+    @classmethod
+    def __file__(cls, simple:bool=False) -> str:
+        '''
         
-        self.config = Config()
-        self.config = self.resolve_config(config=config, override=override)
-        self.client = self.get_clients(client=client) 
-        self.start_timestamp =self.current_timestamp
-        self.get_submodules(get_submodules_bool = kwargs.get('get_submodules', True))
-        self.cache = {}
+        Gets the absolute file path of the Module.
+        
+        '''
+        
+        return cls.get_module_path(simple=simple)
+    
+    
+    @classmethod
+    def __local_file__(cls) -> str:
+        '''
+        removes the PWD with respect to where module.py is located
+        '''
+        return cls.__file__().replace(cls.pwd+'/', '')
+    
+    @classmethod
+    def __simple_file__(cls) -> str:
+        '''
+        The simple representation of a module path with respect to the module.py
+        home/commune/module.py would assume the module_path would be home/commune/
+        
+        Using this we convert the full path of the module into a simple path for more
+        human readable strings. We do the following
+        
+        1. Remove the MODULE_PATH and assume the module represents the directory
+        2. replace the "/" with "."
+        
+    
+        Examples:
+            commune/dataset/text/dataset.py -> dataset.text
+            commune/model/transformer/dataset.py -> model.transformer
+        
+        '''
+        return cls.__file__(simple=True)
+    
+    
+    @classmethod
+    def module_path(cls):
+        if not hasattr(cls, '_module_path'):
+            cls._module_path = cls.__simple_file__()
+        return cls._module_path
+
+        
+    @classmethod
+    def module_name(cls):
+        '''
+        Another name for the module path
+        '''
+        return cls.module_path()
 
     @property
-    def registered_clients(self):
-        return self.clients.registered_clients if self.clients else []
+    def module_tag(self):
+        '''
+        The tag of the module for many flavors of the module to avoid name conflicts
+        (TODO: Should we call this flavor?)
+        
+        '''
+        if not hasattr(self, '_module_tag'):
+            self._module_tag = None
+        return self._module_tag
+    
+    
+    @module_tag.setter
+    def module_tag(self, value):
+        self._module_tag = value
+        return self._module_tag
+
+    @classmethod
+    def __config_file__(cls) -> str:
+        
+        __config_file__ =  cls.__file__().replace('.py', '.yaml')
+        
+        if not os.path.exists(__config_file__):
+            cls.save_config(config=cls.minimal_config(), path=__config_file__)
+            
+        return __config_file__
+
+    @classmethod
+    def minimal_config(cls) -> Dict:
+        '''
+        The miminal config a module can be
+        
+        '''
+        minimal_config = {
+            'module': cls.__name__
+        }
+        return minimal_config
+        
+
+    @classmethod
+    def get_module_config_path(cls) -> str:
+        return cls.get_module_path(simple=False).replace('.py', '.yaml')
+
+
+    @classmethod
+    def default_config(cls, *args, **kwargs):
+        '''
+        
+        Loads a default config
+        '''
+        cls.load_config( *args, **kwargs)
+
+    @classmethod
+    def load_config(cls, path:str=None, to_munch:bool = True) -> Union[Munch, Dict]:
+        path = path if path else cls.__config_file__()
+        
+        if not os.path.exists(path):
+            cls.save_config({'module': cls.__name__})
+        config = load_yaml(path)
+        
+        if to_munch:
+            config =  cls.dict2munch(config)
+        
+        return config
+
     @property
-    def client_config(self):
-        for k in ['client', 'clients']:
-            client_config =  self.config.get(k, None)
-            if client_config != None:
-                return client_config
-        return client_config
+    def class_name(self):
+        return self.__class__.__name__
 
+    @classmethod
+    def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
+        path = path if path else cls.__config_file__()
+        
+        if isinstance(config, Munch):
+            config = cls.munch2dict(deepcopy(config))
+        config = save_yaml(data=config , path=path)
 
+        return config
+    
+    
+    @classmethod
+    def dict2munch(cls,x:dict, recursive:bool=True)-> Munch:
+        '''
+        Turn dictionary into Munch
+        '''
+        if isinstance(x, dict):
+            for k,v in x.items():
+                if isinstance(v, dict) and recursive:
+                    x[k] = cls.dict2munch(v)
+            x = Munch(x)
+        return x 
+    @classmethod
+    def munch2dict(cls,x:Munch, recursive:bool=True)-> dict:
+        '''
+        Turn munch object  into dictionary
+        '''
+        if isinstance(x, Munch):
+            x = dict(x)
+            for k,v in x.items():
+                if isinstance(v, Munch) and recursive:
+                    x[k] = cls.munch2dict(v)
 
-    def get_clients(self, client=None):
-        if client == False or client == None:
-            return None
-        elif isinstance(client, dict):
-            return self.get_object('commune.client.ClientModule')(client)
-        elif isinstance(client, list):
-            return self.get_object('commune.client.ClientModule')(client)
+        return x 
+
+    def set_config(self, config:Optional[Union[str, dict]]=None, kwargs:dict={}):
+        '''
+        Set the config as well as its local params
+        '''
+        if config == False:
+            self.config =  {}
+            return self.config
+        
+        # ensure to include the inner kwargs if that is provided (Which isnt great practice lol)
+        kwargs  = {**kwargs, **kwargs.pop('kwargs', {}) }
+        
+        # ensure there are no inner_args to avoid ambiguous args 
+        inner_args = kwargs.pop('args', [])
+        assert len(inner_args) == 0, f'Please specify your keywords for this to act nicely, args: {inner_args}'
+    
+        if type(config) in [dict, Munch]:
+            config = config
+        elif type(config) in [str, type(None)]:
+            config = self.load_config(path=config)
+        
+        config.update(kwargs)
+        
+
+        self.config = self.dict2munch(config)
+        
+        return self.config
+
+    @classmethod
+    def add_args( cls, config: dict , prefix: str = None  ):
+        import argparse
+        parser =  argparse.ArgumentParser()
+        """ Accept specific arguments from parser
+        """
+        
+        prefix_str = '' if prefix == None else prefix + '.'
+        flat_config = deep2flat(config)
+        for k,v in flat_config.items():
+
+            if type(v) in [str, int, float, int, bool]:
+                parser.add_argument('--' + prefix_str + k, type=type(v),  help=f'''The value for {k}''', default = v)
+            elif type(v) in [list]:
+                parser.add_argument('--' + prefix_str + k, nargs='+', help=f'''The value for {k}''', default = v)
+
+        args = parser.parse_args()
+        flat_config.update(args.__dict__)
+        config = flat2deep(flat_config)
+        return config
+
+    @staticmethod
+    def run_command(command:str, background=False, env:dict = {}):
+        '''
+        Runs  a command in the shell.
+        
+        '''
+        import subprocess
+        import shlex
+        if background:
+            
+            process = subprocess.Popen(shlex.split(command), env={**os.environ, **env})
+            process = process.__dict__
         else:
-            raise NotImplementedError
+            
+            process = subprocess.run(shlex.split(command), 
+                                stdout=subprocess.PIPE, 
+                                universal_newlines=True,
+                                env={**os.environ, **env})
+            
+        return process
 
-    @staticmethod
-    def get_function_signature(fn) -> dict: 
-        return dict(inspect.signature(fn)._parameters)
 
+    # @classmethod
+    # def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[]):
+    #     '''
         
+    #     Args:
+    #         module: path of the module {module_path}.{object_path}
+    #         fn: the function of the module
+    #         kwargs: the kwargs of the function
+    #         args: the args of the function
+        
+    #     '''
+        
+        
+    #     module_class = cls.import_object(module)
+    #     if fn == None:
+    #         module_object =  module_class(*args,**kwargs)
+    #     else:
+    #         fn = getattr(module_class,fn)
+    #         module_object =  fn(*args, **kwargs)
+    #     return module_object
+
+    @classmethod
+    def import_module(cls, import_path:str) -> 'Object':
+        from importlib import import_module
+
+        return import_module(import_path)
+
+
+    @classmethod
+    def import_object(cls, key:str)-> 'Object':
+        
+        '''
+        
+        Import an object from a string with the format of 
+            {module_path}.{object}
+        
+        Examples:
+            import_object("torch.nn"): imports nn from torch
+        
+        '''
+        from importlib import import_module
+
+        module = '.'.join(key.split('.')[:-1])
+        object_name = key.split('.')[-1]
+        obj =  getattr(import_module(module), object_name)
+        return obj
+
+    
+    @classmethod
+    def module_list(cls)-> List[str]:
+        '''
+        List of module paths with respect to module.py file
+        
+        Assumes the module root directory is the directory containing module.py
+        '''
+        return list(cls.module_tree().keys())
+    
+    
     @staticmethod
-    def dict_override(*args, **kwargs):
-        return dict_override(*resolve_pathargs,**kwargs)
+    def port_available(port:int, ip:str ='0.0.0.0'):
+        '''
+        Check if port is available
+        '''
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex((ip, port))
+        sock.close()
+        return result == 0
 
-    def resolve_path(self, path, extension = '.json'):
-        path = path.replace('.', '/')
-        path = os.path.join(self.tmp_dir,path)
-        path_dir = os.path.dirname(path)
-        os.makedirs(path_dir,exist_ok=True)
-        if path[-len(extension):] != extension:
-            path = path + extension
+    @classmethod
+    def get_available_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0'):
+        '''
+        Get availabel ports out of port range
+        
+        Args:
+            ports: list of ports
+            ip: ip address
+        
+        '''
+        if ports:
+            ports = list(range(*cls.port_range))
+        
+        available_ports = []
+        for port in ports: 
+            if cls.port_available(port=port, ip=ip):
+                available_ports.append(port)
+        
+        return port
+   
+    @classmethod
+    def resolve_path(cls, path:str, extension:Optional[str]=None):
+        '''
+        Resolves path for saving items that relate to the module
+        
+        The path is determined by the module path 
+        
+        '''
+        tmp_dir = cls.tmp_dir()
+        if tmp_dir not in path:
+            path = os.path.join(tmp_dir, path)
+        if extension and extension != path.split('.')[-1]:
+            path = path + '.' + extension
+
         return path
-
-    ############ JSON LAND ###############
-
-    def get_json(self,path, default=None, **kwargs):
-        path = self.resolve_path(path=path)
-        try:
-            data = self.client.local.get_json(path=path, **kwargs)
-        except FileNotFoundError as e:
-            if isinstance(default, dict):
-                data = self.put_json(path, default)
+    @classmethod
+    def resolve_port(cls, port:int=None, find_available:bool = False):
+        
+        '''
+        
+        Resolves the port and finds one that is available
+        '''
+        port = port if port else cls.get_available_port()
+        port_available = cls.port_available(port)
+        if port_available:
+            if find_available:
+                port = cls.get_available_port()
             else:
-                raise e
-
-        return data
-
-    def put_json(self, path, data, **kwargs):
-        path = self.resolve_path(path=path)
-        self.client.local.put_json(path=path, data=data, **kwargs)
-        return data
-
-    def ls_json(self, path=None):
-        path = self.resolve_path(path=path)
-        if not self.client.local.exists(path):
-            return []
-        return self.client.local.ls(path)
-        
-    def exists_json(self, path=None):
-        path = self.resolve_path(path=path)
-        return self.client.local.exists(path)
-
-    def rm_json(self, path=None, recursive=True, **kwargs):
-        path = self.resolve_path(path)
-        if not self.client.local.exists(path):
-            return 
+                raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
+        return port
+   
     
-        return self.client.local.rm(path,recursive=recursive, **kwargs)
-
-    def glob_json(self, pattern ='**',  tmp_dir=None):
-        if tmp_dir == None:
-            tmp_dir = self.tmp_dir
-        paths =  glob(tmp_dir+'/'+pattern)
-        return list(filter(lambda f:os.path.isfile(f), paths))
+    @classmethod
+    def get_available_port(cls, port_range: List[int] = None, ip:str='0.0.0.0' ) -> int:
+        port_range = port_range if port_range else cls.port_range
+        for port in range(*port_range): 
+            if cls.port_available(port=port, ip=ip):
+                return port
     
-    def refresh_json(self):
-        self.rm_json()
+        raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
+
+    def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
+        for k,v in kwargs.items():
+            if k != 'self': # skip the self
+                # we dont want to overwrite existing variables from 
+                if not ignore_error: 
+                    assert not hasattr(self, k)
+                setattr(self, k)
 
     @staticmethod
-    def resolve_config_path(path=None):
-        if path ==  None:
-            path = 'config'
-        return path
-    def put_config(self, path=None):
-        path = self.resolve_config_path(path)
-        return self.put_json(path, self.config)
-
-    def rm_config(self, path=None):
-        path = self.resolve_config_path(path)
-        return self.rm_json(path)
-
-    refresh_config = rm_config
-    def get_config(self,  path=None, handle_error =True):
-        path = self.resolve_config_path(path)
-        config = self.get_json(path, handle_error=handle_error)
-        if isinstance(config, dict):
-            self.config = config
-
+    def kill_port(port:int)-> str:
+        from psutil import process_iter
+        '''
+        Kills the port {port} on the localhost
+        '''
+        for proc in process_iter():
+            for conns in proc.connections(kind='inet'):
+                if conns.laddr.port == port:
+                    proc.send_signal(signal.SIGKILL) # or SIGKILL
+        return port
 
     @classmethod
-    def simple2path(cls, simple:str, mode:str='config') -> str: 
-        simple2path_map = getattr(cls, f'simple2{mode}_map')()
-        module_path = simple2path_map[simple]
-        return module_path
-
-    @classmethod
-    def path2simple(cls, path:str) -> str:
-        return os.path.dirname(path)[len(cls.pwd)+1:].replace('/', '.')
-
-
-    @classmethod
-    def simple2import(cls, simple:str) -> str:
-        config_path = Module.simple2path(simple, mode='config')
-        module_basename = os.path.basename(config_path).split('.')[0]
-        config = Config(config=config_path)
-        obj_name = config.get('module', config.get('name'))
-        module_path = '.'.join([simple, module_basename,obj_name])
-        return module_path
-
-    @classmethod
-    def get_simple_paths(cls) -> List[str]:
-        return [cls.path2simple(f) for f in cls.get_module_python_paths()]
-    list_modules = get_simple_paths
-    
-    @property
-    def module_tree(self): 
-        return self.list_modules()
-
-    module_list = module_tree
-    @classmethod
-    def simple2python_map(cls) -> Dict[str, str]:
-        return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-
-    @classmethod
-    def simple2config_map(cls) -> Dict[str, str]:
-        return {cls.path2simple(f):f for f in cls.get_module_config_paths()}
+    def kill_server(cls, module:str):
+        '''
+        Kill the server by the name
+        '''
+        port = cls.server_registry()[module]
+        return cls.kill_port(port)
 
 
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
+        
+        '''
+        Search for all of the modules with yaml files. Format of the file
+        
+        
+        - MODULE_PATH/dataset_module.py
+        - MODULE_PATH/dataset_module.yaml
+        
+        
+        '''
         modules = []
         failed_modules = []
 
@@ -204,504 +443,67 @@ class Module:
                     modules.append(f)
         return modules
 
+    @classmethod
+    def path2simple(cls, path:str) -> str:
+        simple_path = os.path.dirname(path)[len(os.path.join(cls.pwd, cls.root_dir))+1:].replace('/', '.')
+        if simple_path == '':
+            simple_path = 'module'
+        return simple_path
+    @classmethod
+    def path2localpath(cls, path:str) -> str:
+        local_path = path.replace(cls.pwd, cls.root_dir)
+        return local_path
+    @classmethod
+    def path2config(cls, path:str, to_munch=False)-> dict:
+        path = cls.path2configpath(path=path)
+        return cls.load_config(path, to_munch=to_munch)
+    
+    @classmethod
+    def path2configpath(cls, path:str):
+        return path.replace('.py', '.yaml')
+    @classmethod
+    def simple2configpath(cls,  path:str):
+        return cls.path2configpath(cls.simple2path(path))
+    @classmethod
+    def simple2config(cls, path:str, to_munch=False)-> dict:
+        return cls.load_config(cls.simple2configpath(path), to_munch=to_munch)
+    @classmethod
+    def path2objectpath(cls, path:str) -> str:
+        config = cls.path2config(path=path, to_munch=False)
+        object_name = config['module']
+        if cls.pwd in path:
+            # get the path
+            path = path[len(cls.pwd)+1:]
+        path = path.replace(cls.pwd, '').replace('.py','.').replace('/', '.') + object_name
+        return path
+
+    @classmethod
+    def path2object(cls, path:str) -> str:
+        path = cls.path2objectpath(path)
+        return cls.import_object(path)
+    @classmethod
+    def simple2object(cls, path:str) -> str:
+        path = cls.simple2path(path)
+        path = cls.path2objectpath(path)
+        return cls.import_object(path)
+
+
+    @classmethod
+    def module_tree(cls, mode='path') -> List[str]:
+        assert mode in ['path', 'object']
+        if mode == 'path':
+            return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+
+        elif mode == 'object':
+            return {cls.path2object(f):f for f in cls.get_module_python_paths()}
 
     @staticmethod
-    def get_module_config_paths() -> List[str]:
+    def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
 
-    def submit_fn(self, fn:str, queues:dict={}, block:bool=True,  *args, **kwargs):
-
-        if queues.get('in'):
-            input_item = self.queue.get(topic=queues.get('in'), block=block)
-            if isinstance(input_item, dict):
-                kwargs = input_item
-            elif isinstance(input_item, list):
-                args = input_item
-            else:
-                args = [input_item]
-        
-        out_item =  getattr(self, fn)(*args, **kwargs)
-
-        if isinstance(queues.get('out'), str):
-            self.queue.put(topic=queues.get('out'), item=out_item)
-    
-    def stop_loop(self, key='default'):
-        return self.loop_running_loop.pop(key, None)
-
-    def running_loops(self):
-        return list(self.loop_running_map.keys())
-
-    loop_running_map = {}
-    def start_loop(self, in_queue=None, out_queue=None, key='default', refresh=False):
-        
-        in_queue = in_queue if isintance(in_queue,str) else 'in'
-        out_queue = out_queue if isintance(out_queue,str) else 'out'
-        
-        if key in self.loop_running_map:
-            if refresh:
-                while key in self.loop_running_map:
-                    self.stop_loop(key=key)
-            else:
-                return 
-        else:
-            self.loop_running_map[key] = True
-
-        while key in self.loop_running_map:
-            input_dict = self.queue.get(topic=in_queue, block=True)
-            fn = input_dict['fn']
-            fn_kwargs = input_dict.get('kwargs', {})
-            fn_args = input_dict.get('args', [])
-            output_dict  = self.submit_fn(fn=fn, *fn_args, **fn_kwargs)
-            self.queue.put(topic=out_queue,item=output_dict)
-
-
-
-    @classmethod
-    def launch(cls, module:str=None, fn:str=None ,kwargs:dict={}, args:list=[], actor:Union[bool, dict]=False, ray_init:dict={}, **additional_kwargs):
-        
-
-        # ensure the ray cluster
-        cls.ray_init(ray_init)
-
-        if cls.is_class(module):
-            module_class = module
-        elif isinstance(module, str):
-            module_class = cls.import_object(module)
-        elif module == None:
-            module = cls.get_module_path()
-            module_class = cls.import_object(module)
-        else:
-            raise NotImplementedError(f'Type ({type(module)}) for module is not implemented')
-
-
- 
-
-        module_init_fn = fn
-        module_kwargs = {**kwargs}
-        module_args = [*args]
-        
-        if module_init_fn == None:
-            if actor:
-                # ensure actor is a dictionary
-                if actor == True:
-                    actor = {}
-                assert isinstance(actor, dict), f'{type(actor)} should be dictionary fam'
-                parents = cls.get_parents(module_class)
-                if cls.is_module(module_class):
-                    default_actor_name = module_class.get_default_actor_name()
-                else:
-                    default_actor_name = module_class.__name__
-
-                actor['name'] = actor.get('name', default_actor_name )
-                module_object = cls.create_actor(cls=module_class, cls_kwargs=module_kwargs, cls_args=module_args, **actor)
-
-            else:
-                module_object =  module_class(*module_args,**module_kwargs)
-
-        else:
-            module_init_fn = getattr(module_class,module_init_fn)
-            module_object =  module_init_fn(*module_args, **module_kwargs)
-
-
-        return module_object
-    launch_module = launch
-
-    @classmethod
-    def load_module(cls, path):
-        prefix = f'{cls.root_dir}.'
-        if cls.root_dir+'.' in path[:len(cls.root_dir+'.')]:
-            path = path.replace(f'{cls.root_dir}.', '')
-        module_path = cls.simple2path(path)
-        module_class =  cls.import_object(module_path)
-        return module_class
-
-    ############# TIME LAND ############
-    @property
-    def current_timestamp(self):
-        return self.get_current_timestamp()
-
-    def current_datetime(self):
-        datetime.datetime.fromtimestamp(self.current_timestamp)
-    
-    def start_datetime(self):
-        datetime.datetime.fromtimestamp(self.start_timestamp)
-    
-    def get_age(self) :
-        return  self.get_current_timestamp() - self.start_timestamp
-
-    age = property(get_age) 
     @staticmethod
-    def get_current_timestamp():
-        return  datetime.datetime.utcnow().timestamp()
-
-
-    ############# CONFIG LAND ############
-
-
-    @classmethod
-    def get_config_path(cls, simple=False):
-
-        config_path = cls.get_module_path(simple=simple)
-        if os.getenv('PWD') != config_path[:len(os.getenv('PWD'))]:
-            config_path = os.path.join(os.getenv('PWD'), cls.get_module_path(simple=simple))
-
-
-        if simple == False:
-            config_path = config_path.replace('.py', '.yaml')
-        return config_path
-
-    @staticmethod
-    def check_config(config):
-        assert isinstance(config, dict)
-        assert 'module' in config
-
-    @staticmethod
-    def get_base_config_path()-> str:
-        return Module.get_config_path()
-
-    @staticmethod
-    def get_base_config()-> str:
-        return Config(Module.get_config_path())
-
-    @property
-    def config_path(self):
-        config_path = self.get_config_path()
-        if not os.path.exists(config_path):
-            base_config = self.get_base_config()
-            Config(base_config).save_config(path=config_path)
-        
-        assert os.path.exists(config_path)
-        
-        return config_path
-
-    def resolve_config(self, config, override={}, **kwargs):
-        config = self.load_config(config=config if config else self.config_path)
-
-        if config == None:
-            config = 'base'
-            config = cls.resolve_config(config=config)
-            # assert isinstance(config, dict),  f'bruh the config should be {type(config)}'
-            self.save_config(config=config)
-
-        return config
-
-
-    def config_set(self,k,v, **kwargs):
-        return dict_put(self.config, k,v)
-
-    def config_get(self,k, ):
-        return dict_get(self.config, k,v)
-
-    def override_config(self,override:dict={}):
-        self.dict_override(input_dict=self.config, override=override)
-
-    @classmethod
-    def load_config(cls, config_path:Optional[str]=None, config:Dict[str]=None, override={}):
-
-        return Config(config= config if config else config_path)
-
-    def save_config(self, path=None):
-        """
-        config: 
-            Option 1: dictionary config (passes dictionary) 
-            Option 2: absolute string path pointing to config
-        """
-        return Config.save_config(path=path)
-    @classmethod
-    def default_cfg(cls):
-        config_path = cls.get_config_path()
-        return Config(config_path=config_path)
-
-    config_template = default_config = default_cfg
-
-    @classmethod
-    def import_module(cls, import_path:str) -> 'Object':
-        # imports a python module or a module
-        try:
-            import_path = cls.simple2import(import_path)
-            return cls.import_object(import_path)
-
-        except KeyError as e:
-            raise e
-            return import_module(import_path)
-
-    @classmethod
-    def import_object(cls, key:str)-> 'Object':
-        try:
-            key = cls.simple2import(key)
-        except KeyError as e:
-            print(key, 'KEYERROR')
-            pass
-  
-
-        module = '.'.join(key.split('.')[:-1])
-        object_name = key.split('.')[-1]
-        print(module, object_name,  'BROOO1',  import_module(module)) 
-        obj =  getattr(import_module(module), object_name)
-        print(obj,  'BROOO2') 
-        return obj
-    get_object = import_object
-    
-    @property
-    def module(self):
-        return self.config.get('module', self.config.get('name'))
-
-    @property
-    def name(self):
-        return self.config.get('name', self.module)
-    
-    def class_name(self):
-        return self.__class__.__name__
-
-    ################# ATTRIBUTE LAND ####################
-    #####################################################
-
-
-    def get(self, key):
-        return self.getattr(key)
-
-    def getattr(self, key):
-        return getattr(self, key)
-
-    def hasattr(self, key):
-        return hasattr(self, key)
-
-    def setattr(self, key, value):
-        return self.__setattr__(key,value)
-
-    def deleteattr(self, key):
-        del self.__dict__[key]
-        return key
-    
-    rmattr = rm = delete = deleteattr
-
-
-    def mapattr(self, from_to_attr_dict:dict={}) -> Dict :
-        '''
-        from_to_attr_dict: dict(from_key:str->to_key:str)
-        '''
-        for from_key, to_key in from_to_attr_dict.items():
-            self.copyattr(from_key=from_key, to_key=to_key)
-
-    def copyattr(self, from_key, to_key):
-        '''
-        copy from and to a desintatio
-        '''
-        attr_obj = getattr(self, from_key)  if hasattr(self, from_key) else None
-        setattr(self, to, attr_obj)
-
-    def dict_keys(self):
-        return self.__dict__.keys()
-
-    @staticmethod
-    def is_class(cls):
-        '''
-        is the object a class
-        '''
-        return type(cls).__name__ == 'type'
-
-
-    @staticmethod
-    def is_hidden_function(fn):
-        if isinstance(fn, str):
-            return fn.startswith('__') and fn.endswith('__')
-        else:
-            raise NotImplemented(f'{fn}')
-
-    @classmethod
-    def get_functions(cls,obj=None):
-        obj = obj if obj else cls
-        functions = get_functions(obj)
-        return functions
-
-    @staticmethod
-    def get_function_schema( fn, *args, **kwargs):
-        return get_function_schema(fn=fn, *args, **kwargs)
-
-    @classmethod
-    def get_function_schemas(cls, obj=None, *args,**kwargs):
-        if obj == None:
-            obj = cls
-        
-        fn_map = {}
-        for fn_key in obj.get_functions(obj):
-            fn = getattr(obj, fn_key)
-            if not callable(fn) or isinstance(fn, type) or isinstance(fn, types.BuiltinFunctionType):
-                continue
-            fn_map[fn_key] = cls.get_function_schema(fn=fn, *args, **kwargs)
-        return fn_map
-    
-    @staticmethod
-    def get_annotations(fn:callable) -> dict:
-        return fn.__annotations__
-    
-    def is_parent(child, parent):
-        return bool(parent in Module.get_parents(child))
-
-    @classmethod
-    def get_parents(cls, obj=None):
-        if obj == None:
-            obj = cls
-
-        return list(obj.__mro__[1:-1])
-
-    @classmethod
-    def is_module(cls, obj=None):
-        if obj == None:
-            obj = cls
-        return Module in cls.get_parents(obj)
-
-    @classmethod
-    def functions(cls, obj=None, return_type='str', **kwargs):
-        if obj == None:
-            obj = cls
-        functions =  get_functions(obj=obj, **kwargs)
-        if return_type in ['str', 'string']:
-            return functions
-        
-        elif return_type in ['func', 'fn','functions']:
-            return [getattr(obj, f) for f in functions]
-        else:
-            raise NotImplementedError
-
-
-
-    @classmethod
-    def hasfunc(cls, key):
-        fn_list = cls.functions()
-        return bool(len(list(filter(lambda f: f==key, fn_list)))>0)
-
-    @classmethod
-    def filterfunc(cls, key):
-        fn_list = cls.functions()
-        ## TODO: regex
-        return list(filter(lambda f: key in f, fn_list))
-
-
-    ############ STREAMLIT LAND #############
-
-    @classmethod
-    def run_streamlit(cls, port=8501):
-        path = cls.get_module_path(simple=False)
-        cls.run_command(f'streamlit run {path} --server.port={port} -- -fn=streamlit')
-
-    @classmethod
-    def streamlit(cls):
-        import streamlit as st
-        st.write(f'HELLO from {cls.__name__}')
-        st.write(cls)
-
-
-    @classmethod
-    def describe(cls, obj=None, streamlit=False, sidebar=True,**kwargs):
-        import streamlit as st
-        if obj == None:
-            obj = cls
-
-        assert is_class(obj)
-
-        fn_list = cls.functions(return_type='fn', obj=obj, **kwargs)
-        
-        fn_dict =  {f.__name__:f for f in fn_list}
-        if streamlit:
-            import streamlit as st
-            for k,v in fn_dict.items():
-                with (st.sidebar if sidebar else st).expander(k):
-                    st.write(k,v)
-        else:
-            return fn_dict
-        
-    ############ GRADIO LAND #############
-
-    @classmethod
-    def gradio(cls):
-        functions, names = [], []
-
-        fn_map = {
-            'fn1': lambda x :  int(x),
-            'fn2': lambda x :  int(x) 
-        }
-
-        for fn_name, fn in fn_map.items():
-            inputs = [gr.Textbox(label='input', lines=3, placeholder=f"Enter here...")]
-            outputs = [gr.Number(label='output', precision=None)]
-            names.append(fn_name)
-            functions.append(gr.Interface(fn=fn, inputs=inputs, outputs=outputs))
-        
-        return gr.TabbedInterface(functions, names)
-
-
-    @classmethod
-    def run_gradio(cls, port=8501, host='0.0.0.0'):
-        path = cls.get_module_path(simple=False)
-        interface = cls.gradio()
- 
-        interface.launch(server_port=port,
-                        server_name=host,
-                        inline= False,
-                        share= None,
-                        debug=False,
-                        enable_queue= None,
-                        max_threads=10,
-                        auth= None,
-                        auth_message= None,
-                        prevent_thread_lock= False,
-                        show_error= True,
-                        show_tips= False,
-                        height= 500,
-                        width= 900,
-                        encrypt= False,
-                        favicon_path= None,
-                        ssl_keyfile= None,
-                        ssl_certfile= None,
-                        ssl_keyfile_password= None,
-                        quiet= False)
-        
-
-
-    @classmethod
-    def run_python(cls):
-        cls.run_command(f'python {path}')
-
-    @classmethod
-    def argparse(cls):
-        parser = argparse.ArgumentParser(description='Gradio API and Functions')
-        parser.add_argument('-fn', '--function', dest='function', help='run a function from the module', type=str, default="streamlit")
-        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='arguments to the function', type=str, default="{}")  
-        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
-        return parser.parse_args()
-
-
-    @classmethod
-    def parents(cls):
-        return get_parents(cls)
-
-    # timer
-    timer = Timer
-
-    @classmethod
-    def describe_module_schema(cls, obj=None, **kwargs):
-        if obj == None:
-            obj = cls
-        return get_module_function_schema(obj, **kwargs)
-
-    @property
-    def module_path(self):
-        return self.get_module_path()
-
-    @staticmethod
-    def run_command(command:str, cwd:str=None, universal_newlines=True, *args, **kwargs):
-
-        process = subprocess.run(shlex.split(command), 
-                            stdout=subprocess.PIPE, 
-                            cwd=cwd,
-                            universal_newlines=universal_newlines,
-                            *args, **kwargs)
-        return process
-
-    @property
-    def tmp_dir(self):
-        return f'/tmp/{self.root_dir}/{self.class_name}'
+    def is_imported(package:str) :
+        return  bool(package in sys.modules)
 
     @classmethod
     def get_module_path(cls, obj=None,  simple=True):
@@ -715,114 +517,47 @@ class Module:
         return module_path
 
 
-    ###########################
-    #   RESOURCE LAND
-    ###########################
-    @staticmethod
-    def check_pid(pid):        
-        return check_pid(pid)
+    @classmethod
+    def simple2path_map(cls) -> Dict[str, str]:
+        return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+    @classmethod
+    def simple2path(cls, path) -> Dict[str, str]:
+        simple2path_map = cls.simple2path_map()
+        return simple2path_map[path]
 
-    @staticmethod
-    def kill_pid(pid):        
-        return kill_pid(pid)
-    @property
-    def pid(self):
-        return os.getpid()
-
-    def memory_usage(self, mode='gb'):
-        '''
-        get memory usage of current process in bytes
-        '''
-        import os, psutil
-        process = psutil.Process(self.pid)
-        usage_bytes = process.memory_info().rss
-        usage_percent = process.memory_percent()
-        mode_factor = 1
-
-        if mode  in ['gb']:
-            mode_factor = 1e9
-        elif mode in ['mb']:
-            mode_factor = 1e6
-        elif mode in ['b']:
-            mode_factor = 1
-        elif mode in ['percent','%']:
-            return usage_percent
-        elif mode in ['ratio', 'fraction', 'frac']: 
-            return usage_percent / 100
-        else:
-            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
-
-        return usage_bytes / mode_factor
-
-    @staticmethod
-    def memory_available(mode ='percent'):
-
-        memory_info = Module.memory_info()
-        available_memory_bytes = memory_info['available']
-        available_memory_ratio = (memory_info['available'] / memory_info['total'])
+    @classmethod
+    def path2simple_map(cls) -> Dict[str, str]:
+        return {v:k for k,v in cls.simple2path_map().items()}
     
-        mode_factor = 1
-        if mode  in ['gb']:
-            mode_factor = 1e9
-        elif mode in ['mb']:
-            mode_factor = 1e6
-        elif mode in ['b']:
-            mode_factor = 1
-        elif mode in ['percent','%']:
-            return  available_memory_ratio*100
-        elif mode in ['fraction','ratio']:
-            return available_memory_ratio
-        else:
-            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
-
-        return usage_bytes / mode_factor
+    @classmethod
+    def simple2config_map(cls) -> Dict[str, str]:
+        return {cls.path2simple(f):f for f in cls.get_module_config_paths()}
 
 
-    @staticmethod
-    def memory_used(mode ='percent'):
+    module_python_paths = None
+    @classmethod
+    def get_module_python_paths(cls) -> List[str]:
+        '''
+        Search for all of the modules with yaml files. Format of the file
+        '''
+        if isinstance(cls.module_python_paths, list): 
+            return cls.module_python_paths
+        modules = []
+        failed_modules = []
 
-        memory_info = Module.memory_info()
-        available_memory_bytes = memory_info['used']
-        available_memory_ratio = (memory_info['used'] / memory_info['total'])
-    
-        mode_factor = 1
-        if mode  in ['gb']:
-            mode_factor = 1e9
-        elif mode in ['mb']:
-            mode_factor = 1e6
-        elif mode in ['b']:
-            mode_factor = 1
-        elif mode in ['percent','%']:
-            return  available_memory_ratio*100
-        elif mode in ['fraction','ratio']:
-            return available_memory_ratio
-        else:
-            raise Exception(f'{mode} not supported, try gb,mb, or b where b is bytes')
-
-        return usage_bytes / mode_factor
+        for f in glob(Module.root_path + '/**/*.py', recursive=True):
+            if os.path.isdir(f):
+                continue
+            file_path, file_ext =  os.path.splitext(f)
+            if file_ext == '.py':
+                if os.path.exists(file_path+'.yaml'):
+                    modules.append(f)
+        cls.module_python_paths = modules
+        return modules
 
     @staticmethod
-    def memory_info():
-        virtual_memory = psutil.virtual_memory()
-        return {k:getattr(virtual_memory,k) for k in ['available', 'percent', 'used', 'shared', 'free', 'total', 'cached']}
-
-    @staticmethod
-    def get_memory_info(pid:int = None):
-        if pid == None:
-            pid = os.getpid()
-        # return the memory usage in percentage like top
-        process = psutil.Process(pid)
-        memory_info = process.memory_full_info()._asdict()
-        memory_info['percent'] = process.memory_percent()
-        memory_info['ratio'] = memory_info['percent'] / 100
-        return memory_info
-
-
-    def resource_usage(self):
-        resource_dict =  self.config.get('actor', {}).get('resources', None)
-        resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
-        resource_dict['memory'] = self.memory_usage(mode='ratio')
-        return  resource_dict
+    def get_module_config_paths() -> List[str]:
+        return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
 
 
     ##############
@@ -838,101 +573,56 @@ class Module:
         cls.run_command('ray stop')
 
     @classmethod
+    def ray_import(cls):
+        import ray
+        return ray
+    @classmethod
     def ray_start(cls):
-        cls.run_command('ray start --head')
-
+        '''
+        Start the ray cluster 
+        (TODO: currently supports head)
+        '''
+        return cls.run_command('ray start --head')
 
     @classmethod
-    def ray_restart(cls):
-        cls.ray_stop()
-        cls.ray_start()
+    def ray_restart(cls, stop:dict={}, start:dict={}):
+        '''
+        
+        Restart  ray cluster
+        
+        '''
+        command_out_dict = {}
+        command_out_dict['stop'] = cls.ray_stop(**stop)
+        command_out_dict['start'] = cls.ray_start(**start)
+        return command_out_dict
 
     @classmethod
     def ray_status(cls):
-        cls.run_command('ray status')
+        return cls.run_command('ray status')
 
     @staticmethod
     def ray_initialized():
+        
         return ray.is_initialized()
 
-    @property
-    def actor_id(self):
-        return self.get_id()
-
-    def get_id(self):
-        return dict_get(self.config, 'actor.id')
-        
-    def get_name(self):
-        return dict_get(self.config, 'actor.name')
-
-    def actor_info(self):
-        actor_info_dict = dict_get(self.config, 'actor')
-        actor_info_dict['resources'] = self.resource_usage()
-        return actor_info_dict
-
-
-    @classmethod 
-    def deploy(cls, actor=False ,  **kwargs):
-        """
-        deploys process as an actor or as a class given the config (config)
-        """
-
-        config = kwargs.pop('config', None)
-        path = kwargs.pop('path', None)
-        if isinstance(config, str):
-            path = config
-        elif isinstance(config, dict):
-            path = kwargs.pop('path', None)
-         
-        config = Config(config_path = path, config=config)
-
-        ray_config = config.get('ray', {})
-        if not cls.ray_initialized():
-            ray_context =  cls.init_ray(init_kwargs=ray_config)
-        
-        if actor:
-            actor_config =  config.get('actor', {})
-
-            assert isinstance(actor_config, dict), f'actor_config should be dict but is {type(actor_config)}'
-            if isinstance(actor, dict):
-                actor_config.update(actor)
-            elif isinstance(actor, bool):
-                pass
-            else:
-                raise Exception('Only pass in dict (actor args), or bool (uses config["actor"] as kwargs)')  
-
-            try:
-
-                actor_config['name'] =  actor_config.get('name', cls.get_default_actor_name())                
-                config['actor'] = actor_config
-                kwargs['config'] = config
-                actor = cls.create_actor(cls=cls,  cls_kwargs=kwargs, **actor_config)
-
-            except ray.exceptions.RayActorError:
-                actor_config['refresh'] = True
-                config['actor'] = actor_config
-                kwargs['config'] = config
-                actor = cls.create_actor(cls=cls, cls_kwargs=kwargs, **actor_config)
-
-
-            return actor 
-        else:
-            kwargs['config'] = config
-            kwargs['config']['actor'] = None
-            return cls(**kwargs)
 
     default_ray_env = {'address':'auto', 
                      'namespace': 'default',
                       'ignore_reinit_error': False,
-                      'dashboard_host': '0.0.0.0'}
+                      'dashboard_host': '0.0.0.0',
+                      '_system_config': {
+                                "object_spilling_config": json.dumps(
+                                    {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
+                                )
+                            }
+                      
+                      }
+    
+    
     @classmethod
     def ray_init(cls,init_kwargs={}):
 
-        # init_kwargs['_system_config']={
-        #     "object_spilling_config": json.dumps(
-        #         {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
-        #     )
-        # }
+
         init_kwargs =  {**cls.default_ray_env, **init_kwargs}
         if cls.ray_initialized():
             # shutdown if namespace is different
@@ -944,365 +634,363 @@ class Module:
         ray_context = ray.init(**init_kwargs)
         return ray_context
 
-    init_ray = ray_init
-    @staticmethod
-    def create_actor(cls,
-                 name, 
-                 cls_kwargs,
-                 cls_args =[],
-                 detached=True, 
-                 resources={'num_cpus': 1.0, 'num_gpus': 0},
-                 cpus = 0,
-                 gpus = 0,
-                 max_concurrency=50,
-                 refresh=False,
-                 return_actor_handle=False,
-                 verbose = True,
-                 redundant=False,
-                 tag_seperator = '-',
-                 tag = None,
-                 wrap = False,
-                 **kwargs):
-
-        if cpus > 0:
-            resources['num_cpus'] = cpus
-        if gpus > 0:
-            resources['num_gpus'] = gpus
-
-        if not torch.cuda.is_available() and 'num_gpus' in resources:
-            del resources['num_gpus']
-
-        # configure the option_kwargs
-
-        if tag != None:
-            tag = str(tag)
-            name = tag_seperator.join([name, tag])
-
-        options_kwargs = {'name': name,
-                          'max_concurrency': max_concurrency,
-                           **resources}
-        if detached:
-            options_kwargs['lifetime'] = 'detached'
-        # setup class init config
-        # refresh the actor by killing it and starting it (assuming they have the same name)
-        
-        if refresh:
-            if Module.actor_exists(name):
-                kill_actor(actor=name,verbose=verbose)
-                # assert not Module.actor_exists(name)
-
-        if redundant:
-            # if the actor already exists and you want to create another copy but with an automatic tag
-            actor_index = 0
-            while Module.actor_exists(name):
-                name =  f'{name}-{actor_index}' 
-                actor_index += 1
-
-        if not Module.actor_exists(name):
-            actor_class = ray.remote(cls)
-            actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
-
-        actor = Module.get_actor(name)
-
-        if wrap:
-            actor = Module.wrap_actor(actor)
-
-        return actor
-
-    @staticmethod
-    def get_actor_id( actor):
-        assert isinstance(actor, ray.actor.ActorHandle)
-        return actor.__dict__['_ray_actor_id'].hex()
-
-    @classmethod
-    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
-        if actor_list == None:
-            actor_kwargs_list = [kwargs]*replicas
-
-        actors = []
-        for actor_kwargs in actor_kwargs_list:
-            actors.append(cls.deploy(**a_kwargs))
-
-        return ActorPool(actors=actors)
-
-    @classmethod
-    def wrap_actor(cls, actor):
-        wrapper_module_path = 'commune.ray.client.module.ClientModule'
-        return Module.get_module(module=wrapper_module_path, server=actor)
-
-    @classmethod
-    def deploy_module(cls, module:str, **kwargs):
-        module_class = cls.import_object(module)
-        return module_class.deploy(**kwargs)
-    get_module = deploy_module
-
-    @staticmethod
-    def kill_actor(actor, verbose=True):
-
-        if isinstance(actor, str):
-            if Module.actor_exists(actor):
-                actor = ray.get_actor(actor)
-            else:
-                if verbose:
-                    print(f'{actor} does not exist for it to be removed')
-                return None
-        
-        return ray.kill(actor)
-        
-    @staticmethod
-    def kill_actors(actors):
-        return_list = []
-        for actor in actors:
-            return_list.append(Module.kill_actor(actor))
-        
-        return return_list
-            
-    @staticmethod
-    def actor_exists(actor):
-        if isinstance(actor, str):
-            try:
-                ray.get_actor(actor)
-                actor_exists = True
-            except ValueError as e:
-                actor_exists = False
-            
-            return actor_exists
-        else:
-            raise NotImplementedError
-
-    @staticmethod
-    def get_actor(actor_name, wrap=False):
-        actor =  ray.get_actor(actor_name)
-        # actor = Module.add_actor_metadata(actor)
-        if wrap:
-            actor = Module.wrap_actor(actor=actor)
-        return actor
-
-    @property
-    def ray_context(self):
-        return self.init_ray()
 
     @staticmethod
     def ray_runtime_context():
         return ray.get_runtime_context()
 
+    @property
+    def actor_id(self):
+        return self.get_id()
+     
     @classmethod
-    def ray_namespace(cls):
-        return ray.get_runtime_context().namespace
-
-    @staticmethod
-    def get_ray_context():
-        return ray.runtime_context.get_runtime_context()
-    @property
-    def context(self):
-        if Module.actor_exists(self.actor_name):
-            return self.init_ray()
-
-    @property
-    def actor_name(self):
-        actor_config =  self.config.get('actor', {})
-        if actor_config == None:
-            actor_config = {}
-        return actor_config.get('name')
+    def module_config_tree(cls):         
+        return {m: cls.simple2config(m) for m in cls.module_list()}
     
-    @property
-    def default_actor_name(self):
-        return self.get_module_path(simple=True)
-    @property
-    def actor_running(self):
-        return self.is_actor_running
+   
+    @classmethod
+    def tmp_dir(cls):
+        return f'/tmp/{cls.__local_file__().replace(".py", "")}'
 
-    def is_actor_running(self):
-        return isinstance(self.actor_name, str)
+    ############ JSON LAND ###############
 
-    @property
-    def actor_config(self):
-        return self.config.get('actor',None)
+    @classmethod
+    def get_json(cls,path, default=None, **kwargs):
+        path = cls.resolve_path(path=path)
+        data = load_json(path, **kwargs)
+        return data
+    load_json = get_json
 
-    @property
-    def actor_handle(self):
-        if not hasattr(self, '_actor_handle'):
-            self._actor_handle = self.get_actor(self.actor_name)
-        return self._actor_handle
+    @classmethod
+    def put_json(cls, path:str, data:Dict, **kwargs) -> str:
+        path = cls.resolve_path(path=path)
+        put_json(path=path, data=data, **kwargs)
+        return path
+    save_json = put_json
+    
 
+    
+    
+    @classmethod
+    def exists(cls, path:str)-> bool:
+        path = cls.resolve_path(path=path)
+        return os.path.exists(path)
 
-    @staticmethod
-    def list_objects( *args, **kwargs):
+    @classmethod
+    def rm(cls, path=None):
+        if path == 'all':
+            return [cls.rm(f) for f in cls.glob()]
+        path = cls.resolve_path(path)
+        return rm_json(path )
+
+    @classmethod
+    def glob(cls,  path ='**'):
+        path = cls.resolve_path(path, extension=None)
+        paths = glob(path, recursive=True)
         
-        return ray.experimental.state.api.list_objects(*args, **kwargs)
+        return list(filter(lambda f:os.path.isfile(f), paths))
+    
+    @classmethod
+    def test_json(cls):
+        self = cls()
+        self.rm_json('all')
+        assert len(self.glob('**')) == 0
+        print(self.put_json('bro/fam', data={'bro': 2200}))
+        print(self.put_json('bro/dawg', data={'bro': 2200}))
+        assert len(self.glob('**')) == 2
+        self.rm_json('bro/fam')
+        assert len(self.glob('**')) == 1, len(self.glob('**'))
+        self.rm_json('bro/dawg')
+        assert len(self.glob('**')) == 0
+        print(self.put_json('bro/fam/fam', data={'bro': 2200}))
+        print(self.put_json('bro/fam/dawg', data={'bro': 2200}))
+        assert len(self.glob('bro/**')) == 2
 
-    @staticmethod
-    def list_actors(state='ALIVE', detail=True, *args, **kwargs):
-        kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
-        kwargs['detail'] = detail
+    @classmethod
+    def __str__(cls):
+        return cls.__name__
 
-        actor_info_list =  ray.experimental.state.api.list_actors(*args, **kwargs)
-        final_info_list = []
-        for i, actor_info in enumerate(actor_info_list):
-            resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}
-            resource_list = actor_info_list[i].pop('resource_mapping', [])
 
-            for resource in resource_list:
-                resource_map[resource['name'].lower()] = resource['resource_ids']
-            actor_info_list[i]['resources'] = resource_map
-
-            try:
-                ray.get_actor(actor_info['name'])
-                final_info_list.append(actor_info_list[i])
-            except ValueError as e:
-                pass
-
-        return final_info_list
-
-    @staticmethod
-    def actor_map(*args, **kwargs):
-        actor_list = Module.list_actors(*args, **kwargs)
-        actor_map  = {}
-        for actor in actor_list:
-            actor_name = actor.pop('name')
-            actor_map[actor_name] = actor
-        return actor_map
-
-    @staticmethod   
-    def list_actor_names():
-        return list(Module.actor_map().keys())
-
-    @staticmethod
-    def list_tasks(running=False, name=None, *args, **kwargs):
-        filters = []
-        if running == True:
-            filters.append([("scheduling_state", "=", "RUNNING")])
-        if isinstance(name, str):
-            filters.append([("name", "=", name)])
+    @classmethod
+    def connect(cls,name:str=None, port:int=None , ip:str=None,*args, **kwargs ):
         
-        if len(filters)>0:
-            kwargs['filters'] = filters
-
-        return ray.experimental.state.api.list_tasks(*args, **kwargs)
-
-
-    @staticmethod
-    def list_nodes( *args, **kwargs):
-        return list_nodes(*args, **kwargs)
-
-    @staticmethod
-    def ray_get(self, *jobs):
-        return ray.get(jobs)
-
-    @staticmethod
-    def ray_wait( *jobs):
-        finished_jobs, running_jobs = ray.wait(jobs)
-        return finished_jobs, running_jobs
-
-    @staticmethod
-    def ray_put(*items):
-        return [ray.put(i) for i in items]
-
-
-    ##############
-    #   ASYNCIO
-    ##############
-    @staticmethod
-    def new_event_loop(set_loop=True):
-        loop = asyncio.new_event_loop()
-        if set_loop:
+        from tuwang.server import Client
+        server_registry =  Module.server_registry()
+        if name:
+            assert name in server_registry, f'{name} is not deployed'
+            client_kwargs = server_registry[name]
+        else:
+            client_kwargs = dict(ip=ip, port=port)
+        client = Client( *args, **kwargs,**client_kwargs)
+        return client
+   
+    @classmethod
+    def server_registry(cls)-> dict:
+        '''
+        
+        The module port is where modules can connect with each othe.
+        
+        When a module is served "module.serve())"
+        it will register itself with the server_registry dictionary.
+        
+        
+        
+        '''
+        from copy import deepcopy
+        
+        # get the module port if its saved.
+        # if it doesnt exist, then return default ({})
+        server_registry = Module.get_json('server_registry', handle_error=True, default={})
+        for k in deepcopy(list(server_registry.keys())):
+            if not Module.port_available(**server_registry[k]):
+                del server_registry[k]
+        Module.put_json('server_registry',server_registry)
+        return server_registry
+  
+    @classmethod
+    def servers(cls, search:str = None) -> List[str]:
+        servers =  list(cls.server_registry().keys())
+        
+        # filter based on the search
+        if search:
+            servers = [s for s in servers if search in s]
+            
+        return servers
+    list_servers = servers
+    
+    @classmethod
+    def register_server(cls, name: str, server: 'tuwang.Server')-> dict:
+        server_registry = cls.server_registry()
+        server_registry[name] = dict(ip=server.ip, port=server.port)
+        server_registry = Module.put_json(path='server_registry', data=server_registry) 
+        return server_registry
+  
+    @classmethod
+    def set_event_loop(cls, loop=None, new_loop:bool = False):
+        if new_loop:
+            loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+        else:
+            loop = loop if loop else asyncio.get_event_loop()
+        
         return loop
-    new_loop = new_event_loop 
+    @classmethod
+    def resolve_module_id(cls, name:str=None, tag:str=None):
+        module_id = name if name else cls.module_name()
+        if tag:
+            module_id = f'{module_id}::{tag}'
+        return module_id
+    
+    def server_exists(cls, name:str) -> bool:
+        server_registry = cls.server_registry()
+        return bool(name in server_registry)
+        
+    @classmethod
+    def serve(cls, port:int=None , ip:str=None, name:str=None, tag:str=None, replace:bool = True, *args, **kwargs ):
+        
+        from tuwang.server import Server
+        
+        self = cls(*args, **kwargs)
+    
+        module_id = self.resolve_module_id(name=name, tag=tag if tag else self.module_tag)
+           
+           
+        '''check if the server exists'''
+        if self.server_exists(module_id): 
+            existing_server_port = self.server_registry()[module_id]
+            if replace:
+                self.kill_port(existing_server_port)
+            else: 
+                raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
+    
+        self.server = Server(ip=ip, port=port, module = self)
 
-    def set_event_loop(self, loop=None, new=False):
-        if loop == None:
-            loop = self.new_event_loop()
-        return loop
-    set_loop = set_event_loop
-    def get_event_loop(self):
-        return asyncio.get_event_loop()     
-    def async_run(self, job, loop=None): 
-        if loop == None:
-            loop = self.loop
-        return loop.run_until_complete(job)
+        self.module_id = module_id
+        cls.register_server(name=module_id, server=self.server)
+        self.server.serve()
+         
+    # def __call__(self, data:dict, metadata:dict={}):
+
+    #     try:
+    #         if 'fn' in data:
+    #             fn_kwargs = data.get('kwargs', {})
+    #             fn_args = data.get('args', [])
+            
+    #             data = {'result': getattr(self, data['fn'])(*fn_args,**fn_kwargs)}
+    #         else:
+    #             # print(f'[green]{data}')
+    #             data = self.forward(**data)
+    #     except RuntimeError as ex:
+    #         if "There is no current event loop in thread" in str(ex):
+    #             self.loop = asyncio.new_event_loop()
+    #             asyncio.set_event_loop(self.loop)
+    #             return self.__call__(data=data, metadata=metadata)
+        
+    #     self.server.stats['call_count'] += 1
+    #     torch.cuda.empty_cache()
+
+    #     return {'data': data, 'metadata': metadata}
+    
+    @classmethod
+    def functions(cls, obj:Any=None, exclude_module_functions:bool = True, **kwargs) -> List[str]:
+        '''
+        List of functions
+        '''
+        obj = obj if obj else cls
+        
+        functions = get_functions(obj=obj, **kwargs)
+        if exclude_module_functions and (not cls.is_module(obj)) :
+            module_functions = Module.functions()
+            
+            functions = [f for f in functions if f not in module_functions]
+            
+        return functions
+    
+    @classmethod
+    def is_module(cls, obj=None):
+        obj = obj if obj else cls
+        return (Module != obj and type(obj) != Module)
+        
+    @classmethod
+    def function_schema_map(cls):
+        function_schema_map = {}
+        for f in cls.functions():
+            if f.startswith('__') and f.endswith('__'):
+                continue
+            if callable(getattr(cls, f )):
+                function_schema_map[f] = {k:str(v) for k,v in getattr(cls, f ).__annotations__.items()}
+                
+        return function_schema_map
+    
+    @classmethod
+    def function_schema(cls, f:str)->dict:
+        '''
+        Get function schema of function in cls
+        '''
+        fn = getattr(cls, f)
+        fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
+        return fn_schema
 
     @staticmethod
-    def port_connected( port : int,host:str='0.0.0.0'):
-        """
-            Check if the given param port is already running
-        """
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)       
-        result = s.connect_ex((host, int(port)))
-        return result == 0
+    def get_annotations(fn:callable) -> dict:
+        return fn.__annotations__
 
 
+    @classmethod
+    def start(cls, module:str, tag:str=None, mode:str = 'pm2'):
+        if mode == 'pm2':
+            return cls.pm2_launch(module=module, tag=tag)
+        else:
+            raise NotImplemented(mode)
+
+
+    @classmethod
+    def launch(cls, *args, mode:str='pm2', **kwargs ):
+        return getattr(cls, f'{mode}_launch')(*args, **kwargs)
+       
+    @classmethod
+    def pm2_launch(cls, 
+                   module:str = None,  
+                   fn: str = 'serve',
+                   name:Optional[str]=None, 
+                   tag:str=None, 
+                   args : list = None,
+                   kwargs: dict = None,
+                   device:str='0', 
+                   interpreter:str='python', 
+                   refresh:bool=True, ):
+        
+        # avoid these references fucking shit up
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+        
+        module = module if module else cls.module_path()
+        module_path = cls.simple2path(module)
+        assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
+        pm2_name = cls.resolve_module_id(name=name, tag=tag) 
+
+        command = f" pm2 start {module_path} --name {pm2_name} --interpreter python"
+        kwargs_str = json.dumps(kwargs).replace('"', "'")
+        args_str = json.dumps(args).replace('"', "'")
+
+        command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
+    
+        print(command)
+        env = dict(CUDA_VISIBLE_DEVICES=device)
+        if refresh:
+            cls.pm2_kill(pm2_name)    
+        return cls.run_command(command, env=env)
+
+    @classmethod
+    def pm2_kill(cls, name:str):
+        return cls.run_command(f"pm2 delete {name}")
+    @classmethod
+    def pm2_restart(cls, name:str):
+        return cls.run_command(f"pm2 restart {name}")
+
+    @classmethod
+    def pm2_status(cls):
+        return cls.run_command(f"pm2 status")
+
+
+    @classmethod
+    def pm2_logs(cls, module:str,):
+        return cls.run_command(f"pm2 logs {module}")
+
+
+    @classmethod
+    def argparse(cls):
+        import argparse
+        parser = argparse.ArgumentParser(description='Gradio API and Functions')
+        parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
+        parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
+        parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
+        args = parser.parse_args()
+        args.kwargs = json.loads(args.kwargs.replace("'",'"'))
+        args.args = json.loads(args.args.replace("'",'"'))
+        return args
 
     @classmethod
     def run(cls): 
-        input_args = cls.argparse()
-        assert hasattr(cls, input_args.function)
-        kwargs = json.loads(input_args.kwargs)
-        assert isinstance(kwargs, dict)
-
-        args = json.loads(input_args.args)
-        assert isinstance(args, list)
-        getattr(cls, input_args.function)(*args, **kwargs)
-
-    ############ TESTING LAND ##############
-
-    ############################################
-
+        args = cls.argparse()
+        self = cls()
+        return getattr(self, args.function)(*args.args, **args.kwargs)     
+       
     @classmethod
-    def test(cls):
-        import streamlit as st
-        for attr in dir(cls):
-            if attr[:len('test_')] == 'test_':
-                getattr(cls, attr)()
-                st.write('PASSED',attr)
-
-
-    ##### SOON TO BE REMOVED ##########
-
-
-    def get_submodules(self, submodule_configs=None, get_submodules_bool=True):
+    def sandbox(cls, **kwargs):
+        print(kwargs)
+     
+        import tuwang
+        commune = tuwang
+        batch_count = 100
+        print(cls.server_registry())
         
-        if get_submodules_bool == False:
-            return None
-        '''
-        input: dictionary of modular configs
-        '''
-        if submodule_configs == None:
-            submodule_configs = self.config.get('submodule',self.config.get('submodules',{}))
+        # t = tuwang.timer()
+        dataset =  cls.connect('dataset.bittensor')
+        model =  cls.connect('model.transformer::gptj')
+        t = tuwang.timer()
+
+        sample = dataset(fn='sample', kwargs=dict(batch_size=32, sequence_length=256))
+        sample['output_hidden_states'] =  False
+        sample['output_logits'] =  False
+        sample['topk'] =  10
+        sample['output_length'] = 10
+        # sample['topk'] = True
+        print(model(fn='forward', kwargs=sample)['hidden_states'].shape)
+        print(t.seconds)
+        
     
-        assert isinstance(submodule_configs, dict)
-        for submodule_name, submodule in submodule_configs.items():
-            submodule_kwargs, submodule_args = {},[]
-            if isinstance(submodule, str):
-                submodule_kwargs = {'module':submodule }
-            elif isinstance(submodule, list):
-                submodule_args = submodule
-            elif isinstance(submodule, dict):
-                submodule_kwargs = submodule
-                
-            submodule = self.get_module(*submodule_args,**submodule_kwargs)
-            dict_put(self.__dict__, submodule_name, submodule)
+
+# def module(obj_class:Any)-> Module:
+#     class WrapperModule(Module, obj_class):
+#         def __init__(self,config=None, *args, **kwargs):
+#             Module.__init__(self, config=config, *args, **kwargs)
+#             obj_class.__init__(self, *args, **kwargs)
+            
+#     return WrapperModule 
 
 
-    @property
-    def state_staleness(self):
-        return self.current_timestamp - self.last_saved_timestamp
+module = Module
 
-
-
-
-    @staticmethod
-    def gradio_build_interface( fn_map:dict) -> 'gradio.TabbedInterface':
-        names, functions = [], []
-        for fn_name, fn_obj in fn_map.items():
-            inputs = fn_obj.get('inputs', [])
-            outputs = fn_obj.get('outputs',[])
-            fn = fn_obj['fn']
-            names.append(fn_name)
-            functions.append(gradio.Interface(fn=fn, inputs=inputs, outputs=outputs))
-        
-        return gradio.TabbedInterface(functions, names)
-
-
-if __name__ == '__main__':
-    Module.run()
+if __name__ == "__main__":
+    print(module.run())

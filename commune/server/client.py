@@ -18,34 +18,36 @@ from grpc import _common
 import sys
 import os
 import asyncio
-sys.path.append(os.getenv('PWD'))
-asyncio.set_event_loop(asyncio.new_event_loop())
-
 import bittensor
-import commune
+import tuwang
 from .proto  import DataBlock, ServerStub
-from .serializer_module import SerializerModule
-from .server_module import ServerModule
-import streamlit as st
+from .serializer import Serializer
+from .server import Server
+from copy import deepcopy
+if os.getenv('USE_STREAMLIT'):
+    import streamlit as st
 
-
-class ClientModule(nn.Module, SerializerModule):
+class Client( Serializer):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
     """
+    default_ip = '0.0.0.0'
+    
     
     def __init__( 
             self,
-            ip: str ='localhost',
+            ip: str ='0.0.0.0',
             port: int = 80 ,
-            max_processes: 'int' = 1,
+            max_processes: int = 1,
+            timeout:int = 20,
+            loop = None
         ):
 
-        super().__init__()
         # Get endpoint string.
-        ip = ip if ip else 'localhost'
-        self.endpoint = ip + ':' + str(port)
-
-
+        self.ip = ip if ip else self.default_ip
+        self.port = port
+        self.loop = loop if loop else asyncio.get_event_loop()
+        
+        
         channel = grpc.aio.insecure_channel(
             self.endpoint,
             options=[('grpc.max_send_message_length', -1),
@@ -53,7 +55,6 @@ class ClientModule(nn.Module, SerializerModule):
                      ('grpc.keepalive_time_ms', 100000)])
         stub = ServerStub( channel )
 
-        self.loop = asyncio.get_event_loop()
         self.channel = channel
         self.stub = stub
         self.client_uid = str(uuid.uuid1())
@@ -61,8 +62,17 @@ class ClientModule(nn.Module, SerializerModule):
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
         self.sync_the_async()
 
+    @property
+    def endpoint(self):
+        return f"{self.ip}:{self.port}"
+
+    def __call__(self, *args, **kwargs):
+        try:
+            return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
+        except TypeError:
+            return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
     def __str__ ( self ):
-        return "ServerClient({})".format(self.endpoint) 
+        return "Client({})".format(self.endpoint) 
     def __repr__ ( self ):
         return self.__str__()
     def __del__ ( self ):
@@ -95,44 +105,56 @@ class ClientModule(nn.Module, SerializerModule):
 
     async def async_forward(
         self, 
-        data: object , 
-        metadata: dict = {},
-        timeout: int = 10
+        data: object = None, 
+        metadata: dict = None,
+        timeout: int = 20,
+        results_only = True,
+        verbose=True,
+        **kwargs
     ) :
+        data = data if data else {}
+        metadata = metadata if metadata else {}
+        
+        data.update(kwargs)
 
-        grpc_request = self.serialize(data=data, metadata=metadata)
+        
 
         try:
+            grpc_request = self.serialize(data=data, metadata=metadata)
+
             asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
             response = await asyncio_future
             response = self.deserialize(response)
-            # asyncio_future.cancel()
+            
+            if results_only:
+                try:
+                    return response['data']['result']
+                except Exception as e:
+                    print(response) 
         except grpc.RpcError as rpc_error_call:
-
             response = str(rpc_error_call)
-
+            raise(response)
         # =======================
         # ==== Timeout Error ====
         # =======================
         except asyncio.TimeoutError:
             response = str(rpc_error_call)
+            raise(response)
+    
         # ====================================
         # ==== Handle GRPC Unknown Errors ====
         # ====================================
         except Exception as e:
             response = str(e)
-
-
+            raise e
         return  response
 
-    @classmethod
     def sync_the_async(self):
         for f in dir(self):
             if 'async_' in f:
                 setattr(self, f.replace('async_',  ''), self.sync_wrapper(getattr(self, f)))
 
-    @staticmethod
-    def sync_wrapper(fn:'asyncio.callable') -> 'callable':
+    def sync_wrapper(self,fn:'asyncio.callable') -> 'callable':
         '''
         Convert Async funciton to Sync.
 
@@ -145,19 +167,21 @@ class ClientModule(nn.Module, SerializerModule):
                 Synchronous version of asyncio function.
         '''
         def wrapper_fn(*args, **kwargs):
-            return asyncio.run(fn(*args, **kwargs))
+            return self.loop.run_until_complete(fn(*args, **kwargs))
         return  wrapper_fn
 
+    def test_module(self):
+        module = Client(ip='0.0.0.0', port=8091)
+
+        data = {
+            'bro': torch.ones(10,10),
+            'fam': torch.zeros(10,10)
+        }
+
+        st.write(module.forward(data=data))
 
 
 if __name__ == "__main__":
-    module = ClientModule(ip='0.0.0.0', port=8091)
+    Client.test_module()
 
-
-    data = {
-        'bro': torch.ones(10,10),
-        'fam': torch.zeros(10,10)
-    }
-
-    st.write(module.forward(data=data))
     # st.write(module)
