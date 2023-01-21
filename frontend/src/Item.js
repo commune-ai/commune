@@ -1,9 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './Item.css';
+import axios from 'axios';
 
 const Item = (props) => {
     const [expanded, setExpanded] = useState(false);
     const [status, setStatus] = useState("online");
+    const [description, setDescription] = useState("");
+
+
+
 
     const handleClick = () => {
         setExpanded(!expanded);
@@ -12,23 +17,24 @@ const Item = (props) => {
     return (
         <div className={`item ${expanded ? 'expanded' : ''}`} onClick={handleClick}>
             <div className="item-title-container">
-                <h2 className="item-title">{props.item.title}</h2>
+                <h2 className="item-title">{props.name}</h2>
                 <div className={`status-indicator ${status === 'online' ? 'online' : 'offline'}`}>
                     {status}
                 </div>
             </div>
             <div className="item-description">
-                {props.item.description}
+                {description}
             </div>
             <div className="item-attributes-container">
                 <div className="item-attributes">
-                {props.item.attributes.map((attribute, index) => {
+                {props.tasks.map((attribute, index) => {
                     return <div className="attribute-tag" key={index}>{attribute}</div>
                 })}
                 </div>
             </div>
         </div>
     )
-}
+            }
+
 
 export default Item;

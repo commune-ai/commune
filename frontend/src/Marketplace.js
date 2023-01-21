@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Item from './Item';
 import './Marketplace.css';
+import axios from 'axios';
 
 
 const HandleBar = (props) => {
@@ -28,10 +29,20 @@ const HandleBar = (props) => {
 
 const Marketplace = (props) => {
     const [expanded, setExpanded] = useState(false);
+    let modules = [];
+
+
+    useEffect(() => {
+        const res = axios.post(`http://localhost:8000/list_modules` )
+        .then(res => (modules = res.data),[])
+    }, []);
+
 
     const handleClick = () => {
         setExpanded(!expanded);
     }
+
+    
 
     return (
         <div className="marketplace">
@@ -47,10 +58,10 @@ const Marketplace = (props) => {
             </div>
         
             <div className="marketplace-items-container">
-                {props.items.map(( item, index) => {
-                    console.log(index, item, 'DEBUG')
+                {modules.map(( module, index) => {
+                    console.log(modules)
                     return (
-                        <Item key={item.name} {...item}></Item>         
+                        <Item key={module.name} {...module}></Item>         
                     )
                 })}
             </div>

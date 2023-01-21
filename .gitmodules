@@ -14,9 +14,6 @@
 [submodule "diffusers"]
 	path = diffusers
 	url = https://github.com/huggingface/diffusers.git
-[submodule "frontend/langchain"]
-	path = frontend/langchain
-	url = https://github.com/commune-ai/langchain.git
 [submodule "langchain"]
 	path = langchain
 	url = https://github.com/commune-ai/langchain.git

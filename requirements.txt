@@ -1,19 +1,17 @@
 
 
--e ./bittensor
--e ./langchain
--e ./diffusers
-
 
 datasets
-streamlit
+transformers
+
 aiofiles
 aiohttp
 ray[default]
-gradio
 plotly
-jupyterlab
-accelerate
 web3
+bittensor
+streamlit
+langchain
+torch==1.13
 httpcore==0.15
 
