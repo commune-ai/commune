@@ -2,7 +2,6 @@
 
 import os
 import sys
-sys.path[0] = os.environ['PWD']
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
