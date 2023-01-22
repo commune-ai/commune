@@ -113,9 +113,12 @@ while :; do
         COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
         COMPOSE_FILES+=" -f ganache/docker-compose.yml"
         COMPOSE_FILES+=" -f subspace/docker-compose.yml"
-        COMPOSE_FILES+=" -f frontend/docker-compose.yml"
-        
         ;;
+
+        --frontend)
+        COMPOSE_FILES+=" -f frontend/docker-compose.yml"
+        ;;
+
         --pull)
         FORCEPULL="true"
         

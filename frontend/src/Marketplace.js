@@ -3,11 +3,11 @@ import Item from './Item';
 import './Marketplace.css';
 import axios from 'axios';
 
-
 const HandleBar = (props) => {
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
     return (
+        
         <div className="handle-bar">
             <div className="handle-bar-tabs">
                 <div className="tab">Models</div>
@@ -34,7 +34,9 @@ const Marketplace = (props) => {
 
     useEffect(() => {
         const res = axios.post(`http://localhost:8000/list_modules` )
-        .then(res => (modules = res.data),[])
+        .then(res => {
+            console.log(res)
+            (modules = res.data)},[])
     }, []);
 
 
