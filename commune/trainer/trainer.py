@@ -1,7 +1,7 @@
-import tuwang
+import commune
 from typing import List
 
-class Trainer(tuwang.Module):
+class Trainer(commune.Module):
     def __init__(self,
                 experiment:str = 'experiment'):
         self.experiment = experiment

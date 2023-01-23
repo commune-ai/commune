@@ -23,12 +23,12 @@ import bittensor
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
     
-import tuwang
+import commune
 import torch
-from tuwang.server import Server
-from tuwang.model.utils import encode_topk, decode_topk
-from tuwang.utils.torch import *
-import tuwang
+from commune.server import Server
+from commune.model.utils import encode_topk, decode_topk
+from commune.utils.torch import *
+import commune
 
 
 # example models
@@ -36,7 +36,7 @@ import tuwang
 # model_name: str="EleutherAI/gpt-j-6B",
 # model_name: str="/nvme/models/gpt-j-6B",
 # model_name: str="EleutherAI/gpt-neo-125M",
-class DeepspeedModel(tuwang.Module):
+class DeepspeedModel(commune.Module):
     port_range = [50050, 50100] # the range of ports the moddule can be a server for
     default_ip = '0.0.0.0'
     def __init__(self,
@@ -146,7 +146,7 @@ class DeepspeedModel(tuwang.Module):
                   model_path:str = 'model',
                 mii_configs:dict={"tensor_parallel": 8, "dtype": "fp16"},
                 device:str= None):
-        from tuwang.model.deepspeed.server_client import MIIServerClient
+        from commune.model.deepspeed.server_client import MIIServerClient
 
         mii_configs['tensor_parallel'] = min(mii_configs['tensor_parallel'],torch.cuda.device_count())
 
@@ -182,7 +182,7 @@ class DeepspeedModel(tuwang.Module):
         st.write(f'## {cls.__name__}')
         st.write('LOCATION: ', __file__)
 
-        model_client = tuwang.model.remote.RemoteModelClient(ip=model_server.ip, port=model_server.port)
+        model_client = commune.model.remote.RemoteModelClient(ip=model_server.ip, port=model_server.port)
 
 
         with st.expander('STEP 1: GET RAW TEXT', True):

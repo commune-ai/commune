@@ -13,11 +13,11 @@ from loguru import logger
 import sys
 import os
 import asyncio
-import tuwang
-from tuwang.server.interceptor import ServerInterceptor
-from tuwang.server.serializer import Serializer
-from tuwang.server.proto import ServerServicer
-from tuwang.server.proto import DataBlock
+import commune
+from commune.server.interceptor import ServerInterceptor
+from commune.server.serializer import Serializer
+from commune.server.proto import ServerServicer
+from commune.server.proto import DataBlock
 import bittensor
 import signal
 
@@ -52,7 +52,7 @@ class Server(ServerServicer, Serializer):
             compression:Optional[str] = None,
             serializer: 'Serializer'= None,
             server: Optional['grpc._Server'] = None,
-            config: Optional['tuwang.Config'] = None,
+            config: Optional['commune.Config'] = None,
 
         ) -> 'Server':
         r""" Creates a new bittensor.Axon object from passed arguments.
@@ -126,7 +126,7 @@ class Server(ServerServicer, Serializer):
         self.server = server
         self.module = module
 
-        tuwang.server.grpc.add_ServerServicer_to_server( self, server )
+        commune.server.grpc.add_ServerServicer_to_server( self, server )
         full_address = str( config.ip ) + ":" + str( config.port )
         self.server.add_insecure_port( full_address )
         self.check_config( config )
@@ -172,7 +172,7 @@ class Server(ServerServicer, Serializer):
 
     @classmethod
     def default_config(cls):
-        config = tuwang.Config()
+        config = commune.Config()
         config.port = cls.get_available_port()
         config.ip =  '0.0.0.0'
         config.external_port =  None
@@ -184,7 +184,7 @@ class Server(ServerServicer, Serializer):
         return config
 
     @classmethod   
-    def check_config(cls, config: 'tuwang.Config' ):
+    def check_config(cls, config: 'commune.Config' ):
         """ Check config for axon port and wallet
         """
         assert config.port > 1024 and config.port < 65535, 'port must be in range [1024, 65535]'
@@ -252,7 +252,7 @@ class Server(ServerServicer, Serializer):
                     grpc server context.
             
             Returns:
-                response (tuwang.proto.DataBlock): 
+                response (commune.proto.DataBlock): 
                     proto response carring the nucleus forward output or None under failure.
         """
 
@@ -260,18 +260,18 @@ class Server(ServerServicer, Serializer):
 
 
         
-        t = tuwang.timer()
+        t = commune.timer()
         request = self.deserialize(request)
         self.stats['time']['deserialize'] = t.seconds
         
-        t = tuwang.timer()
+        t = commune.timer()
         
         response = self(**request)
         self.stats['time']['module'] = t.seconds
         
         
 
-        t = tuwang.timer()
+        t = commune.timer()
         
         response = self.serialize(**response)
         self.stats['time']['serialize'] = t.seconds
@@ -434,7 +434,7 @@ class Server(ServerServicer, Serializer):
         
         # print(module.port_available(port=module.port - 1))
 
-        tuwang.Client()
+        commune.Client()
         module.stop()
 
     @property

@@ -2,50 +2,32 @@
 # Create Ocean instance
 import streamlit as st
 import os, sys
-sys.path.append(os.getenv('PWD'))
 from commune import Module
 from functools import partial
 import ray
 
 class ClientModule(Module):
-    override_attributes = False
+    
+    protected_keys = ['actor', 'fn_signature_map']
+    
     def __init__(self, actor=None, config=None, **kwargs):
         Module.__init__(self, config=config)
-        
-        actor = kwargs.get('server', actor)
-        if actor == False:
-            actor = self.config['server']
+        self.attributes_parsed = False
+        self.set_actor(actor)
+        self.actor = actor
+
+        self.parse()
+
+    def set_actor(self, actor):
+        assert actor != None
         if isinstance(actor, str):
             actor = self.get_actor(actor)
         elif isinstance(actor, dict):
             actor = self.get_module(**actor)
         elif isinstance(actor, ray.actor.ActorHandle):
             actor = actor
-
-        actor_id = actor._ray_actor_id.hex()
-        actor_name = None
-        for a in Module.list_actors():
-            if a['actor_id'] == actor_id:
-                actor_name = a['name']
-
-        self._actor_name = actor_name
-
-        self.config['server'] = actor_name
-        self.fn_signature_map = {}
-
-        self.actor = actor
-        
-        self.parse()
-        st.write(actor_name)
-
-
-    @property
-    def actor_id(self):
-        return self.getattr('actor_id')
-
-    @property
-    def actor_name(self):
-        return self._actor_name
+        else:
+            raise NotImplemented(actor)
 
     def getattr(self, ray_get=True, *args,**kwargs):
         object_id = self.actor.getattr.remote(*args,**kwargs)
@@ -62,12 +44,12 @@ class ClientModule(Module):
             return object_id
 
 
-    def submit(fn, *args, **kwargs):
+    def submit(self, fn, *args, **kwargs):
         ray_get = kwargs.get('ray_get', True)
         ray_fn = getattr(self, fn)(*args, **kwargs)
 
 
-    def submit_batch(fn, batch_kwargs=[], batch_args=[], *args, **kwargs):
+    def submit_batch(self, fn, batch_kwargs=[], batch_args=[], *args, **kwargs):
         ray_get = kwargs.get('ray_get', True)
         ray_wait = kwargs.get('ray_wait', False)
         obj_id_batch = [getattr(self, fn)(*fn_args, **fn_kwargs) for fn_args, fn_kwargs in zip(batch_args, batch_kwargs)]
@@ -76,50 +58,49 @@ class ClientModule(Module):
         elif ray_wait:
             return ray.wait(obj_id_batch)
 
-    @property
-    def ray_signatures(self):
-        return self.actor._ray_method_signatures
+    def remote_fn(self, fn_key, *args, **kwargs):
+                
+        ray_get = kwargs.pop('ray_get', True)
+        
+        # is this batched fam
+        is_batched = any([ k in kwargs for k in ['batch_kwargs', 'batch_args']]) 
+
+        batch_kwargs = kwargs.pop('batch_kwargs',  [kwargs])
+        batch_args = kwargs.pop('batch_args', [args])
+
+        ray_fn = getattr(self.actor, fn_key)
+
+        object_ids =[ray_fn.remote(*args, **kwargs) for b_args,b_kwargs in zip(batch_args, batch_kwargs)]
+        
+        if ray_get == True:
+            output_objects =  ray.get(object_ids)
+
+        else:
+            output_objects =  object_ids
+
+        if is_batched:
+            return output_objects
+        else:
+            assert len(output_objects) == 1
+            return output_objects[0]
+
 
 
     def parse(self):
-        fn_ray_method_signatures = self.actor._ray_method_signatures
-        for fn_key in fn_ray_method_signatures:
-            def fn(self, fn_key,server, *args, **kwargs):
-                
-                ray_get = kwargs.pop('ray_get', True)
-                is_batched = any([ k in kwargs for k in ['batch_kwargs', 'batch_args']]) 
-
-                batch_kwargs = kwargs.pop('batch_kwargs',  [kwargs])
-                batch_args = kwargs.pop('batch_args', [args])
-
-                ray_fn = getattr(server, fn_key)
-
-                object_ids =[ray_fn.remote(*args, **kwargs) for b_args,b_kwargs in zip(batch_args, batch_kwargs)]
-                
-
-   
-                if ray_get == True:
-                    output_objects =  ray.get(object_ids)
-
-                else:
-                    output_objects =  object_ids
-
-                if is_batched:
-                    return output_objects
-                else:
-                    assert len(output_objects) == 1
-                    return output_objects[0]
-
-
+        fn_ray_method_signatures = 
+        for fn_key, fn_ray_method_signatures in self.actor._ray_method_signatures.items():
             self.fn_signature_map[fn_key] = fn_ray_method_signatures
-            setattr(self, fn_key, partial(fn, self, fn_key, self.actor))
-            self.override_attributes = True 
+            remote_fn = partial(self.remote_fn, fn_key)
+            setattr(self, fn_key, remote_fn)
+        
+        self.attributes_parsed = True 
+    
     
     def __getattribute__(self, key):
-        if key in ['actor', 'fn_signature_map']:
+        if key in ClientModule.protected_keys:
             return Module.__getattribute__(self, key)
         
-        elif Module.__getattribute__(self, 'override_attributes'):
+        elif Module.__getattribute__(self, 'attributes_parsed'):
 
 
             if key in Module.__getattribute__(self, 'fn_signature_map'):

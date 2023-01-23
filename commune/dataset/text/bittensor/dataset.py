@@ -28,8 +28,8 @@ import os
 import torch
 from torch.utils.data.dataloader import DataLoader
 from typing import Optional, Union, Dict, List, Any
-from tuwang import Module
-from tuwang.utils import chunk
+from commune import Module
+from commune.utils import chunk
 
 logger = logger.opt(colors=True)
 
@@ -773,13 +773,13 @@ class BittensorDataset(Module):
     
     @classmethod
     def test_dataset(cls):
-        import tuwang
+        import commune
         # self = bittensor.dataset(batch_size=32, block_size=256)
         self = cls(batch_size=32, sequence_length=256, max_datasets=10)
         # print(self.download(chunk_size=200))
         self.download()
         
-        # t = tuwang.timer()
+        # t = commune.timer()
 
         # for i in range(100):
             

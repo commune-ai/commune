@@ -9,14 +9,14 @@ from typing import Union, Optional
 from munch import Munch
 import os,sys
 import bittensor
-import tuwang
-from tuwang.server import Server
+import commune
+from commune.server import Server
 # import streamlit as st
-# from tuwang.model.utils import encode_topk, decode_topk
+# from commune.model.utils import encode_topk, decode_topk
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
-class ModelClient(nn.Module, tuwang.Module):
+class ModelClient(nn.Module, commune.Module):
     def __init__(self,
                 model_name:str = 'EleutherAI/gpt-j-6B',
                 ip:str='0.0.0.0',
@@ -40,7 +40,7 @@ class ModelClient(nn.Module, tuwang.Module):
         self.ip = ip
         self.port = port
 
-        self.client = tuwang.server.Client(ip=self.ip, port=self.port)
+        self.client = commune.server.Client(ip=self.ip, port=self.port)
         self.get_server_data(model_name=model_name)
         
 
@@ -157,7 +157,7 @@ class ModelClient(nn.Module, tuwang.Module):
         raw_text = ['hey whats up']*batch_size
         token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
 
-        from tuwang.utils import Timer
+        from commune.utils import Timer
         input = dict(token_batch)
         import time
         with Timer() as t:
@@ -218,7 +218,7 @@ class ModelClient(nn.Module, tuwang.Module):
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
         token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
 
-        from tuwang.utils import tensor_info_dict, tensor_info, Timer
+        from commune.utils import tensor_info_dict, tensor_info, Timer
         input = dict(token_batch)
         import time
         with Timer() as t:
@@ -240,7 +240,7 @@ class ModelClient(nn.Module, tuwang.Module):
 
     @classmethod
     def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096):
-        from tuwang.neuron.miner import neuron
+        from commune.neuron.miner import neuron
         
         self = cls.default_model()
         print(self.state_dict())
@@ -263,7 +263,7 @@ class ModelClient(nn.Module, tuwang.Module):
     @classmethod
     def run_neuron(cls):
         import bittensor
-        from tuwang.neuron.miner import neuron
+        from commune.neuron.miner import neuron
         self = cls(port=50060, model_name='EleutherAI/gpt-j-6B')
         n = neuron(model=self)  
         n.run()

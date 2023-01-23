@@ -4,17 +4,16 @@ import asyncio
 loop = asyncio.get_event_loop()
 from transformers import AutoConfig, PreTrainedTokenizerBase
 # import streamlit as st
-# asyncio.set_event_loop(asyncio.new_event_loop())
 
 import bittensor
 from typing import List, Union, Dict
 from munch import Munch
 from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
 
-import tuwang
-from tuwang.receptor import receptor_pool
+import commune
+from commune.receptor import receptor_pool
 from copy import deepcopy
-class DendriteModel(torch.nn.Module, tuwang.Module):
+class DendriteModel(torch.nn.Module, commune.Module):
     
     def __init__(self,
                 endpoints : List[Union[str, 'bittensor.endpoint']] = [],
@@ -91,7 +90,7 @@ class DendriteModel(torch.nn.Module, tuwang.Module):
         atleast_one_success = False
         
         trial_count = 0
-        t = tuwang.timer()
+        t = commune.timer()
         
         print(input_ids, 'DEBUG')
         
@@ -202,7 +201,7 @@ class DendriteModel(torch.nn.Module, tuwang.Module):
     @classmethod
     def test_performance(cls, batch_size= 32, sequence_length=256):
 
-        from tuwang.utils import tensor_info_dict, tensor_info, Timer
+        from commune.utils import tensor_info_dict, tensor_info, Timer
         import time
         
         self = cls.default_model()
@@ -229,7 +228,7 @@ class DendriteModel(torch.nn.Module, tuwang.Module):
 
     @classmethod
     def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096):
-        from tuwang.neuron.miner import neuron
+        from commune.neuron.miner import neuron
         
         self = cls.default_model()
         print(self.state_dict())
@@ -255,7 +254,7 @@ class DendriteModel(torch.nn.Module, tuwang.Module):
         
     @classmethod
     def run_neuron(cls):
-        from tuwang.neuron.miner import neuron
+        from commune.neuron.miner import neuron
         model = cls.default_model()
         n = neuron(model=model)  
         n.run()
@@ -431,7 +430,7 @@ class DendriteModel(torch.nn.Module, tuwang.Module):
     def sandbox(cls):
         self = cls(endpoints = [])
         
-        data = tuwang.connect('dataset.bittensor')
+        data = commune.connect('dataset.bittensor')
         sample = data(fn='sample', kwargs=dict(batch_size=32, sequence_length=256))
         targets = sample['input_ids'][:, -1:] 
         sample['input_ids'] = sample['input_ids'][:, :-1] 
@@ -439,7 +438,7 @@ class DendriteModel(torch.nn.Module, tuwang.Module):
         sample['topk'] = 4096
         sample['output_logits'] = True
         # sample['autocast'] = True
-        t = tuwang.timer()
+        t = commune.timer()
         pred = self(**sample)        
         print(t.seconds)
 

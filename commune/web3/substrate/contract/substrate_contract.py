@@ -7,16 +7,15 @@ import os
 from typing import *
 from glob import glob
 import os, sys
-sys.path.append(os.getenv('PWD'))
 import commune
 class SubstrateContract:
-    contracts_dir_path = f'{os.getenv("PWD")}/commune/contracts/ink'
+    
+    dir_file_path = os.path.dirname(__file__)
+    contracts_dir_path = f'{dir_file_path}/data/ink'
     default_url = "ws://127.0.0.1:9944"
     def __init__(self, keypair:Keypair = None, substrate:'SubstrateInterface' = None):
         self.set_keypair(keypair)
         self.set_substrate(substrate)
-
-
     tmp_dir = '/tmp/'+os.path.dirname(__file__)
 
     @classmethod
@@ -263,7 +262,7 @@ class SubstrateContract:
 
     def read_contract_value(self):
         # Read current value
-        result = contract.read(self.keypair, 'get')
+        result = self.contract.read(self.keypair, 'get')
         return result.contract_result_data
 
     def call(self,  method:str, args:dict={}):

@@ -19,7 +19,7 @@ import sys
 import os
 import asyncio
 import bittensor
-import tuwang
+import commune
 from .proto  import DataBlock, ServerStub
 from .serializer import Serializer
 from .server import Server

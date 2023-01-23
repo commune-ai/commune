@@ -6,12 +6,15 @@ transformers
 
 aiofiles
 aiohttp
-ray[default]
 plotly
 web3
-bittensor
+# bittensor
+miniupnpc
+loguru
+psutil
 streamlit
 langchain
+ray[default]
 torch==1.13
 httpcore==0.15
 

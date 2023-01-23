@@ -9,11 +9,11 @@ from typing import Union, Optional
 from munch import Munch
 import os,sys
 import bittensor
-import tuwang
-from tuwang import Module
+import commune
+from commune import Module
 
 # import streamlit as st
-# from tuwang.model.utils import encode_topk, decode_topk
+# from commune.model.utils import encode_topk, decode_topk
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
@@ -166,11 +166,11 @@ class ModelClient(Module, nn.Module):
         
 #        import ipdb; ipdb.set_trace()
         self = cls(model='model.dendrite')
-        dataset = tuwang.connect('dataset.bittensor')
+        dataset = commune.connect('dataset.bittensor')
 
         
 
-        from tuwang.utils import Timer
+        from commune.utils import Timer
         import time
         
         
@@ -179,7 +179,7 @@ class ModelClient(Module, nn.Module):
             sample = dataset(fn='sample')
             targets = sample['input_ids'][:, -1:]
             sample['input_ids'] =  sample['input_ids'][:, :-1]
-            t = tuwang.timer()
+            t = commune.timer()
             # import ipdb; ipdb.set_trace()
             # sample['num_endpoints'] =  40
             pred = self(**sample)
@@ -195,7 +195,7 @@ class ModelClient(Module, nn.Module):
         raw_text = ['hey whats up']*batch_size
         token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
 
-        from tuwang.utils import Timer
+        from commune.utils import Timer
         input = dict(token_batch)
         import time
         with Timer() as t:
@@ -254,7 +254,7 @@ class ModelClient(Module, nn.Module):
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
         token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
 
-        from tuwang.utils import tensor_info_dict, tensor_info, Timer
+        from commune.utils import tensor_info_dict, tensor_info, Timer
         input = dict(token_batch)
         import time
         with Timer() as t:
@@ -275,7 +275,7 @@ class ModelClient(Module, nn.Module):
 
     @classmethod
     def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096):
-        from tuwang.neuron.miner import neuron
+        from commune.neuron.miner import neuron
         
         self = cls.default_model()
         print(self.state_dict())
@@ -298,7 +298,7 @@ class ModelClient(Module, nn.Module):
     @classmethod
     def run_neuron(cls):
         import bittensor
-        from tuwang.neuron.miner import neuron
+        from commune.neuron.miner import neuron
         self = cls()
         n = neuron(model=self)  
         n.run()

@@ -1,7 +1,6 @@
 
-from .config.loader import ConfigLoader as config_loader
 from .config import Config
-from .base.module import Module
+from .module import Module
 from .utils import *
 from . import server 
 module = Module
@@ -11,9 +10,9 @@ get_annotations = Module.get_annotations
 get_function_signature = get_function_signature
 launch = Module.launch
 import_module = Module.import_module
-load_module = Module.load_module
+# load_module = Module.load_module
 import_object = Module.import_object
-init_ray = ray_init=  Module.init_ray
+init_ray = ray_init=  Module.ray_init
 start_ray = ray_start =  Module.ray_start
 stop_ray = ray_stop=  Module.ray_stop
 ray_initialized =  Module.ray_initialized
@@ -34,7 +33,7 @@ new_event_loop = Module.new_event_loop
 list_modules =  Module.list_modules
 
 from .pipeline import Pipeline 
-from .process.aggregator import BaseAggregator as Aggregator
+from .block.aggregator import BaseAggregator as Aggregator
 # import .proto as proto
 
 

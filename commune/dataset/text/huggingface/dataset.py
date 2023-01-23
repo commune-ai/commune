@@ -8,16 +8,16 @@ import torch
 import random
 import sys, os
 
-from tuwang.utils import load_yaml, save_yaml, load_json, save_json, chunk
+from commune.utils import load_yaml, save_yaml, load_json, save_json, chunk
 import bittensor
 import datasets
 import inspect
 from importlib import import_module
-import tuwang
+import commune
 
 
 
-class HFDataset(tuwang.Module):
+class HFDataset(commune.Module):
     def __init__(self,
                 path:str=None,
                 name:str = None,
@@ -282,5 +282,5 @@ class HFDataset(tuwang.Module):
 
 
 if __name__ == '__main__':
-    # print(tuwang.Module.connect('dataset.huggingface').forward())
+    # print(commune.Module.connect('dataset.huggingface').forward())
     HFDataset.run()

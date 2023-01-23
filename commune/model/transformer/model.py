@@ -20,12 +20,12 @@ if os.getenv('USE_STREAMLIT') == 'true':
     
     
 # import torch
-import tuwang
-from tuwang.utils import *
+import commune
+from commune.utils import *
 
-Module = tuwang.Module
+Module = commune.Module
 
-# tuwang.utils
+# commune.utils
 from torch import nn
     
 """
@@ -357,7 +357,7 @@ class TransformerModel( nn.Module, Module):
         if isinstance(dataset, str):
             dataset =  self.connect(dataset)
 
-        t = tuwang.timer()
+        t = commune.timer()
         
         if load:
             self.load()
@@ -501,7 +501,7 @@ class TransformerModel( nn.Module, Module):
         model = cls.connect('model.transformer::gptj')
         dataset = cls.connect('dataset.bittensor')
         sample = dataset(fn='sample') 
-        t = tuwang.timer()
+        t = commune.timer()
         pred = model(fn='forward', kwargs=dict(autocast=True, no_grad=True, topk=4096, output_logits=False, **sample))
         print(pred['topk'].shape, pred.keys())
         print(t.seconds)

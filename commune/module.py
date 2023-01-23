@@ -2,7 +2,7 @@ import inspect
 import os
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple
-from tuwang.utils import *
+from commune.utils import *
 from munch import Munch
 import json
 from glob import glob
@@ -497,6 +497,10 @@ class Module:
         elif mode == 'object':
             return {cls.path2object(f):f for f in cls.get_module_python_paths()}
 
+
+    @classmethod
+    def list_modules(cls):
+        return cls.module_tree()
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
@@ -563,10 +567,6 @@ class Module:
     ##############
     #   RAY LAND
     ##############
-    @classmethod
-    def get_default_actor_name(cls):
-        return cls.get_module_path(simple=True)
-
 
     @classmethod
     def ray_stop(cls):
@@ -595,15 +595,6 @@ class Module:
         command_out_dict['stop'] = cls.ray_stop(**stop)
         command_out_dict['start'] = cls.ray_start(**start)
         return command_out_dict
-
-    @classmethod
-    def ray_status(cls):
-        return cls.run_command('ray status')
-
-    @staticmethod
-    def ray_initialized():
-        
-        return ray.is_initialized()
 
 
     default_ray_env = {'address':'auto', 
@@ -634,7 +625,6 @@ class Module:
         ray_context = ray.init(**init_kwargs)
         return ray_context
 
-
     @staticmethod
     def ray_runtime_context():
         return ray.get_runtime_context()
@@ -643,6 +633,309 @@ class Module:
     def actor_id(self):
         return self.get_id()
      
+     
+
+    ##############
+    #   RAY LAND
+    ##############
+
+    @classmethod
+    def ray_stop(cls):
+        cls.run_command('ray stop')
+
+    @classmethod
+    def ray_start(cls):
+        cls.run_command('ray start --head')
+
+
+    @classmethod
+    def ray_status(cls):
+        cls.run_command('ray status')
+
+    @staticmethod
+    def ray_initialized():
+        return ray.is_initialized()
+
+
+    def resource_usage(self):
+        resource_dict =  self.config.get('actor', {}).get('resources', None)
+        resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
+        resource_dict['memory'] = self.memory_usage(mode='ratio')
+        return  resource_dict
+
+    @classmethod
+    def ensure_ray_context(cls, ray_config:dict = None):
+        ray_config = ray_config if ray_config != None else {}
+        
+        if cls.ray_initialized():
+            ray_context = cls.get_ray_context()
+        else:
+            ray_context =  cls.init_ray(init_kwargs=ray_config)
+        
+        return ray_context
+    @classmethod 
+    def ray_launch(cls, 
+                   module= None, 
+                   actor: dict = None,  
+                   name:Optional[str]=None, 
+                   tag:str=None, 
+                   *args, 
+                   **kwargs):
+        """
+        deploys process as an actor or as a class given the config (config)
+        """
+        
+        actor = actor if actor else {}
+        module = module if module else cls.module_path()
+        assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
+        module_class = cls.simple2object(module)
+        actor['name'] = cls.resolve_module_id(name=name, tag=tag) 
+
+        try:
+            actor = cls.create_actor(cls=module_class,  cls_kwargs=kwargs, **actor)
+            
+        except ray.exceptions.RayActorError:
+            # try it again but with refresh set to true
+            actor['refresh'] = True
+            actor = cls.create_actor(cls=module_class, cls_kwargs=kwargs, **actor)
+
+        return actor 
+
+
+    default_ray_env = {'address':'auto', 
+                     'namespace': 'default',
+                      'ignore_reinit_error': False,
+                      'dashboard_host': '0.0.0.0'}
+    @classmethod
+    def ray_init(cls,init_kwargs={}):
+
+        # init_kwargs['_system_config']={
+        #     "object_spilling_config": json.dumps(
+        #         {"type": "filesystem", "params": {"directory_path": "/tmp/spill"}},
+        #     )
+        # }
+        init_kwargs =  {**cls.default_ray_env, **init_kwargs}
+        if cls.ray_initialized():
+            # shutdown if namespace is different
+            if cls.ray_namespace() == cls.default_ray_env['namespace']:
+                return cls.ray_runtime_context()
+            else:
+                ray.shutdown()
+  
+        ray_context = ray.init(**init_kwargs)
+        return ray_context
+
+    init_ray = ray_init
+    @staticmethod
+    def create_actor(cls,
+                 name, 
+                 cls_kwargs,
+                 cls_args =[],
+                 detached=True, 
+                 resources={'num_cpus': 1.0, 'num_gpus': 0},
+                 cpus = 0,
+                 gpus = 0,
+                 max_concurrency=50,
+                 refresh=False,
+                 verbose = True,
+                 wrap = False,
+                 **kwargs):
+
+        if cpus > 0:
+            resources['num_cpus'] = cpus
+        if gpus > 0:
+            resources['num_gpus'] = gpus
+
+        if not torch.cuda.is_available() and 'num_gpus' in resources:
+            del resources['num_gpus']
+
+        # configure the option_kwargs
+
+        options_kwargs = {'name': name,
+                          'max_concurrency': max_concurrency,
+                           **resources}
+        if detached:
+            options_kwargs['lifetime'] = 'detached'
+        # setup class init config
+        # refresh the actor by killing it and starting it (assuming they have the same name)
+        
+        if refresh:
+            if cls.actor_exists(name):
+                cls.kill_actor(actor=name,verbose=verbose)
+                # assert not Module.actor_exists(name)
+
+
+        if not cls.actor_exists(name):
+            actor_class = ray.remote(cls)
+            actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
+
+        actor = cls.get_actor(name)
+
+        if wrap:
+            actor = cls.wrap_actor(actor)
+
+        return actor
+
+    @staticmethod
+    def get_actor_id( actor):
+        assert isinstance(actor, ray.actor.ActorHandle)
+        return actor.__dict__['_ray_actor_id'].hex()
+
+    @classmethod
+    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
+        if actor_list == None:
+            actor_kwargs_list = [kwargs]*replicas
+
+        actors = []
+        for actor_kwargs in actor_kwargs_list:
+            actors.append(cls.deploy(**a_kwargs))
+
+        return ActorPool(actors=actors)
+
+    @classmethod
+    def wrap_actor(cls, actor):
+        from commune.block.ray.client.ray_client import ClientModule
+        return ClientModule(server=actor)
+
+    @staticmethod
+    def kill_actor(actor, verbose=True):
+
+        if isinstance(actor, str):
+            if Module.actor_exists(actor):
+                actor = ray.get_actor(actor)
+            else:
+                if verbose:
+                    print(f'{actor} does not exist for it to be removed')
+                return None
+        
+        return ray.kill(actor)
+        
+    @staticmethod
+    def kill_actors(actors):
+        return_list = []
+        for actor in actors:
+            return_list.append(Module.kill_actor(actor))
+        
+        return return_list
+            
+    @staticmethod
+    def actor_exists(actor):
+        if isinstance(actor, str):
+            try:
+                ray.get_actor(actor)
+                actor_exists = True
+            except ValueError as e:
+                actor_exists = False
+            
+            return actor_exists
+        else:
+            raise NotImplementedError
+
+    @staticmethod
+    def get_actor(actor_name, wrap=False):
+        actor =  ray.get_actor(actor_name)
+        # actor = Module.add_actor_metadata(actor)
+        if wrap:
+            actor = Module.wrap_actor(actor=actor)
+        return actor
+
+    @staticmethod
+    def ray_runtime_context():
+        return ray.get_runtime_context()
+
+    @classmethod
+    def ray_namespace(cls):
+        return ray.get_runtime_context().namespace
+
+    @staticmethod
+    def get_ray_context():
+        return ray.runtime_context.get_runtime_context()
+    @property
+    def context(self):
+        if Module.actor_exists(self.actor_name):
+            return self.init_ray()
+    
+    def is_parent(child, parent):
+        return bool(parent in Module.get_parents(child))
+
+    @classmethod
+    def run_python(cls, path):
+        cls.run_command(f'python {path}')
+
+    timer = Timer
+    @classmethod
+    def get_parents(cls, obj=None):
+        if obj == None:
+            obj = cls
+
+        return list(obj.__mro__[1:-1])
+    
+    @staticmethod
+    def list_objects( *args, **kwargs):
+        
+        return ray.experimental.state.api.list_objects(*args, **kwargs)
+    
+    @staticmethod
+    def list_actors(state='ALIVE', detail=True, *args, **kwargs):
+        kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
+        kwargs['detail'] = detail
+
+        actor_info_list =  ray.experimental.state.api.list_actors(*args, **kwargs)
+        final_info_list = []
+        for i, actor_info in enumerate(actor_info_list):
+            resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}
+            resource_list = actor_info_list[i].pop('resource_mapping', [])
+
+            for resource in resource_list:
+                resource_map[resource['name'].lower()] = resource['resource_ids']
+            actor_info_list[i]['resources'] = resource_map
+
+            try:
+                ray.get_actor(actor_info['name'])
+                final_info_list.append(actor_info_list[i])
+            except ValueError as e:
+                pass
+
+        return final_info_list
+    @staticmethod
+    def actor_map(*args, **kwargs):
+        actor_list = Module.list_actors(*args, **kwargs)
+        actor_map  = {}
+        for actor in actor_list:
+            actor_name = actor.pop('name')
+            actor_map[actor_name] = actor
+        return actor_map
+    @staticmethod   
+    def list_actor_names():
+        return list(Module.actor_map().keys())
+    @staticmethod
+    def list_tasks(running=False, name=None, *args, **kwargs):
+        filters = []
+        if running == True:
+            filters.append([("scheduling_state", "=", "RUNNING")])
+        if isinstance(name, str):
+            filters.append([("name", "=", name)])
+        
+        if len(filters)>0:
+            kwargs['filters'] = filters
+
+        return ray.experimental.state.api.list_tasks(*args, **kwargs)
+    @staticmethod
+    def list_nodes( *args, **kwargs):
+        return ray.experimental.state.api.list_nodes(*args, **kwargs)
+    @staticmethod
+    def ray_get(self, *jobs):
+        return ray.get(jobs)
+    @staticmethod
+    def ray_wait( *jobs):
+        finished_jobs, running_jobs = ray.wait(jobs)
+        return finished_jobs, running_jobs
+
+    @staticmethod
+    def ray_put(*items):
+        return [ray.put(i) for i in items]
+
+
     @classmethod
     def module_config_tree(cls):         
         return {m: cls.simple2config(m) for m in cls.module_list()}
@@ -714,7 +1007,7 @@ class Module:
     @classmethod
     def connect(cls,name:str=None, port:int=None , ip:str=None,*args, **kwargs ):
         
-        from tuwang.server import Client
+        from commune.server import Client
         server_registry =  Module.server_registry()
         if name:
             assert name in server_registry, f'{name} is not deployed'
@@ -759,11 +1052,24 @@ class Module:
     list_servers = servers
     
     @classmethod
-    def register_server(cls, name: str, server: 'tuwang.Server')-> dict:
+    def register_server(cls, name: str, server: 'commune.Server')-> dict:
         server_registry = cls.server_registry()
         server_registry[name] = dict(ip=server.ip, port=server.port)
         server_registry = Module.put_json(path='server_registry', data=server_registry) 
         return server_registry
+  
+    @classmethod
+    def is_module(cls, obj=None):
+        if obj == None:
+            obj = cls
+        return Module in cls.get_parents(obj)
+
+    @classmethod
+    def new_event_loop(cls):
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
   
     @classmethod
     def set_event_loop(cls, loop=None, new_loop:bool = False):
@@ -788,7 +1094,7 @@ class Module:
     @classmethod
     def serve(cls, port:int=None , ip:str=None, name:str=None, tag:str=None, replace:bool = True, *args, **kwargs ):
         
-        from tuwang.server import Server
+        from commune.server import Server
         
         self = cls(*args, **kwargs)
     
@@ -888,6 +1194,10 @@ class Module:
     def launch(cls, *args, mode:str='pm2', **kwargs ):
         return getattr(cls, f'{mode}_launch')(*args, **kwargs)
        
+    @staticmethod
+    def get_ray_context():
+        return ray.runtime_context.get_runtime_context()
+    
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
@@ -915,7 +1225,6 @@ class Module:
 
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
     
-        print(command)
         env = dict(CUDA_VISIBLE_DEVICES=device)
         if refresh:
             cls.pm2_kill(pm2_name)    
@@ -960,15 +1269,15 @@ class Module:
     def sandbox(cls, **kwargs):
         print(kwargs)
      
-        import tuwang
-        commune = tuwang
+        import commune
+        commune = commune
         batch_count = 100
         print(cls.server_registry())
         
-        # t = tuwang.timer()
+        # t = commune.timer()
         dataset =  cls.connect('dataset.bittensor')
         model =  cls.connect('model.transformer::gptj')
-        t = tuwang.timer()
+        t = commune.timer()
 
         sample = dataset(fn='sample', kwargs=dict(batch_size=32, sequence_length=256))
         sample['output_hidden_states'] =  False

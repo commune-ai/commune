@@ -14,8 +14,8 @@ import asyncio
 from copy import deepcopy
 from munch import Munch
 
-from tuwang.server.proto import DataBlock
-from tuwang.utils import dict_put, dict_get
+from commune.server.proto import DataBlock
+from commune.utils import dict_put, dict_get
 
 import json
 

@@ -1,5 +1,5 @@
 
-from tuwang import module
+from commune import module
 
 print(module.servers())
 
