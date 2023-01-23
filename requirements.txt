@@ -12,9 +12,11 @@ web3
 miniupnpc
 loguru
 psutil
+munch
 streamlit
 langchain
 ray[default]
 torch==1.13
 httpcore==0.15
+substrate-interface
 

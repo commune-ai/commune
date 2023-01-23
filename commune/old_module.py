@@ -1078,10 +1078,6 @@ class Module:
             actor = Module.wrap_actor(actor=actor)
         return actor
 
-    @property
-    def ray_context(self):
-        return self.init_ray()
-
     @staticmethod
     def ray_runtime_context():
         return ray.get_runtime_context()
@@ -1098,12 +1094,12 @@ class Module:
         if Module.actor_exists(self.actor_name):
             return self.init_ray()
 
-    @property
-    def actor_name(self):
-        actor_config =  self.config.get('actor', {})
-        if actor_config == None:
-            actor_config = {}
-        return actor_config.get('name')
+    # @property
+    # def actor_name(self):
+    #     actor_config =  self.config.get('actor', {})
+    #     if actor_config == None:
+    #         actor_config = {}
+    #     return actor_config.get('name')
     
     @property
     def default_actor_name(self):
@@ -1125,12 +1121,10 @@ class Module:
             self._actor_handle = self.get_actor(self.actor_name)
         return self._actor_handle
 
-
     @staticmethod
     def list_objects( *args, **kwargs):
         
         return ray.experimental.state.api.list_objects(*args, **kwargs)
-
     @staticmethod
     def list_actors(state='ALIVE', detail=True, *args, **kwargs):
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
@@ -1153,7 +1147,6 @@ class Module:
                 pass
 
         return final_info_list
-
     @staticmethod
     def actor_map(*args, **kwargs):
         actor_list = Module.list_actors(*args, **kwargs)
@@ -1162,11 +1155,9 @@ class Module:
             actor_name = actor.pop('name')
             actor_map[actor_name] = actor
         return actor_map
-
     @staticmethod   
     def list_actor_names():
         return list(Module.actor_map().keys())
-
     @staticmethod
     def list_tasks(running=False, name=None, *args, **kwargs):
         filters = []
@@ -1179,16 +1170,12 @@ class Module:
             kwargs['filters'] = filters
 
         return ray.experimental.state.api.list_tasks(*args, **kwargs)
-
-
     @staticmethod
     def list_nodes( *args, **kwargs):
         return list_nodes(*args, **kwargs)
-
     @staticmethod
     def ray_get(self, *jobs):
         return ray.get(jobs)
-
     @staticmethod
     def ray_wait( *jobs):
         finished_jobs, running_jobs = ray.wait(jobs)

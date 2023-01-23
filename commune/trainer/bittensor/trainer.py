@@ -29,10 +29,8 @@ import inspect
 from glob import glob
 from importlib import import_module
 import shutil
-asyncio.set_event_loop(asyncio.new_event_loop())
 import streamlit as st
 import bittensor
-sys.path[0] = os.getenv('PWD')
 import cortex
 import commune
 from cortex.model.moe import BaseMOE, mix_response

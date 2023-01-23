@@ -78,3 +78,6 @@ server:
 
 client:
 	docker exec -it commune bash -c "streamlit run commune/model/remote/remote_model_client.py"
+
+api:  
+	uvicorn commune.api.api:app --reload

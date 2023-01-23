@@ -7,7 +7,6 @@ import pickle
 import io
 from datasets import load_dataset, Dataset
 import os, sys
-sys.path.append(os.getenv('PWD'))
 
 import requests
 

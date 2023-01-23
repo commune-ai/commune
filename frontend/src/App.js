@@ -1,7 +1,10 @@
 import React from 'react';
 import Marketplace from './Marketplace';
+import axios from 'axios';
+
 
 const items = Array.from({length: 100}, (_, i) => ({item: {title: `Module ${i}`,attributes: ['metrics','bro'], description: 'Description'}}));
+
 
 const App = () => {
     return (

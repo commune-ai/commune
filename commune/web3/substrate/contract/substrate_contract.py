@@ -115,7 +115,6 @@ class SubstrateContract:
                     substrate=self.substrate
                 )
 
-        st.write(deployment_salt)
         self.contract = code.deploy(
             keypair=self.keypair,
             endowment=endowment,

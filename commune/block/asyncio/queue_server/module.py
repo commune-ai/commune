@@ -1,6 +1,5 @@
 import ray
 import os,sys
-sys.path.append(os.getenv('PWD'))
 from commune.ray.queue import Queue
 from commune import Module
 from commune.utils import dict_put,dict_get,dict_has,dict_delete

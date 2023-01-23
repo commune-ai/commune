@@ -82,7 +82,7 @@ class Pipeline:
         commune.init_ray()
         pipeline_blocks = [
         {
-            'module': 'commune.dataset.text.huggingface',
+            'module': 'dataset.text.huggingface',
             'fn': 'sample',
             'kwargs': {'tokenize': False},
             'output_key_map': {'text': 'input'}

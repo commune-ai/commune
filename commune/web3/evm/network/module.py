@@ -3,10 +3,9 @@
 import os
 import sys
 from copy import deepcopy
-sys.path.append(os.environ['PWD'])
 from commune.utils import dict_put, dict_get, get_object, dict_has
 from commune import Module
-from commune.web3.utils import  get_web3
+from commune.web3.evm.utils import  get_web3
 
 
 class NetworkModule(Module):

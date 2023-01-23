@@ -2,7 +2,6 @@
 
 
 import os, sys
-sys.path.append(os.environ['PWD'])
 import gradio
 from commune import Module
 from commune.utils import *
