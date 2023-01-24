@@ -93,32 +93,26 @@ COPY ./README.md /app/README.md
 
 # PYTHON LAND
 
-COPY ./bittensor /app/bittensor
-RUN pip install -e /app/bittensor
-RUN pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl
+# COPY ./bittensor /app/bittensor
+# RUN pip install -e /app/bittensor
+# RUN pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl
 
-RUN pip install -U "ray[default]"
-RUN pip install -U streamlit
-RUN pip install -U plotly
-RUN pip install -U datasets
-RUN pip install hub
-RUN pip install -U accelerate
-RUN pip install jupyterlab
-RUN pip install aiofiles
-RUN pip install web3
-RUN pip install --upgrade protobuf
-RUN export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python 
-RUN pip install accelerate
-RUN pip install --upgrade torch
-RUN pip install nvidia-ml-py3
+# RUN pip install -U "ray[default]"
+# RUN pip install -U streamlit
+# RUN pip install -U plotly
+# RUN pip install -U datasets
+# RUN pip install hub
+# RUN pip install -U accelerate
+# RUN pip install jupyterlab
+# RUN pip install aiofiles
+# RUN pip install web3
+# RUN pip install --upgrade protobuf
+# RUN export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python 
+# RUN pip install accelerate
+# RUN pip install --upgrade torch
+# RUN pip install nvidia-ml-py3
 
-COPY ./langchain /app/langchain
-RUN pip install -e /app/langchain
-
-COPY ./langchain /app/langchain
-RUN pip install -e /app/langchain
-
-COPY ./diffusers /app/diffusers
-RUN pip install -e /app/diffusers
+# COPY ./diffusers /app/diffusers
+# RUN pip install -e /app/diffusers
 
 RUN pip install -e .

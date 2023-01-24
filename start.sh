@@ -107,6 +107,11 @@ while :; do
         
         ;;
 
+        --frontend)
+        COMPOSE_FILES+=" -f ./frontend/docker-compose.yml"
+        
+        ;;
+
         --all)
         COMPOSE_FILES=""
         COMPOSE_FILES+=" -f ./docker-compose.yml"

@@ -1,0 +1,15 @@
+version : "3.9"
+services:
+  frontend :
+    network_mode: host
+    container_name: frontend
+    image : commune/frontend
+    build :
+      context : ./
+      dockerfile : Dockerfile
+    volumes:
+      - './src:/app/src'
+      - './public:/app/public'
+      # - './package-lock.json:/app/'
+      # - './package.json:/app/'
+    command: "npm start"

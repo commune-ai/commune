@@ -3,18 +3,16 @@
 
 datasets
 transformers
-
 aiofiles
 aiohttp
 plotly
 web3
-# bittensor
-miniupnpc
 loguru
 psutil
 munch
 streamlit
 langchain
+miniupnpc
 ray[default]
 torch==1.13
 substrate-interface
