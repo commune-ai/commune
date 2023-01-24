@@ -12,7 +12,7 @@ class SubstrateContract:
     
     dir_file_path = os.path.dirname(__file__)
     contracts_dir_path = f'{dir_file_path}/data/ink'
-    default_url = "ws://127.0.0.1:9944"
+    default_url = "ws://0.0.0.0:9944"
     def __init__(self, keypair:Keypair = None, substrate:'SubstrateInterface' = None):
         self.set_keypair(keypair)
         self.set_substrate(substrate)
@@ -230,6 +230,7 @@ class SubstrateContract:
         commune.run_command(self.command_dict['build'], cwd=contract_path)
 
         new_contract_info = self.contract_file_info[contract]
+        print(new_contract_info)
         st.write(new_contract_info)
         assert new_contract_info['compiled'] == True
         return new_contract_info['compiled']

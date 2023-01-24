@@ -35,7 +35,7 @@ services:
       - /tmp:/tmp # TMP FILE SYSTEM MOUNT
       - /home/ubuntu/efs:/efs
       - /usr/local/cuda/bin/nvcc:/usr/local/cuda/bin/nvcc
-      - ./make 
+      - ./Makefile:/app/Makefile 
 
     deploy:
       resources:

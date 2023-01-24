@@ -114,5 +114,5 @@ COPY ./README.md /app/README.md
 
 # COPY ./diffusers /app/diffusers
 # RUN pip install -e /app/diffusers
-
+RUN pip install bittensor
 RUN pip install -e .

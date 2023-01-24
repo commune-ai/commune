@@ -2,7 +2,9 @@ import inspect
 import os
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple
-from commune.utils import *
+from commune.utils import (timer, save_yaml, flat2deep, 
+                          deep2flat, load_json, put_json,
+                          save_json, load_yaml)
 from munch import Munch
 import json
 from glob import glob
@@ -12,7 +14,7 @@ import sys
 class Module:
     port_range = [50050, 50150] # the range of ports the moddule can be a server for
     default_ip = '0.0.0.0'
-    root_path  = root = '/'.join(os.path.dirname(__file__).split('/')[:-1])
+    root_path  = root = os.path.dirname(__file__)
     pwd = os.getenv('PWD')
     root_dir = root_path.split('/')[-1]
     def __init__(self, config:dict=None, *args,  **kwargs):
@@ -157,6 +159,7 @@ class Module:
 
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
+        
         path = path if path else cls.__config_file__()
         
         if isinstance(config, Munch):
@@ -239,7 +242,7 @@ class Module:
         return config
 
     @staticmethod
-    def run_command(command:str, background=False, env:dict = {}):
+    def run_command(command:str, background=False, env:dict = {}, **kwargs):
         '''
         Runs  a command in the shell.
         
@@ -248,14 +251,14 @@ class Module:
         import shlex
         if background:
             
-            process = subprocess.Popen(shlex.split(command), env={**os.environ, **env})
+            process = subprocess.Popen(shlex.split(command), env={**os.environ, **env}, **kwargs)
             process = process.__dict__
         else:
             
             process = subprocess.run(shlex.split(command), 
                                 stdout=subprocess.PIPE, 
                                 universal_newlines=True,
-                                env={**os.environ, **env})
+                                env={**os.environ, **env}, **kwargs)
             
         return process
 
@@ -862,7 +865,8 @@ class Module:
     def run_python(cls, path):
         cls.run_command(f'python {path}')
 
-    timer = Timer
+    def timer(self, *args, **kwargs):
+        return Timer(*args, **kwargs)
     @classmethod
     def get_parents(cls, obj=None):
         if obj == None:
@@ -949,6 +953,7 @@ class Module:
 
     @classmethod
     def get_json(cls,path, default=None, **kwargs):
+        from commune.utils import load_json
         path = cls.resolve_path(path=path)
         data = load_json(path, **kwargs)
         return data
@@ -974,7 +979,7 @@ class Module:
         if path == 'all':
             return [cls.rm(f) for f in cls.glob()]
         path = cls.resolve_path(path)
-        return rm_json(path )
+        return self.rm_json(path )
 
     @classmethod
     def glob(cls,  path ='**'):
@@ -1207,19 +1212,26 @@ class Module:
                    args : list = None,
                    kwargs: dict = None,
                    device:str='0', 
-                   interpreter:str='python', 
+                   interpreter:str='python3', 
                    refresh:bool=True, ):
         
         # avoid these references fucking shit up
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
+        if module and name == None:
+            name = module
+            
+        
+        
+        
         module = module if module else cls.module_path()
+        print(module, 'BROOO')
         module_path = cls.simple2path(module)
         assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
         pm2_name = cls.resolve_module_id(name=name, tag=tag) 
 
-        command = f" pm2 start {module_path} --name {pm2_name} --interpreter python"
+        command = f" pm2 start {module_path} --name {pm2_name} --interpreter {interpreter}"
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         args_str = json.dumps(args).replace('"', "'")
 
@@ -1302,4 +1314,5 @@ class Module:
 module = Module
 
 if __name__ == "__main__":
-    print(module.run())
+    # print(module.run())
+    print(module.module_tree())

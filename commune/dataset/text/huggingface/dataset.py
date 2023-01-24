@@ -43,7 +43,7 @@ class HFDataset(commune.Module):
         kwargs['name'] = name if name  else self.name
         kwargs['split'] = split if split  else self.split
 
-        self.dataset = self.launch(module='datasets.load_dataset', kwargs=kwargs)
+        self.dataset = self.import_object('datasets.load_dataset')(**kwargs)
         return self.dataset
 
     @property
