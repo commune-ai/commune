@@ -82,7 +82,7 @@ class SubstrateContract:
 
     def deploy(self, 
             contract:str,
-            endowment:int=0,
+            endowment:int='1000000000',
             deployment_salt: str=None,
             gas_limit:int=1000000000000,
             constructor:str="new",
@@ -108,12 +108,21 @@ class SubstrateContract:
         if contract_file_info['compiled'] == False:
             contract_file_info = self.compile(contract=contract)
 
-
+        print(contract_file_info, 'DEBUG')
         code = ContractCode.create_from_contract_files(
                     metadata_file=contract_file_info['metadata'],
                     wasm_file= contract_file_info['wasm'],
                     substrate=self.substrate
                 )
+        
+        
+        print(dict(keypair=self.keypair,
+            endowment=endowment,
+            gas_limit=gas_limit,
+            deployment_salt=deployment_salt,
+            constructor=constructor,
+            args=args,
+            upload_code=upload_code))
 
         self.contract = code.deploy(
             keypair=self.keypair,
@@ -230,8 +239,6 @@ class SubstrateContract:
         commune.run_command(self.command_dict['build'], cwd=contract_path)
 
         new_contract_info = self.contract_file_info[contract]
-        print(new_contract_info)
-        st.write(new_contract_info)
         assert new_contract_info['compiled'] == True
         return new_contract_info['compiled']
 
@@ -291,10 +298,9 @@ class SubstrateContract:
 import time
 if __name__ == "__main__":
     self = SubstrateContract()
-    self.compile('subspace')
+    self.deploy('flipper')
     
     # self.new_contract('flipper', compile=True)
-    # st.write(self.deploy('flipper', args={'init_value': True}, compile=True))
     # st.write(self.call('flip'))
     # st.write(self.compile('fam'))
     # self.deploy(contract='fam', args={'init_value': True})

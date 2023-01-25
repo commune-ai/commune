@@ -31,13 +31,12 @@ from importlib import import_module
 import shutil
 import streamlit as st
 import bittensor
-import cortex
 import commune
-from cortex.model.moe import BaseMOE, mix_response
-from cortex.metric import  phrase_cross_entropy
+# from cortex.model.moe import BaseMOE, mix_response
+# from cortex.metric import  phrase_cross_entropy
 
 
-from cortex.utils import *
+# from cortex.utils import *
 
     
 def tensor_stats(x):

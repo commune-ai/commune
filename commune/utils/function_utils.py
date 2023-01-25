@@ -36,6 +36,30 @@ def get_functions(obj, include_parents=False):
     return fn_list
 
 
+
+def get_class_methods(cls: Union[str, type]):
+    '''
+    Gets the class methods in a class
+    '''
+    functions =  get_functions(cls)
+    signature_map = {}
+    for f in functions:
+        if f.startswith('__'):
+            continue
+        # print(f)
+        signature_map[f] = get_function_signature(getattr(cls, f)) 
+
+    return [k for k, v in signature_map.items() if 'self' not in v]
+
+def get_self_methods(cls: Union[str, type]):
+    '''
+    Gets the self methods in a class
+    '''
+    functions =  get_functions(cls)
+    signature_map = {f:get_function_signature(getattr(cls, f)) for f in functions}
+    return [k for k, v in signature_map.items() if 'self' in v]
+
+
 def get_function_signature(fn) -> dict: 
     return dict(inspect.signature(fn)._parameters)
 

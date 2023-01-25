@@ -679,3 +679,31 @@ async def async_put_yaml( path, data):
     return await async_write(path, yaml_str)
 
 put_yaml = save_yaml = sync_wrapper(async_put_yaml)
+
+
+
+from munch import Munch
+
+
+def dict2munch(x:dict, recursive:bool=True)-> Munch:
+    '''
+    Turn dictionary into Munch
+    '''
+    if isinstance(x, dict):
+        for k,v in x.items():
+            if isinstance(v, dict) and recursive:
+                x[k] = dict2munch(v)
+        x = Munch(x)
+    return x 
+
+def munch2dict(x:Munch, recursive:bool=True)-> dict:
+    '''
+    Turn munch object  into dictionary
+    '''
+    if isinstance(x, Munch):
+        x = dict(x)
+        for k,v in x.items():
+            if isinstance(v, Munch) and recursive:
+                x[k] = munch2dict(v)
+
+    return x 

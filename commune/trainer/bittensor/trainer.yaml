@@ -1,3 +1,5 @@
+module: CortexTrainer
+
 wallet: 
   name: const
   hotkey: Tiberius
