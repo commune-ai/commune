@@ -94,6 +94,7 @@ class Module:
         '''
         return cls.module_path()
 
+    
     @property
     def module_tag(self):
         '''
@@ -102,7 +103,7 @@ class Module:
         
         '''
         if not hasattr(self, '_module_tag'):
-            self._module_tag = None
+            self.__dict__['_module_tag'] = None
         return self._module_tag
     
     
@@ -776,11 +777,11 @@ class Module:
             else: 
                 raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
     
-        self.server = Server(ip=ip, port=port, module = self)
-
-        self.module_id = module_id
-        cls.register_server(name=module_id, server=self.server)
-        self.server.serve()
+        self.__dict__['module_id'] = module_id
+    
+        server = Server(ip=ip, port=port, module = self )
+        cls.register_server(name=module_id, server=server)
+        server.serve()
         
     
     @classmethod
@@ -946,6 +947,30 @@ class Module:
         print(t.seconds)
         
     
+    
+    @classmethod
+    def get_methods(cls, obj:type= None, modes:Union[str, List[str]] = 'all',  ) -> List[str]:
+        '''
+        
+        Get methods of the obj, which defaults to the class object if None
+        
+        Args:
+            obj (object): object to get methods from
+            modes:
+        
+        '''
+        methods = []
+        obj = obj if obj else cls
+        
+        if modes == 'all':
+            modes = ['class', 'self']
+        
+        default_modes = ['class', 'self']
+        
+        for mode in modes:
+            assert mode in default_modes, f'{mode} not in {default_modes}'
+            methods.extend(getattr(cls, f'get_{mode}_methods')(obj))
+            
     @classmethod
     def get_class_methods(cls, obj=None) -> List[str]:
         return get_class_methods(obj if obj else cls)
@@ -1123,10 +1148,11 @@ class Module:
             del resources['num_gpus']
 
         # configure the option_kwargs
-
         options_kwargs = {'name': name,
                           'max_concurrency': max_concurrency,
                            **resources}
+        
+        # detatch the actor from the process when it finishes
         if detached:
             options_kwargs['lifetime'] = 'detached'
         # setup class init config
@@ -1138,12 +1164,15 @@ class Module:
                 # assert not Module.actor_exists(name)
 
 
+        # create the actor if it doesnt exisst
+        # if the actor is refreshed, it should not exist lol (TODO: add a check)
         if not cls.actor_exists(name):
             actor_class = ray.remote(cls)
             actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
 
         actor = cls.get_actor(name)
 
+        # wrap the actor with the client module 
         if wrap:
             actor = cls.wrap_actor(actor)
 
@@ -1295,15 +1324,116 @@ class Module:
     def ray_put(*items):
         return [ray.put(i) for i in items]
 
-     @staticmethod
+    @staticmethod
     def get_ray_context():
         return ray.runtime_context.get_runtime_context()
     
+    @classmethod
+    def module(python_class: 'python::class' ,init_module:bool=False,  **kwargs, ):
+        '''
+        Wraps a python class with 
+        '''
+        class ModuleWrapper(python_class, Module):
+            def __init__(self,   **kwargs):
+                python_class.__init__(self, **kwargs)
+                # if init the module, then Module as well with the same kwargs
+                
+                if init_module:
+                    Module.__init__(self, **kwargs)
+        
+            def __call__(self, *args, **kwargs):
+                return python_class.__call__(self, *args, **kwargs)
+    
+            def forward(self, *args, **kwargs):
+                return python_class.forward(self, *args, **kwargs)
+    
+            def __str__(self):
+                return python_class.__str__(self)
+            
+            def __repr(self):
+                return python_class.__repr__(self)     
 
+        return ModuleWrapper
 
+    def setfunctions(self, ) -> None:
+        '''
+        Set a dictionary to the slf functions 
+        '''
+        for key, value in self.get_functions().items():
+            setattr(self, key, value)
 
-module = Module
+    # UNDER CONSTRUCTION (USE WITH CAUTION)
+    
+    def setattributes(self, new_attributes:Dict[str, Any]) -> None:
+        '''
+        Set a dictionary to the slf attributes 
+        '''
+        assert isinstance(new_attributes, dict), f'locals must be a dictionary but is a {type(locals)}'
+        self.__dict__.update(new_attributes)
 
+    @staticmethod
+    def get_template_args( template:str) -> List[str]:
+        '''
+        get the template arguments from a string such that
+        template = 'hello {name} {age}' returns ['name', 'age']
+        
+        Args:
+            template (str): template string
+        Returns:
+            List[str]: list of template arguments
+            
+            
+        '''
+        from string import Formatter
+        template_args =  [i[1] for i in Formatter().parse(template)  if i[1] is not None] 
+        
+        return template_args
+         
+    def merge_dict(self, python_obj: Any, include_hidden:bool=False):
+        '''
+        Merge the dictionaries of a python object into the current object
+        '''
+        for k,v in python_obj.__dict__.items():
+            if include_hidden == False:
+                #i`f the function name starts with __ then it is hidden
+                if k.startswith('__'):
+                    continue
+            self.__dict__[k] = v
+            
+    def merge_functions(self, python_obj: Any, include_hidden:bool=False):
+        '''
+        Merge the functions of a python object into the current object
+        '''
+        for fn_name in dir(python_obj):
+            if include_hidden == False:
+                #i`f the function name starts with __ then it is hidden
+                if fn_name.startswith('__'):
+                    continue
+            # get the function from the python object
+            fn = getattr(python_obj, fn_name)
+            if callable(fn):
+                setattr(self, fn_name, fn)  
+                           
+    def merge(self, python_obj: Any, include_hidden:bool=False) -> 'self':
+        '''
+        Merge the attributes of a python object into the current object
+        '''
+        
+        # merge the attributes
+        self.merge_dict(python_obj, include_hidden=include_hidden)
+        
+        # merge the functions
+        self.merge_functions(python_obj, include_hidden=include_hidden)
+        
+        return self
+        
+        
+                
+        
+        
+        
+
+Block = Lego = Module
 if __name__ == "__main__":
     # print(module.run())
-    print(module.module_tree())
+    print(Module.module_tree())
