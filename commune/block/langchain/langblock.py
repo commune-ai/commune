@@ -19,6 +19,7 @@ class LLMChainBlock(LLMChain, commune.Block):
         prompt = prompt if prompt else self.default_prompt()
         llm = llm if llm else self.default_llm()
         LLMChain.__init__(self, prompt=prompt, llm=llm)
+           
             
     @classmethod
     def default_prompt(cls) -> PromptTemplate:
@@ -26,13 +27,12 @@ class LLMChainBlock(LLMChain, commune.Block):
         Default prompt template for the LLMChainBlock
         '''
         
+        
         template = """Question: {question}
         Answer: Let's think step by step."""
         
-        # get the input variables
-        input_variables = cls.get_template_args(template) # -> ['question']
-            
-        prompt = PromptTemplate(template=template, input_variables=input_variables)
+        prompt = PromptTemplate(template=template, 
+                                input_variables=cls.get_template_args(template))
         return prompt
         
     
