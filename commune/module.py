@@ -10,7 +10,7 @@ import sys
 import argparse
 
 from commune.utils import (timer, save_yaml, flat2deep, 
-                          deep2flat, load_json, put_json,
+                          deep2flat, load_json, put_json, rm_json,
                           save_json, load_yaml, dict2munch, munch2dict,
                           get_functions, get_function_signature,
                           get_class_methods, get_self_methods, Timer, 
@@ -366,6 +366,7 @@ class Module:
         The path is determined by the module path 
         
         '''
+        print(cls.tmp_dir)
         tmp_dir = cls.tmp_dir()
         if tmp_dir not in path:
             path = os.path.join(tmp_dir, path)
@@ -612,7 +613,7 @@ class Module:
     ############ JSON LAND ###############
 
     @classmethod
-    def get_json(cls,path:str, default=None, resolve_path: bool = True**kwargs):
+    def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
         from commune.utils import load_json
         path = cls.resolve_path(path=path) if resolve_path else path
         data = load_json(path, **kwargs)
@@ -633,18 +634,25 @@ class Module:
 
     @classmethod
     def rm(cls, path=None, resolve_path:bool = True):
+        import shutil
         if path == 'all':
             return [cls.rm(f) for f in cls.glob()]
         
         path = cls.resolve_path(path) if resolve_path else path
-        return self.rm_json(path )
+        return rm_json(path )
 
     @classmethod
-    def glob(cls,  path ='**', resolve_path:bool):
+    def glob(cls,  path ='**', resolve_path:bool = True, files_only:bool = True):
         path = cls.resolve_path(path) if resolve_path else path
         paths = glob(path, recursive=True)
         
-        return list(filter(lambda f:os.path.isfile(f), paths))
+        if files_only:
+            paths =  list(filter(lambda f:os.path.isfile(f), paths))
+            
+        return paths
+            
+            
+        
     
     @classmethod
     def test_json(cls):

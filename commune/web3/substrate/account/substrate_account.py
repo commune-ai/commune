@@ -1,65 +1,51 @@
-import os
-import base64
-import json
-import stat
-import getpass
-from typing import Optional
-from pathlib import Path
-
-from ansible_vault import Vault
-from cryptography.exceptions import InvalidSignature, InvalidKey
-from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from password_strength import PasswordPolicy
-from substrateinterface.utils.ss58 import ss58_encode
-from termcolor import colored
+from substrateinterface import SubstrateInterface, Keypair
+from typing import List, Dict, Union
+import commune
 
 
-import os
-import sys
-from types import SimpleNamespace
-from typing import Optional, Union
+class SubstrateAccount(Keypair):
+    def __init__(self, keypair:Union[Keypair, dict] = None, *args, **kwargs):
+        if keypair:
+            self.set_keypair(keypair)
+        else:
+            Keypair.__init__(self, *args, **kwargs)
+        
+        
+    def set_keypair(self, keypair:Union[Keypair, dict]):
+        if isinstance(keypair, dict):
+            keypair = Keypair(**keypair)
+        assert isinstance(keypair, Keypair), 'keypair must be a Keypair instance'
+        self = commune.merge(a=self, b=keypair)
+    @property
+    def address(self):
+        return self.ss58_address
 
-import bittensor
-from substrateinterface import Keypair
-from termcolor import colored
+    @classmethod
+    def from_uri(cls, uri):
+        """ Create a SubstrateAccount from a URI.
+        """
+        if not uri.startswith('//'):
+            uri = '//' + uri
+        
+        keypair =  cls(keypair=cls.create_from_uri(uri))
+        # keypair = cls.create_from_uri(uri)
 
+        return keypair
 
-import os
-import base64
-import json
-import stat
-import getpass
-from typing import Optional
-from pathlib import Path
-
-
-from ansible_vault import Vault
-from cryptography.exceptions import InvalidSignature, InvalidKey
-from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from password_strength import PasswordPolicy
-from substrateinterface.utils.ss58 import ss58_encode
-from termcolor import colored
-
-# Substrate ss58_format
-__ss58_format__ = 42
-# Wallet ss58 address length
-__ss58_address_length__ = 48
-
-class KeyFileError(Exception):
-    """ Error thrown when the keyfile is corrupt, non-writable, nno-readable or the password used to decrypt is invalid.
-    """
-
-
-class SubstrateAccount(KeyPair):
-    def __init__(self, *args, **kwargs):
-        KeyPair.__init__(self, *args, **kwargs)
-
+    @classmethod
+    def test_accounts(cls, demo_uris:List[str] = ['alice', 'bob', 'chris', 'billy', 'dave', 'sarah']) -> Dict[str, 'SubstrateAccount']:
+        '''
+        This method is used to create demo accounts for testing purposes.
+        '''
+        
+        demo_accounts = {}
+        for demo_uri in demo_uris:
+            demo_accounts[demo_uri] =  cls.from_uri(demo_uri)
+            
+        
+        return demo_accounts 
+            
+        
 
 if __name__ == '__main__':
     module = SubstrateAccount()

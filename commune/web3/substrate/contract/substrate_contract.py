@@ -8,6 +8,9 @@ from typing import *
 from glob import glob
 import os, sys
 import commune
+
+
+
 class SubstrateContract(commune.Module):
     
     dir_file_path = os.path.dirname(__file__)
@@ -16,17 +19,6 @@ class SubstrateContract(commune.Module):
     def __init__(self, keypair:Keypair = None, substrate:'SubstrateInterface' = None):
         self.set_keypair(keypair)
         self.set_substrate(substrate)
-    tmp_dir = '/tmp/'+os.path.dirname(__file__)
-
-    @classmethod
-    def put_json(cls, path:str, data):
-        path = os.path.join(cls.tmp_dir, path)
-        commune.put_json(path=path, data=data)
-        return path
-    @classmethod
-    def get_json(cls, path:str):
-        path = os.path.join(cls.tmp_dir, path)
-        return commune.get_json(path=path)
 
     def set_substrate(self, substrate=None):
         
@@ -80,6 +72,8 @@ class SubstrateContract(commune.Module):
     def contract_names(self):
         return [ f.split('/')[-1] for f in self.contract_paths   ]
 
+
+    default_tag = 'base'
     def deploy(self, 
             contract:str,
             endowment:int=0,
@@ -89,13 +83,33 @@ class SubstrateContract(commune.Module):
             args:dict={'total_supply': 100000},
             upload_code:bool=True,
             refresh:bool = True,
-            compile:bool=False):
-        # Deploy contract
+            compile:bool=False,
+            tag: str = None):
+        '''
+        Deploy a contract to the chain
+        
+        Args:
+            contract (str): The name of the contract to deploy
+            endowment (int, optional): The amount of tokens to send to the contract. Defaults to 0.
+            deployment_salt (str, optional): A salt to use for the deployment. Defaults to None.
+            gas_limit (int, optional): The gas limit to use for the deployment. Defaults to 1000000000000.
+            constructor (str, optional): The name of the constructor to use. Defaults to "new".
+            args: The arguments to pass to the constructor. Defaults to {'total_supply': 100000}.
+            upload_code (bool, optional): Whether or not to upload the code to the chain. Defaults to True.
+            refresh (bool, optional): Whether or not to refresh the contract. Defaults to True.
+            compile (bool, optional): Whether or not to compile the contract. Defaults to False.
+            tag (str, optional): A tag to use for the contract. Defaults to None.
+        '''
+        
+        tag = tag if tag else self.default_tag
 
         # If refresh is false, lets see if the contract exists
         if compile:
             self.compile(contract)
         
+        
+        
+        # if you do not want ot refresh the contract, lets see if it exists
         if refresh == False:
             contract_instance = self.get_contract(contract)
             if contract_instance != None:
@@ -114,16 +128,6 @@ class SubstrateContract(commune.Module):
                     substrate=self.substrate
                 )
         
-        print(dict(
-            
-            keypair=self.keypair,
-            endowment=endowment,
-            gas_limit=gas_limit,
-            deployment_salt=deployment_salt,
-            constructor=constructor,
-            args=args,
-            upload_code=upload_code
-        ))
         
         deploy_params = dict(
             endowment=endowment,
@@ -139,16 +143,23 @@ class SubstrateContract(commune.Module):
             **deploy_params
         )
         
-        deployed_contracts = self.deployed_contracts
+        self.register_contract(contract=self.contract, name=contract, tag=tag)
 
-        if contract not in deployed_contracts:
-            deployed_contracts[contract] = []
-            
-        deployed_contracts[contract][deployment_salt] = self.contract.contract_address
-        self.deployed_contracts = deployed_contracts
 
         return self.contract
 
+
+    def get_contract_info(self, contract):
+        
+        contract_info = {'address':contract.contract_address}
+        return contract_info
+        
+    def register_contract(self, contract:str, name: str, tag:str):
+        contract_info = self.get_contract_info(contract)
+        
+        self.put_json(f'deployed_contracts/{name}/{tag}', contract_info )
+
+        return contract_info
     @property
     def contract_address(self):
         return self.contract.contract_address
@@ -179,8 +190,11 @@ class SubstrateContract(commune.Module):
         self.contract = contract
         return self.contract
 
-    def get_contract(self, contract:str, deployment_salt:str=None) -> Union['Contract', 'contract_addresses']:
-
+    def get_contract(self, contract:str, tag:str=None) -> Union['Contract', 'contract_addresses']:
+        '''
+        Get the contract from an existing chain
+        '''
+        tag = tag if tag != None else self.default_tag
         # Check if contract is on chain
         contract_info = self.contract_file_info[contract]
         contract_addresses = self.deployed_contracts.get(contract, None)
@@ -188,8 +202,10 @@ class SubstrateContract(commune.Module):
             return None
 
         
-        deployment_salt = deployment_salt if deployment_salt else list(contract_addresses.keys())[0]
-        contract_address = contract_addresses[deployment_salt]
+        tag = tag if tag else list(contract_addresses.keys())[0]
+        contract_address = contract_addresses[tag]['address']
+        
+        
         contract_substrate_info = self.substrate.query("Contracts", "ContractInfoOf", [contract_address])
 
         if contract_substrate_info.value:
@@ -213,8 +229,18 @@ class SubstrateContract(commune.Module):
 
     @property
     def deployed_contracts(self):
-        deployed_contracts = self.get_json('deployed_contracts')
-
+        deployed_paths = self.glob('deployed_contracts/**')
+        print(deployed_paths)
+        deployed_contracts = {}
+        for path in deployed_paths:
+            name = path.split('/')[-2]
+            tag = path.split('/')[-1]
+            
+            if name not in deployed_contracts:
+                deployed_contracts[name] = {}
+            if tag not in deployed_contracts[name]:
+                deployed_contracts[name][tag] = self.get_json(path)
+                
         return deployed_contracts
 
 
@@ -248,8 +274,8 @@ class SubstrateContract(commune.Module):
         return new_contract_info['compiled']
 
     def refresh_deployed_contracts(self):
-        self.deployed_contracts = {}
-        return self.deployed_contracts
+        # self.deployed_contracts = {}
+        return self.rm('deployed_contracts')
 
 
     def rm_contract (self, contract:str):
@@ -272,39 +298,64 @@ class SubstrateContract(commune.Module):
             self.compile(contract)
 
 
-    def read_contract_value(self):
-        # Read current value
-        result = self.contract.read(self.keypair, 'get')
-        return result.contract_result_data
 
-    def call(self,  method:str, args:dict={}):
+
+    def read(self, method:str, args:dict={}, keypair: Keypair = None, contract = None) -> Dict:
+        contract = contract if contract != None else self.contract
+        keypair = keypair if keypair != None else self.keypair
         # Do a gas estimation of the message
-        gas_predit_result = self.contract.read(self.keypair, method)
+        result = contract.read(self.keypair, method, args=args)
+        
+        return result
+
+
+
+
+    def exec(self,  method:str, args:dict={}, keypair: Keypair = None, contract = None):
+        contract = contract if contract != None else self.contract
+        keypair = keypair if keypair != None else self.keypair
+        # Do a gas estimation of the message
+        gas_predit_result = contract.read(self.keypair, method, args=args)
 
         # print('Result of dry-run: ', gas_predit_result.value)
         # print('Gas estimate: ', gas_predit_result.gas_required)
 
         # Do the actual call
         # print('Executing contract call...')
-        contract_receipt = self.contract.exec(self.keypair, method, args={
-
-        }, gas_limit=gas_predit_result.gas_required)
+        contract_receipt = contract.exec(keypair, method, args=args, gas_limit=gas_predit_result.gas_required)
 
         if contract_receipt.is_success:
             print(f'Events triggered in contract: {contract_receipt.contract_events}')
         else:
             raise Exception(f'Error message: {contract_receipt.error_message}')
 
-        result = self.contract.read(self.keypair, 'get')
-
-        print('Current value of "get":', result.contract_result_data)
+        result = contract.read(self.keypair, method, args=args)
         return result
+    
+    @classmethod
+    def sandbox(cls):
+        self = cls()
+        # self.refresh_deployed_contracts()
+        contract = self.get_contract('erc20')
+        print(contract.__dict__)
+        
+        # print(self.deployed_contracts)
+        # test_accounts = commune.get_module('web3.substrate.account').test_accounts()
+        
+        # # self.set_contract('erc20')
+
+        # print(test_accounts)
+        
+        # # print(self.exec(method='set_ip', args={'owner': self.keypair.ss58_address,'ip': '0.0.0.0:5000'}).value)
+        # print(self.read(method='get_ip', args={'owner': self.keypair.ss58_address}).value)
+        # print(self.contract.call())
 
 import time
 if __name__ == "__main__":
-    self = SubstrateContract()
-    self.set_contract('erc20')
-    print(self.contract_file_info)
+
+    SubstrateContract.sandbox()
+
+    # print(self.contract.metadata.__dict__)
     
 
     # st.write(self.call('flip'))

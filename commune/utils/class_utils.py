@@ -25,7 +25,7 @@ def merge_functions(a: Any, b: Any, include_hidden:bool=False):
                 continue
         # get the function from the python object
         a_fn = getattr(a, a_fn_name)
-        if callable(fn):
+        if callable(a_fn):
             setattr(a, a_fn_name, a_fn)  
             
     return a
@@ -36,7 +36,7 @@ def merge(a:Any, b: Any, include_hidden:bool=False) -> 'self':
     '''
     
     # merge the attributes
-    merge_dict(a=a,b=b, include_hidden=include_hidden)
+    merge_dicts(a=a,b=b, include_hidden=include_hidden)
     
     # merge the functions
     merge_functions(a=a,b=b, include_hidden=include_hidden)

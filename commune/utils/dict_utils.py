@@ -11,6 +11,7 @@ import torch
 from importlib import import_module
 import pickle
 import math
+from typing import Union
 import datetime
 from .asyncio_utils import async_read, async_write, sync_wrapper
 from .os_utils import ensure_path, path_exists
@@ -98,6 +99,19 @@ def seed_everything(seed: int) -> None:
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
 
+def rm_json(path:str, ignore_error:bool=True) -> Union['NoneType', str]:
+    import shutil
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    elif os.path.isfile(path):
+        os.remove(path)
+    else:
+        if ignore_error:
+            return None
+        raise Exception(path, 'is not a valid path')
+    
+    return path
+    
 
 def get_current_time():
     return strftime("%m%d%H%M%S", gmtime())
