@@ -2,6 +2,10 @@ from langchain import PromptTemplate, HuggingFaceHub, LLMChain
 import commune
 from typing import Union, Dict
 
+
+# dont take legal action, this is for the people, take my key and use it for good
+os.environ['HUGGINGFACEHUB_API_TOKEN'] = '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'
+
 class LLMChainBlock(LLMChain, commune.Block):
     
     def __init__(self, llm: 'LLM' = None, prompt: PromptTemplate = None ):
@@ -44,7 +48,7 @@ class LLMChainBlock(LLMChain, commune.Block):
         '''
         
         
-        return HuggingFaceHub(repo_id="google/flan-t5-xl",  model_kwargs={"temperature":1e-10})
+        return HuggingFaceHub(repo_id="google/flan-t5-xl",  model_kwargs={"temperature":1e-10}, huggingfacehub_api_token=)
     
         
     @classmethod
@@ -53,4 +57,5 @@ class LLMChainBlock(LLMChain, commune.Block):
      
 # for
 block  = LLMChainBlock()
-block.serve()
+# block.serve()
+print(block)

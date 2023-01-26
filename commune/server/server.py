@@ -79,7 +79,11 @@ class Server(ServerServicer, Serializer):
                     timeout on the forward requests. 
           
         """ 
-        self.loop = asyncio.get_event_loop()
+        try:
+            self.loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
         config = copy.deepcopy(config if config else self.default_config())
 
         port = port if port != None else config.port
@@ -312,15 +316,30 @@ class Server(ServerServicer, Serializer):
     def endpoint(self):
         return f'{self.ip}:{self.port}'
     
-    def serve(self, update_period = 10, verbose:bool= False, wait_for_termination:bool=False):
-        self.start(wait_for_termination=wait_for_termination)
+    def serve(self,
+              wait_for_termination:bool=False,
+              update_period:int = 10, 
+              verbose:bool= False):
+        '''
+        Serve the server and loop it until termination.
+        '''
+        self.start(wait_for_termination=False)
 
-        lifetime_seconds = 0
+        lifetime_seconds:int = 0
+        
+        def print_serve_status():
+            print(f'Serving {str(self.module.module_id)}::ip::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}')
+
 
         while True:
-            print(f'Serving {str(self.module.module_id)}::ip::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}')
+            print_serve_status()
             time.sleep(update_period)
             lifetime_seconds += update_period
+            if not wait_for_termination:
+                break
+                
+            
+
 
 
     def start(self, wait_for_termination=False) -> 'Server':

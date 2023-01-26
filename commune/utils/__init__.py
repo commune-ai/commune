@@ -8,6 +8,8 @@ from .pandas_utils import *
 from .pickle_utils import *
 from .time_utils import *
 from .torch_utils import *
+from .class_utils import *
+
 
 from typing import *
 import os
@@ -94,6 +96,7 @@ def cache(path='/tmp/cache.pkl', mode='memory'):
         return wrapped_fn
     return cache_fn
     
+
 
 def merge_objects(self, self2, functions:list):
     self.fn_signature_map = {}
@@ -295,7 +298,3 @@ def even_number_split(number=10, splits=2):
         if left_over_number == 0:
             break
     return split_bins
-
-
-
-

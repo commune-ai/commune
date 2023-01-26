@@ -13,7 +13,8 @@ from commune.utils import (timer, save_yaml, flat2deep,
                           deep2flat, load_json, put_json,
                           save_json, load_yaml, dict2munch, munch2dict,
                           get_functions, get_function_signature,
-                          get_class_methods, get_self_methods, Timer)
+                          get_class_methods, get_self_methods, Timer, 
+                          merge_dicts, merge_functions, merge)
 
 
  
@@ -197,8 +198,7 @@ class Module:
         Set the config as well as its local params
         '''
         if config == False:
-            self.config =  self.minimal_config()
-            return self.config
+            config =  self.minimal_config()
         
         # ensure to include the inner kwargs if that is provided (Which isnt great practice lol)
         kwargs  = {**kwargs, **kwargs.pop('kwargs', {}) }
@@ -217,7 +217,7 @@ class Module:
         config.update(kwargs)
         
 
-        self.config = dict2munch(config)
+        self.__dict__['config'] = dict2munch(config)
         
         return self.config
 
@@ -612,38 +612,36 @@ class Module:
     ############ JSON LAND ###############
 
     @classmethod
-    def get_json(cls,path, default=None, **kwargs):
+    def get_json(cls,path:str, default=None, resolve_path: bool = True**kwargs):
         from commune.utils import load_json
-        path = cls.resolve_path(path=path)
+        path = cls.resolve_path(path=path) if resolve_path else path
         data = load_json(path, **kwargs)
         return data
     load_json = get_json
 
     @classmethod
-    def put_json(cls, path:str, data:Dict, **kwargs) -> str:
-        path = cls.resolve_path(path=path)
+    def put_json(cls, path:str, data:Dict, resolve_path:bool = True, **kwargs) -> str:
+        path = cls.resolve_path(path=path) if resolve_path else path
         put_json(path=path, data=data, **kwargs)
         return path
     save_json = put_json
     
-
-    
-    
     @classmethod
-    def exists(cls, path:str)-> bool:
-        path = cls.resolve_path(path=path)
+    def exists(cls, path:str, resolve_path:bool = True)-> bool:
+        path = cls.resolve_path(path=path) if resolve_path else path
         return os.path.exists(path)
 
     @classmethod
-    def rm(cls, path=None):
+    def rm(cls, path=None, resolve_path:bool = True):
         if path == 'all':
             return [cls.rm(f) for f in cls.glob()]
-        path = cls.resolve_path(path)
+        
+        path = cls.resolve_path(path) if resolve_path else path
         return self.rm_json(path )
 
     @classmethod
-    def glob(cls,  path ='**'):
-        path = cls.resolve_path(path, extension=None)
+    def glob(cls,  path ='**', resolve_path:bool):
+        path = cls.resolve_path(path) if resolve_path else path
         paths = glob(path, recursive=True)
         
         return list(filter(lambda f:os.path.isfile(f), paths))
@@ -672,7 +670,7 @@ class Module:
     @classmethod
     def connect(cls,name:str=None, port:int=None , ip:str=None,*args, **kwargs ):
         
-        from commune.server import Client
+        from commune.server import Client, ClientWrapper
         server_registry =  Module.server_registry()
         if name:
             assert name in server_registry, f'{name} is not deployed'
@@ -680,6 +678,7 @@ class Module:
         else:
             client_kwargs = dict(ip=ip, port=port)
         client = Client( *args, **kwargs,**client_kwargs)
+        
         return client
    
     @classmethod
@@ -781,15 +780,17 @@ class Module:
     
         server = Server(ip=ip, port=port, module = self )
         cls.register_server(name=module_id, server=server)
+    
         server.serve()
         
     
-    @classmethod
+    # @classmethod
     def functions(cls, obj:Any=None, exclude_module_functions:bool = False, **kwargs) -> List[str]:
         '''
         List of functions
         '''
         obj = obj if obj else cls
+        
         
         functions = get_functions(obj=obj, **kwargs)
         if exclude_module_functions and (not cls.is_module(obj)) :
@@ -1329,11 +1330,11 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(python_class: 'python::class' ,init_module:bool=False,  **kwargs, ):
+    def module(cls, python_class: 'python::class' ,init_module:bool=False,  **kwargs, ):
         '''
         Wraps a python class with 
         '''
-        class ModuleWrapper(python_class, Module):
+        class ModuleWrapper(python_class, cls):
             def __init__(self,   **kwargs):
                 python_class.__init__(self, **kwargs)
                 # if init the module, then Module as well with the same kwargs
@@ -1399,37 +1400,17 @@ class Module:
                 if k.startswith('__'):
                     continue
             self.__dict__[k] = v
-            
-    def merge_functions(self, python_obj: Any, include_hidden:bool=False):
-        '''
-        Merge the functions of a python object into the current object
-        '''
-        for fn_name in dir(python_obj):
-            if include_hidden == False:
-                #i`f the function name starts with __ then it is hidden
-                if fn_name.startswith('__'):
-                    continue
-            # get the function from the python object
-            fn = getattr(python_obj, fn_name)
-            if callable(fn):
-                setattr(self, fn_name, fn)  
-                           
-    def merge(self, python_obj: Any, include_hidden:bool=False) -> 'self':
+      
+              
+    def merge(self, a:Any = None, b: Any = None, include_hidden:bool = False) -> 'self':
         '''
         Merge the attributes of a python object into the current object
         '''
         
-        # merge the attributes
-        self.merge_dict(python_obj, include_hidden=include_hidden)
+        a = a if a is not None else self
+        merge(a=a, b=b, include_hidden=include_hidden)
         
-        # merge the functions
-        self.merge_functions(python_obj, include_hidden=include_hidden)
-        
-        return self
-        
-        
-                
-        
+        return a
         
         
 

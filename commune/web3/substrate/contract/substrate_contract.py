@@ -8,7 +8,7 @@ from typing import *
 from glob import glob
 import os, sys
 import commune
-class SubstrateContract:
+class SubstrateContract(commune.Module):
     
     dir_file_path = os.path.dirname(__file__)
     contracts_dir_path = f'{dir_file_path}/data/ink'
@@ -82,13 +82,13 @@ class SubstrateContract:
 
     def deploy(self, 
             contract:str,
-            endowment:int='1000000000',
+            endowment:int=0,
             deployment_salt: str=None,
             gas_limit:int=1000000000000,
             constructor:str="new",
             args:dict={'total_supply': 100000},
             upload_code:bool=True,
-            refresh:bool = False,
+            refresh:bool = True,
             compile:bool=False):
         # Deploy contract
 
@@ -108,23 +108,14 @@ class SubstrateContract:
         if contract_file_info['compiled'] == False:
             contract_file_info = self.compile(contract=contract)
 
-        print(contract_file_info, 'DEBUG')
         code = ContractCode.create_from_contract_files(
                     metadata_file=contract_file_info['metadata'],
                     wasm_file= contract_file_info['wasm'],
                     substrate=self.substrate
                 )
         
-        
-        print(dict(keypair=self.keypair,
-            endowment=endowment,
-            gas_limit=gas_limit,
-            deployment_salt=deployment_salt,
-            constructor=constructor,
-            args=args,
-            upload_code=upload_code))
-
-        self.contract = code.deploy(
+        print(dict(
+            
             keypair=self.keypair,
             endowment=endowment,
             gas_limit=gas_limit,
@@ -132,12 +123,27 @@ class SubstrateContract:
             constructor=constructor,
             args=args,
             upload_code=upload_code
+        ))
+        
+        deploy_params = dict(
+            endowment=endowment,
+            gas_limit=gas_limit,
+            deployment_salt=deployment_salt,
+            constructor=constructor,
+            args=args,
+            upload_code=upload_code
+        ) 
+        
+        self.contract = code.deploy(
+            keypair=self.keypair,
+            **deploy_params
         )
+        
         deployed_contracts = self.deployed_contracts
 
-
         if contract not in deployed_contracts:
-            deployed_contracts[contract] = {}
+            deployed_contracts[contract] = []
+            
         deployed_contracts[contract][deployment_salt] = self.contract.contract_address
         self.deployed_contracts = deployed_contracts
 
@@ -176,7 +182,6 @@ class SubstrateContract:
     def get_contract(self, contract:str, deployment_salt:str=None) -> Union['Contract', 'contract_addresses']:
 
         # Check if contract is on chain
-        st.write(contract)
         contract_info = self.contract_file_info[contract]
         contract_addresses = self.deployed_contracts.get(contract, None)
         if contract_addresses == None:
@@ -298,12 +303,12 @@ class SubstrateContract:
 import time
 if __name__ == "__main__":
     self = SubstrateContract()
-    self.deploy('flipper')
+    self.set_contract('erc20')
+    print(self.contract_file_info)
     
-    # self.new_contract('flipper', compile=True)
+
     # st.write(self.call('flip'))
     # st.write(self.compile('fam'))
-    # self.deploy(contract='fam', args={'init_value': True})
     # st.write(self.contract.__dict__)
     # st.write(self.contract)
     # st.write(self.deploy(contract='fam', args={'init_value': True}, refresh=False))
