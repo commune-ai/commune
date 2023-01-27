@@ -1,11 +1,9 @@
 # hey/thanks bittensor
 import os
 import urllib
-
 import miniupnpc
 import netaddr
 import requests
-
 from loguru import logger
 
 def int_to_ip(int_val: int) -> str:

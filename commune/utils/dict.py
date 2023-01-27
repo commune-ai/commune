@@ -13,8 +13,8 @@ import pickle
 import math
 from typing import Union
 import datetime
-from .asyncio_utils import async_read, async_write, sync_wrapper
-from .os_utils import ensure_path, path_exists
+from commune.utils.asyncio import async_read, async_write, sync_wrapper
+from commune.utils.os import ensure_path, path_exists
 
 def round_sig(x, sig=6, small_value=1.0e-9):
     """
@@ -721,3 +721,27 @@ def munch2dict(x:Munch, recursive:bool=True)-> dict:
                 x[k] = munch2dict(v)
 
     return x 
+
+
+
+def check_kwargs(kwargs:dict, defaults:Union[list, dict], return_bool=False):
+    '''
+    params:
+        kwargs: dictionary of key word arguments
+        defaults: list or dictionary of keywords->types
+    '''
+    try:
+        assert isinstance(kwargs, dict)
+        if isinstance(defaults, list):
+            for k in defaults:
+                assert k in defaults
+        elif isinstance(defaults, dict):
+            for k,k_type in defaults.items():
+                assert isinstance(kwargs[k], k_type)
+    except Exception as e:
+        if return_bool:
+            return False
+        
+        else:
+            raise e
+

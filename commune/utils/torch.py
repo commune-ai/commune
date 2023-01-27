@@ -1,5 +1,6 @@
-import torch
+
 def torch_batchdictlist2dict(batch_dict_list, dim=0):
+    import torch
     """
     converts
         batch_dict_list: dictionary (str, tensor)

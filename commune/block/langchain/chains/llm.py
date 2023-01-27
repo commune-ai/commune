@@ -24,6 +24,14 @@ class LLMChainBlock(LLMChain, commune.Block):
         llm = llm if llm else self.default_llm()
         LLMChain.__init__(self, prompt=prompt, llm=llm)
            
+       
+      
+    def set_prompt(self, prompt: PromptTemplate):
+        '''
+        Set the prompt
+        '''
+        self.prompt = prompt
+        
             
     @classmethod
     def default_prompt(cls) -> PromptTemplate:

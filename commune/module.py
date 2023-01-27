@@ -5,16 +5,8 @@ from typing import Optional, Union, Dict, List, Any, Tuple
 from munch import Munch
 import json
 from glob import glob
-import ray
 import sys
 import argparse
-
-from commune.utils import (timer, save_yaml, flat2deep, 
-                          deep2flat, load_json, put_json, rm_json,
-                          save_json, load_yaml, dict2munch, munch2dict,
-                          get_functions, get_function_signature,
-                          get_class_methods, get_self_methods, Timer, 
-                          merge_dicts, merge_functions, merge)
 
 
  
@@ -158,6 +150,7 @@ class Module:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
+        from commune.utils.dict import dict2munch, load_yaml
         
         path = path if path else cls.__config_file__()
         
@@ -180,9 +173,13 @@ class Module:
 
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
+
         '''
         Saves the config to a yaml file
         '''
+        from commune.utils.dict import save_yaml,munch2dict
+        
+        
         path = path if path else cls.__config_file__()
         
         if isinstance(config, Munch):
@@ -197,6 +194,9 @@ class Module:
         '''
         Set the config as well as its local params
         '''
+        
+        from commune.utils.dict import munch2dict
+        
         if config == False:
             config =  self.minimal_config()
         
@@ -223,10 +223,11 @@ class Module:
 
     @classmethod
     def add_args( cls, config: dict , prefix: str = None , parser: argparse.ArgumentParser = None ):
-        
+
         '''
         Adds arguments to the parser based on the config. This invol
         '''
+        from commune.utils.dict import flat2deep, deep2flat
         
         
         parser = parser if parser else argparse.ArgumentParser()
@@ -590,6 +591,7 @@ class Module:
 
     @classmethod
     def timer(cls, *args, **kwargs):
+        from commune.utils.timer import Timer
         return Timer(*args, **kwargs)
     
     
@@ -614,7 +616,7 @@ class Module:
 
     @classmethod
     def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
-        from commune.utils import load_json
+        from commune.utils.dict import load_json
         path = cls.resolve_path(path=path) if resolve_path else path
         data = load_json(path, **kwargs)
         return data
@@ -622,6 +624,8 @@ class Module:
 
     @classmethod
     def put_json(cls, path:str, data:Dict, resolve_path:bool = True, **kwargs) -> str:
+        
+        from commune.utils.dict import put_json
         path = cls.resolve_path(path=path) if resolve_path else path
         put_json(path=path, data=data, **kwargs)
         return path
@@ -634,7 +638,8 @@ class Module:
 
     @classmethod
     def rm(cls, path=None, resolve_path:bool = True):
-        import shutil
+        from commune.utils.dict import rm_json
+
         if path == 'all':
             return [cls.rm(f) for f in cls.glob()]
         
@@ -797,6 +802,7 @@ class Module:
         '''
         List of functions
         '''
+        from commune.utils.function import get_functions
         obj = obj if obj else cls
         
         
@@ -817,6 +823,7 @@ class Module:
 
     @classmethod
     def function_signature_map(cls):
+        from commune.utils.function import get_function_signature
         function_signature_map = {}
         for f in cls.functions():
             if f.startswith('__') and f.endswith('__'):
@@ -982,10 +989,12 @@ class Module:
             
     @classmethod
     def get_class_methods(cls, obj=None) -> List[str]:
+        from commune.utils.function import get_class_methods
         return get_class_methods(obj if obj else cls)
         
     @classmethod
     def get_self_methods(cls, obj=None) -> List[str]:
+        from commune.utils.function import get_self_methods
         return get_self_methods(obj if obj else cls)
         
         
@@ -1035,7 +1044,7 @@ class Module:
     
     @classmethod
     def ray_init(cls,init_kwargs={}):
-
+        import ray
 
         init_kwargs =  {**cls.default_ray_env, **init_kwargs}
         if cls.ray_initialized():
@@ -1071,6 +1080,7 @@ class Module:
 
     @classmethod
     def ray_initialized(cls):
+        import ray
         return ray.is_initialized()
 
     # def resource_usage(self):
@@ -1097,6 +1107,7 @@ class Module:
                    tag:str=None, 
                    *args, 
                    **kwargs):
+        import ray
         """
         deploys process as an actor or as a class given the config (config)
         """
@@ -1123,7 +1134,7 @@ class Module:
                       'dashboard_host': '0.0.0.0'}
     @classmethod
     def ray_init(cls,init_kwargs={}):
-
+        import ray
         init_kwargs =  {**cls.default_ray_env, **init_kwargs}
         ray_context = {}
         if cls.ray_initialized():
@@ -1147,7 +1158,7 @@ class Module:
                  verbose:bool= True,
                  wrap:bool = False,
                  **kwargs):
-
+        import ray
         if cpus > 0:
             resources['num_cpus'] = cpus
         if gpus > 0:
@@ -1210,6 +1221,7 @@ class Module:
 
     @classmethod
     def kill_actor(cls, actor, verbose=True):
+        import ray
 
         if isinstance(actor, str):
             if cls.actor_exists(actor):
@@ -1231,6 +1243,7 @@ class Module:
             
     @classmethod
     def actor_exists(cls, actor):
+        import ray
         if isinstance(actor, str):
             try:
                 ray.get_actor(actor)
@@ -1244,6 +1257,7 @@ class Module:
 
     @classmethod
     def get_actor(cls ,actor_name, wrap=False):
+        import ray
         actor =  ray.get_actor(actor_name)
         # actor = Module.add_actor_metadata(actor)
         if wrap:
@@ -1252,23 +1266,28 @@ class Module:
 
     @classmethod
     def ray_runtime_context(cls):
+        import ray
         return ray.get_runtime_context()
 
     @classmethod
     def ray_namespace(cls):
+        import ray
         return ray.get_runtime_context().namespace
 
     @classmethod
     def ray_context(cls):
+        import ray
         return ray.runtime_context.get_runtime_context()
 
     @staticmethod
     def ray_objects( *args, **kwargs):
-        
+        import ray
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
     @classmethod
     def ray_actors(cls, state='ALIVE',names_only:bool = False, detail:bool=True, *args, **kwargs):
+        import ray
+        
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
         kwargs['detail'] = detail
 
@@ -1305,6 +1324,7 @@ class Module:
   
     @staticmethod
     def ray_tasks(running=False, name=None, *args, **kwargs):
+        import ray
         filters = []
         if running == True:
             filters.append([("scheduling_state", "=", "RUNNING")])
@@ -1319,22 +1339,27 @@ class Module:
    
     @staticmethod
     def ray_nodes( *args, **kwargs):
+        import ray
         return ray.experimental.state.api.list_nodes(*args, **kwargs)
     @staticmethod
     def ray_get(*jobs):
+        import ray
         return ray.get(jobs)
     @staticmethod
     def ray_wait( *jobs):
+        import ray
         finished_jobs, running_jobs = ray.wait(jobs)
         return finished_jobs, running_jobs
     
     
     @staticmethod
     def ray_put(*items):
+        import ray
         return [ray.put(i) for i in items]
 
     @staticmethod
     def get_ray_context():
+        import ray
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
@@ -1414,6 +1439,7 @@ class Module:
         '''
         Merge the attributes of a python object into the current object
         '''
+        merge = self.import_object('commune.utils.class.merge')
         
         a = a if a is not None else self
         merge(a=a, b=b, include_hidden=include_hidden)
