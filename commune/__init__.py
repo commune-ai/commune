@@ -1,5 +1,5 @@
 
-# from .config import Config
+from .config import Config
 
 from .module import Module, Block
 

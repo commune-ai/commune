@@ -84,6 +84,9 @@ class Server(ServerServicer, Serializer):
         except RuntimeError:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
+            
+            
+        # 
         config = copy.deepcopy(config if config else self.default_config())
 
         port = port if port != None else config.port
@@ -127,15 +130,19 @@ class Server(ServerServicer, Serializer):
                                   options = [('grpc.keepalive_time_ms', 100000),
                                              ('grpc.keepalive_timeout_ms', 500000)]
                                 )
+        
+        # set the server compression algorithm
         self.server = server
-        self.module = module
-
         commune.server.grpc.add_ServerServicer_to_server( self, server )
         full_address = str( config.ip ) + ":" + str( config.port )
         self.server.add_insecure_port( full_address )
         self.check_config( config )
         self.config = config
 
+        # set the module
+        self.module = module
+        
+        # whether or not the server is running
         self.started = False
         
         self.init_stats()
@@ -471,15 +478,6 @@ class Server(ServerServicer, Serializer):
 if __name__ == '__main__':
     import asyncio 
     import random
-
-
     import streamlit as st
     Server.test_server()
     
-
-
-
-
-    # request = module.serialize(data=torch.ones(10,10))
-    # response = module.Forward(request=request, context=None)
-    # st.write(response)

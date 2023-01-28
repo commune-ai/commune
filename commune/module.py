@@ -1,7 +1,7 @@
 import inspect
 import os
 from copy import deepcopy
-from typing import Optional, Union, Dict, List, Any, Tuple
+from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
 import json
 from glob import glob
@@ -11,12 +11,26 @@ import argparse
 
  
 class Module:
-    port_range = [50050, 50150] # the range of ports the moddule can be a server for
+    
+    # port range for servers
+    port_range = [50050, 50150] 
+    
+    # default ip
     default_ip = '0.0.0.0'
+    
+    # the root path of the module
     root_path  = root = os.path.dirname(__file__)
+    
+    # get the current working directory
     pwd = os.getenv('PWD')
+    
+    # get the root directory (default commune)
+    # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
+    
     def __init__(self, config:dict=None, *args,  **kwargs):
+        
+        # set the config of the module (avoid it by setting config=False)
         self.set_config(config=config, kwargs =  kwargs)        
 
     def getattr(self, k)-> Any:
@@ -195,7 +209,7 @@ class Module:
         Set the config as well as its local params
         '''
         
-        from commune.utils.dict import munch2dict
+        from commune.utils.dict import munch2dict, dict2munch
         
         if config == False:
             config =  self.minimal_config()
@@ -411,6 +425,7 @@ class Module:
 
     @staticmethod
     def kill_port(port:int)-> str:
+        import signal
         from psutil import process_iter
         '''
         Kills the port {port} on the localhost
@@ -419,6 +434,7 @@ class Module:
             for conns in proc.connections(kind='inet'):
                 if conns.laddr.port == port:
                     proc.send_signal(signal.SIGKILL) # or SIGKILL
+                    print('KILLED')
         return port
 
     @classmethod
@@ -732,7 +748,8 @@ class Module:
     def register_server(cls, name: str, server: 'commune.Server')-> dict:
         server_registry = cls.server_registry()
         server_registry[name] = dict(ip=server.ip, port=server.port)
-        server_registry = Module.put_json(path='server_registry', data=server_registry) 
+        Module.put_json(path='server_registry', data=server_registry) 
+        
         return server_registry
   
     @classmethod
@@ -769,21 +786,43 @@ class Module:
         server_registry = cls.server_registry()
         return bool(name in server_registry)
         
+        
+    def serve(self, name=None , *args, **kwargs):
+        name = name if name else str(self.class_name)
+        return self.serve_module( *args, module = self, name=name, **kwargs)
+        
     @classmethod
-    def serve(cls, port:int=None , ip:str=None, name:str=None, tag:str=None, replace:bool = True, *args, **kwargs ):
+    def serve_module(cls, 
+              module:Any = None ,
+              port:int=None ,
+              ip:str=None, 
+              name:str=None, 
+              tag:str=None, 
+              replace:bool = False, 
+              wait_for_termination:bool = True,
+              *args, 
+              **kwargs ):
         '''
         Servers the module on a specified port
         '''
-        from commune.server import Server
-        
-        self = cls(*args, **kwargs)
+        if module == None:
+            self = cls(*args, **kwargs)
+        else:
+            self = module
     
-        module_id = self.resolve_module_id(name=name, tag=tag if tag else self.module_tag)
-           
+    
+        # resolve the module id
+        
+        # if the module is a class, then use the module_tag 
+        # Make sure you have the module tag set
+        tag = tag if tag else self.module_tag
+        module_id = self.resolve_module_id(name=name, tag=tag)
            
         '''check if the server exists'''
+        print(self.server_exists(module_id),self.server_registry(), module_id, 'BROO')
         if self.server_exists(module_id): 
-            existing_server_port = self.server_registry()[module_id]
+            existing_server_port = self.server_registry()[module_id]['port']
+            
             if replace:
                 self.kill_port(existing_server_port)
             else: 
@@ -791,14 +830,16 @@ class Module:
     
         self.__dict__['module_id'] = module_id
     
+        from commune.server import Server
         server = Server(ip=ip, port=port, module = self )
         cls.register_server(name=module_id, server=server)
     
-        server.serve()
+        
+        server.serve(wait_for_termination=wait_for_termination)
         
     
-    # @classmethod
-    def functions(cls, obj:Any=None, exclude_module_functions:bool = False, **kwargs) -> List[str]:
+    @classmethod
+    def functions(cls, obj:Any=None, exclude_module_functions:bool = False,) -> List[str]:
         '''
         List of functions
         '''
@@ -806,8 +847,9 @@ class Module:
         obj = obj if obj else cls
         
         
-        functions = get_functions(obj=obj, **kwargs)
-        if exclude_module_functions and (not cls.is_module(obj)) :
+        functions = get_functions(obj=obj)
+        print(obj)
+        if exclude_module_functions :
             module_functions = Module.functions()
             
             functions = [f for f in functions if f not in module_functions]
@@ -1061,9 +1103,6 @@ class Module:
     def ray_runtime_context(cls):
         return ray.get_runtime_context()
 
-    @property
-    def actor_id(self):
-        return self.get_id()
 
     @classmethod
     def ray_stop(cls):
@@ -1362,39 +1401,42 @@ class Module:
         import ray
         return ray.runtime_context.get_runtime_context()
     
-    @classmethod
-    def module(cls, python_class: 'python::class' ,init_module:bool=False,  **kwargs, ):
+    @staticmethod
+    def module( inner_module: 'python::class' ,init_module:bool=False ):
         '''
-        Wraps a python class with 
+        Wraps a python class as a module
         '''
-        class ModuleWrapper(python_class, cls):
-            def __init__(self,   **kwargs):
-                python_class.__init__(self, **kwargs)
-                # if init the module, then Module as well with the same kwargs
+        class ModuleWrapper(Module):
+            def __init__(self, inner_module, **kwargs):
                 
                 if init_module:
-                    Module.__init__(self, **kwargs)
-        
+                    Module.__init__(self,**kwargs)
+                    
+                self.inner_module = inner_module
+                
+                # merge the inner module into the wrappers
+                self.merge(inner_module)
+                
+                
+            @property
+            def class_name(self) -> str:
+                '''
+                The name of the class
+                '''
+                
+                return self.inner_module.__class__.__name__
+            
             def __call__(self, *args, **kwargs):
-                return python_class.__call__(self, *args, **kwargs)
-    
-            def forward(self, *args, **kwargs):
-                return python_class.forward(self, *args, **kwargs)
+                return self.inner_module.__call__(self, *args, **kwargs)
     
             def __str__(self):
-                return python_class.__str__(self)
+                return self.inner_module.__str__()
             
-            def __repr(self):
-                return python_class.__repr__(self)     
+            def __repr__(self):
+                return self.inner_module.__repr__()   
 
-        return ModuleWrapper
-
-    def setfunctions(self, ) -> None:
-        '''
-        Set a dictionary to the slf functions 
-        '''
-        for key, value in self.get_functions().items():
-            setattr(self, key, value)
+        return  ModuleWrapper(inner_module=inner_module)
+    
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -1435,16 +1477,21 @@ class Module:
             self.__dict__[k] = v
       
               
-    def merge(self, a:Any = None, b: Any = None, include_hidden:bool = False) -> 'self':
+    def merge(self, *args, include_hidden:bool = False) -> 'self':
         '''
         Merge the attributes of a python object into the current object
         '''
         merge = self.import_object('commune.utils.class.merge')
-        
-        a = a if a is not None else self
-        merge(a=a, b=b, include_hidden=include_hidden)
-        
-        return a
+        if len(args) == 1:
+            args = [self, *args]
+            
+            
+        print(args, 'BRO')
+            
+            
+        assert len(args) == 2, f'args must be a list of length 2 but is {len(args)}'
+    
+        return merge(*args, include_hidden=include_hidden)
         
         
 

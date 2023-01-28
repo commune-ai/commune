@@ -13,6 +13,7 @@ from loguru import logger
 import time
 from munch import Munch
 import argparse
+import torch
 # logger = logger.opt(colors=True)
 
 if os.getenv('USE_STREAMLIT') == 'true':
@@ -21,10 +22,6 @@ if os.getenv('USE_STREAMLIT') == 'true':
     
 # import torch
 import commune
-from commune.utils import *
-
-Module = commune.Module
-
 # commune.utils
 from torch import nn
     
@@ -34,7 +31,7 @@ Examples
 
 
 """
-class TransformerModel( nn.Module, Module):
+class TransformerModel( nn.Module, commune.Module):
     model_shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -53,11 +50,7 @@ class TransformerModel( nn.Module, Module):
                 tag = None,
                 load = True,
                 autocast: bool = True,
-                finetune : dict = dict(
-                    num_layers=10,
-                )
-
-    
+                finetune : dict = dict(num_layers=10,)
                 ):
         
         

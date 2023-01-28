@@ -22,15 +22,14 @@ def get_functions(obj, include_parents=False, include_hidden:bool = False):
     #     st.write(parent_fn_list)
     cls = resolve_class(obj)
     
-    parent_fn_list = get_parent_functions(cls)
-    
-    
+    parent_fn_list = []
+    # if include_parents:
+    #     parent_fn_list = get_parent_functions(cls)
     for fn_name in dir(cls):
-        
         
         # skip hidden functions if include_hidden is False
         if (include_hidden==False) and \
-                (fn_name.startswith('__') or fn_name.endswith('__')):
+                (fn_name.startswith('__') and fn_name.endswith('__')):
             continue
             
 
@@ -42,7 +41,6 @@ def get_functions(obj, include_parents=False, include_hidden:bool = False):
         # if the function is a property, skip it
         if callable(getattr(cls, fn_name)):
             fn_list.append(fn_name)
-
     return fn_list
 
 

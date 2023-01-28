@@ -3,7 +3,7 @@
 import os
 import sys
 from copy import deepcopy
-from commune.utils import dict_put, dict_get, get_object, dict_has
+from commune.utils.dict import dict_put, dict_get, get_object, dict_has
 from commune import Module
 from commune.web3.evm.utils import  get_web3
 

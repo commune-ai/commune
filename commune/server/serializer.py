@@ -15,7 +15,7 @@ from copy import deepcopy
 from munch import Munch
 
 from commune.server.proto import DataBlock
-from commune.utils import dict_put, dict_get
+from commune.utils.dict import dict_put, dict_get
 
 import json
 

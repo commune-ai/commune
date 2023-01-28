@@ -170,7 +170,7 @@ class ModelClient(Module, nn.Module):
 
         
 
-        from commune.utils import Timer
+        from commune.utils.time import Timer
         import time
         
         
@@ -195,7 +195,7 @@ class ModelClient(Module, nn.Module):
         raw_text = ['hey whats up']*batch_size
         token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
 
-        from commune.utils import Timer
+        from commune.utils.time import Timer
         input = dict(token_batch)
         import time
         with Timer() as t:

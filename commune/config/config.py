@@ -10,7 +10,7 @@ from copy import deepcopy
 from argparse import ArgumentParser, Namespace
 from typing import List, Optional, Union, Any, Dict
 from functools import partial
-from commune.utils import dict_get, dict_put, list2str
+from commune.utils.dict import dict_get, dict_put, list2str
 from commune.config.utils import  dict_fn_local_copy, dict_fn_get_config 
 
 class Config ( Munch ):

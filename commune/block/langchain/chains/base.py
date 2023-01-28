@@ -4,9 +4,8 @@ from typing import Union, Dict
 
 
 # dont take legal action, this is for the people, take my key and use it for good
-os.environ['HUGGINGFACEHUB_API_TOKEN'] = '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'
 
-class LLMChainBlock(LLMChain, commune.Block):
+class BaseChain(LLMChain, commune.Block):
     
     def __init__(self, llm: 'LLM' = None, prompt: PromptTemplate = None ):
         self.set_chain(llm=llm, prompt=prompt)
@@ -23,8 +22,6 @@ class LLMChainBlock(LLMChain, commune.Block):
         prompt = prompt if prompt else self.default_prompt()
         llm = llm if llm else self.default_llm()
         LLMChain.__init__(self, prompt=prompt, llm=llm)
-           
-       
       
     def set_prompt(self, prompt: PromptTemplate):
         '''
@@ -56,7 +53,7 @@ class LLMChainBlock(LLMChain, commune.Block):
         '''
         
         
-        return HuggingFaceHub(repo_id="google/flan-t5-xl",  model_kwargs={"temperature":1e-10}, huggingfacehub_api_token=)
+        return HuggingFaceHub(repo_id="google/flan-t5-xl",  model_kwargs={"temperature":1e-10},)
     
         
     @classmethod
@@ -64,6 +61,6 @@ class LLMChainBlock(LLMChain, commune.Block):
         llm = cls()
      
 # for
-block  = LLMChainBlock()
+block  = BaseChain()
 # block.serve()
-print(block)
+print(block.run('Hello my name is billy'))
