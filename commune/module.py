@@ -607,7 +607,7 @@ class Module:
 
     @classmethod
     def timer(cls, *args, **kwargs):
-        from commune.utils.timer import Timer
+        from commune.utils.time import Timer
         return Timer(*args, **kwargs)
     
     
@@ -1401,13 +1401,18 @@ class Module:
         import ray
         return ray.runtime_context.get_runtime_context()
     
-    @staticmethod
-    def module( inner_module: 'python::class' ,init_module:bool=False ):
+    @classmethod
+    def module(cls, inner_module: 'python::class' ,init_module:bool=False , serve:bool=False):
         '''
         Wraps a python class as a module
         '''
+        
+        if isinstance(inner_module, str):
+            return cls.connect(inner_module)
+        
+        
         class ModuleWrapper(Module):
-            def __init__(self, inner_module, **kwargs):
+            def __init__(self, inner_module: Any, **kwargs):
                 
                 if init_module:
                     Module.__init__(self,**kwargs)
@@ -1435,8 +1440,16 @@ class Module:
             def __repr__(self):
                 return self.inner_module.__repr__()   
 
-        return  ModuleWrapper(inner_module=inner_module)
-    
+
+        module =  ModuleWrapper(inner_module=inner_module)
+        
+        # serve the module if the bool is True
+        if serve:
+            if isinstance(serve, bool):
+                serve = {}
+            module.serve(**serve)
+            
+        return module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -1491,11 +1504,14 @@ class Module:
             
         assert len(args) == 2, f'args must be a list of length 2 but is {len(args)}'
     
-        return merge(*args, include_hidden=include_hidden)
+    
+        module = merge(*args, include_hidden=include_hidden)
+        
+
+        return module
         
         
 
 Block = Lego = Module
 if __name__ == "__main__":
-    # print(module.run())
-    print(Module.module_tree())
+    module.run()

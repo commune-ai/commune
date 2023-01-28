@@ -18,7 +18,6 @@ from commune.server.interceptor import ServerInterceptor
 from commune.server.serializer import Serializer
 from commune.server.proto import ServerServicer
 from commune.server.proto import DataBlock
-import bittensor
 import signal
 
 if os.getenv('USE_STREAMLIT'):
@@ -155,32 +154,6 @@ class Server(ServerServicer, Serializer):
         cls.add_args( parser )
         print (cls.__new__.__doc__)
         parser.print_help()
-
-    @classmethod
-    def add_args( cls, parser: argparse.ArgumentParser, prefix: str = None  ):
-        """ Accept specific arguments from parser
-        """
-        prefix_str = '' if prefix == None else prefix + '.'
-        try:
-            parser.add_argument('--' + prefix_str + 'port', type=int, 
-                    help='''The local port this axon endpoint is bound to. i.e. 8091''', default = bittensor.defaults.Server.port)
-            parser.add_argument('--' + prefix_str + 'ip', type=str, 
-                help='''The local ip this axon binds to. ie. 0.0.0.0''', default = bittensor.defaults.Server.ip)
-            parser.add_argument('--' + prefix_str + 'external_port', type=int, required=False,
-                    help='''The public port this axon broadcasts to the network. i.e. 8091''', default = bittensor.defaults.Server.external_port)
-            parser.add_argument('--' + prefix_str + 'external_ip', type=str, required=False,
-                help='''The external ip this axon broadcasts to the network to. ie. 0.0.0.0''', default = bittensor.defaults.Server.external_ip)
-            parser.add_argument('--' + prefix_str + 'max_workers', type=int, 
-                help='''The maximum number connection handler threads working simultaneously on this endpoint. 
-                        The grpc server distributes new worker threads to service requests up to this number.''', default = bittensor.defaults.Server.max_workers)
-            parser.add_argument('--' + prefix_str + 'maximum_concurrent_rpcs', type=int, 
-                help='''Maximum number of allowed active connections''',  default = bittensor.defaults.Server.maximum_concurrent_rpcs)
-            parser.add_argument('--' + prefix_str + 'compression', type=str, 
-                help='''Which compression algorithm to use for compression (gzip, deflate, NoCompression) ''', default = bittensor.defaults.Server.compression)
-        except argparse.ArgumentError:
-            # re-parsing arguments.
-            pass
-
     @classmethod
     def default_config(cls):
         config = commune.Config()

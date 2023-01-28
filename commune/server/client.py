@@ -18,7 +18,6 @@ from grpc import _common
 import sys
 import os
 import asyncio
-import bittensor
 import commune
 from .proto  import DataBlock, ServerStub
 from .serializer import Serializer
@@ -26,6 +25,12 @@ from .server import Server
 from copy import deepcopy
 if os.getenv('USE_STREAMLIT'):
     import streamlit as st
+
+
+# from .proto import ServerStub
+class ClientWrapper:
+    config = None
+
 
 class Client( Serializer):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
@@ -45,8 +50,11 @@ class Client( Serializer):
         # Get endpoint string.
         self.ip = ip if ip else self.default_ip
         self.port = port
-        self.loop = loop if loop else asyncio.get_event_loop()
-        
+        try:
+            self.loop = loop if loop else asyncio.get_event_loop()
+        except RuntimeError as e:
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
         
         channel = grpc.aio.insecure_channel(
             self.endpoint,

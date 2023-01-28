@@ -1,7 +1,7 @@
 import commune
 
-import langchain 
 
 
-module = commune.Module()
-print(module.config)
+module = commune.connect('AgentExecutor')
+
+print(module(fn='run', args= ['What is the name of the president of the United States?']))

@@ -1,31 +1,18 @@
 from langchain import PromptTemplate, HuggingFaceHub, LLMChain
 import commune
-from typing import Union, Dict
-
-
-# dont take legal action, this is for the people, take my key and use it for good
-
 import os
+
 os.environ['HUGGINGFACEHUB_API_TOKEN'] = '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'
 
+# convert the module to a block
 
-class HuggingfaceLLM:
-    
-    
-    def __init__(self, 
-                 repo_id="google/flan-t5-xl",  
-                 model_kwargs={"temperature":1e-10}):
-        
-        pass
-        # print(self.prompt, self.llm)
-        # self.merge(self.model)
-    
-    def bro(self):
-        print('fam')
-        
-        
-module = commune.module( HuggingFaceHub(  repo_id="google/flan-t5-xl",  
-                                    model_kwargs={"temperature":1e-10}))
+llm = HuggingFaceHub(  repo_id="google/flan-t5-xl",  model_kwargs={"temperature":1e-10})
+module = commune.module(llm, serve=True)
+
+
+# serves the module
+module.serve()
+
 print(module.serve(wait_for_termination=True, tag='2'))
 # # for
 # block  = HuggingfaceLLM()
