@@ -6,6 +6,7 @@ os.environ['HUGGINGFACEHUB_API_TOKEN'] = 'api_org_YpfDOHSCnDkBFRXvtRaIIVRqGcXvbm
 
 # convert the module to a block
 
+
 llm = HuggingFaceHub(  repo_id="google/flan-t5-xl",  model_kwargs={"temperature":1e-10})
 module = commune.module(llm, serve=True)
 
