@@ -18,5 +18,8 @@ torch==1.13
 substrate-interface
 uvicorn
 msgpack_numpy
-fastapi
+fastapi --
+wikipedia
+openai
+
 

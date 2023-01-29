@@ -52,6 +52,7 @@ class Server(ServerServicer, Serializer):
             serializer: 'Serializer'= None,
             server: Optional['grpc._Server'] = None,
             config: Optional['commune.Config'] = None,
+            verbose: bool = True
 
         ) -> 'Server':
         r""" Creates a new bittensor.Axon object from passed arguments.
@@ -108,7 +109,7 @@ class Server(ServerServicer, Serializer):
         self.maximum_concurrent_rpcs  = config.maximum_concurrent_rpcs = maximum_concurrent_rpcs if maximum_concurrent_rpcs != None else config.maximum_concurrent_rpcs
         self.compression = config.compression = compression if compression != None else config.compression
         self.timeout = timeout if timeout else config.timeout
-
+        self.verbose = verbose
 
         # Determine the grpc compression algorithm
         if config.compression == 'gzip':
@@ -190,7 +191,6 @@ class Server(ServerServicer, Serializer):
             time = {}
         )
          
-         
     def __call__(self, data:dict = None, metadata:dict = None):
         data = data if data else {}
         metadata = metadata if metadata else {}
@@ -199,6 +199,8 @@ class Server(ServerServicer, Serializer):
             if 'fn' in data:
                 fn_kwargs = data.get('kwargs', {})
                 fn_args = data.get('args', [])
+                
+                commune.print('Calling Function: '+data['fn'], color='cyan')
             
                 data = getattr(self.module, data['fn'])(*fn_args,**fn_kwargs)
             else:
@@ -210,10 +212,16 @@ class Server(ServerServicer, Serializer):
                 else:
                     raise Exception('module should have forward or __call__ for its default response')
         except RuntimeError as ex:
+            commune.print(f'Exception in server: {ex}', 'red')
             if "There is no current event loop in thread" in str(ex):
+                commune.print(f'Setting new loop', 'yellow')
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
                 return self.__call__(data=data, metadata=metadata)
+        except Exception as ex:
+            commune.print(f'Exception in server: {ex}', 'red')
+            data = None
+            metadata = None
         self.stats['call_count'] += 1
         
         torch.cuda.empty_cache()
@@ -308,7 +316,8 @@ class Server(ServerServicer, Serializer):
         lifetime_seconds:int = 0
         
         def print_serve_status():
-            print(f'Serving {str(self.module.module_id)}::ip::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}')
+            text = f'Serving {str(self.module.module_id)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}'
+            commune.print(text=text, color='green')
 
 
         while True:

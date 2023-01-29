@@ -29,14 +29,16 @@ const HandleBar = (props) => {
 
 const Marketplace = (props) => {
     const [expanded, setExpanded] = useState(false);
-    let modules = [];
+    const [modules, setModules] = useState([]);
 
 
     useEffect(() => {
-        const res = axios.post(`http://localhost:8000/list_modules` )
-        .then(res => (modules = res.data),[])
-    }, []);
+        const res = axios.post(`http://0.0.0.0:8000/list_modules` )
+        .then(res => ( setModules(res.data) ))
+    }, [])
 
+
+    console.log(modules)
 
     const handleClick = () => {
         setExpanded(!expanded);
@@ -59,7 +61,7 @@ const Marketplace = (props) => {
         
             <div className="marketplace-items-container">
                 {modules.map(( module, index) => {
-                    console.log(modules)
+                    console.log(module)
                     return (
                         <Item key={module.name} {...module}></Item>         
                     )

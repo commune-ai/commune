@@ -27,9 +27,52 @@ if os.getenv('USE_STREAMLIT'):
     import streamlit as st
 
 
-# from .proto import ServerStub
-class ClientWrapper:
-    config = None
+
+
+
+import commune
+
+class VirtualModule:
+    def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
+        '''
+        VirtualModule is a wrapper around a Commune module.
+        
+        Args:
+            module (str): Name of the module.
+            include_hiddden (bool): If True, include hidden attributes.
+        '''
+        if isinstance(module, str):
+            self.module_client = commune.connect(module)
+        else:
+            self.module_client = module
+        self.sync_module_attributes(include_hiddden=include_hiddden)
+      
+    def remote_call(self, fn: str, *args, **kwargs):
+        return self.module_client(fn=fn, args=args)
+            
+    def sync_module_attributes(self, include_hiddden: bool = False):
+        '''
+        Syncs attributes of the module with the VirtualModule instance.
+        
+        Args:
+            include_hiddden (bool): If True, include hidden attributes.
+        '''
+        from functools import partial
+        
+        for attr in self.module_client(fn='functions'):
+            print(attr)
+            # continue if attribute is private and we don't want to include hidden attributes
+            if attr.startswith('_') and (not include_hiddden):
+                continue
+            
+            # set attribute as the remote_call
+            setattr(self, attr,  partial(self.remote_call, attr))
+                
+                
+    def __getattr__(self, key):
+        return lambda *args: self.module(fn='__getattr__', args=[key])
+
+
 
 
 class Client( Serializer):
@@ -123,6 +166,9 @@ class Client( Serializer):
         data = data if data else {}
         metadata = metadata if metadata else {}
         
+        # the deepcopy is a hack to get around the fact that the data is being modified in place LOL
+        kwargs, data, metadata = deepcopy(kwargs), deepcopy(data), deepcopy(metadata)
+        
         data.update(kwargs)
 
         
@@ -187,6 +233,10 @@ class Client( Serializer):
         }
 
         st.write(module.forward(data=data))
+
+
+    def virtual(self):
+        return VirtualModule(module = self)        
 
 
 if __name__ == "__main__":

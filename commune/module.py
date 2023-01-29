@@ -697,18 +697,24 @@ class Module:
 
 
     @classmethod
-    def connect(cls,name:str=None, port:int=None , ip:str=None,*args, **kwargs ):
+    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = False, *args, **kwargs ):
         
-        from commune.server import Client, ClientWrapper
+        
+
+        
+        from commune.server import Client
         server_registry =  Module.server_registry()
         if name:
             assert name in server_registry, f'{name} is not deployed'
             client_kwargs = server_registry[name]
         else:
             client_kwargs = dict(ip=ip, port=port)
-        client = Client( *args, **kwargs,**client_kwargs)
+        client_module = Client( *args, **kwargs,**client_kwargs)
         
-        return client
+        if virtual:
+            return client_module.virtual()
+        
+        return client_module
    
     @classmethod
     def server_registry(cls)-> dict:
@@ -848,23 +854,15 @@ class Module:
         
         
         functions = get_functions(obj=obj)
-        print(obj)
         if exclude_module_functions :
             module_functions = Module.functions()
             
             functions = [f for f in functions if f not in module_functions]
             
         return functions
-    
-    @classmethod
-    def is_module(cls, obj=None):
-        obj = obj if obj else cls
-        return (Module != obj and type(obj) != Module)
-        
-    
 
     @classmethod
-    def function_signature_map(cls):
+    def function_signature_map(cls, exclude_module:bool = False):
         from commune.utils.function import get_function_signature
         function_signature_map = {}
         for f in cls.functions():
@@ -1510,7 +1508,10 @@ class Module:
 
         return module
         
-        
+    @classmethod
+    def print(cls, text:str, color:str='white', return_text:bool=False):
+        logger = cls.import_object('commune.logger.Logger')
+        return logger.print(text=text, color=color, return_text=return_text)
 
 Block = Lego = Module
 if __name__ == "__main__":

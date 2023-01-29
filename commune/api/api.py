@@ -20,7 +20,9 @@ class APIModule(Module):
         return f"Prediction for {self.name}: {data}"
 
     def list_modules(self):
-        return list(self.module_tree.values())
+        
+        modules = list(self.module_tree.values())
+        return modules
     
     @property
     def module_list(self): 
@@ -28,7 +30,6 @@ class APIModule(Module):
     
     def get_module(self, name:str):
         module = self.module_tree.get(name)
-        print(module)
         return module
         
     def resolve_module(self, module: Any = None):
@@ -60,7 +61,7 @@ class APIModule(Module):
 
         @app.get("/", tags=["health Check"])
         async def name():
-            return 'commune'
+            return 'commxune'
         @app.post("/list_modules")
         async def list_modules():
             return self.list_modules()

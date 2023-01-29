@@ -2,13 +2,12 @@
 version: "3.9"
 services:
   ganache:
+    network_mode: host
     cpu_count: 2
     container_name: ganache
     build:
       context: ./
       dockerfile: Dockerfile
-    ports:
-      - ${GANACHE_PORT}:${GANACHE_PORT}
     environment:
       OCEAN_NETWORK_URL: ${NETWORK_RPC_URL}
       MNEMONIC: ${GANACHE_MNEMONIC}
@@ -17,6 +16,8 @@ services:
       WEB3_ALCHEMY_PROJECT_ID: ${WEB3_ALCHEMY_PROJECT_ID}
       WEB3_ALCHEMY_URL: ${WEB3_ALCHEMY_URL}
       PRIVATE_KEY: ${PRIVATE_KEY}
+    volumes:
+      - ./scripts:/app/scripts
       
 
     restart: always

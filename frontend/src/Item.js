@@ -7,7 +7,7 @@ const Item = (props) => {
     const [status, setStatus] = useState("online");
     const [description, setDescription] = useState("");
 
-
+    console.log(props);
 
 
     const handleClick = () => {
@@ -25,13 +25,13 @@ const Item = (props) => {
             <div className="item-description">
                 {description}
             </div>
-            <div className="item-attributes-container">
+            {/* <div className="item-attributes-container">
                 <div className="item-attributes">
                 {props.tasks.map((attribute, index) => {
                     return <div className="attribute-tag" key={index}>{attribute}</div>
                 })}
                 </div>
-            </div>
+            </div> */}
         </div>
     )
             }
