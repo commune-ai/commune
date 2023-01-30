@@ -1523,9 +1523,30 @@ class Module:
         
     # JUPYTER NOTEBOOKS
     @classmethod
-    def enable_jupyter(cls):
+    def jupyter(cls):
         import nest_asyncio
         nest_asyncio.apply()
+        
+        
+    @classmethod
+    def int_to_ip(cls, *args, **kwargs):
+        return cls.import_object('commune.utils.network.int_to_ip')(*args, **kwargs)
+        
+    @classmethod
+    def ip_to_int(cls, *args, **kwargs):
+        return cls.import_object('commune.utils.network.ip_to_int')(*args, **kwargs)
+
+    @classmethod
+    def ip_version(cls, *args, **kwargs):
+        return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
+    
+    @classmethod
+    def get_external_ip(cls, *args, **kwargs):
+        return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
+    
+    @classmethod
+    def upnpc_create_port_map(cls, port:int):
+        return cls.import_object('commune.utils.network.upnpc_create_port_map')(port=port)
 
 Block = Lego = Module
 if __name__ == "__main__":

@@ -26,9 +26,9 @@ from munch import Munch
 
 
 class Server(ServerServicer, Serializer):
-    """ The factory class for bittensor.Axon object
-    The Axon is a grpc server for the bittensor network which opens up communication between it and other neurons.
-    The server protocol is defined in bittensor.proto and describes the manner in which forward and backwards requests
+    """ The factory class for commune.Server object
+    The Server is a grpc server for the commune network which opens up communication between it and other neurons.
+    The server protocol is defined in commune.proto and describes the manner in which forward and backwards requests
     are transported / encoded between validators and servers
     """
     port_range = [50050, 50100]
@@ -55,10 +55,8 @@ class Server(ServerServicer, Serializer):
             verbose: bool = True
 
         ) -> 'Server':
-        r""" Creates a new bittensor.Axon object from passed arguments.
+        r""" Creates a new commune.Server object from passed arguments.
             Args:
-                config (:obj:`Optional[bittensor.Config]`, `optional`): 
-                    bittensor.Server.config()  
                 thread_pool (:obj:`Optional[ThreadPoolExecutor]`, `optional`):
                     Threadpool used for processing server queries.
                 server (:obj:`Optional[grpc._Server]`, `required`):
@@ -237,7 +235,7 @@ class Server(ServerServicer, Serializer):
         r""" The function called by remote GRPC Forward requests. The Datablock is a generic formatter.
             
             Args:
-                request (:obj:`bittensor.proto`, `required`): 
+                request (:obj:`DataBlock`, `required`): 
                     Tensor request proto.
                 context (:obj:`grpc.ServicerContext`, `required`): 
                     grpc server context.
@@ -335,10 +333,10 @@ class Server(ServerServicer, Serializer):
         """
         if self.server != None:
             self.server.stop( grace = 1 )  
-            logger.success("Axon Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
+            logger.success("Server Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
 
         self.server.start()
-        logger.success("Axon Started:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
+        logger.success("Server Started:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
         self.started = True
         if wait_for_termination:
             self.server.wait_for_termination()
@@ -350,7 +348,7 @@ class Server(ServerServicer, Serializer):
         """
         if self.server != None:
             self.server.stop( grace = 1 )
-            logger.success("Axon Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
+            logger.success("Server Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
         self.started = False
 
         return self

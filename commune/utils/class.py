@@ -10,6 +10,7 @@ def merge_dicts(a: Any, b: Any,
     Merge the dictionaries of a python object into the current object
     '''
     for b_k,b_v in b.__dict__.items():
+        
         if include_hidden == False and (b_k.startswith('__') and b_k.endswith('__')):
             #i`f the function name starts with __ then it is hidden
             continue
@@ -38,7 +39,10 @@ def merge_functions(a: Any, b: Any,
         
             
         # get the function from the python object
-        b_fn = getattr(b, b_fn_name)
+        try: 
+            b_fn = getattr(b, b_fn_name)
+        except NotImplementedError as e:
+             print(e)
         if callable(b_fn):
             setattr(a, b_fn_name, b_fn)  
             

@@ -40,7 +40,4 @@ setup(
         'Programming Language :: Python :: 3.8',
     ],
     python_requires='>=3.7',
-    extras_requires={
-        'cubit': ['cubit>=1.1.0 @ git+https://github.com/opentensor/cubit.git']
-    }
 )

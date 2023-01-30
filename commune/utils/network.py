@@ -1,9 +1,7 @@
 # hey/thanks bittensor
 import os
 import urllib
-import miniupnpc
-import netaddr
-import requests
+
 from loguru import logger
 
 def int_to_ip(int_val: int) -> str:
@@ -20,6 +18,7 @@ def int_to_ip(int_val: int) -> str:
             netaddr.core.AddrFormatError (Exception):
                 Raised when the passed int_vals is not a valid ip int value.
     """
+    import netaddr
     return str(netaddr.IPAddress(int_val))
  
 def ip_to_int(str_val: str) -> int:
@@ -36,6 +35,7 @@ def ip_to_int(str_val: str) -> int:
             netaddr.core.AddrFormatError (Exception):
                 Raised when the passed str_val is not a valid ip string value.
     """
+    import netaddr
     return int(netaddr.IPAddress(str_val))
 
 def ip_version(str_val: str) -> int:
@@ -52,6 +52,7 @@ def ip_version(str_val: str) -> int:
             netaddr.core.AddrFormatError (Exception):
                 Raised when the passed str_val is not a valid ip string value.
     """
+    import netaddr
     return int(netaddr.IPAddress(str_val).version)
 
 def ip__str__(ip_type:int, ip_str:str, port:int):
@@ -147,6 +148,7 @@ def upnpc_create_port_map(port: int):
                 Raised if UPNPC port mapping fails, for instance, if upnpc is not enabled on your router.
     """
     try:
+        import miniupnpc
         upnp = miniupnpc.UPnP()
         upnp.discoverdelay = 200
         logger.debug('UPNPC: Using UPnP to open a port on your router ...')

@@ -89,7 +89,9 @@ COPY ./requirements.txt /app/requirements.txt
 COPY ./setup.py /app/setup.py
 COPY ./README.md /app/README.md
 RUN pip install -e .
+RUN pip install openai
+RUN pip install google-search-results
+RUN pip install wikipedia
+RUN pip install pytest
 
-# # RUN pip install apt_pkg
-#
 

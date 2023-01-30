@@ -4,12 +4,7 @@ import commune
 
 import os
 
-# pipeline_config = commune.load_config(os.path.dirname(__file__).replace(os.getenv('PWD'), ''))
-
-
-
-
-class Pipeline:
+class Pipeline(commune.Module):
     def __init__(self, pipeline, config={}):
         self.config = Munch(config)
         self.process_block = Munch({})
@@ -56,25 +51,19 @@ class Pipeline:
             self.pipeline_blocks.append(process_block)
             
 
-    def run(self):
-        input = {}
+    def run(self, **kwargs):
         for block in self.pipeline_blocks:
-            fn = block.get('function')
-            fn_args = block.get('args', [])
-            fn_kwargs = block.get('kwargs', {})
-            input_key_map = block.get('input_key_map', {})
-            if isinstance(input, dict):
-                input = {input_key_map.get(k, k):v for k,v in input.items()}
-                fn_kwargs.update(input)
-            else:
-                fn_args = [input, *fn_args]
-
-            output = fn(*fn_args, **fn_kwargs)
+            kwargs = deepcopy(kwargs)
+            block_kwargs = block.get('kwargs', deepcopy({}))
+            kwargs = {**kwargs,**block_kwargs}
+            input_key_map = block.get('input_key_map', deepcopy({}))
+            kwargs = {input_key_map.get(k, k):v for k,v in input.items()}
+            output = block.get('function')(**kwargs)
             output_key_map = block.get('output_key_map', {})
-            if isinstance(output, dict):
-                output = {output_key_map.get(k, k):v for k,v in output.items()}
-            input = output
-
+            # maps the key of the output to the input of the next block in case there is a conflict
+            output_dict = {output_key_map.get(k, k):v for k,v in output.items()}
+            assert isinstance(output_dict, dict), f'lets keep things simple and use an output dictionary'
+            
         return output
 
     @staticmethod
