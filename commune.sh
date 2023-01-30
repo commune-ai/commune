@@ -71,6 +71,7 @@ export FRONTEND_PATH="./frontend"
 export COMMUNE_PATH="./"
 export IPFS_PATH="./ipfs"
 
+
 while :; do
     case $1 in
 
@@ -114,7 +115,7 @@ while :; do
         --light)
         COMPOSE_FILES+=" -f ./docker-compose.yml"
         ;;
-        
+
         --pull)
         FORCEPULL="true"
         
@@ -136,14 +137,7 @@ while :; do
         --restart)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
             eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
-            # docker network rm ${PROJECT_NAME}_default || true;
-
-            # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
-            # [ ${FORCEPULL} = "true" ] && eval docker-compose  --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
-            
             eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up --remove-orphans -d
-           
-           
             break
             ;;
 

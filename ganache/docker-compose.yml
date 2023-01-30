@@ -16,7 +16,7 @@ services:
       WEB3_ALCHEMY_URL: ${WEB3_ALCHEMY_URL}
       PRIVATE_KEY: ${PRIVATE_KEY}
     volumes:
-      - ${GANACHE}/scripts:/app/scripts
+      - ${GANACHE_PATH}/scripts:/app/scripts
       
 
     restart: always

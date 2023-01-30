@@ -9,6 +9,5 @@ services:
       dockerfile : Dockerfile
     volumes:
       - ${FRONTEND_PATH}/src:/app/src
-      - ${FRONTEND_PATH}/public:/app/public'
-      - ${FRONTEND_PATH}/package.json:/app/package.json
+      - ${FRONTEND_PATH}/public:/app/public
     command: "npm start"
