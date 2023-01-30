@@ -204,7 +204,6 @@ class Server(ServerServicer, Serializer):
             
                 data = getattr(self.module, data['fn'])(*fn_args,**fn_kwargs)
             else:
-                # print(f'[green]{data}')
                 if hasattr(self.module, 'forward'):
                     data = self.module.forward(**data)
                 elif hasattr(self.module, '__call__'):
@@ -418,7 +417,6 @@ class Server(ServerServicer, Serializer):
         import socket
         ip = ip if ip else cls.default_ip
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        print((ip, port))
         result = sock.connect_ex((ip, port))
         sock.close()
         # 0 when open, 111 otherwise
@@ -438,10 +436,6 @@ class Server(ServerServicer, Serializer):
             modules[module.port] = module
         
         
-        # print(module.started)
-        
-        # print(module.port_available(port=module.port - 1))
-
         commune.Client()
         module.stop()
 

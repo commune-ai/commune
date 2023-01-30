@@ -53,7 +53,6 @@ def make_post_request(endpoint_uri, data, *args, **kwargs):
 
 
 import os
-
 from web3 import HTTPProvider, WebsocketProvider
 
 
@@ -89,10 +88,12 @@ def get_web3_connection_provider(network_url):
         raise NotImplementedError
     return provider
 
+
+
+
 from typing import Dict, Optional, Union
 from web3 import WebsocketProvider
 from web3.main import Web3
-from web3.middleware import geth_poa_middleware
 
 
 def get_web3(network_url: str) -> Web3:
@@ -106,6 +107,8 @@ def get_web3(network_url: str) -> Web3:
     - the issue is described here: https://github.com/ethereum/web3.py/issues/549
     - and the fix is here: https://web3py.readthedocs.io/en/latest/middleware.html#geth-style-proof-of-authority
     """
+    from web3.middleware import geth_poa_middleware
+
     provider = get_web3_connection_provider(network_url)
     web3 = Web3(provider)
 

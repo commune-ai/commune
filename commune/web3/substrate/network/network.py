@@ -1,16 +1,14 @@
 from substrateinterface import SubstrateInterface
-from substrateinterface import SubstrateInterface
+import commune
 
-import streamlit as st
 from commune.substrate.account import SubstrateAccount
 
 class SubstrateNetwork(SubstrateInterface):
-    default_url = "127.0.0.1:9944"
     def __init__(self, 
-                url=None, 
-                websocket=None, 
-                ss58_format=None, 
-                type_registry=None, 
+                url:str="127.0.0.1:9944", 
+                websocket:str=None, 
+                ss58_format:int=42, 
+                type_registry:dict=None, 
                 type_registry_preset=None, 
                 cache_region=None, 
                 runtime_config=None, 
@@ -44,7 +42,6 @@ class SubstrateNetwork(SubstrateInterface):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-        url = url if url else self.default_url
         if not url.startswith('ws://'):
             url = f'ws://{url}'
         SubstrateInterface.__init__(self,

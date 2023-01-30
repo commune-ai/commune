@@ -12,7 +12,7 @@ import commune
 from commune.web3.contract.pythonic_contract_wrapper import PythonicContractWrapper
 
 class ContractManagerModule(commune.module):
-    def __init__(self, config=None, contract=None, network=None, account=None, compile=True, **kwargs):
+    def __init__(self, config=None, contract=None, network: 'commune.EVMContract'=None, account=None, compile=True, **kwargs):
 
         commune.module.__init__(self, config=config, network=None, **kwargs)
 
@@ -131,12 +131,18 @@ class ContractManagerModule(commune.module):
         return artifacts
 
     def connected(self):
+        '''
+        If the web3 instance is connected to a network
+        '''
         return bool( self.web3.__class__.__name__ == 'Web3')
 
     def disconnected(self):
         return not self.connected()
 
-    def set_web3(self, web3=None):
+    def set_web3(self, web3: 'web3'=None) -> 'web3':
+        '''
+        Set the web3 instance
+        '''
         self.web3 = web3
         return self.web3
     def set_network(self, network = None):

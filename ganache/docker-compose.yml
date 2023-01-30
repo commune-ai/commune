@@ -9,7 +9,6 @@ services:
       context: ./
       dockerfile: Dockerfile
     environment:
-      OCEAN_NETWORK_URL: ${NETWORK_RPC_URL}
       MNEMONIC: ${GANACHE_MNEMONIC}
       WEB3_INFURA_PROJECT_ID: ${WEB3_INFURA_PROJECT_ID}
       WEB3_INFURA_URL: ${WEB3_INFURA_URL}
@@ -17,9 +16,9 @@ services:
       WEB3_ALCHEMY_URL: ${WEB3_ALCHEMY_URL}
       PRIVATE_KEY: ${PRIVATE_KEY}
     volumes:
-      - ./scripts:/app/scripts
+      - ${GANACHE}/scripts:/app/scripts
       
 
     restart: always
-    command: bash -c "./scripts/setup.sh"
+    command: bash -c "/app/scripts/setup.sh"
 

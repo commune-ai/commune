@@ -2,31 +2,32 @@
 
 
 
-LIB=commune
+COMMUNE=commune
+SUBSPACE=subspace
 
 
 down:
-	./start.sh --all --down
+	./$(COMMUNE).sh --all --down
 
 stop:
 	make down
 up:
-	./start.sh --all
+	./$(COMMUNE).sh --all
 start:
-	./start.sh --${arg} 
+	./$(COMMUNE).sh --${arg} 
 logs:
-	./start.sh --${arg}
+	./$(COMMUNE).sh --${arg}
 
 build:
-	./start.sh --build --${arg}
+	./$(COMMUNE).sh --build --${arg}
 
 subspace:
-	make bash arg=subspace
+	make bash arg=$(SUBSPACE)
 
 enter: 
-	make bash arg=$(LIB)
+	make bash arg=$(COMMUNE)
 restart:
-	make down && make up;
+	./$(COMMUNE).sh --${arg} --restart
 
 prune_volumes:	
 	docker system prune --all --volumes
@@ -45,7 +46,7 @@ logs:
 	docker logs ${arg} --tail=100 --follow
 
 streamlit:
-	docker exec -it commune bash -c "streamlit run commune/${arg}.py "
+	docker exec -it commune bash -c "streamlit run $(COMMUNE)/${arg}.py "
 	
 enter_backend:
 	docker exec -it backend bash
@@ -64,11 +65,11 @@ exec:
 	docker exec -it backend bash -c "${arg}"
 
 build_protos:
-	python -m grpc_tools.protoc --proto_path=${PWD}/commune/proto ${PWD}/commune/proto/commune.proto --python_out=${PWD}/commune/proto --grpc_python_out=${PWD}/commune/proto
+	python -m grpc_tools.protoc --proto_path=${PWD}/$(COMMUNE)/proto ${PWD}/$(COMMUNE)/proto/commune.proto --python_out=${PWD}/$(COMMUNE)/proto --grpc_python_out=${PWD}/$(COMMUNE)/proto
 
 
 api:  
-	uvicorn commune.api.api:app --reload
+	uvicorn $(COMMUNE).api.api:app --reload
 
 ray_start:
 	ray start --head --port=6379 --redis-port=6379 --object-manager-port=8076 --node-manager-port=8077 --num-cpus=4 --num-gpus=0 --memory=1000000000 --object-store-memory=1000000000

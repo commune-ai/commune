@@ -66,7 +66,7 @@ RUN rustup target add wasm32-unknown-unknown --toolchain nightly
 RUN apt-get install make
 RUN apt-get install -y pkg-config
 
-# CONTRACTS STUFF
+# INK CONTRACTS STUFF
 RUN apt install binaryen
 RUN apt-get install libssl-dev
 RUN cargo install cargo-dylint dylint-link
@@ -77,15 +77,19 @@ RUN rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
 
 # COPY SRC AND INSTALL AS A PACKAGE
 
+# INSTALL PACKAGES BEFORE COMMUNE
+RUN pip install bittensor
+
+RUN pip install jupyterlab
+
+# INSTALL COMMUNE
 COPY ./commune /app/commune
 COPY ./scripts /app/scripts
-
-COPY ./subtensor /app/subtensor
 COPY ./requirements.txt /app/requirements.txt
 COPY ./setup.py /app/setup.py
-COPY ./start.sh /app/start.sh
 COPY ./README.md /app/README.md
-
-RUN pip install bittensor
 RUN pip install -e .
+
+# # RUN pip install apt_pkg
+#
 

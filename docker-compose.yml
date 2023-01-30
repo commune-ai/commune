@@ -1,24 +1,27 @@
 version: "3.2"
 
 services:
+
   commune:
     network_mode: host
     container_name: commune
     build: ./
-    shm_size: '20gb'
+    shm_size: '20gb' # for the shared memory size
     environment:
       - RAY_PORT=6378
     volumes:
 
       # COMMUNE 
       - ./commune:/app/commune
+      - ./test:/app/test
+      - ./docs:/app/docs
 
-      # LOCAL COMMUNE MOUNTS
+      # LOCAL COMMUNE MOUNTS AND FILES
       - ./Makefile:/app/Makefile 
       - ./setup.py:/app/setup.py
+      - ./commune.sh:/app/commune.sh
       - ./requirements.txt:/app/requirements.txt
       - ./README.md:/app/README.md
-      - ./LICENSE:/app/LICENSE
       - ./scripts:/app/scripts
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER

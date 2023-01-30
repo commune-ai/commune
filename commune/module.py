@@ -697,7 +697,7 @@ class Module:
 
 
     @classmethod
-    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = False, *args, **kwargs ):
+    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, *args, **kwargs ):
         
         
 
@@ -845,7 +845,7 @@ class Module:
         
     
     @classmethod
-    def functions(cls, obj:Any=None, exclude_module_functions:bool = False,) -> List[str]:
+    def functions(cls, obj:Any=None, exclude_module:bool = False,) -> List[str]:
         '''
         List of functions
         '''
@@ -854,7 +854,7 @@ class Module:
         
         
         functions = get_functions(obj=obj)
-        if exclude_module_functions :
+        if exclude_module :
             module_functions = Module.functions()
             
             functions = [f for f in functions if f not in module_functions]
@@ -981,7 +981,6 @@ class Module:
        
     @classmethod
     def sandbox(cls, **kwargs):
-        print(kwargs)
      
         import commune
         commune = commune
@@ -1181,9 +1180,10 @@ class Module:
             
         return ray_context
     
-    @staticmethod
+    @classmethod
     def create_actor(cls,
-                 name, 
+                 name:str = None,
+                 tag:str = None,
                  cls_kwargs: dict = None,
                  cls_args:list =None,
                  detached:bool=True, 
@@ -1196,6 +1196,8 @@ class Module:
                  wrap:bool = False,
                  **kwargs):
         import ray
+        
+        name = cls.resolve_module_id(name=name, tag=tag)
         if cpus > 0:
             resources['num_cpus'] = cpus
         if gpus > 0:
@@ -1497,7 +1499,6 @@ class Module:
             args = [self, *args]
             
             
-        print(args, 'BRO')
             
             
         assert len(args) == 2, f'args must be a list of length 2 but is {len(args)}'
@@ -1512,6 +1513,19 @@ class Module:
     def print(cls, text:str, color:str='white', return_text:bool=False):
         logger = cls.import_object('commune.logger.Logger')
         return logger.print(text=text, color=color, return_text=return_text)
+
+
+    @classmethod
+    def nest_asyncio(cls):
+        import nest_asyncio
+        nest_asyncio.apply()
+        
+        
+    # JUPYTER NOTEBOOKS
+    @classmethod
+    def enable_jupyter(cls):
+        import nest_asyncio
+        nest_asyncio.apply()
 
 Block = Lego = Module
 if __name__ == "__main__":

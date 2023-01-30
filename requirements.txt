@@ -14,12 +14,10 @@ streamlit
 langchain
 miniupnpc
 ray[default]
-torch==1.13
+torch
 substrate-interface
 uvicorn
+fastapi
 msgpack_numpy
-fastapi --
-wikipedia
-openai
 
 

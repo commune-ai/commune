@@ -53,10 +53,6 @@ export LOCAL_USER_ID=$(id -u)
 export LOCAL_GROUP_ID=$(id -g)
 
 
-# Add aquarius to /etc/hosts
-# Workaround mainly for macOS
-
-
 # colors
 COLOR_R="\033[0;31m"    # red
 COLOR_G="\033[0;32m"    # green
@@ -67,22 +63,16 @@ COLOR_C="\033[0;36m"    # cyan
 
 # reset
 COLOR_RESET="\033[00m"
+
+# These paths are used in the docker-compose files
 export SUBSPACE_PATH="./subspace"
+export GANACHE_PATH="./ganache"
+export FRONTEND_PATH="./frontend"
+export COMMUNE_PATH="./"
+export IPFS_PATH="./ipfs"
+
 while :; do
     case $1 in
-        #################################################
-        # Cleaning switches
-        #################################################
-        --purge)
-            printf "$COMPOSE_FILES"
-            printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
-            eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
-            docker network rm ${PROJECT_NAME}_default || true;
-            docker network rm ${PROJECT_NAME}_backend || true;
-            shift
-            break
-            ;;
-
 
         --ganache)
         COMPOSE_FILES+=" -f ganache/docker-compose.yml"
@@ -119,8 +109,12 @@ while :; do
         COMPOSE_FILES+=" -f ganache/docker-compose.yml"
         COMPOSE_FILES+=" -f subspace/docker-compose.yml"
         COMPOSE_FILES+=" -f frontend/docker-compose.yml"
-        
         ;;
+
+        --light)
+        COMPOSE_FILES+=" -f ./docker-compose.yml"
+        ;;
+        
         --pull)
         FORCEPULL="true"
         

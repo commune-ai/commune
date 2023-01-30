@@ -3,17 +3,17 @@
 import os
 import sys
 from copy import deepcopy
-from commune.utils.dict import dict_put, dict_get, get_object, dict_has
+
 from commune import Module
-from commune.web3.evm.utils import  get_web3
+
+
 
 
 class NetworkModule(Module):
 
-    default_config_path = 'web3.network'
 
-    def __init__(self, config=None, network=None, **kwargs):
-        Module.__init__(self, config=config, **kwargs)
+    def __init__(self, network:str=None, **kwargs):
+        Module.__init__(self,  **kwargs)
         self.set_network(network=network)
 
     @property
@@ -40,6 +40,7 @@ class NetworkModule(Module):
     connect_network = set_network
 
     def get_web3_from_url(self, url:str):
+        from commune.web3.evm.utils import  get_web3
         return get_web3(url)
     get_web3 = get_web3_from_url
 
@@ -74,6 +75,8 @@ class NetworkModule(Module):
         return list(self.networks_config[network][subnetwork]['url'].keys())
 
     def get_url(self, network:str='local.main.ganache' ):
+        from commune.utils.dict import dict_get
+        
         if len(network.split('.')) == 2:
             url_key = self.get_url_options(network)[0]
             network_key, subnetwork_key = network.split('.')

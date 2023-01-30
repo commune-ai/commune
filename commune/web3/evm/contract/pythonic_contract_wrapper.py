@@ -1,29 +1,28 @@
 from functools import partial
 import web3 
-import streamlit as st
 import gradio
+import commune
 
 class PythonicContractWrapper:
     def __init__(self, contract, account=None):
 
-        for k,v in contract.__dict__.items():
-            setattr(self, k, v)
         self.set_account(account)
-        self.parse()
-    
+        self.set_contract(contract)
+        
     def set_account(self, account=None):
         if account != None:
             self.account = account
             self.web3 = self.account.web3
 
 
-    def parse(self):
-        for fn_dict in self.functions._functions:
+    def set_contract(self, contract):
+        for fn_dict in contract.functions._functions:
             fn_name = fn_dict['name']
-            
+        
+        
             if fn_dict['stateMutability'] == 'view':
                 def wrapped_fn(self,fn_name, *args, tx={}, **kwargs):
-                    fn  = getattr(self.functions, fn_name)
+                    fn  = getattr(contract.functions, fn_name)
                     return fn(*args, **kwargs).call()
             elif fn_dict['stateMutability'] in ['payable', 'nonpayable']:
                 def wrapped_fn(self,fn_name, *args,tx={}, **kwargs):
@@ -36,6 +35,9 @@ class PythonicContractWrapper:
             
             wrapped_fn_ = partial(wrapped_fn, self, fn_name)
             setattr(self,fn_name, wrapped_fn_)
+            
+        for k,v in contract.__dict__.items():
+            setattr(self, k, v)
 
 
     @property
@@ -78,8 +80,6 @@ class PythonicContractWrapper:
     def package(self, inputs=[], outputs=[]):
         
         return ([self.parser(input['type'], "input" if input['name'] == "" else input['name']) for input in inputs], gradio.JSON(label="output") if outputs.__len__() > 0 else outputs)
-
-
 
 
     def gradio(self):

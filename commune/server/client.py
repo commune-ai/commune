@@ -60,7 +60,6 @@ class VirtualModule:
         from functools import partial
         
         for attr in self.module_client(fn='functions'):
-            print(attr)
             # continue if attribute is private and we don't want to include hidden attributes
             if attr.startswith('_') and (not include_hiddden):
                 continue

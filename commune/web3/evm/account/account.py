@@ -10,47 +10,18 @@ from eth_account.datastructures import SignedMessage
 from eth_account.messages import SignableMessage
 from hexbytes.main import HexBytes
 from web3.main import Web3
-import streamlit as st
-import gradio as gr
-from commune import Module
 from eth_account.messages import encode_defunct
-
-
 from eth_keys import keys
 from copy import deepcopy
-
-def private_key_to_public_key(private_key: str) -> str:
-    private_key_bytes = decode_hex(private_key)
-    private_key_object = keys.PrivateKey(private_key_bytes)
-    return private_key_object.public_key
-
-
+from eth_account.account import Account
+from commune import Module
 
 logger = logging.getLogger(__name__)
-from eth_account.account import Account
+
 
 class AccountModule(Module):
 
-    """
-    The AccountModule is responsible for signing transactions and messages by using an self.account's
-    private key.
 
-    The use of this AccountModule allows Ocean tools to send rawTransactions which keeps the user
-    key and password safe and they are never sent outside. Another advantage of this is that
-    we can interact directly with remote network nodes without having to run a local parity
-    node since we only send the raw transaction hash so the user info is safe.
-
-    Usage:
-    ```python
-    AccountModule = AccountModule(
-        ocean.web3,
-        private_key=private_key,
-        block_confirmations=ocean.config.block_confirmations,
-        transaction_timeout=config.transaction_timeout,
-    )
-    ```
-
-    """
 
     _last_tx_count = dict()
     ENV_PRIVATE_KEY = 'PRIVATE_KEY'
@@ -217,8 +188,20 @@ class AccountModule(Module):
 
     @property
     def public_key(self):
-        return private_key_to_public_key(self.private_key)
-        
+        return self.private_key_to_public_key(self.private_key)
+    
+    
+    @staticmethod
+    def private_key_to_public_key(private_key: str) -> str:
+        '''
+        Conert private key to public key
+        '''
+        private_key_bytes = decode_hex(private_key)
+        private_key_object = keys.PrivateKey(private_key_bytes)
+        return private_key_object.public_key
+
+
+  
     def keys_str(self) -> str:
         s = []
         s += [f"address: {self.address}"]
@@ -287,6 +270,7 @@ class AccountModule(Module):
 
     @classmethod
     def streamlit(cls):
+        import streamlit as st
         st.write(f'### {cls.__name__}')
         self = cls.deploy(actor={'refresh': False, 'wrap': True})
 
