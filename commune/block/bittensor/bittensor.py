@@ -39,7 +39,7 @@ class BittensorModule(Module):
     default_network = 'nakamoto'
 
     def __init__(self, 
-                config: Union[str,dict, 'commune.Config']=None, 
+                config: Union[str,dict, 'commune.config']=None, 
                 coldkey:str=None, 
                 hotkey:str=None, 
                 load:bool=True, 

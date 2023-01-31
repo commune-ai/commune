@@ -1,7 +1,6 @@
-import psutil
+
 import os
-import signal
-import sys
+
 
 def check_pid(pid):        
     """ Check For the existence of a unix pid. """
@@ -13,6 +12,7 @@ def check_pid(pid):
         return True
 
 def kill_process(pid):
+    import signal
     if isinstance(pid, str):
         pid = int(pid)
     
@@ -22,22 +22,26 @@ def kill_process(pid):
 class NetworkMonitor:
 
     def __enter__(self):
+        import psutil
         io_1 = psutil.net_io_counters()
         self.start_bytes_sent, self.start_bytes_recv = io_1.bytes_sent, io_1.bytes_recv
         self.start_time = datetime.datetime.utcnow()
         return self
 
     def __exit__(self, *args):
+        import psutil
         io_2 = psutil.net_io_counters()
         self.total_upload_bytes, self.total_download_bytes = self.upload_bytes, self.download_bytes
     
     @property
     def download_bytes(self):
+        import psutil
         io_2 = psutil.net_io_counters()
         return io_2.bytes_sent - self.start_bytes_sent
 
     @property
     def upload_bytes(self):
+        import psutil
         io_2 = psutil.net_io_counters()
         return io_2.bytes_recv - self.start_bytes_recv
 

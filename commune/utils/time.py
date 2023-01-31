@@ -1,11 +1,30 @@
-import datetime
-import time
 
 def get_current_time():
+    from time import strftime
+    from time import gmtime
+    return strftime("%m%d%H%M%S", gmtime())
+
+
+
+def roundTime(dt=None, roundTo=60):
+   """Round a datetime object to any time lapse in seconds
+   dt : datetime.datetime object, default now.
+   roundTo : Closest number of seconds to round to, default 1 minute.
+   Author: Thierry Husson 2012 - Use it as you want but don't blame me.
+   """
+   import datatime
+   if dt == None : dt = datetime.datetime.now()
+   seconds = (dt.replace(tzinfo=None) - dt.min).seconds
+   rounding = (seconds+roundTo/2) // roundTo * roundTo
+   return dt + datetime.timedelta(0,rounding-seconds,-dt.microsecond)
+
+def get_current_time() -> str:
+    import time
     return time.strftime("%m%d%H%M%S", time.gmtime())
 
-
-def isoformat2datetime(isoformat:str):
+def isoformat2datetime(isoformat:str) -> 'datetime.datetime':
+    import datetime
+    
     dt, _, us = isoformat.partition(".")
     dt = datetime.datetime.strptime(dt, "%Y-%m-%dT%H:%M:%S")
     us = int(us.rstrip("Z"), 10)
@@ -23,6 +42,7 @@ def isoformat2timestamp(isoformat:str, return_type='int'):
 
 
 def timedeltatimestamp( **kwargs):
+    import datetime
     assert len(kwargs) == 1
     supported_modes = ['hours', 'seconds', 'minutes', 'days']
     mode = list(kwargs.keys())[0]
@@ -34,17 +54,20 @@ def timedeltatimestamp( **kwargs):
 
 
 
-class timer:
+class Timer:
     def __init__(self, start=True):
         if start:
             self.start()
     
+    
     def start(self):
+        import time
         self.start_time = time.time()
         return self.start_time
     
     @property
     def seconds(self) -> int:
+        import time
         return time.time() - self.start_time
     def stop(self) -> int:
         time_passed  = self.seconds
@@ -57,5 +80,12 @@ class timer:
     def __exit__(self, *args):
         self.stop()
 
+timer = Timer
 
-Timer = timer
+
+def hour_rounder(t):
+    import datetime
+    # Rounds to nearest hour by adding a timedelta hour if minute >= 30
+    return (t.replace(second=0, microsecond=0, minute=0, hour=t.hour)
+            + datetime.timedelta(hours=t.minute // 30))
+

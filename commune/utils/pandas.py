@@ -1,8 +1,10 @@
-import pandas as pd
+
 
 
 
 def equal_intervals_pandas_series(series, nbins=10):
+    import pandas as pd
+    
     max = series.max()
     min = series.min()
 

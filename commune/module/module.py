@@ -19,7 +19,7 @@ class Module:
     default_ip = '0.0.0.0'
     
     # the root path of the module
-    root_path  = root = os.path.dirname(__file__)
+    root_path  = root = os.path.dirname(os.path.dirname(__file__))
     
     # get the current working directory
     pwd = os.getenv('PWD')
@@ -28,7 +28,7 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     
-    def __init__(self, config:dict=None, *args,  **kwargs):
+    def __init__(self, config:Dict=None, *args,  **kwargs):
         
         # set the config of the module (avoid it by setting config=False)
         self.set_config(config=config, kwargs =  kwargs)        
@@ -472,9 +472,11 @@ class Module:
 
     @classmethod
     def path2simple(cls, path:str) -> str:
-        simple_path = os.path.dirname(path)[len(os.path.join(cls.pwd, cls.root_dir))+1:].replace('/', '.')
-        if simple_path == '':
-            simple_path = 'module'
+        simple_path =  path.split(deepcopy(cls.root_dir))[-1]
+        simple_path = os.path.dirname(simple_path)
+        simple_path = simple_path.replace('.py', '')
+        simple_path = simple_path.replace('/', '.')[1:]
+
         return simple_path
     @classmethod
     def path2localpath(cls, path:str) -> str:
@@ -1543,6 +1545,13 @@ class Module:
     @classmethod
     def get_external_ip(cls, *args, **kwargs):
         return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
+
+    @classmethod
+    def external_ip(cls, *args, **kwargs):
+        return cls.get_external_ip(*args, **kwargs)
+    
+    
+    external_ip = get_external_ip
     
     @classmethod
     def upnpc_create_port_map(cls, port:int):

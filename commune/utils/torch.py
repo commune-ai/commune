@@ -1,5 +1,5 @@
-
-def torch_batchdictlist2dict(batch_dict_list, dim=0):
+from typing import Dict, List, Tuple, Union, Any, Optional
+def torch_batchdictlist2dict(batch_dict_list: List, dim:int=0) -> Dict[str, torch.Tensor]:
     import torch
     """
     converts
@@ -25,7 +25,8 @@ def torch_batchdictlist2dict(batch_dict_list, dim=0):
     return {k: torch.cat(v, dim=dim) for k, v in out_batch_dict.items()}
 
 
-def tensor_dict_shape(input_dict):
+def tensor_dict_shape(input_dict: Dict[str, torch.Tensor]) -> Dict[str, Tuple]:
+    import torch
     out_dict = {}
 
     """should only have tensors/np.arrays in leafs"""
@@ -38,7 +39,8 @@ def tensor_dict_shape(input_dict):
     return out_dict
 
 
-def check_distributions(kwargs):
+def check_distributions(kwargs: Dict[str, torch.Tensor]) -> Dict[str, Dict[str, float]]:
+                                                                        :
     return {k: {"mean": round(v.double().mean().item(), 2), "std": round(v.double().std().item(), 2)} for k, v in
             kwargs.items() if isinstance(v, torch.Tensor)}
 
@@ -46,6 +48,67 @@ def check_distributions(kwargs):
 
 
 def confuse_gradients(model):
+    """
+
+    :param model: model
+    :return:
+    """
+    for p in model.parameters():
+        if p.grad is not None:
+            p.grad.data = torch.randn(p.grad.data.shape).to(p.grad.data.device)
+
+
+
+
+def nan_check(input, key_list=[], root_key=''):
+    import torch, math
+    if isinstance(input, dict):
+        for k, v in input.items():
+
+            new_root_key = '.'.join([root_key, k])
+            if type(v) in [dict, list]:
+                nan_check(input=v,
+                                    key_list=key_list,
+                                    root_key=new_root_key)
+            else:
+                if isinstance(v, torch.Tensor):
+                    if any(torch.isnan(v)):
+                        key_list.append(new_root_key)
+                else:
+                    if math.isnan(v):
+                        key_list.append(new_root_key)
+    elif isinstance(input, list):
+        for k, v in enumerate(input):
+            new_root_key = '.'.join([root_key, str(k)])
+            if type(v) in [dict, list]:
+                nan_check(input=v,
+                                    key_list=key_list,
+                                    root_key=new_root_key)
+            else:
+                if isinstance(v, torch.Tensor):
+                    if any(torch.isnan(v)):
+                        key_list.append(new_root_key)
+                else:
+                    if math.isnan(v):
+                        key_list.append(new_root_key)
+    return key_list
+
+
+def seed_everything(seed: int) -> None:
+    import os, torch, np
+    "seeding function for reproducibility"
+    random.seed(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    
+    
+
+
+def confuse_gradients(model):
+    import torch
     """
 
     :param model: model

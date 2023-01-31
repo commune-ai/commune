@@ -106,8 +106,8 @@ while :; do
         --all)
         COMPOSE_FILES=""
         COMPOSE_FILES+=" -f ./docker-compose.yml"
-        COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
-        COMPOSE_FILES+=" -f ganache/docker-compose.yml"
+        # COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
+        # COMPOSE_FILES+=" -f ganache/docker-compose.yml"
         COMPOSE_FILES+=" -f subspace/docker-compose.yml"
         COMPOSE_FILES+=" -f frontend/docker-compose.yml"
         ;;

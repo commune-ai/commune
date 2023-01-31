@@ -16,6 +16,7 @@ services:
       - ./test:/app/test
       - ./docs:/app/docs
 
+
       # LOCAL COMMUNE MOUNTS AND FILES
       - ./Makefile:/app/Makefile 
       - ./setup.py:/app/setup.py
@@ -24,12 +25,13 @@ services:
       - ./README.md:/app/README.md
       - ./scripts:/app/scripts
 
+      - ./test:/test # MOUNT TEST
+
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
       - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
       
       # FILE SYSTEM MOUNTS
-      - /home/ubuntu/efs:/efs # MOUNT THE EFS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
 
 

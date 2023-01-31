@@ -51,7 +51,7 @@ class Server(ServerServicer, Serializer):
             compression:Optional[str] = None,
             serializer: 'Serializer'= None,
             server: Optional['grpc._Server'] = None,
-            config: Optional['commune.Config'] = None,
+            config: Optional['commune.config'] = None,
             verbose: bool = True
 
         ) -> 'Server':
@@ -155,7 +155,7 @@ class Server(ServerServicer, Serializer):
         parser.print_help()
     @classmethod
     def default_config(cls):
-        config = commune.Config()
+        config = commune.config()
         config.port = cls.get_available_port()
         config.ip =  '0.0.0.0'
         config.external_port =  None
@@ -167,7 +167,7 @@ class Server(ServerServicer, Serializer):
         return config
 
     @classmethod   
-    def check_config(cls, config: 'commune.Config' ):
+    def check_config(cls, config: 'commune.config' ):
         """ Check config for axon port and wallet
         """
         assert config.port > 1024 and config.port < 65535, 'port must be in range [1024, 65535]'

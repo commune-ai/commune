@@ -1,12 +1,12 @@
-import inspect
-from typing import Union
+
+from typing import Union, Dict, Optional, Any, List, Tuple
 
 
-def get_parents(obj):
+def get_parents(obj) -> List[str]:
     cls = resolve_class(obj)
     return list(cls.__mro__[1:-1])
 
-def get_parent_functions(cls):
+def get_parent_functions(cls) -> List[str]:
     parent_classes = get_parents(cls)
     function_list = []
     for parent in parent_classes:
@@ -14,7 +14,17 @@ def get_parent_functions(cls):
 
     return list(set(function_list))
 
-def get_functions(obj, include_parents=False, include_hidden:bool = False):
+def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = False) -> List[str]:
+    '''
+    Get a list of functions in a class
+    
+    Args;
+        obj: the class to get the functions from
+        include_parents: whether to include the parent functions
+        include_hidden: whether to include hidden functions (starts and begins with "__")
+    '''
+    
+    
     fn_list = []
     parent_fn_list = [] 
     # if not include_parents:
@@ -45,7 +55,7 @@ def get_functions(obj, include_parents=False, include_hidden:bool = False):
 
 
 
-def get_class_methods(cls: Union[str, type]):
+def get_class_methods(cls: Union[str, type])-> List[str]:
     '''
     Gets the class methods in a class
     '''
@@ -69,12 +79,18 @@ def get_self_methods(cls: Union[str, type]):
 
 
 def get_function_signature(fn) -> dict: 
+    '''
+    get the signature of a function
+    '''
+    import inspect
     return dict(inspect.signature(fn)._parameters)
 
 def get_function_input_variables(fn)-> dict:
-    return list(dict(inspect.signature(fn)._parameters).keys())
+    return get_function_signature(fn).keys()
 
 def get_function_defaults(fn, include_null = False, mode=['input','output'],output_example_key='output_example'):
+    import inspect
+    
     if  not callable(fn):
         return None
     param_dict = dict(inspect.signature(fn)._parameters)
@@ -243,7 +259,7 @@ def has_fn(obj, fn_name):
     return callable(getattr(obj, fn_name, None))
 
 
-def try_fn_n_times(fn, kwargs, try_count_limit):
+def try_fn_n_times(fn, kwargs:Dict, try_count_limit):
     '''
     try a function n times
     '''

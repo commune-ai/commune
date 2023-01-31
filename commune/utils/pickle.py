@@ -1,7 +1,6 @@
-import pickle
 
 def load_pickle(file_path, verbose=True):
-
+    import pickle
     with open(file_path, 'rb') as f:
         object = pickle.load(f)
     if verbose:

@@ -4,7 +4,7 @@ import re
 import yaml
 import torch
 import argparse
-from commune.utils.dict import (load_yaml, string_replace)
+
 
 from copy import deepcopy
 
@@ -65,6 +65,7 @@ def resolve_devices(cfg, device):
         cfg: dictionary from yaml file
     '''
     # Resolve Devices with Config
+    from commune.utils.dict import string_replace
     if (not torch.cuda.is_available()) and \
             ('cuda' in device) :
         cfg = string_replace(cfg=cfg,

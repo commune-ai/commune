@@ -1,106 +1,24 @@
 import os
 import time
-from time import gmtime, strftime
+from time import  strftime
 import random
 import yaml
 import json
 from copy import deepcopy
 import numpy as np
 from contextlib import contextmanager
-import torch
+from typing import Dict, List, Union, Any, Tuple, Callable, Optional
 from importlib import import_module
 import pickle
 import math
 from typing import Union
 import datetime
-from commune.utils.asyncio import async_read, async_write, sync_wrapper
+from commune.utils.asyncio import sync_wrapper
 from commune.utils.os import ensure_path, path_exists
 
-def round_sig(x, sig=6, small_value=1.0e-9):
-    """
-    Rounds x to the number of {sig} digits
-    :param x:
-    :param sig: signifant digit
-    :param small_value: smallest possible value
-    :return:
-    """
-    return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
-
-
-
-def nan_check(input, key_list=[], root_key=''):
-    if isinstance(input, dict):
-        for k, v in input.items():
-
-            new_root_key = '.'.join([root_key, k])
-            if type(v) in [dict, list]:
-                nan_check(input=v,
-                                    key_list=key_list,
-                                    root_key=new_root_key)
-            else:
-                if isinstance(v, torch.Tensor):
-                    if any(torch.isnan(v)):
-                        key_list.append(new_root_key)
-                else:
-                    if math.isnan(v):
-                        key_list.append(new_root_key)
-    elif isinstance(input, list):
-        for k, v in enumerate(input):
-            new_root_key = '.'.join([root_key, str(k)])
-            if type(v) in [dict, list]:
-                nan_check(input=v,
-                                    key_list=key_list,
-                                    root_key=new_root_key)
-            else:
-                if isinstance(v, torch.Tensor):
-                    if any(torch.isnan(v)):
-                        key_list.append(new_root_key)
-                else:
-                    if math.isnan(v):
-                        key_list.append(new_root_key)
-    return key_list
-
-
-        
-class RunningMean:
-    def __init__(self, value=0, count=0):
-        self.total_value = value * count
-        self.count = count
-
-    def update(self, value, count=1):
-        self.total_value += value * count
-        self.count += count
-
-    @property
-    def value(self):
-        if self.count:
-            return self.total_value / self.count
-        else:
-            return float("inf")
-
-    def __str__(self):
-        return str(self.value)
-
-
-
-def hour_rounder(t):
-    # Rounds to nearest hour by adding a timedelta hour if minute >= 30
-    return (t.replace(second=0, microsecond=0, minute=0, hour=t.hour)
-            + datetime.timedelta(hours=t.minute // 30))
-
-
-
-def seed_everything(seed: int) -> None:
-    "seeding function for reproducibility"
-    random.seed(seed)
-    os.environ["PYTHONHASHSEED"] = str(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
 
 def rm_json(path:str, ignore_error:bool=True) -> Union['NoneType', str]:
-    import shutil
+    import shutil, os
     if os.path.isdir(path):
         shutil.rmtree(path)
     elif os.path.isfile(path):
@@ -113,31 +31,7 @@ def rm_json(path:str, ignore_error:bool=True) -> Union['NoneType', str]:
     return path
     
 
-def get_current_time():
-    return strftime("%m%d%H%M%S", gmtime())
-
-
-
-@contextmanager
-def timer(name: str) -> None:
-
-    t0 = time.time()
-    yield
-    print(f"[{name}] done in {time.time() - t0:.3f} s")
-
-
 chunk_list = lambda my_list, n: [my_list[i * n:(i + 1) * n] for i in range((len(my_list) + n - 1) // n)]
-
-
-def confuse_gradients(model):
-    """
-
-    :param model: model
-    :return:
-    """
-    for p in model.parameters():
-        if p.grad is not None:
-            p.grad.data = torch.randn(p.grad.data.shape).to(p.grad.data.device)
 
 
 """
@@ -171,7 +65,6 @@ def get_module(path,prefix = 'commune'):
 
     return module
 
-get_module_file = get_module
 
 
 
@@ -316,101 +209,6 @@ def even_number_split(number=10, splits=2):
 
     return split_bins
 
-def torch_batchdictlist2dict(batch_dict_list, dim=0):
-    """
-    converts
-        batch_dict_list: dictionary (str, tensor)
-        to
-        out_batch_dict : dictionary (str,tensor)
-
-    along dimension (dim)
-
-    """
-    out_batch_dict = {}
-    for batch_dict in batch_dict_list:
-
-        for k, v in batch_dict.items():
-            if not isinstance(v, torch.Tensor):
-                v = torch.tensor(v)
-            if k in out_batch_dict:
-                out_batch_dict[k].append(v)
-            else:
-                out_batch_dict[k] = [v]
-
-    # stack
-    return {k: torch.cat(v, dim=dim) for k, v in out_batch_dict.items()}
-
-
-def tensor_dict_shape(input_dict):
-    out_dict = {}
-
-    """should only have tensors/np.arrays in leafs"""
-    for k,v in input_dict.items():
-        if isinstance(v,dict):
-            out_dict[k] = tensor_dict_shape(v)
-        elif type(v) in [torch.Tensor, np.ndarray]:
-            out_dict[k] = v.shape
-
-    return out_dict
-
-
-def roundTime(dt=None, roundTo=60):
-   """Round a datetime object to any time lapse in seconds
-   dt : datetime.datetime object, default now.
-   roundTo : Closest number of seconds to round to, default 1 minute.
-   Author: Thierry Husson 2012 - Use it as you want but don't blame me.
-   """
-   if dt == None : dt = datetime.datetime.now()
-   seconds = (dt.replace(tzinfo=None) - dt.min).seconds
-   rounding = (seconds+roundTo/2) // roundTo * roundTo
-   return dt + datetime.timedelta(0,rounding-seconds,-dt.microsecond)
-
-
-def equal_intervals_pandas_series(series, nbins=10):
-    max = series.max()
-    min = series.min()
-
-    bin_size = (max - min) / nbins
-
-    for bin_id in range(nbins):
-        bin_bounds = [min + bin_id * bin_size,
-                      min + (bin_id + 1) * bin_size]
-        series = series.apply(lambda x: bin_bounds[0] if x >= bin_bounds[0] and x < bin_bounds[1] else x)
-
-    return series
-
-
-def nan_check(input, key_list=[], root_key=''):
-    if isinstance(input, dict):
-        for k, v in input.items():
-
-            new_root_key = '.'.join([root_key, k])
-            if type(v) in [dict, list]:
-                nan_check(input=v,
-                                    key_list=key_list,
-                                    root_key=new_root_key)
-            else:
-                if isinstance(v, torch.Tensor):
-                    if any(torch.isnan(v)):
-                        key_list.append(new_root_key)
-                else:
-                    if math.isnan(v):
-                        key_list.append(new_root_key)
-    elif isinstance(input, list):
-        for k, v in enumerate(input):
-            new_root_key = '.'.join([root_key, str(k)])
-            if type(v) in [dict, list]:
-                nan_check(input=v,
-                                    key_list=key_list,
-                                    root_key=new_root_key)
-            else:
-                if isinstance(v, torch.Tensor):
-                    if any(torch.isnan(v)):
-                        key_list.append(new_root_key)
-                else:
-                    if math.isnan(v):
-                        key_list.append(new_root_key)
-    return key_list
 
 
 def dict_fn(input, fn=lambda x: x.shape[0]):
@@ -517,11 +315,9 @@ def dict_put(input_dict,keys, value ):
 
 
 
-from typing import Dict, Any
-import hashlib
-import json
-
 def dict_hash(dictionary: Dict[str, Any]) -> str:
+    import hashlib
+    import json
     """MD5 hash of a dictionary."""
     dhash = hashlib.md5()
     # We need to sort arguments so {'a': 1, 'b': 2} is
@@ -623,6 +419,9 @@ def dict_merge(*args):
 
 
 async def async_get_json(path, return_type='dict', handle_error=True, default_return = {}):
+    from commune.utils.asyncio import async_read, sync_wrapper
+    import torch
+    
     try:  
         
         data = json.loads(await async_read(path))
@@ -640,10 +439,12 @@ async def async_get_json(path, return_type='dict', handle_error=True, default_re
         torch.tensor
     return data
 
+
 read_json = load_json = get_json = sync_wrapper(async_get_json)
 
 async def async_put_json( path, data):
-        # Directly from dictionary
+    from commune.utils.asyncio import  async_write
+    # Directly from dictionary
     path = ensure_path(path)
     data_type = type(data)
     if data_type in [dict, list, tuple, set, float, str, int]:
@@ -660,6 +461,9 @@ put_json = save_json = sync_wrapper(async_put_json)
 
 
 async def async_get_yaml(path, return_type='dict'):
+    from commune.utils.asyncio import async_read
+    import torch
+    
     try:  
         
         data = yaml.load(await async_read(path), Loader=yaml.Loader)
@@ -680,7 +484,10 @@ async def async_get_yaml(path, return_type='dict'):
 read_yaml = load_yaml = get_yaml = sync_wrapper(async_get_yaml)
 
 async def async_put_yaml( path, data):
-        # Directly from dictionary
+    
+    from commune.utils.asyncio import  async_write
+
+    # Directly from dictionary
     path = ensure_path(path)
     data_type = type(data)
     if data_type in [dict, list, tuple, set, float, str, int]:

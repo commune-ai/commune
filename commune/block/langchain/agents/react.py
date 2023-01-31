@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # module.run(question)
     # # module = AgentModule()
     
-    module.serve(name='ReactAgentModule')
+    module = module.serve(name='ReactAgentModule')
     # print(result)
 
 
