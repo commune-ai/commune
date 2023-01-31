@@ -1,3 +1,5 @@
+#/bin/bash
+
 # Install cargo and Rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 PATH="/root/.cargo/bin:${PATH}"

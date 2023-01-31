@@ -15,7 +15,7 @@ class SubstrateAccount(Keypair):
         if isinstance(keypair, dict):
             keypair = Keypair(**keypair)
         assert isinstance(keypair, Keypair), 'keypair must be a Keypair instance'
-        self = commune.merge(a=self, b=keypair)
+        self = commune.merge(self, keypair)
     @property
     def address(self):
         return self.ss58_address

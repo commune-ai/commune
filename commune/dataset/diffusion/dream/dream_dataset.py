@@ -16,8 +16,8 @@ from torchvision import transforms
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, PretrainedConfig
 
+import commune
 from typing import *
-import streamlit as st
 
 class DreamDataset(Dataset):
     """
@@ -52,7 +52,6 @@ class DreamDataset(Dataset):
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer'], revision=False, use_fast=False):
 
 
-        st.write(tokenizer, )
         if isinstance(tokenizer, str):
             tokenizer = AutoTokenizer.from_pretrained(tokenizer,
                                                     revision=revision,

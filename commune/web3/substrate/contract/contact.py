@@ -15,7 +15,6 @@ class SubstrateContract(commune.Module):
     
     dir_file_path = os.path.dirname(__file__)
     contracts_dir_path = f'{dir_file_path}/data/ink'
-    default_url = "ws://0.0.0.0:9944"
     def __init__(self, keypair:Keypair = None, substrate:'SubstrateInterface' = None):
         self.set_keypair(keypair)
         self.set_substrate(substrate)
@@ -24,7 +23,7 @@ class SubstrateContract(commune.Module):
         
         if substrate == None:
             substrate = SubstrateInterface(
-                url = self.default_url,
+                url = "ws://0.0.0.0:9944",
                 type_registry_preset='canvas'
             )
         self.substrate = substrate

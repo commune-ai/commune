@@ -6,9 +6,6 @@ from copy import deepcopy
 
 from commune import Module
 
-
-
-
 class NetworkModule(Module):
 
 
