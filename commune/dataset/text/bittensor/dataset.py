@@ -29,7 +29,6 @@ import torch
 from torch.utils.data.dataloader import DataLoader
 from typing import Optional, Union, Dict, List, Any
 from commune import Module
-from commune.utils import chunk
 
 logger = logger.opt(colors=True)
 
@@ -441,7 +440,8 @@ class BittensorDataset(Module):
     
     
     def download(self, chunk_size:int=500, background_thread:bool=False):
-        
+        from commune.utils import chunk
+
         if background_thread: 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
