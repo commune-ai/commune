@@ -1,9 +1,7 @@
 # Commune
 
-This repo intends to standardize all python processes across a peer to peer network. This Allows for developers to seemlessly connect with each other without having to go through an intermediary. 
+Commune is an open-source framework for creating modular, reusable, and interoperable machine learning modules. It provides a way for developers to wrap any machine learning tool into a module, organize them into a module file system (their own module hub), and expose them as public endpoints with access control. Modules are represented as a folder with a main python script and a configuration file, making them portable across machines. The framework includes a module manager API for managing running modules, connecting modules locally or over the wire, and a queue server for managing communication between modules. Modules can interact with smart contracts and be stored on decentralized file storage systems for monetization. Modulus aims to provide full autonomy and intellectual property for developers and avoid platform lock-ins.
 
-
-## Concepts
 
 
 ### Module
