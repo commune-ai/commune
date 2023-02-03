@@ -26,6 +26,9 @@ class SubstrateContract(commune.Module):
                 url = "ws://0.0.0.0:9944",
                 type_registry_preset='canvas'
             )
+        
+        commune.print(f'Connected to {substrate.url}','purple')
+        
         self.substrate = substrate
 
     def set_keypair(self, keypair:Keypair = None):
@@ -79,11 +82,12 @@ class SubstrateContract(commune.Module):
             deployment_salt: str=None,
             gas_limit:int=1000000000000,
             constructor:str="new",
-            args:dict={'total_supply': 100000},
+            args:dict=None,
             upload_code:bool=True,
-            refresh:bool = True,
+            refresh:bool = False,
             compile:bool=False,
             tag: str = None):
+        args = args if args!= None else {}
         '''
         Deploy a contract to the chain
         
@@ -206,10 +210,9 @@ class SubstrateContract(commune.Module):
         
         
         contract_substrate_info = self.substrate.query("Contracts", "ContractInfoOf", [contract_address])
-
         if contract_substrate_info.value:
 
-            print(f'Found contract on chain: {contract_substrate_info.value}')
+            commune.print(f'Found contract on chain: {contract_substrate_info.value}', 'green')
 
             # Create contract instance from deterministic address
             contract = ContractInstance.create_from_address(
@@ -229,7 +232,6 @@ class SubstrateContract(commune.Module):
     @property
     def deployed_contracts(self):
         deployed_paths = self.glob('deployed_contracts/**')
-        print(deployed_paths)
         deployed_contracts = {}
         for path in deployed_paths:
             name = path.split('/')[-2]
@@ -335,20 +337,16 @@ class SubstrateContract(commune.Module):
     def sandbox(cls):
         self = cls()
         # self.refresh_deployed_contracts()
-        contract = self.get_contract('erc20')
-        print(contract.__dict__)
-        
-        # print(self.deployed_contracts)
+        contract = self.deploy('erc20', args={'total_supply': 100000})
         # test_accounts = commune.get_module('web3.substrate.account').test_accounts()
         
         # # self.set_contract('erc20')
 
         # print(test_accounts)
         
-        # # print(self.exec(method='set_ip', args={'owner': self.keypair.ss58_address,'ip': '0.0.0.0:5000'}).value)
-        # print(self.read(method='get_ip', args={'owner': self.keypair.ss58_address}).value)
+        print(self.exec(method='set_ip', args={'owner': self.keypair.ss58_address,'ip': '0.0.0.0:5001'}).value)
+        print(self.read(method='get_ip', args={'owner': self.keypair.ss58_address}).value)
         # print(self.contract.call())
-
 import time
 if __name__ == "__main__":
 

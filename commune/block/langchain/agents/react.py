@@ -4,7 +4,7 @@ from langchain.agents.react.base import DocstoreExplorer
 import commune
 
 import os
-os.environ['OPENAI_API_KEY'] = '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'
+os.environ['OPENAI_API_KEY'] = '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'
 def ReactAgentModule():
 
     docstore=DocstoreExplorer(Wikipedia())

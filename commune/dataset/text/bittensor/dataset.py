@@ -29,6 +29,7 @@ import torch
 from torch.utils.data.dataloader import DataLoader
 from typing import Optional, Union, Dict, List, Any
 from commune import Module
+from commune.utils.dict import chunk
 
 logger = logger.opt(colors=True)
 
@@ -58,7 +59,8 @@ class BittensorDataset(Module):
             load_dataset : bool = True,
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
-            enable_background_download: bool = False,
+            background_download: bool = False,
+            min_hash_count : int = 10000,
             loop: Optional['asyncio.loop'] = None ):
 
         self.kwargs = locals()
@@ -91,8 +93,7 @@ class BittensorDataset(Module):
         # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
         self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
         
-        if self.enable_background_download:
-            self.background_download()
+        self.download(background=self.background_download, min_hash_count=self.min_hash_count)
       
       
     def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
@@ -286,11 +287,12 @@ class BittensorDataset(Module):
         '''
         # See if there is free space, if so, add jobs to fill the free space with samples.
         buffer_free_space = self.buffer_size - len(self.sample_buffer) 
-        
+                
         if buffer_free_space > 0  :
             
             # Sample the file_metas randomly.
             sample_cat_params_list = self.suggest_samples(buffer_free_space)
+   
 
             # Build the asyncio jobs.
             self.fetch_text_tasks += [asyncio.create_task(self.fetch_text(file_meta=sample_cat_params, offset=0, length=self.max_hash_size, load=True, save=False)) for sample_cat_params in sample_cat_params_list]
@@ -362,9 +364,6 @@ class BittensorDataset(Module):
         '''
         sequence_length = sequence_length if sequence_length else self.sequence_length
         no_tokenizer = no_tokenizer if no_tokenizer else self.no_tokenizer
-        # Random sampel idx if None.
-        if idx == None:
-            idx = random.randint(0, self.__len__())
 
         # only sample if the buffer is less than the buffer_size
 
@@ -439,40 +438,50 @@ class BittensorDataset(Module):
     
     
     
-    def download(self, chunk_size:int=500, background_thread:bool=False):
-        from commune.utils import chunk
-
+    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False):
+        if background:
+            thread_fn_kwargs = dict(locals())
+            thread_fn_kwasrgs['background'] = False
+            from threading import Thread
+            self.download_thread = Thread(target=self.download, kwargs= thread_fn_kwargs, daemon=True, name='IPFS Download')
+            self.download_thread.start()   
+            
+    
         if background_thread: 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         else:
             loop = self.loop
         
-        file_meta_chunks = chunk(self.all_text_file_metas, chunk_size=chunk_size)
+        file_meta_chunks = chunk(self.unsaved_hashes, chunk_size=chunk_size)
         
         random.shuffle(file_meta_chunks)
         
         total_hash_count = len(self.all_text_file_metas)
         fail_count = 0
         for i,  file_meta_chunk in enumerate(file_meta_chunks):
-            if i % 5:
+            if i % 10 == 0:
+                total_hash_count = len(self.all_text_file_metas)
+                if total_hash_count > min_hash_count:
+                    print(f'Not enough hashes to download. {total_hash_count} < {min_hash_count}')
+                    return
                 print(f'{i} hashes downloaded -> Total Saved Hashes {len(self.saved_hashes)}/{total_hash_count} fails: {fail_count}')
             # Build the asyncio jobs.
             try:
-                loop.run_until_complete(asyncio.gather(*[self.fetch_text(file_meta=file_meta, offset=0, length=self.max_hash_size) for file_meta in file_meta_chunk ]))
-            except:
+                loop.run_until_complete(asyncio.gather(*[self.fetch_text(file_meta=file_meta, offset=0, length=self.max_hash_size, load=False) for file_meta in file_meta_chunk ]))
+            except Exception as e:
                 fail_count += 1
+                if ignore_error:
+                    print(e)
+                else:
+                    raise(e)
         # This currently synchronytes on all of the self.fetch_text_tasks, completing when they all are finished.
         # finished_tasks, running_tasks  = await asyncio.wait(self.fetch_text_tasks) 
             
-    def background_download(self):
-        from threading import Thread
-        self.download_thread = Thread(target=self.download, kwargs= {'chunk_size':100,'background_thread': True}, daemon=True, name='IPFS Download')
-        
-        self.download_thread.start()   
-    
+
     @property
     def saved_hashes(self) -> List[Dict[str, dict]]:
+
         if not hasattr(self, '_saved_hashes'):
             hash_urls = self.glob('saved_file_metas/*')
             self._saved_hashes = []
@@ -520,6 +529,9 @@ class BittensorDataset(Module):
                 self.put_json(path=path, data= file_meta)
         
             return response
+    
+    
+    
     async def cat(self, cid:str, offset:int = 0, length:int = None)->bytes:
         '''
         Cat endpoint.
@@ -757,11 +769,11 @@ class BittensorDataset(Module):
         Returns:
             length: int
         """
-        return self.dataset_size // self.block_size_bytes
+        return len(self.all_text_file_metas)
 
     def __del__(self) -> None:
         self.close()
-        if self.enable_background_download:
+        if hasattr(self, 'download_thread'):
             self.download_thread.join()
 
     def close(self) -> None:
@@ -789,7 +801,11 @@ class BittensorDataset(Module):
     @classmethod
     def sandbox(cls):
         self = cls(batch_size=32, sequence_length=256, max_datasets=10)
-        print(len(self.unsaved_hashes))
+        print('START')
+        import commune
+        t = commune.timer()
+        for i in range(1000):
+            print(self.sample()['input_ids'].shape, i/t.seconds)
 
 if __name__ == "__main__":
     BittensorDataset.run()

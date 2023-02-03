@@ -4,33 +4,20 @@ from concurrent.futures import ThreadPoolExecutor
 import grpc
 import json
 import traceback
-import torch
 import threading
 import uuid
 import sys
-import torch.nn as nn
 import grpc
-import time as clock
 from types import SimpleNamespace
 from typing import Tuple, List, Union
-from loguru import logger
 from grpc import _common
 import sys
 import os
 import asyncio
-import commune
-from .proto  import DataBlock, ServerStub
-from .serializer import Serializer
-from .server import Server
 from copy import deepcopy
-if os.getenv('USE_STREAMLIT'):
-    import streamlit as st
+from .serializer import Serializer
 
 
-
-
-
-import commune
 
 class VirtualModule:
     def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
@@ -42,13 +29,15 @@ class VirtualModule:
             include_hiddden (bool): If True, include hidden attributes.
         '''
         if isinstance(module, str):
+            import commune
             self.module_client = commune.connect(module)
         else:
             self.module_client = module
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
     def remote_call(self, fn: str, *args, **kwargs):
-        return self.module_client(fn=fn, args=args)
+
+        return self.module_client(fn=fn, args=args, kwargs=kwargs)
             
     def sync_module_attributes(self, include_hiddden: bool = False):
         '''
@@ -70,8 +59,6 @@ class VirtualModule:
                 
     def __getattr__(self, key):
         return lambda *args: self.module(fn='__getattr__', args=[key])
-
-
 
 
 class Client( Serializer):
@@ -103,6 +90,7 @@ class Client( Serializer):
             options=[('grpc.max_send_message_length', -1),
                      ('grpc.max_receive_message_length', -1),
                      ('grpc.keepalive_time_ms', 100000)])
+        from .proto  import ServerStub
         stub = ServerStub( channel )
 
         self.channel = channel
@@ -137,6 +125,7 @@ class Client( Serializer):
         self.__del__()
 
     def nonce ( self ):
+        import time as clock
         r"""creates a string representation of the time
         """
         return clock.monotonic_ns()
@@ -225,7 +214,7 @@ class Client( Serializer):
 
     def test_module(self):
         module = Client(ip='0.0.0.0', port=8091)
-
+        import torch
         data = {
             'bro': torch.ones(10,10),
             'fam': torch.zeros(10,10)

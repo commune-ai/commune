@@ -1,123 +1,84 @@
 from __future__ import annotations
 from munch import Munch
 import commune
-
+from typing import List, Dict, Union 
 import os
 
-class Pipeline(commune.Module):
-    def __init__(self, pipeline, config={}):
-        self.config = Munch(config)
-        self.process_block = Munch({})
-        self.pipeline = pipeline if pipeline != None else self.config.pipeline
-        self.build_pipeline(self.pipeline)
-
-
-    def build_pipeline(self, pipeline_config):
-        if isinstance(pipeline_config, list):
-            keys = list(range(len(pipeline_config)))
-        elif isinstance(pipeline_config, dict): 
-            keys = list(pipeline_config.keys())
+class ModulePipeline(commune.Module):
+    def __init__(self, modules:List[str]):
+        self.build_pipeline(modules)
         
-        previous_key = None
-        # building the pipeline
+    def build_pipeline(self, modules:List[Union[str, Dict]], virtual:bool = True, default_call_fn:str = 'forward'):
+        
         self.pipeline_blocks = []
-        for key in keys:
-            process_block = pipeline_config[key]
-            path = process_block['module']
+        for module in modules:
+            if isinstance(module, dict):
+                assert 'module' in module
+                
+                # get the module
+                get_module_kwargs = module['module'] \
+                                    if isinstance(module['module'], dict) else \
+                                        {'module': module['module']}
+                                        
+                module_obj = commune.module(**get_module_kwargs, virtual=True)
+                
+                # get the function
+                module_fn_name = module.get('fn', default_call_fn)
 
-            process_block['tag'] = process_block.get('tag', None)
-            process_block['name'] = process_block.get('name',  path )
-            process_block['actor'] = process_block.get('actor',  False )
-            launch_kwargs = dict(
-                module = process_block['module'],
-                fn = process_block.get('init_fn', None),
-                kwargs = process_block.get('init_kwargs', {}),
-                actor =  process_block['actor']
-            )
+                module_fn = getattr(module_obj, module_fn_name)
+                
+                module_kwargs =   module.get('kwargs', {})
+                
+                # map the inputs from the input node to the output node
+                module_input_map =  module.get('input_map', {})
+                
+                block = {
+                    'fn': module_fn,
+                    'input_map':module_input_map,
+                    'kwargs': module_kwargs
+                }
+                self.pipeline_blocks.append(block)
+                    
+        return self.pipeline_blocks
 
-            module_block = commune.launch(**launch_kwargs)
-            process_block['module'] = module_block
-            process_block['function'] = getattr(module_block, process_block.get('fn', process_block.get('function', '__call__' )))
-
-            self.process_block[process_block['name']] = process_block
-
-            if previous_key != None:
-                input_modules = self.pipeline_blocks[previous_key]
-                if not isinstance(input_modules, list):
-                    input_modules = [input_modules]
-                process_block['input_modules'] = list(map(lambda x: x['name'], input_modules ))
-
-            previous_key = key
-            self.pipeline_blocks.append(process_block)
-            
-
-    def run(self, **kwargs):
+    def forward(self, **kwargs):
+        from copy import deepcopy
         for block in self.pipeline_blocks:
             kwargs = deepcopy(kwargs)
-            block_kwargs = block.get('kwargs', deepcopy({}))
-            kwargs = {**kwargs,**block_kwargs}
-            input_key_map = block.get('input_key_map', deepcopy({}))
-            kwargs = {input_key_map.get(k, k):v for k,v in input.items()}
-            output = block.get('function')(**kwargs)
-            output_key_map = block.get('output_key_map', {})
-            # maps the key of the output to the input of the next block in case there is a conflict
-            output_dict = {output_key_map.get(k, k):v for k,v in output.items()}
-            assert isinstance(output_dict, dict), f'lets keep things simple and use an output dictionary'
+            block_kwargs = block['kwargs']
             
-        return output
+            # add the kwargs from the block into the original kwargs
+            for k,v in block_kwargs:
+                assert k not in kwargs
+                kwargs[k] = v
+            
+            # map the input kwargs from k-> v
+            if len(block['input_map']) > 0:
+                kwargs = {block['input_map'].get(k, k):v for k,v in kwargs.items()}
+            
+            output = block['function'](**kwargs)
+            
+            assert isinstance(output, dict), f'lets keep things simple and use an output dictionary'
+
+            # maps the key of the output to the input of the next block in case there is a conflict
+            kwargs = {block['output_map'].get(k, k):v for k,v in output.items()}
+            
+
+            
+        return kwargs
 
     @staticmethod
     def test_sequential_pipeline():
-        commune.init_ray()
-        pipeline_blocks = [
+        blocks = [
         {
             'module': 'dataset.text.huggingface',
             'fn': 'sample',
             'kwargs': {'tokenize': False},
-            'output_key_map': {'text': 'input'}
-         }, 
-         {
-            'module': 'datasets.load_dataset',
-            'fn': 'forward',
-            'output_key_map': {'input': 'text'}
-        }
+         }
          ]
 
         pipeline = Pipeline(pipeline_blocks)
         st.write(pipeline.run())
-
-
-    @staticmethod
-    def test_aggregator_pipeline():
-        commune.init_ray()
-        pipeline_blocks = [
-        {
-            'module': 'commune.dataset.text.huggingface',
-            'fn': 'sample',
-            'kwargs': {'tokenize': False},
-         }, 
-         
-         {
-            'module': 'commune.Aggregator',
-            'kwargs': {'blocks': [
-                                {
-                                    'module': 'commune.model.transformer',
-                                    'actor': {'gpus': 0.1, 'tag': f'{i}', 'wrap': True},
-                                    'fn': 'forward',
-                                    'kwargs': {'ray_get': True},
-                                } for i in range(3)] },
-        }]
-        
-
-        pipeline = Pipeline(pipeline_blocks)
-    
-    @staticmethod
-    def dummy(a:dict) -> dict:
-        return a
-
-
-def get_annotations(fn:callable):
-    return fn.__annotations__
 
 
 if __name__ == '__main__':
@@ -127,7 +88,6 @@ if __name__ == '__main__':
     # st.write(commune.Module.simple2import('commune.sandbox.paper'))
 
     Pipeline.test_sequential_pipeline()
-    Pipeline.test_aggregator_pipeline()
 
 
         

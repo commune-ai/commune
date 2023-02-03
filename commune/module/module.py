@@ -18,7 +18,7 @@ class Module:
     # default ip
     default_ip = '0.0.0.0'
     
-    # the root path of the module
+    # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     
     # get the current working directory
@@ -283,27 +283,8 @@ class Module:
             
         return process
 
+        
 
-    # @classmethod
-    # def launch(cls, module:str, fn:str=None ,kwargs:dict={}, args=[]):
-    #     '''
-        
-    #     Args:
-    #         module: path of the module {module_path}.{object_path}
-    #         fn: the function of the module
-    #         kwargs: the kwargs of the function
-    #         args: the args of the function
-        
-    #     '''
-        
-        
-    #     module_class = cls.import_object(module)
-    #     if fn == None:
-    #         module_object =  module_class(*args,**kwargs)
-    #     else:
-    #         fn = getattr(module_class,fn)
-    #         module_object =  fn(*args, **kwargs)
-    #     return module_object
 
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
@@ -330,6 +311,8 @@ class Module:
         object_name = key.split('.')[-1]
         obj =  getattr(import_module(module), object_name)
         return obj
+    
+    get_object = import_object
 
     
     @classmethod
@@ -343,7 +326,7 @@ class Module:
     
     
     @staticmethod
-    def port_available(port:int, ip:str ='0.0.0.0'):
+    def port_used(port:int, ip:str ='0.0.0.0'):
         '''
         Check if port is available
         '''
@@ -354,7 +337,7 @@ class Module:
         return result == 0
 
     @classmethod
-    def get_available_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0'):
+    def get_used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0'):
         '''
         Get availabel ports out of port range
         
@@ -363,15 +346,15 @@ class Module:
             ip: ip address
         
         '''
-        if ports:
+        if ports == None:
             ports = list(range(*cls.port_range))
         
-        available_ports = []
+        used_ports = []
         for port in ports: 
-            if cls.port_available(port=port, ip=ip):
-                available_ports.append(port)
+            if cls.port_used(port=port, ip=ip):
+                used_ports.append(port)
         
-        return port
+        return used_ports
    
     @classmethod
     def resolve_path(cls, path:str, extension:Optional[str]=None):
@@ -381,7 +364,6 @@ class Module:
         The path is determined by the module path 
         
         '''
-        print(cls.tmp_dir)
         tmp_dir = cls.tmp_dir()
         if tmp_dir not in path:
             path = os.path.join(tmp_dir, path)
@@ -397,8 +379,8 @@ class Module:
         Resolves the port and finds one that is available
         '''
         port = port if port else cls.get_available_port()
-        port_available = cls.port_available(port)
-        if port_available:
+        port_used = cls.port_used(port)
+        if port_used:
             if find_available:
                 port = cls.get_available_port()
             else:
@@ -410,7 +392,7 @@ class Module:
     def get_available_port(cls, port_range: List[int] = None, ip:str='0.0.0.0' ) -> int:
         port_range = port_range if port_range else cls.port_range
         for port in range(*port_range): 
-            if cls.port_available(port=port, ip=ip):
+            if cls.port_used(port=port, ip=ip):
                 return port
     
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
@@ -438,12 +420,11 @@ class Module:
         return port
 
     @classmethod
-    def kill_server(cls, module:str):
+    def kill_server(cls, module:str, mode:str = 'pm2'):
         '''
         Kill the server by the name
         '''
-        port = cls.server_registry()[module]
-        return cls.kill_port(port)
+        return getattr(cls, f'{mode}_kill')(module)
 
 
     @classmethod
@@ -699,20 +680,21 @@ class Module:
 
 
     @classmethod
-    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, *args, **kwargs ):
+    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
         
         
 
         
-        from commune.server import Client
         server_registry =  Module.server_registry()
         if name:
-            assert name in server_registry, f'{name} is not deployed'
             client_kwargs = server_registry[name]
         else:
             client_kwargs = dict(ip=ip, port=port)
-        client_module = Client( *args, **kwargs,**client_kwargs)
+        Client = cls.import_object('commune.server.client.Client')
+        client_module = Client( **kwargs,**client_kwargs)
         
+        cls.print(f'Connecting to {name} on {ip}:{port}', 'yellow')
+
         if virtual:
             return client_module.virtual()
         
@@ -730,13 +712,14 @@ class Module:
         
         
         '''
-        from copy import deepcopy
+        # from copy import deepcopy
         
         # get the module port if its saved.
         # if it doesnt exist, then return default ({})
+        print('getting server registry')
         server_registry = Module.get_json('server_registry', handle_error=True, default={})
         for k in deepcopy(list(server_registry.keys())):
-            if not Module.port_available(**server_registry[k]):
+            if not Module.port_used(**server_registry[k]):
                 del server_registry[k]
         Module.put_json('server_registry',server_registry)
         return server_registry
@@ -768,6 +751,8 @@ class Module:
 
     @classmethod
     def new_event_loop(cls):
+        import asyncio
+        
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -775,6 +760,7 @@ class Module:
   
     @classmethod
     def set_event_loop(cls, loop=None, new_loop:bool = False):
+        import asyncio
         if new_loop:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -782,9 +768,20 @@ class Module:
             loop = loop if loop else asyncio.get_event_loop()
         
         return loop
+
+    @classmethod
+    def get_event_loop(cls):
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = self.new_event_loop()
+        return loop
+
     @classmethod
     def resolve_module_id(cls, name:str=None, tag:str=None):
         module_id = name if name else cls.module_name()
+            
         if tag:
             module_id = f'{module_id}::{tag}'
         return module_id
@@ -796,6 +793,12 @@ class Module:
         
         
     def serve(self, name=None , *args, **kwargs):
+        if self.class_name != 'Module' and self.module_name() == 'module':
+            name = self.class_name if name == None else name
+        else:
+            name = name if name else self.module_name()
+            
+            
         name = name if name else str(self.class_name)
         return self.serve_module( *args, module = self, name=name, **kwargs)
         
@@ -806,7 +809,7 @@ class Module:
               ip:str=None, 
               name:str=None, 
               tag:str=None, 
-              replace:bool = False, 
+              replace:bool = True, 
               wait_for_termination:bool = True,
               *args, 
               **kwargs ):
@@ -827,19 +830,21 @@ class Module:
         module_id = self.resolve_module_id(name=name, tag=tag)
            
         '''check if the server exists'''
-        print(self.server_exists(module_id),self.server_registry(), module_id, 'BROO')
         if self.server_exists(module_id): 
-            existing_server_port = self.server_registry()[module_id]['port']
-            
             if replace:
-                self.kill_port(existing_server_port)
+                self.kill_server(module_id)
             else: 
                 raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
     
-        self.__dict__['module_id'] = module_id
+        self.module_id = module_id
+
     
-        from commune.server import Server
+        Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, port=port, module = self )
+        
+        self.server_stats = dict(ip=server.ip, port=server.port)
+        
+        
         cls.register_server(name=module_id, server=server)
     
         
@@ -899,15 +904,74 @@ class Module:
     def get_annotations(fn:callable) -> dict:
         return fn.__annotations__
 
-
-
     @classmethod
-    def launch(cls, *args, mode:str='pm2', **kwargs ):
-        return getattr(cls, f'{mode}_launch')(*args, **kwargs)
-       
+    def start_server(cls,
+                module:str = None,  
+                name:Optional[str]=None, 
+                tag:str=None, 
+                device:str='0', 
+                interpreter:str='python3', 
+                refresh:bool=True, 
+                args = None, 
+                kwargs = None ):
+        
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+        kwargs['tag'] = tag
+        return cls.launch( 
+                   module = module,  
+                   fn = 'serve_module',
+                   name=name, 
+                   tag=tag, 
+                   args = args,
+                   kwargs = kwargs,
+                   device=device, 
+                   interpreter=interpreter, 
+                   refresh=refresh )
+      
+      
+    @classmethod
+    def stop(cls, path, mode:str = 'pm2'):
+        cls.pm2_stop(path)
+        
+        return path
+        
     
     ## PM2 LAND
-    
+    @classmethod
+    def launch(cls, 
+               module:str = None, 
+               fn: str = 'serve',
+               name:Optional[str]=None, 
+               tag:str=None, 
+               args : list = None,
+               kwargs: dict = None,
+               refresh:bool=True,
+               mode:str = 'pm2',
+               **extra_kwargs):
+        '''
+        Launch a module as pm2 or ray 
+        '''
+        
+        
+        if module == None:
+            module = cls.module_path()
+            
+        launch_kwargs = dict(
+                    module=module, 
+                   fn = fn,
+                   name=name, 
+                   tag=tag, 
+                   args = args,
+                   kwargs = kwargs,
+                   refresh=refresh,
+                   **extra_kwargs
+        )
+        
+        launch_fn = getattr(cls, f'{mode}_launch')
+        
+        
+        return launch_fn(**launch_kwargs)
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
@@ -1156,6 +1220,8 @@ class Module:
         module_class = cls.simple2object(module)
         actor['name'] = cls.resolve_module_id(name=name, tag=tag) 
 
+        name = cls.resolve_module_id(name=name, tag=tag)
+
         try:
             actor = cls.create_actor(cls=module_class,  cls_kwargs=kwargs, **actor)
             
@@ -1186,8 +1252,8 @@ class Module:
     def create_actor(cls,
                  name:str = None,
                  tag:str = None,
-                 cls_kwargs: dict = None,
-                 cls_args:list =None,
+                 kwargs: dict = None,
+                 args:list =None,
                  detached:bool=True, 
                  resources:dict={'num_cpus': 1.0, 'num_gpus': 0},
                  cpus:int = 0,
@@ -1195,11 +1261,12 @@ class Module:
                  max_concurrency:int=50,
                  refresh:bool=False,
                  verbose:bool= True,
-                 wrap:bool = False,
-                 **kwargs):
-        import ray
+                 virtual:bool = False):
+        import ray, torch
         
-        name = cls.resolve_module_id(name=name, tag=tag)
+        cls_kwargs = kwargs if kwargs else {}
+        cls_args = args if args else []
+        
         if cpus > 0:
             resources['num_cpus'] = cpus
         if gpus > 0:
@@ -1216,9 +1283,9 @@ class Module:
         # detatch the actor from the process when it finishes
         if detached:
             options_kwargs['lifetime'] = 'detached'
+            
         # setup class init config
         # refresh the actor by killing it and starting it (assuming they have the same name)
-        
         if refresh:
             if cls.actor_exists(name):
                 cls.kill_actor(actor=name,verbose=verbose)
@@ -1234,8 +1301,8 @@ class Module:
         actor = cls.get_actor(name)
 
         # wrap the actor with the client module 
-        if wrap:
-            actor = cls.wrap_actor(actor)
+        if virtual:
+            actor = cls.virtual_actor(actor)
 
         return actor
 
@@ -1256,7 +1323,7 @@ class Module:
         return ActorPool(actors=actors)
 
     @classmethod
-    def wrap_actor(cls, actor):
+    def virtual_actor(cls, actor):
         from commune.block.ray.client.ray_client import ClientModule
         return ClientModule(server=actor)
 
@@ -1297,13 +1364,18 @@ class Module:
             raise NotImplementedError
 
     @classmethod
-    def get_actor(cls ,actor_name, wrap=False):
+    def ray_actor(cls ,actor_name:str, virtual:bool=False):
+        '''
+        Gets the ray actor
+        '''
         import ray
         actor =  ray.get_actor(actor_name)
         # actor = Module.add_actor_metadata(actor)
-        if wrap:
-            actor = cls.wrap_actor(actor=actor)
+        if virtual:
+            actor = cls.virtual_actor(actor=actor)
         return actor
+    
+    get_actor = ray_actor
 
     @classmethod
     def ray_runtime_context(cls):
@@ -1322,25 +1394,26 @@ class Module:
 
     @staticmethod
     def ray_objects( *args, **kwargs):
-        import ray
+
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
     @classmethod
     def ray_actors(cls, state='ALIVE',names_only:bool = False, detail:bool=True, *args, **kwargs):
         import ray
-        
+        from ray.experimental.state.api import list_actors
+              
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
         kwargs['detail'] = detail
 
-        actor_info_list =  ray.experimental.state.api.list_actors(*args, **kwargs)
+        actor_info_list =  list_actors(*args, **kwargs)
         ray_actors = []
         for i, actor_info in enumerate(actor_info_list):
-            resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}
-            resource_list = actor_info_list[i].pop('resource_mapping', [])
+            # resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}
+            # resource_list = actor_info_list[i].pop('resource_mapping', [])
 
-            for resource in resource_list:
-                resource_map[resource['name'].lower()] = resource['resource_ids']
-            actor_info_list[i]['resources'] = resource_map
+            # for resource in resource_list:
+            #     resource_map[resource['name'].lower()] = resource['resource_ids']
+            # actor_info_list[i]['resources'] = resource_map
 
             try:
                 ray.get_actor(actor_info['name'])
@@ -1404,25 +1477,28 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(cls, inner_module: 'python::class' ,init_module:bool=False , serve:bool=False):
+    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False):
         '''
         Wraps a python class as a module
         '''
         
-        if isinstance(inner_module, str):
-            return cls.connect(inner_module)
+        if isinstance(module, str):
+            return cls.connect(module)
+        elif isinstance(module, dict):
+            return cls.connect(**module)
+            
         
         
         class ModuleWrapper(Module):
-            def __init__(self, inner_module: Any, **kwargs):
+            def __init__(self, module: Any, **kwargs):
                 
                 if init_module:
                     Module.__init__(self,**kwargs)
                     
-                self.inner_module = inner_module
+                self.module = module
                 
                 # merge the inner module into the wrappers
-                self.merge(inner_module)
+                self.merge(module)
                 
                 
             @property
@@ -1431,19 +1507,19 @@ class Module:
                 The name of the class
                 '''
                 
-                return self.inner_module.__class__.__name__
+                return self.module.__class__.__name__
             
             def __call__(self, *args, **kwargs):
-                return self.inner_module.__call__(self, *args, **kwargs)
+                return self.module.__call__(self, *args, **kwargs)
     
             def __str__(self):
-                return self.inner_module.__str__()
+                return self.module.__str__()
             
             def __repr__(self):
-                return self.inner_module.__repr__()   
+                return self.module.__repr__()   
 
 
-        module =  ModuleWrapper(inner_module=inner_module)
+        module =  ModuleWrapper(module=module)
         
         # serve the module if the bool is True
         if serve:
@@ -1529,6 +1605,8 @@ class Module:
         import nest_asyncio
         nest_asyncio.apply()
         
+    enable_jupyter = jupyter
+        
         
     @classmethod
     def int_to_ip(cls, *args, **kwargs):
@@ -1543,11 +1621,11 @@ class Module:
         return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
     
     @classmethod
-    def get_external_ip(cls, *args, **kwargs):
+    def get_external_ip(cls, *args, **kwargs) ->str:
         return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
 
     @classmethod
-    def external_ip(cls, *args, **kwargs):
+    def external_ip(cls, *args, **kwargs) -> str:
         return cls.get_external_ip(*args, **kwargs)
     
     
