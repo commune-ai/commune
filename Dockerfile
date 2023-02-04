@@ -93,5 +93,7 @@ RUN pip install openai
 RUN pip install google-search-results
 RUN pip install wikipedia
 RUN pip install pytest
+# BITTENSOR HAS AN OLD VERSION OF SUBSTRATE THIS UP TOO
+RUN pip install --upgrade substrate-interface
 
 

@@ -12,7 +12,6 @@ psutil
 munch
 streamlit
 langchain
-miniupnpc
 ray[default]
 torch
 substrate-interface

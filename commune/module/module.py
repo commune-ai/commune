@@ -877,7 +877,8 @@ class Module:
                 continue
             if callable(getattr(cls, f )):
                 function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}
-                
+              
+        self.function_signature_map = function_signature_map  
         return function_signature_map
     
     @classmethod
@@ -1207,21 +1208,20 @@ class Module:
                    actor: dict = None,  
                    name:Optional[str]=None, 
                    tag:str=None, 
-                   *args, 
-                   **kwargs):
+                   args:List = None, 
+                   kwargs:Dict = None):
         import ray
         """
         deploys process as an actor or as a class given the config (config)
         """
+        args = args if args != None else []
+        kwargs = kwargs if kwargs != None else {}
+        actor = actor if actor != None else {}
         
-        actor = actor if actor else {}
         module = module if module else cls.module_path()
         assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
         module_class = cls.simple2object(module)
         actor['name'] = cls.resolve_module_id(name=name, tag=tag) 
-
-        name = cls.resolve_module_id(name=name, tag=tag)
-
         try:
             actor = cls.create_actor(cls=module_class,  cls_kwargs=kwargs, **actor)
             
@@ -1250,6 +1250,7 @@ class Module:
     
     @classmethod
     def create_actor(cls,
+                 module : str = None,
                  name:str = None,
                  tag:str = None,
                  kwargs: dict = None,
@@ -1259,13 +1260,17 @@ class Module:
                  cpus:int = 0,
                  gpus:int = 0,
                  max_concurrency:int=50,
-                 refresh:bool=False,
+                 refresh:bool=True,
                  verbose:bool= True,
-                 virtual:bool = False):
+                 virtual:bool = True):
+        
+        # self.ray_init()
         import ray, torch
+        module = module if module != None else cls 
         
         cls_kwargs = kwargs if kwargs else {}
         cls_args = args if args else []
+        name = name if name != None else module.__name__
         
         if cpus > 0:
             resources['num_cpus'] = cpus
@@ -1291,19 +1296,26 @@ class Module:
                 cls.kill_actor(actor=name,verbose=verbose)
                 # assert not Module.actor_exists(name)
 
+        options_kwargs['namespace'] = 'default'
 
         # create the actor if it doesnt exisst
         # if the actor is refreshed, it should not exist lol (TODO: add a check)
+        
+
+        if not hasattr(module, 'set_module_id'):
+            def set_module_id(self, name):
+                self.module_id = name
+                return True
+            
+            module.set_module_id = set_module_id
+        
         if not cls.actor_exists(name):
-            actor_class = ray.remote(cls)
+            actor_class = ray.remote(module)
             actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
+            ray.get(actor_handle.set_module_id.remote(name))
+        actor = cls.get_actor(name, virtual=virtual)
 
-        actor = cls.get_actor(name)
-
-        # wrap the actor with the client module 
-        if virtual:
-            actor = cls.virtual_actor(actor)
-
+        
         return actor
 
     @staticmethod
@@ -1325,7 +1337,7 @@ class Module:
     @classmethod
     def virtual_actor(cls, actor):
         from commune.block.ray.client.ray_client import ClientModule
-        return ClientModule(server=actor)
+        return ClientModule(actor=actor)
 
     @classmethod
     def kill_actor(cls, actor, verbose=True):
@@ -1352,6 +1364,7 @@ class Module:
     @classmethod
     def actor_exists(cls, actor):
         import ray
+        print(actor)
         if isinstance(actor, str):
             try:
                 ray.get_actor(actor)
@@ -1364,7 +1377,7 @@ class Module:
             raise NotImplementedError
 
     @classmethod
-    def ray_actor(cls ,actor_name:str, virtual:bool=False):
+    def ray_actor(cls ,actor_name:str, virtual:bool=True):
         '''
         Gets the ray actor
         '''
@@ -1490,6 +1503,7 @@ class Module:
         
         
         class ModuleWrapper(Module):
+            __name__ = module.__class__.__name__
             def __init__(self, module: Any, **kwargs):
                 
                 if init_module:
@@ -1506,7 +1520,12 @@ class Module:
                 '''
                 The name of the class
                 '''
-                
+                return self.__name__
+            @classmethod
+            def __name__(cls) -> str:
+                '''
+                The name of the class
+                '''
                 return self.module.__class__.__name__
             
             def __call__(self, *args, **kwargs):
@@ -1531,6 +1550,12 @@ class Module:
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
+    def setattr(self, k, v):
+        setattr(self, k, v)
+        
+    # def set_module_id(self, module_id:str):
+    #     self.module_id = module_id
+    #     return module_id
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
         Set a dictionary to the slf attributes 

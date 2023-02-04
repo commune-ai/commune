@@ -8,8 +8,8 @@ import torch
 import random
 import sys, os
 
-from commune.utils import load_yaml, save_yaml, load_json, save_json, chunk
-import bittensor
+from commune.utils.dict import load_yaml, save_yaml, load_json, save_json, chunk
+
 import datasets
 import inspect
 from importlib import import_module
@@ -32,6 +32,11 @@ class HFDataset(commune.Module):
         self.load_dataset(path=path, name=name, split=split)
 
     def load_tokenizer(self, tokenizer=None): 
+        try:
+            import bittensor
+        except RuntimeError:
+            commune.new_event_loop()
+            import bittensor
         tokenizer = tokenizer if tokenizer else bittensor.tokenizer()
         self.tokenizer = tokenizer
         return self.tokenizer
@@ -271,12 +276,12 @@ class HFDataset(commune.Module):
 
 
     @classmethod
-    def streamlit(cls):
+    def test(cls):
         self = cls()
-        self.serve()
+        # self.serve()
         x = self.sample()
-        st.write(self.put_json('sample', dict(x)))
-        st.write(self.get_json('sample'))
+        print(self.put_json('sample', dict(x)))
+        print(self.get_json('sample'))
         
         st.write(self.glob_json())
 
