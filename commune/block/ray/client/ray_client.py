@@ -10,11 +10,11 @@ class ClientModule(Module):
     
     protected_keys = ['actor', 'fn_signature_map']
     
-    def __init__(self, actor=None, config=None, **kwargs):
-        Module.__init__(self, config=config)
+    def __init__(self, actor: 'ray.actor'=None, **kwargs):
         self.attributes_parsed = False
         self.set_actor(actor)
         self.actor = actor
+        ray.get(self.actor.module_name.remote())
 
         self.parse()
 
@@ -87,7 +87,7 @@ class ClientModule(Module):
 
 
     def parse(self):
-        fn_ray_method_signatures = 
+        self.fn_signature_map = {}
         for fn_key, fn_ray_method_signatures in self.actor._ray_method_signatures.items():
             self.fn_signature_map[fn_key] = fn_ray_method_signatures
             remote_fn = partial(self.remote_fn, fn_key)
@@ -116,10 +116,6 @@ class ClientModule(Module):
     def __setattr__(self, *args, **kwargs):
         Module.__setattr__(self,*args, **kwargs)
 
-    def __reduce__(self):
-        deserializer = ClientModule
-        serialized_data = (self.actor, self.config)
-        return deserializer, serialized_data
 
     def __repr__(self):
         return 'ClientWrapped'
