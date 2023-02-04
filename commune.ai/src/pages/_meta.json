@@ -1,14 +1,10 @@
 {
+  "index" : {
+    "title" : "Home"
+  },
   "docs": {
     "title": "Documentation",
-    "type": "page",
-    "theme": {
-        "breadcrumb": true,
-        "footer": false,
-        "sidebar": true,
-        "toc": false,
-        "pagination": true
-      }
+    "type": "page"
   },
 
   "about": {
