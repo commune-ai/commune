@@ -22,7 +22,7 @@ model = LLMModel()
 model= commune.module(model)
 
 # list functions of this module
-model.functions()
+model.get_functions()
 
 # turn it into a remote server (via gprpc):
 

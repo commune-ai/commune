@@ -36,7 +36,8 @@ class VirtualModule:
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
     def remote_call(self, fn: str, *args, **kwargs):
-
+        
+        
         return self.module_client(fn=fn, args=args, kwargs=kwargs)
             
     def sync_module_attributes(self, include_hiddden: bool = False):

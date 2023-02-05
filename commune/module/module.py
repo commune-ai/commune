@@ -56,7 +56,8 @@ class Module:
         
         '''
         
-        return cls.get_module_path(simple=simple)
+        file = cls.get_module_path(simple=simple)
+        return file
     
     
     @classmethod
@@ -84,7 +85,9 @@ class Module:
             commune/model/transformer/dataset.py -> model.transformer
         
         '''
-        return cls.__file__(simple=True)
+        file =  cls.__file__(simple=True)
+
+        return file
     
     
     @classmethod
@@ -99,7 +102,10 @@ class Module:
         '''
         Another name for the module path
         '''
-        return cls.module_path()
+        if hasattr(cls, 'module_name_class'):
+            return cls.module_name_class
+        
+        return cls.__name__
 
     
     @property
@@ -176,14 +182,6 @@ class Module:
             config =  dict2munch(config)
         
         return config
-
-    @property
-    def class_name(self) -> str:
-        '''
-        The name of the class
-        '''
-        
-        return self.__class__.__name__
 
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
@@ -453,7 +451,9 @@ class Module:
 
     @classmethod
     def path2simple(cls, path:str) -> str:
+
         simple_path =  path.split(deepcopy(cls.root_dir))[-1]
+        print(simple_path)
         simple_path = os.path.dirname(simple_path)
         simple_path = simple_path.replace('.py', '')
         simple_path = simple_path.replace('/', '.')[1:]
@@ -498,9 +498,15 @@ class Module:
         return cls.import_object(path)
 
     @classmethod
-    def get_module(cls, path:str) -> str:
-        path = cls.simple2path(path)
-        path = cls.path2objectpath(path)
+    def get_module(cls, path:str, verbose:bool = True) -> str:
+        
+        try:
+            path = cls.simple2path(path)
+            path = cls.path2objectpath(path)
+        except KeyError as e:
+            cls.print(f'{e}', verbose=verbose)
+            
+            
         return cls.import_object(path)
 
     @classmethod
@@ -532,7 +538,6 @@ class Module:
         # convert into simple
         if simple:
             module_path = cls.path2simple(path=module_path)
-
         return module_path
 
 
@@ -745,9 +750,7 @@ class Module:
   
     @classmethod
     def is_module(cls, obj=None):
-        if obj == None:
-            obj = cls
-        return Module in cls.get_parents(obj)
+        return hasattr(cls, 'module_name')
 
     @classmethod
     def new_event_loop(cls):
@@ -779,8 +782,8 @@ class Module:
         return loop
 
     @classmethod
-    def resolve_module_id(cls, name:str=None, tag:str=None):
-        module_id = name if name else cls.module_name()
+    def get_module_id(cls, name:str=None, tag:str=None):
+        module_id = name if name else clsget_module_name()
             
         if tag:
             module_id = f'{module_id}::{tag}'
@@ -793,13 +796,6 @@ class Module:
         
         
     def serve(self, name=None , *args, **kwargs):
-        if self.class_name != 'Module' and self.module_name() == 'module':
-            name = self.class_name if name == None else name
-        else:
-            name = name if name else self.module_name()
-            
-            
-        name = name if name else str(self.class_name)
         return self.serve_module( *args, module = self, name=name, **kwargs)
         
     @classmethod
@@ -826,8 +822,10 @@ class Module:
         
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
+        name = name if name != None else self.module_name()
+        
         tag = tag if tag else self.module_tag
-        module_id = self.resolve_module_id(name=name, tag=tag)
+        module_id = self.get_module_id(name=name, tag=tag)
            
         '''check if the server exists'''
         if self.server_exists(module_id): 
@@ -850,21 +848,38 @@ class Module:
         
         server.serve(wait_for_termination=wait_for_termination)
         
-    
+        
+    def functions(self, include_module=False):
+        functions = self.get_functions(obj=self)
+        if not include_module:
+            module_functions = self.get_functions(obj=Module)
+            new_functions = []
+            for f in functions:
+                if f not in module_functions:
+                    new_functions.append(f)
+            functions = new_functions
+        
+        
+        return functions
+
+        
     @classmethod
-    def functions(cls, obj:Any=None, exclude_module:bool = False,) -> List[str]:
+    def get_functions(cls, obj:Any=None, exclude_module:bool = False,) -> List[str]:
         '''
         List of functions
         '''
         from commune.utils.function import get_functions
+        
+        print(obj)
         obj = obj if obj else cls
         
-        
+
         functions = get_functions(obj=obj)
-        if exclude_module :
-            module_functions = Module.functions()
+        
+        # if exclude_module :
+        #     module_functions = Module.get_functions()
             
-            functions = [f for f in functions if f not in module_functions]
+        #     functions = [f for f in functions if f not in module_functions]
             
         return functions
 
@@ -872,7 +887,7 @@ class Module:
     def function_signature_map(cls, exclude_module:bool = False):
         from commune.utils.function import get_function_signature
         function_signature_map = {}
-        for f in cls.functions():
+        for f in cls.get_functions():
             if f.startswith('__') and f.endswith('__'):
                 continue
             if callable(getattr(cls, f )):
@@ -881,23 +896,41 @@ class Module:
         self.function_signature_map = function_signature_map  
         return function_signature_map
     
-    @classmethod
-    def function_schema_map(cls):
+    def function_schema_map(self, include_hidden:bool = False, include_module:bool = False):
         function_schema_map = {}
-        for f in cls.functions():
-            if f.startswith('__') and f.endswith('__'):
-                continue
-            if callable(getattr(cls, f )):
-                function_schema_map[f] = {k:str(v) for k,v in getattr(cls, f ).__annotations__.items()}
+        for fn in self.functions(include_module=include_module):
+            if not include_hidden:
+                if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
+                    continue
+            if callable(getattr(self, fn )):
+                function_schema_map[fn] = {}
+                for fn_k, fn_v in getattr(self, fn ).__annotations__.items():
+                    
+                    fn_v = str(fn_v)
+                    print(fn_v, fn_v.startswith('<class'))
+                    if fn_v == inspect._empty:
+                        function_schema_map[fn][fn_k] = 'Any'
+                    elif fn_v.startswith('<class'):
+                        function_schema_map[fn][fn_k] = fn_v.split("'")[1]
+                    else:
+                        function_schema_map[fn][fn_k] = fn_v
                 
         return function_schema_map
     
     @classmethod
-    def function_schema(cls, f:str)->dict:
+    def get_function_schema(cls, fn:str)->dict:
         '''
         Get function schema of function in cls
         '''
-        fn = getattr(cls, f)
+        if not callable(fn):
+            fn = getattr(cls, fn)
+        fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
+        return fn_schema
+    def function_schema(self, fn:str)->dict:
+        '''
+        Get function schema of function in cls
+        '''
+        fn = getattr(self, fn)
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
 
@@ -998,7 +1031,7 @@ class Module:
         module = module if module else cls.module_path()
         module_path = cls.simple2path(module)
         assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
-        pm2_name = cls.resolve_module_id(name=name, tag=tag) 
+        pm2_name = cls.get_module_id(name=name, tag=tag) 
 
         command = f" pm2 start {module_path} --name {pm2_name} --interpreter {interpreter}"
         kwargs_str = json.dumps(kwargs).replace('"', "'")
@@ -1211,25 +1244,32 @@ class Module:
                    args:List = None, 
                    kwargs:Dict = None):
         import ray
+        # cls.ray_init()
         """
         deploys process as an actor or as a class given the config (config)
         """
         args = args if args != None else []
         kwargs = kwargs if kwargs != None else {}
         actor = actor if actor != None else {}
-        
-        module = module if module else cls.module_path()
-        assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
-        module_class = cls.simple2object(module)
-        actor['name'] = cls.resolve_module_id(name=name, tag=tag) 
-        try:
-            actor = cls.create_actor(cls=module_class,  cls_kwargs=kwargs, **actor)
-            
-        except ray.exceptions.RayActorError:
-            # try it again but with refresh set to true
-            actor['refresh'] = True
-            actor = cls.create_actor(cls=module_class, cls_kwargs=kwargs, **actor)
+        module_class = None
+        if isinstance(module, str):
+            module_class = cls.get_module(module)
+        elif isinstance(module, type(None)) :
+            module_class = cls
 
+        else:
+            module_class = module
+            
+        if is_module(module_class):
+            name = module_class.module_name()
+        else:
+            name = module_class.__name__
+        
+        name = cls.get_module_id(name=name, tag=tag) 
+        
+        actor['name'] = name
+        actor = cls.create_actor(module=module_class,  kwargs=kwargs, **actor)
+            
         return actor 
 
     default_ray_env = {'address':'auto', 
@@ -1342,29 +1382,29 @@ class Module:
     @classmethod
     def kill_actor(cls, actor, verbose=True):
         import ray
-
-        if isinstance(actor, str):
-            if cls.actor_exists(actor):
-                actor = ray.get_actor(actor)
-            else:
-                if verbose:
-                    print(f'{actor} does not exist for it to be removed')
-                return None
+        killed_actors = None
+        if isinstance(actor, list):
+            killed_actors = []
+            for a in actor:
+                killed_actors.append(cls.kill_actor(a))
+                
+        else:
+            if isinstance(actor, str):
+                if cls.actor_exists(actor):
+                    actor = ray.get_actor(actor)
+                else:
+                    if verbose:
+                        print(f'{actor} does not exist for it to be removed')
+                    return None
+                ray.kill(actor)
+                killed_actors = actor
         
-        return ray.kill(actor)
+            return killed_actors
         
-    @classmethod
-    def kill_actors(cls, actors:list):
-        return_list = []
-        for actor in actors:
-            return_list.append(cls.kill_actor(actor))
-        
-        return return_list
-            
+       
     @classmethod
     def actor_exists(cls, actor):
         import ray
-        print(actor)
         if isinstance(actor, str):
             try:
                 ray.get_actor(actor)
@@ -1411,7 +1451,7 @@ class Module:
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
     @classmethod
-    def ray_actors(cls, state='ALIVE',names_only:bool = False, detail:bool=True, *args, **kwargs):
+    def ray_actors(cls, state='ALIVE', names_only:bool = True,detail:bool=True, *args, **kwargs):
         import ray
         from ray.experimental.state.api import list_actors
               
@@ -1422,22 +1462,16 @@ class Module:
         ray_actors = []
         for i, actor_info in enumerate(actor_info_list):
             # resource_map = {'memory':  Module.get_memory_info(pid=actor_info['pid'])}
-            # resource_list = actor_info_list[i].pop('resource_mapping', [])
-
-            # for resource in resource_list:
-            #     resource_map[resource['name'].lower()] = resource['resource_ids']
-            # actor_info_list[i]['resources'] = resource_map
-
-            try:
-                ray.get_actor(actor_info['name'])
+            resource_list = actor_info_list[i].pop('resource_mapping', [])
+            resource_map = {}
+            for resource in resource_list:
+                resource_map[resource['name'].lower()] = resource['resource_ids']
+            actor_info_list[i]['resources'] = resource_map
+            if names_only:
+                ray_actors.append(actor_info_list[i]['name'])
+            else:
                 ray_actors.append(actor_info_list[i])
-            except ValueError as e:
-                pass
             
-            
-        if names_only:
-            return list(ray_actors.keys())
-
         return ray_actors
     
     @classmethod
@@ -1490,7 +1524,7 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False):
+    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False, return_class:bool = False):
         '''
         Wraps a python class as a module
         '''
@@ -1499,12 +1533,12 @@ class Module:
             return cls.connect(module)
         elif isinstance(module, dict):
             return cls.connect(**module)
-            
         
-        
+        # serve the module if the bool is True
+
         class ModuleWrapper(Module):
-            __name__ = module.__class__.__name__
-            def __init__(self, module: Any, **kwargs):
+            module_class_name = module.__class__.__name__
+            def __init__(self, **kwargs):
                 
                 if init_module:
                     Module.__init__(self,**kwargs)
@@ -1513,39 +1547,28 @@ class Module:
                 
                 # merge the inner module into the wrappers
                 self.merge(module)
-                
-                
-            @property
-            def class_name(self) -> str:
-                '''
-                The name of the class
-                '''
-                return self.__name__
             @classmethod
-            def __name__(cls) -> str:
-                '''
-                The name of the class
-                '''
-                return self.module.__class__.__name__
+            def module_name(cls): 
+                return cls.module_class_name
             
             def __call__(self, *args, **kwargs):
                 return self.module.__call__(self, *args, **kwargs)
-    
+
             def __str__(self):
                 return self.module.__str__()
             
             def __repr__(self):
                 return self.module.__repr__()   
-
-
-        module =  ModuleWrapper(module=module)
         
-        # serve the module if the bool is True
-        if serve:
-            if isinstance(serve, bool):
-                serve = {}
-            module.serve(**serve)
-            
+        
+        if return_class:
+            return ModuleWrapper
+        else:
+            module = ModuleWrapper()
+            if serve:
+                module.serve()
+            return module
+        
         return module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
@@ -1553,9 +1576,12 @@ class Module:
     def setattr(self, k, v):
         setattr(self, k, v)
         
-    # def set_module_id(self, module_id:str):
-    #     self.module_id = module_id
-    #     return module_id
+    def default_module_id(self):
+        return self.get_module_name()
+    
+    def set_module_id(self, module_id:str):
+        self.module_id = module_id
+        return module_id
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
         Set a dictionary to the slf attributes 
@@ -1613,11 +1639,15 @@ class Module:
         return module
         
     @classmethod
-    def print(cls, text:str, color:str='white', return_text:bool=False):
-        logger = cls.import_object('commune.logger.Logger')
-        return logger.print(text=text, color=color, return_text=return_text)
-
-
+    def print(cls, text:str, color:str='white', return_text:bool=False, verbose:bool = True):
+        if verbose:
+            logger = cls.import_object('commune.logger.Logger')
+            return logger.print(text=text, color=color, return_text=return_text)
+    
+    @classmethod
+    def log(cls, text:str, color:str='white', return_text:bool=False, verbose:bool = True):
+        return cls.print(text=text, color=color, return_text=return_text, verbose=verbose)
+    
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
@@ -1660,6 +1690,12 @@ class Module:
     def upnpc_create_port_map(cls, port:int):
         return cls.import_object('commune.utils.network.upnpc_create_port_map')(port=port)
 
+    @classmethod
+    def set_env(cls, key:str, value:str)-> None:
+        import os
+        os.environ[key] = value
+        return value
+    
 Block = Lego = Module
 if __name__ == "__main__":
     module.run()
