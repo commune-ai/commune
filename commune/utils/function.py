@@ -30,12 +30,11 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
     # if not include_parents:
     #     parent_fn_list = get_parent_functions(cls)
     #     st.write(parent_fn_list)
-    cls = resolve_class(obj)
     
     parent_fn_list = []
     # if include_parents:
     #     parent_fn_list = get_parent_functions(cls)
-    for fn_name in dir(cls):
+    for fn_name in dir(obj):
         
         # skip hidden functions if include_hidden is False
         if (include_hidden==False) and \
@@ -49,7 +48,7 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
 
 
         # if the function is a property, skip it
-        if callable(getattr(cls, fn_name)):
+        if callable(getattr(obj, fn_name)):
             fn_list.append(fn_name)
     return fn_list
 
