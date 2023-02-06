@@ -34,25 +34,23 @@ export default function PageNavbar() {
           <li className={` ${router.asPath.includes("/Modules") ? "text-indigo-700 opacity-60" : "text-[#111111]"}  hover:text-indigo-700 font-bold hover:opacity-60 transition-opacity duration-200`}><a href="/Modules">Modules</a></li>
           <li className={`${router.asPath.includes("/Datasets") ? "text-red-700 opacity-60" : "text-[#111111]"}  hover:text-red-700 font-bold hover:opacity-60 transition-opacity duration-200`}><a href="/Datasets">Datasets</a></li>
           <li className={`${router.asPath.includes("/Pipelines") ? "text-blue-700 opacity-60" : "text-[#111111]"} hover:text-blue-700 font-bold hover:opacity-60 transition-opacity duration-200`}><a href="/Pipelines">Pipelines</a></li>
-          <li className="text-[#111111] hover:text-yellow-700 font-bold hover:opacity-60 transition-opacity duration-200"><a href="/about">About</a></li>
-          <li className="text-[#111111] hover:text-green-700 font-bold hover:opacity-60 transition-opacity duration-200"><a href="/docs">Documentation</a></li>
+          <li className="text-[#111111] hover:text-yellow-700 font-bold hover:opacity-60 transition-opacity duration-200"><a href="/about" target="_blank" rel="noopener noreferrer">About</a></li>
+          <li className="text-[#111111] hover:text-green-700 font-bold hover:opacity-60 transition-opacity duration-200"><a href="/docs" target="_blank" rel="noopener noreferrer">Documentation</a></li>
           
         </ul>
 
-        <ul className="  invisible flex items-center justify-center gap-4 xl:visible">
-          <li className="lg:text-[#ffffff] transition-colors font-bold hover:animate-pulse duration-200 w-[178px] bg-gradient-to-r from-[#bfc3f3ac] to-[#7e88f0] h-auto rounded-lg"><a href="https://discord.gg/MGsyECMkG7"><p className=" text-xs float-left relative py-1 text-black"> 👋 Join The Community</p><FaDiscord className="w-6 h-6 float-right pr-2"/></a></li>
-          <li className="lg:text-[#000000] transition-colors font-bold hover:animate-pulse duration-200 w-[70px] bg-gradient-to-r from-[#c9eec3ac] to-[#7ef0b7] h-auto rounded-lg"><a href="https://github.com/commune-ai"><p className=" text-xs float-left relative py-1 pl-1">Github</p><FaGithub className="w-6 h-6 float-right py-1 text-blue-50"/></a></li>
+        <ul className="  invisible flex items-center justify-center gap-2 xl:visible">
+          <li className="lg:text-[#ffffff] transition-colors font-bold hover:animate-pulse duration-200 w-[178px] bg-gradient-to-r from-[#bfc3f3ac] to-[#7e88f0] h-auto rounded-lg hover:shadow-md shadow-sm"><a href="https://discord.gg/MGsyECMkG7"><p className=" text-xs float-left relative py-1 text-black"> 👋 Join The Community</p><FaDiscord className="w-6 h-6 float-right pr-2"/></a></li>
+          <li className="lg:text-[#000000] transition-colors font-bold hover:animate-pulse duration-200 w-[70px] bg-gradient-to-r from-[#c9eec3ac] to-[#7ef0b7] h-auto rounded-lg hover:shadow-md shadow-sm"><a href="https://github.com/commune-ai "><p className=" text-xs float-left relative py-1 pl-1">Github</p><FaGithub className="w-6 h-6 float-right py-1 text-blue-50"/></a></li>
         </ul>
         </div>
-
-
 
         <ul className={` visible flex flex-col items-center justify-center w-full gap-0 xl:invisible  ${open ? " xl:hidden " : "hidden"} `}>
           <li className={` ${router.asPath.includes("/Modules") ? "text-indigo-700 opacity-60" : "text-[#111111]"} hover:text-indigo-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2 `}><a href="/Modules">Modules</a></li>
           <li className={`${router.asPath.includes("/Datasets") ? "text-red-700 opacity-60" : "text-[#111111]"}  hover:text-red-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/Datasets">Datasets</a></li>
           <li className={`${router.asPath.includes("/Pipelines") ? "text-blue-700 opacity-60" : "text-[#111111]"} hover:text-blue-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/Pipelines">Pipelines</a></li>
-          <li className={`text-[#111111] hover:text-yellow-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/about">About</a></li>
-          <li className={`text-[#111111] hover:text-green-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/docs">Documentation</a></li>
+          <li className={`text-[#111111] hover:text-yellow-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/about" target="_blank" rel="noopener noreferrer">About</a></li>
+          <li className={`text-[#111111] hover:text-green-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/docs" target="_blank" rel="noopener noreferrer">Documentation</a></li>
           <li className={`lg:text-[#ffffff] transition-colors font-bold hover:animate-pulse duration-200 w-full bg-gradient-to-r from-[#bfc3f3ac] to-[#7e88f0] h-auto py-2 text-center`}><a href="https://discord.gg/MGsyECMkG7" className='flex flex-row'><p className=" absolute text-md mx-auto relative mt-2 text-black"> 👋 Join The Community <FaDiscord className="w-9 h-9 pr-2 -sml-2 -mt-1 float-right text-white"/></p></a></li>
           <li className={`lg:text-[#000000] transition-colors font-bold hover:animate-pulse duration-200 w-full bg-gradient-to-r from-[#c9eec3ac] to-[#7ef0b7] h-auto rounded-b-lg py-2`}><a href="https://github.com/commune-ai"><FaGithub className="w-9 h-9 py-1 text-blue-50 mx-auto"/></a></li>
         </ul>
