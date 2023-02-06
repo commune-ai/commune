@@ -14,6 +14,7 @@ def test_create_actor():
             return 'bro'
         
     print(DemoClass().__dict__)
+    commune.ray_launch(commune.module(DemoClass)).serve()
 
     agent = commune.module(DemoClass)
     hasattr(agent, 'module_id')
@@ -28,32 +29,7 @@ def test_create_actor():
     
     commune.kill_actor(agent.module_id)
     assert commune.actor_exists(module_id) == False
-    
-    
-
-def test_wrapped_actor():
-    
-    class DemoClass:
-
-        def bro(self):
-            return 'bro'
-
-    agent = commune.module(DemoClass)
-    hasattr(agent, 'module_id')
-    demo_module = commune.module(DemoClass)
-    agent = commune.ray_launch(demo_module, refresh=True, virtual=True)
-    module_id = agent.module_id
-    assert commune.actor_exists(module_id) == True
-    
-    # call the function
-    assert agent.bro() == 'bro'
-    
-    assert agent.wrapped_module == DemoClass.wrapped_module
-    
-    commune.kill_actor(agent.module_id)
-    assert commune.actor_exists(module_id) == False
-    
-     
+       
     
 
     
