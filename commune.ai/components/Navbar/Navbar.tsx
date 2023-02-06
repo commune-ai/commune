@@ -47,7 +47,7 @@ export default function PageNavbar() {
 
 
 
-        <ul className={` visible flex flex-col items-center justify-center w-full gap-0 xl:invisible  ${open ? " " : "hidden"} `}>
+        <ul className={` visible flex flex-col items-center justify-center w-full gap-0 xl:invisible  ${open ? " xl:hidden " : "hidden"} `}>
           <li className={` ${router.asPath.includes("/Modules") ? "text-indigo-700 opacity-60" : "text-[#111111]"} hover:text-indigo-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2 `}><a href="/Modules">Modules</a></li>
           <li className={`${router.asPath.includes("/Datasets") ? "text-red-700 opacity-60" : "text-[#111111]"}  hover:text-red-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/Datasets">Datasets</a></li>
           <li className={`${router.asPath.includes("/Pipelines") ? "text-blue-700 opacity-60" : "text-[#111111]"} hover:text-blue-700 font-bold hover:opacity-60 transition-opacity duration-200 py-2`}><a href="/Pipelines">Pipelines</a></li>
