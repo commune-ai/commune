@@ -1002,6 +1002,9 @@ class Module:
                    **extra_kwargs
         )
         
+        if mode == 'ray':
+            del launch_kwargs['fn']
+        
         launch_fn = getattr(cls, f'{mode}_launch')
         
         
@@ -1242,6 +1245,7 @@ class Module:
                    name:Optional[str]=None, 
                    tag:str=None, 
                    args:List = None, 
+                   refresh:bool = False,
                    kwargs:Dict = None):
         import ray
         # cls.ray_init()
@@ -1260,7 +1264,7 @@ class Module:
         else:
             module_class = module
             
-        if is_module(module_class):
+        if cls.is_module(module_class):
             name = module_class.module_name()
         else:
             name = module_class.__name__
@@ -1268,6 +1272,7 @@ class Module:
         name = cls.get_module_id(name=name, tag=tag) 
         
         actor['name'] = name
+        actor['refresh'] = refresh
         actor = cls.create_actor(module=module_class,  kwargs=kwargs, **actor)
             
         return actor 
@@ -1388,16 +1393,15 @@ class Module:
             for a in actor:
                 killed_actors.append(cls.kill_actor(a))
                 
-        else:
-            if isinstance(actor, str):
-                if cls.actor_exists(actor):
-                    actor = ray.get_actor(actor)
-                else:
-                    if verbose:
-                        print(f'{actor} does not exist for it to be removed')
-                    return None
-                ray.kill(actor)
-                killed_actors = actor
+        elif isinstance(actor, str):
+            if cls.actor_exists(actor):
+                actor = ray.get_actor(actor)
+            else:
+                if verbose:
+                    print(f'{actor} does not exist for it to be removed')
+                return None
+            ray.kill(actor)
+            killed_actors = actor
         
             return killed_actors
         
@@ -1524,52 +1528,50 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False, return_class:bool = False):
+    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False):
         '''
         Wraps a python class as a module
         '''
         
         if isinstance(module, str):
-            return cls.connect(module)
-        elif isinstance(module, dict):
-            return cls.connect(**module)
+            module = cls.get_module(module)
+
         
         # serve the module if the bool is True
-
+        is_class = cls.is_class(module)
+        _module_class = module if is_class else module.__class__
         class ModuleWrapper(Module):
-            module_class_name = module.__class__.__name__
-            def __init__(self, **kwargs):
-                
+            module_class = _module_class
+            def __init__(self, *args,**kwargs): 
                 if init_module:
                     Module.__init__(self,**kwargs)
-                    
-                self.module = module
+                if is_class:
+                    self.module = self.module_class(*args, **kwargs)
+                else:
+                    self.module = module
                 
                 # merge the inner module into the wrappers
-                self.merge(module)
+                self.merge(self.module)
             @classmethod
             def module_name(cls): 
-                return cls.module_class_name
+                return cls.module_class.__name__
             
             def __call__(self, *args, **kwargs):
                 return self.module.__call__(self, *args, **kwargs)
 
-            def __str__(self):
-                return self.module.__str__()
+            @classmethod
+            def __str__(cls):
+                return self.module_class.__str__()
             
             def __repr__(self):
                 return self.module.__repr__()   
         
-        
-        if return_class:
+        if is_class:
             return ModuleWrapper
         else:
-            module = ModuleWrapper()
-            if serve:
-                module.serve()
-            return module
-        
-        return module
+            return ModuleWrapper()
+            
+        # return module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -1683,6 +1685,9 @@ class Module:
     def external_ip(cls, *args, **kwargs) -> str:
         return cls.get_external_ip(*args, **kwargs)
     
+    @staticmethod
+    def is_class(module: Any) -> bool:
+        return type(module).__name__ == 'type' 
     
     external_ip = get_external_ip
     
