@@ -144,8 +144,8 @@ class Module:
         
         # if the config file does not exist, then create one where the python path is
         
-        if not os.path.exists(__config_file__):
-            cls.save_config(config=cls.minimal_config(), path=__config_file__)
+        # if not os.path.exists(__config_file__):
+        #     cls.save_config(config=cls.minimal_config(), path=__config_file__)
             
         return __config_file__
 
