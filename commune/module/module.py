@@ -28,10 +28,10 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     
-    def __init__(self, config:Dict=None, *args,  **kwargs):
+    def __init__(self, config:Dict=None, save_config_if_not_exists:bool=False, *args,  **kwargs):
         
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, kwargs =  kwargs)        
+        self.set_config(config=config, kwargs =  kwargs, save_if_not_exists=save_config_if_not_exists)        
 
     def getattr(self, k)-> Any:
         return getattr(self,  k)
@@ -143,10 +143,7 @@ class Module:
         __config_file__ =  cls.__file__().replace('.py', '.yaml')
         
         # if the config file does not exist, then create one where the python path is
-        
-        # if not os.path.exists(__config_file__):
-        #     cls.save_config(config=cls.minimal_config(), path=__config_file__)
-            
+
         return __config_file__
 
 
@@ -164,7 +161,7 @@ class Module:
         cls.load_config( *args, **kwargs)
 
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = True) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None, to_munch:bool = True, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
@@ -173,7 +170,11 @@ class Module:
         from commune.utils.dict import dict2munch, load_yaml
         
         path = path if path else cls.__config_file__()
-        
+            
+        if save_if_not_exists:    
+            if not os.path.exists(__config_file__):
+                cls.save_config(config=cls.minimal_config(), path=__config_file__)
+                
         if not os.path.exists(path):
             cls.save_config({'module': cls.__name__})
         config = load_yaml(path)
@@ -202,7 +203,7 @@ class Module:
     
 
 
-    def set_config(self, config:Optional[Union[str, dict]]=None, kwargs:dict={}):
+    def set_config(self, config:Optional[Union[str, dict]]=None, kwargs:dict={}, save_if_not_exists:bool = False):
         '''
         Set the config as well as its local params
         '''
@@ -224,7 +225,7 @@ class Module:
         elif type(config) in[Munch]:
             config = munch2dict(config)
         elif type(config) in [str, type(None)]:
-            config = self.load_config(path=config)
+            config = self.load_config(path=config, save_if_not_exists=False)
         
         config.update(kwargs)
         
@@ -1241,20 +1242,20 @@ class Module:
     @classmethod 
     def ray_launch(cls, 
                    module= None, 
-                   actor: dict = None,  
                    name:Optional[str]=None, 
                    tag:str=None, 
                    args:List = None, 
                    refresh:bool = False,
-                   kwargs:Dict = None):
+                   kwargs:Dict = None, 
+                   **actor_kwargs):
+        
         import ray
-        # cls.ray_init()
+        cls.ray_init()
         """
         deploys process as an actor or as a class given the config (config)
         """
         args = args if args != None else []
         kwargs = kwargs if kwargs != None else {}
-        actor = actor if actor != None else {}
         module_class = None
         if isinstance(module, str):
             module_class = cls.get_module(module)
@@ -1271,9 +1272,10 @@ class Module:
         
         name = cls.get_module_id(name=name, tag=tag) 
         
-        actor['name'] = name
-        actor['refresh'] = refresh
-        actor = cls.create_actor(module=module_class,  kwargs=kwargs, **actor)
+        actor_kwargs['name'] = name
+        actor_kwargs['refresh'] = refresh
+        
+        actor = cls.create_actor(module=module_class,  kwargs=kwargs, **actor_kwargs)
             
         return actor 
 
@@ -1404,6 +1406,9 @@ class Module:
             killed_actors = actor
         
             return killed_actors
+        elif hasattr(actor, 'module_id'):
+            return self.kill_actor(actor.module_id, verbose=verbose)
+            
         
        
     @classmethod
@@ -1559,13 +1564,11 @@ class Module:
             def __call__(self, *args, **kwargs):
                 return self.module.__call__(self, *args, **kwargs)
 
-            @classmethod
-            def __str__(cls):
-                return self.module_class.__str__()
+            def __str__(self):
+                return self.module.__str__()
             
             def __repr__(self):
                 return self.module.__repr__()   
-        
         if is_class:
             return ModuleWrapper
         else:
