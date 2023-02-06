@@ -1,5 +1,6 @@
 import Image from "next/image"
 import PageNavbar from "components/Navbar/Navbar"
+import Module from "components/Module/module"
 
 export default function Modules(){
     return (<div className=" fixed h-full w-full flex bg-blue-50">
@@ -7,7 +8,9 @@ export default function Modules(){
          <Image src={"/projects-blur.png"} className=" fixed w-full h-screen pointer-events-none" alt="" width="64" height="64"/>
          
          <main className="flex flex-col w-full items-center justify-center" style={{'paddingTop' : "8rem", "paddingBottom" : "8rem"}}>
-            
+
+
+         <Module colour={"bg-gradient-to-bl from-Peach-Yellow to-Peach-Red"} title={"LangeChain"} emoji={"🦜🔗"}/>
             {/* <div className="max-w-xl px-5 xl:px-0">
                <h1 className="bg-gradient-to-br from-black to-stone-500 bg-clip-text text-center font-display font-bold tracking-[-0.02em] text-transparent drop-shadow-sm md:leading-[5rem]" style={{ 'fontSize' : "70px", "opacity" : 1, "transform" : "none"}}>Commune Modules</h1>
                <p className="mt-6 text-center text-gray-500 md:text-xl text-lg" style={{"opacity" : 1, "transform" : "none"}}>Discover some Community Module</p>

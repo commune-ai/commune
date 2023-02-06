@@ -1,7 +1,7 @@
 import { FaGithub, FaDiscord, FaBars, FaTimes } from 'react-icons/fa';
 import { useRouter } from 'next/router'
 import { useState, useEffect } from 'react';
-
+import Image from 'next/image';
 
 
 export default function PageNavbar() {
@@ -29,7 +29,7 @@ export default function PageNavbar() {
           { open ? <FaTimes className='w-6 h-6 py-1 text-gray-900' onClick={() => {set(prev => (!prev))}}/> : (<FaBars className="w-6 h-6 py-1 text-gray-900" onClick={() => {set(prev => (!prev))}}/>)}
       </div>
       <a className="absolute xl:left-0" href="/"><h1 className="text-black font-bold text-xl">Commune</h1>  </a> 
-       {/* <Image className="w-20 h-20" src={"/next.svg"} height={10} width={10} alt="Logo"/> */}
+      {/* <a className={`xl:mx-auto -mt-2`} href="/"><Image className=" w-40 h-40" src={"/Commune.svg"} height={10} width={10} alt="Logo"/></a>  */}
         <ul className=" invisible flex items-center justify-center w-full gap-8 xl:visible">
           <li className={` ${router.asPath.includes("/Modules") ? "text-indigo-700 opacity-60" : "text-[#111111]"}  hover:text-indigo-700 font-bold hover:opacity-60 transition-opacity duration-200`}><a href="/Modules">Modules</a></li>
           <li className={`${router.asPath.includes("/Datasets") ? "text-red-700 opacity-60" : "text-[#111111]"}  hover:text-red-700 font-bold hover:opacity-60 transition-opacity duration-200`}><a href="/Datasets">Datasets</a></li>
@@ -40,8 +40,8 @@ export default function PageNavbar() {
         </ul>
 
         <ul className="  invisible flex items-center justify-center gap-2 xl:visible">
-          <li className="lg:text-[#ffffff] transition-colors font-bold hover:animate-pulse duration-200 w-[178px] bg-gradient-to-r from-[#bfc3f3ac] to-[#7e88f0] h-auto rounded-lg hover:shadow-md shadow-sm"><a href="https://discord.gg/MGsyECMkG7"><p className=" text-xs float-left relative py-1 text-black"> 👋 Join The Community</p><FaDiscord className="w-6 h-6 float-right pr-2"/></a></li>
-          <li className="lg:text-[#000000] transition-colors font-bold hover:animate-pulse duration-200 w-[70px] bg-gradient-to-r from-[#c9eec3ac] to-[#7ef0b7] h-auto rounded-lg hover:shadow-md shadow-sm"><a href="https://github.com/commune-ai "><p className=" text-xs float-left relative py-1 pl-1">Github</p><FaGithub className="w-6 h-6 float-right py-1 text-blue-50"/></a></li>
+          <li className="lg:text-[#ffffff] transition-colors font-bold hover:animate-pulse duration-200 lg:w-[170px] 2xl:w-auto bg-gradient-to-r from-[#bfc3f3ac] to-[#7e88f0] h-auto rounded-lg hover:shadow-md shadow-sm"><a href="https://discord.gg/MGsyECMkG7" className=' flex '><p className=" text-xs float-left relative py-1 text-black 2xl:hidden"> 👋 Join The Community</p> <FaDiscord className="w-6 h-6 float-right py-1 text-blue-50 2xl:text-zinc-900 2xl:w-9 2xl:h-9"/> </a> </li>
+          <li className="lg:text-[#000000] transition-colors font-bold hover:animate-pulse duration-200 w-auto bg-gradient-to-r from-[#c9eec3ac] to-[#7ef0b7] h-auto rounded-lg hover:shadow-md shadow-sm"><a href="https://github.com/commune-ai " className=' flex '><p className=" text-xs float-left py-1 pl-1 2xl:hidden">Github</p><FaGithub className="w-6 h-6 float-right py-1 text-blue-50 2xl:text-zinc-900 2xl:w-9 2xl:h-9"/></a></li>
         </ul>
         </div>
 

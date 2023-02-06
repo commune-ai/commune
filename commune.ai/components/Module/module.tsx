@@ -15,35 +15,11 @@ import {
     height: 400,
   }
   
-export default function Module(){
+export default function Module( { colour, emoji, title } : { colour : string, emoji : string, title : string }){
     const [open, set] = useState(false);
 
-    const springApi = useSpringRef();
-    const { size, ...rest } = useSpring({
-      ref: springApi,
-      config: config.stiff,
-      from: { size: "20%", background: "hotpink" },
-      to: {
-        size: open ? "100%" : "20%",
-        background: open ? "white" : "hotpink"
-      }
-    });
-
-    const transApi = useSpringRef();
-    const transition = useTransition(open ? data : [], {
-      ref: transApi,
-      trail: 400,
-      from: { opacity: 0, scale: 0 },
-      enter: { opacity: 1, scale: 1 },
-      leave: { opacity: 1, scale: 0 }
-    });
-
-    useChain(open ? [springApi, transApi] : [transApi, springApi], [
-      0,
-      open ? 0.1 : 0.6
-    ]);
-
-    return (<animated.div style={{ ...rest, width: size, height: size }} onClick={() => set((open) => !open)}>
-
-    </animated.div>)
+    return (<div className={` ${ open ? "w-[500px] h-[700px]" :  "w-[300px] h-[120px]"}  text-white text-md flex flex-col text-center items-center cursor-grab shadow-lg p-5 px-2 rounded-md break-all  ${colour} hover:opacity-70 duration-500`}  onClick={()=>{set(prev => !prev)}}>
+          <div  className={` ${ open ? " invisible" : ""} absolute text-6xl opacity-60 z-10 pt-2 duration-[0ms]`}>{emoji}</div>    
+          <h2 className={` ${ open ? " invisible" : ""} max-w-full font-sans text-blue-50 leading-tight font-bold text-3xl flex-1 z-20 pt-5 duration-[0ms]`} style={{"textShadow" : "0px 1px 2px rgba(0, 0, 0, 0.25)"}} >{title}</h2>
+      </div > )
 }
