@@ -518,8 +518,6 @@ class Module:
 
         elif mode == 'object':
             return {cls.path2object(f):f for f in cls.get_module_python_paths()}
-
-
     @classmethod
     def list_modules(cls):
         return cls.module_tree()
@@ -698,7 +696,8 @@ class Module:
             client_kwargs = dict(ip=ip, port=port)
         Client = cls.import_object('commune.server.client.Client')
         client_module = Client( **kwargs,**client_kwargs)
-        
+        ip = client_kwargs['ip']
+        port = client_kwargs['port']
         cls.print(f'Connecting to {name} on {ip}:{port}', 'yellow')
 
         if virtual:
@@ -1228,7 +1227,7 @@ class Module:
     #     resource_dict = {k.replace('num_', ''):v for k,v in resource_dict.items()}
     #     resource_dict['memory'] = self.memory_usage(mode='ratio')
     #     return  resource_dict
-
+    
     @classmethod
     def ensure_ray_context(cls, ray_config:dict = None):
         ray_config = ray_config if ray_config != None else {}
@@ -1236,9 +1235,16 @@ class Module:
         if cls.ray_initialized():
             ray_context = cls.get_ray_context()
         else:
-            ray_context =  cls.init_ray(init_kwargs=ray_config)
+            ray_context =  cls.ray_init(init_kwargs=ray_config)
         
         return ray_context
+    @classmethod
+    def ray_env(cls):
+        import ray
+        if not cls.ray_initialized():
+            cls.ray_init()
+        return ray
+    
     @classmethod 
     def ray_launch(cls, 
                    module= None, 
@@ -1249,8 +1255,7 @@ class Module:
                    kwargs:Dict = None, 
                    **actor_kwargs):
         
-        import ray
-        cls.ray_init()
+        ray = cls.ray_env()
         """
         deploys process as an actor or as a class given the config (config)
         """
@@ -1357,6 +1362,8 @@ class Module:
             module.set_module_id = set_module_id
         
         if not cls.actor_exists(name):
+            
+            print(module, 'bro ')
             actor_class = ray.remote(module)
             actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
             ray.get(actor_handle.set_module_id.remote(name))
@@ -1413,7 +1420,7 @@ class Module:
        
     @classmethod
     def actor_exists(cls, actor):
-        import ray
+        ray = cls.ray_env()
         if isinstance(actor, str):
             try:
                 ray.get_actor(actor)
@@ -1461,7 +1468,8 @@ class Module:
     
     @classmethod
     def ray_actors(cls, state='ALIVE', names_only:bool = True,detail:bool=True, *args, **kwargs):
-        import ray
+        
+        ray = cls.ray_env()
         from ray.experimental.state.api import list_actors
               
         kwargs['filters'] = kwargs.get('filters', [("state", "=", state)])
