@@ -1,38 +1,18 @@
 import commune
-# import langchain
-# remote_module = commune.module('ReactAgentModule')
-# print(remote_module.server_exists('ReactAgentModule'))
-# import commune
+class DemoClass:
+    fam = True
 
-
+    def bro(self, data:str):
+        '''
+        brooo ergergre
+        '''
+        return data
+    
 def test_create_actor():
     
-    class DemoClass:
-        fam = True
+    # commune.module(DemoClass)().serve()
+    commune.connect('DemoClass').function_schema_map(fam='djjfjfj')
 
-        def bro(self):
-            return 'bro'
-        
-    print(DemoClass().__dict__)
-    commune.ray_launch(commune.module(DemoClass)).serve()
-
-    agent = commune.module(DemoClass)
-    hasattr(agent, 'module_id')
-    demo_module = commune.module(DemoClass)
-    agent = commune.ray_launch(demo_module, refresh=True, virtual=True)
-    module_id = agent.module_id
-    assert commune.actor_exists(module_id) == True
-    
-    # call the function
-    assert agent.bro() == 'bro'
-    
-    
-    commune.kill_actor(agent.module_id)
-    assert commune.actor_exists(module_id) == False
-       
-    
-
-    
 # print(commune.module('ReactAgentModule').run('What is the capital of the United States?'))
 # agent.serve(wait_for_termination=True)
 # print(commune.connect('ModuleF'))

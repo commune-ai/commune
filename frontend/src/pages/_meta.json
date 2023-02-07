@@ -1,0 +1,17 @@
+{
+  "about": {
+    "title": "About",
+    "type": "page"
+  },
+  "docs": {
+    "title": "Documentation",
+    "type": "page",
+    "theme": {
+      "breadcrumb": false,
+      "footer": false,
+      "sidebar": true,
+      "toc": false,
+      "pagination": false
+    }
+  }
+}

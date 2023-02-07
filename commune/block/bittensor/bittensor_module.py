@@ -1,22 +1,15 @@
 import os
 import sys
-sys.path[0] = os.environ['PWD']
 import numpy as np
 import math
 import requests
 import json
 import datetime
 import pandas as pd
-import asyncio
 from munch import Munch
 import argparse
-asyncio.set_event_loop(asyncio.new_event_loop())
-
 from typing import *
 import bittensor
-import plotly.express as px
-from commune.config import ConfigLoader
-from commune.utils import  chunk, dict_put, round_sig, deep2flat
 import ray
 import random
 import torch
@@ -24,14 +17,11 @@ from copy import deepcopy
 # function to use requests.post to make an API call to the submetagraph url
 from commune import Module
 from tqdm import tqdm
-from plotly.subplots import make_subplots
-from commune.ray.utils import kill_actor, create_actor
-from ray.util.queue import Queue
 import itertools
 import streamlit as st
 # from commune .process.extract.crypto.utils import run_query
 # from commune.plot.dag import DagModule
-from commune.streamlit import StreamlitPlotModule, row_column_bundles
+from commune.block.streamlit import StreamlitPlotModule, row_column_bundles
 
 
 class BittensorModule(Module):
@@ -252,6 +242,7 @@ class BittensorModule(Module):
     @property
     def wallets(self, registered=True):
         wallet_dict ={}
+        from commune.utils import   dict_put
 
         for w in self.list_wallets():
             key = f'{w.name}.{w.hotkey_str}'
@@ -263,6 +254,7 @@ class BittensorModule(Module):
     @property
     def registered_wallets(self):
         wallet_dict ={}
+        from commune.utils import   dict_put
 
         for w in self.list_wallets(registered=True):
             key = f'{w.name}.{w.hotkey_str}'
@@ -273,6 +265,7 @@ class BittensorModule(Module):
     @property
     def unregistered_wallets(self):
         wallet_dict ={}
+        from commune.utils import   dict_put
 
         for w in self.list_wallets(registered=False):
             key = f'{w.name}.{w.hotkey_str}'
@@ -591,6 +584,7 @@ class BittensorModule(Module):
             fig.update_layout(autosize=True, width=800, height=800)
             cols[1].write(fig)
     def st_distributions(self, df):
+        import plotly.express as px
         plot_columns = [c for c in df.columns if c not in ['uid', 'active']]
 
 
@@ -603,6 +597,7 @@ class BittensorModule(Module):
 
 
     def st_scatter(self, df):
+        import plotly.express as px
         plot_columns = ['stake', 'rank', 'trust', 'consensus', 'incentive', 'dividends', 'emission']
         
         with st.expander('Scatter'):
@@ -725,15 +720,17 @@ if __name__ == '__main__':
 
     # actor = {'gpu': 0.2, 'cpu':1, 'name': 'bittensor_module-0', 'refresh': False, 'wrap': True}
     # actor = False
-    module = BittensorModule(coldkey='bit', hotkey=f'connect-{args.index}', network='nakamoto')
-    module.wallet.create()
+    import commune
+    wallet = commune.get_object('commune.block.bittensor.wallet')
+    module = BittensorModule(wallet=wallet(name='bitconnect', hotkey='1'), network='nakamoto')
+    # wallet(name='bitconnect', hotkey='1').create_new_hotkey()
     # module.set_network('nobunaga')
     
     # module.wallet.create_new_hotkey(use_password=False, overwrite=True)
-    module.register(dev_id=list(range(8)))
+    # module.register(dev_id=list(range(8)))
     # st.write(module.wallet.get_balance())
 
-    st.write(module.list_wallets(registered=True))
+    print(module.list_wallets(registered=True))
     
 
     # st.write(module.wallet.get_balance())
