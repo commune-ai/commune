@@ -3,18 +3,25 @@
 import os
 import sys
 from copy import deepcopy
-
-import streamlit as st
 import asyncio
-loop = asyncio.new_event_loop()
-asyncio.set_event_loop(loop)
 import commune
-from commune.web3.contract.pythonic_contract_wrapper import PythonicContractWrapper
+from commune.web3.evm.contract.pythonic_contract_wrapper import PythonicContractWrapper
+from glob import glob
+class ContractManagerModule(commune.Module):
 
-class ContractManagerModule(commune.module):
-    def __init__(self, config=None, contract=None, network: 'commune.EVMContract'=None, account=None, compile=True, **kwargs):
+    def __init__(self, 
+                 config:dict=None, 
+                 contract:'commune.evm.contract' =None, 
+                 network: 'commune.evm.network'= None, 
+                 account: 'commune.evm.account'=None, 
+                 compile: bool=True):
 
-        commune.module.__init__(self, config=config, network=None, **kwargs)
+
+        self.artifacts_path = f'{self.__module_dir__()}/data/artifacts/'
+        self.contracts_path = f'{self.__module_dir__()}/data/contracts/'
+
+        commune.Module.__init__(self, config=config)
+        print(self.config)
 
         if compile:
             self.compile()
@@ -65,12 +72,10 @@ class ContractManagerModule(commune.module):
         
         return parsedOutputs
 
-    artifacts_path = f'{os.environ["PWD"]}/artifacts/'
 
-    contracts_path = f'{os.environ["PWD"]}/contracts/'
     @property
     def contract_paths(self):
-        return list(filter(lambda f: f.endswith('.sol'), self.client.local.glob(self.contracts_path+'**')))
+        return list(filter(lambda f: f.endswith('.sol'), self.glob(self.contracts_path+'**')))
   
     @property
     def contracts(self):
@@ -84,6 +89,8 @@ class ContractManagerModule(commune.module):
 
     def get_artifact(self, path):
         available_abis = self.contracts + self.interfaces
+        
+
         path = self.resolve_contract_path(path)
         if path in self.contract_paths:
             root_dir = os.path.join(self.artifacts_path, 'contracts')
@@ -94,7 +101,7 @@ class ContractManagerModule(commune.module):
         json_name = os.path.basename(path).replace('.sol', '.json')
 
         artifact_path = os.path.join(root_dir, path, json_name)
-        artifact = self.client.local.get_json(artifact_path)
+        artifact = self.get_json(artifact_path)
         return artifact
 
     def get_abi(self,path):
@@ -102,7 +109,7 @@ class ContractManagerModule(commune.module):
     interfaces_path = f'{os.environ["PWD"]}/interfaces/'
     @property
     def interface_paths(self):
-        return list(filter(lambda f: f.endswith('.sol'),self.client.local.glob(self.interfaces_path+'**')))
+        return list(filter(lambda f: f.endswith('.sol'),self.glob(self.interfaces_path+'**')))
 
     @property
     def interfaces(self):
@@ -117,7 +124,7 @@ class ContractManagerModule(commune.module):
     @property
     def artifact_paths(self): 
         full_path_list = list(filter(lambda f:f.endswith('.json') and not f.endswith('dbg.json') and os.path.dirname(f).endswith('.sol'),
-                            self.client.local.glob(f'{self.artifacts_path}**')))
+                            self.glob(f'{self.artifacts_path}**')))
         
         return full_path_list
     
@@ -146,14 +153,17 @@ class ContractManagerModule(commune.module):
         self.web3 = web3
         return self.web3
     def set_network(self, network = None):
-        if hasattr(self, 'network'):
-            assert isinstance(network, str ), f'{network}'
-            self.network.set_network(network)
-        else:
-            if network == None:
-                network = self.config['network']
-            self.network = self.launch(**network)
-        
+        if isinstance(network, str):
+            network = {
+                'module': 'web3.evm.network',
+                'kwargs': {
+                    'network': network
+                } 
+            }
+        if network == None:
+            network = self.config['network']
+        self.network = self.launch(**network)
+    
         self.web3 = self.network.web3
 
     connect_network = set_network
@@ -191,15 +201,20 @@ class ContractManagerModule(commune.module):
         return account
 
     def set_account(self, account):
-        if hasattr(self, 'account'):
-            self.account.set_account(account)
-        else:
-            if account == None:
-                account = self.config['account']
-            self.account = self.launch(**account)
-            if self.account != None:
-                self.account.set_web3(self.web3)
-        
+
+        if isinstance(account, str):
+            account = {
+                'module': 'web3.evm.account',
+                'kwargs': {
+                    'private_key': account
+                }
+                }
+        if account == None:
+            account = self.config['account']
+        self.account = self.launch(**account)
+        if self.account != None:
+            self.account.set_web3(self.web3)
+    
     def get_contract_address(self, contract, version=-1):
         return self.contract2addresses.get(self.network_name, {}).get(contract,[None])[version]
 
@@ -401,19 +416,22 @@ class ContractManagerModule(commune.module):
 
     @classmethod
     def streamlit(cls):
-        import ray
+        import streamlit as st
+        commune.new_event_loop()
         st.write("## "+cls.__name__)
         ContractManagerModule.new_event_loop()
 
-        self =  ContractManagerModule.deploy(actor=False)
+        self =  ContractManagerModule()
         self.set_network('local.main')
         self.set_account('e')
         
-        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=False, args=['BRO', 'BROCOIN'])
-        st.write(contract)
+        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True, args=['BRO', 'BROCOIN'])
+        print(contract)
+        print(contract.balanceOf(self.account.address))
 
 
 if __name__ == '__main__':
-    ContractManagerModule.run()
+    ContractManagerModule.streamlit()
+
 
  

@@ -460,7 +460,7 @@ put_json = save_json = sync_wrapper(async_put_json)
 
 
 
-async def async_get_yaml(path, return_type='dict'):
+async def async_get_yaml(path:str, return_type:str='dict', handle_error: bool = False):
     from commune.utils.asyncio import async_read
     import torch
     

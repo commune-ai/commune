@@ -156,7 +156,7 @@ networks:
     main:
       chainid: 1337
       url:
-        ganache: http://ganache:8545
+        ganache: http://0.0.0.0:8545
       explorer: null
       multicall2: null
   skale:

@@ -30,13 +30,17 @@ class Module:
     def __init__(self, config:Dict=None, save_config_if_not_exists:bool=False, *args,  **kwargs):
         
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, kwargs =  kwargs, save_if_not_exists=save_config_if_not_exists)        
+        self.set_config(config=config, save_if_not_exists=save_config_if_not_exists)        
 
     def getattr(self, k)-> Any:
         return getattr(self,  k)
     @classmethod
     def __module_file__(cls):
         return inspect.getfile(cls)
+
+    @classmethod
+    def __module_dir__(cls):
+        return os.path.dirname(cls.__module_file__())
     @classmethod
     def get_module_path(cls,  simple:bool=True) -> str:
         
@@ -130,7 +134,7 @@ class Module:
     @classmethod
     def __config_file__(cls) -> str:
         
-        __config_file__ =  cls.get_module_path().replace('.py', '.yaml')
+        __config_file__ =  cls.__module_file__().replace('.py', '.yaml')
         
         # if the config file does not exist, then create one where the python path is
 
@@ -165,12 +169,11 @@ class Module:
             if not os.path.exists(__config_file__):
                 cls.save_config(config=cls.minimal_config(), path=__config_file__)
                 
-        if not os.path.exists(path):
-            cls.save_config({'module': cls.__name__})
         config = load_yaml(path)
         
         if to_munch:
             config =  dict2munch(config)
+            
         
         return config
 
@@ -444,7 +447,6 @@ class Module:
     def path2simple(cls, path:str) -> str:
 
         simple_path =  path.split(deepcopy(cls.root_dir))[-1]
-        print(simple_path)
         simple_path = os.path.dirname(simple_path)
         simple_path = simple_path.replace('.py', '')
         simple_path = simple_path.replace('/', '.')[1:]
@@ -959,13 +961,13 @@ class Module:
     @classmethod
     def launch(cls, 
                module:str = None, 
-               fn: str = 'serve',
+               fn: str = None,
                name:Optional[str]=None, 
                tag:str=None, 
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
-               mode:str = 'pm2',
+               mode:str = 'local',
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
@@ -975,22 +977,38 @@ class Module:
         if module == None:
             module = cls.module_path()
             
-        launch_kwargs = dict(
-                    module=module, 
-                   fn = fn,
-                   name=name, 
-                   tag=tag, 
-                   args = args,
-                   kwargs = kwargs,
-                   refresh=refresh,
-                   **extra_kwargs
-        )
+
+        kwargs = kwargs if kwargs else {}
+        args = args if args else []
         
-        if mode == 'ray':
-            del launch_kwargs['fn']
-        
-        launch_fn = getattr(cls, f'{mode}_launch')
-        
+        if mode == 'local':
+
+            module_class = cls.get_module(module)
+            if fn == None:
+                return module_class(*args, **kwargs)
+            else:
+                return getattr(module_class, fn)(*args, **kwargs)
+            
+        elif mode in ['ray', 'pm2']:
+            fn = fn if fn else 'serve_module'
+            launch_kwargs = dict(
+                        module=module, 
+                    fn = fn,
+                    name=name, 
+                    tag=tag, 
+                    args = args,
+                    kwargs = kwargs,
+                    refresh=refresh,
+                    **extra_kwargs
+            )
+            
+            if mode == 'ray':
+                del launch_kwargs['fn']
+            
+            launch_fn = getattr(cls, f'{mode}_launch')
+        else: 
+            raise Exception(f'launch mode {mode} not supported')
+            
         
         return launch_fn(**launch_kwargs)
     @classmethod
