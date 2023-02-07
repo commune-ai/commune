@@ -1,2 +1,2 @@
-from .module import AccountModule
+from .account import AccountModule
 

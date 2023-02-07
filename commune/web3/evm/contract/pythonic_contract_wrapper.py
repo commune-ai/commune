@@ -1,6 +1,6 @@
 from functools import partial
 import web3 
-import gradio
+
 import commune
 
 class PythonicContractWrapper:
@@ -67,6 +67,7 @@ class PythonicContractWrapper:
 
 
     def parser(self,  type=None, label=None):
+        import gradio
         assert not type == None, "there should be a type to infer a gradio component"
         return {
             'string' : gradio.Textbox(label=label, lines=3, placeholder=f"Enter {label} here..."),
@@ -78,13 +79,12 @@ class PythonicContractWrapper:
         }[type]
 
     def package(self, inputs=[], outputs=[]):
-        
+        import gradio
         return ([self.parser(input['type'], "input" if input['name'] == "" else input['name']) for input in inputs], gradio.JSON(label="output") if outputs.__len__() > 0 else outputs)
 
 
     def gradio(self):
         import gradio
-
         
         fn, names = [], []
         abi = self.functions.abi
