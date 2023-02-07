@@ -36,16 +36,17 @@ class TransformerModel( nn.Module, commune.Module):
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1'
+        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gptneox20b': 'EleutherAI/gpt-neox-20b'
          }
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gpt125m",
+                model_name: str="gptneox20b",
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
-                device_map: str = 'auto',
+                device_map: str = 'balanced',
                 device='cuda',
                 tag = None,
                 load = True,
@@ -184,7 +185,7 @@ class TransformerModel( nn.Module, commune.Module):
         self.model = None
         self.autocast = autocast
         
-        
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:15000"
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map=device_map)
         self.model = self.model.to(device)
         if self.autocast:
@@ -566,9 +567,6 @@ class TransformerModel( nn.Module, commune.Module):
                     model.save(tag=trial)
                 except TypeError:
                     continue
-
-
-
 
 if __name__ == "__main__":
     # print('FUCK')

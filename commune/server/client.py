@@ -15,6 +15,7 @@ import sys
 import os
 import asyncio
 from copy import deepcopy
+import commune
 from .serializer import Serializer
 
 
@@ -49,7 +50,7 @@ class VirtualModule:
         '''
         from functools import partial
         
-        for attr in self.module_client(fn='functions'):
+        for attr in self.module_client.whitelist_functions:
             # continue if attribute is private and we don't want to include hidden attributes
             if attr.startswith('_') and (not include_hiddden):
                 continue
@@ -58,8 +59,8 @@ class VirtualModule:
             setattr(self, attr,  partial(self.remote_call, attr))
                 
                 
-    def __getattr__(self, key):
-        return lambda *args: self.module(fn='__getattr__', args=[key])
+    # def __getattr__(self, key):
+    #     return  self.module_client(fn='getattr', args=[key])
 
 
 class Client( Serializer):
@@ -74,8 +75,10 @@ class Client( Serializer):
             port: int = 80 ,
             max_processes: int = 1,
             timeout:int = 20,
+            whitelist_functions: List[str] = ['functions', 'function_schema_map'],
             loop = None
         ):
+        
 
         # Get endpoint string.
         self.ip = ip if ip else self.default_ip
@@ -100,6 +103,9 @@ class Client( Serializer):
         self.semaphore = threading.Semaphore(max_processes)
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
         self.sync_the_async()
+        
+        self.whitelist_functions = list(set(self(fn='functions', args=[False]) + whitelist_functions))
+
 
     @property
     def endpoint(self):
@@ -176,20 +182,21 @@ class Client( Serializer):
                     print(response) 
         except grpc.RpcError as rpc_error_call:
             response = str(rpc_error_call)
-            raise(response)
+            commune.log(f"Timeout Error: {response}", verbose=verbose,color='red')
+
         # =======================
         # ==== Timeout Error ====
         # =======================
         except asyncio.TimeoutError:
             response = str(rpc_error_call)
-            raise(response)
+            commune.log(f"Timeout Error: {response}", verbose=verbose,color='red')
     
         # ====================================
         # ==== Handle GRPC Unknown Errors ====
         # ====================================
         except Exception as e:
             response = str(e)
-            raise e
+            commune.log(f"GRPC Unknown Error: {response}", color='red')
         return  response
 
     def sync_the_async(self):

@@ -9,7 +9,6 @@ import sys
 import argparse
 
 
- 
 class Module:
     
     # port range for servers
@@ -35,37 +34,28 @@ class Module:
 
     def getattr(self, k)-> Any:
         return getattr(self,  k)
-
     @classmethod
-    def get_module_path(cls, obj: Any =None,  simple:bool=True) -> str:
-        if obj == None:
-            obj = cls
-        module_path =  inspect.getmodule(obj).__file__
+    def __module_file__(cls):
+        return inspect.getfile(cls)
+    @classmethod
+    def get_module_path(cls,  simple:bool=True) -> str:
+        
+        # odd case where the module is a module in streamlit
+        if cls == Module:
+            return __file__
+        module_path =  inspect.getfile(cls)
         # convert into simple
         if simple:
-            module_path = cls.path2simple(path=module_path)
-
+            return cls.path2simple(path=module_path)
         return module_path
 
-
-    @classmethod
-    def __file__(cls, simple:bool=False) -> str:
-        '''
-        
-        Gets the absolute file path of the Module.
-        
-        '''
-        
-        file = cls.get_module_path(simple=simple)
-        return file
-    
     
     @classmethod
     def __local_file__(cls) -> str:
         '''
         removes the PWD with respect to where module.py is located
         '''
-        return cls.__file__().replace(cls.pwd+'/', '')
+        return cls.get_module_path(simple=False).replace(cls.pwd+'/', '')
     
     @classmethod
     def __simple_file__(cls) -> str:
@@ -85,7 +75,7 @@ class Module:
             commune/model/transformer/dataset.py -> model.transformer
         
         '''
-        file =  cls.__file__(simple=True)
+        file =  cls.get_module_path(simple=True)
 
         return file
     
@@ -93,7 +83,7 @@ class Module:
     @classmethod
     def module_path(cls):
         if not hasattr(cls, '_module_path'):
-            cls._module_path = cls.__simple_file__()
+            cls._module_path = cls.get_module_path(simple=True)
         return cls._module_path
 
         
@@ -140,7 +130,7 @@ class Module:
     @classmethod
     def __config_file__(cls) -> str:
         
-        __config_file__ =  cls.__file__().replace('.py', '.yaml')
+        __config_file__ =  cls.get_module_path().replace('.py', '.yaml')
         
         # if the config file does not exist, then create one where the python path is
 
@@ -530,17 +520,6 @@ class Module:
         return  bool(package in sys.modules)
 
     @classmethod
-    def get_module_path(cls, obj=None,  simple=True):
-        if obj == None:
-            obj = cls
-        module_path =  inspect.getmodule(obj).__file__
-        # convert into simple
-        if simple:
-            module_path = cls.path2simple(path=module_path)
-        return module_path
-
-
-    @classmethod
     def simple2path_map(cls) -> Dict[str, str]:
         return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
     @classmethod
@@ -870,7 +849,6 @@ class Module:
         '''
         from commune.utils.function import get_functions
         
-        print(obj)
         obj = obj if obj else cls
         
 
@@ -904,17 +882,23 @@ class Module:
                     continue
             if callable(getattr(self, fn )):
                 function_schema_map[fn] = {}
+                fn_schema = {}
                 for fn_k, fn_v in getattr(self, fn ).__annotations__.items():
                     
                     fn_v = str(fn_v)
                     print(fn_v, fn_v.startswith('<class'))
+                    
                     if fn_v == inspect._empty:
-                        function_schema_map[fn][fn_k] = 'Any'
+                        fn_schema[fn_k]= 'Any'
                     elif fn_v.startswith('<class'):
-                        function_schema_map[fn][fn_k] = fn_v.split("'")[1]
+                        fn_schema[fn_k] = fn_v.split("'")[1]
                     else:
-                        function_schema_map[fn][fn_k] = fn_v
-                
+                        fn_schema[fn_k] = fn_v
+                                        
+                function_schema_map[fn] = {
+                    'schema': fn_schema,
+                    'docs': getattr(self, fn ).__doc__
+                }
         return function_schema_map
     
     @classmethod
@@ -1552,14 +1536,13 @@ class Module:
         
         # serve the module if the bool is True
         is_class = cls.is_class(module)
-        _module_class = module if is_class else module.__class__
+        module_class = module if is_class else module.__class__
         class ModuleWrapper(Module):
-            module_class = _module_class
             def __init__(self, *args,**kwargs): 
                 if init_module:
                     Module.__init__(self,**kwargs)
                 if is_class:
-                    self.module = self.module_class(*args, **kwargs)
+                    self.module = module_class(*args, **kwargs)
                 else:
                     self.module = module
                 
@@ -1567,7 +1550,7 @@ class Module:
                 self.merge(self.module)
             @classmethod
             def module_name(cls): 
-                return cls.module_class.__name__
+                return module_class.__name__
             
             def __call__(self, *args, **kwargs):
                 return self.module.__call__(self, *args, **kwargs)
@@ -1576,7 +1559,7 @@ class Module:
                 return self.module.__str__()
             
             def __repr__(self):
-                return self.module.__repr__()   
+                return self.module.__repr__()  
         if is_class:
             return ModuleWrapper
         else:
@@ -1715,3 +1698,4 @@ class Module:
 Block = Lego = Module
 if __name__ == "__main__":
     module.run()
+

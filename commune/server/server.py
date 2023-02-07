@@ -52,7 +52,8 @@ class Server(ServerServicer, Serializer):
             serializer: 'Serializer'= None,
             server: Optional['grpc._Server'] = None,
             config: Optional['commune.config'] = None,
-            verbose: bool = True
+            verbose: bool = True,
+            whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map'],
 
         ) -> 'Server':
         r""" Creates a new commune.Server object from passed arguments.
@@ -144,6 +145,8 @@ class Server(ServerServicer, Serializer):
         self.started = False
         
         self.init_stats()
+        
+        self.whitelist_functions = whitelist_functions + self.module.functions()
 
     @classmethod   
     def help(cls):
@@ -197,6 +200,8 @@ class Server(ServerServicer, Serializer):
             if 'fn' in data:
                 fn_kwargs = data.get('kwargs', {})
                 fn_args = data.get('args', [])
+                
+                assert data['fn'] in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
                 
                 commune.print('Calling Function: '+data['fn'], color='cyan')
             

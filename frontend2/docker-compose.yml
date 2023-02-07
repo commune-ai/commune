@@ -8,5 +8,6 @@ services:
       context : ./
       dockerfile : Dockerfile
     volumes:
-      - ${FRONTEND_PATH}:/app
-    command: "npm run dev"
+      - ${FRONTEND_PATH}/src:/app/src
+      - ${FRONTEND_PATH}/public:/app/public
+    command: "npm start"
