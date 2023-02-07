@@ -14,6 +14,7 @@ export RAY_PORT="6378"
 export NETWORK_RPC_HOST="172.15.0.3"
 export NETWORK_RPC_PORT="8545"
 export NETWORK_RPC_URL="http://"${NETWORK_RPC_HOST}:${NETWORK_RPC_PORT}
+
 export GANACHE_PORT="8545"
 export GANACHE_HOST="172.15.0.3"
 export GANACHE_URL="http://"${GANACHE_HOST}:${GANACHE_PORT}
@@ -107,7 +108,7 @@ while :; do
         COMPOSE_FILES=""
         COMPOSE_FILES+=" -f ./docker-compose.yml"
         # COMPOSE_FILES+=" -f ipfs/docker-compose.yml"
-        # COMPOSE_FILES+=" -f ganache/docker-compose.yml"
+        COMPOSE_FILES+=" -f ganache/docker-compose.yml"
         COMPOSE_FILES+=" -f subspace/docker-compose.yml"
         COMPOSE_FILES+=" -f frontend/docker-compose.yml"
         ;;
@@ -137,7 +138,7 @@ while :; do
         --restart)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
             eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
-            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up --remove-orphans -d
+            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up -d
             break
             ;;
 

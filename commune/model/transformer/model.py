@@ -47,10 +47,11 @@ class TransformerModel( nn.Module, commune.Module):
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
                 device_map: str = 'balanced',
+                max_memory: Dict = {0: "10GiB", 1: "10GiB",3: "10GiB" , 4: "10GiB", 5:  "10GiB", 6: "10GiB", 7: "10GiB"},
                 device='cuda',
                 tag = None,
                 load = True,
-                autocast: bool = True,
+                autocast: bool = False,
                 finetune : dict = dict(num_layers=10,)
                 ):
         
@@ -61,7 +62,7 @@ class TransformerModel( nn.Module, commune.Module):
 
         model_name = self.model_shortcuts.get(model_name, model_name)
         # set model and tokenizer
-        self.set_model(model_name=model_name, autocast= autocast, device=device)
+        self.set_model(model_name=model_name, autocast= autocast, device=device, max_memory=max_memory)
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer else model_name )
@@ -123,6 +124,7 @@ class TransformerModel( nn.Module, commune.Module):
 
     def local_forward(self,  
                 input_ids: torch.Tensor = None, 
+                text: str = None,
                 attention_mask: torch.Tensor= None, 
                 topk:int=None, 
                 output_hidden_states:bool=False, 
@@ -131,7 +133,9 @@ class TransformerModel( nn.Module, commune.Module):
                 output_length:int = 10,
                 **kwargs):
 
-        # import ipdb; ipdb.set_trace()
+        # tokenizer the text if text is provided 
+        if text != None and isinstance(text, str):
+            input_ids = self.tokenize(text)
 
         input_dict = dict(
                     input_ids=input_ids,
@@ -178,16 +182,15 @@ class TransformerModel( nn.Module, commune.Module):
         # deepspeed has .module.device to access device
         return self.model.device
 
-    def set_model(self, model_name:str, device_map:str='auto', device:str = 'cuda', autocast=False):
+    def set_model(self, model_name:str, device_map:str='auto', device:str = 'cuda', autocast=False, max_memory=None):
             
         self.model_name = model_name
         self.device_map = device_map
         self.model = None
         self.autocast = autocast
         
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:15000"
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map=device_map)
-        self.model = self.model.to(device)
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map=device_map, max_memory=max_memory, offload_folder='/tmp')
+        # self.model = self.model.to(device)
         if self.autocast:
             self.model = self.model.half()
             
@@ -231,6 +234,13 @@ class TransformerModel( nn.Module, commune.Module):
     def __config_file__(self):
         return self.__file__.replace('.py', '.yaml')
 
+    def tokenize(self, text: str = 'Whadup', input_ids_only:bool = True, device: str=None) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        device = device if device != None else self.device
+        tokenizer_output = self.tokenizer(text, return_tensors='pt')
+        if input_ids_only:
+            return tokenizer_output.input_ids.to(self.device)
+        return self.tokenizer(text, return_tensors='pt').input_ids.to(self.device)
 
     @classmethod
     def test_model(cls, batch_size=8, sequence_length=256, model_name='EleutherAI/gpt-neox-20b'):
@@ -567,6 +577,62 @@ class TransformerModel( nn.Module, commune.Module):
                     model.save(tag=trial)
                 except TypeError:
                     continue
+
+    def generate(self, 
+                 text:str = "Today is a beautiful day, and", 
+                 max_length:int=20):
+    
+        '''
+        Generate text from a given text.
+        '''
+        from transformers import (
+            AutoTokenizer,
+            AutoModelForCausalLM,
+            LogitsProcessorList,
+            MinLengthLogitsProcessor,
+            TopKLogitsWarper,
+            TemperatureLogitsWarper,
+            StoppingCriteriaList,
+            MaxLengthCriteria,
+        )
+        import torch
+
+        # set pad_token_id to eos_token_id because GPT2 does not have a EOS token
+        self.model.config.pad_token_id = self.model.config.eos_token_id
+        input_ids = self.tokenizer(text, return_tensors="pt").input_ids
+
+        # instantiate logits processors
+        logits_processor = LogitsProcessorList(
+            [
+                MinLengthLogitsProcessor(15, eos_token_id=self.model.config.eos_token_id),
+            ]
+        )
+        # instantiate logits processors
+        logits_warper = LogitsProcessorList(
+            [
+                TopKLogitsWarper(50),
+                TemperatureLogitsWarper(0.7),
+            ]
+        )
+
+        stopping_criteria = StoppingCriteriaList([MaxLengthCriteria(max_length=max_length)])
+
+        torch.manual_seed(0)
+        with torch.no_grad():
+            outputs = self.model.sample(
+                input_ids,
+                logits_processor=logits_processor,
+                logits_warper=logits_warper,
+                stopping_criteria=stopping_criteria,
+            )
+            
+        commune.print(f'outputs: {outputs.shape}', 'purple')
+
+        output_text = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+        return output_text
+
+
 
 if __name__ == "__main__":
     # print('FUCK')
