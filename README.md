@@ -83,4 +83,39 @@ The module.py file serves as an anchor in that it organizes future modules in wh
     ```
 
 
+## Docker Compose Environment Details
+
+
+Available Containers In Compose
+
+
+
+
+## Make Function Helpers
+
+Start docker compose
+```
+make up
+```
+
+Stop docker compose
+
+```
+make down
+```
+
+
+Enter the Commune Docker Env
+```
+make enter
+```
+
+Get the logs of the container
+```
+docker logs {}
+```
+
+
+
+
 

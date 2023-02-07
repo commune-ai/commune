@@ -88,19 +88,7 @@ class Server(ServerServicer, Serializer):
         # 
         config = copy.deepcopy(config if config else self.default_config())
 
-        port = port if port != None else config.port
-        ip = ip if ip != None else config.ip
-        is_port_available =  self.port_available(ip=ip, port=port)
-        
-        while not is_port_available:
-            if find_port:
-                port = self.get_available_port(ip=ip)
-            if replace_port:
-                self.kill_port(port=port)
-            is_port_available =  self.port_available(ip=ip, port=port)
 
-        self.port = config.port = port
-        self.ip = config.ip = ip
         
         self.external_ip = config.external_ip = external_ip if external_ip != None else config.external_ip
         self.external_port = config.external_port = external_port if external_port != None else config.external_port
@@ -109,34 +97,12 @@ class Server(ServerServicer, Serializer):
         self.compression = config.compression = compression if compression != None else config.compression
         self.timeout = timeout if timeout else config.timeout
         self.verbose = verbose
-
-        # Determine the grpc compression algorithm
-        if config.compression == 'gzip':
-            compress_alg = grpc.Compression.Gzip
-        elif config.compression == 'deflate':
-            compress_alg = grpc.Compression.Deflate
-        else:
-            compress_alg = grpc.Compression.NoCompression
         
-        
-        if thread_pool == None:
-            thread_pool = futures.ThreadPoolExecutor( max_workers = config.max_workers )
-
-        if server == None:
-            server = grpc.server( thread_pool,
-                                #   interceptors=(ServerInterceptor(blacklist=blacklist,receiver_hotkey=self.wallet.hotkey.ss58_address),),
-                                  maximum_concurrent_rpcs = config.maximum_concurrent_rpcs,
-                                  options = [('grpc.keepalive_time_ms', 100000),
-                                             ('grpc.keepalive_timeout_ms', 500000)]
-                                )
-        
-        # set the server compression algorithm
-        self.server = server
-        commune.server.grpc.add_ServerServicer_to_server( self, server )
-        full_address = str( config.ip ) + ":" + str( config.port )
-        self.server.add_insecure_port( full_address )
         self.check_config( config )
         self.config = config
+        
+        self.set_server( ip=ip, port=port, thread_pool=thread_pool, max_workers=max_workers, server=server) 
+
 
         # set the module
         self.module = module
@@ -147,7 +113,58 @@ class Server(ServerServicer, Serializer):
         self.init_stats()
         
         self.whitelist_functions = whitelist_functions + self.module.functions()
+    def add_whitelist_functions(self, functions: List[str]):
+        self.whitelist_functions += functions
+    def add_blacklist_functions(self, functions: List[str]):
+        self.blacklist_functions += functions
+        
+    def set_thread_pool(self, thread_pool: 'ThreadPoolExecutor' = None, max_workers: int = 10) -> 'ThreadPoolExecutor':
+        if thread_pool == None:
+            thread_pool = futures.ThreadPoolExecutor(max_workers=max_workers)
+        
+        self.thread_pool = thread_pool
+        return thread_pool
+    def set_server(self,  ip: str=  None , port:int =  None, 
+                   thread_pool: 'ThreadPoolExecutor' = None, max_workers:int = 1, 
+                   find_port:bool = True, replace_port:bool=True, 
+                   server:'Server' = None ) -> 'Server':
+        
+        port = port if port != None else self.config.port
+        ip = ip if ip != None else self.config.ip
+        
+        is_port_available = self.port_available(ip=ip, port=port)
+        
+        while not is_port_available:
+            if find_port:
+                port = self.get_available_port(ip=ip)
+            if replace_port:
+                self.kill_port(port=port)
+            is_port_available =  self.port_available(ip=ip, port=port)
 
+        
+
+        is_port_available =  self.port_available(ip=ip, port=port)
+        
+        self.thread_pool = self.set_thread_pool(thread_pool=thread_pool)
+        
+
+        server = grpc.server( self.thread_pool,
+                            #   interceptors=(ServerInterceptor(blacklist=blacklist,receiver_hotkey=self.wallet.hotkey.ss58_address),),
+                                maximum_concurrent_rpcs = self.config.maximum_concurrent_rpcs,
+                                options = [('grpc.keepalive_time_ms', 100000),
+                                            ('grpc.keepalive_timeout_ms', 500000)]
+                            )
+    
+    
+        self.ip = ip
+        self.port = port
+        
+        # set the server compression algorithm
+        self.server = server
+        commune.server.grpc.add_ServerServicer_to_server( self, server )
+        self.full_address = str( ip ) + ":" + str( port )
+        self.server.add_insecure_port( self.full_address )
+        return self.server
     @classmethod   
     def help(cls):
         """ Print help to stdout
