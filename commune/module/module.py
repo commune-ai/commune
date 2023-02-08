@@ -349,7 +349,7 @@ class Module:
         return used_ports
    
     @classmethod
-    def resolve_path(cls, path:str, extension:Optional[str]=None):
+    def resolve_path(cls, path:str, extension:Optional[str]= None):
         '''
         Resolves path for saving items that relate to the module
         
@@ -359,8 +359,9 @@ class Module:
         tmp_dir = cls.tmp_dir()
         if tmp_dir not in path:
             path = os.path.join(tmp_dir, path)
-        if extension and extension != path.split('.')[-1]:
-            path = path + '.' + extension
+        if not os.path.isdir(path):
+            if extension and extension != path.split('.')[-1]:
+                path = path + '.' + extension
 
         return path
     @classmethod
@@ -416,8 +417,10 @@ class Module:
         '''
         Kill the server by the name
         '''
-        return getattr(cls, f'{mode}_kill')(module)
-
+        if mode == 'pm2':
+            return cls.pm2_kill(module)
+        else:
+            raise NotImplementedError(f"Mode: {mode} is not implemented")
 
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
@@ -601,7 +604,7 @@ class Module:
     @classmethod
     def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
         from commune.utils.dict import load_json
-        path = cls.resolve_path(path=path) if resolve_path else path
+        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
         data = load_json(path, **kwargs)
         return data
     load_json = get_json
@@ -610,55 +613,44 @@ class Module:
     def put_json(cls, path:str, data:Dict, resolve_path:bool = True, **kwargs) -> str:
         
         from commune.utils.dict import put_json
-        path = cls.resolve_path(path=path) if resolve_path else path
+        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
+        
         put_json(path=path, data=data, **kwargs)
         return path
+    
     save_json = put_json
     
     @classmethod
-    def exists(cls, path:str, resolve_path:bool = True)-> bool:
-        path = cls.resolve_path(path=path) if resolve_path else path
+    def exists(cls, path:str, resolve_path:bool = True, extension = 'json')-> bool:
+        path = cls.resolve_path(path=path, extension=extension) if resolve_path else path
         return os.path.exists(path)
 
     @classmethod
-    def rm(cls, path=None, resolve_path:bool = True):
+    def rm_json(cls, path=None, resolve_path:bool = True):
         from commune.utils.dict import rm_json
 
-        if path == 'all':
-            return [cls.rm(f) for f in cls.glob()]
+        if path in ['all', '**']:
+            return [cls.rm_json(f) for f in cls.glob(files_only=False)]
         
-        path = cls.resolve_path(path) if resolve_path else path
+        if resolve_path:
+            path = cls.resolve_path(path=path, extension='json')
+
         return rm_json(path )
 
     @classmethod
     def glob(cls,  path ='**', resolve_path:bool = True, files_only:bool = True):
-        path = cls.resolve_path(path) if resolve_path else path
+        
+        path = cls.resolve_path(path, extension=None) if resolve_path else path
+        
+        # if os.path.isdir(path):
+        #     path = os.path.join(path, '**')
+            
         paths = glob(path, recursive=True)
         
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
-            
         return paths
             
-            
-        
-    
-    @classmethod
-    def test_json(cls):
-        self = cls()
-        self.rm_json('all')
-        assert len(self.glob('**')) == 0
-        print(self.put_json('bro/fam', data={'bro': 2200}))
-        print(self.put_json('bro/dawg', data={'bro': 2200}))
-        assert len(self.glob('**')) == 2
-        self.rm_json('bro/fam')
-        assert len(self.glob('**')) == 1, len(self.glob('**'))
-        self.rm_json('bro/dawg')
-        assert len(self.glob('**')) == 0
-        print(self.put_json('bro/fam/fam', data={'bro': 2200}))
-        print(self.put_json('bro/fam/dawg', data={'bro': 2200}))
-        assert len(self.glob('bro/**')) == 2
-
     @classmethod
     def __str__(cls):
         return cls.__name__
@@ -667,9 +659,7 @@ class Module:
     @classmethod
     def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
         
-        
 
-        
         server_registry =  Module.server_registry()
         if name:
             client_kwargs = server_registry[name]
@@ -720,6 +710,8 @@ class Module:
             
         return servers
     list_servers = servers
+    
+    
     
     @classmethod
     def register_server(cls, name: str, server: 'commune.Server')-> dict:
@@ -772,8 +764,8 @@ class Module:
     
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        server_registry = cls.server_registry()
-        return bool(name in server_registry)
+        server_registry = cls.servers()
+        return bool(name in cls.servers())
         
         
     def serve(self, name=None , *args, **kwargs):
@@ -826,6 +818,7 @@ class Module:
         
         cls.register_server(name=module_id, server=server)
     
+        print(server)
         
         server.serve(wait_for_termination=wait_for_termination)
         
@@ -1279,7 +1272,7 @@ class Module:
             module_class = cls
 
         else:
-            module_class = module
+            module_class = cls.module(module)
             
         if cls.is_module(module_class):
             name = module_class.module_name()
@@ -1369,7 +1362,6 @@ class Module:
         
         if not cls.actor_exists(name):
             
-            print(module, 'bro ')
             actor_class = ray.remote(module)
             actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
             ray.get(actor_handle.set_module_id.remote(name))

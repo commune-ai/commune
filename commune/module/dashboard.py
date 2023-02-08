@@ -1,9 +1,12 @@
 import commune
 import streamlit as st
 
+# commune.launch('dataset.text.bittensor', mode='pm2')
+
 # commune.new_event_loop()
 with st.expander('Live Servers'):
     st.write(commune.server_registry())
+
 
 public_ip = commune.external_ip()
 st.metric('Public IP', public_ip)

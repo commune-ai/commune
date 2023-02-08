@@ -946,7 +946,7 @@ class CortexTrainer:
         if results_path:
             results_path = os.path.join('experiment',results_path )
         if refresh_results:
-            self.rm(results_path)
+            self.rm_json(results_path)
 
         input_row_dict = {'num_endpoints': num_endpoints, 'batch_size': batch_size}
         df = []

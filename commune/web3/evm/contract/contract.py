@@ -5,7 +5,6 @@ import sys
 from copy import deepcopy
 import asyncio
 import commune
-from commune.web3.evm.contract.pythonic_contract_wrapper import PythonicContractWrapper
 from glob import glob
 class ContractManagerModule(commune.Module):
 
@@ -285,7 +284,7 @@ class ContractManagerModule(commune.Module):
         is_contract = isinstance(self.contract2address.get(contract), str)
         return bool(is_address or is_contract)
 
-    def get_contract(self,contract=None , web3=None, account=None, version=-1, pythonic=True):
+    def get_contract(self,contract=None , web3=None, account:'Account'=None, version=-1, virtual=True):
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
 
@@ -307,8 +306,10 @@ class ContractManagerModule(commune.Module):
       
         contract_artifact = self.get_artifact(contract_path)
         contract = web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
-        if pythonic:
-            contract = PythonicContractWrapper(contract=contract, account = self.account)
+        
+        if virtual:
+            from commune.web3.evm.contract.virtual_contract import VirtualContract
+            contract = VirtualContract(contract=contract, account = self.account)
         
         return contract
         
