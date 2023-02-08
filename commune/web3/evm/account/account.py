@@ -15,6 +15,7 @@ from eth_keys import keys
 from copy import deepcopy
 from eth_account.account import Account
 from commune import Module
+from typing import List, Dict, Union, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,8 @@ class AccountModule(Module):
     ENV_PRIVATE_KEY = 'PRIVATE_KEY'
     def __init__(
         self,
-        private_key: str= None,
-        web3: Web3 = None,
+        private_key: str= 'alice',
+        network: str = 'local.main',
         **kwargs
     ) -> None:
         """Initialises AccountModule object."""
@@ -37,7 +38,7 @@ class AccountModule(Module):
 
 
         self.account = self.set_account(private_key = private_key)
-        self.web3 = web3
+        self.set_network(network)
 
     @property
     def address(self) -> str:
@@ -49,10 +50,7 @@ class AccountModule(Module):
         return self.account._private_key
         
     def set_account(self, private_key=None):
-        if isinstance(private_key, int):
-            index = private_key
-            private_key = list(self.accounts.keys())[i]
-        elif isinstance(private_key, str):
+        if isinstance(private_key, str):
             if isinstance(self.accounts, dict) \
                 and private_key in self.accounts.keys():
                 private_key = self.accounts[private_key]
@@ -155,12 +153,13 @@ class AccountModule(Module):
     def python2str(input):
         input = deepcopy(input)
         input_type = type(input)
+        message = input
         if input_type in [dict]:
-            input = json.dumps(input)
+            message = json.dumps(input)
         elif input_type in [list, tuple, set]:
-            input = json.dumps(list(input))
-        elif message_type in [int, float, bool]:
-            input = str(input)
+            message = json.dumps(list(input))
+        elif input_type in [int, float, bool, str]:
+            message = str(input)
         return message
 
     @staticmethod
@@ -171,20 +170,38 @@ class AccountModule(Module):
     
     def resolve_message(self, message):
         message = self.python2str(message)
-
-
-        if isinstance(msg_hash, str):
-            message = encode_defunct(message)
+        print(type(message))
+        if isinstance(message, str):
+            message = encode_defunct(text=message)
         elif isinstance(message, SignableMessage):
             message = message
         else:
             raise NotImplemented
+        
+        return message
             
 
-    def sign(self, message: Union[SignableMessage,str, dict]) -> SignedMessage:
-        """Sign a transaction."""
-        message = self.resolve_message(message)
-        return self.account.sign_message(message)
+    def sign(self, message: Union[SignableMessage,str, dict], include_message:bool = True) -> SignedMessage:
+        """Sign a transaction.
+        Args:
+            message: The message to sign.
+            signature_only: If True, only the signature is returned.
+        """
+        signable_message = self.resolve_message(message)
+
+        signed_message = self.account.sign_message(signable_message)
+        signed_message_dict = {}
+        for k in ['v', 'r', 's', 'signature', 'messageHash']:
+            signed_message_dict[k] = getattr(signed_message, k)
+            if isinstance(signed_message_dict[k], HexBytes):
+                signed_message_dict[k] = signed_message_dict[k].hex()
+                
+        if include_message:
+            signed_message_dict['message'] = message
+        signed_message = signed_message_dict
+        
+        
+        return signed_message
 
     @property
     def public_key(self):
@@ -246,13 +263,12 @@ class AccountModule(Module):
 
     def resolve_address(self, address=None):
         if address == None:
-            address == self.address
+            address =  self.address
         assert address != None
         return address
 
 
-    def get_balance(self, token:str=None, address=None, web3=None):
-        web3 = self.resolve_web3(web3)
+    def get_balance(self, token:str=None, address:str=None):
         address = self.resolve_address(address)
         
         if token == None:
@@ -279,11 +295,45 @@ class AccountModule(Module):
         return AccountModule(private_key=private_key, web3=self.web3)
         
 
+    def set_network(self, network:str= 'local.main') -> None:
+        '''
+        Set network
+        '''
+        if isinstance(network, str):
+            network = {
+                'module': 'web3.evm.network',
+                'kwargs': {
+                    'network': network
+                } 
+            }
+        if network == None:
+            network = self.config['network']
+        self.network = self.launch(**network)
+        self.web3 = self.network.web3
 
+    @staticmethod
+    def hex2str(input:HexBytes) -> str:
+        return input.hex()
 
+    def recover_message(self, message:Any, signature:str = None, vrs:Union[tuple, list]=None):
+        message = self.resolve_message(message)
+        recovered_address = Account.recover_message(message, signature=signature, vrs=vrs)
+        return recovered_address
+    
+    def verify_message(self, message:Any, signature:str = None, vrs:Union[tuple, list]=None, address:str=None) -> bool:
+        address = self.resolve_address(address)
+        recovered_address = self.recover_message(message, signature=signature, vrs=vrs)
+        return recovered_address == address
 
+    @classmethod
+    def test(cls):
+        self = cls()
+        message = {'bro': 'bro'}
+        signature = self.sign(message)
+        is_original_sig = self.verify_message(signature['message'], signature=signature['signature'])
+        print(is_original_sig)
 if __name__ == '__main__':
-    AccountModule.streamlit()
-    # module.gradio()
+    AccountModule.test()
+
 
 
