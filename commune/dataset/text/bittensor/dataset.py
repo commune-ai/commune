@@ -19,7 +19,7 @@
 # DEALINGS IN THE SOFTWARE.
 import asyncio
 import aiohttp
-import bittensor
+
 from copy import deepcopy
 import json
 from loguru import logger
@@ -48,7 +48,7 @@ class BittensorDataset(Module):
             batch_size: int = 32, 
             sequence_length: int = 256,
             block_size_bytes: int  = 10000,
-            tokenizer: bittensor.tokenizer = None,
+            tokenizer: 'bittensor.tokenizer' = None,
             no_tokenizer: bool = False,
             max_hash_size:int = 10000000,
             num_workers: int = 1,
@@ -97,6 +97,11 @@ class BittensorDataset(Module):
       
       
     def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
+        try:
+            import bittensor
+        except RuntimeError as e:
+            self.new_event_loop()
+            import bittensor
         if tokenizer == None:
             tokenizer =   bittensor.tokenizer()
         self.tokenizer = tokenizer
@@ -495,7 +500,8 @@ class BittensorDataset(Module):
         if not hasattr(self, '_unsaved_hashes'):
             hash_dataset_map = deepcopy(self.hash_dataset_map)
             for k in self.saved_hashes:
-                hash_dataset_map.pop(k['Hash']) 
+                
+                hash_dataset_map.pop(k['Hash'], None) 
             unsaved_hashes = [{'Hash': h} for h in list(hash_dataset_map.keys())]
         
         return unsaved_hashes

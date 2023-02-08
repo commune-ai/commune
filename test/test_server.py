@@ -24,7 +24,7 @@ def test_serve(x='bro'):
     
     assert 'DemoModule' in commune.servers()
     print(self.kill_port(self.server_stats['port']))
-    assert 'DemoModule' not in commune.servers()
+    assert 'DemoModule' not in commune.servers(), f'{commune.servers()}'
     
 
 

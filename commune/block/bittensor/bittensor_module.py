@@ -9,6 +9,8 @@ import pandas as pd
 from munch import Munch
 import argparse
 from typing import *
+import commune
+commune.new_event_loop()
 import bittensor
 import ray
 import random
@@ -713,6 +715,7 @@ if __name__ == '__main__':
     st.set_page_config(layout="wide")
     # st.write(module.blocks_behind)
     # st.write(module.register())
+    
     st.write('fam')
     parser = argparse.ArgumentParser()
     parser.add_argument('--index', type=int, help='device i', default=0)
@@ -730,7 +733,7 @@ if __name__ == '__main__':
     # module.register(dev_id=list(range(8)))
     # st.write(module.wallet.get_balance())
 
-    print(module.list_wallets(registered=True))
+    print(module.list_wallets(registered=False))
     
 
     # st.write(module.wallet.get_balance())
