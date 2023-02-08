@@ -14,11 +14,13 @@ class ContractManagerModule(commune.Module):
                  contract:'commune.evm.contract' =None, 
                  network: 'commune.evm.network'= None, 
                  account: 'commune.evm.account'=None, 
+                 artifacts_dir:str=None,
+                 contracts_dir:str=None,
                  compile: bool=True):
 
 
-        self.artifacts_path = f'{self.__module_dir__()}/data/artifacts/'
-        self.contracts_path = f'{self.__module_dir__()}/data/contracts/'
+        self.artifacts_dir = artifacts_dir if artifacts_dir else f'{self.__module_dir__()}/data/artifacts/'
+        self.contracts_dir = contracts_dir if contracts_dir else f'{self.__module_dir__()}/data/contracts/'
 
         commune.Module.__init__(self, config=config)
         print(self.config)
@@ -75,7 +77,7 @@ class ContractManagerModule(commune.Module):
 
     @property
     def contract_paths(self):
-        return list(filter(lambda f: f.endswith('.sol'), self.glob(self.contracts_path+'**')))
+        return list(filter(lambda f: f.endswith('.sol'), self.glob(self.contracts_dir+'**')))
   
     @property
     def contracts(self):
@@ -93,9 +95,9 @@ class ContractManagerModule(commune.Module):
 
         path = self.resolve_contract_path(path)
         if path in self.contract_paths:
-            root_dir = os.path.join(self.artifacts_path, 'contracts')
+            root_dir = os.path.join(self.artifacts_dir, 'contracts')
         elif path in self.interface_paths:
-            root_dir = os.path.join(self.artifacts_path, 'interfaces')
+            root_dir = os.path.join(self.artifacts_dir, 'interfaces')
         else:
             raise Exception(f"{path} not in {available_abis}")
         json_name = os.path.basename(path).replace('.sol', '.json')
@@ -124,7 +126,7 @@ class ContractManagerModule(commune.Module):
     @property
     def artifact_paths(self): 
         full_path_list = list(filter(lambda f:f.endswith('.json') and not f.endswith('dbg.json') and os.path.dirname(f).endswith('.sol'),
-                            self.glob(f'{self.artifacts_path}**')))
+                            self.glob(f'{self.artifacts_dir}/**')))
         
         return full_path_list
     
@@ -133,7 +135,7 @@ class ContractManagerModule(commune.Module):
         artifacts = []
         for path in self.artifact_paths:
             simple_path = deepcopy(path)
-            simple_path = simple_path.replace(self.artifacts_path, '')
+            simple_path = simple_path.replace(self.artifacts_dir, '')
             artifacts.append(simple_path)
         return artifacts
 
@@ -163,9 +165,10 @@ class ContractManagerModule(commune.Module):
         if network == None:
             network = self.config['network']
         self.network = self.launch(**network)
-    
         self.web3 = self.network.web3
 
+    
+    
     connect_network = set_network
 
     def compile(self):
@@ -423,7 +426,7 @@ class ContractManagerModule(commune.Module):
 
         self =  ContractManagerModule()
         self.set_network('local.main')
-        self.set_account('e')
+        self.set_account('alice')
         
         contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True, args=['BRO', 'BROCOIN'])
         print(contract)
