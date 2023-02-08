@@ -3,13 +3,13 @@ import web3
 
 import commune
 
-class PythonicContractWrapper:
+class VirtualContract:
     def __init__(self, contract, account=None):
 
         self.set_account(account)
         self.set_contract(contract)
         
-    def set_account(self, account=None):
+    def set_account(self, account: 'AccountModule'=None):
         if account != None:
             self.account = account
             self.web3 = self.account.web3

@@ -66,7 +66,7 @@ class AccountModule(Module):
         self.account = Account.from_key(private_key)
         return self.account
 
-    def set_web3(self, web3):
+    def set_web3(self, web3: Web3) -> Web3:
         self.web3 = web3
         return self.web3
 
@@ -78,11 +78,7 @@ class AccountModule(Module):
     def reset_tx_count() -> None:
         AccountModule._last_tx_count = dict()
 
-    def validate(self, address:str) -> bool:
-        return self.account.address == address
-
-    @staticmethod
-    def _get_nonce(web3: Web3, address: str) -> int:
+    def get_nonce(self, address: str) -> int:
         # We cannot rely on `web3.eth.get_transaction_count` because when sending multiple
         # transactions in a row without wait in between the network may not get the chance to
         # update the transaction count for the self.account address in time.
@@ -104,7 +100,7 @@ class AccountModule(Module):
         tx: Dict[str, Union[int, str, bytes]],
     ) -> HexBytes:
         if tx.get('nonce') == None:
-            nonce = AccountModule._get_nonce(self.web3, self.address)
+            nonce = self.get_nonce(web3=self.web3, self.address)
         if tx.get('gasePrice') == None:
             gas_price = int(self.web3.eth.gas_price * 1.1)
             max_gas_price = os.getenv('ENV_MAX_GAS_PRICE', None)
@@ -124,24 +120,34 @@ class AccountModule(Module):
         return self.web3.eth.get_transaction_count(self.address)
 
     @property
-    def tx_metadata(self):
+    def gas_prices(self):
+        return self.web3.eth.generate_gas_price()
+
+    @property
+    def tx_metadata(self) -> Dict[str, Union[int, str, bytes]]:
+        '''
+        Default tx metadata
+        '''
+        
         return {
         'from': self.address,
         'nonce': self.nonce,
-        'gasPrice':self.web3.eth.generate_gas_price(),
+        'gasPrice':self.gas_price,
         }
-    def send_contract_tx(self, fn , value=0):
+    def send_contract_tx(self, fn:str , value=0):
+        '''
+        send a contract transaction for your python objecs
+        '''
         tx_metadata = self.tx_metadata
         tx_metadata['value'] = value
-
-        tx = fn.buildTransaction(
-            tx_metadata
-        )
-
+        tx = fn.buildTransaction(tx_metadata)
         tx =  self.send_tx(tx)
         return tx
+    
     def send_tx(self, tx):
-        
+        '''
+        Send a transaction
+        '''
         rawTransaction = self.sign_tx(tx=tx)        
         # 7. Send tx and wait for receipt
         tx_hash = self.web3.eth.send_raw_transaction(rawTransaction)
@@ -213,8 +219,7 @@ class AccountModule(Module):
         '''
         Conert private key to public key
         '''
-        private_key_bytes = decode_hex(private_key)
-        private_key_object = keys.PrivateKey(private_key_bytes)
+        private_key_object = keys.PrivateKey(private_key)
         return private_key_object.public_key
 
 
@@ -238,21 +243,14 @@ class AccountModule(Module):
         assert hash_fn != None, f'hash_fn: {hash_type} is not found'
         return hash_fn
 
-    @staticmethod
-    def hash(input, hash_type='keccak',return_type='str',*args,**kwargs):
-        
-        hash_fn = AccountModule.resolve_hash_function(hash_type)
-
-        input = AccountModule.python2str(input)
-        hash_output = Web3.keccak(text=input, *args, **kwargs)
-        if return_type in ['str', str, 'string']:
+    def hash(cls, input, hash_type='keccak',return_type='str',*args,**kwargs):
+        input_text = AccountModule.python2str(input)
+        if hash_type == 'keccak':
+            hash_output = Web3.keccak(text=input_text, *args, **kwargs)
             hash_output = Web3.toHex(hash_output)
-        elif return_type in ['hex', 'hexbytes']:
-            pass
+            return hash_output
         else:
-            raise NotImplementedError(return_type)
-        
-        return hash_output
+            raise NotImplemented(hash_type)
 
     
     def resolve_web3(self, web3=None):
@@ -308,32 +306,59 @@ class AccountModule(Module):
             }
         if network == None:
             network = self.config['network']
+            
+        # launch network
         self.network = self.launch(**network)
         self.web3 = self.network.web3
 
     @staticmethod
     def hex2str(input:HexBytes) -> str:
+        '''
+        HexBytes to str
+        '''
         return input.hex()
 
-    def recover_message(self, message:Any, signature:str = None, vrs:Union[tuple, list]=None):
+    def recover_signer(self, message:Any, 
+                        signature:str, 
+                        vrs:Union[tuple, list]=None):
+        '''
+        recover
+        '''
+        
         message = self.resolve_message(message)
         recovered_address = Account.recover_message(message, signature=signature, vrs=vrs)
         return recovered_address
     
-    def verify_message(self, message:Any, signature:str = None, vrs:Union[tuple, list]=None, address:str=None) -> bool:
+    def verify(self, message:Any, signature:str = None, vrs:Union[tuple, list]=None, address:str=None) -> bool:
+        '''
+        verify message from the signature or vrs based on the address
+        '''
         address = self.resolve_address(address)
-        recovered_address = self.recover_message(message, signature=signature, vrs=vrs)
-        return recovered_address == address
+        recovered_address = self.recover_signer(message, signature=signature, vrs=vrs)
+        return bool(recovered_address == address)
 
     @classmethod
-    def test(cls):
+    def test_sign(cls):
         self = cls()
         message = {'bro': 'bro'}
         signature = self.sign(message)
-        is_original_sig = self.verify_message(signature['message'], signature=signature['signature'])
+        assert self.verify(message, signature=signature['signature'])
         print(is_original_sig)
+        
+    @classmethod
+    def test_hash(cls):
+        self = cls()
+        print(self.hash('hello world'))
+        
+        
+    def test(self):
+        self.test_sign()
+        # self.test_recover_message()
+        # self.test_verify_message()
+        self.test_hash()
+        
 if __name__ == '__main__':
-    AccountModule.test()
+    AccountModule.test_hash()
 
 
 

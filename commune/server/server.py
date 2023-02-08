@@ -326,7 +326,7 @@ class Server(ServerServicer, Serializer):
     def serve(self,
               wait_for_termination:bool=False,
               update_period:int = 10, 
-              verbose:bool= False):
+              verbose:bool= True):
         '''
         Serve the server and loop it until termination.
         '''
@@ -340,11 +340,13 @@ class Server(ServerServicer, Serializer):
 
 
         while True:
-            print_serve_status()
-            time.sleep(update_period)
-            lifetime_seconds += update_period
             if not wait_for_termination:
                 break
+            lifetime_seconds += update_period
+            if verbose:
+                print_serve_status()
+                time.sleep(update_period)
+
                 
             
 

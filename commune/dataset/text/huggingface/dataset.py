@@ -171,10 +171,10 @@ class HFDataset(commune.Module):
         assert x.shape[1] == seqeunce_length
 
 
-    @property
-    def pipeline_tags_count(self):
-        count_dict = dict(self.models_df['pipeline_tag'].value_counts())
-        return {k:int(v) for k,v in count_dict.items()}
+    # @property
+    # def pipeline_tags_count(self):
+    #     count_dict = dict(self.models_df['pipeline_tag'].value_counts())
+    #     return {k:int(v) for k,v in count_dict.items()}
 
     @staticmethod
     def resolve_filter_fn(filter_fn):
@@ -280,10 +280,7 @@ class HFDataset(commune.Module):
         self = cls()
         # self.serve()
         x = self.sample()
-        print(self.put_json('sample', dict(x)))
-        print(self.get_json('sample'))
-        
-        st.write(self.glob_json())
+        print(x)
 
 
 if __name__ == '__main__':

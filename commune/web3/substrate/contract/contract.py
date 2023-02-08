@@ -276,7 +276,7 @@ class SubstrateContract(commune.Module):
 
     def refresh_deployed_contracts(self):
         # self.deployed_contracts = {}
-        return self.rm('deployed_contracts')
+        return self.rm_json('deployed_contracts')
 
 
     def rm_contract (self, contract:str):
