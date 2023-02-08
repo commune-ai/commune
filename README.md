@@ -85,10 +85,7 @@ The module.py file serves as an anchor in that it organizes future modules in wh
 
 ## Docker Compose Environment Details
 
-
 Available Containers In Compose
-
-
 
 
 ## Make Function Helpers

@@ -2,9 +2,6 @@ module: NetworkModule
 
 network: local.main
 
-
-# network: avalanche.test.public
-# client: []
 networks:
   ethereum: 
       main:

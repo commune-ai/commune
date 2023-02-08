@@ -18,12 +18,10 @@ class ContractManagerModule(commune.Module):
                  contracts_dir:str=None,
                  compile: bool=True):
 
+        commune.Module.__init__(self, config=config)
 
         self.artifacts_dir = artifacts_dir if artifacts_dir else f'{self.__module_dir__()}/data/artifacts/'
         self.contracts_dir = contracts_dir if contracts_dir else f'{self.__module_dir__()}/data/contracts/'
-
-        commune.Module.__init__(self, config=config)
-        print(self.config)
 
         if compile:
             self.compile()
@@ -359,14 +357,14 @@ class ContractManagerModule(commune.Module):
 
 
     @property
-    def network2contract(self):
+    def network2contract(self) -> Dict[str, List[str]]]:
         network2contract = {}
         for network, address_list in self.network2address.items():
             network2contract[network] = [address2contract[address] for address in address_list]
         return network2contract
     
 
-    def contract2network(self):
+    def contract2network(self) -> Dict[str, str]:
         address2contract = self.address2contract
         contract2network ={}
         for address, network in self.address2network.items():
@@ -378,6 +376,9 @@ class ContractManagerModule(commune.Module):
                             contract_path:str , 
                             contract_address:str,  
                             refresh=True):
+        '''
+        Register a contract
+        '''
 
 
         registered_contracts = {} if refresh else self.registered_contracts

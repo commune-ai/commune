@@ -989,10 +989,10 @@ class Module:
             else:
                 return getattr(module_class, fn)(*args, **kwargs)
             
-        elif mode in ['ray', 'pm2']:
+        elif mode == 'pm2':
             fn = fn if fn else 'serve_module'
             launch_kwargs = dict(
-                        module=module, 
+                    module=module, 
                     fn = fn,
                     name=name, 
                     tag=tag, 
@@ -1001,16 +1001,25 @@ class Module:
                     refresh=refresh,
                     **extra_kwargs
             )
-            
-            if mode == 'ray':
-                del launch_kwargs['fn']
-            
             launch_fn = getattr(cls, f'{mode}_launch')
+            return launch_fn(**launch_kwargs)
+        elif mode == 'ray':
+            launch_kwargs = dict(
+                    module=module, 
+                    name=name, 
+                    tag=tag, 
+                    args = args,
+                    kwargs = kwargs,
+                    refresh=refresh,
+                    **extra_kwargs
+            )
+            launch_fn = getattr(cls, f'{mode}_launch')
+            return launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
             
         
-        return launch_fn(**launch_kwargs)
+        
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
@@ -1266,7 +1275,7 @@ class Module:
         module_class = None
         if isinstance(module, str):
             module_class = cls.get_module(module)
-        elif isinstance(module, type(None)) :
+        elif module == None :
             module_class = cls
 
         else:
@@ -1281,10 +1290,8 @@ class Module:
         
         actor_kwargs['name'] = name
         actor_kwargs['refresh'] = refresh
-        
-        actor = cls.create_actor(module=module_class,  kwargs=kwargs, **actor_kwargs)
-            
-        return actor 
+
+        return cls.create_actor(module=module_class,  args=args, kwargs=kwargs, **actor_kwargs) 
 
     default_ray_env = {'address':'auto', 
                      'namespace': 'default',
@@ -1309,10 +1316,9 @@ class Module:
                  tag:str = None,
                  kwargs: dict = None,
                  args:list =None,
-                 detached:bool=True, 
-                 resources:dict={'num_cpus': 1.0, 'num_gpus': 0},
-                 cpus:int = 0,
+                 cpus:int = 1.0,
                  gpus:int = 0,
+                 detached:bool=True, 
                  max_concurrency:int=50,
                  refresh:bool=True,
                  verbose:bool= True,
@@ -1325,11 +1331,9 @@ class Module:
         cls_kwargs = kwargs if kwargs else {}
         cls_args = args if args else []
         name = name if name != None else module.__name__
-        
-        if cpus > 0:
-            resources['num_cpus'] = cpus
-        if gpus > 0:
-            resources['num_gpus'] = gpus
+        resources = {}
+        resources['num_cpus'] = cpus
+        resources['num_gpus'] = gpus
 
         if not torch.cuda.is_available() and 'num_gpus' in resources:
             del resources['num_gpus']
@@ -1439,7 +1443,7 @@ class Module:
         '''
         Gets the ray actor
         '''
-        import ray
+        ray  = cls.ray_env()
         actor =  ray.get_actor(actor_name)
         # actor = Module.add_actor_metadata(actor)
         if virtual:
@@ -1492,19 +1496,30 @@ class Module:
                 ray_actors.append(actor_info_list[i])
             
         return ray_actors
+    actors = ray_actors
     
     @classmethod
-    def ray_actor_map(cls, *args, **kwargs):
-        actor_list = cls.ray_actors(*args, **kwargs)
+    def actor_resources(cls, actor:str):
+        resource_map = cls.ray_actor_map()[actor]['required_resources']
+        k_map = {
+            'GPU': 'gpus',
+            'CPU': 'cpus'
+        }
+        return {k_map[k]:float(v) for k,v in resource_map.items() }
+    @classmethod
+    def ray_actor_map(cls, ):
+        ray = cls.ray_env()
+        actor_list = cls.ray_actors(names_only=False, detail=True)
         actor_map  = {}
         for actor in actor_list:
             actor_name = actor.pop('name')
             actor_map[actor_name] = actor
         return actor_map
+    actor_map = ray_actor_map
   
-    @staticmethod
-    def ray_tasks(running=False, name=None, *args, **kwargs):
-        import ray
+    @classmethod
+    def ray_tasks(cls, running=False, name=None, *args, **kwargs):
+        ray = cls.ray_env()
         filters = []
         if running == True:
             filters.append([("scheduling_state", "=", "RUNNING")])
@@ -1519,21 +1534,22 @@ class Module:
    
     @staticmethod
     def ray_nodes( *args, **kwargs):
-        import ray
-        return ray.experimental.state.api.list_nodes(*args, **kwargs)
-    @staticmethod
-    def ray_get(*jobs):
-        import ray
+        from ray.experimental.state.api import list_nodes
+        return list_nodes(*args, **kwargs)
+    @classmethod
+    def ray_get(cls,*jobs):
+        cls.ray_env()
         return ray.get(jobs)
-    @staticmethod
-    def ray_wait( *jobs):
-        import ray
+    @classmethod
+    def ray_wait(cls, *jobs):
+        cls.ray_env()
         finished_jobs, running_jobs = ray.wait(jobs)
         return finished_jobs, running_jobs
     
     
-    @staticmethod
-    def ray_put(*items):
+    @classmethod
+    def ray_put(cls, *items):
+        ray = cls.ray_env()
         import ray
         return [ray.put(i) for i in items]
 
@@ -1593,7 +1609,10 @@ class Module:
     def default_module_id(self):
         return self.get_module_name()
     
-    def set_module_id(self, module_id:str):
+    def set_module_id(self, module_id:str) -> str:
+        '''
+        Sets the module_id when a module is deployed 
+        '''
         self.module_id = module_id
         return module_id
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
