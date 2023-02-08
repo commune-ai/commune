@@ -13,9 +13,6 @@ class ClientModule(Module):
     def __init__(self, actor: 'ray.actor'=None, **kwargs):
         self.attributes_parsed = False
         self.set_actor(actor)
-        self.actor = actor
-        ray.get(self.actor.module_name.remote())
-
         self.parse()
 
     def set_actor(self, actor):
@@ -28,6 +25,7 @@ class ClientModule(Module):
             actor = actor
         else:
             raise NotImplemented(actor)
+        self.actor = actor
 
     def getattr(self, ray_get=True, *args,**kwargs):
         object_id = self.actor.getattr.remote(*args,**kwargs)
@@ -118,9 +116,9 @@ class ClientModule(Module):
 
 
     def __repr__(self):
-        return 'ClientWrapped'
+        return self.module_id
     def __str__(self):
-        return 'ClientWrapped'
+        return self.module_id
 if __name__ == '__main__':
     module = ClientModule.deploy(actor=True)
     # st.write(module.get_functions(module))
