@@ -78,11 +78,12 @@ class AccountModule(Module):
     def reset_tx_count() -> None:
         AccountModule._last_tx_count = dict()
 
-    def get_nonce(self, address: str) -> int:
+    def get_nonce(self, address: str = None) -> int:
         # We cannot rely on `web3.eth.get_transaction_count` because when sending multiple
         # transactions in a row without wait in between the network may not get the chance to
         # update the transaction count for the self.account address in time.
         # So we have to manage this internally per self.account address.
+        address = self.resolve_address(address)
         if address not in AccountModule._last_tx_count:
             AccountModule._last_tx_count[address] = self.web3.eth.get_transaction_count(address)
         else:
@@ -100,7 +101,7 @@ class AccountModule(Module):
         tx: Dict[str, Union[int, str, bytes]],
     ) -> HexBytes:
         if tx.get('nonce') == None:
-            nonce = self.get_nonce(web3=self.web3, self.address)
+            nonce = self.get_nonce(web3=self.web3, address=self.address)
         if tx.get('gasePrice') == None:
             gas_price = int(self.web3.eth.gas_price * 1.1)
             max_gas_price = os.getenv('ENV_MAX_GAS_PRICE', None)

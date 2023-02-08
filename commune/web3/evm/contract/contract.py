@@ -6,6 +6,7 @@ from copy import deepcopy
 import asyncio
 import commune
 from glob import glob
+from typing import Dict, List, Union, Any, Optional, Tuple, Callable, TypeVar, Type, cast
 class ContractManagerModule(commune.Module):
 
     def __init__(self, 
@@ -74,32 +75,20 @@ class ContractManagerModule(commune.Module):
 
     @property
     def contract_paths(self):
-        return list(filter(lambda f: f.endswith('.sol'), self.glob(self.contracts_dir+'**')))
+        return list(filter(lambda f: f.endswith('.sol'),self.glob(self.contracts_dir+'**')))
   
     @property
     def contracts(self):
         contracts = []
         for path in self.contract_paths:
-            contracts += [os.path.splitext(path)[0].replace('/', '.')]
+            contracts += [os.path.basename(path).replace('.sol', '')]
         return contracts
     @property
     def contract2path(self):
         return dict(zip(self.contracts, self.contract_paths))
 
     def get_artifact(self, path):
-        available_abis = self.contracts + self.interfaces
-        
-
-        path = self.resolve_contract_path(path)
-        if path in self.contract_paths:
-            root_dir = os.path.join(self.artifacts_dir, 'contracts')
-        elif path in self.interface_paths:
-            root_dir = os.path.join(self.artifacts_dir, 'interfaces')
-        else:
-            raise Exception(f"{path} not in {available_abis}")
-        json_name = os.path.basename(path).replace('.sol', '.json')
-
-        artifact_path = os.path.join(root_dir, path, json_name)
+        artifact_path = self.artifact2path[path]
         artifact = self.get_json(artifact_path)
         return artifact
 
@@ -129,12 +118,16 @@ class ContractManagerModule(commune.Module):
     
     @property
     def artifacts(self):
-        artifacts = []
+        return list(self.artifact2path.keys())
+
+
+    @property
+    def artifact2path(self):
+        artifact2path = {}
         for path in self.artifact_paths:
-            simple_path = deepcopy(path)
-            simple_path = simple_path.replace(self.artifacts_dir, '')
-            artifacts.append(simple_path)
-        return artifacts
+            key = os.path.basename(os.path.dirname(path)).replace('.sol','')
+            artifact2path[key] = path
+        return artifact2path
 
     def connected(self):
         '''
@@ -179,11 +172,6 @@ class ContractManagerModule(commune.Module):
     @property
     def network_name(self):
         return self.network.network
-
-    @property
-    def contract_paths(self):
-        contracts = list(filter(lambda f: f.startswith('contracts'), self.artifacts))
-        return list(map(lambda f:os.path.dirname(f.replace('contracts/', '')), contracts))
 
     @property
     def interfaces(self):
@@ -231,7 +219,7 @@ class ContractManagerModule(commune.Module):
         if contract_address == None or new == True:
 
             assert contract in self.contracts
-            contract_artifact = self.get_artifact(contract_path)
+            contract_artifact = self.get_artifact(contract)
             contract_class = web3.eth.contract(abi=contract_artifact['abi'], 
                                         bytecode= contract_artifact['bytecode'],)
 
@@ -358,7 +346,7 @@ class ContractManagerModule(commune.Module):
 
 
     @property
-    def network2contract(self) -> Dict[str, List[str]]]:
+    def network2contract(self) -> Dict[str, List[str]]:
         network2contract = {}
         for network, address_list in self.network2address.items():
             network2contract[network] = [address2contract[address] for address in address_list]
@@ -402,13 +390,8 @@ class ContractManagerModule(commune.Module):
     
     
     def resolve_contract_path(self,  path):
+        contract_path = self.contract2path.get(path)
 
-        if path in self.contract_paths:
-            contract_path = path
-        else:
-            contract_path = self.contract2path.get(path, None)
-        
-        assert contract_path in self.contract_paths, f'{contract_path} {self.contract_paths}'
         return contract_path
 
 
@@ -427,11 +410,9 @@ class ContractManagerModule(commune.Module):
         ContractManagerModule.new_event_loop()
 
         self =  ContractManagerModule()
-        self.set_network('local.main')
-        self.set_account('alice')
-        
-        contract = self.deploy_contract(contract='token.ERC20.ModelToken',new=True, args=['BRO', 'BROCOIN'])
-        print(contract)
+        # print(self.artifacts)
+        contract = self.deploy_contract(contract='CommunalCluster',new=True, args=['BRO', 'BROCOIN'])
+        # print(contract)
         print(contract.balanceOf(self.account.address))
 
 

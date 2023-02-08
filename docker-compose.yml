@@ -23,6 +23,7 @@ services:
       - ./commune.sh:/app/commune.sh
       - ./requirements.txt:/app/requirements.txt
       - ./README.md:/app/README.md
+      - ./hardhat.config.js:/app/hardhat.config.js
       - ./scripts:/app/scripts
 
       - ./test:/test # MOUNT TEST
