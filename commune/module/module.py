@@ -417,6 +417,8 @@ class Module:
         '''
         Kill the server by the name
         '''
+        if isinstance(module, int):
+            return cls.kill_port(module)
         if mode == 'pm2':
             return cls.pm2_kill(module)
         else:
@@ -737,12 +739,14 @@ class Module:
     @classmethod
     def set_event_loop(cls, loop=None, new_loop:bool = False):
         import asyncio
-        if new_loop:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        else:
-            loop = loop if loop else asyncio.get_event_loop()
-        
+        try:
+            if new_loop:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            else:
+                loop = loop if loop else asyncio.get_event_loop()
+        except RuntimeError as e:
+            self.new_event_loop()
         return loop
 
     @classmethod

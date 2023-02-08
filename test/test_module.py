@@ -34,9 +34,9 @@ def test_serve(x='bro'):
     client_module.return_x(x) == 'x'
     client_module.return_x(x=x) == 'x'
     
-    assert 'DemoModule' in self.servers()
+    assert 'DemoModule' in commune.servers()
     print(self.kill_server(self.server_stats['port']))
-    assert 'DemoModule' not in self.servers()
+    assert 'DemoModule' not in commune.servers(), commune.servers()
     
 
 def test_load( config_path = './commune/module.yaml'):
