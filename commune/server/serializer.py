@@ -46,6 +46,7 @@ class Serializer:
 
         serializer = getattr(self, f'serialize_{data_type}')
         data_bytes, metadata = serializer( data = data, metadata=metadata )
+
         metadata['data_type'] =  data_type
         metadata_bytes = self.dict2bytes(metadata)
         return DataBlock(data=data_bytes, metadata = metadata_bytes, blocks=sub_blocks)
@@ -74,6 +75,7 @@ class Serializer:
     def serialize_dict(self, data: dict, metadata:dict) -> DataBlock:
         data = self.dict2bytes(data=data)
         return  data,  metadata
+
 
     def deserialize_dict(self, data: bytes, metadata:dict) -> DataBlock:
         data = self.bytes2dict(data=data)
