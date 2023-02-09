@@ -188,10 +188,8 @@ class TransformerModel( nn.Module, commune.Module):
         # deepspeed has .module.device to access device
         return self.model.device
 
-    def set_model(self, model_name:str, device:str = 'cuda', **extra_model_kwargs):
+    def set_model(self, model_name:str, device:str = None, **extra_model_kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-
-
         self.autocast = extra_model_kwargs.pop('autocast', False)
         self.model_name = self.shortcuts.get(model_name, model_name)
         # model_config = AutoConfig.from_pretrained(self.model_name)
@@ -200,7 +198,7 @@ class TransformerModel( nn.Module, commune.Module):
                                             **extra_model_kwargs)        
         self.model_config = self.model.config
         print('model_name', self.model_name)
-        # self.model = self.model.to(device)
+        self.model = self.model.to(device)
         if self.autocast:
             self.model = self.model.half()
             
