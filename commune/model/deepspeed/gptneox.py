@@ -26,7 +26,7 @@ device_map = infer_auto_device_map(
     max_memory = {0: "15GiB", 1: "15GiB",3: "15GiB" , 'cpu': "20GiB"},
     )
 
-weights_path = model_name
+weights_path = '/tmp/gptneox20b'
 
 device_map['gpt_neox.embed_in'] = 'cpu'
 print(f"device_map: {device_map}")
@@ -46,10 +46,13 @@ prompt = "Deepspeed is "
 m_inp = tokenizer(prompt, return_tensors="pt")
 attn_mask = m_inp.get("attention_mask", None).to(device='cuda:0')
 
+import commune
+model_module = commune.module(model)
+model_module.serve()
 with torch.no_grad():
   gen_tokens = model.generate(
     m_inp["input_ids"].to(0), attention_mask = attn_mask,
     do_sample=True, max_new_tokens=100, temperature=0.9
   )
-gen_text = tokenizer.decode(output[0].tolist())
+gen_text = tokenizer.decode(gen_tokens.tolist())
 print(f"generated tokens: {gen_text}")

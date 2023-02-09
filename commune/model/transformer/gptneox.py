@@ -13,12 +13,9 @@ import time
 from munch import Munch
 import argparse
 import torch
-# logger = logger.opt(colors=True)
+from transformers import AutoConfig, AutoModelForCausalLM
+from accelerate import init_empty_weights, infer_auto_device_map, load_checkpoint_and_dispatch
 
-if os.getenv('USE_STREAMLIT') == 'true':
-    import streamlit as st
-    
-    
 # import torch
 import commune
 # commune.utils
@@ -30,7 +27,7 @@ Examples
 
 
 """
-class TransformerModel( nn.Module, commune.Module):
+class GPTNeoX( nn.Module, commune.Module):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -41,7 +38,10 @@ class TransformerModel( nn.Module, commune.Module):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gptneox20b",
+                model_name: str="EleutherAI/gpt-neox-20b",
+                weights_path: str = '/tmp/gptneox20b',
+                max_memory: dict = {0: "15GiB", 1: "15GiB",3: "15GiB" , 'cpu': "20GiB"},
+                no_split_module_classes=["GPTNeoXLayer"],
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
@@ -58,43 +58,38 @@ class TransformerModel( nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         # set model and tokenizer
-        self.set_model(model_name=model_name,device=device, **model_kwargs)
+        self.model_name = self.shortcuts.get(model_name, model_name)
+        self.model_config = AutoConfig.from_pretrained(self.model_name)
+        self.model_config.use_cache = False
+        
+        with init_empty_weights():
+            self.model = AutoModelForCausalLM.from_config(self.model_config)
 
-        # set tokenizer to model name (HF only) if tokenizer == None
-        self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
+        self.device_map = infer_auto_device_map(
+            self.model, 
+            no_split_module_classes=no_split_module_classes,
+            dtype=torch.bfloat16, #note: succeeds with float16 as well.
+            max_memory = max_memory,
+            )
+
+        self.weights_path = weights_path
         
-        self.set_optimizer(optimizer=optimizer)
+        self.device_map['gpt_neox.embed_in'] = 'cpu'
+
+        load_checkpoint_and_dispatch(
+            self.model,
+            self.weights_path,
+            device_map=self.device_map,
+            offload_folder=None,
+            offload_state_dict=False,
+            dtype="bfloat16"
+        )
         
+        
+        self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
+
         self.set_metrics(metrics=metrics)
         
-        self.set_stats()
-        
-        
-        if load:
-            self.load()
-        
-        self.set_fine_tuning_params(**finetune)
-        
-        
-    def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
-        
-        if isinstance(optimizer, dict):
-            module_path = optimizer.pop('module', None)
-            assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
-            optimizer_class = self.import_object(module_path) 
-            optimizer_kwargs = optimizer.get('kwargs', optimizer)
-            optimizer_args = optimizer.get('args', [])
-            self.optimizeroptimizer_class(*optimizer_args,**optimizer_kwargs)
-                
-        elif optimizer == None:
-            self.optimizer = torch.optim.Adam(self.parameters(), lr=0.0001)
-        
-        else:
-            raise NotImplementedError(optimizer)
-        
-        
-        return self.optimizer
-
 
     def calculate_loss(self, pediction, gt):
         loss =  self.metrics['cross_entropy'](pediction, gt)
@@ -133,6 +128,8 @@ class TransformerModel( nn.Module, commune.Module):
 
             
         # if input_ids is not provided, tokenize the text
+        commune.print(input_ids, color='purple')
+        
         if input_ids == None:
             # if text is provided, tokenize the text
             if isinstance(text, str) or (isinstance(text, list) and isinstance(text[0], str)):
@@ -143,11 +140,17 @@ class TransformerModel( nn.Module, commune.Module):
         elif isinstance(input_ids, str) or (isinstance(input_ids, list) and isinstance(input_ids[0], str)):
             input_ids = self.tokenize(input_ids)
 
+        commune.print('TOKENIZE', 'purple')
+
+
         input_dict = dict(
                     input_ids=input_ids,
                     attention_mask=attention_mask,
                     output_hidden_states= output_hidden_states
                     )
+
+        commune.print(input_dict, 'purple')
+        
 
         # ensure the input_ids and attention mask is a tensor
         for k in ['input_ids', 'attention_mask']:
@@ -159,18 +162,23 @@ class TransformerModel( nn.Module, commune.Module):
                 continue
             if isinstance(v,  torch.Tensor):
                 input_dict[k] = input_dict[k].to(self.device)
+            
+            commune.print('TOKENIZE_' + k, 'purple')
 
         if verbose:
             print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
 
+        print(input_dict)
         model_output = self.model(**input_dict)
+        
         output_length = output_length if output_length else model_output.logits.size(1)
-            
+        
         output_dict = {}
         if topk:
             topk_tensor = self.encode_topk(model_output.logits[:,-output_length:,:], topk=topk)
             output_dict['topk']=topk_tensor
             
+
         if output_logits:
             output_dict['logits']=model_output.logits[:,-output_length:,:]
 
@@ -188,23 +196,6 @@ class TransformerModel( nn.Module, commune.Module):
         # deepspeed has .module.device to access device
         return self.model.device
 
-    def set_model(self, model_name:str, device:str = 'cuda', **extra_model_kwargs):
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-
-
-        self.autocast = extra_model_kwargs.pop('autocast', False)
-        self.model_name = self.shortcuts.get(model_name, model_name)
-        # model_config = AutoConfig.from_pretrained(self.model_name)
-        
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                                            **extra_model_kwargs)        
-        self.model_config = self.model.config
-        print('model_name', self.model_name)
-        # self.model = self.model.to(device)
-        if self.autocast:
-            self.model = self.model.half()
-            
-        return self.model
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer
@@ -653,7 +644,7 @@ class TransformerModel( nn.Module, commune.Module):
 
 if __name__ == "__main__":
     # print('FUCK')
-    TransformerModel.run()
+    GPTNeoX().serve()
     # ModelServer().run()
     # TransformerModel.experiment()
 
