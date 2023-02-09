@@ -25,6 +25,7 @@ services:
       - ./README.md:/app/README.md
       - ./hardhat.config.js:/app/hardhat.config.js
       - ./scripts:/app/scripts
+      - ./contracts:/app/contracts
 
       - ./test:/test # MOUNT TEST
 

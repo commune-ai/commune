@@ -1,23 +1,26 @@
-
 #/bin/bash
-# Install cargo and Rust
-curl https://sh.rustup.rs -sSf | sh -s -- -y
-PATH="/root/.cargo/bin:${PATH}"
 
-apt-get update \
- && DEBIAN_FRONTEND=noninteractive \
-    apt-get install --no-install-recommends --assume-yes \
-      protobuf-compiler
+# INSTALL PACKAGES BEFORE COMMUNE (This is a hack to get around the bittensor install)
+pip install bittensor
+# BITTENSOR FIXES FOR NOW
+pip install --upgrade substrate-interface
+pip install --upgrade torch
 
-rustup update nightly
-rustup target add wasm32-unknown-unknown --toolchain nightly
-apt-get install make
-apt-get install -y pkg-config
+# INSTALL COMMUNE
+COPY ./commune /app/commune
+COPY ./scripts /app/scripts
+COPY ./requirements.txt /app/requirements.txt
+COPY ./setup.py /app/setup.py
+COPY ./README.md /app/README.md
 
-# CONTRACTS STUFF
-apt install binaryen
-apt-get install libssl-dev
-cargo install cargo-dylint dylint-link
-cargo install cargo-contract --force
+# INSTALL PACKAGES AFTER COMMUNE
+pip install -e .
+pip install openai
+pip install google-search-results
+pip install wikipedia
+pip install pytest
+pip install jupyterlab
+pip install accelerate
 
-rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+
+
