@@ -49,6 +49,7 @@ class VirtualModule:
             include_hiddden (bool): If True, include hidden attributes.
         '''
         from functools import partial
+        print(self.module_client.whitelist_functions)
         
         for attr in self.module_client.whitelist_functions:
             # continue if attribute is private and we don't want to include hidden attributes
@@ -75,7 +76,7 @@ class Client( Serializer):
             port: int = 80 ,
             max_processes: int = 1,
             timeout:int = 20,
-            whitelist_functions: List[str] = ['functions', 'function_schema_map'],
+            whitelist_functions: List[str] = ['functions', 'function_schema_map', 'getattr'],
             loop = None
         ):
         

@@ -5,21 +5,26 @@ from torch import nn
 from pprint import pp
 
 from copy import deepcopy
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 from munch import Munch
 import os,sys
-import bittensor
 import commune
 from commune import Module
 
+try:
+    import bittensor
+except RuntimeError:
+    commune.new_event_loop()
+    import bittensor
 # import streamlit as st
 # from commune.model.utils import encode_topk, decode_topk
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
+
 class ModelClient(Module, nn.Module):
     def __init__(self,
-                model:str = 'model.dendrite',
+                model:Union[str, Dict] = 'model.dendrite',
                 tokenizer:Union[str, 'tokenizer'] = None,
                 device:str='cuda',
                 output_length:int = 8,
@@ -35,16 +40,19 @@ class ModelClient(Module, nn.Module):
         self.output_length = output_length
         self.input_length = input_length
         self.loss = torch.nn.CrossEntropyLoss()
-        
         self.set_model(model)
         self.set_tokenizer(tokenizer=tokenizer if tokenizer else self.model_name)
 
-
-    def set_model(self, model:str):
-        self.model = self.connect(model)
-
-        self.model_name = self.model(fn= 'getattr', kwargs = {'k': 'model_name'})
-        self.config = Munch(self.model(fn= 'getattr', kwargs = {'k': 'config'}))
+    def set_model(self, model:Union[str, Dict]):
+        if isinstance(model, str):
+            self.model = self.connect(model)
+        elif isinstance(model, dict):
+            self.model = self.connect(**model)
+        else:
+            self.model = model
+            
+        self.model_name = self.model.getattr('model_name')
+        self.config = Munch(self.model.getattr('model_config'))
         self.config.hidden_size = self.config.get('hidden_size')
         
         
@@ -79,7 +87,7 @@ class ModelClient(Module, nn.Module):
             **kwargs
         }
         # import ipdb; ipdb.set_trace()
-        response_dict = self.model(fn='forward', kwargs=deepcopy(model_kwargs))
+        response_dict = self.model.forward(**model_kwargs)
         # if topk:
         ouput_dict = {}
         if 'topk' in response_dict:
@@ -248,37 +256,37 @@ class ModelClient(Module, nn.Module):
 
 
     @classmethod
-    def test_performance(cls, batch_size= 32, sequence_length=256):
+    def test_performance(cls,model = 'TransformerModel::EleutherAI_gpt-neo-125M',
+                         batch_size= 32, sequence_length=256):
+        from commune.utils.torch import  tensor_info_dict
+        
+        if model != None:
+            self = cls(model=model)
 
-        self = cls.default_model()
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
         token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
-
-        from commune.utils import tensor_info_dict, tensor_info, Timer
-        input = dict(token_batch)
-        import time
-        with Timer() as t:
-            # import ipdb; ipdb.set_trace()
-            print('INPUT SCHEMA')
-            print(tensor_info_dict(input))
-            output = self(**input)
-            print('OUTPUT SCHEMA')
-            print(tensor_info_dict(output.__dict__))
-            print('TIME (s): ', t.seconds)
-            print(self.get_loss_fct(logits=output.logits, labels=token_batch.input_ids))
+        sample = dict(token_batch)
+        t = commune.timer()
+        # import ipdb; ipdb.set_trace()
+        output = self(**sample)
+        print('INPUT SCHEMA', tensor_info_dict(sample))        
+        print('OUTPUT SCHEMA', tensor_info_dict(output))
+        print('TIME (s): ', t.seconds)
+        print(self.get_loss_fct(logits=output.logits, labels=token_batch.input_ids))
 
 
     @classmethod
     def default_model(cls):
-        self = cls()
+        # model = commune.connect(ip='65.49.81.154', port=50050, virtual=False)
+        model = commune.connect('TransformerModel::EleutherAI_gpt-neo-125M', virtual=False)
+        self = cls(model=model)
         return self
 
     @classmethod
     def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096):
-        from commune.neuron.miner import neuron
+        from commune.block.bittensor.neuron.miner import neuron
         
         self = cls.default_model()
-        print(self.state_dict())
         nucleus = neuron(model=self).model
         nucleus.model.train()
         nucleus.model.eval()
@@ -296,15 +304,16 @@ class ModelClient(Module, nn.Module):
  
  
     @classmethod
-    def run_neuron(cls):
+    def run_neuron(cls, model):
         import bittensor
         from commune.neuron.miner import neuron
-        self = cls()
+        self = cls(model=model)
         n = neuron(model=self)  
         n.run()
  
+ 
 if __name__ == "__main__":
     
-    # ModelClient.run()
+    # ModelClient.default_model()
     
-    ModelClient.run_neuron()
+    ModelClient.run()
