@@ -61,7 +61,7 @@ class TransformerModel( nn.Module, commune.Module):
         self.set_model(model_name=model_name,device=device, **model_kwargs)
 
         # set tokenizer to model name (HF only) if tokenizer == None
-        self.set_tokenizer(tokenizer=tokenizer if tokenizer else model_name )
+        self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
         
         self.set_optimizer(optimizer=optimizer)
         
@@ -194,12 +194,12 @@ class TransformerModel( nn.Module, commune.Module):
 
         self.autocast = extra_model_kwargs.get('autocast', False)
         self.model_name = self.shortcuts.get(model_name, model_name)
-        model_config = AutoConfig.from_pretrained(model_name)
+        model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config = model_config
         self.model = AutoModelForCausalLM.from_config(model_config, 
                                             **extra_model_kwargs)        
         
-        
+        print('model_name', self.model_name)
         # self.model = self.model.to(device)
         if self.autocast:
             self.model = self.model.half()
