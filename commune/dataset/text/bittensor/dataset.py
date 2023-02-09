@@ -747,27 +747,6 @@ class BittensorDataset(Module):
                     num_workers=self.num_workers,
                     drop_last=True)
 
-    def set_event_loop(self, loop = None, new_loop:bool = False) -> 'asyncio.loop':
-        '''
-        Sets the event loop.
-
-        Args:
-            loop (asyncio.loop, optional):
-                The asyncio loop you want to set to self.loop
-        
-        Returns:
-            self.loop (asyncio.loop)
-        '''
-        if new_loop:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        if loop == None:
-            loop = asyncio.get_event_loop()
-            # asyncio.set_event_loop(loop)
-        self.loop = loop
-        return self.loop
-
     def __len__(self) -> int:
         """
         Returns number of samples (blocks) of dataset
