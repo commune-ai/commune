@@ -23,6 +23,13 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 
 
 class ModelClient(Module, nn.Module):
+    shortcuts =  {
+        'gptj': 'EleutherAI/gpt-j-6B',
+        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+        'gpt125m': 'EleutherAI/gpt-neo-125M',
+        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gptneox20b': 'EleutherAI/gpt-neox-20b'
+         }
     def __init__(self,
                 model:Union[str, Dict] = 'model.dendrite',
                 tokenizer:Union[str, 'tokenizer'] = None,
@@ -45,11 +52,13 @@ class ModelClient(Module, nn.Module):
 
     def set_model(self, model:Union[str, Dict]):
         if isinstance(model, str):
-            self.model = self.connect(model)
+            self.model = commune.connect(model)
         elif isinstance(model, dict):
-            self.model = self.connect(**model)
+            self.model = commune.connect(**model)
         else:
             self.model = model
+        
+        print(self.model)
             
         self.model_name = self.model.getattr('model_name')
         self.config = Munch(self.model.getattr('model_config'))
@@ -101,10 +110,13 @@ class ModelClient(Module, nn.Module):
     __call__ = forward
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
+        
+        
         if isinstance(tokenizer, str):
             if tokenizer == 'model.dendrite':
                 tokenizer = bittensor.tokenizer()
             else:
+                tokenizer = self.shortcuts.get(tokenizer, tokenizer)
                 try:
                     tokenizer = AutoTokenizer.from_pretrained(tokenizer)
                 except ValueError:
@@ -119,7 +131,7 @@ class ModelClient(Module, nn.Module):
 
 
 
-
+        self.config['pad_token_id'] = self.tokenizer.pad_token_id
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -283,10 +295,12 @@ class ModelClient(Module, nn.Module):
         return self
 
     @classmethod
-    def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096):
+    def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
-        
-        self = cls.default_model()
+        if model_kwargs.get('model') == None:
+            self = cls.default_model()
+        else:
+            self = cls(**model_kwargs)
         nucleus = neuron(model=self).model
         nucleus.model.train()
         nucleus.model.eval()
@@ -316,4 +330,4 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    ModelClient.run()
+    ModelClient.test_neuron(model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')

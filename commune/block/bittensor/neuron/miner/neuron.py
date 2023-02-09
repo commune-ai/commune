@@ -628,7 +628,7 @@ class neuron:
                 bittensor.__console__.print('[green]Current Status:[/green]', {**wandb_data, **local_data})
                 metagraph.sync()
                 last_set_block = current_block
-                if not config.neuron.no_set_weights:
+                if not config.neuron.no_set_weights and False:
                     try: 
                         bittensor.__console__.print('[green]Current Status:[/green]', {**wandb_data, **local_data})
                         # Set self weights to maintain activity.

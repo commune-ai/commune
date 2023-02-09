@@ -652,8 +652,8 @@ class TransformerModel( nn.Module, commune.Module):
 
 if __name__ == "__main__":
     # print('FUCK')
-    TransformerModel.run()
-    # ModelServer().run()
+    # TransformerModel.run()
+    ModelServer().run_neuron()
     # TransformerModel.experiment()
 
 

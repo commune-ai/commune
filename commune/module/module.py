@@ -747,7 +747,7 @@ class Module:
             else:
                 loop = loop if loop else asyncio.get_event_loop()
         except RuntimeError as e:
-            self.new_event_loop()
+            cls.new_event_loop()
         return loop
 
     @classmethod
@@ -756,7 +756,7 @@ class Module:
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
-            loop = self.new_event_loop()
+            loop = cls.new_event_loop()
         return loop
 
     @classmethod

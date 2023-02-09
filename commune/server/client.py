@@ -49,7 +49,6 @@ class VirtualModule:
             include_hiddden (bool): If True, include hidden attributes.
         '''
         from functools import partial
-        print(self.module_client.whitelist_functions)
         
         for attr in self.module_client.whitelist_functions:
             # continue if attribute is private and we don't want to include hidden attributes
