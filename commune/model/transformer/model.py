@@ -47,7 +47,8 @@ class TransformerModel( nn.Module, commune.Module):
                 metrics: Dict[str, 'Metric'] = None,
                 device='cuda',
                 tag = None,
-                load = True,
+                load: bool = True,
+                autocast: bool = True,
                 finetune : dict = dict(num_layers=10),
                 **model_kwargs
                 ):
@@ -58,7 +59,7 @@ class TransformerModel( nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         # set model and tokenizer
-        self.set_model(model_name=model_name,device=device, **model_kwargs)
+        self.set_model(model_name=model_name,device=device, autocast=autocast, **model_kwargs)
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
@@ -188,9 +189,9 @@ class TransformerModel( nn.Module, commune.Module):
         # deepspeed has .module.device to access device
         return self.model.device
 
-    def set_model(self, model_name:str, device:str = None, **extra_model_kwargs):
+    def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        self.autocast = extra_model_kwargs.pop('autocast', False)
+        self.autocast = autocast
         self.model_name = self.shortcuts.get(model_name, model_name)
         # model_config = AutoConfig.from_pretrained(self.model_name)
         
