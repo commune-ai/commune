@@ -1,22 +1,18 @@
 #/bin/bash
-# Install cargo and Rust
-curl https://sh.rustup.rs -sSf | sh -s -- -y
-PATH="/root/.cargo/bin:${PATH}"
 
-apt-get update \
- && DEBIAN_FRONTEND=noninteractive \
-    apt-get install --no-install-recommends --assume-yes \
-      protobuf-compiler
+# install node
+export NODE_VERSION=16.17.1
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+export NVM_DIR=/root/.nvm
+. "$NVM_DIR/nvm.sh" && nvm install ${NODE_VERSION}
+. "$NVM_DIR/nvm.sh" && nvm use v${NODE_VERSION}
+. "$NVM_DIR/nvm.sh" && nvm alias default v${NODE_VERSION}
+export PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin/:${PATH}"
 
-rustup update nightly
-rustup target add wasm32-unknown-unknown --toolchain nightly
-apt-get install make
-apt-get install -y pkg-config
-
-# CONTRACTS STUFF
-apt install binaryen
-apt-get install libssl-dev
-cargo install cargo-dylint dylint-link
-cargo install cargo-contract --force
-
-rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+# Install node packages
+npm i -g pm2
+npm install --save-dev hardhat
+npm install --save-dev @nomicfoundation/hardhat-toolbox
+COPY hardhat.config.js .
+npx hardhat
+npm install @openzeppelin/contracts

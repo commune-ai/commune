@@ -13,12 +13,24 @@ import commune
 
 class SubstrateContract(commune.Module):
     
-    dir_file_path = os.path.dirname(__file__)
-    contracts_dir_path = f'{dir_file_path}/data/ink'
-    def __init__(self, keypair:Keypair = None, substrate:'SubstrateInterface' = None):
+    def __init__(self, keypair:Keypair = None, 
+                 substrate:'SubstrateInterface' = None,
+                 contracts_dir_path:str = None):
+        
+        self.set_contract_dir_path(contracts_dir_path)
         self.set_keypair(keypair)
         self.set_substrate(substrate)
+        
 
+    def set_contract_dir_path(self, contract_dir_path:str = None):
+        self.contracts_dir_path = contract_dir_path if contract_dir_path else self.default_contract_dir()
+        return self.contracts_dir_path
+   
+    @classmethod
+    def default_contract_dir(cls, contract:str):
+        contracts_dir_path = f'{cls.pwd}/contracts/ink'
+
+        
     def set_substrate(self, substrate=None):
         
         if substrate == None:

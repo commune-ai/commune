@@ -14,15 +14,11 @@ class ContractManagerModule(commune.Module):
                  contract:'commune.evm.contract' =None, 
                  network: 'commune.evm.network'= None, 
                  account: 'commune.evm.account'=None, 
-                 artifacts_dir:str=None,
-                 contracts_dir:str=None,
+                 base_dir:str=None,
                  compile: bool=True):
 
         commune.Module.__init__(self, config=config)
-
-        self.artifacts_dir = artifacts_dir if artifacts_dir else f'{self.__module_dir__()}/data/artifacts/'
-        self.contracts_dir = contracts_dir if contracts_dir else f'{self.__module_dir__()}/data/contracts/'
-
+        self.set_contracts_dir_path(base_dir=base_dir)
         if compile:
             self.compile()
 
@@ -30,6 +26,13 @@ class ContractManagerModule(commune.Module):
         self.set_account(account=account)
         self.set_contract(contract=contract)
 
+
+    def set_contracts_dir_path(self, base_dir:str=None):
+        base_dir = base_dir if base_dir else f'{self.pwd}/contracts/evm'
+        self.contracts_dir_path = base_dir + '/contracts/'
+        self.artifacts_dir_path = base_dir + '/artifacts/'
+        assert os.path.isdir(self.contracts_dir_path[:-1]), self.contracts_dir_path
+        assert os.path.isdir(self.artifacts_dir_path[:-1]), self.artifacts_dir_path
     @property
     def address(self):
         return self.contract.address
@@ -75,7 +78,7 @@ class ContractManagerModule(commune.Module):
 
     @property
     def contract_paths(self):
-        return list(filter(lambda f: f.endswith('.sol'),self.glob(self.contracts_dir+'**')))
+        return list(filter(lambda f: f.endswith('.sol'),self.glob(self.contracts_dir_path+'**')))
   
     @property
     def contracts(self):
@@ -112,7 +115,7 @@ class ContractManagerModule(commune.Module):
     @property
     def artifact_paths(self): 
         full_path_list = list(filter(lambda f:f.endswith('.json') and not f.endswith('dbg.json') and os.path.dirname(f).endswith('.sol'),
-                            self.glob(f'{self.artifacts_dir}/**')))
+                            self.glob(f'{self.artifacts_dir_path}/**')))
         
         return full_path_list
     
