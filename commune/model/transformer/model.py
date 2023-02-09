@@ -197,7 +197,8 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                                             **extra_model_kwargs)        
-        self.model_config = self.model.config.__dict__
+        import json
+        self.model_config = json.loads(self.model.config.to_json_string())
         self.model = self.model.to(device)
         if self.autocast:
             self.model = self.model.half()
