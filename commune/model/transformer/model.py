@@ -2,7 +2,6 @@ import os, sys
 from pprint import pp
 
 from functools import partial
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import asyncio
 from copy import deepcopy
 from typing import Union, Optional
@@ -32,7 +31,7 @@ Examples
 
 """
 class TransformerModel( nn.Module, commune.Module):
-    model_shortcuts =  {
+    shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
@@ -46,23 +45,20 @@ class TransformerModel( nn.Module, commune.Module):
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
-                device_map: str = 'balanced',
-                max_memory: Dict = {0: "10GiB", 1: "10GiB",3: "10GiB" , 4: "10GiB", 5:  "10GiB", 6: "10GiB", 7: "10GiB"},
                 device='cuda',
                 tag = None,
                 load = True,
-                autocast: bool = False,
-                finetune : dict = dict(num_layers=10,)
+                finetune : dict = dict(num_layers=10),
+                **model_kwargs
                 ):
         
         
         self.tag = tag 
         
         nn.Module.__init__(self)
-
-        model_name = self.model_shortcuts.get(model_name, model_name)
+        
         # set model and tokenizer
-        self.set_model(model_name=model_name, autocast= autocast, device=device, max_memory=max_memory)
+        self.set_model(model_name=model_name,device=device, **model_kwargs)
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer else model_name )
@@ -134,8 +130,18 @@ class TransformerModel( nn.Module, commune.Module):
                 **kwargs):
 
         # tokenizer the text if text is provided 
-        if text != None and isinstance(text, str):
-            input_ids = self.tokenize(text)
+
+            
+        # if input_ids is not provided, tokenize the text
+        if input_ids == None:
+            # if text is provided, tokenize the text
+            if isinstance(text, str) or (isinstance(text, list) and isinstance(text[0], str)):
+                input_ids = self.tokenize(text)
+            else:
+                raise ValueError('Please provide either input_ids or text')
+        
+        elif isinstance(input_ids, str) or (isinstance(input_ids, list) and isinstance(input_ids[0], str)):
+            input_ids = self.tokenize(input_ids)
 
         input_dict = dict(
                     input_ids=input_ids,
@@ -182,14 +188,18 @@ class TransformerModel( nn.Module, commune.Module):
         # deepspeed has .module.device to access device
         return self.model.device
 
-    def set_model(self, model_name:str, device_map:str='auto', device:str = 'cuda', autocast=False, max_memory=None):
-            
-        self.model_name = model_name
-        self.device_map = device_map
-        self.model = None
-        self.autocast = autocast
+    def set_model(self, model_name:str, device:str = 'cuda', **extra_model_kwargs):
+        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+
+
+        self.autocast = extra_model_kwargs.get('autocast', False)
+        self.model_name = self.shortcuts.get(model_name, model_name)
+        model_config = AutoConfig.from_pretrained(model_name)
+        self.model_config = model_config
+        self.model = AutoModelForCausalLM.from_config(model_config, 
+                                            **extra_model_kwargs)        
         
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, device_map=device_map, max_memory=max_memory, offload_folder='/tmp')
+        
         # self.model = self.model.to(device)
         if self.autocast:
             self.model = self.model.half()
@@ -197,13 +207,14 @@ class TransformerModel( nn.Module, commune.Module):
         return self.model
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
+        from transformers import AutoTokenizer
         if isinstance(tokenizer, str):
+            tokenizer = self.shortcuts.get(tokenizer, tokenizer)
             try:
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer)
             except ValueError:
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-
         self.tokenizer = tokenizer
 
         if  self.tokenizer.pad_token == None:
@@ -392,6 +403,12 @@ class TransformerModel( nn.Module, commune.Module):
             module_tag +=  f'_{tag}'
         return module_tag
     
+
+    def save_pretrained(self, path:str, *args, **kwargs):
+        # Save the model and tokenizer
+        self.model.save_pretrained(path, *args, **kwargs)
+        self.tokenizer.save_pretrained(path, *args, **kwargs)
+        
     def save(self, tag:str = None, trainable_only:bool = True):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
