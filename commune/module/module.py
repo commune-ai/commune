@@ -417,6 +417,7 @@ class Module:
         '''
         Kill the server by the name
         '''
+        
         if isinstance(module, int):
             return cls.kill_port(module)
         if mode == 'pm2':
@@ -1724,6 +1725,9 @@ class Module:
 
     @classmethod
     def set_env(cls, key:str, value:str)-> None:
+        '''
+        Pay attention to this function. It sets the environment variable
+        '''
         import os
         os.environ[key] = value
         return value
