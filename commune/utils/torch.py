@@ -1,4 +1,6 @@
 from typing import Dict, List, Tuple, Union, Any, Optional
+
+import torch
 def torch_batchdictlist2dict(batch_dict_list: List, dim:int=0) -> Dict[str, torch.Tensor]:
     import torch
     """
@@ -25,6 +27,16 @@ def torch_batchdictlist2dict(batch_dict_list: List, dim:int=0) -> Dict[str, torc
     return {k: torch.cat(v, dim=dim) for k, v in out_batch_dict.items()}
 
 
+
+def tensor_info_dict(input_dict: Dict[str, torch.Tensor]) -> Dict[str, Dict[str, Any]]:
+    tensor_info_dict  = {}
+    for k,v in input_dict.items():
+        if  isinstance(v,torch.Tensor):
+            tensor_info_dict[k] = { 'shape': v.shape, 'dtype': v.dtype, 'device': v.device }
+        
+    return tensor_info_dict
+        
+
 def tensor_dict_shape(input_dict: Dict[str, torch.Tensor]) -> Dict[str, Tuple]:
     import torch
     out_dict = {}
@@ -40,7 +52,6 @@ def tensor_dict_shape(input_dict: Dict[str, torch.Tensor]) -> Dict[str, Tuple]:
 
 
 def check_distributions(kwargs: Dict[str, torch.Tensor]) -> Dict[str, Dict[str, float]]:
-                                                                        :
     return {k: {"mean": round(v.double().mean().item(), 2), "std": round(v.double().std().item(), 2)} for k, v in
             kwargs.items() if isinstance(v, torch.Tensor)}
 

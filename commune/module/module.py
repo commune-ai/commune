@@ -1088,7 +1088,7 @@ class Module:
     @classmethod
     def run(cls): 
         args = cls.argparse()
-        self = cls()
+        self = cls
         return getattr(self, args.function)(*args.args, **args.kwargs)     
        
     @classmethod

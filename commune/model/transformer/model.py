@@ -161,8 +161,8 @@ class TransformerModel( nn.Module, commune.Module):
             if isinstance(v,  torch.Tensor):
                 input_dict[k] = input_dict[k].to(self.device)
 
-        if verbose:
-            print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
+        # if verbose:
+        #     print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
 
         model_output = self.model(**input_dict)
         output_length = output_length if output_length else model_output.logits.size(1)
@@ -178,8 +178,8 @@ class TransformerModel( nn.Module, commune.Module):
         if output_hidden_states:
             output_dict['hidden_states'] = model_output.hidden_states[-1][:,-output_length:, :]
 
-        if verbose:
-            print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
+        # if verbose:
+        #     print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
 
         return output_dict
 
@@ -197,8 +197,7 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                                             **extra_model_kwargs)        
-        self.model_config = self.model.config
-        print('model_name', self.model_name)
+        self.model_config = self.model.config.__dict__
         self.model = self.model.to(device)
         if self.autocast:
             self.model = self.model.half()
