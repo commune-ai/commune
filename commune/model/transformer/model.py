@@ -194,11 +194,11 @@ class TransformerModel( nn.Module, commune.Module):
 
         self.autocast = extra_model_kwargs.get('autocast', False)
         self.model_name = self.shortcuts.get(model_name, model_name)
-        model_config = AutoConfig.from_pretrained(self.model_name)
-        self.model_config = model_config
-        self.model = AutoModelForCausalLM.from_config(model_config, 
-                                            **extra_model_kwargs)        
+        # model_config = AutoConfig.from_pretrained(self.model_name)
         
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
+                                            **extra_model_kwargs)        
+        self.model_config = self.model.config
         print('model_name', self.model_name)
         # self.model = self.model.to(device)
         if self.autocast:
