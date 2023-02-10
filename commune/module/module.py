@@ -960,12 +960,12 @@ class Module:
     def launch(cls, 
                module:str = None, 
                fn: str = None,
-               name:Optional[str]=None, 
-               tag:str=None, 
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
-               mode:str = 'local',
+               mode:str = 'pm2',
+               name:Optional[str]=None, 
+               tag:str=None, 
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
@@ -1730,8 +1730,25 @@ class Module:
         '''
         import os
         os.environ[key] = value
-        return value
-    
+        return value 
+
+    @classmethod
+    def get_device_memory(cls):
+        import nvidia_smi
+
+        nvidia_smi.nvmlInit()
+
+        deviceCount = nvidia_smi.nvmlDeviceGetCount()
+        device_map  = {}
+        
+        for i in range(deviceCount):
+            handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+            info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+            name = nvidia_smi.nvmlDeviceGetName(handle)
+            device_map[name] = info.__dict__
+        
+        return device_map    
+
 Block = Lego = Module
 if __name__ == "__main__":
     module.run()

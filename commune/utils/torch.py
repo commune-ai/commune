@@ -129,3 +129,22 @@ def confuse_gradients(model):
         if p.grad is not None:
             p.grad.data = torch.randn(p.grad.data.shape).to(p.grad.data.device)
 
+
+
+
+def get_device_memory()
+    import nvidia_smi
+
+    nvidia_smi.nvmlInit()
+
+    deviceCount = nvidia_smi.nvmlDeviceGetCount()
+    device_map  = {}
+    for i in range(deviceCount):
+        handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
+        info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
+        name = nvidia_smi.nvmlDeviceGetName(handle)
+        device_map[name] = info.__dict__
+        
+        print( ))
+
+    nvidia_smi.nvmlShutdown()
