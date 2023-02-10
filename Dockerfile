@@ -44,6 +44,5 @@ RUN pip install wikipedia
 RUN pip install pytest
 RUN pip install jupyterlab
 RUN pip install accelerate
-
-
+RUN pip install nvidia-ml-py3
 

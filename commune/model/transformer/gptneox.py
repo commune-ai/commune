@@ -47,7 +47,7 @@ class GPTNeoX( nn.Module, commune.Module):
                 metrics: Dict[str, 'Metric'] = None,
                 device='cuda',
                 tag = None,
-                load = True,
+                load = False,
                 finetune : dict = dict(num_layers=10),
                 **model_kwargs
                 ):
@@ -76,15 +76,17 @@ class GPTNeoX( nn.Module, commune.Module):
         
         self.device_map['gpt_neox.embed_in'] = 'cpu'
 
-        load_checkpoint_and_dispatch(
-            self.model,
-            self.weights_path,
-            device_map=self.device_map,
-            offload_folder=None,
-            offload_state_dict=False,
-            dtype="bfloat16"
-        )
-        
+
+        if load:
+            load_checkpoint_and_dispatch(
+                self.model,
+                self.weights_path,
+                device_map=self.device_map,
+                offload_folder=None,
+                offload_state_dict=False,
+                dtype="bfloat16"
+            )
+            
         
         self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
 
@@ -194,7 +196,10 @@ class GPTNeoX( nn.Module, commune.Module):
     @property
     def device(self):
         # deepspeed has .module.device to access device
-        return self.model.device
+        model_device = self.model.device
+        if str(model_device) == 'meta':
+            model_device = 'cuda'
+        return model_device
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
@@ -202,7 +207,7 @@ class GPTNeoX( nn.Module, commune.Module):
         if isinstance(tokenizer, str):
             tokenizer = self.shortcuts.get(tokenizer, tokenizer)
             try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
             except ValueError:
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
@@ -236,14 +241,25 @@ class GPTNeoX( nn.Module, commune.Module):
     def __config_file__(self):
         return self.__file__.replace('.py', '.yaml')
 
-    def tokenize(self, text: str = 'Whadup', input_ids_only:bool = True, device: str=None) -> torch.Tensor:
+    def tokenize(self, text: str = 'Whadup',
+                 input_ids_only:bool = True,
+                 max_length=256, 
+                 padding='max_length', 
+                 truncation=True,
+                 device: str=None) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
-        device = device if device != None else self.device
-        tokenizer_output = self.tokenizer(text, return_tensors='pt')
-        if input_ids_only:
-            return tokenizer_output.input_ids.to(self.device)
-        return self.tokenizer(text, return_tensors='pt').input_ids.to(self.device)
+        
 
+        
+        
+        device = device if device != None else self.device
+        tokenizer_output = self.tokenizer(text, 
+                                          max_length=max_length, 
+                                          padding=padding, 
+                                          truncation=truncation)
+        tokenizer_output = torch.tensor(tokenizer_output.input_ids)  
+        return tokenizer_output
+    
     @classmethod
     def test_model(cls, batch_size=8, sequence_length=256, model_name='EleutherAI/gpt-neox-20b'):
         self = cls(serve=False, model_name=model_name)
@@ -640,11 +656,24 @@ class GPTNeoX( nn.Module, commune.Module):
 
         return output_text
 
-
+    # def serve
+    @classmethod
+    def test(cls):
+        self = cls(tokenizer='gptj')
+        t=commune.timer()
+        input_ids = self.tokenize('broooo whadup', device='meta')
+        print(t.seconds, input_ids.shape)
+        
+        
+        t=commune.timer()
+        input_ids.to('meta')
+        print(t.seconds)
 
 if __name__ == "__main__":
     # print('FUCK')
-    GPTNeoX().serve()
+    GPTNeoX.run()
+    # GPTNeoX(tokenizer='gptj').serve()
+    
     # ModelServer().run()
     # TransformerModel.experiment()
 
