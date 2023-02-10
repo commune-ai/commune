@@ -72,7 +72,7 @@ def ensure_path( path):
 
     dir_path = os.path.dirname(path)
     if not os.path.isdir(dir_path):
-        os.makedirs(dir_path)
+        os.makedirs(dir_path, exist_ok=True)
 
     return path
 

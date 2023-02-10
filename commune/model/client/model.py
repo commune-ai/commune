@@ -318,10 +318,10 @@ class ModelClient(Module, nn.Module):
  
  
     @classmethod
-    def run_neuron(cls, model):
+    def run_neuron(cls, model=dict(ip='0.0.0.0', port=50050), tokenizer='gptj'):
         import bittensor
-        from commune.neuron.miner import neuron
-        self = cls(model=model)
+        from commune.block.bittensor.neuron.miner import neuron
+        self = cls(model=model, tokenizer=tokenizer)
         n = neuron(model=self)  
         n.run()
  
@@ -330,4 +330,4 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    ModelClient.test_neuron(model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')
+    ModelClient.run_neuron( model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')
