@@ -38,22 +38,23 @@ class GPTNeoX( nn.Module, commune.Module):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="EleutherAI/gpt-neox-20b",
-                weights_path: str = '/tmp/gptneox20b',
-                max_memory: dict = {0: "15GiB", 1: "15GiB",3: "15GiB" , 'cpu': "20GiB"},
-                no_split_module_classes=["GPTNeoXLayer"],
+                model_name: str='gptneox20b',
+                checkpoint_path: str = None,
+                max_memory: dict = {0: "15GiB", 1: "15GiB",2: "15GiB", 2: "15GiB", 2: "15GiB" },
+                no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
+                override_device_map = None,
                 device='cuda',
                 tag = None,
-                load = False,
+                load = True,
                 finetune : dict = dict(num_layers=10),
                 **model_kwargs
                 ):
         
         
-        self.tag = tag 
+
         
         nn.Module.__init__(self)
         
@@ -61,26 +62,36 @@ class GPTNeoX( nn.Module, commune.Module):
         self.model_name = self.shortcuts.get(model_name, model_name)
         self.model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config.use_cache = False
-        
+        self.tag = tag
+
+        self.checkpoint_path = checkpoint_path if checkpoint_path else self.default_checkpoint_path
+            
+        if not os.path.exists(self.checkpoint_path):
+            commune.log(f'Creating weights path at {self.checkpoint_path}', 'purple')
+            AutoModelForCausalLM.from_config(self.model_config).save_pretrained(self.checkpoint_path)
+            
         with init_empty_weights():
             self.model = AutoModelForCausalLM.from_config(self.model_config)
 
+        if no_split_module_classes == None and self.model_name == 'EleutherAI/gpt-neox-20b':
+            no_split_module_classes = ["GPTNeoXLayer"]
         self.device_map = infer_auto_device_map(
             self.model, 
             no_split_module_classes=no_split_module_classes,
             dtype=torch.bfloat16, #note: succeeds with float16 as well.
             max_memory = max_memory,
-            )
-
-        self.weights_path = weights_path
+            )        
         
-        self.device_map['gpt_neox.embed_in'] = 'cpu'
+    
+        override_device_map = override_device_map if override_device_map else {'gpt_neox.embed_in': 'cpu'}
+        
+        self.device_map.update(override_device_map)
 
 
         if load:
             load_checkpoint_and_dispatch(
                 self.model,
-                self.weights_path,
+                self.checkpoint_path,
                 device_map=self.device_map,
                 offload_folder=None,
                 offload_state_dict=False,
@@ -92,6 +103,9 @@ class GPTNeoX( nn.Module, commune.Module):
 
         self.set_metrics(metrics=metrics)
         
+    @property
+    def default_checkpoint_path(self):
+        return f"{self.tmp_dir()}/checkpoints/{self.module_tag}"
 
     def calculate_loss(self, pediction, gt):
         loss =  self.metrics['cross_entropy'](pediction, gt)
@@ -117,13 +131,14 @@ class GPTNeoX( nn.Module, commune.Module):
 
     def local_forward(self,  
                 input_ids: torch.Tensor = None, 
-                text: str = None,
                 attention_mask: torch.Tensor= None, 
                 topk:int=None, 
                 output_hidden_states:bool=False, 
                 output_logits:bool = True,
                 verbose:bool = False,
                 output_length:int = 10,
+                max_length: int = 256,
+                device = None,
                 **kwargs):
 
         # tokenizer the text if text is provided 
@@ -131,19 +146,17 @@ class GPTNeoX( nn.Module, commune.Module):
             
         # if input_ids is not provided, tokenize the text
         commune.print(input_ids, color='purple')
-        
-        if input_ids == None:
-            # if text is provided, tokenize the text
-            if isinstance(text, str) or (isinstance(text, list) and isinstance(text[0], str)):
-                input_ids = self.tokenize(text)
-            else:
-                raise ValueError('Please provide either input_ids or text')
-        
-        elif isinstance(input_ids, str) or (isinstance(input_ids, list) and isinstance(input_ids[0], str)):
-            input_ids = self.tokenize(input_ids)
 
-        commune.print('TOKENIZE', 'purple')
 
+        device = device if device else self.device
+        
+    
+        if not isinstance(input_ids, torch.Tensor):
+            if isinstance(input_ids, str):
+                input_ids = [input_ids]
+            assert isinstance(input_ids, list) and isinstance(input_ids[0], str)
+            input_ids = self.tokenize(input_ids,device=device, max_length=max_length)
+ 
 
         input_dict = dict(
                     input_ids=input_ids,
@@ -151,7 +164,6 @@ class GPTNeoX( nn.Module, commune.Module):
                     output_hidden_states= output_hidden_states
                     )
 
-        commune.print(input_dict, 'purple')
         
 
         # ensure the input_ids and attention mask is a tensor
@@ -163,22 +175,25 @@ class GPTNeoX( nn.Module, commune.Module):
                 del input_dict[k]
                 continue
             if isinstance(v,  torch.Tensor):
-                input_dict[k] = input_dict[k].to(self.device)
+                input_dict[k] = input_dict[k][:,-max_length:].to(device)
             
             commune.print('TOKENIZE_' + k, 'purple')
 
         if verbose:
             print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
 
-        print(input_dict)
+        
+        commune.log(input_dict, 'purple')
         model_output = self.model(**input_dict)
+        commune.log(model_output.__dict__, 'yellow')
         
         output_length = output_length if output_length else model_output.logits.size(1)
-        
+        model_output.logits = model_output.logits.to(device)
+
         output_dict = {}
         if topk:
             topk_tensor = self.encode_topk(model_output.logits[:,-output_length:,:], topk=topk)
-            output_dict['topk']=topk_tensor
+            output_dict['topk']=topk_tensor.to(device)
             
 
         if output_logits:
@@ -190,6 +205,12 @@ class GPTNeoX( nn.Module, commune.Module):
         if verbose:
             print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
 
+        device = 'cuda'
+        for k,v in output_dict.items():
+            if isinstance(v, torch.Tensor) and v.device == 'meta':
+                output_dict[k] = v.to(device)
+
+
         return output_dict
 
 
@@ -197,8 +218,8 @@ class GPTNeoX( nn.Module, commune.Module):
     def device(self):
         # deepspeed has .module.device to access device
         model_device = self.model.device
-        if str(model_device) == 'meta':
-            model_device = 'cuda'
+        # if str(model_device) == 'meta':
+        #     model_device = 'cuda'
         return model_device
 
 
@@ -237,13 +258,15 @@ class GPTNeoX( nn.Module, commune.Module):
     def getattr(self, k):
         return getattr(self,  k)
 
+    def path2shortcut(self, path:str):
+        return {v:k for k,v in self.shortcuts.items()}.get(path, path)
     @property
     def __config_file__(self):
         return self.__file__.replace('.py', '.yaml')
 
     def tokenize(self, text: str = 'Whadup',
                  input_ids_only:bool = True,
-                 max_length=256, 
+                 max_length=128, 
                  padding='max_length', 
                  truncation=True,
                  device: str=None) -> torch.Tensor:
@@ -256,9 +279,11 @@ class GPTNeoX( nn.Module, commune.Module):
         tokenizer_output = self.tokenizer(text, 
                                           max_length=max_length, 
                                           padding=padding, 
-                                          truncation=truncation)
-        tokenizer_output = torch.tensor(tokenizer_output.input_ids)  
-        return tokenizer_output
+                                          truncation=truncation,
+                                          return_tensors="pt")
+        
+        
+        return tokenizer_output.input_ids.to(device)
     
     @classmethod
     def test_model(cls, batch_size=8, sequence_length=256, model_name='EleutherAI/gpt-neox-20b'):
@@ -404,10 +429,11 @@ class GPTNeoX( nn.Module, commune.Module):
         return self.resolve_module_tag()
     
     def resolve_module_tag(self, tag=None):
+        
         tag = tag if tag else self.tag
-        module_tag = self.model_name.replace("/", "_")
+        module_tag = self.path2shortcut(self.model_name).replace("/", "::")
         if tag:
-            module_tag +=  f'_{tag}'
+            module_tag +=  f'::{tag}'
         return module_tag
     
 
@@ -659,21 +685,16 @@ class GPTNeoX( nn.Module, commune.Module):
     # def serve
     @classmethod
     def test(cls):
-        self = cls(tokenizer='gptj')
+        self = cls()
         t=commune.timer()
-        input_ids = self.tokenize('broooo whadup', device='meta')
+        input_ids = self.tokenize(['broooo whadup']*32, device='cuda')
         print(t.seconds, input_ids.shape)
         
-        
-        t=commune.timer()
-        input_ids.to('meta')
-        print(t.seconds)
 
 if __name__ == "__main__":
     # print('FUCK')
-    GPTNeoX.run()
-    # GPTNeoX(tokenizer='gptj').serve()
-    
+    # GPTNeoX.run()
+    GPTNeoX(model_name='gptneox20b').serve()
     # ModelServer().run()
     # TransformerModel.experiment()
 
