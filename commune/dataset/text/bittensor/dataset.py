@@ -55,15 +55,16 @@ class BittensorDataset(Module):
             datasets: Union[List[str], str] = None, 
             max_datasets: int = 10,
             max_directories: int = 100000,
-            save_dataset : bool = True,
+            save_dataset : bool = False,
             load_dataset : bool = True,
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             background_download: bool = False,
-            min_hash_count : int = 10000,
+            min_hash_count : int = 20000,
             loop: Optional['asyncio.loop'] = None ):
 
         self.kwargs = locals()
+        self.loop = loop if loop else self.get_event_loop()
         self.kwargs.pop('self')
         
         self.__dict__.update(self.kwargs)
@@ -443,7 +444,7 @@ class BittensorDataset(Module):
     
     
     
-    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False):
+    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False, verbose_rate = 20):
         if background:
             thread_fn_kwargs = dict(locals())
             thread_fn_kwasrgs['background'] = False
@@ -456,7 +457,7 @@ class BittensorDataset(Module):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
         else:
-            loop = self.loop
+            loop = asyncio.get_event_loop()
         
         file_meta_chunks = chunk(self.unsaved_hashes, chunk_size=chunk_size)
         
@@ -465,11 +466,12 @@ class BittensorDataset(Module):
         total_hash_count = len(self.all_text_file_metas)
         fail_count = 0
         for i,  file_meta_chunk in enumerate(file_meta_chunks):
-            if i % 10 == 0:
+            if i % verbose_rate == 0:
                 total_hash_count = len(self.all_text_file_metas)
-                if total_hash_count > min_hash_count:
+                if total_hash_count < min_hash_count:
                     print(f'Not enough hashes to download. {total_hash_count} < {min_hash_count}')
                     return
+                saved_hashes = len(self.get_saved_hashes())
                 print(f'{i} hashes downloaded -> Total Saved Hashes {len(self.saved_hashes)}/{total_hash_count} fails: {fail_count}')
             # Build the asyncio jobs.
             try:
@@ -488,12 +490,21 @@ class BittensorDataset(Module):
     def saved_hashes(self) -> List[Dict[str, dict]]:
 
         if not hasattr(self, '_saved_hashes'):
-            hash_urls = self.glob('saved_file_metas/*')
-            self._saved_hashes = []
-            for hash_url in hash_urls:
-                self._saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
+            self._saved_hashes = self.get_saved_hashes()
+
         return self._saved_hashes
 
+
+    def get_saved_hashes(self, update:bool = True):
+        
+        hash_urls = self.glob('saved_file_metas/*')
+        _saved_hashes = []
+        for hash_url in hash_urls:
+            _saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
+        if update:
+            self._saved_hashes = _saved_hashes
+        return _saved_hashes
+        
     @property
     def unsaved_hashes(self) -> List[str]:
         
@@ -591,6 +602,9 @@ class BittensorDataset(Module):
         
         for chunk_i in range(max_chunks):
             data = await self.cat(file_meta['Hash'], offset=chunk_i*chunk_size ,length=chunk_size)
+            
+            if data == None:
+                continue
             hashes = ['['+h + '}]'for h in data.decode().split('},')]
             for i in range(len(hashes)-1):
                 try:

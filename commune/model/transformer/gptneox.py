@@ -34,13 +34,12 @@ class GPTNeoX( nn.Module, commune.Module):
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptneox20b': 'EleutherAI/gpt-neox-20b'
-         }
-
+         } 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model_name: str='gptneox20b',
                 checkpoint_path: str = None,
-                max_memory: dict = {0: "15GiB", 1: "15GiB",2: "15GiB", 2: "15GiB", 2: "15GiB" },
+                max_memory: dict = {0: "60GiB", 1: "60GiB" },
                 no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
@@ -142,10 +141,8 @@ class GPTNeoX( nn.Module, commune.Module):
                 **kwargs):
 
         # tokenizer the text if text is provided 
-
             
         # if input_ids is not provided, tokenize the text
-        commune.print(input_ids, color='purple')
 
 
         device = device if device else self.device
@@ -183,9 +180,7 @@ class GPTNeoX( nn.Module, commune.Module):
             print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
 
         
-        commune.log(input_dict, 'purple')
         model_output = self.model(**input_dict)
-        commune.log(model_output.__dict__, 'yellow')
         
         output_length = output_length if output_length else model_output.logits.size(1)
         model_output.logits = model_output.logits.to(device)
