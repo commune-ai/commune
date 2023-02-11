@@ -155,6 +155,8 @@ class Serializer:
     def torch2bytes(self, data:torch.Tensor)-> bytes:
         if data.requires_grad:
             data = data.detach()
+            
+        
 
         torch_numpy = np.array(data.cpu().tolist())
         # torch_numpy = data.cpu().numpy().copy()
