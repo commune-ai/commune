@@ -968,7 +968,7 @@ class Module:
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
-               mode:str = 'pm2',
+               mode:str = 'server',
                name:Optional[str]=None, 
                tag:str=None, 
                **extra_kwargs):
@@ -992,8 +992,10 @@ class Module:
             else:
                 return getattr(module_class, fn)(*args, **kwargs)
             
-        elif mode == 'pm2':
-            fn = fn if fn else 'serve_module'
+        elif mode == 'server':
+            fn = 'serve_module'
+            kwargs['tag'] = tag
+            kwargs['name'] = name
             launch_kwargs = dict(
                     module=module, 
                     fn = fn,
@@ -1004,7 +1006,7 @@ class Module:
                     refresh=refresh,
                     **extra_kwargs
             )
-            launch_fn = getattr(cls, f'{mode}_launch')
+            launch_fn = getattr(cls, f'pm2_launch')
             return launch_fn(**launch_kwargs)
         elif mode == 'ray':
             launch_kwargs = dict(
