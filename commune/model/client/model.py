@@ -69,14 +69,26 @@ class ModelClient(Module, nn.Module):
     def forward(self, 
                 input_ids: torch.Tensor, 
                 attention_mask: torch.Tensor = None, 
-                output_hidden_states:bool = False, 
                 topk:int=None, 
                 verbose:bool = True,
                 input_length: int = None,
                 output_logits: bool = True,
                 server_output_logits: bool = False,
-                output_length:int=None,
+                output_hidden_states:bool = False, 
+                output_length:int = None,
                 **kwargs):
+        '''
+        
+        Forward pass for the model for the client
+        Args:
+            input_ids: torch.Tensor of shape (batch_size, input_length)
+            attention_mask: torch.Tensor of shape (batch_size, input_length)
+            top k: int, number of topk logits to return
+            verbose: bool, print out the logits
+            input_length: int, length of the input
+            output_logits: bool, return logits
+            server_output_logits: bool, return logits from the server
+        '''
 
         topk = topk if topk else self.topk
         output_length = output_length if output_length else self.output_length
@@ -113,7 +125,7 @@ class ModelClient(Module, nn.Module):
         
         
         if isinstance(tokenizer, str):
-            if tokenizer == 'model.dendrite':
+            if tokenizer == 'bittensor':
                 tokenizer = bittensor.tokenizer()
             else:
                 tokenizer = self.shortcuts.get(tokenizer, tokenizer)
@@ -272,7 +284,7 @@ class ModelClient(Module, nn.Module):
                          dataset = 'BittensorDataset',
                          batch_size= 32, 
                          sequence_length=256,
-                         num_batches=128):
+                         num_batches=2):
         
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
 
@@ -282,12 +294,10 @@ class ModelClient(Module, nn.Module):
             self = cls(model=model)
         
         dataset = commune.connect(dataset)
-
         sample = dataset.sample()
-        data = commune.connect('BittensorDataset')
         
         for i in range(num_batches):
-            sample = data.sample(batch_size=32, sequence_length=256)
+            sample = dataset.sample(batch_size=32, sequence_length=256)
             targets = sample['input_ids'][:, -1:] 
             sample['input_ids'] = sample['input_ids'][:, :-1] 
             sample['output_logits'] = True
@@ -307,12 +317,10 @@ class ModelClient(Module, nn.Module):
         return self
 
     @classmethod
-    def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neuron(cls, model='DendriteModel',num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
-        if model_kwargs.get('model') == None:
-            self = cls.default_model()
-        else:
-            self = cls(**model_kwargs)
+        from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
+        self = cls(model = model, tokenizer='bittensor')
         nucleus = neuron(model=self).model
         nucleus.model.train()
         nucleus.model.eval()
@@ -325,14 +333,21 @@ class ModelClient(Module, nn.Module):
         print(nucleus.device, 'DEBUG')
         nucleus.model.load_state_dict(state_dict)
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
-        inputs_x = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt").input_ids.T
         
+        dataset = commune.connect(dataset)
+        sample = dataset.sample()
         
-        nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
- 
+        for i in range(num_batches):
+            sample = dataset.sample(batch_size=32, sequence_length=256)
+            target = sample['input_ids'][:, -1:] 
+            inputs_x = sample['input_ids'][:, :-1] 
+            t = commune.timer()
+            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)    
+            loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor[:,-1,:,:], target_phrases=target)
+            commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
     @classmethod
-    def run_neuron(cls, model=dict(ip='0.0.0.0', port=50050), tokenizer='gptj'):
+    def run_neuron(cls, model='DendriteModel', tokenizer='bittensor'):
         import bittensor
         from commune.block.bittensor.neuron.miner import neuron
         self = cls(model=model, tokenizer=tokenizer)
@@ -345,4 +360,4 @@ if __name__ == "__main__":
     # ModelClient.default_model()
     
     # ModelClient.run_neuron( model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')
-    ModelClient.test_performance()
+    ModelClient.run()
