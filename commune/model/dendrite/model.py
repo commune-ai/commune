@@ -48,7 +48,6 @@ class DendriteModel(torch.nn.Module, commune.Module):
         self.tokenizer = prep_tokenizer(self.tokenizer, self.tokenizer)
         self.subtensor = subtensor if subtensor else self.default_subtensor()
         
-        
         self.relay_neurons = [self.subtensor.neuron_for_uid(uid) for uid in uids]
         
         self.endpoints = [bittensor.endpoint.from_neuron(neuron) for neuron in self.relay_neurons]
@@ -208,7 +207,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         
     @classmethod
     def default_model(cls):
-        self = cls()   
+        self = cls(uids = [441])   
         return self
 
     @classmethod
@@ -225,13 +224,8 @@ class DendriteModel(torch.nn.Module, commune.Module):
         input_ids = input_ids[:,:-1]
 
         with Timer() as t:
-            # import ipdb; ipdb.set_trace()
-            # st.write('INPUT SHAPE')
-            # print(tensor_info_dict(input))
             output = self(input_ids=input_ids)
-            # st.write(output)
             print('OUTPUT SCHEMA')
-            # print(tensor_info_dict(output.__dict__))
             print('TIME (s): ', t.seconds)
             print(self.get_loss_fct(logits=pred['logits'], labels=sample['input_ids']))
             # print(phrase_cross_entropy(topk_tensor=output['topk'], target_phrases=targets))

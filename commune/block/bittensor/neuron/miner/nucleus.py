@@ -457,7 +457,13 @@ class server(torch.nn.Module):
             
             if hasattr(_model_output, 'topk'):
                 assert hasattr(_model_output, 'topk')
-                topk_tensor = _model_output.topk
+                if len(_model_output.topk.shape) == 4:
+                    topk_tensor = _model_output.topk[:, -1 , :,  :]
+                
+                elif len(_model_output.topk.shape) == 3:
+                    topk_tensor = _model_output.topk
+                else:
+                    raise NotImplementedError(len(_model_output.topk.shape))
                 # difficult to have relay calculate loss as we do not know the future GT
                 message = 'Relay Enabled'
                 

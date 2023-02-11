@@ -342,7 +342,7 @@ class BittensorDataset(Module):
     def __getitem__(self, idx: Optional[int] = None, *args, **kwargs) -> Union[List[str], torch.tensor]:
         return asyncio.run(self.__async_getitem__(idx=idx, *args, **kwargs))
 
-    def sample(self, batch_size:int=None, sequence_length:int = None, no_tokenizer:bool = None):
+    def sample(self, batch_size:int=None, sequence_length:int = None, no_tokenizer:bool = None, task:str = None):
         batch_size = batch_size if batch_size else self.batch_size
         sequence_length = sequence_length if sequence_length else self.sequence_length
         no_tokenizer = no_tokenizer if no_tokenizer else self.no_tokenizer
@@ -354,6 +354,14 @@ class BittensorDataset(Module):
         else:
             output['input_ids'] =self.tokenizer(sample_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
         
+        # include the targets for causal language modeling
+        if task == True:
+            task = 'causallm'
+        if task == None:
+            pass
+        elif task in ['causallm']
+            output['targets'] = self.tokenizer(sample_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
+            
         return output
 
     __next__ = sample

@@ -135,6 +135,13 @@ class ModelClient(Module, nn.Module):
                     print('resorting ot use_fast = False')
                     tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
 
+        elif tokenizer == None:
+            tokenizer = bittensor.tokenizer()
+        
+        else:
+            raise NotImplementedError(tokenizer)
+            
+
         self.tokenizer = tokenizer     
         self.std_tokenizer = bittensor.tokenizer()
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
@@ -317,7 +324,7 @@ class ModelClient(Module, nn.Module):
         return self
 
     @classmethod
-    def test_neuron(cls, model='DendriteModel',num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neuron(cls, model='DendriteModel', tokenizer=None, num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
         self = cls(model = model, tokenizer='bittensor')
@@ -342,8 +349,9 @@ class ModelClient(Module, nn.Module):
             target = sample['input_ids'][:, -1:] 
             inputs_x = sample['input_ids'][:, :-1] 
             t = commune.timer()
-            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)    
-            loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor[:,-1,:,:], target_phrases=target)
+            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
+            
+            loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor, target_phrases=target)
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
     @classmethod
@@ -359,5 +367,5 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    # ModelClient.run_neuron( model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')
-    ModelClient.run()
+    ModelClient.run_neuron()
+    # ModelClient.run()
