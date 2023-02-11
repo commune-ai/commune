@@ -98,14 +98,14 @@ class ModelClient(Module, nn.Module):
         # import ipdb; ipdb.set_trace()
         response_dict = self.model.forward(**model_kwargs)
         # if topk:
-        ouput_dict = {}
-        if 'topk' in response_dict:
-            output_dict = response_dict['topk']
+        output_dict = {}
+        
         if output_logits:
-            ouput_dict['logits'] = self.decode_topk(response_dict['topk'].to(torch.float64), vocab_size=self.vocab_size)
+            response_dict['logits'] = self.decode_topk(response_dict['topk'].to(torch.float64), vocab_size=self.vocab_size)
             
         
-        return Munch(ouput_dict)
+        commune.print(response_dict.keys(), 'purple')
+        return Munch(response_dict)
 
     __call__ = forward
 
@@ -144,7 +144,7 @@ class ModelClient(Module, nn.Module):
 
         msg = f'''TEST:FORWARD (batch_size: {batch_size}, sequence_len: {sequence_length})) PASSED'''
         print(msg)
-
+        
     @staticmethod
     def decode_topk(  forward_response_tensor: torch.Tensor,  vocab_size:int=bittensor.__vocab_size__) -> torch.Tensor:
         """ Returns full logits by decoding topk-encoding input. """
@@ -268,24 +268,36 @@ class ModelClient(Module, nn.Module):
 
 
     @classmethod
-    def test_performance(cls,model = 'TransformerModel::EleutherAI_gpt-neo-125M',
-                         batch_size= 32, sequence_length=256):
+    def test_performance(cls,model = 'DendriteModel',
+                         dataset = 'BittensorDataset',
+                         batch_size= 32, 
+                         sequence_length=256,
+                         num_batches=128):
+        
+        from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
+
         from commune.utils.torch import  tensor_info_dict
         
         if model != None:
             self = cls(model=model)
+        
+        dataset = commune.connect(dataset)
 
-        raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
-        token_batch = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")
-        sample = dict(token_batch)
-        t = commune.timer()
-        # import ipdb; ipdb.set_trace()
-        output = self(**sample)
-        print('INPUT SCHEMA', tensor_info_dict(sample))        
-        print('OUTPUT SCHEMA', tensor_info_dict(output))
-        print('TIME (s): ', t.seconds)
-        print(self.get_loss_fct(logits=output.logits, labels=token_batch.input_ids))
-
+        sample = dataset.sample()
+        data = commune.connect('BittensorDataset')
+        
+        for i in range(num_batches):
+            sample = data.sample(batch_size=32, sequence_length=256)
+            targets = sample['input_ids'][:, -1:] 
+            sample['input_ids'] = sample['input_ids'][:, :-1] 
+            sample['output_logits'] = True
+            sample['topk'] = 4096
+            # sample['autocast'] = True
+            t = commune.timer()
+            pred = self(**sample)        
+            loss_tuple = phrase_cross_entropy(topk_tensor=pred['topk'][:,0,:,:], target_phrases=targets)
+            commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
+            
 
     @classmethod
     def default_model(cls):
@@ -314,6 +326,8 @@ class ModelClient(Module, nn.Module):
         nucleus.model.load_state_dict(state_dict)
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
         inputs_x = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt").input_ids.T
+        
+        
         nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
  
  
@@ -330,4 +344,5 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    ModelClient.run_neuron( model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')
+    # ModelClient.run_neuron( model=dict(ip='65.49.81.154', port=50050), tokenizer='gptj')
+    ModelClient.test_performance()

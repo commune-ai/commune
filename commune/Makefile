@@ -66,3 +66,6 @@ gradio_client:
 
 backend:
 	make bash arg=backend
+
+sandbox:
+	python3 commune/sandbox.py

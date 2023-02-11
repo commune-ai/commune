@@ -114,11 +114,13 @@ class neuron:
         causallm = None,
         causallmnext = None,
         seq2seq = None,
-
         synapse_list = None,
+        relay_enabled = True,
     ):
         if config == None: config = server.config()
         config = config; 
+        
+        self.relay_enabled = relay_enabled
 
         if synapse_list != None:
             config.neuron.lasthidden = False

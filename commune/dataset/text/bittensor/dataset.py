@@ -55,12 +55,12 @@ class BittensorDataset(Module):
             datasets: Union[List[str], str] = None, 
             max_datasets: int = 10,
             max_directories: int = 100000,
-            save_dataset : bool = False,
+            save_dataset : bool = True,
             load_dataset : bool = True,
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             background_download: bool = False,
-            min_hash_count : int = 20000,
+            min_hash_count : int = 10000,
             loop: Optional['asyncio.loop'] = None ):
 
         self.kwargs = locals()
@@ -471,8 +471,10 @@ class BittensorDataset(Module):
                 if total_hash_count < min_hash_count:
                     print(f'Not enough hashes to download. {total_hash_count} < {min_hash_count}')
                     return
-                saved_hashes = len(self.get_saved_hashes())
-                print(f'{i} hashes downloaded -> Total Saved Hashes {len(self.saved_hashes)}/{total_hash_count} fails: {fail_count}')
+                num_saved_hashes = len(self.get_saved_hashes())
+                if num_saved_hashes > min_hash_count: 
+                    break
+                print(f'{i} hashes downloaded -> Total Saved Hashes {num_saved_hashes}/{total_hash_count} fails: {fail_count}')
             # Build the asyncio jobs.
             try:
                 loop.run_until_complete(asyncio.gather(*[self.fetch_text(file_meta=file_meta, offset=0, length=self.max_hash_size, load=False) for file_meta in file_meta_chunk ]))
@@ -802,9 +804,9 @@ class BittensorDataset(Module):
         self = cls(batch_size=32, sequence_length=256, max_datasets=10)
         print('START')
         import commune
-        t = commune.timer()
-        for i in range(1000):
-            print(self.sample()['input_ids'].shape, i/t.seconds)
+        # t = commune.timer()
+        # for i in range(1000):
+            # print(self.sample()['input_ids'].shape, i/t.seconds)
 
 if __name__ == "__main__":
     BittensorDataset.run()

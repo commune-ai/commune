@@ -132,7 +132,7 @@ def confuse_gradients(model):
 
 
 
-def get_device_memory()
+def get_device_memory():
     import nvidia_smi
 
     nvidia_smi.nvmlInit()
@@ -145,6 +145,5 @@ def get_device_memory()
         name = nvidia_smi.nvmlDeviceGetName(handle)
         device_map[name] = info.__dict__
         
-        print( ))
 
     nvidia_smi.nvmlShutdown()
