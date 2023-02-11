@@ -41,7 +41,7 @@ class TransformerModel( nn.Module, commune.Module):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gptneox20b",
+                model_name: str="gptj",
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
@@ -564,7 +564,7 @@ class TransformerModel( nn.Module, commune.Module):
 
     @classmethod
     def local_train(cls, 
-                    model:str='gpt125m',
+                    model:str='TransformerModel::EleutherAI_gpt-j-6B',
                     trial:str = 'demo', 
                     num_batches:int = 200,
                     num_epochs:int = 200, 
@@ -652,8 +652,8 @@ class TransformerModel( nn.Module, commune.Module):
 
 if __name__ == "__main__":
     # print('FUCK')
+    TransformerModel.run()
     # TransformerModel.run()
-    ModelServer().run_neuron()
     # TransformerModel.experiment()
 
 

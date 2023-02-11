@@ -1,22 +1,25 @@
 import torch
 import os,sys
 import asyncio
-loop = asyncio.get_event_loop()
 from transformers import AutoConfig, PreTrainedTokenizerBase
 # import streamlit as st
 
-import bittensor
+
 from typing import List, Union, Dict
 from munch import Munch
-from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
 
 import commune
-from commune.receptor import receptor_pool
+commune.new_event_loop()
+
+from commune.block.bittensor.receptor import receptor_pool
+import bittensor
+from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
+
 from copy import deepcopy
 class DendriteModel(torch.nn.Module, commune.Module):
     
     def __init__(self,
-                endpoints : List[Union[str, 'bittensor.endpoint']] = [],
+                uids : List[int] = [441],
                 wallet:bittensor.wallet = None,
                 tokenizer: bittensor.tokenizer = None,
                 subtensor: bittensor.subtensor = None,
@@ -37,14 +40,18 @@ class DendriteModel(torch.nn.Module, commune.Module):
         self.set_event_loop(new_loop=True)
         
         self.model_name = model_name
-        self.config = Munch(AutoConfig.from_pretrained('gpt2').__dict__)
-        self.config.hidden_size = hidden_size
-        self.set_endpoints(endpoints)
+        self.model_config = Munch(AutoConfig.from_pretrained('gpt2').__dict__)
+        self.model_config.hidden_size = hidden_size
+        
         self.wallet = wallet if wallet else self.default_wallet()
         self.tokenizer = tokenizer if tokenizer else bittensor.tokenizer()
         self.tokenizer = prep_tokenizer(self.tokenizer, self.tokenizer)
         self.subtensor = subtensor if subtensor else self.default_subtensor()
         
+        
+        self.relay_neurons = [self.subtensor.neuron_for_uid(uid) for uid in uids]
+        
+        self.endpoints = [bittensor.endpoint.from_neuron(neuron) for neuron in self.relay_neurons]
         self.metagraph = metagraph if metagraph else bittensor.metagraph(subtensor=self.subtensor)
         # self.wallet = self.wallet.register(cuda=True ,subtensor=self.subtensor)
         self.metagraph= self.metagraph.load() 
@@ -77,22 +84,21 @@ class DendriteModel(torch.nn.Module, commune.Module):
                 attention_mask: torch.Tensor = None, 
                 output_hidden_states:bool = False, 
                 output_logits:bool = True, 
-                num_endpoints:int = 30,
+                num_endpoints:int = 0,
                 topk: int = 4096,
-                timeout = 3,
-                max_trials = 1,
+                timeout: int = 6,
+                max_trials: int = 1,
                 max_responses: int = 1,
                 **kwargs
                 ):
         
         
-        endpoints = self.top_endpoints(n=num_endpoints) + self.endpoints
+        endpoints = self.endpoints if num_endpoints == 0 else self.top_endpoints(n=num_endpoints)
         atleast_one_success = False
         
         trial_count = 0
         t = commune.timer()
         
-        print(input_ids, 'DEBUG')
         
         while not atleast_one_success and trial_count < max_trials:
             response = self.receptor_pool.forward(inputs=[input_ids]*len(endpoints) , 
@@ -102,6 +108,9 @@ class DendriteModel(torch.nn.Module, commune.Module):
             
             atleast_one_success = any([any([c==1 for c in codes]) for codes in response[1]])
             trial_count += 1
+            commune.print(f'Endpoints: {self.endpoints}', color='purple')
+            
+            commune.print(f'Responses from Server Codes: {response[1]}', color='yellow')
         
 
         
@@ -115,31 +124,34 @@ class DendriteModel(torch.nn.Module, commune.Module):
             
             # assume the codes are all the same for the endpoint (not a super safe assumption but good for now)
             code  = response[1][i][0]
+            
+            
+            
+            if code in code_count_dict:
+                code_count_dict[code] += 1
+            else:
+                code_count_dict[code] = 1
+            
             if code == 1:
                 response_tensors += [response[0][i][0]]
                 if len(response_tensors)>=max_responses:
                     break
 
 
-            if code in code_count_dict:
-                code_count_dict[code] += 1
-            else:
-                code_count_dict[code] = 1
         
                 
         metrics = {}
         metrics['num_successes'] = len(response_tensors)
         metrics['num_endpoints'] = len(endpoints)
-        metrics['success_rate'] = metrics['num_successes'] / metrics['num_endpoints']
+        metrics['success_rate'] = metrics['num_successes'] / (metrics['num_endpoints'] + 1e-8)
         metrics['seconds'] = t.seconds
         assert  metrics['num_successes'] > 0 , f'{code_count_dict}'
         
         
         
-        logits = self.mix_response(response_tensors)
-        output_dict = {}
-        
         print('CODE COUNTER: ', code_count_dict) 
+        output_dict = {}
+    
         
         if topk:   
             if len(response_tensors) > 1:
@@ -147,6 +159,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
             else:
                 output_dict['topk'] = response_tensors[0].unsqueeze(1)
         if output_logits:
+            logits = self.mix_response(response_tensors)
             output_dict['logits'] = logits
             
         # if output_hidden_states:
@@ -186,7 +199,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
     
     @classmethod
     def default_subtensor(cls): 
-        return bittensor.subtensor()
+        return bittensor.subtensor(chain_endpoint=os.getenv('SUBTENSOR'))
 
 
     @classmethod
@@ -428,10 +441,10 @@ class DendriteModel(torch.nn.Module, commune.Module):
 
     @classmethod
     def sandbox(cls):
-        self = cls(endpoints = [])
+        self = cls(uids = [441])
         
-        data = commune.connect('dataset.bittensor')
-        sample = data(fn='sample', kwargs=dict(batch_size=32, sequence_length=256))
+        data = commune.connect('BittensorDataset')
+        sample = data.sample(batch_size=32, sequence_length=256)
         targets = sample['input_ids'][:, -1:] 
         sample['input_ids'] = sample['input_ids'][:, :-1] 
         # model = cls.connect('model.transformer::gptj:3')
@@ -446,7 +459,9 @@ class DendriteModel(torch.nn.Module, commune.Module):
         
         print(pred['logits'].shape)
         
-        print(self.loss(pred['logits'].reshape(-1, pred['logits'].size(-1)), targets.flatten()))
+        logits = self.decode_topk(pred['topk'][:,:,:2])
+        
+        print(self.loss(logits.reshape(-1, logits.size(-1)), targets.flatten()))
 
 
     # def run_pm2()

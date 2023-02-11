@@ -42,12 +42,12 @@ class Module:
     def __module_dir__(cls):
         return os.path.dirname(cls.__module_file__())
     @classmethod
-    def get_module_path(cls,  simple:bool=True) -> str:
+    def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
         # odd case where the module is a module in streamlit
-        if cls == Module:
-            return __file__
-        module_path =  inspect.getfile(cls)
+        if obj == None:
+            obj = cls
+        module_path =  inspect.getfile(obj)
         # convert into simple
         if simple:
             return cls.path2simple(path=module_path)
@@ -399,18 +399,23 @@ class Module:
                 setattr(self, k)
 
     @staticmethod
-    def kill_port(port:int)-> str:
-        import signal
-        from psutil import process_iter
-        '''
-        Kills the port {port} on the localhost
-        '''
-        for proc in process_iter():
-            for conns in proc.connections(kind='inet'):
-                if conns.laddr.port == port:
-                    proc.send_signal(signal.SIGKILL) # or SIGKILL
-                    print('KILLED')
-        return port
+    def kill_port(port:int, mode='python')-> str:
+        
+        if mode == 'python':
+            return cls.kill_port_python(port)
+            import signal
+            from psutil import process_iter
+            '''
+            Kills the port {port} on the localhost
+            '''
+            for proc in process_iter():
+                for conns in proc.connections(kind='inet'):
+                    if conns.laddr.port == port:
+                        proc.send_signal(signal.SIGKILL) # or SIGKILL
+                        print('KILLED')
+            return port
+        elif mode == 'bash':
+            return cls.run_command('kill -9 $(lsof -t -i:{port})')
 
     @classmethod
     def kill_server(cls, module:str, mode:str = 'pm2'):
@@ -1034,26 +1039,37 @@ class Module:
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
-        if module and name == None:
-            name = module
+        if module != None:
+            assert isinstance(module, str), f'module must be a string, not {type(module)}'
+            module = cls.module(module)
+        else:
+            module = cls
             
         
         
+        name = module.module_name() if name == None else name
+            
+    
+        module_path = module.__module_file__()
+        module_id = cls.get_module_id(name=name, tag=tag) 
         
-        module = module if module else cls.module_path()
-        module_path = cls.simple2path(module)
-        assert module in cls.module_tree(), f'{module} is not in the module tree, your options are {cls.module_list()}'
-        pm2_name = cls.get_module_id(name=name, tag=tag) 
+        print(module_id, module_path)
 
-        command = f" pm2 start {module_path} --name {pm2_name} --interpreter {interpreter}"
+        # build command to run pm2
+        command = f" pm2 start {module_path} --name {module_id} --interpreter {interpreter}"
+       
+        # convert args and kwargs to json strings
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         args_str = json.dumps(args).replace('"', "'")
 
-        command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
-    
-        env = dict(CUDA_VISIBLE_DEVICES=device)
+
         if refresh:
-            cls.pm2_kill(pm2_name)    
+            cls.pm2_kill(module_id)   
+            
+            
+        command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
+        env = dict(CUDA_VISIBLE_DEVICES=device) 
+        
         return cls.run_command(command, env=env)
 
     @classmethod
@@ -1582,6 +1598,9 @@ class Module:
             @classmethod
             def module_name(cls): 
                 return module_class.__name__
+            @classmethod
+            def __module_file__(cls): 
+                return cls.get_module_path(obj=module_class, simple=False)
             
             def __call__(self, *args, **kwargs):
                 return self.module.__call__(self, *args, **kwargs)
@@ -1713,6 +1732,14 @@ class Module:
     def external_ip(cls, *args, **kwargs) -> str:
         return cls.get_external_ip(*args, **kwargs)
     
+    @classmethod
+    def get_external_ip(cls, *args, **kwargs) ->str:
+        return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
+
+    @classmethod
+    def public_ip(cls):
+        return cls.get_public_ip(*args, **kwargs)
+    
     @staticmethod
     def is_class(module: Any) -> bool:
         return type(module).__name__ == 'type' 
@@ -1747,7 +1774,9 @@ class Module:
             name = nvidia_smi.nvmlDeviceGetName(handle)
             device_map[name] = info.__dict__
         
-        return device_map    
+        return device_map   
+    
+     
 
 Block = Lego = Module
 if __name__ == "__main__":
