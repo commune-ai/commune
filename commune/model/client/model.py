@@ -350,12 +350,11 @@ class ModelClient(Module, nn.Module):
             inputs_x = sample['input_ids'][:, :-1] 
             t = commune.timer()
             message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
-            
             loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor, target_phrases=target)
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
     @classmethod
-    def run_neuron(cls, model='DendriteModel', tokenizer='bittensor'):
+    def run_neuron(cls, model='DendriteModel::B', tokenizer='bittensor'):
         import bittensor
         from commune.block.bittensor.neuron.miner import neuron
         self = cls(model=model, tokenizer=tokenizer)
@@ -368,4 +367,3 @@ if __name__ == "__main__":
     # ModelClient.default_model()
     
     ModelClient.run_neuron()
-    # ModelClient.run()

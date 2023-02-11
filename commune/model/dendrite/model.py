@@ -54,7 +54,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         self.metagraph = metagraph if metagraph else bittensor.metagraph(subtensor=self.subtensor)
         # self.wallet = self.wallet.register(cuda=True ,subtensor=self.subtensor)
         self.metagraph= self.metagraph.load() 
-        # self.metagraph.sync() 
+        self.metagraph.sync() 
 
         self.receptor_pool = bittensor.receptor_pool(wallet=self.wallet)
         
@@ -83,7 +83,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
                 attention_mask: torch.Tensor = None, 
                 output_hidden_states:bool = False, 
                 output_logits:bool = True, 
-                num_endpoints:int = 0,
+                num_endpoints:int = 5,
                 topk: int = 4096,
                 timeout: int = 6,
                 max_trials: int = 1,
@@ -92,7 +92,9 @@ class DendriteModel(torch.nn.Module, commune.Module):
                 ):
         
         
-        endpoints = self.endpoints if num_endpoints == 0 else self.top_endpoints(n=num_endpoints)
+        endpoints = deepcopy(self.endpoints)
+        if num_endpoints > 0:
+            endpoints += self.top_endpoints(n=num_endpoints)
         atleast_one_success = False
         
         trial_count = 0
