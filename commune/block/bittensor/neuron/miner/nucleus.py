@@ -454,7 +454,14 @@ class server(torch.nn.Module):
                                                output_hidden_states=True)
 
             # model_output.logits: [batch_size, sequence_len, server_vocab_size]
-            if _model_output.logits != None:
+            
+            if hasattr(_model_output, 'topk'):
+                assert hasattr(_model_output, 'topk')
+                topk_tensor = _model_output.topk
+                # difficult to have relay calculate loss as we do not know the future GT
+                message = 'Relay Enabled'
+                
+            elif _model_output.logits != None:
                 last_logits = _model_output.logits[:, -1, :]  # [batch_size] server prediction of continuation, right-aligned
 
                 # Select topk tokenizer logits and retokenize with std_tokenizer,
@@ -464,11 +471,9 @@ class server(torch.nn.Module):
                 original_loss = self.get_loss_fct(_model_output.logits.to(self.device), tokens['input_ids'][:, -_model_output.logits.shape[1]:].to(self.device)).item()
                 message = f'Loss: {original_loss:.2f}'
                 _model_output.loss = original_loss
-            else: 
-                assert hasattr(_model_output, 'topk')
-                topk_tensor = _model_output.topk
-                # difficult to have relay calculate loss as we do not know the future GT
-                message = 'Relay Enabled'
+            else:
+                raise ValueError('model_output must have either logits or topk attribute')
+
                 
             return message, _model_output, topk_tensor
 
