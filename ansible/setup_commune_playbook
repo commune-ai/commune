@@ -2,7 +2,7 @@
   hosts: all
   tasks:
     - name: Copy and Execute the script 
-      script: /Users/salvatore/commune/scripts/deploy_commune.sh
+      script: "{{ lookup('env','HOME') }}/commune/ansible/scripts/setup_commune.sh"
       register: hello
     - debug: msg="{{ hello.stdout }}"
 
