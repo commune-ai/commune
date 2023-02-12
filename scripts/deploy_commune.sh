@@ -1,5 +1,13 @@
 #/bin/bash
-git clone https://github.com/commune-ai/commune.git
+if [ -d "/commune" ] 
+then
+    git clone https://github.com/commune-ai/commune.git
+else
+    echo "Commune installed"
+fi
+
 cd commune
 
-sudo docker exec -it commune bash -c "btcli list"
+git pull
+
+sudo docker compose up -d
