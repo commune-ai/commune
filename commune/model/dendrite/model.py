@@ -56,7 +56,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         self.metagraph= self.metagraph.load() 
         self.metagraph.sync() 
 
-        self.receptor_pool = bittensor.receptor_pool(wallet=self.wallet)
+        self.receptor_pool = receptor_pool(wallet=self.wallet)
         
         
     def set_endpoints(self, endpoints: Union[str,bittensor.Endpoint]) -> List[str]:
@@ -451,7 +451,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         pred = self(**sample)        
         print(t.seconds)
 
-        print(phrase_cross_entropy(topk_tensor=pred['topk'][:,0,:,:], target_phrases=targets))
+        print(phrase_cross_entropy(topk_tensor=pred['topk'][:,-1,:,:], target_phrases=targets))
         
         print(pred['logits'].shape)
         

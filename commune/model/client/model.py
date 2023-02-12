@@ -72,6 +72,7 @@ class ModelClient(Module, nn.Module):
                 topk:int=None, 
                 verbose:bool = True,
                 input_length: int = None,
+                output_topk : bool = False ,
                 output_logits: bool = True,
                 server_output_logits: bool = False,
                 output_hidden_states:bool = False, 
@@ -113,11 +114,12 @@ class ModelClient(Module, nn.Module):
         output_dict = {}
         
         if output_logits:
-            response_dict['logits'] = self.decode_topk(response_dict['topk'].to(torch.float64), vocab_size=self.vocab_size)
+            output_dict['logits'] = self.decode_topk(response_dict['topk'].to(torch.float64), vocab_size=self.vocab_size)
+        if output_topk:
+            output_dict['topk'] = response_dict['topk']
             
         
-        commune.print(response_dict.keys(), 'purple')
-        return Munch(response_dict)
+        return Munch(output_dict)
 
     __call__ = forward
 
@@ -324,10 +326,10 @@ class ModelClient(Module, nn.Module):
         return self
 
     @classmethod
-    def test_neuron(cls, model='DendriteModel', tokenizer=None, num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neuron(cls, model={'ip': '65.49.81.154', 'port': 50050}, tokenizer=None, num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
-        self = cls(model = model, tokenizer='bittensor')
+        self = cls(model = model, tokenizer='gptj')
         nucleus = neuron(model=self).model
         nucleus.model.train()
         nucleus.model.eval()
@@ -354,7 +356,7 @@ class ModelClient(Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
     @classmethod
-    def run_neuron(cls, model='DendriteModel::B', tokenizer='bittensor'):
+    def run_neuron(cls, model={'ip': '65.49.81.154', 'port': 50050}, tokenizer='bittensor'):
         import bittensor
         from commune.block.bittensor.neuron.miner import neuron
         self = cls(model=model, tokenizer=tokenizer)
@@ -367,3 +369,4 @@ if __name__ == "__main__":
     # ModelClient.default_model()
     
     ModelClient.run_neuron()
+    # ModelClient.run()
