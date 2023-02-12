@@ -1,0 +1,11 @@
+{
+  "/_app": "pages/_app.js",
+  "/_error": "pages/_error.js",
+  "/_document": "pages/_document.js",
+  "/Modules": "pages/Modules.js",
+  "/": "pages/index.js",
+  "/Datasets": "pages/Datasets.js",
+  "/Pipelines": "pages/Pipelines.js",
+  "/docs": "pages/docs.js",
+  "/about": "pages/about.js"
+}
