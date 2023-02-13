@@ -326,10 +326,10 @@ class ModelClient(Module, nn.Module):
         return self
 
     @classmethod
-    def test_neuron(cls, model={'ip': '65.49.81.154', 'port': 50050}, tokenizer=None, num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neuron(cls, model='GPTNeoX', tokenizer=None, num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
-        self = cls(model = model, tokenizer='gptj')
+        self = cls(model = model, tokenizer='bittensor')
         nucleus = neuron(model=self).model
         nucleus.model.train()
         nucleus.model.eval()
@@ -341,7 +341,6 @@ class ModelClient(Module, nn.Module):
         state_dict = nucleus.model.state_dict()
         print(nucleus.device, 'DEBUG')
         nucleus.model.load_state_dict(state_dict)
-        raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
         
         dataset = commune.connect(dataset)
         sample = dataset.sample()
@@ -368,5 +367,5 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    ModelClient.run_neuron()
-    # ModelClient.run()
+    # ModelClient.run_neuron()
+    ModelClient.run()

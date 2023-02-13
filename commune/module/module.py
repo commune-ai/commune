@@ -1043,8 +1043,6 @@ class Module:
         else: 
             raise Exception(f'launch mode {mode} not supported')
             
-        
-        
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
