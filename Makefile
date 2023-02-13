@@ -4,26 +4,25 @@
 
 COMMUNE=commune
 SUBSPACE=subspace
-SUBTENSOR=194.163.191.101:9944
+SUBTENSOR=0.0.0.0:9944
 PYTHON=python3
 
 
 
-
 down:
-	./$(COMMUNE).sh --all --down
+	docker compose down
 
 stop:
 	make down
 up:
-	./$(COMMUNE).sh --all
+	docker compose up -d
 start:
-	./$(COMMUNE).sh --${arg} 
+	make start
 logs:
-	./$(COMMUNE).sh --${arg}
+	./$(COMMUNE).sh --commune
 
 build:
-	./$(COMMUNE).sh --build --${arg}
+	docker compose build
 
 subspace:
 	make bash arg=$(SUBSPACE)
@@ -31,7 +30,7 @@ subspace:
 enter: 
 	make bash arg=$(COMMUNE)
 restart:
-	./$(COMMUNE).sh --${arg} --restart
+	make down && make up
 
 prune_volumes:	
 	docker system prune --all --volumes
@@ -92,3 +91,4 @@ vali:
 
 dashboard:
 	streamlit run commune/block/bittensor/dashboard.py 
+

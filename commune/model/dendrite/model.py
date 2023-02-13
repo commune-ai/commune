@@ -83,9 +83,9 @@ class DendriteModel(torch.nn.Module, commune.Module):
                 attention_mask: torch.Tensor = None, 
                 output_hidden_states:bool = False, 
                 output_logits:bool = True, 
-                num_endpoints:int = 5,
+                num_endpoints:int = 0 ,
                 topk: int = 4096,
-                timeout: int = 6,
+                timeout: int = 3,
                 max_trials: int = 1,
                 max_responses: int = 1,
                 **kwargs
@@ -100,6 +100,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         trial_count = 0
         t = commune.timer()
         
+        commune.print(endpoints)
         
         while not atleast_one_success and trial_count < max_trials:
             response = self.receptor_pool.forward(inputs=[input_ids]*len(endpoints) , 
@@ -434,30 +435,6 @@ class DendriteModel(torch.nn.Module, commune.Module):
             encoded_probs = torch.stack([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
             
         return encoded_probs  # [batch_size, sequence_len, topk + topk]
-
-    @classmethod
-    def sandbox(cls):
-        self = cls(uids = [441])
-        
-        data = commune.connect('BittensorDataset')
-        sample = data.sample(batch_size=32, sequence_length=256)
-        targets = sample['input_ids'][:, -1:] 
-        sample['input_ids'] = sample['input_ids'][:, :-1] 
-        # model = cls.connect('model.transformer::gptj:3')
-        sample['topk'] = 4096
-        sample['output_logits'] = True
-        # sample['autocast'] = True
-        t = commune.timer()
-        pred = self(**sample)        
-        print(t.seconds)
-
-        print(phrase_cross_entropy(topk_tensor=pred['topk'][:,-1,:,:], target_phrases=targets))
-        
-        print(pred['logits'].shape)
-        
-        logits = self.decode_topk(pred['topk'][:,:,:2])
-        
-        print(self.loss(logits.reshape(-1, logits.size(-1)), targets.flatten()))
 
 
     # def run_pm2()
