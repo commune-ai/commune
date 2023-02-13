@@ -8,7 +8,7 @@ import bittensor
 from typing import List, Union, Optional, Dict
 from munch import Munch
 
-class Dashboard:
+class BittensorModule:
     
     def __init__(self,
 
@@ -21,7 +21,7 @@ class Dashboard:
         
     @property
     def network_options(self):
-        return ['local','nakamoto', 'nobunaga'] 
+        return ['local','nakamoto', 'nobunaga', '0.0.0.0:9944'] 
     
     @property
     def chain_endpoint_options(self):
@@ -31,8 +31,7 @@ class Dashboard:
         if isinstance(subtensor, str):
             if subtensor in self.network_options:
                 subtensor = bittensor.subtensor(network=subtensor)
-            elif subtensor in self.chain_endpoint_options:
-                st.write(subtensor)
+            elif ':' in subtensor:
                 subtensor = bittensor.subtensor(chain_endpoint=subtensor)
         
         self.subtensor = subtensor if subtensor else bittensor.subtensor()
@@ -75,7 +74,7 @@ class Dashboard:
         self.set_wallet(wallet)
         
         network_options = self.network_options
-        network = st.selectbox(f'Select Network ({network_options[0]})', self.network_options + self.chain_endpoint_options, 0)
+        network = st.selectbox(f'Select Network ({network_options[0]})', self.network_options, 0)
         self.set_subtensor(subtensor=network)
         
         sync_network = st.button('Sync the Network')
