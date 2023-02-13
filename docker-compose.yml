@@ -15,6 +15,7 @@ services:
       - ./commune:/app/commune
       - ./test:/app/test
       - ./docs:/app/docs
+      - ./examples:/app/examples
 
 
       # LOCAL COMMUNE MOUNTS AND FILES
