@@ -40,13 +40,14 @@ class GPTNeoX( nn.Module, commune.Module):
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model_name: str='gpt20b',
                 checkpoint_path: str = None,
-                max_memory: dict = {6: "50GiB", 6: "50GiB" },
+                max_memory: Dict[int, str] = {3: "50GiB", 6: "50GiB" },
                 no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
                 override_device_map = None,
                 device='cuda',
+                first_layer = 'gpt_neox.embed_in',
                 tag = None,
                 load = True,
                 finetune : dict = dict(num_layers=10),
@@ -58,6 +59,8 @@ class GPTNeoX( nn.Module, commune.Module):
         
         nn.Module.__init__(self)
         
+        
+        
         # set model and tokenizer
         import json
         from munch import Munch
@@ -65,6 +68,7 @@ class GPTNeoX( nn.Module, commune.Module):
         self.model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config.use_cache = False
         self.tag = tag
+        self.model_device = device
 
         self.checkpoint_path = checkpoint_path if checkpoint_path else self.default_checkpoint_path
             
@@ -75,19 +79,21 @@ class GPTNeoX( nn.Module, commune.Module):
         with init_empty_weights():
             self.model = AutoModelForCausalLM.from_config(self.model_config)
 
-        # if no_split_module_classes == None and self.model_name == 'EleutherAI/gpt-neox-20b':
-        no_split_module_classes = ["GPTNeoXLayer"]
+        if no_split_module_classes == None and self.model_name == 'EleutherAI/gpt-neox-20b':
+            no_split_module_classes = ["GPTNeoXLayer"]
+            
+            
+        max_memory = {int(k):v for k,v in max_memory.items()}
         self.device_map = infer_auto_device_map(
             self.model, 
             no_split_module_classes= no_split_module_classes,
             dtype=torch.bfloat16, #note: succeeds with float16 as well.
             max_memory = max_memory,
             )    
-        
-        print(self.device_map, self.model_name)  
-        
+                
         if self.model_name == 'EleutherAI/gpt-neox-20b':
-            override_device_map = override_device_map if override_device_map else {'gpt_neox.embed_in': 'cpu'}
+            # TODO automate this
+            override_device_map = override_device_map if override_device_map else {first_layer: device}
             self.device_map.update(override_device_map)
 
         elif override_device_map == None:
@@ -144,7 +150,7 @@ class GPTNeoX( nn.Module, commune.Module):
                 attention_mask: torch.Tensor= None, 
                 topk:int=None, 
                 output_hidden_states:bool=False, 
-                output_logits:bool = True,
+                output_logits:bool = False,
                 verbose:bool = False,
                 output_length:int = 10,
                 max_length: int = 256,
@@ -212,8 +218,7 @@ class GPTNeoX( nn.Module, commune.Module):
         #     print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
 
         for k,v in output_dict.items():
-            if isinstance(v, torch.Tensor) and v.device == 'meta':
-                output_dict[k] = v.to(device)
+            output_dict[k] = v.to(device)
 
 
         return output_dict
@@ -222,10 +227,9 @@ class GPTNeoX( nn.Module, commune.Module):
     @property
     def device(self):
         # deepspeed has .module.device to access device
-        model_device = self.model.device
         # if str(model_device) == 'meta':
         #     model_device = 'cuda'
-        return model_device
+        return self.model_device
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
@@ -237,8 +241,8 @@ class GPTNeoX( nn.Module, commune.Module):
             except ValueError:
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+            
         self.tokenizer = tokenizer
-
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 

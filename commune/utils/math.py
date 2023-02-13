@@ -1,4 +1,7 @@
 
+from typing import Union, Dict, List, Tuple, Optional
+
+
 def round_sig(x, sig=6, small_value=1.0e-9):
     import math
     """
@@ -24,11 +27,83 @@ class RunningMean:
 
     @property
     def value(self):
-        if self.count:
+        if self.count == 0:
             return self.total_value / self.count
         else:
             return float("inf")
 
     def __str__(self):
         return str(self.value)
+    
+    def to_dict(self):
+        return self.__dict__()
 
+
+    def from_dict(  self, 
+                    d: Dict,
+                    ):
+        for key, value in d.items():
+            assert hasattr(self, key), f'key {key} not in {self.__class__.__name__}'
+            setattr(self, key, value)
+        return self
+
+
+
+        
+class MovingWindowAverage:
+    def __init__(self,value: Union[int, float] = None, window_size:int=100):
+        self.set_window( value=value, window_size=window_size)
+        
+
+    def set_window(self,value: Union[int, float] = None, window_size:int=100):
+        assert type(value) in [int, float], f'default_value must be int or float, got {type(default_value)}'
+        self.window_size = window_size
+        self.window_values = [value] * window_size
+
+    def update(self, *values):
+        '''
+        Update the moving window average with a new value.
+        '''
+        for value in values:
+            self.window_values +=  [value]
+            if len(self.window_values) > self.window_size:
+                self.window_values = self.window_values[-self.window_size:]
+
+    @property
+    def value(self):
+        return sum(self.window_values) / len(self.window_values)
+
+
+    def __str__(self):
+        return str(self.value)
+    
+    def to_dict(self):
+        return self.__dict__()
+
+
+    def from_dict(self, d: Dict):
+        for key, value in d.items():
+            assert hasattr(self, key), f'key {key} not in {self.__class__.__name__}'
+            setattr(self, key, value)
+        return self
+
+    @classmethod
+    def test(cls):
+        
+        # testing constant value
+        constant = 10
+        self = cls(value=constant)
+        
+        for i in range(10):
+            self.update(10)
+            assert constant == self.value
+            
+        variable_value = 100
+        window_size = 10
+        self = cls(value=variable_value, window_size=window_size+1)
+        for i in range(variable_value+1):
+            self.update(i)
+        print(self.value)
+        assert self.value == (variable_value - window_size/2)
+        print(self.window_values)
+            
