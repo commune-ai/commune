@@ -766,7 +766,7 @@ class Module:
 
     @classmethod
     def get_module_id(cls, name:str=None, tag:str=None):
-        module_id = name if name else clsget_module_name()
+        module_id = name if name else cls.get_module_name()
             
         if tag:
             module_id = f'{module_id}::{tag}'
@@ -806,8 +806,6 @@ class Module:
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
         name = name if name != None else self.module_name()
-        
-        tag = tag if tag else self.module_tag
         module_id = self.get_module_id(name=name, tag=tag)
            
         '''check if the server exists'''
@@ -1046,7 +1044,7 @@ class Module:
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
-                   fn: str = 'serve',
+                   fn: str = 'serve_module',
                    name:Optional[str]=None, 
                    tag:str=None, 
                    args : list = None,
@@ -1086,10 +1084,10 @@ class Module:
         if refresh:
             cls.pm2_kill(module_id)   
             
-        print(command)
+
             
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
-        
+        cls.print(command,'purple')
         env = {}
         if device != None:
             if isinstance(device, list):

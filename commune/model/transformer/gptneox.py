@@ -33,13 +33,14 @@ class GPTNeoX( nn.Module, commune.Module):
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
         'gptneox20b': 'EleutherAI/gpt-neox-20b'
          } 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str='gptneox20b',
+                model_name: str='gpt20b',
                 checkpoint_path: str = None,
-                max_memory: dict = {4: "50GiB", 6: "50GiB" },
+                max_memory: dict = {6: "50GiB", 6: "50GiB" },
                 no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
@@ -58,6 +59,8 @@ class GPTNeoX( nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         # set model and tokenizer
+        import json
+        from munch import Munch
         self.model_name = self.shortcuts.get(model_name, model_name)
         self.model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config.use_cache = False
@@ -72,19 +75,25 @@ class GPTNeoX( nn.Module, commune.Module):
         with init_empty_weights():
             self.model = AutoModelForCausalLM.from_config(self.model_config)
 
-        if no_split_module_classes == None and self.model_name == 'EleutherAI/gpt-neox-20b':
-            no_split_module_classes = ["GPTNeoXLayer"]
+        # if no_split_module_classes == None and self.model_name == 'EleutherAI/gpt-neox-20b':
+        no_split_module_classes = ["GPTNeoXLayer"]
         self.device_map = infer_auto_device_map(
             self.model, 
-            no_split_module_classes=no_split_module_classes,
+            no_split_module_classes= no_split_module_classes,
             dtype=torch.bfloat16, #note: succeeds with float16 as well.
             max_memory = max_memory,
-            )        
+            )    
         
-    
-        override_device_map = override_device_map if override_device_map else {'gpt_neox.embed_in': 'cpu'}
+        print(self.device_map, self.model_name)  
         
-        self.device_map.update(override_device_map)
+        if self.model_name == 'EleutherAI/gpt-neox-20b':
+            override_device_map = override_device_map if override_device_map else {'gpt_neox.embed_in': 'cpu'}
+            self.device_map.update(override_device_map)
+
+        elif override_device_map == None:
+            override_device_map = {}
+            self.device_map.update(override_device_map)
+
 
 
         if load:
@@ -101,6 +110,8 @@ class GPTNeoX( nn.Module, commune.Module):
         self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
 
         self.set_metrics(metrics=metrics)
+        self.model_config = Munch(json.loads(self.model_config.to_json_string()))
+
         
     @property
     def default_checkpoint_path(self):
@@ -176,8 +187,8 @@ class GPTNeoX( nn.Module, commune.Module):
             
             commune.print('TOKENIZE_' + k, 'purple')
 
-        if verbose:
-            print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
+        # if verbose:
+        #     print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
 
         
         model_output = self.model(**input_dict)
@@ -197,10 +208,9 @@ class GPTNeoX( nn.Module, commune.Module):
         if output_hidden_states:
             output_dict['hidden_states'] = model_output.hidden_states[-1][:,-output_length:, :]
 
-        if verbose:
-            print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
+        # if verbose:
+        #     print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
 
-        device = 'cuda'
         for k,v in output_dict.items():
             if isinstance(v, torch.Tensor) and v.device == 'meta':
                 output_dict[k] = v.to(device)
@@ -688,9 +698,15 @@ class GPTNeoX( nn.Module, commune.Module):
 
 if __name__ == "__main__":
     # print('FUCK')
-    GPTNeoX.run()
+    # model = GPTNeoX(model_name='gptneox20b')
+    # for parameter in model.parameters():
+    #     print(paramter.__dict__.keys())
+    #     parameter.data /= 5 
+    #     break
+    # GPTNeoX.serve_module()
+    
     # GPTNeoX.launch(kwargs=dict(max_memory={0: "60GiB", 2: "60GiB" }))
-    # ModelServer().run()
+    GPTNeoX.run()
     # TransformerModel.experiment()
 
 

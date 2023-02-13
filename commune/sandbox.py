@@ -11,8 +11,9 @@ import torch
 
 
 
-# commune.launch('model.transformer', name='model', tag='gptj', fn='serve_module', device=6)
-# commune.launch('model.transformer', name='model', tag='gptjt', fn='serve_module', device=0)
+commune.launch('model.transformer', name='model', tag='gptj', fn='serve_module', device='2')
+commune.launch('model.transformer', name='model', tag='gptjt', fn='serve_module', device='0')
+commune.launch('model.transformer', name='model', tag='gpt2.7b', fn='serve_module', device='1')
 
 
 # commune.launch('model.transformer', name='train::gptj', fn='local_train', mode='pm2', 

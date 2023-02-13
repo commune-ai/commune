@@ -411,8 +411,9 @@ class TransformerModel( nn.Module, commune.Module):
         return module_tag
     
 
-    def save_pretrained(self, path:str, *args, **kwargs):
+    def save_pretrained(self, path:str = None, *args, **kwargs):
         # Save the model and tokenizer
+        path = self.resolve_path(module_tag)
         self.model.save_pretrained(path, *args, **kwargs)
         self.tokenizer.save_pretrained(path, *args, **kwargs)
         
@@ -661,10 +662,11 @@ class TransformerModel( nn.Module, commune.Module):
 
         return output_text
 
-
+    
 
 if __name__ == "__main__":
     # print('FUCK')
+    # TransformerModel('gptj', tag='demo', load=True).save_pretrained()
     TransformerModel.run()
     # TransformerModel.run()
     # TransformerModel.experiment()
