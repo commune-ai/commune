@@ -39,7 +39,7 @@ class GPTNeoX( nn.Module, commune.Module):
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model_name: str='gptneox20b',
                 checkpoint_path: str = None,
-                max_memory: dict = {0: "60GiB", 1: "60GiB" },
+                max_memory: dict = {4: "50GiB", 6: "50GiB" },
                 no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
@@ -688,8 +688,8 @@ class GPTNeoX( nn.Module, commune.Module):
 
 if __name__ == "__main__":
     # print('FUCK')
-    # GPTNeoX.run()
-    GPTNeoX(model_name='gptneox20b').serve()
+    GPTNeoX.run()
+    # GPTNeoX.launch(kwargs=dict(max_memory={0: "60GiB", 2: "60GiB" }))
     # ModelServer().run()
     # TransformerModel.experiment()
 

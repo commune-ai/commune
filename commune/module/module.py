@@ -975,27 +975,47 @@ class Module:
         '''
         Launch a module as pm2 or ray 
         '''
-        
-        
+                
         if module == None:
-            module = cls.module_path()
+            module = cls
             
+
 
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         
         if mode == 'local':
 
-            module_class = cls.get_module(module)
+            if isinstance(module, str):
+                module_class = cls.get_module(module)
+            else:
+                module_class = cls
             if fn == None:
                 return module_class(*args, **kwargs)
             else:
                 return getattr(module_class, fn)(*args, **kwargs)
             
         elif mode == 'server':
+            
+            
             fn = 'serve_module'
             kwargs['tag'] = tag
             kwargs['name'] = name
+            launch_kwargs = dict(
+                    module=module, 
+                    fn = fn,
+                    name=name, 
+                    tag=tag, 
+                    args = args,
+                    kwargs = kwargs,
+                    refresh=refresh,
+                    **extra_kwargs
+            )
+            launch_fn = getattr(cls, f'pm2_launch')
+            return launch_fn(**launch_kwargs)
+        
+        elif mode == 'pm2':
+            assert fn != None, 'fn must be specified for pm2 launch'
             launch_kwargs = dict(
                     module=module, 
                     fn = fn,
@@ -1033,7 +1053,7 @@ class Module:
                    tag:str=None, 
                    args : list = None,
                    kwargs: dict = None,
-                   device:str='0', 
+                   device:str=None, 
                    interpreter:str='python3', 
                    refresh:bool=True, ):
         
@@ -1041,7 +1061,7 @@ class Module:
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
-        if module != None:
+        if isinstance(module, str):
             assert isinstance(module, str), f'module must be a string, not {type(module)}'
             module = cls.module(module)
         else:
@@ -1068,10 +1088,15 @@ class Module:
         if refresh:
             cls.pm2_kill(module_id)   
             
+        print(command)
             
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
-        env = dict(CUDA_VISIBLE_DEVICES=device) 
         
+        env = {}
+        if device != None:
+            if isinstance(device, list):
+                device = ','.join(device)
+            env['CUDA_VISIBLE_DEVICES']=device
         return cls.run_command(command, env=env)
 
     @classmethod
@@ -1624,8 +1649,9 @@ class Module:
     def setattr(self, k, v):
         setattr(self, k, v)
         
-    def default_module_id(self):
-        return self.get_module_name()
+    @classmethod
+    def default_module_id(cls):
+        return cls.module_name()
     
     def set_module_id(self, module_id:str) -> str:
         '''
@@ -1760,6 +1786,15 @@ class Module:
         import os
         os.environ[key] = value
         return value 
+
+    @classmethod
+    def get_env(cls, key:str)-> None:
+        '''
+        Pay attention to this function. It sets the environment variable
+        '''
+        import os
+        return  os.environ[key] 
+
 
     @classmethod
     def get_device_memory(cls):

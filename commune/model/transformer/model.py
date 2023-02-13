@@ -48,8 +48,8 @@ class TransformerModel( nn.Module, commune.Module):
                 device='cuda',
                 tag = None,
                 load: bool = True,
-                autocast: bool = True,
-                finetune : dict = dict(num_layers=10),
+                autocast: bool = False,
+                finetune : dict = dict(num_layers=3),
                 **model_kwargs
                 ):
         
@@ -108,13 +108,21 @@ class TransformerModel( nn.Module, commune.Module):
         return metrics
     
 
-    def forward(self, *args,no_grad=True, **kwargs):
+    def forward(self, *args,no_grad=True, autocast:bool=True, **kwargs):
         # import ipdb; ipdb.set_trace()
         if no_grad:
             with torch.no_grad():
-                result = self.local_forward(*args,**kwargs)
+                if autocast: 
+                    with torch.cuda.amp.autocast():
+                        result = self.local_forward(*args,**kwargs)
+                else:
+                    result = self.local_forward(*args,**kwargs)
         else:
-            result = self.local_forward(*args,**kwargs)
+            if autocast:
+                with torch.cuda.amp.autocast():
+                    result = self.local_forward(*args,**kwargs)
+            else:
+                result = self.local_forward(*args,**kwargs)
         # import ipdb; ipdb.set_trace()
         return result
 
@@ -428,17 +436,21 @@ class TransformerModel( nn.Module, commune.Module):
         
         return path
     
-    def load(self):
-        path = self.resolve_path(self.module_tag)
-        
+    def load(self, tag=None):
+        module_tag = self.resolve_module_tag(tag=tag)
+        path = self.resolve_path(module_tag)
         if not os.path.exists(path):
+            logger.warning(f'No saved model found at {path}')
             return
-        state_dict  = torch.load( path)
-        self.model.load_state_dict(state_dict['model'])
-        self.optimizer.load_state_dict(state_dict['optimizer'])
-        self.set_stats(state_dict['stats'])
+        loaded_state  = torch.load( path)
+        state_dict = self.model.state_dict()
+        for k,v in loaded_state['model'].items():
+            assert k in state_dict
+            state_dict[k] = v
+        self.model.load_state_dict(state_dict)
+        self.optimizer.load_state_dict(loaded_state['optimizer'])
+        self.set_stats(loaded_state['stats'])
         
-
 
     def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
@@ -564,33 +576,34 @@ class TransformerModel( nn.Module, commune.Module):
 
     @classmethod
     def local_train(cls, 
-                    model:str='TransformerModel::EleutherAI_gpt-j-6B',
-                    trial:str = 'demo', 
+                    model:str='gptj',
+                    tag:str = 'demo', 
                     num_batches:int = 200,
                     num_epochs:int = 200, 
-                    dataset:str= 'dataset.bittensor', **kwargs):
-        model = cls(model_name=model)
+                    dataset:str= 'BittensorDataset', **kwargs):
+        model = cls(model_name=model,tag=tag, load=True,  **kwargs)
         dataset = cls.connect(dataset)
         
-        print(model)
         best_loss = 10e10
         for epoch in range(num_epochs):
             total_epoch_loss = 0
             epoch_loss = 0
+            if epoch > 0:
+                model.load(tag=tag)
             for i in range(num_batches):
-                sample = dataset(fn='sample')
-                loss = model.learn_step(output_length=10, **sample)
+                sample = dataset.sample()
+                loss = model.learn_step(**sample)
                 try:
                     total_epoch_loss += loss
                 except:
                     continue
                 epoch_loss = total_epoch_loss/(i+1)
                 info_str = f'Batch {i}/{num_batches} Epoch {epoch}/{num_epochs} CE: {loss} Epoch Loss: {epoch_loss} Best Loss: {best_loss}'
-                print(info_str)
+                logger.success(info_str)
             if epoch_loss < best_loss:
                 best_loss = epoch_loss
                 try:
-                    model.save(tag=trial)
+                    model.save(tag=tag)
                 except TypeError:
                     continue
 
