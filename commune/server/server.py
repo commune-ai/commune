@@ -320,8 +320,12 @@ class Server(ServerServicer, Serializer):
         getattr(cls, input_args.function)(*args, **kwargs)
 
     @property
+    def external_ip(self):
+        return commune.external_ip()
+        
+    @property
     def endpoint(self):
-        return f'{self.ip}:{self.port}'
+        return f'{self.external_ip}:{self.port}'
     
     def serve(self,
               wait_for_termination:bool=False,
@@ -388,7 +392,6 @@ class Server(ServerServicer, Serializer):
                 if conns.laddr.port == port:
                     proc.send_signal(signal.SIGKILL) # or SIGKILL
         return port
-
 
     @classmethod
     def get_available_port(cls, port_range: List[int] = None , ip:str =None) -> int:

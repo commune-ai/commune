@@ -28,7 +28,7 @@ class ModelClient(Module, nn.Module):
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptneox20b': 'EleutherAI/gpt-neox-20b'
+        'gpt20b': 'EleutherAI/gpt-neox-20b'
          }
     def __init__(self,
                 model:Union[str, Dict] = 'model.dendrite',
@@ -144,9 +144,10 @@ class ModelClient(Module, nn.Module):
             raise NotImplementedError(tokenizer)
             
 
+        print(tokenizer)
         self.tokenizer = tokenizer     
-        self.std_tokenizer = bittensor.tokenizer()
-        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        # self.std_tokenizer = bittensor.tokenizer()
+        # self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         self.vocab_size = self.tokenizer.vocab_size
         
 
@@ -326,10 +327,10 @@ class ModelClient(Module, nn.Module):
         return self
 
     @classmethod
-    def test_neuron(cls, model='GPTNeoX', tokenizer=None, num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neuron(cls, model='model::gptjt', tokenizer='gptjt', num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
-        self = cls(model = model, tokenizer='bittensor')
+        self = cls(model = model, tokenizer=tokenizer)
         nucleus = neuron(model=self).model
         nucleus.model.train()
         nucleus.model.eval()
@@ -350,7 +351,7 @@ class ModelClient(Module, nn.Module):
             target = sample['input_ids'][:, -1:] 
             inputs_x = sample['input_ids'][:, :-1] 
             t = commune.timer()
-            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
+            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, verbose=False, device='cpu', output_logits=True, topk=topk)
             loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor, target_phrases=target)
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  

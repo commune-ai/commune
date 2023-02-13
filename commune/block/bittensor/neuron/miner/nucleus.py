@@ -404,7 +404,7 @@ class server(torch.nn.Module):
         with torch.no_grad():
             return _forward()  # no gradients
 
-    def encode_forward_causallmnext(self, token_batch, std_tokenizer=None, topk: int = 4096, model_output=None):
+    def encode_forward_causallmnext(self, token_batch, std_tokenizer=None, topk: int = 4096, model_output=None, **kwargs):
         r"""
         Forward pass through the pretrained model and select topk tokenizer logits and retokenize with std_tokenizer,
         then compact new token phrases and probabilities
@@ -451,7 +451,7 @@ class server(torch.nn.Module):
             if _model_output is None:
                 _model_output = self.model(input_ids=tokens['input_ids'],
                                                attention_mask=tokens['attention_mask'],
-                                               output_hidden_states=True)
+                                               output_hidden_states=True, **kwargs)
 
             # model_output.logits: [batch_size, sequence_len, server_vocab_size]
             
