@@ -182,7 +182,7 @@ class BittensorModule(Module):
     def list_hotkeys(self, coldkey='default'):
         return list(self.wallets[coldkey].keys())
 
-    def list_coldkeys(self, coldkey='default'):
+    def list_coldkeys(self):
         return list(self.wallets.keys())
 
 
