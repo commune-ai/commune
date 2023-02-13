@@ -1808,8 +1808,11 @@ class Module:
             device_map[name] = info.__dict__
         
         return device_map   
-    
-     
+    @classmethod
+    def gpus(cls) -> List[int]:
+        import torch
+        available_gpus = [i for i in range(torch.cuda.device_count())]
+        return available_gpus
 
 Block = Lego = Module
 if __name__ == "__main__":

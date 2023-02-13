@@ -1,18 +1,1 @@
-
-
-module: 'BittensorModule'
-# clients
-# client: get_config(client.manager)
-# client: ['local']
-
-network: nakamoto
-block: null
-
-blocks_behind_sync_threshold: 100
-wallet:
-  coldkey: bit
-  hotkey: connect
-
-actor:
-  name: local_copy(module)
-  refresh: False
+module: BittensorModule
