@@ -56,7 +56,7 @@ class server(torch.nn.Module):
         super(server, self).__init__()
         self.model = model if model else None
         if config == None: config = server.config()
-        self.config = config;print(config)
+        self.config = config
         self.std_tokenizer = bittensor.tokenizer()
         self.device = config.neuron.device
         self.pretrained = pretrained if pretrained else config.neuron.pretrained

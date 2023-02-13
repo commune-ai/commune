@@ -318,14 +318,12 @@ class Server(ServerServicer, Serializer):
         args = json.loads(input_args.args)
         assert isinstance(args, list)
         getattr(cls, input_args.function)(*args, **kwargs)
-
-    @property
-    def external_ip(self):
-        return commune.external_ip()
         
     @property
     def endpoint(self):
-        return f'{self.external_ip}:{self.port}'
+        return f'{commune.external_ip()}:{self.port}'
+    
+    
     
     def serve(self,
               wait_for_termination:bool=False,

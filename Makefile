@@ -92,3 +92,5 @@ vali:
 dashboard:
 	streamlit run commune/block/bittensor/dashboard.py 
 
+sand:
+	python3 commune/sandbox.py
