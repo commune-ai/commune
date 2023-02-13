@@ -44,5 +44,5 @@ RUN pip install jupyterlab
 RUN pip install accelerate
 RUN pip install nvidia-ml-py3
 
-# # INSTALL NPM ENV
-# RUN ./scripts/install_npm_env.sh
+# INSTALL NPM ENV
+RUN ./scripts/install_npm_env.sh
