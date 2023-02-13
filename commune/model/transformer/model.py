@@ -56,6 +56,8 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.tag = tag 
         
+        self.stats = {'tag': self.tag}
+        
         nn.Module.__init__(self)
         
         # set model and tokenizer
@@ -275,16 +277,12 @@ class TransformerModel( nn.Module, commune.Module):
     
 
     def learn_step(self, **sample ):
-        if 'target' not in sampel:
-            targets = sample['input_ids'][:,1:]
-        else:
-            targetrs = sample['target']
-            
+        targets = sample['input_ids'][:,1:]
         sample['input_ids'] = sample['input_ids'][:,:-1]
         self.optimizer.zero_grad()
         
         
-        
+
         with torch.autocast(device_type='cuda'):
             pred = self.forward(**sample, no_grad=False)
             logits =  pred['logits']
@@ -293,24 +291,22 @@ class TransformerModel( nn.Module, commune.Module):
             loss = self.calculate_loss(pediction=logits.reshape(-1, logits.size(-1)), 
                                         gt=targets.flatten().to(self.device))              
         
-
+        self.stats['learn_steps'] = self.stats.get('learn_steps', 0)+1
+        
+        
         loss.backward()
         self.optimizer.step()
     
         
         return loss.item()
+    
 
-    def set_stats(self, stats:dict=None): 
-        if stats == None:
-            stats =  dict(
-                steps = 0,
-                loss = 0,
-            )
-        self.stats = Munch(stats)
+    def set_stats(self, **stats) -> None: 
+        self.stats = {**self.stats, **stats}
         
-        
-        
-
+    def get_stats(self ) -> dict:
+        return self.stats
+    
     def set_fine_tuning_params(self) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
@@ -375,34 +371,7 @@ class TransformerModel( nn.Module, commune.Module):
                 logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
 
         return reached_last_layer, last_layer_name
- 
-    def learn(self, num_batches=10, dataset='dataset.huggingface', load:bool=True, save:bool=True, tag:str = None):
-        self.tag = tag if tag else self.tag
-        # Module.start('dataset.bittensor')
-        
-        if isinstance(dataset, str):
-            dataset =  self.connect(dataset)
 
-        t = commune.timer()
-        
-        if load:
-            self.load()
-        
-        total_loss = 0 
-        
-        for i in range(num_batches):
-            sample =dataset.forward(fn='sample')
-            samples_per_seconds = i/t.seconds
-            loss = self.learn_step(sample=sample)
-            
-            print(f'({i}/{num_batches}) Samples/s: {samples_per_seconds} Loss: {loss}')
-
-            self.stats.loss = ( (self.stats.steps* self.stats.loss ) + loss) / (self.stats.steps + 1)
-            self.stats.steps += 1
-        if save:
-            self.save()
-            
-        return self.stats
     @property
     def module_tag(self): 
         return self.resolve_module_tag()
@@ -434,8 +403,9 @@ class TransformerModel( nn.Module, commune.Module):
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
-            'stats': dict(self.stats)
+            'stats': self.stats
         }
+        
     
         torch.save(state_dict, path)
         
@@ -454,7 +424,7 @@ class TransformerModel( nn.Module, commune.Module):
             state_dict[k] = v
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
-        self.set_stats(loaded_state['stats'])
+        self.set_stats(**loaded_state['stats'])
         
 
     def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
@@ -544,77 +514,66 @@ class TransformerModel( nn.Module, commune.Module):
         print(t.seconds)
         # print(pred)
         
-        
-    @classmethod
-    def remote_train(cls, 
-                    model:str='gptj',
-                    trial:str = '2', 
-                    num_batches:int = 200,
-                    num_epochs:int = 50, 
-                    dataset:str= 'dataset.bittensor', **kwargs):
-        model = cls.connect(f'model.transformer::{model}:{trial}')
-        dataset = cls.connect(dataset)
-    
-        best_loss = 10e10
-        for epoch in range(num_epochs):
-            total_epoch_loss = 0
-            epoch_loss = 0
-            for i in range(num_batches):
-                sample = dataset(fn='sample')
-                loss = model(fn='learn_step', kwargs=dict(output_length=10, **sample))
-                try:
-                    total_epoch_loss += loss
-                except:
-                    continue
-                epoch_loss = total_epoch_loss/(i+1)
-                info_str = f'Batch {i}/{num_batches} Epoch {epoch}/{num_epochs} CE: {loss} Epoch Loss: {epoch_loss} Best Loss: {best_loss}'
-                print(info_str)
-            if epoch_loss < best_loss:
-                best_loss = epoch_loss
-                try:
-                    model(fn='save', kwargs=dict(tag=trial), timeout=100)
-                except TypeError:
-                    continue
-
-
-
 
     @classmethod
     def local_train(cls, 
                     model:str='gptj',
-                    tag:str = 'trial_2', 
-                    num_batches:int = 200,
-                    num_epochs:int = 200, 
+                    tag:str = 'demo', 
+                    num_batches:int = 10000,
+                    window_size:int = 50,
+                    backoff_window_size:int = 25,
+                    max_iters_since_best:int = 100,
                     dataset:str= 'BittensorDataset',
+                    best_loss: float = 10e10,
                     **kwargs
                     ):
         model = cls(model_name=model,tag=tag, load=True,  **kwargs)
-        dataset = cls.connect(dataset)
+        dataset = commune.connect(dataset)
         
-        best_loss = 10e10
-        for epoch in range(num_epochs):
-            total_epoch_loss = 0
-            epoch_loss = 0
-            # if epoch > 0:
-            #     model.load(tag=tag)
-            for i in range(num_batches):
-                sample = dataset.sample()
-                if isinstance(sample, dict) == False:
-                    continue
-                loss = model.learn_step(**sample)
-                try:
-                    total_epoch_loss += loss
-                except:
-                    continue
-                epoch_loss = total_epoch_loss/(i+1)
-                info_str = f'Batch {i}/{num_batches} Epoch {epoch}/{num_epochs} CE: {loss} Epoch Loss: {epoch_loss} Best Loss: {best_loss}'
-                logger.success(info_str)
-            if epoch_loss < best_loss:
-                best_loss = epoch_loss
-                try:
-                    model.save(tag=tag)
-                except TypeError:
-                    continue
+        stats = model.get_stats()
+        best_loss = stats.get('loss', best_loss)
+        if best_loss < 0.1:
+            best_loss = 10e10
+        
+        commune.log(f'Loaded {stats} from {tag}', 'yellow')
+
+        metric_window = commune.get_module('commune.utils.math.MovingWindowAverage')(value=2, window_size=window_size)
+        # if epoch > 0:
+        #     model.load(tag=tag)
+        fail_count = 0
+        iters_since_best = 0
+        for i in range(num_batches):
+            
+            if iters_since_best > max_iters_since_best:
+                model.load()
+            sample = dataset.sample()
+            
+            if not (isinstance(sample, dict) and 'input_ids' in sample):
+                fail_count += 1
+                commune.log(f'Failed to get sample {fail_count} times', 'red')
+                continue
+            
+            
+            
+            loss = model.learn_step(**sample)
+ 
+            metric_window.update(loss)
+            window_loss = metric_window.value
+            info_str = f'Batch {i}/{num_batches} CE: {loss} Window Loss ({window_size}): {window_loss} Best Loss: {best_loss}'
+            commune.log(info_str, 'purple')
+            
+            if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
+                best_loss = window_loss
+                model.set_stats(loss=best_loss)
+                commune.log(f'Best Stats: {model.get_stats()} ', 'green')
+                iters_since_best = 0
+                model.save(tag=tag)
+
+                
+            else:
+                iters_since_best += 1
+            
+            
 
     def generate(self, 
                  text:str = "Today is a beautiful day, and", 
@@ -673,10 +632,5 @@ class TransformerModel( nn.Module, commune.Module):
     
 
 if __name__ == "__main__":
-    # print('FUCK')
-    # TransformerModel('gptj', tag='demo', load=True).save_pretrained()
     TransformerModel.run()
-    # TransformerModel.run()
-    # TransformerModel.experiment()
-
 

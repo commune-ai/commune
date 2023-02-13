@@ -373,4 +373,4 @@ if __name__ == "__main__":
     # ModelClient.default_model()
     
     # ModelClient.run_neuron()
-    ModelClient.run_neuron(model='model::gptjt')
+    ModelClient.run_neuron(model='gptj::trial_2')
