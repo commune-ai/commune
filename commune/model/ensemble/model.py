@@ -30,31 +30,13 @@ Examples
 
 
 """
-class TransformerModel( nn.Module, commune.Module):
-    shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-        'gpt125m': 'EleutherAI/gpt-neo-125M',
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptneox20b': 'EleutherAI/gpt-neox-20b'
-         }
+class EnsembleModel( nn.Module, commune.Module):
 
     def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gptj",
-                tokenizer:Union[str, 'tokenizer'] = None,
-                optimizer: torch.optim  = None,
-                metrics: Dict[str, 'Metric'] = None,
-                device='cuda',
-                tag = None,
-                load: bool = True,
-                autocast: bool = False,
-                finetune : dict = dict(num_layers=4),
+                models: List[str] = ['model::gptj', 'model::gptjt', 'model::gpt2.7b'],
                 **model_kwargs
                 ):
-        
-        
-        self.tag = tag 
+    
         
         nn.Module.__init__(self)
         
@@ -70,17 +52,15 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.set_stats()
         
-        
         if load:
             self.load()
         
-        self.set_fine_tuning_params(**finetune)
         
         
     def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
         
         if isinstance(optimizer, dict):
-            module_path = optimizer.pop('module', torch.optim.Adam)
+            module_path = optimizer.pop('module', None)
             assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
             optimizer_class = self.import_object(module_path) 
             optimizer_kwargs = optimizer.get('kwargs', optimizer)
@@ -88,7 +68,7 @@ class TransformerModel( nn.Module, commune.Module):
             self.optimizeroptimizer_class(*optimizer_args,**optimizer_kwargs)
                 
         elif optimizer == None:
-            self.optimizer = torch.optim.Adam(self.parameters(), lr=0.00002)
+            self.optimizer = torch.optim.Adam(self.parameters(), lr=0.0001)
         
         else:
             raise NotImplementedError(optimizer)
@@ -107,8 +87,14 @@ class TransformerModel( nn.Module, commune.Module):
             self.metrics['cross_entropy'] =  torch.nn.CrossEntropyLoss()
         return metrics
     
+    @classmethod
+    def forward(self, *args, **kwargs):
+        model_output_list = []
+        for model in self.models:
+            model_output = model.forward(*args, **kwargs)
+            model_output_list.append(model_output)
 
-    def forward(self, *args,no_grad=True, autocast:bool=True, **kwargs):
+    def _forward(self, *args,no_grad=True, autocast:bool=True, **kwargs):
         # import ipdb; ipdb.set_trace()
         if no_grad:
             with torch.no_grad():
@@ -275,11 +261,7 @@ class TransformerModel( nn.Module, commune.Module):
     
 
     def learn_step(self, **sample ):
-        if 'target' not in sampel:
-            targets = sample['input_ids'][:,1:]
-        else:
-            targetrs = sample['target']
-            
+        targets = sample['input_ids'][:,1:]
         sample['input_ids'] = sample['input_ids'][:,:-1]
         self.optimizer.zero_grad()
         
@@ -582,12 +564,10 @@ class TransformerModel( nn.Module, commune.Module):
     @classmethod
     def local_train(cls, 
                     model:str='gptj',
-                    tag:str = 'trial_2', 
+                    tag:str = 'demo', 
                     num_batches:int = 200,
                     num_epochs:int = 200, 
-                    dataset:str= 'BittensorDataset',
-                    **kwargs
-                    ):
+                    dataset:str= 'BittensorDataset', **kwargs):
         model = cls(model_name=model,tag=tag, load=True,  **kwargs)
         dataset = cls.connect(dataset)
         
@@ -595,12 +575,10 @@ class TransformerModel( nn.Module, commune.Module):
         for epoch in range(num_epochs):
             total_epoch_loss = 0
             epoch_loss = 0
-            # if epoch > 0:
-            #     model.load(tag=tag)
+            if epoch > 0:
+                model.load(tag=tag)
             for i in range(num_batches):
                 sample = dataset.sample()
-                if isinstance(sample, dict) == False:
-                    continue
                 loss = model.learn_step(**sample)
                 try:
                     total_epoch_loss += loss

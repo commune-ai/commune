@@ -997,8 +997,8 @@ class Module:
             
             
             fn = 'serve_module'
-            kwargs['tag'] = tag
-            kwargs['name'] = name
+            kwargs['tag'] = kwargs.get('tag', tag)
+            kwargs['name'] = kwargs.get('name', name)
             launch_kwargs = dict(
                     module=module, 
                     fn = fn,

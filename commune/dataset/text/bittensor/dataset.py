@@ -60,7 +60,7 @@ class BittensorDataset(Module):
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             background_download: bool = False,
-            min_hash_count : int = 10000,
+            min_hash_count : int = 100000,
             loop: Optional['asyncio.loop'] = None ):
 
         self.kwargs = locals()
@@ -359,7 +359,7 @@ class BittensorDataset(Module):
             task = 'causallm'
         if task == None:
             pass
-        elif task in ['causallm']
+        elif task in ['causallm']:
             output['targets'] = self.tokenizer(sample_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
             
         return output
@@ -452,7 +452,9 @@ class BittensorDataset(Module):
     
     
     
-    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False, verbose_rate = 20):
+    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False, verbose_rate = 1):
+        
+        print('BROOOOOOO')
         if background:
             thread_fn_kwargs = dict(locals())
             thread_fn_kwasrgs['background'] = False
@@ -514,6 +516,11 @@ class BittensorDataset(Module):
         if update:
             self._saved_hashes = _saved_hashes
         return _saved_hashes
+    
+    
+    @property
+    def num_hashes(self) -> int:
+        return len(self.saved_hashes)
         
     @property
     def unsaved_hashes(self) -> List[str]:
@@ -778,7 +785,7 @@ class BittensorDataset(Module):
         Returns:
             length: int
         """
-        return len(self.all_text_file_metas)
+        return len(self.saved_hashes)
 
     def __del__(self) -> None:
         self.close()
@@ -797,8 +804,9 @@ class BittensorDataset(Module):
         import commune
         # self = bittensor.dataset(batch_size=32, block_size=256)
         self = cls(batch_size=32, sequence_length=256, max_datasets=10)
+        print(len(self))
         # print(self.download(chunk_size=200))
-        self.download()
+        # self.download()
         
         # t = commune.timer()
 
@@ -812,6 +820,8 @@ class BittensorDataset(Module):
         self = cls(batch_size=32, sequence_length=256, max_datasets=10)
         print('START')
         import commune
+        
+        print(len(self))
         # t = commune.timer()
         # for i in range(1000):
             # print(self.sample()['input_ids'].shape, i/t.seconds)

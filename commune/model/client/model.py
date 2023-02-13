@@ -325,9 +325,13 @@ class ModelClient(Module, nn.Module):
         model = commune.connect('TransformerModel::EleutherAI_gpt-neo-125M', virtual=False)
         self = cls(model=model)
         return self
-
     @classmethod
-    def test_neuron(cls, model='model::gptjt', tokenizer='gptjt', num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neurons(cls, models=['model::gpt2.7b', 'model::gptjt', 'model::gptj'], *args,**kwargs):
+        for model in models:
+            cls.print(f'Testing {model}', 'purple')
+            cls.test_neuron(model=model, tokenizer=model.split('::')[-1], *args,**kwargs)
+    @classmethod
+    def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
         self = cls(model = model, tokenizer=tokenizer)
@@ -351,7 +355,7 @@ class ModelClient(Module, nn.Module):
             target = sample['input_ids'][:, -1:] 
             inputs_x = sample['input_ids'][:, :-1] 
             t = commune.timer()
-            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, verbose=False, device='cpu', output_logits=True, topk=topk)
+            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
             loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor, target_phrases=target)
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
@@ -369,4 +373,4 @@ if __name__ == "__main__":
     # ModelClient.default_model()
     
     # ModelClient.run_neuron()
-    ModelClient.run()
+    ModelClient.run_neuron(model='model::gptjt')
