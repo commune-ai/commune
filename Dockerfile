@@ -1,6 +1,6 @@
 
 # syntax=docker/dockerfile:1
-FROM nvidia/cuda:12.0.0-runtime-ubuntu22.04
+FROM nvidia/cuda:12.0.0-devel-ubuntu22.04
 
 RUN rm -f /etc/apt/sources.list.d/*.list
 WORKDIR /app
@@ -8,14 +8,12 @@ WORKDIR /app
 ARG DEBIAN_FRONTEND=noninteractive
 
 # INSTALL APT PACKAGES
-
 RUN apt update && apt upgrade -y
 RUN apt install -y curl sudo nano git htop netcat wget unzip python3-dev python3-pip tmux apt-utils cmake build-essential
 ## Upgrade pip
 RUN pip3 install --upgrade pip
 RUN apt install -y protobuf-compiler
 RUN apt install -y curl
-
 COPY ./scripts /app/scripts
 
 # INSTALL NPM ENV
