@@ -28,21 +28,26 @@ Examples
 
 
 """
-class OPTModel( nn.Module, commune.Module):
+class OPT( nn.Module, commune.Module):
     shortcuts =  {
-        'opt13b': 'facebook/opt-13b'
-         }
+        'gptj': 'EleutherAI/gpt-j-6B',
+        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+        'gpt125m': 'EleutherAI/gpt-neo-125M',
+        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt': 'facebook/opt-13b',
+         } 
     def __init__(self,
-                model_name: str='opt13b',
+                # model_name: str="EleutherAI/gpt-j-6B",
+                model_name: str='opt',
                 checkpoint_path: str = None,
                 max_memory: Union[Dict[int, str], int, float] = 100,
-                no_split_module_classes=["OPTDecoderLayer"],
+                no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
                 override_device_map = None,
-                device='cuda',
-                first_layer = 'gpt_neox.embed_in',
+                device='cpu',
                 tag = None,
                 finetune : dict = dict(num_layers=10),
                 **model_kwargs
@@ -54,35 +59,47 @@ class OPTModel( nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         
+        
+        device = commune.resolve_device(device)
+        
         # set model and tokenizer
         
 
         self.model_name = self.shortcuts.get(model_name, model_name)
+        self.override_device_map = override_device_map if override_device_map else {}
+        self.no_split_module_classes = no_split_module_classes if no_split_module_classes else []
+        if self.model_name == 'EleutherAI/gpt-neox-20b':
+            self.no_split_module_classes =  ["GPTNeoXLayer"]
+            self.override_device_map = {'gpt_neox.embed_in': device}
+            
         self.model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config.use_cache = False
         self.tag = tag
         self.model_device = device
 
         self.checkpoint_path = checkpoint_path if checkpoint_path else self.default_checkpoint_path
-
+        if not os.path.exists(self.checkpoint_path):
+            commune.log(f'Creating weights path at {self.checkpoint_path}', 'purple')
+            AutoModelForCausalLM.from_config(self.model_config).save_pretrained(self.checkpoint_path)
+            
         with init_empty_weights():
             self.model = AutoModelForCausalLM.from_config(self.model_config)
 
             
         self.max_memory = self.resolve_max_memory(max_memory)
         
-        print(self.max_memory)
+        commune.log(self.max_memory, 'green')
+        
         self.device_map = infer_auto_device_map(
             self.model, 
-            no_split_module_classes= no_split_module_classes,
+            no_split_module_classes= self.no_split_module_classes,
             dtype=torch.bfloat16, #note: succeeds with float16 as well.
             max_memory = self.max_memory,
             )    
-        first_layer_name = list(self.device_map.keys())[0]
-        self.device_map[first_layer_name] = device
-
-        if isinstance(override_device_map, dict):
-            self.device_map.update(override_device_map)
+                
+        self.device_map.update(self.override_device_map)
+        
+        commune.log(self.device_map, 'green')
 
         load_checkpoint_and_dispatch(
             self.model,
@@ -94,10 +111,9 @@ class OPTModel( nn.Module, commune.Module):
         )
             
         self.set_metrics(metrics=metrics)
-        self.model_config = Munch(json.loads(self.model_config.to_json_string()))
+        # convert model to bfloat16
+        self.model_config = commune.dict2munch(json.loads(self.model_config.to_json_string()))
 
-            
-        
         # self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
 
 
@@ -220,7 +236,7 @@ class OPTModel( nn.Module, commune.Module):
         if isinstance(tokenizer, str):
             tokenizer = self.shortcuts.get(tokenizer, tokenizer)
             try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer)
             except ValueError:
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
@@ -228,6 +244,9 @@ class OPTModel( nn.Module, commune.Module):
         self.tokenizer = tokenizer
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        tokenizer.padding_side = "left"
+        # self.prep_tokenizer(tokenizer=self.tokenizer)
 
         return self.tokenizer
 
@@ -707,19 +726,59 @@ class OPTModel( nn.Module, commune.Module):
 
 
 
+    @classmethod
+    def prep_tokenizer(cls,tokenizer, std_tokenizer=None):
+            
+        tokenizer.padding_side = "left"  # Generative default expects most recent token on right-hand side with padding on left. https://github.com/huggingface/transformers/pull/10552
+        # tokenizer.add_prefix_space = False
+        # tokenizer.add_special_tokens({'bos_token': "[BOS]"}) # A special token representing the beginning of a sentence.
+        # tokenizer.add_special_tokens({'eos_token': "[EOS]"}) # A special token representing the end of a sentence.
+        # tokenizer.add_special_tokens({'unk_token': "[UNK]"}) # A special token representing an out-of-vocabulary token.
+        # tokenizer.add_special_tokens({'sep_token': "[SEP]"}) # A special token separating two different sentences in the same input (used by BERT for instance)
+        # tokenizer.add_special_tokens({'pad_token': "[PAD]"}) # A special token used to make arrays of tokens the same size for batching purpose. Will then be ignored by attention mechanisms or loss computation.
+        # tokenizer.add_special_tokens({'cls_token': "[CLS]"}) # A special token representing the class of the input (used by BERT for instance).
+        # tokenizer.add_special_tokens({'mask_token': "[MASK]"}) # A special token representing a masked token (used by masked-language modeling pretraining objectives, like BERT).
+        # additional_special_tokens = [
+        #     "<s>NOTUSED",  # Used by BARThez
+        #     "</s>NOTUSED", # Used by BARThez
+        #     "<eop>", # Used by MarianMT
+        #     "<eod>", # Used by MarianMT
+        #     "<formula>", # Used by Transformer XL
+        #     "<mask_1>" # Used by Pegasus
+        #     "<special0>", # Used by XLM
+        #     "<special1>", # Used by XLM
+        #     "<special2>", # Used by XLM
+        #     "<special3>", # Used by XLM
+        #     "<special4>", # Used by XLM
+        #     "<special5>", # Used by XLM
+        #     "<special6>", # Used by XLM
+        #     "<special7>", # Used by XLM
+        #     "<special8>", # Used by XLM
+        #     "<special9>", # Used by XLM
+        # ]
+        # tokenizer.additional_special_tokens = additional_special_tokens
+
+        # Define PAD Token = EOS Token (GPT2 generate convention, when PAD Token is None)
+        # https://github.com/huggingface/transformers/blob/49c8c67fb815a277405f84dea4a66353e19fb347/tests/models/gpt2/test_modeling_gpt2.py#L532
+        import bittensor
+        std_tokenizer = std_tokenizer or bittensor.tokenizer()
+        if tokenizer.pad_token is None and tokenizer.eos_token is not None:
+            tokenizer.pad_token = tokenizer.eos_token
+        set_vocab_len(tokenizer)
+        set_whitespace_preserving(tokenizer)
+
+        if std_tokenizer is not None:
+            set_std_token_phrases(tokenizer, std_tokenizer)
+
+        return tokenizer
 
 if __name__ == "__main__":
     # print('FUCK')
-    # model = GPTNeoX(model_name='gptneox20b')
-    # for parameter in model.parameters():
-    #     print(paramter.__dict__.keys())
-    #     parameter.data /= 5 
-    #     break
-    OPTModel().serve()
-    infer_max_memory()
+
+    # GPTNeoX()
     
     # GPTNeoX.launch(kwargs=dict(max_memory={0: "60GiB", 2: "60GiB" }))
-    # GPTNeoX.run()
+    OPT().serve()
     # TransformerModel.experiment()
 
 
