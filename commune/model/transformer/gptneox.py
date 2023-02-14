@@ -10,6 +10,7 @@ import os, sys
 from typing import *
 from loguru import logger
 import time
+import json
 from munch import Munch
 import argparse
 import torch
@@ -40,7 +41,7 @@ class GPTNeoX( nn.Module, commune.Module):
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model_name: str='gpt20b',
                 checkpoint_path: str = None,
-                max_memory: Dict[int, str] = {3: "50GiB", 6: "50GiB" },
+                max_memory: Union[Dict[int, str], int, float] = 100,
                 no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
@@ -49,7 +50,6 @@ class GPTNeoX( nn.Module, commune.Module):
                 device='cuda',
                 first_layer = 'gpt_neox.embed_in',
                 tag = None,
-                load = True,
                 finetune : dict = dict(num_layers=10),
                 **model_kwargs
                 ):
@@ -60,10 +60,8 @@ class GPTNeoX( nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         
-        
         # set model and tokenizer
-        import json
-        from munch import Munch
+
         self.model_name = self.shortcuts.get(model_name, model_name)
         self.model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config.use_cache = False
@@ -83,12 +81,14 @@ class GPTNeoX( nn.Module, commune.Module):
             no_split_module_classes = ["GPTNeoXLayer"]
             
             
-        max_memory = {int(k):v for k,v in max_memory.items()}
+        self.max_memory = self.resolve_max_memory(max_memory)
+        
+        print(self.max_memory)
         self.device_map = infer_auto_device_map(
             self.model, 
             no_split_module_classes= no_split_module_classes,
             dtype=torch.bfloat16, #note: succeeds with float16 as well.
-            max_memory = max_memory,
+            max_memory = self.max_memory,
             )    
                 
         if self.model_name == 'EleutherAI/gpt-neox-20b':
@@ -102,21 +102,22 @@ class GPTNeoX( nn.Module, commune.Module):
 
 
 
-        if load:
-            load_checkpoint_and_dispatch(
-                self.model,
-                self.checkpoint_path,
-                device_map=self.device_map,
-                offload_folder=None,
-                offload_state_dict=False,
-                dtype="bfloat16"
-            )
+        load_checkpoint_and_dispatch(
+            self.model,
+            self.checkpoint_path,
+            device_map=self.device_map,
+            offload_folder=None,
+            offload_state_dict=False,
+            dtype="bfloat16"
+        )
             
-        
-        self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
-
         self.set_metrics(metrics=metrics)
         self.model_config = Munch(json.loads(self.model_config.to_json_string()))
+
+            
+        
+        # self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
+
 
         
     @property
@@ -405,40 +406,12 @@ class GPTNeoX( nn.Module, commune.Module):
                 logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
 
         return reached_last_layer, last_layer_name
- 
-    def learn(self, num_batches=10, dataset='dataset.huggingface', load:bool=True, save:bool=True, tag:str = None):
-        self.tag = tag if tag else self.tag
-        # Module.start('dataset.bittensor')
-        
-        if isinstance(dataset, str):
-            dataset =  self.connect(dataset)
 
-        t = commune.timer()
-        
-        if load:
-            self.load()
-        
-        total_loss = 0 
-        
-        for i in range(num_batches):
-            sample =dataset.forward(fn='sample')
-            samples_per_seconds = i/t.seconds
-            loss = self.learn_step(sample=sample)
-            
-            print(f'({i}/{num_batches}) Samples/s: {samples_per_seconds} Loss: {loss}')
-
-            self.stats.loss = ( (self.stats.steps* self.stats.loss ) + loss) / (self.stats.steps + 1)
-            self.stats.steps += 1
-        if save:
-            self.save()
-            
-        return self.stats
     @property
     def module_tag(self): 
         return self.resolve_module_tag()
     
     def resolve_module_tag(self, tag=None):
-        
         tag = tag if tag else self.tag
         module_tag = self.path2shortcut(self.model_name).replace("/", "::")
         if tag:
@@ -699,7 +672,56 @@ class GPTNeoX( nn.Module, commune.Module):
         input_ids = self.tokenize(['broooo whadup']*32, device='cuda')
         print(t.seconds, input_ids.shape)
         
+        
+    @classmethod
+    def resolve_max_memory(cls, max_memory: Union[Dict[int, str], int], buffer_memory:int=10) -> Dict[int, str]:
+        
+        if isinstance(max_memory, int):
+            max_memory = cls.infer_max_memory(total_memory=max_memory, buffer_memory=buffer_memory)
+        elif isinstance(max_memory, dict):
+            max_memory = {int(k):v for k,v in max_memory.items()}
+        else:
+            raise ValueError(f'max_memory must be an int or dict, got {type(max_memory)}')
+        
+        max_memory = {int(k):v for k,v in max_memory.items()}
 
+        gpu_ids = commune.gpus()
+        for k,v in max_memory.items():
+            assert isinstance(k, int), f'gpu_id must be an int, got {k}'
+            assert isinstance(v, str), f'max_memory must be a string, got {v}'
+            assert k in gpu_ids, f'gpu_id {k} not found in {gpu_ids}'
+        
+        return max_memory
+    @classmethod
+    def infer_max_memory(cls, total_memory:int= None, buffer_memory:int=10) -> Dict[int, str]:
+        """ Returns a dictionary of gpu_id to max memory for each gpu.
+        Args:
+            total_memory (int, optional): Total memory to allocate. Defaults to None.
+            buffer_memory (int, optional): Buffer memory to leave on each gpu. Defaults to 10.
+        
+        Returns 
+            Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
+        """
+        total_memory = total_memory or cls.free_gpu_memory()
+        gpu_info_map = commune.gpu_map()
+        most_available_gpu_tuples = sorted(gpu_info_map.items(), key=lambda x: x[1]['free'] , reverse=True)
+
+        
+        
+        leftover_memory = total_memory
+        max_memory = {}
+        for gpu_id, gpu_info in most_available_gpu_tuples:
+            if leftover_memory == 0:
+                break
+            free_gpu_memory = int(gpu_info['free']) - buffer_memory
+            if leftover_memory > free_gpu_memory:
+                leftover_memory -= free_gpu_memory
+                max_memory[gpu_id] = f"{free_gpu_memory}GiB"
+            elif leftover_memory <= free_gpu_memory :
+                max_memory[gpu_id] = f"{leftover_memory}GiB"
+                leftover_memory = 0
+
+        return max_memory
 if __name__ == "__main__":
     # print('FUCK')
     # model = GPTNeoX(model_name='gptneox20b')
@@ -707,10 +729,11 @@ if __name__ == "__main__":
     #     print(paramter.__dict__.keys())
     #     parameter.data /= 5 
     #     break
-    # GPTNeoX.serve_module()
+    GPTNeoX()
+    infer_max_memory()
     
     # GPTNeoX.launch(kwargs=dict(max_memory={0: "60GiB", 2: "60GiB" }))
-    GPTNeoX.run()
+    # GPTNeoX.run()
     # TransformerModel.experiment()
 
 

@@ -700,7 +700,6 @@ class Module:
         
         # get the module port if its saved.
         # if it doesnt exist, then return default ({})
-        print('getting server registry')
         server_registry = Module.get_json('server_registry', handle_error=True, default={})
         for k in deepcopy(list(server_registry.keys())):
             if not Module.port_used(**server_registry[k]):
@@ -1813,6 +1812,41 @@ class Module:
         import torch
         available_gpus = [i for i in range(torch.cuda.device_count())]
         return available_gpus
+    
+    @classmethod
+    def gpu_map(cls) -> Dict[int, Dict[str, float]]:
+        import torch
+        gpu_info = {}
+        for gpu_id in cls.gpus():
+            mem_info = torch.cuda.mem_get_info(gpu_id)
+            gpu_info[gpu_id] = {
+                'name': torch.cuda.get_device_name(gpu_id),
+                'used': mem_info[0]/1e9,
+                'total': mem_info[1]/1e9,
+                'free': (mem_info[1] - mem_info[0])/1e9,
+            }
+        return gpu_info
+    
+    @classmethod
+    def free_gpu_memory(cls) -> int:
+        free_gpu_memory = 0
+        for gpu_id, gpu_info in cls.gpu_map().items():
+            free_gpu_memory += gpu_info['free']
+        return free_gpu_memory
+    
+    @classmethod
+    def total_gpu_memory(cls) -> int:
+        total_gpu_memory = 0
+        for gpu_id, gpu_info in cls.gpu_map().items():
+            total_gpu_memory += gpu_info['total']
+        return total_gpu_memory
+
+    @classmethod
+    def used_gpu_memory(cls) -> int:
+        used_gpu_memory = 0
+        for gpu_id, gpu_info in cls.gpu_map().items():
+            used_gpu_memory += gpu_info['used'] 
+        return used_gpu_memory
 
 Block = Lego = Module
 if __name__ == "__main__":

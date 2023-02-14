@@ -22,6 +22,8 @@ from .serializer import Serializer
 
 class VirtualModule:
     def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
+        
+        self.synced_attributes = []
         '''
         VirtualModule is a wrapper around a Commune module.
         
@@ -49,18 +51,25 @@ class VirtualModule:
             include_hiddden (bool): If True, include hidden attributes.
         '''
         from functools import partial
-        
+                
         for attr in self.module_client.whitelist_functions:
             # continue if attribute is private and we don't want to include hidden attributes
             if attr.startswith('_') and (not include_hiddden):
                 continue
             
+            
             # set attribute as the remote_call
             setattr(self, attr,  partial(self.remote_call, attr))
-                
-                
-    # def __getattr__(self, key):
-    #     return  self.module_client(fn='getattr', args=[key])
+            self.synced_attributes.append(attr)
+            
+            
+    def __call__(self, *args, **kwargs):
+        return self.remote_call(*args, **kwargs)
+    def __getattr__(self, key):
+        if key in ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes'] :
+            return getattr(self, key)
+        
+        return  self.module_client(fn='getattr', args=[key])
 
 
 class Client( Serializer):
@@ -75,7 +84,6 @@ class Client( Serializer):
             port: int = 80 ,
             max_processes: int = 1,
             timeout:int = 20,
-            whitelist_functions: List[str] = ['functions', 'function_schema_map', 'getattr'],
             loop = None
         ):
         
@@ -104,7 +112,8 @@ class Client( Serializer):
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
         self.sync_the_async()
         
-        self.whitelist_functions = list(set(self(fn='functions', args=[False]) + whitelist_functions))
+        # only get the visible functions from the server
+        self.whitelist_functions = list(set(self(fn='functions', args=[False]) )) + ['functions', 'function_schema_map', 'servers', 'external_ip', 'getattr']
 
 
     @property
