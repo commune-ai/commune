@@ -61,6 +61,7 @@ class ModelClient(Module, nn.Module):
         print(self.model)
             
         self.model_name = self.model.getattr('model_name')
+        # print(self.model.getattr('model_config'))
         self.config = Munch(self.model.getattr('model_config'))
         self.config.hidden_size = self.config.get('hidden_size')
         
@@ -113,8 +114,10 @@ class ModelClient(Module, nn.Module):
         # if topk:
         output_dict = {}
         
+        commune.log({k:v.shape for k,v in response_dict.items()}, 'purple')
+        
         if output_logits:
-            output_dict['logits'] = self.decode_topk(response_dict['topk'].to(torch.float64), vocab_size=self.vocab_size)
+            output_dict['logits'] = self.decode_topk(response_dict['topk'], vocab_size=self.vocab_size)
         if output_topk:
             output_dict['topk'] = response_dict['topk']
             
@@ -137,25 +140,12 @@ class ModelClient(Module, nn.Module):
                     print('resorting ot use_fast = False')
                     tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
 
-        elif tokenizer == None:
-            tokenizer = bittensor.tokenizer()
-        
-        else:
-            raise NotImplementedError(tokenizer)
-            
-
-        print(tokenizer)
+        # print(tokenizer)
         self.tokenizer = tokenizer     
-        # self.std_tokenizer = bittensor.tokenizer()
-        # self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         self.vocab_size = self.tokenizer.vocab_size
-        
-
-
-
-        self.config['pad_token_id'] = self.tokenizer.pad_token_id
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.config['pad_token_id'] = self.tokenizer.pad_token_id
 
         return self.tokenizer
 
@@ -360,7 +350,7 @@ class ModelClient(Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
     @classmethod
-    def run_neuron(cls, model={'ip': '65.49.81.154', 'port': 50050}, tokenizer='bittensor'):
+    def run_neuron(cls, model={'ip': '65.49.81.154', 'port': 50050}, tokenizer='gptj'):
         import bittensor
         from commune.block.bittensor.neuron.miner import neuron
         self = cls(model=model, tokenizer=tokenizer)
@@ -372,5 +362,7 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    # ModelClient.run_neuron()
-    ModelClient.run_neuron(model='gptj::trial_2')
+    ModelClient.run_neuron('gptj::trial_2', tokenizer='gptj')
+    # ModelClient.test_neuron(model='gptneox::0', tokenizer='gpt20b', num_batches=10)
+    
+    # ModelClient.test_neuron('gptj::trial_2', tokenizer='bittensor', num_batches=10)

@@ -94,3 +94,12 @@ dashboard:
 
 sand:
 	python3 commune/sandbox.py
+
+python_pm2:
+	pm2 start {file} --name {name} --interpreter python3
+
+streamlit_pm2:
+	pm2 start {file} --name {name} --interpreter streamlit -- --server.port {port}
+register_loop:
+	pm2 start commune/block/bittensor/bittensor_module.py --name register_loop --interpreter python3 -- --fn register_loop
+	# python3 commune/block/bittensor/bittensor_module.py --fn register_loop

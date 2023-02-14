@@ -37,23 +37,20 @@ class Server(ServerServicer, Serializer):
     def __init__(
             self,
             module: Union['Module', object]= None,
-            ip: Optional[str] = '0.0.0.0',
+            ip: Optional[str] = None,
             port: Optional[int] = None,
             find_port: bool = True, # find an existing port
             replace_port: bool = False,
-            external_ip: Optional[str] = None,
-            external_port: Optional[int] = None,
             max_workers: Optional[int] = None, 
             maximum_concurrent_rpcs: Optional[int] = None,
             blacklist: Optional['Callable'] = None,
             thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
             compression:Optional[str] = None,
-            serializer: 'Serializer'= None,
             server: Optional['grpc._Server'] = None,
             config: Optional['commune.config'] = None,
             verbose: bool = True,
-            whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map', 'getattr', 'servers'],
+            whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map', 'getattr', 'servers', 'external_ip'],
 
         ) -> 'Server':
         r""" Creates a new commune.Server object from passed arguments.
@@ -68,8 +65,6 @@ class Server(ServerServicer, Serializer):
                     Binding ip.
                 external_ip (:type:`Optional[str]`, `optional`):
                     The external ip of the server to broadcast to the network.
-                external_port (:type:`Optional[int]`, `optional`):
-                    The external port of the server to broadcast to the network.
                 max_workers (:type:`Optional[int]`, `optional`):
                     Used to create the threadpool if not passed, specifies the number of active threads servicing requests.
                 maximum_concurrent_rpcs (:type:`Optional[int]`, `optional`):
@@ -87,11 +82,8 @@ class Server(ServerServicer, Serializer):
             
         # 
         config = copy.deepcopy(config if config else self.default_config())
-
-
         
-        self.external_ip = config.external_ip = external_ip if external_ip != None else config.external_ip
-        self.external_port = config.external_port = external_port if external_port != None else config.external_port
+        
         self.max_workers = config.max_workers = max_workers if max_workers != None else config.max_workers
         self.maximum_concurrent_rpcs  = config.maximum_concurrent_rpcs = maximum_concurrent_rpcs if maximum_concurrent_rpcs != None else config.maximum_concurrent_rpcs
         self.compression = config.compression = compression if compression != None else config.compression
@@ -100,6 +92,9 @@ class Server(ServerServicer, Serializer):
         
         self.check_config( config )
         self.config = config
+        
+        ip = ip if ip else self.default_ip
+        self.external_ip = commune.external_ip()
         
         self.set_server( ip=ip, port=port, thread_pool=thread_pool, max_workers=max_workers, server=server) 
 
@@ -112,6 +107,7 @@ class Server(ServerServicer, Serializer):
         
         self.init_stats()
         
+        # set the whitelist functions
         self.whitelist_functions = whitelist_functions + self.module.functions()
     def add_whitelist_functions(self, functions: List[str]):
         self.whitelist_functions += functions
@@ -124,6 +120,8 @@ class Server(ServerServicer, Serializer):
         
         self.thread_pool = thread_pool
         return thread_pool
+    
+    
     def set_server(self,  ip: str=  None , port:int =  None, 
                    thread_pool: 'ThreadPoolExecutor' = None, max_workers:int = 1, 
                    find_port:bool = True, replace_port:bool=True, 
@@ -165,6 +163,7 @@ class Server(ServerServicer, Serializer):
         self.full_address = str( ip ) + ":" + str( port )
         self.server.add_insecure_port( self.full_address )
         return self.server
+    
     @classmethod   
     def help(cls):
         """ Print help to stdout
@@ -178,8 +177,6 @@ class Server(ServerServicer, Serializer):
         config = commune.config()
         config.port = cls.get_available_port()
         config.ip =  '0.0.0.0'
-        config.external_port =  None
-        config.external_ip =  None
         config.max_workers = 10
         config.maximum_concurrent_rpcs =  400
         config.compression = 'NoCompression'
@@ -191,7 +188,7 @@ class Server(ServerServicer, Serializer):
         """ Check config for axon port and wallet
         """
         assert config.port > 1024 and config.port < 65535, 'port must be in range [1024, 65535]'
-        assert config.external_port is None or (config.external_port > 1024 and config.external_port < 65535), 'external port must be in range [1024, 65535]'
+        assert config.ip != None, 'ip must be set'
 
 
     def __str__(self) -> str:
@@ -212,6 +209,7 @@ class Server(ServerServicer, Serializer):
     def __call__(self, data:dict = None, metadata:dict = None):
         data = data if data else {}
         metadata = metadata if metadata else {}
+        output_data = {}
 
         try:
             if 'fn' in data:
@@ -222,12 +220,12 @@ class Server(ServerServicer, Serializer):
                 
                 commune.print('Calling Function: '+data['fn'], color='cyan')
             
-                data = getattr(self.module, data['fn'])(*fn_args,**fn_kwargs)
+                output_data = getattr(self.module, data['fn'])(*fn_args,**fn_kwargs)
             else:
                 if hasattr(self.module, 'forward'):
                     data = self.module.forward(**data)
                 elif hasattr(self.module, '__call__'):
-                    data = self.module.forward(**data)
+                    data = self.module.__call__(**data)
                 else:
                     raise Exception('module should have forward or __call__ for its default response')
         except RuntimeError as ex:
@@ -237,21 +235,22 @@ class Server(ServerServicer, Serializer):
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
                 return self.__call__(data=data, metadata=metadata)
+            
         except Exception as ex:
             commune.print(f'Exception in server: {ex}', 'red')
-            data = None
-            metadata = None
-        self.stats['call_count'] += 1
+            output_data = str(ex)
+            commune.log(output_data, 'red')
         
-        torch.cuda.empty_cache()
-
-        return {'data': {'result': data}, 'metadata': metadata}
+        # calculate states
+        self.stats['call_count'] += 1
+        # self.stats['in_bytes'] += sys.getsizeof(data)
+        # self.stats['out_bytes'] += sys.getsizeof(output_data)
+        # self.stats['in_bytes_per_call'] = self.stats['in_bytes']/(self.stats['call_count'] + 1e-10)
+        # self.stats['out_bytes_per_call'] = self.stats['out_bytes']/(self.stats['call_count']+ 1e-10)
+        
+        
+        return {'data': {'result': output_data}, 'metadata': metadata}
     
-    # # DEFUALT FORWARD FUNCTION
-    # def forward(**kwargs):
-    #     return kwargs
-    
-
 
     def Forward(self, request: DataBlock, context: grpc.ServicerContext) -> DataBlock:
         r""" The function called by remote GRPC Forward requests. The Datablock is a generic formatter.
@@ -280,8 +279,6 @@ class Server(ServerServicer, Serializer):
         response = self(**request)
         self.stats['time']['module'] = t.seconds
         
-        
-
         t = commune.timer()
         
         response = self.serialize(**response)
@@ -321,7 +318,7 @@ class Server(ServerServicer, Serializer):
         
     @property
     def endpoint(self):
-        return f'{commune.external_ip()}:{self.port}'
+        return f'{self.ip}:{self.port}'
     
     
     

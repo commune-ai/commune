@@ -453,6 +453,8 @@ class server(torch.nn.Module):
                                                attention_mask=tokens['attention_mask'],
                                                output_hidden_states=True, **kwargs)
 
+            logger.info(f'Forwarding through model: {_model_output}')
+            
             # model_output.logits: [batch_size, sequence_len, server_vocab_size]
             
             if hasattr(_model_output, 'topk'):
@@ -467,7 +469,7 @@ class server(torch.nn.Module):
                 # difficult to have relay calculate loss as we do not know the future GT
                 message = 'Relay Enabled'
                 
-            elif _model_output.logits != None:
+            elif hasattr(_model_output, 'logits') and getattr(_model_output, 'logits') != None:
                 last_logits = _model_output.logits[:, -1, :]  # [batch_size] server prediction of continuation, right-aligned
 
                 # Select topk tokenizer logits and retokenize with std_tokenizer,

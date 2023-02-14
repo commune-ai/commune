@@ -38,10 +38,12 @@ class VirtualModule:
             self.module_client = module
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
-    def remote_call(self, fn: str, *args, **kwargs):
-        
-        
-        return self.module_client(fn=fn, args=args, kwargs=kwargs)
+    def remote_call(self, fn: str, *args, asyncio_future= False, **kwargs):
+    
+        if asyncio_future:
+            return self.module_client.async_forward(fn=fn, args=args, kwargs=kwargs)
+        else:
+            return self.module_client(fn=fn, args=args, kwargs=kwargs)
             
     def sync_module_attributes(self, include_hiddden: bool = False):
         '''
@@ -120,6 +122,7 @@ class Client( Serializer):
     def endpoint(self):
         return f"{self.ip}:{self.port}"
 
+
     def __call__(self, *args, **kwargs):
         try:
             return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
@@ -175,8 +178,7 @@ class Client( Serializer):
         
         data.update(kwargs)
 
-        
-
+    
         try:
             grpc_request = self.serialize(data=data, metadata=metadata)
 
@@ -207,6 +209,8 @@ class Client( Serializer):
             response = str(e)
             commune.log(f"GRPC Unknown Error: {response}", color='red')
         return  response
+    
+    async_call = async_forward
 
     def sync_the_async(self):
         for f in dir(self):
