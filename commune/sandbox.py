@@ -7,8 +7,10 @@ commune.new_event_loop()
 # print(commune.launch('model.dendrite', tag='B' ))
 import bittensor
 
-import torch
+# print(commune.get_module('commune.model.transformer.gptneox.GPTNeoX')(model_name='gpt2.7b', tag='demo')) 
 
+
+commune.servers()
 
 # commune.get_module('commune.utils.math.MovingWindowAverage').test()
 # print(commune.servers())
@@ -17,7 +19,7 @@ import torch
 # commune.launch('model.transformer', name='model', tag='gptjt', fn='serve_module', device='0')
 # commune.launch('model.transformer', name='model', tag='gpt2.7b', fn='serve_module', device='4')
 # commune.launch('model.transformer',  kwargs=dict(model='gpt125m', tag='demo'), fn= 'local_train', mode='local')
-commune.launch('model.transformer', name='gptj', tag='trial_2', device='5', kwargs= {'tag': 'trial_2'}, mode='server')
+# commune.launch('model.transformer', name='gptj', tag='trial_2', device='5', kwargs= {'tag': 'trial_2'}, mode='server')
 
 # commune.launch('model.transformer', name='model', tag='gptj', fn='serve_module', device='2')
 
