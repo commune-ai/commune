@@ -8,7 +8,7 @@ import bittensor
 from typing import List, Union, Optional, Dict
 from munch import Munch
 
-class BittensorModule:
+class Dashboard:
     
     def __init__(self,
 

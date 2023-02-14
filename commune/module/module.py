@@ -32,15 +32,19 @@ class Module:
         # set the config of the module (avoid it by setting config=False)
         self.set_config(config=config, save_if_not_exists=save_config_if_not_exists)        
 
-    def getattr(self, k)-> Any:
+    def getattr(self, k:str)-> Any:
         return getattr(self,  k)
+    
+    
+    
     @classmethod
-    def __module_file__(cls):
+    def __module_file__(cls) -> str:
         return inspect.getfile(cls)
 
     @classmethod
-    def __module_dir__(cls):
+    def __module_dir__(cls) -> str :
         return os.path.dirname(cls.__module_file__())
+    
     @classmethod
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
@@ -85,14 +89,14 @@ class Module:
     
     
     @classmethod
-    def module_path(cls):
+    def module_path(cls) -> str:
         if not hasattr(cls, '_module_path'):
             cls._module_path = cls.get_module_path(simple=True)
         return cls._module_path
 
         
     @classmethod
-    def module_name(cls):
+    def module_name(cls) -> str:
         '''
         Another name for the module path
         '''
@@ -103,7 +107,7 @@ class Module:
 
     
     @property
-    def module_tag(self):
+    def module_tag(self) -> str:
         '''
         The tag of the module for many flavors of the module to avoid name conflicts
         (TODO: Should we call this flavor?)
@@ -153,6 +157,42 @@ class Module:
         Loads a default config
         '''
         cls.load_config( *args, **kwargs)
+    
+    @classmethod    
+    def dict2munch(cls, x:Dict) -> Munch:
+        from commune.utils.dict import dict2munch
+        '''
+        Converts a dict to a munch
+        '''
+        from commune.utils.dict import dict2munch
+        return dict2munch(x)
+    
+    @classmethod
+    def munch2dict(cls, x:'Munch') -> Dict:
+        from commune.utils.dict import munch2dict
+        '''
+        Converts a munch to a dict
+        '''
+        return munch2dict(x)
+    
+    @classmethod
+    def load_yaml(cls, path:str=None) -> Dict:
+        '''
+        Loads a yaml file
+        '''
+        from commune.utils.dict import load_yaml
+        return load_yaml(path)
+
+    @classmethod
+    def save_yaml(cls, path:str,  data:Union[Dict, Munch]) -> Dict:
+        '''
+        Loads a yaml file
+        '''
+        from commune.utils.dict import save_yaml
+        if isinstance(config, Munch):
+            config = munch2dict(deepcopy(config))
+        config = save_yaml(data=config , path=path)
+        return save_yaml(path)
 
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = True, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
@@ -161,7 +201,6 @@ class Module:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-        from commune.utils.dict import dict2munch, load_yaml
         
         path = path if path else cls.__config_file__()
             
@@ -169,10 +208,10 @@ class Module:
             if not os.path.exists(__config_file__):
                 cls.save_config(config=cls.minimal_config(), path=__config_file__)
                 
-        config = load_yaml(path)
+        config = cls.load_yaml(path)
         
         if to_munch:
-            config =  dict2munch(config)
+            config =  cls.dict2munch(config)
             
         
         return config
@@ -505,11 +544,16 @@ class Module:
     def get_module(cls, path:str, verbose:bool = True) -> str:
         
         try:
+            
             path = cls.simple2path(path)
+            print(path,'FAM')
             path = cls.path2objectpath(path)
+            print(path,'FAM')
+            
         except KeyError as e:
             cls.print(f'{e}', verbose=verbose)
             
+        
             
         return cls.import_object(path)
 
@@ -706,6 +750,11 @@ class Module:
                 del server_registry[k]
         Module.put_json('server_registry',server_registry)
         return server_registry
+    
+    
+    
+    def server_info(self): 
+        self.server_registry(self.module_id)
   
     @classmethod
     def servers(cls, search:str = None) -> List[str]:
@@ -729,11 +778,11 @@ class Module:
         return server_registry
   
     @classmethod
-    def is_module(cls, obj=None):
+    def is_module(cls, obj=None) -> bool:
         return hasattr(cls, 'module_name')
 
     @classmethod
-    def new_event_loop(cls):
+    def new_event_loop(cls) -> 'asyncio.AbstractEventLoop':
         import asyncio
         
         
@@ -742,7 +791,7 @@ class Module:
         return loop
   
     @classmethod
-    def set_event_loop(cls, loop=None, new_loop:bool = False):
+    def set_event_loop(cls, loop=None, new_loop:bool = False) -> 'asyncio.AbstractEventLoop':
         import asyncio
         try:
             if new_loop:
@@ -755,7 +804,7 @@ class Module:
         return loop
 
     @classmethod
-    def get_event_loop(cls):
+    def get_event_loop(cls) -> 'asyncio.AbstractEventLoop':
         import asyncio
         try:
             loop = asyncio.get_event_loop()
@@ -764,7 +813,7 @@ class Module:
         return loop
 
     @classmethod
-    def get_module_id(cls, name:str=None, tag:str=None):
+    def get_module_id(cls, name:str=None, tag:str=None) -> str:
         module_id = name if name else cls.get_module_name()
             
         if tag:
@@ -820,12 +869,11 @@ class Module:
         Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, port=port, module = self )
         
-        self.server_stats = dict(ip=server.ip, port=server.port)
+        self.server_stats = dict(ip=server.ip, port=server.port, external_ip = server.external_ip)
         
         
         cls.register_server(name=module_id, server=server)
     
-        print(server)
         
         server.serve(wait_for_termination=wait_for_termination)
         
@@ -1807,6 +1855,10 @@ class Module:
             device_map[name] = info.__dict__
         
         return device_map   
+    
+    
+    ### GPU LAND
+    
     @classmethod
     def gpus(cls) -> List[int]:
         import torch
@@ -1821,9 +1873,9 @@ class Module:
             mem_info = torch.cuda.mem_get_info(gpu_id)
             gpu_info[gpu_id] = {
                 'name': torch.cuda.get_device_name(gpu_id),
-                'used': mem_info[0]/1e9,
+                'free': mem_info[0]/1e9,
                 'total': mem_info[1]/1e9,
-                'free': (mem_info[1] - mem_info[0])/1e9,
+                'used': (mem_info[1]- mem_info[0])/1e9,
             }
         return gpu_info
     
@@ -1847,6 +1899,49 @@ class Module:
         for gpu_id, gpu_info in cls.gpu_map().items():
             used_gpu_memory += gpu_info['used'] 
         return used_gpu_memory
+
+    @classmethod
+    def get_least_used_gpu(cls) -> int:
+        """ Returns a dictionary of gpu_id to max memory for each gpu.
+        Args:
+            total_memory (int, optional): Total memory to allocate. Defaults to None.
+            buffer_memory (int, optional): Buffer memory to leave on each gpu. Defaults to 10.
+        
+        Returns 
+            Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
+        """
+        gpu_info_map = cls.gpu_map()
+        most_available_gpu_tuples = sorted(gpu_info_map.items(), key=lambda x: x[1]['free'] , reverse=True)
+        return most_available_gpu_tuples[0][0]
+    
+    @classmethod
+    def gpu_info(cls, device:int = None) -> Dict[str, Union[int, float]]:
+        '''
+        Get the gpu info for a given device
+        '''
+        if device is None:
+            device = 0
+        gpu_map = cls.gpu_map()
+        return gpu_map[device]
+
+    @classmethod
+    def resolve_device(cls, device:str = None, verbose:bool=True) -> str:
+        
+        '''
+        Resolves the device that is used the least to avoid memory overflow.
+        '''
+        import torch
+        if device == None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        if device == 'cuda':
+            assert torch.cuda.is_available(), 'Cuda is not available'
+            gpu_id = cls.get_least_used_gpu()
+            device = f'cuda:{gpu_id}'
+        
+            if verbose:
+                device_info = cls.gpu_info(gpu_id)
+                cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', 'yellow')
+        return device  
 
 Block = Lego = Module
 if __name__ == "__main__":

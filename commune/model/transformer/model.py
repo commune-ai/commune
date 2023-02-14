@@ -13,6 +13,7 @@ import time
 from munch import Munch
 import argparse
 import torch
+import json
 # logger = logger.opt(colors=True)
 
 if os.getenv('USE_STREAMLIT') == 'true':
@@ -54,13 +55,15 @@ class TransformerModel( nn.Module, commune.Module):
                 ):
         
         
-        self.tag = tag 
+        self.tag = tag
+        
         
         self.stats = {'tag': self.tag}
         
         nn.Module.__init__(self)
         
         # set model and tokenizer
+
         self.set_model(model_name=model_name,device=device, autocast=autocast, **model_kwargs)
 
         # set tokenizer to model name (HF only) if tokenizer == None
@@ -201,15 +204,21 @@ class TransformerModel( nn.Module, commune.Module):
 
     def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        self.autocast = autocast
+
         self.model_name = self.shortcuts.get(model_name, model_name)
         # model_config = AutoConfig.from_pretrained(self.model_name)
         
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                                             **extra_model_kwargs)        
-        import json
+        
         self.model_config = json.loads(self.model.config.to_json_string())
+        
+        device = self.resolve_device(device=device)
+
         self.model = self.model.to(device)
+        
+        
+        self.autocast = autocast
         if self.autocast:
             self.model = self.model.half()
             
@@ -247,12 +256,6 @@ class TransformerModel( nn.Module, commune.Module):
         encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
         return encoded_probs  # [batch_size, sequence_len, topk + topk]
 
-    def getattr(self, k):
-        return getattr(self,  k)
-
-    @property
-    def __config_file__(self):
-        return self.__file__.replace('.py', '.yaml')
 
     def tokenize(self, text: str = 'Whadup', input_ids_only:bool = True, device: str=None) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
@@ -283,13 +286,12 @@ class TransformerModel( nn.Module, commune.Module):
         
         
 
-        with torch.autocast(device_type='cuda'):
-            pred = self.forward(**sample, no_grad=False)
-            logits =  pred['logits']
-            targets = targets[:,-logits.shape[1]:]
-            pred = logits.reshape(-1, logits.size(-1))
-            loss = self.calculate_loss(pediction=logits.reshape(-1, logits.size(-1)), 
-                                        gt=targets.flatten().to(self.device))              
+        pred = self.forward(**sample, no_grad=False)
+        logits =  pred['logits']
+        targets = targets[:,-logits.shape[1]:]
+        pred = logits.reshape(-1, logits.size(-1))
+        loss = self.calculate_loss(pediction=logits.reshape(-1, logits.size(-1)), 
+                                    gt=targets.flatten().to(self.device))              
         
         self.stats['learn_steps'] = self.stats.get('learn_steps', 0)+1
         
@@ -306,71 +308,6 @@ class TransformerModel( nn.Module, commune.Module):
         
     def get_stats(self ) -> dict:
         return self.stats
-    
-    def set_fine_tuning_params(self) -> Tuple[bool, str]:
-        r''' Set to tune only the parameter of the last layer
-            Returns: 
-                reached_last_layer (:type:`bool`):
-                    If we have set partial of the model to requires grad.
-                
-                last_layer_name (:type:`string`):
-                    The name of the last layer that user specified or we found.
-                    None if the user did not specify and we couldnt find it. 
-        '''
-        def find_last_layer(model: torch.nn.Module) -> Optional[str]:    
-            r''' Recursively find the last layer in a nn.ModuleList
-                Args:
-                    model (:obj:`torch.module`):
-                        The model (or sub-model) to fine the last layer from. 
-                Returns:
-                    name (:type:`str`):
-                        The name (or sub-name) of the last layer.
-                        None if not found
-            '''
-            reverted_child_list = [(name, child) for name, child in model.named_children()]
-            reverted_child_list.reverse()
-
-            for name, child in reverted_child_list:    
-                if isinstance(child, nn.ModuleList):
-                    if self.config.finetune.num_layers > len(child):
-                        logger.warning(f'Number of finetune layers was set higher then the layers avaliable {len(child)}')
-                        return None
-                    return (name + '.' +str(len(child) - self.config.finetune.num_layers))
-                
-            for name, child in reverted_child_list:    
-                name_ = find_last_layer(child)
-                if name_ != None:
-                    return (name+'.'+ name_)
-
-            return None     
-
-        if self.config.finetune.layer_name == None:
-            last_layer_name = find_last_layer(self.model)
-        else:
-            last_layer_name = self.config.neuron.finetune.layer_name
-
-        reached_last_layer = False
-
-        # set the non-last layer parameters not to require grads
-        if (self.config.finetune.all) or (last_layer_name == None):
-            return False, last_layer_name
-
-        logger.success(f'Set to finetune layer {last_layer_name} and onwards')
-        
-        for name, param in self.model.named_parameters():
-            if last_layer_name in name or reached_last_layer == True:
-                param.requires_grad = True
-                reached_last_layer = True
-            else:
-                param.requires_grad = False
-
-        if reached_last_layer == False:
-            if self.config.finetune.all:
-                logger.warning('Set to finetune the whole model, this will significantly increase the memory usage.')
-            else:
-                logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
-
-        return reached_last_layer, last_layer_name
 
     @property
     def module_tag(self): 
@@ -384,9 +321,9 @@ class TransformerModel( nn.Module, commune.Module):
         return module_tag
     
 
-    def save_pretrained(self, path:str = None, *args, **kwargs):
+    def save_pretrained(self, path:str = None, tag:str = None,  *args, **kwargs):
         # Save the model and tokenizer
-        path = self.resolve_path(module_tag)
+        path = self.resolve_path(tag=tag)
         self.model.save_pretrained(path, *args, **kwargs)
         self.tokenizer.save_pretrained(path, *args, **kwargs)
         
@@ -492,28 +429,6 @@ class TransformerModel( nn.Module, commune.Module):
 
         return reached_last_layer, last_layer_name
 
-    @classmethod
-    def experiment(cls, trial='trial_2', model_name='EleutherAI/gpt-j-6B', ):
-        model = cls( tag=trial, model_name='EleutherAI/gpt-j-6B')
-        # print('BROOO')
-        # model = model.connect('model.transformer::EleutherAI_gpt-j-6B')
-        # print(model.put_json('EleutherAI_gpt-neo-125M_bro', ))
-        for i in range(100):
-            output = model.learn(num_batches=100, save=True, load=False, dataset='dataset.bittensor')
-        print(output)
-
-    @classmethod
-    def sandbox(cls ):
-        # model = cls(model_name='gpt125m')
-        model = cls.connect('model.transformer::gptj')
-        dataset = cls.connect('dataset.bittensor')
-        sample = dataset(fn='sample') 
-        t = commune.timer()
-        pred = model(fn='forward', kwargs=dict(autocast=True, no_grad=True, topk=4096, output_logits=False, **sample))
-        print(pred['topk'].shape, pred.keys())
-        print(t.seconds)
-        # print(pred)
-        
 
     @classmethod
     def local_train(cls, 
@@ -545,7 +460,7 @@ class TransformerModel( nn.Module, commune.Module):
         for i in range(num_batches):
             
             if iters_since_best > max_iters_since_best:
-                model.load()
+                model.load(tag=tag)
             sample = dataset.sample()
             
             if not (isinstance(sample, dict) and 'input_ids' in sample):
@@ -554,10 +469,11 @@ class TransformerModel( nn.Module, commune.Module):
                 continue
             
             
-            
             loss = model.learn_step(**sample)
- 
+            
+            # update the metric_window
             metric_window.update(loss)
+            
             window_loss = metric_window.value
             info_str = f'Batch {i}/{num_batches} CE: {loss} Window Loss ({window_size}): {window_loss} Best Loss: {best_loss}'
             commune.log(info_str, 'purple')
@@ -572,8 +488,10 @@ class TransformerModel( nn.Module, commune.Module):
                 
             else:
                 iters_since_best += 1
-            
-            
+       
+    @classmethod
+    def resolve_device(cls, device:str = None) -> str:
+        return commune.resolve_device(device=device)
 
     def generate(self, 
                  text:str = "Today is a beautiful day, and", 
