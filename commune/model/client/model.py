@@ -28,7 +28,8 @@ class ModelClient(Module, nn.Module):
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gpt20b': 'EleutherAI/gpt-neox-20b'
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt': 'facebook/opt-13b',
          }
     def __init__(self,
                 model:Union[str, Dict] = 'model.dendrite',
@@ -362,7 +363,7 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    ModelClient.run_neuron('gptj::trial_2', tokenizer='gptj')
+    # ModelClient.run_neuron('gptj::trial_2', tokenizer='gptj')
     # ModelClient.test_neuron(model='gptneox::0', tokenizer='gpt20b', num_batches=10)
     
-    # ModelClient.test_neuron('gptj::trial_2', tokenizer='bittensor', num_batches=10)
+    ModelClient.test_neuron('OPT', tokenizer='opt', num_batches=10)
