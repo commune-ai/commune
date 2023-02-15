@@ -762,6 +762,11 @@ class Module:
         return client_module
    
     @classmethod
+    def nest_asyncio(cls):
+        import nest_asyncio
+        nest_asyncio.apply()
+        
+    @classmethod
     def server_registry(cls)-> dict:
         '''
         
@@ -1827,8 +1832,7 @@ class Module:
     # JUPYTER NOTEBOOKS
     @classmethod
     def jupyter(cls):
-        import nest_asyncio
-        nest_asyncio.apply()
+        cls.nest_asyncio()
         
     enable_jupyter = jupyter
         

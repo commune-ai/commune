@@ -14,6 +14,7 @@ from munch import Munch
 import argparse
 import torch
 import json
+
 # logger = logger.opt(colors=True)
 
 if os.getenv('USE_STREAMLIT') == 'true':
@@ -24,7 +25,11 @@ if os.getenv('USE_STREAMLIT') == 'true':
 import commune
 # commune.utils
 from torch import nn
-    
+commune.new_event_loop()
+import bittensor
+from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
+    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
+ 
 """
 Examples 
 
@@ -37,12 +42,15 @@ class TransformerModel( nn.Module, commune.Module):
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptneox20b': 'EleutherAI/gpt-neox-20b'
+        'gptneox': 'EleutherAI/gpt-neox-20b',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt13b': 'facebook/opt-13b'
+
          }
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gptj",
+                model_name: str="gpt125m",
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
@@ -138,14 +146,17 @@ class TransformerModel( nn.Module, commune.Module):
                 attention_mask: torch.Tensor= None, 
                 topk:int=None, 
                 output_hidden_states:bool=False, 
+                hidden_dim_bounds: List =  None,
                 output_logits:bool = True,
                 verbose:bool = False,
                 output_length:int = 10,
+                token_remap:bool = False,
                 **kwargs):
 
         # tokenizer the text if text is provided 
+        
 
-            
+
         # if input_ids is not provided, tokenize the text
         if input_ids == None:
             # if text is provided, tokenize the text
@@ -162,6 +173,10 @@ class TransformerModel( nn.Module, commune.Module):
                     attention_mask=attention_mask,
                     output_hidden_states= output_hidden_states
                     )
+        
+        # remap the tokens if token_remap is True
+        if token_remap:
+            input_ids=self.token_remap(input_ids)
 
         # ensure the input_ids and attention mask is a tensor
         for k in ['input_ids', 'attention_mask']:
@@ -189,8 +204,12 @@ class TransformerModel( nn.Module, commune.Module):
             output_dict['logits']=model_output.logits[:,-output_length:,:]
 
         if output_hidden_states:
-            output_dict['hidden_states'] = model_output.hidden_states[-1][:,-output_length:, :]
-
+            output_dict['hidden_states'] = model_output.hidden_states[-1][:,-output_length:]
+            
+            hidden_dim = output_dict['hidden_states'].size(-1)
+            hidden_dim_bounds = hidden_dim_bounds if hidden_dim_bounds else [0, hidden_dim+1]
+            output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
+            
         # if verbose:
         #     print('OUTPUT_STATISTICS: ',tensor_info_dict(output_dict))
 
@@ -234,9 +253,12 @@ class TransformerModel( nn.Module, commune.Module):
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         self.tokenizer = tokenizer
-
-        if  self.tokenizer.pad_token == None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        self.std_tokenizer = bittensor.tokenizer()
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
+        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
+        self.split_map_cache = {}
 
         return self.tokenizer
 
@@ -546,9 +568,46 @@ class TransformerModel( nn.Module, commune.Module):
         output_text = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
         return output_text
-
     
+
+    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
+        r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
+            Args:
+                token_batch ( :obj:`torch.LongTensor`, `required`):
+                    token_batch to be retokenized, [batch_size, sequence_len]
+                std_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
+                    The standard tokenizer which was used to tokenize the input.
+                return_offsets_mapping ( :obj:`bool`, `required`):
+                    Return offsets_mapping in tokenization to delineate token segment positions.
+        """
+        if std_tokenizer is None:
+            std_tokenizer = self.std_tokenizer
+
+        text_batch = std_tokenizer.batch_decode(token_batch)  # decode tokens to original text
+        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
+        to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
+
+        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
+                                add_special_tokens=False).to(self.device)  # assume tokenizer.padding_side = 'left'
+
+        if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
+            server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
+            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
+
+            # pad offsets so that special token offset widths match for continued correct alignment
+            tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
+            tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
+                                                       pad_offsets_batch)
+        return tokens
+
+    @classmethod
+    def test(cls):
+        model = cls()
+        sample = commune.connect('BittensorDataset').sample()
+        print(model.forward(**sample))
+
 
 if __name__ == "__main__":
     TransformerModel.run()
+
 

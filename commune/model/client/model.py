@@ -115,7 +115,6 @@ class ModelClient(Module, nn.Module):
         # if topk:
         output_dict = {}
         
-        commune.log({k:v.shape for k,v in response_dict.items()}, 'purple')
         
         if output_logits:
             output_dict['logits'] = self.decode_topk(response_dict['topk'], vocab_size=self.vocab_size)
@@ -366,4 +365,4 @@ if __name__ == "__main__":
     # ModelClient.run_neuron('gptj::trial_2', tokenizer='gptj')
     # ModelClient.test_neuron(model='gptneox::0', tokenizer='gpt20b', num_batches=10)
     
-    ModelClient.test_neuron('OPT', tokenizer='opt', num_batches=10)
+    ModelClient.test_model('model::opt13b', tokenizer='opt')

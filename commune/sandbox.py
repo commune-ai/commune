@@ -5,6 +5,8 @@ import commune
 # print(commune.pm2_list())
 # print(commune.servers())
 
-commune.shell('ray status')
+for m in ['gpt2.7b', 'gptjt', 'gpt125m']:
+    commune.launch('model.transformer', name='model', tag=m, kwargs={'model_name': m}, mode='server')
+
 # print(commune.launch('model.transformer', name='model', tag='gpt125', kwargs={'model_name': 'gpt125m'}))
 # print(commune.module('commune.server.server.Server'))
