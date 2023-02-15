@@ -30,18 +30,32 @@ Examples
 
 
 """
+
 class EnsembleModel( nn.Module, commune.Module):
 
     def __init__(self,
-                models: List[str] = ['model::gptj', 'model::gptjt', 'model::gpt2.7b'],
-                **model_kwargs
+                models: List[str] = ['model::gpt2.7b',
+                                     'model::gpt125m', 
+                                     'model::opt13b', 
+                                     'model::gptj', 
+                                     'model::gptjt'],
+                tokenizer: 'tokenizer' = 'bittensor',
+                optimizer:  'torch.optimizer' = None,
+                metrics: Dict= None,
+                load: bool = True,
+                tag= None,
+                device = None,
                 ):
-    
-        
         nn.Module.__init__(self)
+        self.layer = commune.import_object('commune.model.layer.Layer')()
+        self.tag = tag
+        
+        self.model_device = 'cpu'
+        
+        self.model_name = 'ensemble'
         
         # set model and tokenizer
-        self.set_model(model_name=model_name,device=device, autocast=autocast, **model_kwargs)
+        self.set_models(models=models)
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
@@ -59,21 +73,10 @@ class EnsembleModel( nn.Module, commune.Module):
         
     def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
         
-        if isinstance(optimizer, dict):
-            module_path = optimizer.pop('module', None)
-            assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
-            optimizer_class = self.import_object(module_path) 
-            optimizer_kwargs = optimizer.get('kwargs', optimizer)
-            optimizer_args = optimizer.get('args', [])
-            self.optimizeroptimizer_class(*optimizer_args,**optimizer_kwargs)
-                
-        elif optimizer == None:
-            self.optimizer = torch.optim.Adam(self.parameters(), lr=0.0001)
+        if optimizer == None:
+            optimizer = torch.optim.Adam(self.parameters(), lr=0.0001)
         
-        else:
-            raise NotImplementedError(optimizer)
-        
-        
+        self.optimizer = optimizer
         return self.optimizer
 
 
@@ -87,14 +90,18 @@ class EnsembleModel( nn.Module, commune.Module):
             self.metrics['cross_entropy'] =  torch.nn.CrossEntropyLoss()
         return metrics
     
-    @classmethod
+    async def async_model_forward(self, model, *args, **kwargs):
+        return self.models[model].forward(*args, **kwargs)
+        
     def forward(self, *args, **kwargs):
-        model_output_list = []
+        jobs = []
         for model in self.models:
-            model_output = model.forward(*args, **kwargs)
-            model_output_list.append(model_output)
-
-
+            kwargs['token_remap'] = True
+            jobs += [self.async_model_forward(model=model, *args, **kwargs)]
+        
+        return asyncio.run(asyncio.gather(*jobs))
+    
+    
     def local_forward(self,  
                 input_ids: torch.Tensor = None, 
                 text: str = None,
@@ -140,7 +147,7 @@ class EnsembleModel( nn.Module, commune.Module):
         # if verbose:
         #     print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
 
-        model_output = self.model(**input_dict)
+        model_output = self.models(**input_dict)
         output_length = output_length if output_length else model_output.logits.size(1)
             
         output_dict = {}
@@ -163,37 +170,31 @@ class EnsembleModel( nn.Module, commune.Module):
     @property
     def device(self):
         # deepspeed has .module.device to access device
-        return self.model.device
+        return self.model_device
 
-    def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        self.autocast = autocast
-        self.model_name = self.shortcuts.get(model_name, model_name)
-        # model_config = AutoConfig.from_pretrained(self.model_name)
-        
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                                            **extra_model_kwargs)        
-        import json
-        self.model_config = json.loads(self.model.config.to_json_string())
-        self.model = self.model.to(device)
-        if self.autocast:
-            self.model = self.model.half()
-            
-        return self.model
+    def set_models(self, models:List[str]):
+        self.models = {}
+        for model in models:
+            self.models[model] = commune.connect(model)
+        return self.models
 
 
-
+    def list_models(self):
+        return list(self.models.keys())
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer
         if isinstance(tokenizer, str):
-            tokenizer = self.shortcuts.get(tokenizer, tokenizer)
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-            except ValueError:
-                print('resorting ot use_fast = False')
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+            if tokenizer == 'bittensor':
+                import bittensor
+                tokenizer = bittensor.tokenizer()
+            else:
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+                except ValueError:
+                    print('resorting ot use_fast = False')
+                    tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         self.tokenizer = tokenizer
 
         if  self.tokenizer.pad_token == None:
@@ -225,22 +226,10 @@ class EnsembleModel( nn.Module, commune.Module):
             return tokenizer_output.input_ids.to(self.device)
         return self.tokenizer(text, return_tensors='pt').input_ids.to(self.device)
 
-    @classmethod
-    def test_model(cls, batch_size=8, sequence_length=256, model_name='EleutherAI/gpt-neox-20b'):
-        self = cls(serve=False, model_name=model_name)
-        example = ["My name is Philipp and I"]*batch_size
-        input_ids = self.tokenizer(example,return_tensors="pt", max_length=sequence_length, padding='max_length').input_ids.to(self.device)
-        
-        print('TESTING LOGITS OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
-        
-        print('TESTING TOPK OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
-    
     
     def learn_step(self, **sample ):
-        targets = sample['input_ids'][:,1:]
-        sample['input_ids'] = sample['input_ids'][:,:-1]
+        targets = sample['input_ids'][:,1:].to(self.device)
+        sample['input_ids'] = sample['input_ids'][:,:-1].to(self.device)
         self.optimizer.zero_grad()
         
         
@@ -282,7 +271,7 @@ class EnsembleModel( nn.Module, commune.Module):
     def save(self, tag:str = None, trainable_only:bool = True):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
-        model_state_dict = self.model.state_dict()
+        model_state_dict = self.models.state_dict()
         
         if trainable_only:
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
@@ -306,23 +295,22 @@ class EnsembleModel( nn.Module, commune.Module):
             logger.warning(f'No saved model found at {path}')
             return
         loaded_state  = torch.load( path)
-        state_dict = self.model.state_dict()
+        state_dict = self.models.state_dict()
         for k,v in loaded_state['model'].items():
             assert k in state_dict
             state_dict[k] = v
-        self.model.load_state_dict(state_dict)
+        self.models.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
         self.set_stats(loaded_state['stats'])
         
 
     @classmethod
     def train(cls, 
-                    model:str='gptj',
                     tag:str = 'demo', 
                     num_batches:int = 200,
                     num_epochs:int = 200, 
                     dataset:str= 'BittensorDataset', **kwargs):
-        model = cls(model_name=model,tag=tag, load=True,  **kwargs)
+        model = cls(tag=tag, load=True,  **kwargs)
         dataset = cls.connect(dataset)
         
         best_loss = 10e10
@@ -341,6 +329,7 @@ class EnsembleModel( nn.Module, commune.Module):
                 epoch_loss = total_epoch_loss/(i+1)
                 info_str = f'Batch {i}/{num_batches} Epoch {epoch}/{num_epochs} CE: {loss} Epoch Loss: {epoch_loss} Best Loss: {best_loss}'
                 logger.success(info_str)
+                print('BROOO')
             if epoch_loss < best_loss:
                 best_loss = epoch_loss
                 try:
@@ -349,10 +338,18 @@ class EnsembleModel( nn.Module, commune.Module):
                     continue
 
 
+
 if __name__ == "__main__":
     # print('FUCK')
     # TransformerModel('gptj', tag='demo', load=True).save_pretrained()
-    TransformerModel.run()
+    data = commune.connect('BittensorDataset')
+    sample = data.sample()
+    model = EnsembleModel()
+    t = commune.timer()
+    print(model.forward(**sample, output_hidden_states=False, output_logits=False, output_topk=True, output_length=10, topk=4096 ))
+    print(t.seconds)
+    
+
     # TransformerModel.run()
     # TransformerModel.experiment()
 

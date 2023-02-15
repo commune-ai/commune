@@ -27,7 +27,7 @@ class VirtualModule:
         '''
         VirtualModule is a wrapper around a Commune module.
         
-        Args:
+        Args:f
             module (str): Name of the module.
             include_hiddden (bool): If True, include hidden attributes.
         '''

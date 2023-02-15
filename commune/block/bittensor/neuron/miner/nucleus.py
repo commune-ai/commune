@@ -453,7 +453,6 @@ class server(torch.nn.Module):
                                                attention_mask=tokens['attention_mask'],
                                                output_hidden_states=True, **kwargs)
 
-            logger.info(f'Forwarding through model: {_model_output}')
             
             # model_output.logits: [batch_size, sequence_len, server_vocab_size]
             
