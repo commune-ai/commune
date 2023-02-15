@@ -293,28 +293,55 @@ class Module:
         config = flat2deep(flat_config)
         return config
 
-    @staticmethod
-    def run_command(command:str, background=False, env:dict = {}, **kwargs):
+    @classmethod
+    def run_command(cls, command:str, env:Dict[str, str] = {}, verbose:bool = True,  **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
         
         '''
         import subprocess
         import shlex
-        if background:
+        import time
             
-            process = subprocess.Popen(shlex.split(command), env={**os.environ, **env}, **kwargs)
-            process = process.__dict__
-        else:
+        process = subprocess.Popen(shlex.split(command),
+                                    stdout=subprocess.PIPE, 
+                                #    universal_newlines=True,
+                                    env={**os.environ, **env}, **kwargs)
+        new_line = b''
+        stdout_text = ''
+        line_count_idx = 0
+        line_delay_period = 0
+        last_time_line_printed = time.time()
+ 
+        try:
+            for c in iter(lambda: process.stdout.read(1), b""):
+                
+
+                if c == b'\n':
+                    line_count_idx += 1
+                    stdout_text += (new_line+c).decode()
+                    if verbose:
+                        log_color = verbose if isinstance(verbose, str) else 'green'
+                        cls.log(new_line.decode(), log_color)
+                    new_line = b''
+                    continue
+                
+                new_line += c
+
+        except KeyboardInterrupt:
+            import signal
+            process.send_signal(signal.SIGINT)
+            process.wait()
+
             
-            process = subprocess.run(shlex.split(command), 
-                                stdout=subprocess.PIPE, 
-                                universal_newlines=True,
-                                env={**os.environ, **env}, **kwargs)
+        
+            
+        process.stdout = stdout_text
+
             
         return process
 
-        
+    shell = cmd = run_command
 
 
     @classmethod
@@ -711,9 +738,15 @@ class Module:
     @classmethod
     def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
         
+        
+        
 
         server_registry =  Module.server_registry()
-        if name:
+        if isinstance(name, str) and len(name.split(':')) == 2:
+            port = int(name.split(':')[1])
+            ip = name.split(':')[0]
+            
+        if ip == None and port == None:
             client_kwargs = server_registry[name]
         else:
             client_kwargs = dict(ip=ip, port=port)
@@ -1087,7 +1120,19 @@ class Module:
             return launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
+         
+    @classmethod
+    def pm2_list(cls, verbose:bool = False) -> List[str]:
+        output_string = cls.run_command('pm2 status', verbose=False).stdout
+        module_list = []
+        for line in output_string.split('\n'):
+            if '│ default     │ ' in line:
+                module_name = line.split('│')[2].strip()
+                module_list += [module_name]
+                
+        return module_list
             
+    # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
@@ -1118,8 +1163,6 @@ class Module:
         module_path = module.__module_file__()
         module_id = cls.get_module_id(name=name, tag=tag) 
         
-        print(module_id, module_path)
-
         # build command to run pm2
         command = f" pm2 start {module_path} --name {module_id} --interpreter {interpreter}"
        
@@ -1144,14 +1187,20 @@ class Module:
 
     @classmethod
     def pm2_kill(cls, name:str):
-        return cls.run_command(f"pm2 delete {name}")
+        output_str = cls.run_command(f"pm2 delete {name}")
     @classmethod
     def pm2_restart(cls, name:str):
         return cls.run_command(f"pm2 restart {name}")
+        stdout = cls.run_command(f"pm2 status").stdout
+        if verbose:
+            cls.log(stdout, 'orange')
 
     @classmethod
-    def pm2_status(cls):
-        return cls.run_command(f"pm2 status")
+    def pm2_status(cls, verbose=True):
+        stdout = cls.run_command(f"pm2 status").stdout
+        if verbose:
+            cls.log(stdout, 'green')
+        return stdout
 
 
     @classmethod
@@ -1167,6 +1216,7 @@ class Module:
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
+        cls.log(args, 'cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
         return args
@@ -1839,23 +1889,6 @@ class Module:
         return  os.environ[key] 
 
 
-    @classmethod
-    def get_device_memory(cls):
-        import nvidia_smi
-
-        nvidia_smi.nvmlInit()
-
-        deviceCount = nvidia_smi.nvmlDeviceGetCount()
-        device_map  = {}
-        
-        for i in range(deviceCount):
-            handle = nvidia_smi.nvmlDeviceGetHandleByIndex(i)
-            info = nvidia_smi.nvmlDeviceGetMemoryInfo(handle)
-            name = nvidia_smi.nvmlDeviceGetName(handle)
-            device_map[name] = info.__dict__
-        
-        return device_map   
-    
     
     ### GPU LAND
     
@@ -1901,7 +1934,7 @@ class Module:
         return used_gpu_memory
 
     @classmethod
-    def get_least_used_gpu(cls) -> int:
+    def least_used_gpu(cls) -> int:
         """ Returns a dictionary of gpu_id to max memory for each gpu.
         Args:
             total_memory (int, optional): Total memory to allocate. Defaults to None.
@@ -1925,7 +1958,7 @@ class Module:
         return gpu_map[device]
 
     @classmethod
-    def resolve_device(cls, device:str = None, verbose:bool=True) -> str:
+    def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
         
         '''
         Resolves the device that is used the least to avoid memory overflow.
@@ -1935,15 +1968,26 @@ class Module:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if device == 'cuda':
             assert torch.cuda.is_available(), 'Cuda is not available'
-            gpu_id = cls.get_least_used_gpu()
+            gpu_id = 0
+            if find_least_used:
+                gpu_id = cls.least_used_gpu()
+                
             device = f'cuda:{gpu_id}'
         
             if verbose:
                 device_info = cls.gpu_info(gpu_id)
                 cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', 'yellow')
+        
         return device  
+    
+    def num_params(self, model:'nn.Module')->int:
+        import np
+        from torch import nn
+        model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+        num_params = sum([np.prod(p.size()) for p in model_parameters])
+        return num_params
 
 Block = Lego = Module
 if __name__ == "__main__":
-    module.run()
+    Module.run()
 
