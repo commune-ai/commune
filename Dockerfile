@@ -12,7 +12,7 @@ COPY ./requirements.txt /app/requirements.txt
 COPY ./setup.py /app/setup.py
 COPY ./README.md /app/README.md
 
-COPY ./scirpts /app/scripts
+COPY ./scripts /app/scripts
 # INSTALL PYTHON ENV
 RUN ./scripts/install_python_env.sh
 # INSTALL NPM ENV
