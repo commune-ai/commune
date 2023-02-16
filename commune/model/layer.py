@@ -13,7 +13,7 @@ class Layer(torch.nn.Module):
         self.b = torch.nn.Parameter(torch.randn(self.out_dim))
         
         self.norm_fn = torch.nn.LayerNorm(self.out_dim) if norm_fn == None else norm_fn
-        self.act_fn = torch.nn.ReLU() if act_fn == None else act_fn
+        self.act_fn = torch.nn.GeLU() if act_fn == None else act_fn
         
         # initialize the parameters
     def init_weights(self):

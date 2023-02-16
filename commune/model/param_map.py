@@ -38,4 +38,5 @@ class ParamMap(nn.Module):
     
 if __name__ == "__main__":
     import commune
-    commune.module(ParamMap()).serve()
+    commune.module(ParamMap).put('hey', torch.randn(10))
+    

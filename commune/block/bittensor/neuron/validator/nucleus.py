@@ -76,7 +76,7 @@ class nucleus( torch.nn.Module ):
         self.permute_uids = []  # iterable of next UIDs to query, reset to permuted UIDs when empty
 
         tokenizer = bittensor.tokenizer()
-        self.pad_token = tokenizer(tokenizer.pad_token)['input_ids'][0]
+        self.pad_token = tokenizer(tokenizer.pad_token)['token_batch'][0]
 
         # Token embeddings project int64 tokens onto representations.
         self.token_embedding = torch.nn.Embedding( bittensor.__vocab_size__,  bittensor.__network_dim__ )

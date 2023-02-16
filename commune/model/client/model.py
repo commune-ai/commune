@@ -29,7 +29,7 @@ class ModelClient(Module, nn.Module):
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt': 'facebook/opt-13b',
+        'opt13b': 'facebook/opt-13b',
          }
     def __init__(self,
                 model:Union[str, Dict] = 'model.dendrite',
@@ -104,6 +104,8 @@ class ModelClient(Module, nn.Module):
             'input_ids': input_ids,
             'attention_mask': attention_mask,
             'output_hidden_states': False,
+            'token_remap': True,
+            'logit_remap': False,
             'topk': topk,
             'output_length': output_length,
             'output_logits': server_output_logits,
@@ -117,6 +119,7 @@ class ModelClient(Module, nn.Module):
         
         
         if output_logits:
+            print(response_dict)
             output_dict['logits'] = self.decode_topk(response_dict['topk'], vocab_size=self.vocab_size)
         if output_topk:
             output_dict['topk'] = response_dict['topk']
@@ -145,6 +148,13 @@ class ModelClient(Module, nn.Module):
         self.vocab_size = self.tokenizer.vocab_size
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        
+        self.std_tokenizer = bittensor.tokenizer()
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
+        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
+        
         self.config['pad_token_id'] = self.tokenizer.pad_token_id
 
         return self.tokenizer
@@ -316,10 +326,10 @@ class ModelClient(Module, nn.Module):
         self = cls(model=model)
         return self
     @classmethod
-    def test_neurons(cls, models=['model::gpt2.7b', 'model::gptjt', 'model::gptj'], *args,**kwargs):
+    def test_neurons(cls, models=['model::gpt2.7b', 'model::gptjt', 'model::opt13b'], *args,**kwargs):
         for model in models:
             cls.print(f'Testing {model}', 'purple')
-            cls.test_neuron(model=model, tokenizer=model.split('::')[-1], *args,**kwargs)
+            cls.test_neuron(model=model, tokenizer='bittensor', *args,**kwargs)
     @classmethod
     def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
@@ -357,12 +367,13 @@ class ModelClient(Module, nn.Module):
         n = neuron(model=self)  
         n.run()
  
+
  
 if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    # ModelClient.run_neuron('gptj::trial_2', tokenizer='gptj')
+    ModelClient.test_neuron('model::gpt20b', tokenizer='gpt20b')
     # ModelClient.test_neuron(model='gptneox::0', tokenizer='gpt20b', num_batches=10)
     
-    ModelClient.test_model('model::opt13b', tokenizer='opt')
+    # ModelClient.r()

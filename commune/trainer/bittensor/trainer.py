@@ -338,15 +338,15 @@ class CortexTrainer:
 
         # Sample Raw Text and Tokenize it. 
         raw_text = self.dataset.sample(**sample_kwargs)['text']
-        input_ids = self.tokenizer(raw_text, max_length=sequence_length+1, truncation=True, padding="max_length", return_tensors="pt")["input_ids"]
+        token_batch = self.tokenizer(raw_text, max_length=sequence_length+1, truncation=True, padding="max_length", return_tensors="pt")["token_batch"]
         
 
-        next_input_id = input_ids[:, -1:]
-        input_ids = input_ids[:, :-1]
-        inputs = [input_ids]*len(endpoints)
+        next_input_id = token_batch[:, -1:]
+        token_batch = token_batch[:, :-1]
+        inputs = [token_batch]*len(endpoints)
 
         if include_input:
-            input_dict['input_ids'] = input_ids
+            input_dict['token_batch'] = token_batch
             input_dict['next_input_id'] = next_input_id
 
 
@@ -443,7 +443,7 @@ class CortexTrainer:
                         sample['dataset']['idx'] = idx
                         sample['synapse'] = str(synapse)
                         if include_input:
-                            sample['input_ids'] = input_ids[batch_i]
+                            sample['token_batch'] = token_batch[batch_i]
                             sample['next_input_id'] = next_input_id[batch_i]
 
 

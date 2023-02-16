@@ -57,12 +57,13 @@ class server(torch.nn.Module):
         self.model = model if model else None
         if config == None: config = server.config()
         self.config = config
-        self.std_tokenizer = bittensor.tokenizer()
         self.device = config.neuron.device
         self.pretrained = pretrained if pretrained else config.neuron.pretrained
 
         #setting up pretrained model
+
         self.set_model(model=model, model_name=model_name, tokenizer=tokenizer)
+        self.std_tokenizer = bittensor.tokenizer()
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
         self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
@@ -375,6 +376,8 @@ class server(torch.nn.Module):
         tokens = self.token_remap(token_batch, std_tokenizer=tokenizer, return_offsets_mapping=True)  # remap to server tokenizer
 
         def _forward(_model_output=model_output):
+            
+            print(tokens)
             if _model_output is None:
                 # transformer models like gerpt2 typically perform worse with left-side attention mask, so turning it off
                 _model_output = self.model(input_ids=tokens['input_ids'],
