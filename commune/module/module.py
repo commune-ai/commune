@@ -296,9 +296,9 @@ class Module:
     @classmethod
     def run_command(cls, 
                     command:str,
-                    env:Dict[str, str] = {}, 
                     verbose:bool = True, 
-                    output_text:bool = False,
+                    env:Dict[str, str] = {}, 
+                    output_text:bool = True,
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -339,9 +339,10 @@ class Module:
             process.wait()
 
             
-        
+        process.stdout = stdout_text
+\
         if output_text:
-            process.stdout = stdout_text
+            return process.stdout
 
             
         return process
@@ -1142,7 +1143,7 @@ class Module:
          
     @classmethod
     def pm2_list(cls, verbose:bool = False) -> List[str]:
-        output_string = cls.run_command('pm2 status', verbose=False).stdout
+        output_string = cls.run_command('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n'):
             if '│ default     │ ' in line:
@@ -1210,13 +1211,13 @@ class Module:
     @classmethod
     def pm2_restart(cls, name:str):
         return cls.run_command(f"pm2 restart {name}")
-        stdout = cls.run_command(f"pm2 status").stdout
+        stdout = cls.run_command(f"pm2 status")
         if verbose:
             cls.log(stdout, 'orange')
 
     @classmethod
     def pm2_status(cls, verbose=True):
-        stdout = cls.run_command(f"pm2 status").stdout
+        stdout = cls.run_command(f"pm2 status")
         if verbose:
             cls.log(stdout, 'green')
         return stdout

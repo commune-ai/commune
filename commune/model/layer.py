@@ -2,9 +2,9 @@ import torch
 from typing import Callable
 
 
-class Layer(torch.nn.Module):
+class LayerBlock(torch.nn.Module):
     def __init__(self, in_dim:int=10, out_dim:int=10, norm_fn:Callable = None, act_fn:Callable = None):
-        super(Layer, self).__init__()
+        super(LayerBlock, self).__init__()
         
         self.in_dim = in_dim
         self.out_dim = out_dim
@@ -13,7 +13,7 @@ class Layer(torch.nn.Module):
         self.b = torch.nn.Parameter(torch.randn(self.out_dim))
         
         self.norm_fn = torch.nn.LayerNorm(self.out_dim) if norm_fn == None else norm_fn
-        self.act_fn = torch.nn.GeLU() if act_fn == None else act_fn
+        self.act_fn = torch.nn.GELU() if act_fn == None else act_fn
         
         # initialize the parameters
     def init_weights(self):
@@ -51,7 +51,8 @@ class Layer(torch.nn.Module):
             optimizer.step()
             print(loss)
     
-    
+
+
     
     
 if __name__ == "__main__":
