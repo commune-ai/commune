@@ -469,11 +469,10 @@ class Module:
                     assert not hasattr(self, k)
                 setattr(self, k)
 
-    @staticmethod
-    def kill_port(port:int, mode='python')-> str:
+    @classmethod
+    def kill_port(cls, port:int, mode='python')-> str:
         
         if mode == 'python':
-            return cls.kill_port_python(port)
             import signal
             from psutil import process_iter
             '''
@@ -489,12 +488,12 @@ class Module:
             return cls.run_command('kill -9 $(lsof -t -i:{port})')
 
     @classmethod
-    def kill_server(cls, module:str, mode:str = 'pm2'):
+    def kill_server(cls, module:str, mode:str = 'local'):
         '''
         Kill the server by the name
         '''
         
-        if isinstance(module, int):
+        if isinstance(module, int) or mode == 'local':
             return cls.kill_port(module)
         if mode == 'pm2':
             return cls.pm2_kill(module)
@@ -867,10 +866,17 @@ class Module:
     def server_exists(cls, name:str) -> bool:
         server_registry = cls.servers()
         return bool(name in cls.servers())
-        
-        
+    def server_running(self):
+        return hasattr(self, 'server_stats')
     def serve(self, name=None , *args, **kwargs):
-        return self.serve_module( *args, module = self, name=name, **kwargs)
+        if not self.server_running():
+            module_serve_output = self.serve_module( *args, module = self, name=name, **kwargs)
+        
+    def stop_server(self):
+        self.server.stop()
+        del self.server
+        del self.server_stats
+        
         
     @classmethod
     def serve_module(cls, 

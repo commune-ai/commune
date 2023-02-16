@@ -57,10 +57,9 @@ class ClientModule(Module):
             return ray.wait(obj_id_batch)
 
     def remote_fn(self, fn_key, *args, **kwargs):
-                
-        ray_get = kwargs.pop('ray_get', True)
         
         # is this batched fam
+        ray_get = kwargs.get('ray_get', True)
         is_batched = any([ k in kwargs for k in ['batch_kwargs', 'batch_args']]) 
 
         batch_kwargs = kwargs.pop('batch_kwargs',  [kwargs])
