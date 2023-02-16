@@ -10,105 +10,141 @@ import os, sys
 from typing import *
 from loguru import logger
 import time
+import json
 from munch import Munch
 import argparse
 import torch
-import json
-
-# logger = logger.opt(colors=True)
-
-if os.getenv('USE_STREAMLIT') == 'true':
-    import streamlit as st
-    
-    
-# import torch
-import commune
-# commune.utils
-from torch import nn
-commune.new_event_loop()
-import bittensor
+from transformers import AutoConfig, AutoModelForCausalLM
+from accelerate import init_empty_weights, infer_auto_device_map, load_checkpoint_and_dispatch
+from huggingface_hub import hf_hub_download
 from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
- 
+    
+    
+
+import commune
+commune.new_event_loop()
+import bittensor
+# import torch
+
+# commune.utils
+from torch import nn
+    
 """
 Examples 
 
 
 
 """
-class TransformerModel( nn.Module, commune.Module):
+class GPTNeoX( nn.Module, commune.Module):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b'
-
-         }
-
+        'gptneox': 'EleutherAI/gpt-neox-20b'
+         } 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gpt125m",
+                model_name: str='gptneox',
+                checkpoint_path: str = None,
+                max_memory: Union[Dict[int, str], int, float] = 100,
+                max_per_gpu: int = 50,
+                no_split_module_classes=None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
-                device='cuda',
+                override_device_map = None,
+                device='cpu',
                 tag = None,
-                load: bool = True,
-                autocast: bool = False,
-                finetune : dict = dict(num_layers=4),
+                finetune : dict = dict(num_layers=10),
                 **model_kwargs
                 ):
         
         
-        self.tag = tag
-        
-        
-        self.stats = {'tag': self.tag}
+
         
         nn.Module.__init__(self)
         
-        # set model and tokenizer
-
-        self.set_model(model_name=model_name,device=device, autocast=autocast, **model_kwargs)
-
-        # set tokenizer to model name (HF only) if tokenizer == None
-        self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
         
-        self.set_optimizer(optimizer=optimizer)
+
+        self.tag = tag
+
+        self.set_model(model_name=model_name, override_device_map=override_device_map, 
+                       no_split_module_classes=no_split_module_classes, 
+                       device=device, 
+                       max_memory=max_memory,
+                       max_per_gpu=max_per_gpu)
         
+        self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
         self.set_metrics(metrics=metrics)
-        
-        self.set_stats()
-        
-        
-        if load:
-            self.load()
-        
-        self.set_fine_tuning_params(**finetune)
-        
-        
-    def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
-        
-        if isinstance(optimizer, dict):
-            module_path = optimizer.pop('module', torch.optim.Adam)
-            assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
-            optimizer_class = self.import_object(module_path) 
-            optimizer_kwargs = optimizer.get('kwargs', optimizer)
-            optimizer_args = optimizer.get('args', [])
-            self.optimizeroptimizer_class(*optimizer_args,**optimizer_kwargs)
-                
-        elif optimizer == None:
-            self.optimizer = torch.optim.Adam(self.parameters(), lr=0.00002)
-        
-        else:
-            raise NotImplementedError(optimizer)
-        
-        
-        return self.optimizer
 
+        
+
+    def set_model(self, model_name:str, 
+                  override_device_map: Dict[int, str], 
+                  no_split_module_classes:List[str],
+                  max_per_gpu:int,
+                  max_memory: Union[Dict[int, str], int, float],
+                  device:str):
+                
+        device = self.resolve_device(device)
+        self.model_name = self.shortcuts.get(model_name, model_name)
+        self.override_device_map = override_device_map if override_device_map else {}
+        self.no_split_module_classes = no_split_module_classes if no_split_module_classes else []
+        self.model_config = AutoConfig.from_pretrained(self.model_name)
+        self.model_config.use_cache = False 
+        self.model_device = device
+        
+        if  os.path.exists(self.checkpoint_path):
+            commune.log(f'Found weights path at {self.checkpoint_path}', 'green')
+        else:
+            commune.log(f'Creating new weights path at {self.checkpoint_path}', 'purple')
+            AutoModelForCausalLM.from_config(self.model_config).save_pretrained(self.checkpoint_path)
+            
+
+        with init_empty_weights():
+            self.model = AutoModelForCausalLM.from_config(self.model_config)
+
+
+        self.max_memory = self.resolve_max_memory(max_memory, max_per_gpu=max_per_gpu)
+
+        commune.log(f'max_memory: {self.max_memory}', 'yellow')
+
+        if self.model_name == 'EleutherAI/gpt-neox-20b':
+            self.no_split_module_classes =  ["GPTNeoXLayer"]
+            self.override_device_map = {'gpt_neox.embed_in': device}
+
+
+        self.device_map = infer_auto_device_map(
+            self.model, 
+            no_split_module_classes= self.no_split_module_classes,
+            dtype=torch.bfloat16, #note: succeeds with float16 as well.
+            max_memory = self.max_memory,
+            )    
+                
+        self.device_map.update(self.override_device_map)
+        
+
+        load_checkpoint_and_dispatch(
+            self.model,
+            self.checkpoint_path,
+            device_map=self.device_map,
+            offload_folder=None,
+            offload_state_dict=False,
+            dtype="bfloat16"
+        )
+            
+        # convert model to bfloat16
+        self.model_config = commune.dict2munch(json.loads(self.model_config.to_json_string()))
+
+
+
+        
+    @property
+    def checkpoint_path(self):
+        return f"{self.tmp_dir()}/checkpoints/{self.module_tag}"
 
     def calculate_loss(self, pediction, gt):
         loss =  self.metrics['cross_entropy'](pediction, gt)
@@ -119,9 +155,9 @@ class TransformerModel( nn.Module, commune.Module):
         if metrics == None:
             self.metrics['cross_entropy'] =  torch.nn.CrossEntropyLoss()
         return metrics
-    
 
-    def forward(self, *args,no_grad=True, autocast:bool=True, **kwargs):
+
+    def forward(self, *args,no_grad=True, autocast:bool=False, **kwargs):
         # import ipdb; ipdb.set_trace()
         if no_grad:
             with torch.no_grad():
@@ -148,17 +184,11 @@ class TransformerModel( nn.Module, commune.Module):
                 output_hidden_states:bool=False,
                 output_logits:bool = True,
                 output_length:int = 10,
-                token_remap:bool = True,
-                logit_remap:bool = True,
+                token_remap:bool = False,
+                logit_remap:bool = False,
                 verbose:bool = False,
                 **kwargs):
 
-        # if isinstance(input_ids, str) or ((isinstance(input_ids, list) and isinstance(input_ids[0], str))):
-        #     input_ids = self.tokenize(input_ids)
-        #     token_remap = False
-        # transformers.set_seed(0)
-        # transformers.enable_full_determinism(0)
-        # remap the tokens if token_remap is True
         tokens = {
             'input_ids': input_ids,
         }
@@ -176,11 +206,12 @@ class TransformerModel( nn.Module, commune.Module):
         # sometime we dont care about the begginning of the sequence
         
         output_length = output_length if output_length else model_output.logits.size(1)
+        model_output.logits = model_output.logits.to(self.device)
         model_output.logits = model_output.logits[:,-output_length:,:]
         
         # remap back to original tokens if token_remap is True
         if logit_remap:
-            pre_logits = model_output.logits.to(self.device)
+            pre_logits = model_output.logits
             probs_std = translate_logits_to_probs_std(pre_logits,
                                                         tokens['offset_mapping'], tokens['offset_mapping_std'],
                                                         self.tokenizer, self.std_tokenizer,
@@ -188,9 +219,9 @@ class TransformerModel( nn.Module, commune.Module):
                                                         self.to_translation_map, 
                                                         self.from_translation_map,
                                                         tokens['input_ids'], input_ids)
-            probs_std = probs_std.to(self.device)
+            probs_std = probs_std
             logits_std = torch.log(probs_std + 1e-40)            
-            model_output.logits = logits_std
+            model_output.logits = logits_std.to(self.device)
         
         output_dict = {}
         if topk:
@@ -232,32 +263,13 @@ class TransformerModel( nn.Module, commune.Module):
         return loss
 
 
+
     @property
     def device(self):
         # deepspeed has .module.device to access device
-        return self.model.device
-
-    def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-
-        self.model_name = self.shortcuts.get(model_name, model_name)
-        # model_config = AutoConfig.from_pretrained(self.model_name)
-        
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                                            **extra_model_kwargs)        
-        
-        self.model_config = json.loads(self.model.config.to_json_string())
-        
-        device = self.resolve_device(device=device)
-
-        self.model = self.model.to(device)
-        
-        
-        self.autocast = autocast
-        if self.autocast:
-            self.model = self.model.half()
-            
-        return self.model
+        # if str(model_device) == 'meta':
+        #     model_device = 'cuda'
+        return self.model_device
 
 
 
@@ -272,6 +284,7 @@ class TransformerModel( nn.Module, commune.Module):
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         self.tokenizer = tokenizer
         
+        commune.log(self.tokenizer, 'purple')
         
         self.std_tokenizer = bittensor.tokenizer()
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
@@ -281,6 +294,8 @@ class TransformerModel( nn.Module, commune.Module):
         self.split_map_cache = {}
 
         return self.tokenizer
+
+
 
     @staticmethod
     def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
@@ -297,8 +312,8 @@ class TransformerModel( nn.Module, commune.Module):
         topk_values = probs.gather( index=topk_indices, dim=-1)
         encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
         return encoded_probs  # [batch_size, sequence_len, topk + topk]
-
-
+    def path2shortcut(self, path:str):
+        return {v:k for k,v in self.shortcuts.items()}.get(path, path)
 
     def tokenize(self, text: str = 'Whadup',device:str = None, **kwargs) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
@@ -308,69 +323,27 @@ class TransformerModel( nn.Module, commune.Module):
         
         return tokenizer_output.input_ids.to(device)
 
-    @classmethod
-    def test_model(cls, batch_size=8, sequence_length=256, model_name='EleutherAI/gpt-neox-20b'):
-        self = cls(serve=False, model_name=model_name)
-        example = ["My name is Philipp and I"]*batch_size
-        input_ids = self.tokenizer(example,return_tensors="pt", max_length=sequence_length, padding='max_length').input_ids.to(self.device)
-        
-        print('TESTING LOGITS OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
-        
-        print('TESTING TOPK OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
-    
-    
-
-    def learn_step(self, **sample ):
-        targets = sample['input_ids'][:,1:]
-        sample['input_ids'] = sample['input_ids'][:,:-1]
-        self.optimizer.zero_grad()
+    def set_stats(self, stats:dict=None): 
+        if stats == None:
+            stats =  dict(
+                steps = 0,
+                loss = 0,
+            )
+        self.stats = Munch(stats)
         
         
-
-        pred = self.forward(**sample, no_grad=False)
-        logits =  pred['logits']
-        targets = targets[:,-logits.shape[1]:]
-        pred = logits.reshape(-1, logits.size(-1))
-        loss = self.calculate_loss(pediction=logits.reshape(-1, logits.size(-1)), 
-                                    gt=targets.flatten().to(self.device))              
-        
-        self.stats['learn_steps'] = self.stats.get('learn_steps', 0)+1
-        
-        
-        loss.backward()
-        self.optimizer.step()
-    
-        
-        return loss.item()
-    
-
-    def set_stats(self, **stats) -> None: 
-        self.stats = {**self.stats, **stats}
-        
-    def get_stats(self ) -> dict:
-        return self.stats
-
     @property
     def module_tag(self): 
         return self.resolve_module_tag()
     
     def resolve_module_tag(self, tag=None):
         tag = tag if tag else self.tag
-        module_tag = self.model_name.replace("/", "_")
+        module_tag = self.path2shortcut(self.model_name).replace("/", "::")
         if tag:
-            module_tag +=  f'_{tag}'
+            module_tag +=  f'::{tag}'
         return module_tag
     
-
-    def save_pretrained(self, path:str = None, tag:str = None,  *args, **kwargs):
-        # Save the model and tokenizer
-        module_tag = self.resolve_module_tag(tag)
-        path = self.resolve_path('pretrained/'+module_tag)
-        self.model.save_pretrained(path, *args, **kwargs)
-        self.tokenizer.save_pretrained(path, *args, **kwargs)
-        
+   
     def save(self, tag:str = None, trainable_only:bool = True):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
@@ -384,29 +357,24 @@ class TransformerModel( nn.Module, commune.Module):
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
-            'stats': self.stats
+            'stats': dict(self.stats)
         }
-        
     
         torch.save(state_dict, path)
         
         return path
     
-    def load(self, tag=None):
-        module_tag = self.resolve_module_tag(tag=tag)
-        path = self.resolve_path(module_tag)
-        if not os.path.exists(path):
-            logger.warning(f'No saved model found at {path}')
-            return
-        loaded_state  = torch.load( path)
-        state_dict = self.model.state_dict()
-        for k,v in loaded_state['model'].items():
-            assert k in state_dict
-            state_dict[k] = v
-        self.model.load_state_dict(state_dict)
-        self.optimizer.load_state_dict(loaded_state['optimizer'])
-        self.set_stats(**loaded_state['stats'])
+    def load(self):
+        path = self.resolve_path(self.module_tag)
         
+        if not os.path.exists(path):
+            return
+        state_dict  = torch.load( path)
+        self.model.load_state_dict(state_dict['model'])
+        self.optimizer.load_state_dict(state_dict['optimizer'])
+        self.set_stats(state_dict['stats'])
+        
+
 
     def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
@@ -473,123 +441,62 @@ class TransformerModel( nn.Module, commune.Module):
 
         return reached_last_layer, last_layer_name
 
-
-    @classmethod
-    def local_train(cls, 
-                    model:str='gptj',
-                    tag:str = 'demo', 
-                    num_batches:int = 10000,
-                    window_size:int = 50,
-                    backoff_window_size:int = 25,
-                    max_iters_since_best:int = 100,
-                    dataset:str= 'BittensorDataset',
-                    best_loss: float = 10e10,
-                    **kwargs
-                    ):
-        model = cls(model_name=model,tag=tag, load=True,  **kwargs)
-        dataset = commune.connect(dataset)
+  
         
-        stats = model.get_stats()
-        best_loss = stats.get('loss', best_loss)
-        if best_loss < 0.1:
-            best_loss = 10e10
-        
-        commune.log(f'Loaded {stats} from {tag}', 'yellow')
-
-        metric_window = commune.get_module('commune.utils.math.MovingWindowAverage')(value=2, window_size=window_size)
-        # if epoch > 0:
-        #     model.load(tag=tag)
-        fail_count = 0
-        iters_since_best = 0
-        for i in range(num_batches):
-            
-            if iters_since_best > max_iters_since_best:
-                model.load(tag=tag)
-            sample = dataset.sample()
-            
-            if not (isinstance(sample, dict) and 'input_ids' in sample):
-                fail_count += 1
-                commune.log(f'Failed to get sample {fail_count} times', 'red')
-                continue
-            
-            
-            loss = model.learn_step(**sample)
-            
-            # update the metric_window
-            metric_window.update(loss)
-            
-            window_loss = metric_window.value
-            info_str = f'Batch {i}/{num_batches} CE: {loss} Window Loss ({window_size}): {window_loss} Best Loss: {best_loss}'
-            commune.log(info_str, 'purple')
-            
-            if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
-                best_loss = window_loss
-                model.set_stats(loss=best_loss)
-                commune.log(f'Best Stats: {model.get_stats()} ', 'green')
-                iters_since_best = 0
-                model.save(tag=tag)
-
-                
-            else:
-                iters_since_best += 1
-       
     @classmethod
-    def resolve_device(cls, device:str = None) -> str:
-        return commune.resolve_device(device=device)
-
-    def generate(self, 
-                 text:str = "Today is a beautiful day, and", 
-                 max_length:int=20):
-    
-        '''
-        Generate text from a given text.
-        '''
-        from transformers import (
-            AutoTokenizer,
-            AutoModelForCausalLM,
-            LogitsProcessorList,
-            MinLengthLogitsProcessor,
-            TopKLogitsWarper,
-            TemperatureLogitsWarper,
-            StoppingCriteriaList,
-            MaxLengthCriteria,
-        )
-        import torch
-
-        # set pad_token_id to eos_token_id because GPT2 does not have a EOS token
-        self.model.config.pad_token_id = self.model.config.eos_token_id
-        input_ids = self.tokenizer(text, return_tensors="pt").input_ids
-
-        # instantiate logits processors
-        logits_processor = LogitsProcessorList(
-            [
-                MinLengthLogitsProcessor(15, eos_token_id=self.model.config.eos_token_id),
-            ]
-        )
-        # instantiate logits processors
-        logits_warper = LogitsProcessorList(
-            [
-                TopKLogitsWarper(50),
-                TemperatureLogitsWarper(0.7),
-            ]
-        )
-
-        stopping_criteria = StoppingCriteriaList([MaxLengthCriteria(max_length=max_length)])
-
-        torch.manual_seed(0)
-        with torch.no_grad():
-            outputs = self.model.sample(
-                input_ids,
-                logits_processor=logits_processor,
-                logits_warper=logits_warper,
-                stopping_criteria=stopping_criteria,
-            )
+    def resolve_max_memory(cls, max_memory: Union[Dict[int, str], int], buffer_memory:int=10, max_per_gpu:int=50) -> Dict[int, str]:
+        
+        if isinstance(max_memory, int):
+            max_memory = cls.infer_max_memory(total_memory=max_memory, 
+                                              buffer_memory=buffer_memory, 
+                                              max_per_gpu=max_per_gpu)
             
-        commune.print(f'outputs: {outputs.shape}', 'purple')
+        elif isinstance(max_memory, dict):
+            max_memory = {int(k):v for k,v in max_memory.items()}
+        else:
+            raise ValueError(f'max_memory must be an int or dict, got {type(max_memory)}')
+        
+        max_memory = {int(k):v for k,v in max_memory.items()}
 
-        output_text = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        gpu_ids = commune.gpus()
+        for k,v in max_memory.items():
+            assert isinstance(k, int), f'gpu_id must be an int, got {k}'
+            assert isinstance(v, str), f'max_memory must be a string, got {v}'
+            assert k in gpu_ids, f'gpu_id {k} not found in {gpu_ids}'
+        
+        return max_memory
+    @classmethod
+    def infer_max_memory(cls, total_memory:int= None, buffer_memory:int=10, max_per_gpu:int=50) -> Dict[int, str]:
+        """ Returns a dictionary of gpu_id to max memory for each gpu.
+        Args:
+            total_memory (int, optional): Total memory to allocate. Defaults to None.
+            buffer_memory (int, optional): Buffer memory to leave on each gpu. Defaults to 10.
+        
+        Returns 
+            Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
+        """
+        total_memory = total_memory or cls.free_gpu_memory()
+        gpu_info_map = commune.gpu_map()
+        most_available_gpu_tuples = sorted(gpu_info_map.items(), key=lambda x: x[1]['free'] , reverse=True)
 
-        return output_text
+        
+        
+        leftover_memory = total_memory
+        max_memory = {}
+        for gpu_id, gpu_info in most_available_gpu_tuples:
+            if leftover_memory == 0:
+                break
+            free_gpu_memory = int(gpu_info['free']) - buffer_memory
+            free_gpu_memory = min(max_per_gpu, free_gpu_memory)
+            if leftover_memory > free_gpu_memory:
+                leftover_memory -= free_gpu_memory
+                max_memory[gpu_id] = f"{free_gpu_memory}GiB"
+            elif leftover_memory <= free_gpu_memory :
+                max_memory[gpu_id] = f"{leftover_memory}GiB"
+                leftover_memory = 0
+
+        return max_memory
+
     
 
     def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
@@ -622,15 +529,13 @@ class TransformerModel( nn.Module, commune.Module):
                                                        pad_offsets_batch)
         return tokens
 
-    @classmethod
-    def test(cls):
-        model = cls(tokenizer='gptneox')
-        sample = commune.connect('BittensorDataset').sample()
-        print(model.forward(**sample, autocast=False))
-
-
 if __name__ == "__main__":
+    # print('FUCK')
+
+    GPTNeoX().run()
     
-    TransformerModel.run()
+    # GPTNeoX.launch(kwargs=dict(max_memory={0: "60GiB", 2: "60GiB" }))
+    # print(GPTNeoX().to_translation_map)
+    # TransformerModel.experiment()
 
 
