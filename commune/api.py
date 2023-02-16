@@ -4,9 +4,9 @@ import commune
 
 
 class API(commune.Module):
-    def __init__(self, module:str = 'module'):
-        if not commune.server_exists(module):
-            commune.launch(name='module')
+    def __init__(self, module:str = 'module', refresh=False):
+        if not commune.actor_exists(module) or refresh:
+            commune.launch(name='module', mode='ray')
         self.module = commune.connect(module)
         self.merge(self.module)
         
