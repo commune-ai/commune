@@ -1432,10 +1432,13 @@ class Module:
         else:
             module_class = cls.module(module)
             
-        if cls.is_module(module_class):
-            name = module_class.module_name()
-        else:
-            name = module_class.__name__
+        if name == None:
+            if cls.is_module(module_class):
+                name = module_class.module_name()
+            else:
+                name = module_class.__name__
+            
+        assert isinstance(name, str)
         
         name = cls.get_module_id(name=name, tag=tag) 
         
