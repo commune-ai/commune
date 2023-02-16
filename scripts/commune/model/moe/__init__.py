@@ -1,1 +1,0 @@
-from .receptor import receptor_pool, receptor
