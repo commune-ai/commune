@@ -294,7 +294,12 @@ class Module:
         return config
 
     @classmethod
-    def run_command(cls, command:str, env:Dict[str, str] = {}, verbose:bool = True,  **kwargs) -> 'subprocess.Popen':
+    def run_command(cls, 
+                    command:str,
+                    env:Dict[str, str] = {}, 
+                    verbose:bool = True, 
+                    output_text:bool = False,
+                    **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
         
@@ -335,8 +340,8 @@ class Module:
 
             
         
-            
-        process.stdout = stdout_text
+        if output_text:
+            process.stdout = stdout_text
 
             
         return process
@@ -885,6 +890,7 @@ class Module:
             self = cls(*args, **kwargs)
         else:
             self = module
+            
     
     
         # resolve the module id
@@ -917,6 +923,8 @@ class Module:
         
         
     def functions(self, include_module=False):
+        if isinstance(self, Module):
+            include_module = True
         functions = self.get_functions(obj=self)
         if not include_module:
             module_functions = self.get_functions(obj=Module)
@@ -1095,7 +1103,7 @@ class Module:
                     **extra_kwargs
             )
             launch_fn = getattr(cls, f'pm2_launch')
-            return launch_fn(**launch_kwargs)
+            launch_fn(**launch_kwargs)
         
         elif mode == 'pm2':
             assert fn != None, 'fn must be specified for pm2 launch'
@@ -1110,7 +1118,7 @@ class Module:
                     **extra_kwargs
             )
             launch_fn = getattr(cls, f'pm2_launch')
-            return launch_fn(**launch_kwargs)
+            launch_fn(**launch_kwargs)
         elif mode == 'ray':
             launch_kwargs = dict(
                     module=module, 
@@ -1122,7 +1130,7 @@ class Module:
                     **extra_kwargs
             )
             launch_fn = getattr(cls, f'{mode}_launch')
-            return launch_fn(**launch_kwargs)
+            launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
          
@@ -1364,8 +1372,8 @@ class Module:
 
 
     @classmethod
-    def ray_status(cls):
-        return cls.run_command('ray status')
+    def ray_status(cls, **args, **kwargs):
+        return cls.run_command('ray status',  **args, **kwargs)
 
     @classmethod
     def ray_initialized(cls):
