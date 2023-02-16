@@ -7,7 +7,7 @@ import commune
 
 # commune.launch('model.transformer.gptneox', name='model', tag='gpt20b', mode='server')
 
-commune.get_module('model.transformer')(model_name='gptj', tag='trial_2').save_pretrained()
+commune.get_module('model.transformer')(model_name='gptj', tag='trial_2').save_pretrained
 
 # dataset = commune.connect('BittensorDataset')
 

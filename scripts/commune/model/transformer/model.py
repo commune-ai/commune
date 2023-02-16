@@ -272,6 +272,7 @@ class TransformerModel( nn.Module, commune.Module):
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         self.tokenizer = tokenizer
         
+        commune.log(self.tokenizer, 'purple')
         
         self.std_tokenizer = bittensor.tokenizer()
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
@@ -366,8 +367,7 @@ class TransformerModel( nn.Module, commune.Module):
 
     def save_pretrained(self, path:str = None, tag:str = None,  *args, **kwargs):
         # Save the model and tokenizer
-        module_tag = self.resolve_module_tag(tag)
-        path = self.resolve_path('pretrained/'+module_tag)
+        path = self.resolve_path(tag=tag)
         self.model.save_pretrained(path, *args, **kwargs)
         self.tokenizer.save_pretrained(path, *args, **kwargs)
         
@@ -630,7 +630,6 @@ class TransformerModel( nn.Module, commune.Module):
 
 
 if __name__ == "__main__":
-    
     TransformerModel.run()
 
 

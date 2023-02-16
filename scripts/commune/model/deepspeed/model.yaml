@@ -1,0 +1,2 @@
+module: DeepspeedModel
+serve: False

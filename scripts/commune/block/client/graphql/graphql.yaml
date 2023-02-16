@@ -1,0 +1,13 @@
+module: client.graphql.manager.GraphQLManager
+
+host: localhost
+port: !ENV ${GRAPHQL_PORT}
+
+
+actor:
+  name: graphql
+  resources:
+    'num_cpus': 0.5
+
+  max_concurrency: 4
+  refresh: False
