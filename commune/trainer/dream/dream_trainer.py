@@ -547,7 +547,7 @@ class DreamTrainer:
                 noisy_latents = self.noise_scheduler.add_noise(latents, noise, timesteps)
 
                 # Get the text embedding for conditioning
-                encoder_hidden_states = self.text_encoder(batch["input_ids"])[0]
+                encoder_hidden_states = self.text_encoder(batch["token_batch"])[0]
 
                 # Predict the noise residual
                 model_pred = self.unet(noisy_latents, timesteps, encoder_hidden_states).sample

@@ -13,10 +13,12 @@ munch
 streamlit
 langchain
 ray[default]
+ray[tune]
 torch
 substrate-interface
 uvicorn
 fastapi
 msgpack_numpy
+ansible
 
 

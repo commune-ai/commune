@@ -95,7 +95,7 @@ class DeepspeedModel(commune.Module):
         return result
 
     def _forward(self,  
-                input_ids: torch.Tensor = None, 
+                token_batch: torch.Tensor = None, 
                 attention_mask: torch.Tensor= None, 
                 output_hidden_states:bool=True, 
                 topk:int=None, 
@@ -106,13 +106,13 @@ class DeepspeedModel(commune.Module):
         # import ipdb; ipdb.set_trace()
 
         input_dict = dict(
-                    input_ids=input_ids,
+                    token_batch=token_batch,
                     attention_mask=attention_mask,
                     output_hidden_states= output_hidden_states
                     )
 
-        # ensure the input_ids and attention mask is a tensor
-        for k in ['input_ids', 'attention_mask']:
+        # ensure the token_batch and attention mask is a tensor
+        for k in ['token_batch', 'attention_mask']:
             v = input_dict[k]
             if isinstance(v,  list):
                 input_dict[k] = torch.tensor(v)
@@ -192,7 +192,7 @@ class DeepspeedModel(commune.Module):
         output = model_client(**input)
         with st.expander('STEP 2: TOKENIZE RAW TEXT INTO TENSOR', True):
             st.write('INPUT TOKENS',input)
-            st.write('SHAPE ',torch.tensor(input['input_ids']).shape)
+            st.write('SHAPE ',torch.tensor(input['token_batch']).shape)
 
         with st.expander('OUTPUT', True):
             st.write(output)
@@ -219,13 +219,13 @@ class DeepspeedModel(commune.Module):
     def test_model(cls, batch_size=32, sequence_length=256):
         self = cls(serve=False)
         example = ["My name is Philipp and I"]*batch_size
-        input_ids = self.tokenizer(example,return_tensors="pt", max_length=sequence_length, padding='max_length').input_ids.to(self.device)
+        token_batch = self.tokenizer(example,return_tensors="pt", max_length=sequence_length, padding='max_length').token_batch.to(self.device)
         
         print('TESTING LOGITS OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
+        logits = self.forward(token_batch, output_hidden_states=True, topk=None,verbose=True)
         
         print('TESTING TOPK OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
+        logits = self.forward(token_batch, output_hidden_states=True, topk=None,verbose=True)
 
 
 

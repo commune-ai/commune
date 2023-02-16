@@ -36,7 +36,7 @@ Examples
 
 
 """
-class TransformerModel( nn.Module, commune.Module):
+class TokenizerMap( nn.Module, commune.Module):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -50,29 +50,20 @@ class TransformerModel( nn.Module, commune.Module):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gpt125m",
-                tokenizer:Union[str, 'tokenizer'] = None,
-                optimizer: torch.optim  = None,
-                metrics: Dict[str, 'Metric'] = None,
-                device='cuda',
-                tag = None,
-                load: bool = True,
-                autocast: bool = False,
-                finetune : dict = dict(num_layers=4),
-                **model_kwargs
+                tokenizer = 'gptneox',
+                std_tokenizer = None,
+                dataset = 'BittensorDataset',
                 ):
         
-        
-        self.tag = tag
-        
-        
-        self.stats = {'tag': self.tag}
-        
+        self.dataset = commune.connect(dataset)
+        self.tokenizer_1 = self.set_tokenizer(tokenizer_1)
+        self.tokenizer_2 = self.set_tokenizer(tokenizer_2)
+
         nn.Module.__init__(self)
         
         # set model and tokenizer
 
-        self.set_model(model_name=model_name,device=device, autocast=autocast, **model_kwargs)
+        self.set_model()
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
@@ -237,30 +228,17 @@ class TransformerModel( nn.Module, commune.Module):
         # deepspeed has .module.device to access device
         return self.model.device
 
-    def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-
-        self.model_name = self.shortcuts.get(model_name, model_name)
-        # model_config = AutoConfig.from_pretrained(self.model_name)
+    def set_model(self, model_name:str, device:str = None,hidden_dim = 128, **extra_model_kwargs):
         
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                                            **extra_model_kwargs)        
+        from commune.model.layer import Layer
         
-        self.model_config = json.loads(self.model.config.to_json_string())
+        device = device if device else self.device
         
-        device = self.resolve_device(device=device)
-
-        self.model = self.model.to(device)
-        
-        
-        self.autocast = autocast
-        if self.autocast:
-            self.model = self.model.half()
-            
-        return self.model
-
-
-
+        self.encoder = Layer(in_dim=self.tokenizer.vocab_size, out_dim=hidden_dim, device=device)
+        self.decoder = Layer(in_dim=hidden_dim, out_dim=self.std_tokenizer.vocab_size, device=device)
+    
+    
+    
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer
         if isinstance(tokenizer, str):
@@ -271,10 +249,8 @@ class TransformerModel( nn.Module, commune.Module):
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         self.tokenizer = tokenizer
-        
-        commune.log(self.tokenizer, 'purple')
-        
         self.std_tokenizer = bittensor.tokenizer()
+        
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         
         self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)

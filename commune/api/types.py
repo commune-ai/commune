@@ -36,7 +36,7 @@ class Model(Type):
     def __init__(self, 
                  name: str = 'gpt',
                  tasks=[Task().state],
-                 input: dict = {'input_ids': DataType(torch.randn([10, 32])).state},
+                 input: dict = {'token_batch': DataType(torch.randn([10, 32])).state},
                  output: dict = {'logits': DataType(torch.randn([10, 32])).state},
                  ip= '0.0.0.0:8505',
             

@@ -79,7 +79,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         return  [endpoints[i] for i in top_uid_indices]
     
     def forward(self, 
-                input_ids: torch.Tensor, 
+                token_batch: torch.Tensor, 
                 attention_mask: torch.Tensor = None, 
                 output_hidden_states:bool = False, 
                 output_logits:bool = True, 
@@ -103,7 +103,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         commune.print(endpoints)
         
         while not atleast_one_success and trial_count < max_trials:
-            response = self.receptor_pool.forward(inputs=[input_ids]*len(endpoints) , 
+            response = self.receptor_pool.forward(inputs=[token_batch]*len(endpoints) , 
                                                         endpoints=endpoints,
                                                         synapses=[bittensor.synapse.TextCausalLMNext()],
                                                         timeout=timeout)
@@ -221,16 +221,16 @@ class DendriteModel(torch.nn.Module, commune.Module):
         
         self = cls.default_model()
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
-        input_ids = torch.tensor(self.tokenizer(raw_text, max_length=sequence_length+1, truncation=True, padding="max_length", return_tensors="pt").input_ids)
+        token_batch = torch.tensor(self.tokenizer(raw_text, max_length=sequence_length+1, truncation=True, padding="max_length", return_tensors="pt").token_batch)
         
-        targets = input_ids[:, -1]
-        input_ids = input_ids[:,:-1]
+        targets = token_batch[:, -1]
+        token_batch = token_batch[:,:-1]
 
         with Timer() as t:
-            output = self(input_ids=input_ids)
+            output = self(token_batch=token_batch)
             print('OUTPUT SCHEMA')
             print('TIME (s): ', t.seconds)
-            print(self.get_loss_fct(logits=pred['logits'], labels=sample['input_ids']))
+            print(self.get_loss_fct(logits=pred['logits'], labels=sample['token_batch']))
             # print(phrase_cross_entropy(topk_tensor=output['topk'], target_phrases=targets))
 
 
@@ -253,7 +253,7 @@ class DendriteModel(torch.nn.Module, commune.Module):
         state_dict = nucleus.model.state_dict()
         nucleus.model.load_state_dict(state_dict)
         raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
-        inputs_x = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt").input_ids.to('cuda:0')
+        inputs_x = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt").token_batch.to('cuda:0')
         nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
   
     @classmethod

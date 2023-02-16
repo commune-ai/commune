@@ -23,6 +23,7 @@ import bittensor
 # commune.launch('model.transformer.gptneox', name='gptneox', tag='0', kwargs=dict(model_name='gptneox'), mode='server')
 
 
+
 # get the module map
 print(commune.gpu_map())
 # commune.launch('model.transformer.gptneox',  name='gpt20b', tag='0',  kwargs=dict(model_name='gpt20b'), mode='server')

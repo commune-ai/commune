@@ -4,7 +4,7 @@
 *.py[cod]
 *$py.class
 *.pyc
-
+env/
 # weigths and biases
 wandb/
 
