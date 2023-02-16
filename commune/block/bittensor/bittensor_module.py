@@ -85,13 +85,13 @@ class BittensorModule(commune.Module):
         st.write(wallet_path)
         return glob.glob(wallet_path+'/*/hotkeys/*')
     
-    def list_wallets(self, registered=True, unregistered=True):
+    def list_wallets(self, registered=True, unregistered=True, output_wallet:bool = True):
         wallet_paths = self.list_wallet_paths()
         wallet_path = os.path.expanduser(self.wallet.config.wallet.path)
-        
         wallets = [p.replace(wallet_path, '').replace('/hotkeys/','.') for p in wallet_paths]
 
-        
+        if output_wallet:
+            wallets = [self.get_wallet(w) for w in wallets]
         return wallets
             
     selected_wallets = []
@@ -142,10 +142,13 @@ class BittensorModule(commune.Module):
             self.streamlit_sidebar()
             
         st.write(f'# BITTENSOR DASHBOARD {self.network}')
-        st.write(self.wallet)
+        # wallets = self.list_wallets(output_wallet=True)
         
-        self.set_wallet('allin.1')
-        self.register()
+        commune.print(commune.run_command('pm2 status'), 'yellow')
+        st.write(commune.run_command('pm2 status').split('\n'))
+        # st.write(wallets[0].__dict__)
+        
+        # self.register()
         # st.write(self.run_miner('fish', '100'))
 
         # self.streamlit_neuron_metrics()
@@ -268,7 +271,7 @@ class BittensorModule(commune.Module):
             self.register(dev_id=commune.gpus())
 
 if __name__ == "__main__":
-    BittensorModule.run()
+    BittensorModule.dashboard()
 
 
     

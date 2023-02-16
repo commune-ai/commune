@@ -377,7 +377,6 @@ class server(torch.nn.Module):
 
         def _forward(_model_output=model_output):
             
-            print(tokens)
             if _model_output is None:
                 # transformer models like gerpt2 typically perform worse with left-side attention mask, so turning it off
                 _model_output = self.model(input_ids=tokens['input_ids'],

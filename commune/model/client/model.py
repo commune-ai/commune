@@ -291,7 +291,7 @@ class ModelClient(Module, nn.Module):
 
     @classmethod
     def test_performance(cls,model = 'DendriteModel',
-                         dataset = 'BittensorDataset',
+                         dataset = 'dataset::bittensor',
                          batch_size= 32, 
                          sequence_length=256,
                          num_batches=2):
@@ -331,7 +331,7 @@ class ModelClient(Module, nn.Module):
             cls.print(f'Testing {model}', 'purple')
             cls.test_neuron(model=model, tokenizer='bittensor', *args,**kwargs)
     @classmethod
-    def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='BittensorDataset', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+    def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
         from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
         self = cls(model = model, tokenizer=tokenizer)
@@ -344,7 +344,6 @@ class ModelClient(Module, nn.Module):
         nucleus.model.config.eos_token_id
         nucleus.model.named_parameters()
         state_dict = nucleus.model.state_dict()
-        print(nucleus.device, 'DEBUG')
         nucleus.model.load_state_dict(state_dict)
         
         dataset = commune.connect(dataset)
@@ -373,7 +372,8 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    ModelClient.test_neuron('model::gpt20b', tokenizer='gpt20b')
-    # ModelClient.test_neuron(model='gptneox::0', tokenizer='gpt20b', num_batches=10)
+    model_kwargs = dict(model={'ip': '65.49.81.154', 'port': 50050}, tokenizer='gptj')
+    # ModelClient.test_neuron('model::gpt20b', tokenizer='gpt20b')
+    ModelClient.run_neuron(**model_kwargs)
     
     # ModelClient.r()
