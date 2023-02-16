@@ -199,7 +199,7 @@ class BittensorModule(commune.Module):
             num_processes: Optional[int] = None,
             update_interval: Optional[int] = None,
             output_in_place: bool = True,
-            log_verbose: bool = False,
+            log_verbose: bool = True,
         ) -> 'bittensor.Wallet':
         """ Registers the wallet to chain.
         Args:
@@ -262,8 +262,8 @@ class BittensorModule(commune.Module):
         # commune.new_event_loop()
         self = cls()
         wallets = self.list_wallets()
-
         for wallet in wallets:
+            # print(wallet)
             self.set_wallet(wallet)
             self.register(dev_id=commune.gpus())
 

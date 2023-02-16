@@ -6,8 +6,8 @@ import commune
 # print(commune.servers())
 
 # commune.launch('model.transformer.gptneox', name='model', tag='gpt20b', mode='server')
-
-print(commune.connect('module').pm2_list())
+print(commune.server_exists('module'))
+# print(commune.connect('module').pm2_list())
 # print(commune.connect('module').launch('block.bittensor',fn='register_loop', mode='pm2'))
 # dataset = commune.connect('BittensorDataset')
 

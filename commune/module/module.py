@@ -1241,6 +1241,10 @@ class Module:
         return getattr(self, args.function)(*args.args, **args.kwargs)     
        
     @classmethod
+    def api(cls, *args, **kwargs):
+        from commune.api import API
+        return API(*args, **kwargs)
+    @classmethod
     def sandbox(cls, **kwargs):
      
         import commune
@@ -1372,8 +1376,8 @@ class Module:
 
 
     @classmethod
-    def ray_status(cls, **args, **kwargs):
-        return cls.run_command('ray status',  **args, **kwargs)
+    def ray_status(cls, *args, **kwargs):
+        return cls.run_command('ray status',  *args, **kwargs)
 
     @classmethod
     def ray_initialized(cls):
