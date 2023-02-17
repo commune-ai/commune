@@ -54,12 +54,12 @@ class TransformerModel( nn.Module, commune.Module):
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
-                device='cuda',
-                tag = None,
+                device: str='cuda',
+                tag :str = None,
                 load: bool = True,
                 autocast: bool = False,
                 finetune : dict = dict(num_layers=4),
-                **model_kwargs
+                **kwargs
                 ):
         
         
@@ -72,7 +72,7 @@ class TransformerModel( nn.Module, commune.Module):
         
         # set model and tokenizer
 
-        self.set_model(model_name=model_name,device=device, autocast=autocast, **model_kwargs)
+        self.set_model(model_name=model_name,device=device, autocast=autocast, **kwargs)
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
@@ -148,8 +148,8 @@ class TransformerModel( nn.Module, commune.Module):
                 output_hidden_states:bool=False,
                 output_logits:bool = True,
                 output_length:int = 10,
-                token_remap:bool = True,
-                logit_remap:bool = True,
+                token_remap:bool = False,
+                logit_remap:bool = False,
                 verbose:bool = False,
                 **kwargs):
 

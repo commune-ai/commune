@@ -2,7 +2,7 @@
 # # import ray
 
 import commune
-commune.ray_init()
+commune.block.ray_init()
 commune.get_actor('bruh')
 # module = commune.create_actor(module=commune.get_module('dataset.text.huggingface'),name='bruh', refresh=True)
 # print(commune.list_actors())

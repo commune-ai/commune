@@ -488,7 +488,7 @@ class Module:
             return cls.run_command('kill -9 $(lsof -t -i:{port})')
 
     @classmethod
-    def kill_server(cls, module:str, mode:str = 'local'):
+    def kill_server(cls, module:str, mode:str = 'pm2'):
         '''
         Kill the server by the name
         '''
@@ -580,9 +580,7 @@ class Module:
         try:
             
             path = cls.simple2path(path)
-            print(path,'FAM')
             path = cls.path2objectpath(path)
-            print(path,'FAM')
             
         except KeyError as e:
             cls.print(f'{e}', verbose=verbose)
@@ -776,6 +774,13 @@ class Module:
         nest_asyncio.apply()
         
     @classmethod
+    def peer_registry(cls) -> Dict:
+        peer_registry = {}
+        for peer in cls.pm2_list():
+            peer_stub = cls.connect(peer)
+            peer_registry[peer] = peer_stub.server_stats
+        return peer_registry
+    @classmethod
     def server_registry(cls)-> dict:
         '''
         
@@ -861,7 +866,7 @@ class Module:
 
     @classmethod
     def get_module_id(cls, name:str=None, tag:str=None) -> str:
-        module_id = name if name else cls.get_module_name()
+        module_id = name if name else cls.module_name()
             
         if tag:
             module_id = f'{module_id}::{tag}'
@@ -908,6 +913,7 @@ class Module:
         
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
+        
         name = name if name != None else self.module_name()
         if hasattr(self, 'module_id'):
             module_id = self.module_id
@@ -1084,9 +1090,7 @@ class Module:
                 fn_schema = {}
                 for fn_k, fn_v in getattr(cls, fn ).__annotations__.items():
                     
-                    fn_v = str(fn_v)
-                    print(fn_v, fn_v.startswith('<class'))
-                    
+                    fn_v = str(fn_v)  
                     if fn_v == inspect._empty:
                         fn_schema[fn_k]= 'Any'
                     elif fn_v.startswith('<class'):

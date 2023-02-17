@@ -21,6 +21,7 @@ import pandas as pd
 from PIL import Image
 import torch
 import ray
+
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
 
 class DiffuserModule(Module):

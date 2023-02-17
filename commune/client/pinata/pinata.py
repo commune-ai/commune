@@ -8,10 +8,7 @@ import io
 from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset
 import os, sys
-sys.path.append(os.getenv('PWD'))
-
 import requests
-
 from commune.client.local import LocalModule
 from commune import Module
 

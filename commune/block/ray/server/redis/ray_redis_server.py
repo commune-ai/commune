@@ -8,7 +8,7 @@ Background Actor for Message Brokers Between Quees
 
 """
 import ray
-from commune.ray.utils import kill_actor, create_actor
+from commune.block.ray.utils import kill_actor, create_actor
 
 class RayRedisServer(Module):
     @staticmethod

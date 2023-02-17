@@ -1,5 +1,5 @@
 import commune
-import streamlit as st
+import streamlit as st 
 
 from typing import List, Dict, Union, Any 
 # commune.launch('dataset.text.bittensor', mode='pm2')
@@ -11,20 +11,27 @@ from typing import List, Dict, Union, Any
 class Dashboard:
 
     def __init__(self):
-        
-        self.server_registry = commune.server_registry()
         self.public_ip = commune.external_ip()
+        self.load_state()
+
+    
+    def load_state(self):
+        self.server_registry = commune.server_registry()
+        self.live_peers = list(self.server_registry.keys())
+        for peer in self.live_peers:
+            if peer not in self.server_registry:
+                self.server_registry[peer] = commune.connect(peer).server_stats
         
-    @property
-    def live_peers(self):
-        return list(self.server_registry.keys())
-    @property
-    def module_list(self):
-        return commune.module_list() 
+        self.module_tree = commune.module_tree()
+        self.module_list = list(self.module_tree.keys()) + ['module']
+        
+    
+
     
     @property
     def module_categories(self):
         return list(set([m.split('.')[0] for m in self.module_list]))
+        
         
     def set_peer(ip:str = None, port:int = None):
         if ip is None:
@@ -41,46 +48,114 @@ class Dashboard:
             if any([m.startswith(c) for c in categories]):
                 filtered_module_list.append(m)
         return['module'] +  filtered_module_list 
-    def streamlit_launcher(self):
-        st.write('# Module Launcher')
-    def streamlit_module_browser(self,
-                            default_categories = ['client', 'web3', 'model', 'dataset']
-                            ):
+
+    @property
+    def default_categories(self) -> List[str]:
+        default_categories = ['web3', 'model', 'dataset']
+        return default_categories
+
+    def streamlit_module_browser(self):
 
         module_categories = self.module_categories
         module_list =  self.module_list
         
-        with st.sidebar:
-            selected_categories = st.multiselect('Categories', module_categories, default_categories )
-            module_list = self.filter_modules_by_category(module_list, selected_categories)
-            st.sidebar.write('# Module Land')
+   
+        
+        self.module_info = dict(
+            path = commune.simple2path(self.selected_module),
+            config = commune.simple2config(self.selected_module),
+            module = commune.simple2object(self.selected_module),
+        )
+        self.module_name = self.module_info['config']['module']
+        
+        st.write(f'## {self.module_name} ({self.selected_module})')
+        
+        self.streamlit_launcher()
+        
+        
+        with st.expander(f'Module Function Info', False):
+            st.write(self.module_info['function_info_map'])
+   
 
-            selected_module = st.selectbox('Module List',module_list, 0)        
+        # # st.write(function_map['__init__'])
+        # with st.expander('Module Function Schema',False):
+        #     st.write(function_map)
+        # with st.expander('Info'):
+        #     st.write(self.module_info)
+            
+
+    
+    def streamlit_sidebar(self):
+        with st.sidebar:
+            st.sidebar.write('# Module Land')
+            self.selected_categories = st.multiselect('Categories', self.module_categories, self.default_categories )
+            self.filtered_module_list = self.filter_modules_by_category(self.module_list, self.selected_categories)
+            
+            self.selected_module = st.selectbox('Module List',self.filtered_module_list, 0)   
+        
+            self.update_button = st.button('Update', False)
+            if self.update_button:
+                self.load_state()
+                
+            st.write(self.live_peers)
+                
+            st.metric('Number of Module Serving', len(self.live_peers))
+
+    peer_info_cache = {}
+
+ 
+    def streamlit_peer_info(self):
+        server_registry = self.server_registry
+        
+        num_peers = len(server_registry)
+        peer = st.selectbox('Select Module', self.live_peers, 0)
+
+        peer_info = commune.get_peer_info(peer)
+        peers = self.live_peers
+            
+        cols = st.columns(3)
+
+        
+        num_columns = 4 
+        num_rows = num_peers // num_columns + 1
+       
+        
+        
+        for r_idx in range(num_rows):
+            cols = st.columns([1]*num_columns)
+            for c_idx in range(num_columns):
+                i = r_idx * num_columns + c_idx
+                if i >= num_peers:
+                    break
+                
+                peer = peers[i]
+                with cols[c_idx]:
+                    st.write(peer)
+                    st.write(server_registry[peer])
+                    kill_button = st.button(f'Kill {peer}')
+                    if kill_button:
+                        commune.kill_server(peer, mode='pm2')
+                        st.experimental_rerun()
+                        self.load_state()
+                    
+            
+            col_idx = i % num_columns
+            row_idx = i // num_columns
+            
             
         
+        
 
-
-
-        info = dict(
-            path = commune.simple2path(selected_module),
-            config = commune.simple2config(selected_module),
-            module = commune.simple2object(selected_module),
-        )
-        module_name = info['config']['module']
+        peer_info_map = {}
+ 
         
-        st.write(f'## {module_name} ({selected_module})')
-        
-        
-        # function_map =info['funciton_schema_map'] = info['object'].get_function_schema_map()
-        # function_signature = info['function_signature_map'] = info['object'].get_function_signature_map()
-        function_info_map = info['function_info_map'] = info['module'].get_function_info_map(include_module=False)
-        
-        
+    def streamlit_launcher(self):
+        # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
+        # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
+        function_info_map = self.module_info['function_info_map'] = self.module_info['module'].get_function_info_map(include_module=False)
         init_fn_name = '__init__'
         init_fn_info = function_info_map[init_fn_name]
-
         init_kwarg = {}
-
         cols = st.columns([3,1,6])
         cols[0].write('#### Launcher')
         cols[2].write('#### Module Arguments')
@@ -90,10 +165,11 @@ class Dashboard:
         
         with launch_col:
        
-            mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
-            name = st.text_input('**Name**', module_name) 
+            name = st.text_input('**Name**', self.module_name) 
             refresh = st.checkbox('**Refresh**', False)
-            serve = st.checkbox('**Serve**', True)
+            # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
+            mode = 'pm2'
+            serve = True
             launch_button = st.button('Launch Module')  
             
             
@@ -133,7 +209,7 @@ class Dashboard:
                 
                 
             launch_kwargs = dict(
-                module = selected_module,
+                module = self.selected_module,
                 name = name,
                 tag = None,
                 mode = mode,
@@ -141,91 +217,33 @@ class Dashboard:
                 serve = serve,
                 kwargs = kwargs,
             )
-            cols[0].write(launch_kwargs)
             commune.launch(**launch_kwargs)
-        with st.expander(f'Module Function Info', False):
-            st.write(function_info_map)
-   
-
-        # # st.write(function_map['__init__'])
-        # with st.expander('Module Function Schema',False):
-        #     st.write(function_map)
-        # with st.expander('Info'):
-        #     st.write(info)
-            
-
-    
-    peer_info_cache = {}
-    @classmethod
-    def get_peer_info(cls,peer, update: bool = False):
         
-        peer_info = commune.get_peer_info(peer)
+    def streamlit_playground(self):
+        pass
+        # dataset = commune.connect('HFDataset')
         
+        # st.write('## Get Example')
         
+        # model = commune.connect('model::gpt125m')
+        # st.write(model.forward(**dataset.sample()))
         
-        with st.sidebar:
-            
-            cols = st.columns(3)
-               
-            with cols[0]:
-                kill_button = st.button('Kill')
-                if kill_button:
-                    commune.kill_server(peer)
-                    commune.servers()
-            
-            with cols[1]:
-                start_button = cols[1].button('Start')
-                
-                if start_button:
-                    commune.launch(peer)
-                    
-            refresh_button = cols[2].button('Refresh')
-            if refresh_button:
-                commune.pm2_kill(peer)
-                commune.launch(peer)
-                commune.launch() 
-            
-        
-        # st.write(peer_info) 
-
-    @classmethod
-    def streamlit_launcher(cls):
-        self = cls()
-        
-        server_registry = self.server_registry
-        with st.sidebar:
-            with st.expander('Peers', False):
-                st.write(server_registry)
-            peer = st.selectbox('Select Module', self.live_peers, 0)
-            
-
-        peer_info_map = {}
-        peer_info = self.get_peer_info(peer)
-        
-        
-            
-            
-            
-            # peer_info['url'] = f'{commune.external_ip()}:{peer_info["port"]}'
-            # peer_info_map[peer] = peer_info
-            
-            # with st.expander(f'Peer Info: {peer}'):
-            #     st.write(peer_info)
-                
-            #     module = commune.connect(peer)
-            #     st.write(module.server_stats)
-            #     print(module.module_id)
-
-        
-
   
             
     @classmethod
     def streamlit(cls):
         self = cls()
         st.set_page_config(layout="wide")
-        self.streamlit_module_browser()
-        self.streamlit_launcher()
+        
+        self.streamlit_sidebar()
+        tabs = st.tabs(['Module Launcher', 'Peers', 'Playground'])
+        with tabs[2]:
+            self.streamlit_playground()
+        with tabs[1]:
+            self.streamlit_peer_info()
+        with tabs[0]:
+            self.streamlit_module_browser()
+
         
 
 

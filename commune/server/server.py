@@ -318,7 +318,7 @@ class Server(ServerServicer, Serializer):
         
     @property
     def endpoint(self):
-        return f'{self.ip}:{self.port}'
+        return f'{self.external_ip}:{self.port}'
     
     
     

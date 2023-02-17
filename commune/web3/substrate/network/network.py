@@ -1,9 +1,9 @@
 from substrateinterface import SubstrateInterface
 import commune
 
-from commune.substrate.account import SubstrateAccount
+from commune.web3.substrate.account import SubstrateAccount
 
-class SubstrateNetwork(SubstrateInterface):
+class SubstrateNetwork(SubstrateInterface, commune.Module):
     def __init__(self, 
                 url:str="127.0.0.1:9944", 
                 websocket:str=None, 
