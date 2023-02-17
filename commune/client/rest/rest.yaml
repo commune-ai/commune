@@ -1,5 +1,5 @@
 
-module: client.rest.module.RestModule
+module: RestModule
 url: http://localhost:8000
 
 actor:

@@ -90,7 +90,7 @@ vali:
 	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/block/bittensor/neuron/validator/neuron.py --name vali_${coldkey}_${hotkey} --time --interpreter python3 -- --logging.debug --subtensor.network local  --neuron.device cuda:1 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --logging.trace True --logging.record_log True  --neuron.print_neuron_stats True
 
 dashboard:
-	streamlit run commune/block/bittensor/dashboard.py 
+	streamlit run commune/dashboard.py 
 
 sand:
 	python3 commune/sandbox.py

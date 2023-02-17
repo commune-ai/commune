@@ -4,13 +4,11 @@
 import os
 import sys
 from copy import deepcopy
-sys.path.append(os.environ['PWD'])
 import asyncio
-asyncio.set_event_loop(asyncio.new_event_loop())
 import commune
 import streamlit as st
 
-from commune.utils import dict_put, get_object, dict_has
+from commune.utils.dict import dict_put, get_object, dict_has
 from commune import Module
 from diffusers import StableDiffusionPipeline, LMSDiscreteScheduler
 import torch

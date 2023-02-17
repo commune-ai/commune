@@ -555,7 +555,7 @@ class Module:
     @classmethod
     def path2objectpath(cls, path:str) -> str:
         config = cls.path2config(path=path, to_munch=False)
-        object_name = config['module']
+        object_name = config.get('module', config.get('name')) 
         if cls.pwd in path:
             # get the path
             path = path[len(cls.pwd)+1:]
@@ -936,21 +936,12 @@ class Module:
     def functions(self, include_module=False):
         if isinstance(self, Module):
             include_module = True
-        functions = self.get_functions(obj=self)
-        if not include_module:
-            module_functions = self.get_functions(obj=Module)
-            new_functions = []
-            for f in functions:
-                if f not in module_functions:
-                    new_functions.append(f)
-            functions = new_functions
-        
-        
+        functions = self.get_functions(obj=self,include_module=include_module)  
         return functions
 
         
     @classmethod
-    def get_functions(cls, obj:Any=None, exclude_module:bool = False,) -> List[str]:
+    def get_functions(cls, obj:Any=None, include_module:bool = False,) -> List[str]:
         '''
         List of functions
         '''
@@ -961,11 +952,14 @@ class Module:
 
         functions = get_functions(obj=obj)
         
-        # if exclude_module :
-        #     module_functions = Module.get_functions()
-            
-        #     functions = [f for f in functions if f not in module_functions]
-            
+        if not include_module:
+            module_functions = cls.get_functions(obj=Module, include_module=True)
+            new_functions = []
+            for f in functions:
+                if f not in module_functions:
+                    new_functions.append(f)
+            functions = new_functions
+        
         return functions
 
     @classmethod
@@ -980,6 +974,35 @@ class Module:
               
         self.function_signature_map = function_signature_map  
         return function_signature_map
+    
+
+    @classmethod
+    def get_function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
+        function_schema_map = {}
+        for fn in cls.get_functions(include_module=include_module):
+            if not include_hidden:
+                if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
+                    continue
+            if callable(getattr(cls, fn )):
+                function_schema_map[fn] = {}
+                fn_schema = {}
+                for fn_k, fn_v in getattr(cls, fn ).__annotations__.items():
+                    
+                    fn_v = str(fn_v)
+                    print(fn_v, fn_v.startswith('<class'))
+                    
+                    if fn_v == inspect._empty:
+                        fn_schema[fn_k]= 'Any'
+                    elif fn_v.startswith('<class'):
+                        fn_schema[fn_k] = fn_v.split("'")[1]
+                    else:
+                        fn_schema[fn_k] = fn_v
+                                        
+                function_schema_map[fn] = {
+                    'schema': fn_schema,
+                    'docs': getattr(cls, fn ).__doc__
+                }
+        return function_schema_map
     
     def function_schema_map(self, include_hidden:bool = False, include_module:bool = False):
         function_schema_map = {}

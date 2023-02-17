@@ -28,11 +28,11 @@ import os
 import torch
 from torch.utils.data.dataloader import DataLoader
 from typing import Optional, Union, Dict, List, Any
+import commune
 from commune import Module
 from commune.utils.dict import chunk
 
 logger = logger.opt(colors=True)
-
 
 
 class BittensorDataset(Module):
@@ -60,12 +60,16 @@ class BittensorDataset(Module):
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             background_download: bool = False,
-            min_hash_count : int = 100000,
-            loop: Optional['asyncio.loop'] = None ):
+            min_hash_count : int = 10000,
+            loop: Optional['asyncio.loop'] = None ,
+            nest_asyncio: bool = True):
 
         self.kwargs = locals()
         self.loop = loop if loop else self.get_event_loop()
         self.kwargs.pop('self')
+        
+        if nest_asyncio:
+            commune.nest_asyncio()
         
         self.__dict__.update(self.kwargs)
         

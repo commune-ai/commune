@@ -13,7 +13,7 @@ import requests
 from commune.client.local import LocalModule
 from commune.client.ipfs import IPFSModule
 from commune import Module
-from commune.utils import try_n_times
+from commune.utils.function import try_n_times
 
 
 # %% ../nbs/00_utils.ipynb 5
