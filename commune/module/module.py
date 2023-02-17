@@ -493,9 +493,13 @@ class Module:
         '''
         Kill the server by the name
         '''
-        
+        server_info = cls.get_server_info(module)
+        import streamlit as st
+        st.write(server_info)
+        if 'external_ip' in server_info:
+            assert server_info.get('external_ip') == cls.external_ip()
         if isinstance(module, int) or mode == 'local':
-            return cls.kill_port(module)
+            return cls.kill_port(server_info['port'])
         if mode == 'pm2':
             return cls.pm2_kill(module)
         else:
@@ -739,7 +743,9 @@ class Module:
     def __str__(cls):
         return cls.__name__
 
-
+    @classmethod
+    def get_server_info(cls,name:str) -> Dict:
+        return cls.server_registry().get(name, {})
     @classmethod
     def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
         
@@ -965,16 +971,16 @@ class Module:
         return functions
 
     @classmethod
-    def function_signature_map(cls, exclude_module:bool = False):
+    def function_signature_map(cls, include_module:bool = False):
         from commune.utils.function import get_function_signature
         function_signature_map = {}
-        for f in cls.get_functions():
+        for f in cls.get_functions(include_module=include_module):
             if f.startswith('__') and f.endswith('__'):
                 continue
             if callable(getattr(cls, f )):
                 function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}
               
-        self.function_signature_map = function_signature_map  
+        cls.function_signature_map = function_signature_map  
         return function_signature_map
     
     @classmethod
@@ -990,7 +996,7 @@ class Module:
             function_schema = function_schema_map,
             intro =function_schema_map.get('__init__', 'No Intro Available'),
             examples =function_schema_map.get('examples', 'No Examples Available'),
-            public_ip = server_stats['external_ip'] + ':' + str(server_stats['port']) ,
+            public_ip =  server_stats if not isinstance(server_stats, dict) else server_stats['external_ip'] + ':' + str(server_stats['port']) ,
 
         )
         
