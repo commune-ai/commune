@@ -109,17 +109,17 @@ class AutoEncoder(torch.nn.Module, commune.Module):
     def train(cls,
              in_dim:int=512, 
              out_dim:int=512 ,
-             hidden_dim:int=64, 
-             num_layers:int = 5,
+             hidden_dim:int=256, 
+             num_layers:int = 1,
              batch_dim:int=32,
              device:str='cuda',
-             num_batches:int=30,
-             steps_per_batch:int = 100):
+             num_batches:int=3000,
+             steps_per_batch:int = 1):
         self = cls(in_dim=in_dim, 
                    out_dim=out_dim,
                    device=device, 
                    num_layers=num_layers,
-                   optimizer = {'lr': 0.01},)
+                   optimizer = {'lr': 0.0001},)
                 
 
         for i in range(num_batches):

@@ -20,7 +20,7 @@
 import math
 from typing import Tuple, List, Union
 from threading import Lock
-
+import streamlit as st
 import torch
 import asyncio
 from loguru import logger
@@ -29,17 +29,19 @@ import bittensor
 from bittensor._endpoint import endpoint
 import bittensor.utils.networking as net
 from concurrent.futures import ThreadPoolExecutor
+import commune
 
 logger = logger.opt(colors=True)
 
-class ReceptorPool ( torch.nn.Module ):
+
+class ReceptorPool ( torch.nn.Module):
     """ Manages a pool of grpc connections as receptors
     """
     def __init__(
         self, 
         wallet: 'bittensor.Wallet',
-        max_active_receptors: int,
-        compression: str,
+        max_active_receptors: int = 1000,
+        compression: str = None,
     ):
         super().__init__()
         self.wallet = wallet
@@ -49,12 +51,13 @@ class ReceptorPool ( torch.nn.Module ):
         self.max_processes = 10
         self.compression = compression
         self.total_requests = 0
-        self.loop = asyncio.new_event_loop()
 
         try:
             self.external_ip = str(net.get_external_ip())
         except Exception:
             self.external_ip = None
+
+        
 
     def __str__(self):
         return "ReceptorPool({},{})".format(len(self.receptors), self.max_active_receptors)
@@ -82,6 +85,7 @@ class ReceptorPool ( torch.nn.Module ):
             synapses: List[ 'bittensor.Synapse' ],
             inputs: List [ torch.Tensor ],
             timeout: int,
+            min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
 
@@ -114,19 +118,21 @@ class ReceptorPool ( torch.nn.Module ):
         if len(endpoints) != len(inputs):
             raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
         
-        # try:
-        #     loop = asyncio.get_event_loop()
-        # except RuntimeError:
-        #     loop = asyncio.new_event_loop()
-        #     asyncio.set_event_loop(loop)
-        return self.loop.run_until_complete ( 
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        return loop.run_until_complete ( 
             self.async_forward(
                 endpoints = endpoints,
                 synapses = synapses,
                 inputs = inputs,
-                timeout = timeout
+                timeout = timeout,
+                min_successes = min_successes,
             ) 
         )
+
 
 
     def backward(
@@ -195,6 +201,7 @@ class ReceptorPool ( torch.nn.Module ):
             synapses: List[ 'bittensor.Synapse' ],
             inputs: List [ torch.Tensor ],
             timeout: int,
+            min_successes: int = 20,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
 
@@ -227,30 +234,60 @@ class ReceptorPool ( torch.nn.Module ):
         # Init receptors.
         receptors = [ self._get_or_create_receptor_for_endpoint( endpoint ) for endpoint in endpoints ]
 
+
+
+        loop = asyncio.get_event_loop()
         # Make calls.
-        calls = []
+        running_tasks = []
+        st.write(inputs[0].shape, inputs[0].dtype)
         for index, receptor in enumerate(receptors):
-            calls.append( 
+            task = asyncio.create_task(
                 receptor.async_forward(
                     synapses = synapses,
                     inputs = inputs[index], 
                     timeout = timeout
                 )
             )
+            running_tasks.append(task)
 
-        responses = await asyncio.gather( *calls )
 
-        # Unpack responses
         forward_outputs = []
         forward_codes = []
         forward_times = []
-        for response in responses:
-            forward_outputs.append( response[0] )
-            forward_codes.append( response[1] )
-            forward_times.append( response[2] )
+        while len(running_tasks) > 0:
+            
+            finished_tasks, running_tasks  = await asyncio.wait( running_tasks , return_when=asyncio.FIRST_COMPLETED)
+            finished_tasks, running_tasks = list(finished_tasks), list(running_tasks)
+
+            # st.write(len(finished_tasks), len(running_tasks))
+            # Unpack responses
+            
+
+            responses = await asyncio.gather(*finished_tasks)
+
+            for response in responses:
+                st.write(response[1])
+                if  min_successes > 0:
+                    if  response[1][0] == 1:
+                        forward_outputs.append( response[0] )
+                        forward_codes.append( response[1] )
+                        forward_times.append( response[2] )
+
+                    if len(forward_outputs) >= min_successes :
+                        # cancel the rest of the tasks
+                        [t.cancel() for t in running_tasks]
+                        running_tasks = [t for t in running_tasks if t.cancelled()]
+                        assert len(running_tasks) == 0, f'{len(running_tasks)}'
+                        break
+                else:
+                    
+                    forward_outputs.append( response[0] )
+                    forward_codes.append( response[1] )
+                    forward_times.append( response[2] )
+
 
         # ---- Kill receptors ----
-        self._destroy_receptors_over_max_allowed()
+        # self._destroy_receptors_over_max_allowed()
         # ---- Return ----
         return forward_outputs, forward_codes, forward_times
 
@@ -354,7 +391,7 @@ class ReceptorPool ( torch.nn.Module ):
                     receptor with tcp connection endpoint at endpoint.ip:endpoint.port
         """
         # ---- Find the active receptor for this endpoint ----
-        if endpoint.hotkey in self.receptors:
+        if endpoint.hotkey in self.receptors :
             receptor = self.receptors[ endpoint.hotkey ]
 
             # Change receptor address.
@@ -382,3 +419,5 @@ class ReceptorPool ( torch.nn.Module ):
             self.receptors[ receptor.endpoint.hotkey ] = receptor
             
         return receptor
+    def getattr(self, *args, **kwargs):
+        return self.__getattribute__(  *args, **kwargs)

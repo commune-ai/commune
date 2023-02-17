@@ -7,7 +7,9 @@ commune.new_event_loop()
 # print(commune.launch('model.dendrite', tag='B' ))
 import bittensor
 
-
+for model in [ 'gpt2.7b', 'gpt125m', 'gptj', 'gptjt','opt13b']:
+    # commune.pm2_kill('model::'+model)
+    commune.launch('model.transformer', name='model', tag=model, fn='serve_module', kwargs={'model_name': model})
 
 # commune.servers()
 

@@ -79,15 +79,16 @@ class DendriteModel(torch.nn.Module, commune.Module):
         return  [endpoints[i] for i in top_uid_indices]
     
     def forward(self, 
-                token_batch: torch.Tensor, 
+                input_ids: torch.Tensor, 
                 attention_mask: torch.Tensor = None, 
                 output_hidden_states:bool = False, 
                 output_logits:bool = True, 
-                num_endpoints:int = 0 ,
+                num_endpoints:int = 20 ,
                 topk: int = 4096,
                 timeout: int = 3,
                 max_trials: int = 1,
-                max_responses: int = 1,
+                max_responses: int = 10,
+                min_successes = 5,
                 **kwargs
                 ):
         
@@ -103,10 +104,11 @@ class DendriteModel(torch.nn.Module, commune.Module):
         commune.print(endpoints)
         
         while not atleast_one_success and trial_count < max_trials:
-            response = self.receptor_pool.forward(inputs=[token_batch]*len(endpoints) , 
+            response = self.receptor_pool.forward(inputs=[input_ids]*len(endpoints) , 
                                                         endpoints=endpoints,
                                                         synapses=[bittensor.synapse.TextCausalLMNext()],
-                                                        timeout=timeout)
+                                                        timeout=timeout,
+                                                        min_successes=min_successes)
             
             atleast_one_success = any([any([c==1 for c in codes]) for codes in response[1]])
             trial_count += 1
@@ -136,8 +138,8 @@ class DendriteModel(torch.nn.Module, commune.Module):
             
             if code == 1:
                 response_tensors += [response[0][i][0]]
-                if len(response_tensors)>=max_responses:
-                    break
+                # if len(response_tensors)>=max_responses:
+                #     break
 
 
         
@@ -153,16 +155,20 @@ class DendriteModel(torch.nn.Module, commune.Module):
         
         print('CODE COUNTER: ', code_count_dict) 
         output_dict = {}
-    
+        logits = self.mix_response(response_tensors)
+
+        if output_logits:
+            logits = self.mix_response(response_tensors)
+            output_dict['logits'] = logits
         
+        
+        commune.print(len(response_tensors), 'green')
         if topk:   
             if len(response_tensors) > 1:
                 output_dict['topk'] = self.encode_topk(logits[..., -1:, :])
             else:
                 output_dict['topk'] = response_tensors[0].unsqueeze(1)
-        if output_logits:
-            logits = self.mix_response(response_tensors)
-            output_dict['logits'] = logits
+
             
         # if output_hidden_states:
         #     raise NotImplemented(f'output_hidden_states = {output_hidden_states}')
@@ -214,48 +220,26 @@ class DendriteModel(torch.nn.Module, commune.Module):
         return self
 
     @classmethod
-    def test_performance(cls, batch_size= 32, sequence_length=256):
+    def test_performance(cls, batch_size= 32, sequence_length=256, num_batches=100):
 
-        from commune.utils import tensor_info_dict, tensor_info, Timer
         import time
         
         self = cls.default_model()
-        raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
-        token_batch = torch.tensor(self.tokenizer(raw_text, max_length=sequence_length+1, truncation=True, padding="max_length", return_tensors="pt").token_batch)
-        
-        targets = token_batch[:, -1]
-        token_batch = token_batch[:,:-1]
+        dataset = cls.connect('dataset::bittensor')
+        for i in range(num_batches):
+            sample = dataset.sample()
+            input_ids = sample['input_ids'][:, :-1]
+            targets = sample['input_ids'][:,-1:]
 
-        with Timer() as t:
-            output = self(token_batch=token_batch)
+            t = commune.timer()
+            output = self(input_ids=input_ids)
             print('OUTPUT SCHEMA')
             print('TIME (s): ', t.seconds)
-            print(self.get_loss_fct(logits=pred['logits'], labels=sample['token_batch']))
-            # print(phrase_cross_entropy(topk_tensor=output['topk'], target_phrases=targets))
+            # print(self.get_loss_fct(logits=pred['logits'], labels=input_ids))
+            print(output['topk'].shape, targets.shape)
+            print(phrase_cross_entropy(topk_tensor=output['topk'][:,-1], target_phrases=targets))
 
 
-
-
-    @classmethod
-    def test_neuron(cls, batch_size=32, sequence_length=12, topk=4096):
-        from commune.neuron.miner import neuron
-        
-        self = cls.default_model()
-        print(self.state_dict())
-        nucleus = neuron(model=self).model
-        nucleus.model.train()
-        nucleus.model.eval()
-        nucleus.model.half()
-        nucleus.model.config.hidden_size
-        nucleus.model.config.pad_token_id
-        nucleus.model.config.eos_token_id
-        nucleus.model.named_parameters()
-        state_dict = nucleus.model.state_dict()
-        nucleus.model.load_state_dict(state_dict)
-        raw_text = ['Hello, my name is boby and I want to have a good time']*batch_size
-        inputs_x = self.tokenizer(raw_text, max_length=sequence_length, truncation=True, padding="max_length", return_tensors="pt").token_batch.to('cuda:0')
-        nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
-  
     @classmethod
     def test(cls): 
         cls.test_performance()
@@ -326,93 +310,6 @@ class DendriteModel(torch.nn.Module, commune.Module):
         logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
 
         return logits  # [batch_size, sequence_len, vocab_size]
-
-
-    @staticmethod
-    def topk_token_phrases(logits: torch.Tensor, tokenizer: PreTrainedTokenizerBase,
-                        topk: int=4096, ignore_index: int = -100) -> torch.Tensor:
-        r"""
-        Select topk tokenizer logits/phrases and include std_token_phrases counterparts (std_tokenization of token text)
-        in topk_tensor output of shape [batch_size, (topk + 1), max_len], where max len of all phrase lists
-        (with prob in front) is max_{b,k}(len([prob_k, tok_0_k, tok_1_k, ...])).
-        The output topk_tensor also includes a floor_prob for each batch item. The floor probability is the
-        mean probability of token phrases not captured in topk, required since the tokenizer vocab_size may
-        not be known to the receiver.
-        Requires prep_tokenizer(tokenizer, std_tokenizer) to set_std_token_phrases first, to make
-        std_token_phrases available here.
-            Args:
-                logits (:obj:`torch.Tensor`, `required`):
-                    [batch_size, vocab_size] Input source logits for last token over a source tokenizer vocabulary.
-                tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
-                    Source tokenizer (usually server tokenizer)
-                topk (:obj:`int`, `required`):
-                    Amount of top phrases to expect (to check for mismatch)
-                ignore_index (:obj:`int`, `optional`):
-                    Padding value to use for unfilled token positions in a shorter token phrase.
-
-            Returns:
-                topk_tensor (:obj:`torch.Tensor`, `required`):
-                    [batch_size, (topk + 1), max_len] tensor includes topk token probabilities (prob_k) + floor_prob
-                    in first column with gradients attached, with std_tokens in remaining columns with ignore_index padding.
-                    Content structure:
-                    [[[prob_k=0_b=0, tok_0_k=0_b=0, tok_1_k=0_b=0, ..., ignore_index?],
-                    [prob_k=1_b=0, tok_0_k=1_b=0, tok_1_k=1_b=0, ..., ignore_index?],
-                    [...],
-                    [prob_floor_b=0, ignore_index, ..., ignore_index]],
-                    [[prob_k=0_b=1, tok_0_k=0_b=1, tok_1_k=0_b=1, ..., ignore_index?],
-                    [prob_k=1_b=1, tok_0_k=1_b=1, tok_1_k=1_b=1, ..., ignore_index?],
-                    [...],
-                    [prob_floor_b=1, ignore_index, ..., ignore_index]],
-                    [...]]
-        """
-        # Get shape sizes
-        batch_size, vocab_size = logits.shape  # [batch_size, vocab_size] only last token prediction
-
-        # Convert logits to probabilities
-        logits = logits.float()  # ensure further computations done in float32 for improved precision
-        probs = torch.softmax(logits, dim=1)  # [batch_size, vocab_size]
-
-        # TopK phrase selection
-        topk_probs, topk_indices = torch.topk(probs, topk)  # topk probs and indices: [batch_size, topk]
-
-        # === Calculate floor probability ===
-        topk_pmass = topk_probs.sum(dim=-1)  # [batch_size] topk probability mass
-        remainder_pmass = torch.clamp(1 - topk_pmass, 1e-40, 1)  # [batch_size] remainder probability mass
-        floor_probs = remainder_pmass / (vocab_size - topk)  # [batch_size]divide remainder
-
-        # convert to list for faster iteration in list comprehension
-        topk_probs_list = topk_probs.tolist()
-        topk_indices_list = topk_indices.tolist()
-        floor_probs_list = floor_probs.tolist()
-
-        # === Construct topk phrases list ===
-        probs = []  # collect probability tensors with gradients attached (to be grafted into topk_tensor)
-        phrases = []  # form topk token phrases with prob prepend [prob, tok_0, tok_1, ... tok_n]
-
-        for b in range(batch_size):
-            # collect probability tensors with gradients attached (to be grafted into topk_tensor)
-            probs += [topk_probs[b], floor_probs[b]]  # [tensor(prob_k=0_b, prob_k=1_b, ...), tensor(prob_floor_b)]
-
-            # form topk token phrases with prob prepend [prob, tok_0, tok_1, ... tok_n]
-            phrases += [[prob] + tokenizer.std_token_phrases[i]
-                        for prob, i in zip(topk_probs_list[b], topk_indices_list[b])]  # [prob_k, tok_0_k, tok_1_k, ...]
-
-            # also add prob_floor for batch item
-            phrases += [[floor_probs_list[b]]]  # [prob_floor_b]
-
-        # determine width of topk_tensor as max len of all phrase lists (with prob in front)
-        max_len = max([len(p) for p in phrases])  # max_{b,k}(len([prob_k, tok_0_k, tok_1_k, ...]))
-
-        # form single 2D tensor with all phrase and probs (typically to send to axon wire encoding)
-        topk_tensor = torch.tensor([p + [ignore_index] * (max_len - len(p))
-                                    for p in phrases]).to(logits.device)  # [batch_size * (topk + 1), max_len]
-
-        # grafting probability tensors into first column to attach gradients
-        topk_tensor[:, 0] = torch.hstack(probs)  # tensor([prob_k=0_b, prob_k=1_b, ..., prob_floor_b])
-
-        topk_tensor = topk_tensor.reshape(batch_size, topk + 1, max_len)  # [batch_size, (topk + 1), max_len] reshaped
-
-        return topk_tensor  # [batch_size, (topk + 1), max_len] (probability gradients attached in first column)
 
 
 
