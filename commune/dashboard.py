@@ -75,9 +75,10 @@ class Dashboard:
         st.write(f'## {module_name} ({selected_module})')
         
         
-        function_map = info['object'].get_function_schema_map()
-        
-        st.write(function_map['__init__'])
+        function_map =info['funciton_schema_map'] = info['object'].get_function_schema_map()
+        function_signature = info['function_signature_map'] = info['object'].function_signature_map()
+        st.write(function_signature)
+        # st.write(function_map['__init__'])
         with st.expander('Module Function Schema',False):
             st.write(function_map)
         with st.expander('Info'):
@@ -89,18 +90,42 @@ class Dashboard:
     def get_peer_info(cls,peer, update: bool = False):
         
         peer_info = commune.get_peer_info(peer)
-        refresh_button = st.button('Refresh')
         
-        if refresh_button:
-            commune.launch()
         
-        st.write(peer_info) 
+        
+        with st.sidebar:
+            
+            cols = st.columns(3)
+               
+            with cols[0]:
+                kill_button = st.button('Kill')
+                if kill_button:
+                    commune.kill_server(peer)
+                    commune.servers()
+            
+            with cols[1]:
+                start_button = cols[1].button('Start')
+                
+                if start_button:
+                    commune.launch(peer)
+                    
+            refresh_button = cols[2].button('Refresh')
+            if refresh_button:
+                commune.pm2_kill(peer)
+                commune.launch(peer)
+                commune.launch() 
+            
+        
+        # st.write(peer_info) 
 
     @classmethod
     def streamlit_launcher(cls):
         self = cls()
         
-        peer = st.selectbox('Select Module', self.live_peers, 0)
+        with st.sidebar:
+            st.write('# Module Launcher')
+            st.write('## Peer Info')
+            peer = st.selectbox('Select Module', self.live_peers, 0)
 
         peer_info_map = {}
         peer_info = self.get_peer_info(peer)
@@ -127,11 +152,12 @@ class Dashboard:
     @classmethod
     def streamlit(cls):
         self = cls()
+        self.streamlit_module_browser()
+
         self.streamlit_launcher()
         st.write(self.live_peers)
         
         
-        # self.streamlit_module_browser()
 
 if __name__ == '__main__':
     Dashboard.streamlit()
