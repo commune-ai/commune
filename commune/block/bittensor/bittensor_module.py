@@ -260,10 +260,10 @@ class BittensorModule(commune.Module):
   
   
     @classmethod
-    def register_loop(cls):
+    def register_loop(cls, *args, **kwargs):
         import commune
         # commune.new_event_loop()
-        self = cls()
+        self = cls(*args, **kwargs)
         wallets = self.list_wallets()
         for wallet in wallets:
             # print(wallet)
@@ -271,7 +271,7 @@ class BittensorModule(commune.Module):
             self.register(dev_id=commune.gpus())
 
 if __name__ == "__main__":
-    BittensorModule.dashboard()
+    BittensorModule.run()
 
 
     

@@ -8,6 +8,7 @@ class API(commune.Module):
 
         self.build(refresh=refresh)
         self.module = commune.connect('module')
+        self.merge(self.module)
         
     @classmethod
     def deploy_api(cls, refresh:bool = True):
@@ -51,6 +52,5 @@ class API(commune.Module):
 
 
 if __name__ == "__main__":
-    api = API()
-    print(api.module.pm2_status())
-    # print(commune.get_actor('module').server_running())
+    API.run()
+    
