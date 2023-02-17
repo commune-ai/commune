@@ -39,7 +39,9 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
         # skip hidden functions if include_hidden is False
         if (include_hidden==False) and \
                 (fn_name.startswith('__') and fn_name.endswith('__')):
-            continue
+            
+            if fn_name != '__init__':
+                continue
             
 
         # if the function is in the parent class, skip it

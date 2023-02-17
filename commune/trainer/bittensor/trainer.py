@@ -991,8 +991,8 @@ class CortexTrainer(commune.Module):
                         response_df[k] = v
         
         response_df = pd.DataFrame(response_df)
-        from commune.streamlit import StreamlitPlotModule, row_column_bundles
-        StreamlitPlotModule().run(response_df)
+        from commune.streamlit import StreamlitModule, row_column_bundles
+        StreamlitModule().run(response_df)
 
 if __name__ == '__main__':
 

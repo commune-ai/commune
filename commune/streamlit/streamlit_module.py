@@ -8,11 +8,11 @@ import pandas as pd
 import plotly.express as px
 # from commune.plot.dag import DagModule 
 
+import commune
 
 
 
-
-class StreamlitPlotModule:
+class StreamlitModule(commune.Module):
 
     height=1000
     width=1000
@@ -238,7 +238,7 @@ class StreamlitPlotModule:
 if __name__ == '__main__':
     from sklearn.datasets import load_iris
     import pandas as pd
-    st_plt = StreamlitPlotModule()
+    st_plt = StreamlitModule()
     data = load_iris()
     df = pd.DataFrame(data=data.data, columns=data.feature_names)
 
