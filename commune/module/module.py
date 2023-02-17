@@ -905,7 +905,10 @@ class Module:
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
         name = name if name != None else self.module_name()
-        module_id = self.get_module_id(name=name, tag=tag)
+        if hasattr(self, 'module_id'):
+            module_id = self.module_id
+        else:
+            module_id = self.get_module_id(name=name, tag=tag)
            
         '''check if the server exists'''
         if self.server_exists(module_id): 
@@ -914,6 +917,7 @@ class Module:
             else: 
                 raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
     
+        
         self.module_id = module_id
 
     
