@@ -4,7 +4,7 @@ import commune
 from typing import List, Dict, Union 
 import os
 
-class ModulePipeline(commune.Module):
+class PipelineModule(commune.Module):
     def __init__(self, modules:List[str]):
         self.build_pipeline(modules)
         

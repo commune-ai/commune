@@ -11,6 +11,7 @@ from copy import deepcopy
 import streamlit as st
 import logging
 from glob import glob
+import commune
 from typing import *
 from ipfshttpclient.multipart import stream_directory, stream_files 
 
@@ -19,7 +20,7 @@ logger = logging.getLogger("ipfsspec")
 
 
 IPFSHTTP_LOCAL_HOST = 'ipfs'
-class IPFSModule:
+class IPFSModule(commune.Module):
 
     data_dir = f'{os.getenv("PWD")}/tmp/ipfs_client'
 

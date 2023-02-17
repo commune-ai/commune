@@ -1,1 +1,1 @@
-from .substrate_account import SubstrateAccount
+from .account import SubstrateAccount

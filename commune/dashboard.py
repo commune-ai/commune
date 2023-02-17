@@ -23,6 +23,27 @@ class Dashboard:
         commune.set_peer(ip, port)
         st.write(f'Peer set to {ip}:{port}')
 
+    def streamlit_launcher(self):
+        self.module_list = commune.module_list()
+        selected_module = st.selectbox('Module List', self.module_list, 0)
+        with st.expander('Module List'):
+            st.write(self.module_list)
+
+        info = dict(
+            path = commune.simple2path(selected_module),
+            config = commune.simple2config(selected_module),
+            object = commune.simple2object(selected_module),
+        )
+        
+        
+        function_map = info['object'].get_function_schema_map()
+        
+        st.write(function_map)
+        
+        st.write(info)
+
+
+
     @classmethod
     def run(cls):
         self = cls()
@@ -39,9 +60,12 @@ class Dashboard:
                 module = commune.connect(peer)
                 print(module.module_id)
 
+        st.write('Launcher')
+
         st.write(peer_info_map)
             
 
+
 if __name__ == '__main__':
     dashboard = Dashboard()
-    dashboard.run()
+    dashboard.streamlit_launcher()

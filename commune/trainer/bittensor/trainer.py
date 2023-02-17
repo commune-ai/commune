@@ -43,7 +43,7 @@ def tensor_stats(x):
     return {'std': x.std().item(), 'mean': x.mean().item()}
 
 
-class CortexTrainer:
+class CortexTrainer(commune.Module):
     def __init__(self, 
                 batch_size = 10,
                 sequence_length = 16,

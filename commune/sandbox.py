@@ -11,16 +11,17 @@ import commune
 
 # servers = commune.servers()
 
-print(commune.launch('model.dendrite', name='model::dendrite'))
-import bittensor
+commune.launch('dataset.text.bittensor', name='dataset.bittensor', mode='server')
+# print(commune.launch('model.dendrite', name='model::dendrite', mode='ray'))
+# import bittensor
 
 # for model in [ 'gpt2.7b', 'gpt125m', 'gptj', 'gptjt','opt13b']:
 #     # commune.pm2_kill('model::'+model)
 #     commune.launch('model.transformer', name='model', tag=model, fn='serve_module', kwargs={'model_name': model})
 
-for model in [ 'gpt20b']:
-    # commune.pm2_kill('model::'+model)
-    commune.launch('model.transformer.gptneox', name='model', tag=model, fn='serve_module', kwargs={'model_name': model})
+# for model in [ 'gpt20b']:
+#     # commune.pm2_kill('model::'+model)
+#     commune.launch('model.transformer.gptneox', name='model', tag=model, fn='serve_module', kwargs={'model_name': model})
 
 # commune.servers()
 
@@ -34,7 +35,6 @@ for model in [ 'gpt20b']:
 
 # commune.get_module('model.transformer.gptneox')
 # commune.launch('model.transformer.gptneox', name='gptneox', tag='0', kwargs=dict(model_name='gptneox'), mode='server')
-
 
 
 # get the module map
@@ -59,7 +59,6 @@ print(commune.gpu_map())
 # commune.launch('commune.model.transformer.gptneox.GPTNeoX', name='model::gpt20b', fn='serve_module', mode='pm2', 
 #                device=None, kwargs={'model': 'gpt20b', 'max_memory' : {6: "70GiB" , 7: "20GiB"}} ,refresh=True)
 
-print(commune.api(refresh=False).pm2_status())
 # print(commune.server_exists('module'))
 # print(commune.connect('module').pm2_list())
 # print(commune.connect('module').launch('block.bittensor',fn='register_loop', mode='pm2'))
