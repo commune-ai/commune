@@ -58,8 +58,6 @@ class Dashboard:
             selected_module = st.selectbox('Module List',module_list, 0)        
             
             
-            
-            
             with st.expander('Module List'):
                 st.write(self.module_list)
 
@@ -77,12 +75,19 @@ class Dashboard:
         
         function_map =info['funciton_schema_map'] = info['object'].get_function_schema_map()
         function_signature = info['function_signature_map'] = info['object'].function_signature_map()
-        st.write(function_signature)
+        if hasattr(info['object'], 'default_value_map'):
+            default_value_map = info['default_value_map'] = info['object'].default_value_map()
+
+                    
+            st.write(default_value_map)   
+
+        st.write(function_signature['fetch_text'])
         # st.write(function_map['__init__'])
         with st.expander('Module Function Schema',False):
             st.write(function_map)
         with st.expander('Info'):
             st.write(info)
+            
 
     
     peer_info_cache = {}
@@ -153,9 +158,11 @@ class Dashboard:
     def streamlit(cls):
         self = cls()
         self.streamlit_module_browser()
-
         self.streamlit_launcher()
         st.write(self.live_peers)
+        
+
+
         
         
 
