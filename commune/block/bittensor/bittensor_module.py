@@ -200,7 +200,7 @@ class BittensorModule(commune.Module):
             dev_id: int = 0,
             TPB: int = 256,
             num_processes: Optional[int] = None,
-            update_interval: Optional[int] = None,
+            update_interval: Optional[int] = 50_000,
             output_in_place: bool = True,
             log_verbose: bool = True,
         ) -> 'bittensor.Wallet':

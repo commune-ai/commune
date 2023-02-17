@@ -26,16 +26,18 @@ class API(commune.Module):
         module = commune.get_actor('module')
         if not module.server_running():
             module.serve(ray_get=False)
-        import time
-        
-        time_elapsed = 0
-        while True:
-            time.sleep(1)
-            time_elapsed += 1
-            server_running = module.server_running()
-            commune.log(f'Is Server Running {server_running} Time Elapsed: {time_elapsed}', 'yellow')
-            if server_running:
-                break
+            import time
+            time_elapsed = 0
+            while True:
+                time.sleep(1)
+                time_elapsed += 1
+                server_running = module.server_running()
+                commune.log(f'Is Server Running {server_running} Time Elapsed: {time_elapsed}', 'yellow')
+                if server_running:
+                    break
+            
+            commune.log(f'COMMUNE IS SERVED {server_running}', 'green')
+
         
     
     @classmethod
