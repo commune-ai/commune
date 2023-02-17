@@ -24,6 +24,7 @@ class Dashboard:
         
         self.module_tree = commune.module_tree()
         self.module_list = list(self.module_tree.keys()) + ['module']
+        self.peer_info_list = commune.peer_info_list()
         
     
 
@@ -105,12 +106,11 @@ class Dashboard:
 
  
     def streamlit_peer_info(self):
-        server_registry = self.server_registry
         
-        num_peers = len(server_registry)
-        peer = st.selectbox('Select Module', self.live_peers, 0)
+        
+        
+        num_peers = len(self.peer_info_list)
 
-        peer_info = commune.get_peer_info(peer)
         peers = self.live_peers
             
         cols = st.columns(3)
@@ -128,13 +128,14 @@ class Dashboard:
                 if i >= num_peers:
                     break
                 
-                peer = peers[i]
+                peer = self.peer_info_list[i]
+                peer_name = peer.pop('name')
                 with cols[c_idx]:
+                    st.write(peer_name)
                     st.write(peer)
-                    st.write(server_registry[peer])
-                    kill_button = st.button(f'Kill {peer}')
+                    kill_button = st.button(f'Kill {peer_name}')
                     if kill_button:
-                        commune.kill_server(peer, mode='pm2')
+                        commune.kill_server(peer_name, mode='pm2')
                         st.experimental_rerun()
                         self.load_state()
                     
