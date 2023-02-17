@@ -36,6 +36,8 @@ class Module:
     
     
     
+    
+    
     @classmethod
     def __module_file__(cls) -> str:
         return inspect.getfile(cls)
@@ -2131,6 +2133,29 @@ class Module:
                 cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', 'yellow')
         
         return device  
+    
+    @classmethod
+    def peer_info_list(cls, module = 'Module'):
+        if module == None:
+            module = cls
+        if isinstance(module, str):
+            module = cls.connect(module)
+            
+        external_ip = cls.get_external_ip()
+        peers = module.servers()
+        peer_info_list = []
+        for p in peers:
+            peer = cls.connect(p)
+            peer_stats = peer.server_stats
+            
+            peer_info = {}
+            peer_info['name'] = p
+            peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
+            peer_info['is_local'] = external_ip == peer_stats['external_ip']
+            peer_info_list.append(peer_info)
+        
+        return peer_info_list
+        
     
     def num_params(self, model:'nn.Module')->int:
         import np
