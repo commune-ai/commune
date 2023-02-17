@@ -50,6 +50,9 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
 
 
         # if the function is a property, skip it
+        if hasattr(type(obj), fn_name) and \
+            isinstance(getattr(type(obj), fn_name), property):
+            continue
         if callable(getattr(obj, fn_name)):
             fn_list.append(fn_name)
     return fn_list
