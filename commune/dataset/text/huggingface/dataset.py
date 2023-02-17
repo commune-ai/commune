@@ -19,14 +19,20 @@ import commune
 
 class HFDataset(commune.Module):
     def __init__(self,
-                path:str=None,
-                name:str = None,
-                split:str=None,
+                path:str='glue',
+                name:str = 'cola',
+                split:str='train',
                 tokenizer:'tokenizer'=None, 
+                text_field: str='sentence',
                 config: dict=None, 
                 **kwargs):
-
         self.config = self.set_config(config=config)
+
+        self.path = path
+        self.name = name
+        self.split = split
+        self.text_field = text_field
+        
         
         self.load_tokenizer(tokenizer=tokenizer)
         self.load_dataset(path=path, name=name, split=split)

@@ -28,7 +28,6 @@ class Module:
     root_dir = root_path.split('/')[-1]
     
     def __init__(self, config:Dict=None, save_config_if_not_exists:bool=False, *args,  **kwargs):
-        
         # set the config of the module (avoid it by setting config=False)
         self.set_config(config=config, save_if_not_exists=save_config_if_not_exists)        
 
@@ -495,7 +494,6 @@ class Module:
         '''
         server_info = cls.get_server_info(module)
         import streamlit as st
-        st.write(server_info)
         if 'external_ip' in server_info:
             assert server_info.get('external_ip') == cls.external_ip()
         if isinstance(module, int) or mode == 'local':
@@ -959,7 +957,7 @@ class Module:
         functions = get_functions(obj=obj)
         
         if not include_module:
-            module_functions = cls.get_functions(obj=Module, include_module=True)
+            module_functions = get_functions(obj=Module)
             new_functions = []
             for f in functions:
                 if f == '__init__':
@@ -991,8 +989,8 @@ class Module:
         return self.get_function_signature_map(obj=self, include_module=include_module)
     
     @property
-    def function_default_map(slef):
-        return self.get_function_default_map(obj=self, include_module=include_module)
+    def function_default_map(self):
+        return self.get_function_default_map(obj=self, include_module=False)
         
     @classmethod
     def get_function_default_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
@@ -1194,19 +1192,18 @@ class Module:
                mode:str = 'server',
                name:Optional[str]=None, 
                tag:str=None, 
+               serve: bool = False,
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
         '''
-                
-        if module == None:
-            module = cls
             
-
 
         kwargs = kwargs if kwargs else {}
         args = args if args else []
-        
+        if module == None:
+            module = cls  
+  
         if mode == 'local':
 
             if isinstance(module, str):
@@ -1217,28 +1214,13 @@ class Module:
                 return module_class(*args, **kwargs)
             else:
                 return getattr(module_class, fn)(*args, **kwargs)
-            
-        elif mode == 'server':
-            
-            
-            fn = 'serve_module'
-            kwargs['tag'] = kwargs.get('tag', tag)
-            kwargs['name'] = kwargs.get('name', name)
-            launch_kwargs = dict(
-                    module=module, 
-                    fn = fn,
-                    name=name, 
-                    tag=tag, 
-                    args = args,
-                    kwargs = kwargs,
-                    refresh=refresh,
-                    **extra_kwargs
-            )
-            launch_fn = getattr(cls, f'pm2_launch')
-            launch_fn(**launch_kwargs)
-        
+
         elif mode == 'pm2':
-            assert fn != None, 'fn must be specified for pm2 launch'
+            
+            if serve:
+                fn = 'serve_module'
+                kwargs['tag'] = kwargs.get('tag', tag)
+                kwargs['name'] = kwargs.get('name', name)
             launch_kwargs = dict(
                     module=module, 
                     fn = fn,
@@ -1249,6 +1231,8 @@ class Module:
                     refresh=refresh,
                     **extra_kwargs
             )
+            assert fn != None, 'fn must be specified for pm2 launch'
+
             launch_fn = getattr(cls, f'pm2_launch')
             launch_fn(**launch_kwargs)
         elif mode == 'ray':
@@ -1259,6 +1243,7 @@ class Module:
                     args = args,
                     kwargs = kwargs,
                     refresh=refresh,
+                    serve = serve,
                     **extra_kwargs
             )
             launch_fn = getattr(cls, f'{mode}_launch')
@@ -1370,7 +1355,10 @@ class Module:
     def run(cls): 
         args = cls.argparse()
         self = cls
-        return getattr(self, args.function)(*args.args, **args.kwargs)     
+        if args.function == '__init__':
+            return self(*args.args, **args.kwargs) 
+        else:
+            return getattr(self, args.function)(*args.args, **args.kwargs)     
        
     @classmethod
     def api(cls, *args, **kwargs):
@@ -1546,9 +1534,13 @@ class Module:
                    tag:str=None, 
                    args:List = None, 
                    refresh:bool = False,
-                   kwargs:Dict = None, 
+                   kwargs:Dict = None,
+                   serve: bool = False, 
                    **actor_kwargs):
         
+        launch_kwargs = dict(locals())
+        launch_kwargs.update(launch_kwargs.pop('actor_kwargs'))
+        launch_kwargs = deepcopy(launch_kwargs)
         ray = cls.ray_env()
         """
         deploys process as an actor or as a class given the config (config)
@@ -1577,7 +1569,12 @@ class Module:
         actor_kwargs['name'] = name
         actor_kwargs['refresh'] = refresh
 
-        return cls.create_actor(module=module_class,  args=args, kwargs=kwargs, **actor_kwargs) 
+        actor = cls.create_actor(module=module_class,  args=args, kwargs=kwargs, **actor_kwargs) 
+        if serve:
+            actor = actor.serve(ray_get=False)
+        
+        return actor
+            
 
     default_ray_env = {'address':'auto', 
                      'namespace': 'default',
