@@ -1,2 +1,2 @@
-from .streamlit_module import StreamlitPlotModule
+from .streamlit_module import StreamlitModule
 from .utils import *

@@ -956,6 +956,8 @@ class Module:
             module_functions = cls.get_functions(obj=Module, include_module=True)
             new_functions = []
             for f in functions:
+                if f == '__init__':
+                    new_functions.append(f)
                 if f not in module_functions:
                     new_functions.append(f)
             functions = new_functions
@@ -975,6 +977,36 @@ class Module:
         self.function_signature_map = function_signature_map  
         return function_signature_map
     
+    @classmethod
+    def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
+        if isinstance(peer, str):
+            peer = cls.connect(peer)
+        
+        function_schema_map = peer.function_schema_map()
+        server_stats = peer.server_stats
+        info  = dict(
+            module_id = peer.module_id,
+            server_stats = peer.server_stats,
+            function_schema = function_schema_map,
+            intro =function_schema_map.get('__init__', 'No Intro Available'),
+            examples =function_schema_map.get('examples', 'No Examples Available'),
+            public_ip = server_stats['external_ip'] + ':' + str(server_stats['port']) ,
+
+        )
+        
+        return info
+    
+    def peer_info(self) -> Dict[str, Any]:
+        function_schema_map = self.function_schema_map()
+        info  = dict(
+            module_id = self.module_id,
+            server_stats = self.server_stats,
+            function_schema = function_schema_map,
+            intro =function_schema_map.get('__init__', 'No Intro Available'),
+            examples =function_schema_map.get('examples', 'No Examples Available'),
+
+
+        )
 
     @classmethod
     def get_function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
@@ -982,7 +1014,8 @@ class Module:
         for fn in cls.get_functions(include_module=include_module):
             if not include_hidden:
                 if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
-                    continue
+                    if fn != '__init__':
+                        continue
             if callable(getattr(cls, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
