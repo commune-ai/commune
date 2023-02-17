@@ -971,37 +971,72 @@ class Module:
         return functions
 
     @classmethod
-    def function_signature_map(cls, include_module:bool = False):
+    def get_function_signature_map(cls, obj=None, include_module:bool = False):
         from commune.utils.function import get_function_signature
         function_signature_map = {}
-        for f in cls.get_functions(include_module=include_module):
+        obj = obj if obj else cls
+        for f in cls.get_functions(obj = obj, include_module=include_module):
             if f.startswith('__') and f.endswith('__'):
-                continue
+                if f in ['__init__']:
+                    pass
+                else:
+                    continue
             if callable(getattr(cls, f )):
-                function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}
-              
-        cls.function_signature_map = function_signature_map  
+                function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}        
         
-        
-        
-        
+    
         return function_signature_map
+    @property
+    def function_signature_map(self, include_module:bool = False):
+        return self.get_function_signature_map(obj=self, include_module=include_module)
+    
+    @property
+    def function_default_map(slef):
+        return self.get_function_default_map(obj=self, include_module=include_module)
+        
+    @classmethod
+    def get_function_default_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
+        obj = obj if obj else cls
+        default_value_map = {}
+        function_signature = cls.get_function_signature_map(obj=obj,include_module=include_module)
+        for fn_name, fn in function_signature.items():
+            default_value_map[fn_name] = {}
+
+            for var_name, var in fn.items():
+                if len(var.split('=')) == 1:
+                    var_type = var
+                    default_value_map[fn_name][var_name] = 'NA'
+
+                elif len(var.split('=')) == 2:
+                    var_value = var.split('=')[-1].strip()                    
+                    default_value_map[fn_name][var_name] = eval(var_value)
+        
+        return default_value_map   
+    
+    @property
+    def function_info_map(self):
+        return self.get_function_info_map(obj=self, include_module=include_module)
     
     @classmethod
-    def function_default_map(cls, include_module:bool=False) -> Dict[str, Dict[str, Any]]:
-        
-        function_signature = cls.function_signature_map(include_module=include_module)
-        for fn_name, fn in function_signature.items():
-            for var_name, var in fn.items():
-                default_value_map[fn_name] = {}
-                with st.expander(f'{var_name}'):
-                    if len(var.split('=')) == 1:
-                        var_type = var
-                    elif len(var.split('=')) == 2:
-                        var_value = var.split('=')[-1].strip()                    
-                        default_value_map[fn_name][var_name] = eval(var_value)
-        
-        return default_value_map    
+    def get_function_info_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
+        obj = obj if obj else cls
+        function_schema_map = cls.get_function_schema_map(obj=obj,include_module=include_module)
+        function_default_map = cls.get_function_default_map(obj=obj,include_module=include_module)
+        function_info_map = {}
+        for fn in function_schema_map:
+            function_info_map[fn] = {
+                'default':function_default_map.get(fn, 'NA'),
+                **function_schema_map.get(fn, {}),
+            }
+            
+            if 'self' in function_info_map[fn]['default']:
+                function_info_map[fn]['method_type'] = 'self'
+                function_info_map[fn]['default'].pop('self')
+            elif 'cls' in function_info_map[fn]['default']:
+                function_info_map[fn]['method_type'] = 'cls'
+                function_info_map[fn]['default'].pop('cls')
+
+        return function_info_map    
     
     @classmethod
     def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
@@ -1034,8 +1069,12 @@ class Module:
 
         )
 
+
     @classmethod
-    def get_function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
+    def get_function_schema_map(cls, obj = None, include_hidden:bool = False, include_module:bool = False):
+        
+        obj = obj if obj else cls
+        
         function_schema_map = {}
         for fn in cls.get_functions(include_module=include_module):
             if not include_hidden:

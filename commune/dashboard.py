@@ -73,15 +73,17 @@ class Dashboard:
         st.write(f'## {module_name} ({selected_module})')
         
         
-        function_map =info['funciton_schema_map'] = info['object'].get_function_schema_map()
-        function_signature = info['function_signature_map'] = info['object'].function_signature_map()
-        if hasattr(info['object'], 'default_value_map'):
-            default_value_map = info['default_value_map'] = info['object'].default_value_map()
+        # function_map =info['funciton_schema_map'] = info['object'].get_function_schema_map()
+        # function_signature = info['function_signature_map'] = info['object'].get_function_signature_map()
+        function_info_map = info['function_info_map'] = info['object'].get_function_info_map(include_module=False)
+        for fn, fn_info in function_info_map.items(): 
+            
+            with st.expander(f'{fn} ({fn_info.get("method_type", "static")})', False):
+                for k,v in fn_info.items():
+                    st.write(f'**{k}**')
+                    st.write(v)
+   
 
-                    
-            st.write(default_value_map)   
-
-        st.write(function_signature['fetch_text'])
         # st.write(function_map['__init__'])
         with st.expander('Module Function Schema',False):
             st.write(function_map)
