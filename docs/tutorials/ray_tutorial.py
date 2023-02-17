@@ -15,15 +15,15 @@ class ModuleG:
     
     
 def test_launch():
-    # # print(commune.ray_actors())
+    # # print(commune.block.ray_actors())
     agentF = commune.module(ModuleF)
     agentG = commune.module(ModuleG)
     commune.launch(agentF, mode='ray')
-    assert 'ModuleF' in commune.ray_actors()
+    assert 'ModuleF' in commune.block.ray_actors()
     commune.launch(agentG, mode='ray')
-    assert 'ModuleG' in commune.ray_actors()
+    assert 'ModuleG' in commune.block.ray_actors()
     commune.kill_actor('ModuleG')
-    assert 'ModuleG' not in commune.ray_actors()
+    assert 'ModuleG' not in commune.block.ray_actors()
     commune.kill_actor('ModuleF')
     
     
@@ -39,7 +39,7 @@ def test_gpu_allocation(gpus:int=1, cpus:int=1):
     # print(agent.connect('ModuleF').bro('fam'))
 
 # # list actors
-# print(commune.ray_actors())
+# print(commune.block.ray_actors())
 
 # you can also fetch the module from another file
 # In this example you are fetching the ModuleF from the root directory of commune

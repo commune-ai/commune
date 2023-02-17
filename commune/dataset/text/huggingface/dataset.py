@@ -20,7 +20,7 @@ import commune
 class HFDataset(commune.Module):
     def __init__(self,
                 path:str='glue',
-                name:str = 'cola',
+                flavor:str = 'cola',
                 split:str='train',
                 tokenizer:'tokenizer'=None, 
                 text_field: str='sentence',
@@ -29,13 +29,13 @@ class HFDataset(commune.Module):
         self.config = self.set_config(config=config)
 
         self.path = path
-        self.name = name
+        self.name = flavor
         self.split = split
         self.text_field = text_field
         
         
         self.load_tokenizer(tokenizer=tokenizer)
-        self.load_dataset(path=path, name=name, split=split)
+        self.load_dataset(path=self.path, name=self.name, split=self.split)
 
     def load_tokenizer(self, tokenizer=None): 
         try:
@@ -98,12 +98,12 @@ class HFDataset(commune.Module):
 
     @property
     def split(self):
-        return self.config['split']
+        return self.config['dataset']['split']
 
     @split.setter
     def split(self, split):
         assert split in self.available_splits
-        self.config['split'] = split
+        self.config['dataset']['split'] = split
         self.load_dataset(split=split)
 
     def __len__(self):
@@ -224,30 +224,30 @@ class HFDataset(commune.Module):
 
     @property
     def path(self):
-        return self.config['path']
+        return self.config['dataset']['path']
     
     name = path
 
     @path.setter
     def path(self, value):
-        self.config['path'] = value
+        self.config['dataset']['path'] = value
 
     @property
     def text_field(self):
-        return self.config['text_field']
+        return self.config['dataset']['text_field']
 
     @text_field.setter
     def text_field(self, value):
-        self.config['text_field'] = value
+        self.config['dataset']['text_field'] = value
 
     @property
     def name(self):
-        name = self.config['name'] = self.config.get('name', self.available_names[0])
+        name = self.config['dataset']['name'] = self.config.get('name', self.available_names[0])
         return name
 
     @name.setter
     def name(self, name):
-        self.config['name'] = name
+        self.config['dataset']['name'] = name
         self.load_dataset(name=name)
 
     def list_configs(self):

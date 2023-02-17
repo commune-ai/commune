@@ -11,7 +11,9 @@ import commune
 
 # servers = commune.servers()
 
-commune.launch('dataset.text.bittensor', name='dataset.bittensor', mode='server')
+print(commune.connect('Module').server_stats)
+
+# commune.launch('dataset.text.bittensor', name='dataset.bittensor', mode='server')
 # print(commune.launch('model.dendrite', name='model::dendrite', mode='ray'))
 # import bittensor
 

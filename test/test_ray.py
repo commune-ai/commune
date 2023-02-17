@@ -15,19 +15,19 @@ class ModuleG:
     
     
 def test_launch():
-    # # print(commune.ray_actors())
+    # # print(commune.block.ray_actors())
     commune.launch(ModuleF, mode='ray')
-    assert 'ModuleF' in commune.ray_actors()
+    assert 'ModuleF' in commune.block.ray_actors()
     commune.launch(ModuleG, mode='ray')
-    assert 'ModuleG' in commune.ray_actors()
+    assert 'ModuleG' in commune.block.ray_actors()
     commune.kill_actor('ModuleG')
-    assert 'ModuleG' not in commune.ray_actors()
+    assert 'ModuleG' not in commune.block.ray_actors()
     commune.kill_actor('ModuleF')
     
     
     
 def test_functions():
-    # # print(commune.ray_actors())
+    # # print(commune.block.ray_actors())
     module = commune.launch(ModuleF, mode='ray')
     module.bro == 'fam'
     commune.kill_actor('ModuleF')

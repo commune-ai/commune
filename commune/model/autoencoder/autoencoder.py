@@ -37,6 +37,8 @@ class AutoEncoder(torch.nn.Module, commune.Module):
               device='cpu',
               num_layers:int=1):
         from commune.model.layer import LayerBlock
+        if out_dim == None:
+            out_dim = in_dim
         
         # build the encoder
         encoder_blocks = [LayerBlock(in_dim, hidden_dim)]
@@ -127,8 +129,6 @@ class AutoEncoder(torch.nn.Module, commune.Module):
             x = torch.randn([batch_dim, in_dim])
             for j in range(steps_per_batch):
                 print(self.learn_step(x))
-            
-    
 
 if __name__ == "__main__":
-    AutoEncoder.train()
+    AutoEncoder.run()

@@ -3,7 +3,7 @@ from typing import List, Dict, Union
 import commune
 
 
-class SubstrateAccount(Keypair):
+class SubstrateAccount(Keypair, commune.Module):
     def __init__(self, keypair:Union[Keypair, dict] = None, *args, **kwargs):
         if keypair:
             self.set_keypair(keypair)

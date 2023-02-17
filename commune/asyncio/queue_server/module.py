@@ -1,6 +1,6 @@
 import ray
 import os,sys
-from commune.ray.queue import Queue
+from commune.block.ray.queue import Queue
 from commune import Module
 from commune.utils import dict_put,dict_get,dict_has,dict_delete
 from copy import deepcopy
