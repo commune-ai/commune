@@ -981,7 +981,27 @@ class Module:
                 function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}
               
         cls.function_signature_map = function_signature_map  
+        
+        
+        
+        
         return function_signature_map
+    
+    @classmethod
+    def function_default_map(cls, include_module:bool=False) -> Dict[str, Dict[str, Any]]:
+        
+        function_signature = cls.function_signature_map(include_module=include_module)
+        for fn_name, fn in function_signature.items():
+            for var_name, var in fn.items():
+                default_value_map[fn_name] = {}
+                with st.expander(f'{var_name}'):
+                    if len(var.split('=')) == 1:
+                        var_type = var
+                    elif len(var.split('=')) == 2:
+                        var_value = var.split('=')[-1].strip()                    
+                        default_value_map[fn_name][var_name] = eval(var_value)
+        
+        return default_value_map    
     
     @classmethod
     def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
