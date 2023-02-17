@@ -85,6 +85,7 @@ class ReceptorPool ( torch.nn.Module):
             synapses: List[ 'bittensor.Synapse' ],
             inputs: List [ torch.Tensor ],
             timeout: int,
+            min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
 
@@ -128,6 +129,7 @@ class ReceptorPool ( torch.nn.Module):
                 synapses = synapses,
                 inputs = inputs,
                 timeout = timeout
+                min_successes = min_successes,
             ) 
         )
 

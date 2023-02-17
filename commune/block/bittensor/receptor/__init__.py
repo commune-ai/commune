@@ -23,6 +23,8 @@ import grpc
 import json
 import bittensor
 from . import receptor_impl
+from . import receptor_pool_impl
+
 
 class receptor:
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
@@ -91,7 +93,7 @@ class receptor_pool:
                 max_active_receptors (:type:`int`, `optional`):
                     Maximum allowed active allocated TCP connections.
         """        
-        return bittensor.ReceptorPool ( 
+        return receptor_pool_impl.ReceptorPool ( 
             wallet = wallet,
             max_active_receptors = max_active_receptors,
             compression = compression
