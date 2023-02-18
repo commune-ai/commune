@@ -50,7 +50,7 @@ class Server(ServerServicer, Serializer):
             server: Optional['grpc._Server'] = None,
             config: Optional['commune.config'] = None,
             verbose: bool = True,
-            whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map', 'getattr', 'servers', 'external_ip', 'pm2_status'],
+            whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map', 'getattr', 'servers', 'external_ip', 'pm2_status', 'peer_registry'],
 
         ) -> 'Server':
         r""" Creates a new commune.Server object from passed arguments.

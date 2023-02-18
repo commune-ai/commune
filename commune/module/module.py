@@ -2134,8 +2134,9 @@ class Module:
         
         return device  
     
+    
     @classmethod
-    def peer_info_list(cls, module = '172.83.15.252:50060'):
+    def peer_info_list(cls, module = None):
         if module == None:
             module = cls
         if isinstance(module, str):
@@ -2144,8 +2145,7 @@ class Module:
                  
         external_ip = cls.get_external_ip()
         peers = module.servers()
-        import streamlit as st
-        st.write(peers)
+
         peer_info_list = []
         for p in peers:
             peer = cls.connect(p)
@@ -2158,7 +2158,53 @@ class Module:
             peer_info_list.append(peer_info)
         
         return peer_info_list
+      
+
+    @classmethod
+    def peer_registry(cls, module = None):
+        if module == None:
+            module = cls
+        if isinstance(module, str):
+            module = cls.connect(module)
+            return module.peer_registry()
+                 
+        external_ip = cls.get_external_ip()
+        peers = module.servers()
+        peer_info_list = []
+         
+        peer_registry = cls.get_json('peer_registry')
+        peer_registry = {}
         
+        peer_map = {}
+        for p in peers:
+            peer = cls.connect(p)
+            peer_stats = peer.server_stats
+            peer_info = {}
+            peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
+            peer_info['is_local'] = external_ip == peer_stats['external_ip']
+            peer_map[p] = peer_info
+        peer_registry[external_ip] = peer_map
+        
+        cls.put_json('peer_registry', peer_registry)
+        
+        return peer_registry
+
+    @classmethod
+    def add_peer_registry(cls, endpoint:str):
+        peer_registry = cls.get_json('peer_registry')
+        peer_registry = {}
+        peer_list = peer_registry.get(endpoint, [])
+        remote_peer_list = cls.peer_registry(module=endpoint)
+        
+        peer_list = remote_peer_list + peer_list
+        
+        peer_registry[endpoint] = remote_peer_list
+        
+        cls.put_json('peer_registry', peer_registry)
+        
+        return peer_registry
+        
+  
     
     def num_params(self, model:'nn.Module')->int:
         import np

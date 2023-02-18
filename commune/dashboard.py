@@ -24,7 +24,7 @@ class Dashboard:
         
         self.module_tree = commune.module_tree()
         self.module_list = list(self.module_tree.keys()) + ['module']
-        self.peer_info_list = commune.peer_info_list()
+        self.peer_registry = commune.peer_registry()
         
     
 
@@ -102,50 +102,49 @@ class Dashboard:
                 
             st.metric('Number of Module Serving', len(self.live_peers))
 
-    peer_info_cache = {}
 
  
     def streamlit_peer_info(self):
         
         
         
-        num_peers = len(self.peer_info_list)
 
-        peers = self.live_peers
-            
-        cols = st.columns(3)
+        for ip in self.peer_registry:
+            num_peers = len(self.peer_registry[ip])
+            cols = st.columns(3)
+            num_columns = 4 
+            num_rows = num_peers // num_columns + 1
+            peer_registry = self.peer_registry
+            is_local =  bool(ip == self.public_ip)
+            peer_names = list(self.peer_registry[ip].keys())
+            peer_info = list(self.peer_registry[ip].values())
 
-        
-        num_columns = 4 
-        num_rows = num_peers // num_columns + 1
-       
-        
-        
-        for r_idx in range(num_rows):
-            cols = st.columns([1]*num_columns)
-            for c_idx in range(num_columns):
-                i = r_idx * num_columns + c_idx
-                if i >= num_peers:
-                    break
-                
-                peer = self.peer_info_list[i]
-                peer_name = peer.pop('name')
-                with cols[c_idx]:
-                    st.write(peer_name)
-                    st.write(peer)
-                    kill_button = st.button(f'Kill {peer_name}')
-                    if kill_button:
-                        commune.kill_server(peer_name, mode='pm2')
-                        st.experimental_rerun()
-                        self.load_state()
+    
+            for r_idx in range(num_rows):
+                cols = st.columns([1]*num_columns)
+                for c_idx in range(num_columns):
+                    i = r_idx * num_columns + c_idx
+                    if i >= num_peers:
+                        break
                     
+                    peer_name = peer_names[i]
+                    peer = peer_info[i]
+                    with cols[c_idx]:
+                        st.write(peer_name)
+                        st.write(peer)
+                        kill_button = st.button(f'Kill {peer_name}')
+                        if kill_button:
+                            commune.kill_server(peer_name, mode='pm2')
+                            st.experimental_rerun()
+                            self.load_state()
+                        
+                
+                col_idx = i % num_columns
+                row_idx = i // num_columns
+                
+                    
+                
             
-            col_idx = i % num_columns
-            row_idx = i // num_columns
-            
-            
-        
-        
 
         peer_info_map = {}
  
