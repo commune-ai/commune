@@ -2135,14 +2135,17 @@ class Module:
         return device  
     
     @classmethod
-    def peer_info_list(cls, module = 'Module'):
+    def peer_info_list(cls, module = '172.83.15.252:50060'):
         if module == None:
             module = cls
         if isinstance(module, str):
             module = cls.connect(module)
-            
+            return module.peer_info_list()
+                 
         external_ip = cls.get_external_ip()
         peers = module.servers()
+        import streamlit as st
+        st.write(peers)
         peer_info_list = []
         for p in peers:
             peer = cls.connect(p)
