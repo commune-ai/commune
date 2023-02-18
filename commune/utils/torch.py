@@ -147,3 +147,21 @@ def get_device_memory():
         
 
     nvidia_smi.nvmlShutdown()
+    
+def tensor_dict_info(x:Dict[str, 'torch.Tensor']) -> Dict[str, int]:
+    import torch
+    output_dict = {}
+    for k,v in x.items():
+        if not isinstance(v, torch.Tensor):
+            continue
+        info = dict(
+           shape=v.shape,
+           dtype=str(v.dtype),
+           device=str(v.device),
+           requires_grad= v.requires_grad
+        )
+
+        output_dict[k] = info
+    return output_dict
+       
+    
