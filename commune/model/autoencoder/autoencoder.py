@@ -4,8 +4,6 @@ import torch
 from typing import Optional
 
 
-
-
 class AutoEncoder(torch.nn.Module, commune.Module):
     def __init__(self, 
                  in_dim = 10,
@@ -54,10 +52,9 @@ class AutoEncoder(torch.nn.Module, commune.Module):
         
         decoder_blocks += [LayerBlock(hidden_dim, out_dim)]
         self.decoder = torch.nn.Sequential(*decoder_blocks)
-
-
     def forward(self, x):
-        
+        import streamlit as st
+        st.write(x.shape)
         emb = self.encoder(x.to(self.device))
         emb = self.decoder(emb)
         return emb

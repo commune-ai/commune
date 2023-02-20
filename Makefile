@@ -38,9 +38,6 @@ prune_volumes:
 bash:
 	docker exec -it ${arg} bash
 
-app:
-	make streamlit
-
 
 kill_all:
 	docker kill $(docker ps -q)
@@ -48,9 +45,7 @@ kill_all:
 logs:
 	docker logs ${arg} --tail=100 --follow
 
-streamlit:
-	docker exec -it commune bash -c "streamlit run $(COMMUNE)/${arg}.py "
-	
+
 enter_backend:
 	docker exec -it backend bash
 
@@ -84,7 +79,8 @@ ray_status:
 	ray status
 
 miner:
-	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/model/client/model.py --name miner_${coldkey}_${hotkey} --time --interpreter $(PYTHON) --  --logging.debug  --subtensor.chain_endpoint 194.163.191.101:9944 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --axon.port ${port} 
+	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/model/${mode}/model.py --name miner_${coldkey}_${hotkey}_${mode} --time --interpreter $(PYTHON) --  --logging.debug  --subtensor.chain_endpoint 194.163.191.101:9944 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --axon.port ${port}
+
 
 vali:
 	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/block/bittensor/neuron/validator/neuron.py --name vali_${coldkey}_${hotkey} --time --interpreter python3 -- --logging.debug --subtensor.network local  --neuron.device cuda:1 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --logging.trace True --logging.record_log True  --neuron.print_neuron_stats True
@@ -103,3 +99,8 @@ streamlit_pm2:
 register_loop:
 	pm2 start commune/block/bittensor/bittensor_module.py --name register_loop --interpreter python3 -- --fn register_loop
 
+
+st_ensemble:
+	streamlit run commune/model/ensemble/model.py
+streamlit:
+	pm2 start commune/dashboard.py --name dashboard --interpreter python3 -- -m streamlit run 
