@@ -26,40 +26,22 @@ if os.getenv('USE_STREAMLIT') == 'true':
 import commune
 # commune.utils
 from torch import nn
-commune.new_event_loop()
-import bittensor
-from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
-    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
- 
+
 """
 Examples 
 
 
 
 """
-class TransformerModel( nn.Module, commune.Module):
-    shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-        'gpt125m': 'EleutherAI/gpt-neo-125M',
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptneox': 'EleutherAI/gpt-neox-20b',
-        'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b'
-
-         }
+class  Model( nn.Module, commune.Module):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gpt125m",
-                tokenizer:Union[str, 'tokenizer'] = None,
-                optimizer: torch.optim  = None,
-                metrics: Dict[str, 'Metric'] = None,
                 device: str='cuda',
                 tag :str = None,
-                load: bool = True,
-                autocast: bool = False,
-                finetune : dict = dict(num_layers=4),
+                model: Union[dict,Munch] = None,
+                optimizer: torch.optim  = None,
+                fine_tune_params : dict = {'num_layers': 4},
                 **kwargs
                 ):
         
@@ -67,6 +49,7 @@ class TransformerModel( nn.Module, commune.Module):
         self.tag = tag
         
         print('BROOO')
+        self.device = self.set_device(device)
         
         
         self.stats = {'tag': self.tag}
@@ -77,8 +60,6 @@ class TransformerModel( nn.Module, commune.Module):
 
         self.set_model(model_name=model_name,device=device, autocast=autocast, **kwargs)
 
-        # set tokenizer to model name (HF only) if tokenizer == None
-        self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
         
         self.set_optimizer(optimizer=optimizer)
         
@@ -94,7 +75,7 @@ class TransformerModel( nn.Module, commune.Module):
         
         
     def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
-        
+        import torch
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', torch.optim.Adam)
             assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
@@ -219,32 +200,20 @@ class TransformerModel( nn.Module, commune.Module):
 
         return output_dict
 
-    def loss_fct(self, logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
-        """
-        Calculate loss_fct, CausalLM loss, next-token prediction loss.
-            Args:
-                logits (:obj:`torch.FloatTensor`, `required`):
-                    [batch_size, sequence_len, bittensor.__network_dim__]
-                labels (:obj:`torch.LongTensor`, `required`):
-                    [batch_size, sequence_len]
 
-            Returns:
-                loss (:obj:`torch.FloatTensor`):
-                    scalar
-        """
-        if not hasattr(self, 'loss_fct'):
-            self.loss_fct = torch.nn.CrossEntropyLoss()
-        shift_logits = logits[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
-        loss = self.loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
-
-        return loss
-
-
+    default_device = 'cpu'
     @property
-    def device(self):
+    def device(self) -> str:
         # deepspeed has .module.device to access device
-        return self.model.device
+        if hasattr(self, '_device'):
+            self._device = self.default_device
+        return self._device
+    
+    def set_device(self, device, str) -> str:
+        self._device = self.resolve_device(device)
+        self.to(device)
+        return self._device
+
 
     def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig

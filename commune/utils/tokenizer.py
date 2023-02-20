@@ -1459,3 +1459,51 @@ def decode_topk(  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_si
     logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
 
     return logits  # [batch_size, sequence_len, vocab_size]
+
+
+    @classmethod
+    def test(cls, topk=4096, output_length=20):
+        
+        model = cls()
+        sample = commune.connect('dataset::bittensor').sample()
+
+        sample.update(dict(
+            output_hidden_states=True,
+            hidden_dim_bounds = [0, 100],
+            output_logits=False, 
+            output_topk=True, 
+            output_length=output_length,
+            token_remap = False , 
+            logit_remap = False,
+            topk=topk
+        ))
+        
+        targets = sample['input_ids'][:,1:]
+        sample['input_ids'] = sample['input_ids'][:,:-1]
+        pred = model.forward(**sample, no_grad=True)
+        
+        # pred['logits'] = decode_topk(pred['topk'])
+        logits =  pred['logits']
+        import streamlit as st
+        st.write(pred['peer_losses'])
+        gt = targets[:,-logits.shape[1]:].flatten()
+        pred = logits.reshape(-1, logits.size(-1))
+        loss = cls.calculate_loss(pred=pred, 
+                                    gt=gt)              
+        
+        
+        st.write(loss)
+        # output['logits'] = decode_topk(output['topk'])
+        
+        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
+     
+
+    @classmethod
+    def calculate_loss( cls, pred, gt):
+        loss_fn = torch.nn.CrossEntropyLoss()
+        loss =  loss_fn(pred, gt)
+        return loss
+
+
+if __name__ == '__main__':
+    TokenizerMap.test()

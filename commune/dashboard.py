@@ -233,7 +233,7 @@ class Dashboard:
     @classmethod
     def streamlit(cls):
         self = cls()
-        st.set_page_config(layout="wide")
+        # st.set_page_config(layout="wide")
         
         self.streamlit_sidebar()
         tabs = st.tabs(['Module Launcher', 'Peers', 'Playground'])

@@ -25,9 +25,14 @@ class LayerBlock(torch.nn.Module):
     def forward(self, x:torch.Tensor, choice = 'left'):
         
         x = x.to(self.W.device)
-        assert x.shape[1] == self.in_dim, f'Input dimension {x.shape[0]} does not match layer input dimension {self.in_dim}'
+        
+        original_shape = x.shape
+        x = x.reshape(-1, x.shape[-1])
         emb = torch.einsum('ij,bi -> bj', [self.W, x]) + self.b
+        
         emb = self.norm_fn(emb)
+        
+        emb = emb.reshape(*orignal_shape[:-1], self.emb.shape[-1])
         
         return emb
     

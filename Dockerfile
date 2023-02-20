@@ -2,6 +2,7 @@
 # syntax=docker/dockerfile:1
 FROM nvidia/cuda:12.0.0-devel-ubuntu22.04
 WORKDIR /app
+RUN rm -f /etc/apt/sources.list.d/*.list
 ARG DEBIAN_FRONTEND=noninteractive
 # INSTALL APT PACKAGES
 RUN apt update && apt upgrade -y

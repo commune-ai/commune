@@ -1195,10 +1195,10 @@ class Module:
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
-               mode:str = 'server',
+               mode:str = 'pm2',
                name:Optional[str]=None, 
                tag:str=None, 
-               serve: bool = False,
+               serve: bool = True,
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
@@ -1360,11 +1360,10 @@ class Module:
     @classmethod
     def run(cls): 
         args = cls.argparse()
-        self = cls
         if args.function == '__init__':
-            return self(*args.args, **args.kwargs) 
+            return cls(*args.args, **args.kwargs) 
         else:
-            return getattr(self, args.function)(*args.args, **args.kwargs)     
+            return getattr(cls, args.function)(*args.args, **args.kwargs)     
        
     @classmethod
     def api(cls, *args, **kwargs):
