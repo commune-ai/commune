@@ -60,6 +60,7 @@ class TransformerModel( nn.Module, commune.Module):
                 load: bool = True,
                 autocast: bool = False,
                 finetune : dict = dict(num_layers=4),
+                stats: dict = None, 
                 **kwargs
                 ):
         
@@ -69,7 +70,6 @@ class TransformerModel( nn.Module, commune.Module):
         print('BROOO')
         
         
-        self.stats = {'tag': self.tag}
         
         nn.Module.__init__(self)
         
@@ -84,7 +84,8 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.set_metrics(metrics=metrics)
         
-        self.set_stats()
+        
+        self.set_stats( **(stats if stats else {'tag': self.tag}))
         
         
         if load:
@@ -92,6 +93,20 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.set_fine_tuning_params(**finetune)
         
+        
+    def set_metrics(self, metrics: Dict[str, 'Metric'] = None) -> Dict[str, 'Metric']:
+        if metrics == None:
+            metrics = {}
+        self.metrics = metrics
+        return self.metrics
+    def set_metric(self, key:str, value: float, window_size: int = 100):
+        if key not in self.metrics:
+            metric_class = commune.get_module('commune.utils.math.MovingWindowAverage')
+            self.metrics[key] =  metric_class(value=value, window_size=window_size)
+        return self.metrics[key]
+    
+    def get_metric(self, key:str):
+        return self.metrics[key].value
         
     def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
         
@@ -114,21 +129,39 @@ class TransformerModel( nn.Module, commune.Module):
 
 
     @classmethod
-    def calculate_loss(cls, prediction, gt):
-        loss_fn = torch.nn.CrossEntropyLoss()
+    def calculate_loss( cls, pred:torch.Tensor,
+                       gt:torch.Tensor = None,
+                       input: torch.Tensor=None , 
+                       return_value: bool = False,
+                       *args, **kwargs) -> torch.Tensor:
+        '''
+        Calculate the loss for the model.
+        '''
+        if input != None:
+            gt = input[:, -(pred.shape[1]-1):].flatten()
+            pred = pred[:, :pred.shape[1]-1]
+            
+        if len(pred.shape) == 3:
+            pred = pred.reshape(-1, pred.shape[-1])
         
-        loss = loss_fn(prediction, gt.to(prediction.device))
+        assert gt.shape == pred.shape[:1], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
+
+        loss_fn = torch.nn.CrossEntropyLoss( *args, **kwargs)
+        loss =  loss_fn(pred, gt.to(pred.device))
+        if return_value:
+            return loss.item()
         return loss
 
-    def set_metrics(self, metrics=None):
-        self.metrics = {}
-        if metrics == None:
-            self.metrics['cross_entropy'] =  torch.nn.CrossEntropyLoss()
-        return metrics
     
 
-    def forward(self, *args,no_grad=True, autocast:bool=True, **kwargs):
+    def forward(self, *args,  no_grad:bool=True, autocast: bool = True,**kwargs,):
         # import ipdb; ipdb.set_trace()
+
+        #should the model learn from the input in this forward pass
+        learn = kwargs['learn'] = kwargs.get('learn', True)
+        if learn:
+            no_grad = False
+        
         if no_grad:
             with torch.no_grad():
                 if autocast: 
@@ -148,15 +181,19 @@ class TransformerModel( nn.Module, commune.Module):
 
     def local_forward(self,  
                 input_ids: torch.Tensor = None, 
-                topk:int=None, 
+                
+                topk:int=4096, 
+                output_topk:bool = False,
+                output_hidden_states:bool=False,
                 hidden_state_index: int = -1,
                 hidden_dim_bounds: List =  None,
-                output_hidden_states:bool=False,
                 output_logits:bool = True,
                 output_length:int = 10,
                 token_remap:bool = False,
                 logit_remap:bool = False,
                 verbose:bool = False,
+                return_keys:List[str] = None,
+                learn: bool = False,
                 **kwargs):
 
         # if isinstance(input_ids, str) or ((isinstance(input_ids, list) and isinstance(input_ids[0], str))):
@@ -165,6 +202,8 @@ class TransformerModel( nn.Module, commune.Module):
         # transformers.set_seed(0)
         # transformers.enable_full_determinism(0)
         # remap the tokens if token_remap is True
+  
+        
         tokens = {
             'input_ids': input_ids,
         }
@@ -176,30 +215,52 @@ class TransformerModel( nn.Module, commune.Module):
         
         tokens['input_ids'] = tokens['input_ids'].to(self.device)
 
+        print(tokens['input_ids'].device, self.device)
         model_output = self.model(input_ids=tokens['input_ids'],
                                   output_hidden_states=True)
+        
+        
+        
+        if learn:
+            self.optimizer.zero_grad()
+            
         
         # sometime we dont care about the begginning of the sequence
         
         output_length = output_length if output_length else model_output.logits.size(1)
         model_output.logits = model_output.logits[:,-output_length:,:]
         
+        output_dict = {}
+        
+        self.stats['learn_steps'] = self.stats.get('learn_steps', 0)
+        
+        if learn:
+            
+            loss = self.calculate_loss(pred=model_output.logits, input=tokens['input_ids'])   
+            loss.backward()
+            self.optimizer.step()
+            self.stats['learn_steps'] = self.stats['learn_steps'] + 1
+            self.set_metric('loss', loss.item())
+            self.stats['loss'] = self.metrics['loss'].value
+            
+            print(self.stats)
+        
+        output_dict['stats'] = self.stats
+
+             
         # remap back to original tokens if token_remap is True
         if logit_remap:
-            pre_logits = model_output.logits.to(self.device)
-            probs_std = translate_logits_to_probs_std(pre_logits,
-                                                        tokens['offset_mapping'], tokens['offset_mapping_std'],
-                                                        self.tokenizer, self.std_tokenizer,
-                                                        self.split_map_cache,
-                                                        self.to_translation_map, 
-                                                        self.from_translation_map,
-                                                        tokens['input_ids'], input_ids)
-            probs_std = probs_std.to(self.device)
-            logits_std = torch.log(probs_std + 1e-40)            
-            model_output.logits = logits_std
+            self.logit_remap(logits = model_output.logits, input_ids=input_ids)
+           
         
-        output_dict = {}
-        if topk:
+        if isinstance(return_keys, list):
+            for key in return_keys:
+                assert key in ['logits','hidden_states','input_ids'], f'Invalid return key {key}'
+                # set the output_{key} to True
+                locals()[f'output_{key}'] = True
+
+        
+        if output_topk:
             topk_tensor = self.encode_topk(model_output.logits, topk=topk)
             output_dict['topk']=topk_tensor
             
@@ -207,7 +268,8 @@ class TransformerModel( nn.Module, commune.Module):
             output_dict['logits']=model_output.logits
 
         if output_hidden_states:
-            output_dict['hidden_states'] = model_output.hidden_states[-1][:,-output_length:,:]
+            output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index] 
+            output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
             hidden_dim = output_dict['hidden_states'].size(-1)
             if isinstance(hidden_dim_bounds, int):
                 hidden_dim_bounds = [0, hidden_dim_bounds]
@@ -215,6 +277,10 @@ class TransformerModel( nn.Module, commune.Module):
             hidden_dim_bounds = hidden_dim_bounds if hidden_dim_bounds else [0, hidden_dim+1]
             output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
             
+            
+        
+        
+        
 
 
         return output_dict
@@ -244,8 +310,23 @@ class TransformerModel( nn.Module, commune.Module):
     @property
     def device(self):
         # deepspeed has .module.device to access device
-        return self.model.device
+        if not hasattr(self, '_device'):
+            if hasattr(self, 'model'):
+                assert hasattr(self.model, 'device'), 'model has no device attribute'
+                self._device = self.model.device
+            else:
+                self._device = self.set_device(device)
+                
+            
+        return self._device
 
+    def set_device(self, device:str = None):
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = self.resolve_device(device)
+        self._device = device
+        self.to(device)
+        return self._device
     def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
 
@@ -255,13 +336,12 @@ class TransformerModel( nn.Module, commune.Module):
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                                             **extra_model_kwargs)        
         
+        # convert model_config to config
         self.model_config = json.loads(self.model.config.to_json_string())
         
-        device = self.resolve_device(device=device)
-
-        self.model = self.model.to(device)
+        self.set_device(device=device)
         
-        
+        logger.success(self.model.device, 'DEBUG')
         self.autocast = autocast
         if self.autocast:
             self.model = self.model.half()
@@ -329,14 +409,11 @@ class TransformerModel( nn.Module, commune.Module):
         print('TESTING TOPK OUTPUT')
         logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
     
-    
 
-    def learn_step(self, **sample ):
+    def learn_forward(self, **sample ):
         targets = sample['input_ids'][:,1:]
         sample['input_ids'] = sample['input_ids'][:,:-1]
         self.optimizer.zero_grad()
-        
-        
         sample['topk'] = 4096
         pred = self.forward(**sample, no_grad=False)
         pred['logits'] = decode_topk(pred['topk'], vocab_size=self.model.config.vocab_size)
@@ -356,8 +433,13 @@ class TransformerModel( nn.Module, commune.Module):
         return loss.item()
     
 
-    def set_stats(self, **stats) -> None: 
+    def set_stats(self, **stats) -> Dict[str, Any]: 
+        if not hasattr(self, 'stats'):
+            self.stats = {'tag': self.tag}
+            
         self.stats = {**self.stats, **stats}
+        return self.stats
+        
         
     def get_stats(self ) -> dict:
         return self.stats
@@ -493,20 +575,21 @@ class TransformerModel( nn.Module, commune.Module):
                     backoff_window_size:int = 25,
                     max_iters_since_best:int = 100,
                     dataset:str= 'dataset::bittensor',
-                    best_loss: float = 10e10,
                     **kwargs
                     ):
         model = cls(model_name=model,tag=tag, load=True,  **kwargs)
         dataset = commune.connect(dataset)
-        
+    
+        best_loss = 10e10
         stats = model.get_stats()
-        best_loss = stats.get('loss', best_loss)
-        if best_loss < 0.1:
-            best_loss = 10e10
+        stats['best_loss'] = stats.get('loss', best_loss)
+        
+        if stats['best_loss'] < 0.1:
+            stats['best_loss'] = 10e10
         
         commune.log(f'Loaded {stats} from {tag}', 'yellow')
 
-        metric_window = commune.get_module('commune.utils.math.MovingWindowAverage')(value=2, window_size=window_size)
+        
         # if epoch > 0:
         #     model.load(tag=tag)
         fail_count = 0
@@ -526,12 +609,13 @@ class TransformerModel( nn.Module, commune.Module):
             loss = model.learn_step(**sample)
             
             # update the metric_window
-            metric_window.update(loss)
-            
-            window_loss = metric_window.value
-            info_str = f'Batch {i}/{num_batches} CE: {loss} Window Loss ({window_size}): {window_loss} Best Loss: {best_loss}'
-            commune.log(info_str, 'purple')
-            
+            metric.update(loss)
+            window_loss  = metric.value
+        
+            if verbose:
+                info_str = f'Batch {i}/{num_batches} CE: {loss} : {window_loss} Best Loss: {best_loss}'
+                commune.log(info_str, 'purple')
+                
             if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
                 best_loss = window_loss
                 model.set_stats(loss=best_loss)
@@ -601,7 +685,20 @@ class TransformerModel( nn.Module, commune.Module):
 
         return output_text
     
-
+    def logit_remap(self, logits:torch.Tensor, input_ids:torch.Tensor):
+        raise NotImplementedError('Can you give me a sec fam')
+        # pre_logits = model_output.logits.to(self.device)
+                    
+        # probs_std = translate_logits_to_probs_std(pre_logits,
+        #                                             tokens['offset_mapping'], tokens['offset_mapping_std'],
+        #                                             self.tokenizer, self.std_tokenizer,
+        #                                             self.split_map_cache,
+        #                                             self.to_translation_map, 
+        #                                             self.from_translation_map,
+        #                                             tokens['input_ids'], input_ids)
+        # logits_std = torch.log(probs_std + 1e-40)            
+        
+        return logits_std
     def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
         r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
             Args:
@@ -635,32 +732,11 @@ class TransformerModel( nn.Module, commune.Module):
     @classmethod
     def test(cls, topk=4096, output_length=20):
         
-        model = commune.connect('model::gpt2.7b')
+        model = cls(model_name='gpt125m')
         sample = commune.connect('dataset::bittensor').sample()
-        sample['input_ids'] = sample['input_ids'][:, :-1]
-        targets = sample['input_ids'][:, 1:]
- 
-        sample.update(dict(
-            output_hidden_states=False,
-            output_logits=False, 
-            output_topk=True, 
-            output_length=output_length,
-            token_remap = False , 
-            logit_remap = False,
-            topk=topk
-        ))
-        targets = sample['input_ids'][:,1:]
-        sample['input_ids'] = sample['input_ids'][:,:-1]
-        sample['topk'] = 4096
-        print(sample)
-        pred = model.forward(**sample, no_grad=True)
-        pred['logits'] = decode_topk(pred['topk'], vocab_size=50257)
-        logits =  pred['logits']
-        targets = targets[:,-logits.shape[1]:]
-        pred = logits.reshape(-1, logits.size(-1))
-        loss = cls.calculate_loss(prediction=logits.reshape(-1, logits.size(-1)), 
-                                    gt=targets.flatten())              
-        print(loss)
+        output = model.forward(**sample, learn=True)
+        print(output['stats'])
+
         # output['logits'] = decode_topk(output['topk'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
