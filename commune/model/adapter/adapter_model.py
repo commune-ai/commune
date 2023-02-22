@@ -34,39 +34,25 @@ from typing import *
 from adapter_block import AdapterBlock
 from torch import nn
 
-class AdapterModel(commune.Module, nn.Module):
+class AdapterModel(commune.model.Model):
     
     def __init__(self, model:str='model::gptj', 
                  optimizer=None,
                  device='cuda', 
                  tokenizer: str = 'gptj',
+                 tag = None,
                  **model_kwargs):
-        nn.Module.__init__(self)
+        self.model_name = model + "::adapter"
+        commune.model.Model.__init__(self, 
+                                     tag=model)
+        
         self.model = model
         self.set_model(model=model,**model_kwargs)
         self.set_optimizer(**(optimizer if optimizer != None else {}))
         self.set_tokenizer(tokenizer=tokenizer)
         self.set_device(device)
     
-    def set_optimizer(self, **params) -> 'optimizer':
-        self.optimizer = self.get_optimizer(**params)
-        return self.optimizer
-    
-    def get_optimizer(self, optimizer=None, **params) -> 'optimizer':
-        params = params.pop('params', {'lr': 0.001})
 
-        if optimizer == None:
-            optimizer =  torch.optim.Adam
-        elif isinstance(optimizer, str):
-            optimizer = commune.import_object(optimizer_class)
-        elif isinstance(optimizer, type):
-            return optimizer_class
-        
-        # assumes the params are the first arg
-        optimizer = optimizer(self.parameters(), **params)
-        
-        return optimizer
-    
 
     def forward(self, *args, 
                 output_length=10,
@@ -93,11 +79,6 @@ class AdapterModel(commune.Module, nn.Module):
 
         return Munch(model_output)
     
-
-
-    @property
-    def device(self) -> str:
-        return self._device
 
 
     def set_model(self, model:List[str], device:str = None, **model_kwargs ):
@@ -152,53 +133,7 @@ class AdapterModel(commune.Module, nn.Module):
         self.config.pad_token_id = self.tokenizer.pad_token_id
         self.config.eos_token_id = self.tokenizer.eos_token_id
         return self.tokenizer
-
-
-    def set_stats(self, stats:dict=None): 
-        if stats == None:
-            stats =  dict(
-            )
-        self.stats = Munch(stats)
-        
-
-    @property
-    def module_tag(self): 
-        return self.resolve_module_tag()
-
-    def save(self, tag:str = None, trainable_only:bool = True):
-        module_tag = self.resolve_module_tag(tag=tag)
-        path = self.resolve_path(tag)
-        model_state_dict = self.state_dict()
-        
-        if trainable_only:
-            model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
-    
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        
-        state_dict = {
-            'model': model_state_dict,
-            'optimizer': self.optimizer.state_dict(),
-            'stats': dict(self.stats)
-        }
-    
-        torch.save(state_dict, path)
-        
-        return path
-    
-    def load(self, tag=None):
-        module_tag = self.resolve_module_tag(tag=tag)
-        path = self.resolve_path(module_tag)
-        if not os.path.exists(path):
-            logger.warning(f'No saved model found at {path}')
-            return
-        loaded_state  = torch.load( path)
-        state_dict = self.state_dict()
-        for k,v in loaded_state['model'].items():
-            assert k in state_dict
-            state_dict[k] = v
-        self.load_state_dict(state_dict)
-        self.optimizer.load_state_dict(loaded_state['optimizer'])
-        self.set_stats(loaded_state['stats'])
+  
 
     @classmethod
     def test_neuron(cls, tokenizer='bittensor', num_batches=10, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
@@ -236,14 +171,7 @@ class AdapterModel(commune.Module, nn.Module):
         self = cls( tokenizer=tokenizer)
         n = neuron(model=self)  
         n.run()
- 
 
-    def set_device(self, device:str = None):
-        if device == None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self._device = torch.device(device)
-        return self.device
-    
     
     @classmethod
     def test(cls, topk=1024, output_length=10):
@@ -253,24 +181,76 @@ class AdapterModel(commune.Module, nn.Module):
         model = model.to('cuda')
         for i in range(100):
             sample = dataset.sample(sequence_length=256)
-            loss = model.learn_step(**sample)
+            output = model.learn_step(**sample, save=True)
+            print(output)
             
         # output['logits'] = decode_topk(output['topk'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
      
-
     @classmethod
-    def calculate_loss( cls, pred, gt = None, input=None , *args, **kwargs):
-        if input != None:
-
-            gt = input[:, -pred.shape[1]:].flatten()
+    def calculate_loss( cls,  **kwargs) -> torch.Tensor:
+        '''
+        Calculate the loss for the model.
+        '''
+        pred = kwargs['logits']
+        gt = kwargs['input_ids'][:, -(pred.shape[1]-1):].flatten()
+        return_value = kwargs.get('return_value', False)
+        pred = pred[:, :pred.shape[1]-1]
+            
         if len(pred.shape) == 3:
             pred = pred.reshape(-1, pred.shape[-1])
-        loss_fn = torch.nn.CrossEntropyLoss( *args, **kwargs)
+        
+        assert gt.shape == pred.shape[:1], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
+
+        loss_fn = torch.nn.CrossEntropyLoss()
         loss =  loss_fn(pred, gt.to(pred.device))
+        if return_value:
+            return loss.item()
         return loss
+
+     
+
+    def learn_step(self, **sample):
+
+        save = sample.pop('save', False)
+        load = sample.pop('load', False)
+        tag = sample.pop('tag', None)
+        
+        if load:
+            self.load(tag)
+        sample['no_grad'] = False
+        original_kwargs = {}
+        original_kwargs['output_logits'] = sample.get('output_logits', True)
+        # we need the logits and we need to 
+        if  original_kwargs['output_logits'] == False:
+            sample['output_logits'] = True 
+        
+        self.optimizer.zero_grad()
+        model_output = self.forward(**sample)
+        print('broooo')
+        loss = self.calculate_loss(**model_output, **sample)   
+        print('broooo')
+        loss.backward()
+        self.optimizer.step()
+        
+        self.set_metric('loss', loss.item())
+        self.stats['learn_steps'] =  self.stats.get('learn_steps', 0) + 1
+
+        
+        
+        if not original_kwargs['output_logits']:
+            del model_output['logits']
+            
+        model_output['metrics'] = self.get_metrics()
+        model_output['stats'] = self.stats
+        
+        if save:
+            self.save(tag)
+        
+        return Munch(model_output)
     
+
 if __name__ == "__main__":
     
     

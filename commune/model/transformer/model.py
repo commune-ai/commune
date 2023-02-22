@@ -55,7 +55,6 @@ class TransformerModel( nn.Module, commune.Module):
                 metrics: Dict[str, 'Metric'] = None,
                 device: str='cuda',
                 load: bool = True,
-                autocast: bool = False,
                 finetune : dict = dict(num_layers=4),
                 stats: dict = None, 
                 topk: int = 4096,
@@ -67,15 +66,12 @@ class TransformerModel( nn.Module, commune.Module):
         self.tag = tag if tag else model_name
         self.topk = topk
         
-        print('BROOO')
-        
-        
         
         nn.Module.__init__(self)
         
         # set model and tokenizer
 
-        self.set_model(model_name=model_name,device=device, autocast=autocast, **kwargs)
+        self.set_model(model_name=model_name,device=device **kwargs)
 
         # set tokenizer to model name (HF only) if tokenizer == None
         self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
@@ -310,7 +306,7 @@ class TransformerModel( nn.Module, commune.Module):
         self._device = device
         self.to(device)
         return self._device
-    def set_model(self, model_name:str, device:str = None, autocast:bool = False, **extra_model_kwargs):
+    def set_model(self, model_name:str, device:str = None, **extra_model_kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
 
         self.model_name = self.shortcuts.get(model_name, model_name)
@@ -323,10 +319,6 @@ class TransformerModel( nn.Module, commune.Module):
         self.config = json.loads(self.model.config.to_json_string())
         
         self.set_device(device=device)
-        
-        self.autocast = autocast
-        if self.autocast:
-            self.model = self.model.half()
             
         return self.model
 
@@ -516,6 +508,7 @@ class TransformerModel( nn.Module, commune.Module):
         for k,v in loaded_state['model'].items():
             assert k in state_dict
             state_dict[k] = v
+            
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
         self.metrics = MetricMap.from_dict(loaded_state.get('metrics', {}))

@@ -4,16 +4,21 @@ import commune
 from typing import *
 
 class MetricCounter(commune.Module):
+    metric_id = 'counter'
     def __init__(self,value: Union[int, float] = 0, **kwargs): 
     
+        self.metric_type = self.module_name()
         self.value = value
         
-            
+         
     def update(self, *args, **kwargs):
         '''
         Update the moving window average with a new value.
         '''
+        
         self.value += 1 
+        
+        return self.value
 
 
     def to_dict(self) -> Dict:
@@ -30,19 +35,12 @@ class MetricCounter(commune.Module):
     def test(cls):
         
         # testing constant value
-        constant = 10
-        self = cls(value=constant)
-        
-        for i in range(10):
-            self.update(10)
-            assert constant == self.value
+        iter_count = 10
+        for i in range(iter_count):
+            self.update()
             
-        variable_value = 100
-        window_size = 10
-        self = cls(value=variable_value, window_size=window_size+1)
-        for i in range(variable_value+1):
-            self.update(i)
-        print(self.value)
-        assert self.value == (variable_value - window_size/2)
-        print(self.window_values)
+        assert constant == self.value
+        state_dict = self.to_dict()
+        self = cls.from_dict(state_dict)
+        self.value == iter_count
             

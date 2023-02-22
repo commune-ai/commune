@@ -186,7 +186,7 @@ class Serializer:
         
         return data_type
 
-    def get_non_json_objects(self,x:dict, object_map:dict=None, root_key:str='', python_types:Optional[list]=[int, bool, float, tuple, dict, list, str, type(None)]):
+    def get_non_json_objects(self,x:dict, object_map:dict=None, root_key:str=None, python_types:Optional[list]=[int, bool, float, tuple, dict, list, str, type(None)]):
         object_map = object_map if object_map != None else {}
         k_list = []
         if isinstance(x, dict):
