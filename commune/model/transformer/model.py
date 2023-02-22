@@ -151,6 +151,8 @@ class TransformerModel( nn.Module, commune.Module):
         #should the model learn from the input in this forward pass
         learn = kwargs['learn'] = kwargs.get('learn', True)
 
+        if learn == True:
+            no_grad = False
         if no_grad:
             with torch.no_grad():
                 if autocast: 
@@ -245,6 +247,11 @@ class TransformerModel( nn.Module, commune.Module):
             
         if output_logits:
             output_dict['logits']=model_output.logits
+
+
+        if learn:
+            
+
 
         if output_hidden_states:
             output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index] 
@@ -372,25 +379,10 @@ class TransformerModel( nn.Module, commune.Module):
         
         return tokenizer_output.input_ids.to(device)
 
-    @classmethod
-    def test_model(cls, batch_size=8, sequence_length=256, model_name='EleutherAI/gpt-neox-20b'):
-        self = cls(serve=False, model_name=model_name)
-        example = ["My name is Philipp and I"]*batch_size
-        input_ids = self.tokenizer(example,return_tensors="pt", max_length=sequence_length, padding='max_length').input_ids.to(self.device)
-        
-        print('TESTING LOGITS OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
-        
-        print('TESTING TOPK OUTPUT')
-        logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
-    
+
 
     def learn_step(self, **sample):
-        '''
-        {
-            '
-        }
-        '''
+
         save = sample.pop('save', False)
         load = sample.pop('load', False)
         tag = sample.pop('tag', None)
@@ -398,8 +390,6 @@ class TransformerModel( nn.Module, commune.Module):
         if load:
             self.load(tag)
         sample['no_grad'] = False
-        
-        
         original_kwargs = {}
         original_kwargs['output_logits'] = sample.get('output_logits', True)
         # we need the logits and we need to 
@@ -745,7 +735,7 @@ class TransformerModel( nn.Module, commune.Module):
         return tokens
     @classmethod
     def test(cls, topk=4096, output_length=20):
-        model = cls(model_name='gpt125m', load=True)
+        model = cls(model_name='gpt125m', load=False)
         sample = commune.connect('dataset::bittensor').sample()
         output = model.learn_step(**sample, save=True)
         print(output)

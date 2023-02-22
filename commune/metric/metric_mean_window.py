@@ -13,6 +13,7 @@ class MetricMeanWindow(commune.Module):
     
         self.metric_type = self.module_name()
         self.set_window_size(window_size=window_size, window_values=window_values)
+        self.value 
             
 
     def set_window_size(self, window_size:int=100, window_values:List[Union[int, float]] = None)-> int:
@@ -28,11 +29,12 @@ class MetricMeanWindow(commune.Module):
             self.window_values +=  [value]
             if len(self.window_values) > self.window_size:
                 self.window_values = self.window_values[-self.window_size:]
-        
-        self.value = sum(self.window_values)/len(self.window_values)
-        
-        return self.value
 
+        return self.value
+    @property
+    def value(self) -> Dict:
+        return sum(self.window_values)/len(self.window_values)
+        
     def __str__(self):
         return str(self.value)
 
