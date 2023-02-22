@@ -42,7 +42,7 @@ class Model( nn.Module, commune.Module):
                 metrics: Dict[str, 'Metric'] = None,
                 stats: Dict[str, 'Metric'] = None,
                 device: str='cuda',
-                load: bool = True,
+                load: bool = False,
                 finetune: bool = None,
                 
                 **kwargs
@@ -57,19 +57,16 @@ class Model( nn.Module, commune.Module):
         self.metrics = metrics if metrics != None else MetricMap(metrics=metrics)
         self.stats = stats if stats != None else {'tag': self.tag}
         
-        if load:
-            self.load(tag)
         
-        if finetune:
-            self.set_fine_tuning_params(**finetune)
-        
-        
-    def set_metrics(self, metrics: Dict[str, 'Metric'], from_dict:bool  = True) -> None:
+    def set_metrics(self, metrics: Dict[str, 'Metric']  , from_dict:bool  = True) -> None:
         if not hasattr(self, 'metrics'):
             if from_dict:
                 self.metrics = MetricMap.from_dict(metrics)
             else:
-                self.metrics = MetricMap(metrics=metrics)  
+                self.metrics = MetricMap(metrics=metrics)
+        
+        for key, metric in metrics.items():
+            self.metrics[key] = metric
                 
           
     def set_metric(self, key:str, value:float, **kwargs):
@@ -180,17 +177,10 @@ class Model( nn.Module, commune.Module):
         return module_tag
     
 
-    def save_pretrained(self, path:str = None, tag:str = None,  *args, **kwargs):
-        # Save the model and tokenizer
-        module_tag = self.resolve_module_tag(tag)
-        path = self.resolve_path('pretrained/'+module_tag)
-        self.model.save_pretrained(path, *args, **kwargs)
-        self.tokenizer.save_pretrained(path, *args, **kwargs)
-        
     def save(self, tag:str = None, trainable_only:bool = True):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
-        model_state_dict = self.model.state_dict()
+        model_state_dict = self.state_dict()
         
         if trainable_only:
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
@@ -218,14 +208,14 @@ class Model( nn.Module, commune.Module):
             logger.warning('No saved model found at {path}')
             return
         loaded_state  = torch.load( path)
-        state_dict = self.model.state_dict()
+        state_dict = self.state_dict()
         
         
         for k,v in loaded_state['model'].items():
             assert k in state_dict
             state_dict[k] = v
             
-        self.model.load_state_dict(state_dict)
+        self.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
         self.metrics = MetricMap.from_dict(loaded_state.get('metrics', {}))
         self.set_stats(**loaded_state['stats'])
@@ -269,7 +259,7 @@ class Model( nn.Module, commune.Module):
             return None     
 
         if layer_name == None:
-            last_layer_name = find_last_layer(self.model)
+            last_layer_name = find_last_layer(self)
         else:
             last_layer_name = layer_name
 
@@ -281,7 +271,7 @@ class Model( nn.Module, commune.Module):
 
         logger.success(f'Set to finetune layer {last_layer_name} and onwards')
         
-        for name, param in self.model.named_parameters():
+        for name, param in self.named_parameters():
             if last_layer_name in name or reached_last_layer == True:
                 param.requires_grad = True
                 reached_last_layer = True
@@ -358,119 +348,13 @@ class Model( nn.Module, commune.Module):
             else:
                 iters_since_best += 1
        
+    def set_stats(self, **kwargs):
+        if not hasattr(self, 'stats'):
+            self.stats = {'tag': self.tag}
+        self.stats.update(kwargs)
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)
-
-    def generate(self, 
-                 text:str = "Today is a beautiful day, and", 
-                 max_length:int=20):
-    
-        '''
-        Generate text from a given text.
-        '''
-        from transformers import (
-            AutoTokenizer,
-            AutoModelForCausalLM,
-            LogitsProcessorList,
-            MinLengthLogitsProcessor,
-            TopKLogitsWarper,
-            TemperatureLogitsWarper,
-            StoppingCriteriaList,
-            MaxLengthCriteria,
-        )
-        import torch
-
-        # set pad_token_id to eos_token_id because GPT2 does not have a EOS token
-        self.model.config.pad_token_id = self.model.config.eos_token_id
-        input_ids = self.tokenizer(text, return_tensors="pt").input_ids
-
-        # instantiate logits processors
-        logits_processor = LogitsProcessorList(
-            [
-                MinLengthLogitsProcessor(15, eos_token_id=self.model.config.eos_token_id),
-            ]
-        )
-        # instantiate logits processors
-        logits_warper = LogitsProcessorList(
-            [
-                TopKLogitsWarper(50),
-                TemperatureLogitsWarper(0.7),
-            ]
-        )
-
-        stopping_criteria = StoppingCriteriaList([MaxLengthCriteria(max_length=max_length)])
-
-        torch.manual_seed(0)
-        with torch.no_grad():
-            outputs = self.model.sample(
-                input_ids,
-                logits_processor=logits_processor,
-                logits_warper=logits_warper,
-                stopping_criteria=stopping_criteria,
-            )
-            
-        commune.print(f'outputs: {outputs.shape}', 'purple')
-
-        output_text = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-        return output_text
-    
-    def logit_remap(self, logits:torch.Tensor, input_ids:torch.Tensor):
-        raise NotImplementedError('Can you give me a sec fam')
-        # pre_logits = model_output.logits.to(self.device)
-                    
-        # probs_std = translate_logits_to_probs_std(pre_logits,
-        #                                             tokens['offset_mapping'], tokens['offset_mapping_std'],
-        #                                             self.tokenizer, self.std_tokenizer,
-        #                                             self.split_map_cache,
-        #                                             self.to_translation_map, 
-        #                                             self.from_translation_map,
-        #                                             tokens['input_ids'], input_ids)
-        # logits_std = torch.log(probs_std + 1e-40)            
-        
-        return logits_std
-    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
-        r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
-            Args:
-                token_batch ( :obj:`torch.LongTensor`, `required`):
-                    token_batch to be retokenized, [batch_size, sequence_len]
-                std_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
-                    The standard tokenizer which was used to tokenize the input.
-                return_offsets_mapping ( :obj:`bool`, `required`):
-                    Return offsets_mapping in tokenization to delineate token segment positions.
-        """
-        if std_tokenizer is None:
-            std_tokenizer = self.std_tokenizer
-
-        text_batch = std_tokenizer.batch_decode(token_batch)  # decode tokens to original text
-        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
-        to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
-
-        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
-                                add_special_tokens=False).to(self.device)  # assume tokenizer.padding_side = 'left'
-
-        if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
-            server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
-            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
-
-            # pad offsets so that special token offset widths match for continued correct alignment
-            tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
-            tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
-                                                       pad_offsets_batch)
-        return tokens
-    @classmethod
-    def test(cls, topk=4096, output_length=20):
-        model = cls(model_name='gpt125m', load=True)
-        sample = commune.connect('dataset::bittensor').sample()
-        output = model.learn_step(**sample, save=True)
-        print(output)
-
-        # output['logits'] = decode_topk(output['topk'])
-        
-        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
-        
-
 
 if __name__ == "__main__":
     

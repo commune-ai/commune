@@ -24,7 +24,7 @@ class LayerBlock(torch.nn.Module):
     }
     def set_norm_fn(self, norm_fn:str, **kwargs):
         if norm_fn == None:
-            norm_fn = lambda x: x
+            norm_fn = None
         elif isinstance(norm_fn, str):
             norm_fn = self.norm_fn_map.get(norm_fn, norm_fn)
             if norm_fn == 'LayerNorm':
@@ -45,7 +45,7 @@ class LayerBlock(torch.nn.Module):
             act_fn = self.act_fn_map.get(act_fn, act_fn)
             act_fn = getattr(torch.nn, act_fn)()
         elif act_fn == None :
-            act_fn = lambda x: x   
+            act_fn = None  
         else:
             raise ValueError(f'Activation function {act_fn} not found')   
         
@@ -69,8 +69,10 @@ class LayerBlock(torch.nn.Module):
         emb = self.layer(x)
         # emb = torch.matmul(x.half(), self.W) + self.b
         # emb = torch.einsum('ij,bi -> bj', [self.W, x]) + self.b
-        emb = self.act_fn(emb)     
-        emb = self.norm_fn(emb)
+        if self.act_fn != None:
+            emb = self.act_fn(emb) 
+        if self.norm_fn != None:
+            emb = self.norm_fn(emb)    
 
         emb = emb.reshape(*original_shape[:-1], emb.shape[-1])
         

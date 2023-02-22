@@ -40,17 +40,22 @@ class AdapterModel(commune.model.Model):
                  optimizer=None,
                  device='cuda', 
                  tokenizer: str = 'gptj',
-                 tag = None,
-                 **model_kwargs):
+                 params = None,
+                 load = False,
+                 **kwargs):
         self.model_name = model + "::adapter"
-        commune.model.Model.__init__(self, 
-                                     tag=model)
+        kwargs['tag'] = self.model_name
+        commune.model.Model.__init__(self, **kwargs )
         
         self.model = model
-        self.set_model(model=model,**model_kwargs)
+        self.params = params if params != None else {}
+        self.set_model(model=model,**self.params)
         self.set_optimizer(**(optimizer if optimizer != None else {}))
         self.set_tokenizer(tokenizer=tokenizer)
         self.set_device(device)
+        
+        if load:
+            self.load()
     
 
 
@@ -176,13 +181,13 @@ class AdapterModel(commune.model.Model):
     @classmethod
     def test(cls, topk=1024, output_length=10):
         
-        model = cls()
+        model = cls(load=True)
         dataset = commune.connect('dataset::bittensor')
         model = model.to('cuda')
         for i in range(100):
             sample = dataset.sample(sequence_length=256)
             output = model.learn_step(**sample, save=True)
-            print(output)
+            print(output['stats'])
             
         # output['logits'] = decode_topk(output['topk'])
         
@@ -219,7 +224,8 @@ class AdapterModel(commune.model.Model):
         
         if load:
             self.load(tag)
-        sample['no_grad'] = False
+            
+            
         original_kwargs = {}
         original_kwargs['output_logits'] = sample.get('output_logits', True)
         # we need the logits and we need to 
@@ -227,10 +233,8 @@ class AdapterModel(commune.model.Model):
             sample['output_logits'] = True 
         
         self.optimizer.zero_grad()
-        model_output = self.forward(**sample)
-        print('broooo')
+        model_output = self.forward(**sample, no_grad=False)
         loss = self.calculate_loss(**model_output, **sample)   
-        print('broooo')
         loss.backward()
         self.optimizer.step()
         
@@ -242,11 +246,14 @@ class AdapterModel(commune.model.Model):
         if not original_kwargs['output_logits']:
             del model_output['logits']
             
-        model_output['metrics'] = self.get_metrics()
-        model_output['stats'] = self.stats
+        model_output['stats'] = deepcopy(self.stats)
+        model_output['stats']['metrics'] = self.get_metrics()
         
         if save:
             self.save(tag)
+            
+        
+        
         
         return Munch(model_output)
     
