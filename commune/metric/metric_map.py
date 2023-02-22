@@ -5,25 +5,47 @@ import commune
 
 class MetricMap(commune.Module):
     
-    default_metric = 'commune.metric.MetricMeanWindow'
+    default_metric_path = 'commune.metric.MetricMeanWindow'
     def __init__(self, metrics:Dict[str, commune.Module] = {}):
+        self.set_metrics(metrics)
+        
+        
+        
+        
+    def set_metrics(self, metrics:Dict[str, commune.Module]) -> None:
         self.metrics = metrics if metrics is not None else {}
-        
-    def set_metric(self, key:str, value: float, metric: str = None, **metric_kwargs):
-        
-        metric = metric if metric is not None else self.default_metric
-        if not hasattr(self, 'metrics'):
+        if metrics == None:
             self.metrics = {}
+        elif  isinstance(metrics, dict):
+            for metric_key, metric in metrics.items():
+                if isinstance(metric, dict):
+                    metric_path = metric.pop('metric_type', self.default_metric_path)
+                    metric_class = commune.get_module(metric_path)
+                    metric = metric_class(**metric)
+                self.metrics[metric_key] = metric
+        else:
+            raise ValueError('metrics must be a dictionary')
+
+    
+    def set_metric(self, key:str, 
+                   value: Any, 
+                   metric: str = None,
+                   refresh: bool = False,
+                   params: dict = None) -> Any:
+        
+        if refresh:
+            self.metrics.pop(key, None)
             
         if key not in self.metrics:
-            metric_kwargs['value'] = value
+            params = params if params is not None else {}
+            metric = metric if metric is not None else self.default_metric_path
             if isinstance(metric,str): 
                 metric_class = commune.get_module(metric)
-            self.metrics[key] =  metric_class(**metric_kwargs)
-        else:
-            self.metrics[key].update(value)
-        print(self.metrics)
-        return self.metrics[key].value
+            self.metrics[key] =  metric_class(**params)
+        
+        return self.metrics[key].update(value)
+    
+    
     def get_metric(self, name:str, return_value:bool=True):
         return self.metrics[name].value
     
@@ -43,9 +65,8 @@ class MetricMap(commune.Module):
     def from_dict(cls, state_dict:Dict):
         metrics = {}
         for metric_key, metric_dict in state_dict.items():
-            print(metric_dict)
             if 'metric_type' not in metric_dict:
-                metric_path = cls.default_metric
+                metric_path = cls.default_metric_path
             else:
                 metric_path = f"commune.metric.{metric_dict['metric_type']}"
             metrics[metric_key] = commune.get_module(metric_path).from_dict(metric_dict)
@@ -56,8 +77,7 @@ class MetricMap(commune.Module):
     
 
         
-    @property
-    def value_map(self):
+    def get_metrics(self):
         return {metric_key: metric.value for metric_key, metric in self.metrics.items()}
     
 

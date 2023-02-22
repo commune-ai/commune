@@ -40,10 +40,12 @@ class Module:
     
     @classmethod
     def __module_file__(cls) -> str:
+        # get the file of the module
         return inspect.getfile(cls)
 
     @classmethod
     def __module_dir__(cls) -> str :
+        # get the directory of the module
         return os.path.dirname(cls.__module_file__())
     
     @classmethod
@@ -91,6 +93,7 @@ class Module:
     
     @classmethod
     def module_path(cls) -> str:
+        # get the module path
         if not hasattr(cls, '_module_path'):
             cls._module_path = cls.get_module_path(simple=True)
         return cls._module_path
@@ -121,6 +124,7 @@ class Module:
     
     @module_tag.setter
     def module_tag(self, value):
+        # set the module tag
         self._module_tag = value
         return self._module_tag
 
@@ -161,7 +165,6 @@ class Module:
     
     @classmethod    
     def dict2munch(cls, x:Dict) -> Munch:
-        from commune.utils.dict import dict2munch
         '''
         Converts a dict to a munch
         '''
@@ -170,10 +173,10 @@ class Module:
     
     @classmethod
     def munch2dict(cls, x:'Munch') -> Dict:
-        from commune.utils.dict import munch2dict
         '''
         Converts a munch to a dict
         '''
+        from commune.utils.dict import munch2dict
         return munch2dict(x)
     
     @classmethod
@@ -2224,6 +2227,31 @@ class Module:
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
 
+    def to_dict(self)-> Dict:
+        return self.__dict__
+    
+    @classmethod
+    def from_dict(cls, input_dict:Dict[str, Any]) -> 'Module':
+        return cls(**input_dict)
+        
+    def to_json(self) -> str:
+        import json
+        state_dict = self.to_dict()
+        assert isinstance(state_dict, dict), 'State dict must be a dictionary'
+        return json.dumps(state_dict)
+    
+
+    @classmethod
+    def from_json(cls, json_str:str) -> 'Module':
+        import json
+        return cls.from_dict(json.loads(json_str))
+        
+    @classmethod
+    def test(cls):
+        for f in dir(cls):
+            if f.startswith('test_'):
+                getattr(cls, f)()
+                
 Block = Lego = Module
 if __name__ == "__main__":
     Module.run()

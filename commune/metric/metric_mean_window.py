@@ -6,26 +6,17 @@ from typing import *
 class MetricMeanWindow(commune.Module):
     metric_id = 'mean_window'
     
-    def __init__(self,value: Union[int, float] = None, 
+    def __init__(self,
                  window_size:int=100, 
                  window_values:List[float]=None,
                  **kwargs): 
     
         self.metric_type = self.module_name()
         self.set_window_size(window_size=window_size, window_values=window_values)
-        
-        if len(self.window_values) == 0:
-            value = value if value is not None else 0
-            self.update(value)
-        else:
-            self.update()
-
             
 
     def set_window_size(self, window_size:int=100, window_values:List[Union[int, float]] = None)-> int:
         self.window_values = window_values if window_values != None else []  
-        if isinstance(self.window_values, int):
-            self.window_values = [self.window_values]
         self.window_size = window_size
         return window_size
 
@@ -39,19 +30,12 @@ class MetricMeanWindow(commune.Module):
                 self.window_values = self.window_values[-self.window_size:]
         
         self.value = sum(self.window_values)/len(self.window_values)
+        
+        return self.value
 
     def __str__(self):
         return str(self.value)
-    
-    def to_dict(self) -> Dict:
-        state_dict = self.__dict__
-        return state_dict   
-    
-     
-    @classmethod
-    def from_dict(cls, state_dict:Dict):
-        
-        return cls(**state_dict)
+
 
     @classmethod
     def test(cls):
