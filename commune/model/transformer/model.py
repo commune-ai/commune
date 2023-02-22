@@ -23,7 +23,7 @@ import commune
 from torch import nn
 # commune.new_event_loop()
 from commune.metric import MetricMap
-import bittensor
+
 from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
         encode_topk, decode_topk
@@ -249,10 +249,6 @@ class TransformerModel( nn.Module, commune.Module):
             output_dict['logits']=model_output.logits
 
 
-        if learn:
-            
-
-
         if output_hidden_states:
             output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index] 
             output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
@@ -343,6 +339,11 @@ class TransformerModel( nn.Module, commune.Module):
         self.tokenizer = tokenizer
         
         
+        try:
+            import bittensor
+        except RuntimeError:
+            commune.new_event_loop()
+            import bittensor
         self.std_tokenizer = bittensor.tokenizer()
         from commune.utils.tokenizer import prep_tokenizer
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
@@ -735,7 +736,7 @@ class TransformerModel( nn.Module, commune.Module):
         return tokens
     @classmethod
     def test(cls, topk=4096, output_length=20):
-        model = cls(model_name='gpt125m', load=False)
+        model = cls(model_name='gpt125m', load=True)
         sample = commune.connect('dataset::bittensor').sample()
         output = model.learn_step(**sample, save=True)
         print(output)

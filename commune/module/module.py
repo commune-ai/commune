@@ -2251,7 +2251,17 @@ class Module:
         for f in dir(cls):
             if f.startswith('test_'):
                 getattr(cls, f)()
-                
+               
+               
+    @classmethod
+    def import_bittensor(cls):
+        try:
+            import bittensor
+        except RuntimeError:
+            cls.new_event_loop()
+            import bittensor
+        return bittensor
+            
 Block = Lego = Module
 if __name__ == "__main__":
     Module.run()

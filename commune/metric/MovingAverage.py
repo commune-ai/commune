@@ -1,19 +1,19 @@
       
 import torch
 import commune
+from commune.metric import Metric
 from typing import *
 
-class MovingAverage(commune.Module):
-    
-    def __init__(self,value: Union[int, float] = None, 
-                 alpha = 0.9,
-                 **kwargs): 
-        
-        
-        self.value = value if value is not None else 0
-        self.metric_type = self.module_name()
+class MovingAverage(Metric):
 
-    def set_alpha(self, alpha = 0.9):
+    def setup(self,
+              value: Union[int, float] = None, 
+              alpha: float = 0.9,
+              **kwargs):
+        self.value = value if value is not None else 0
+        self.set_alpha(alpha)
+                
+    def set_alpha(self, alpha:float = 0.9) -> float:
         assert alpha >= 0 and alpha <= 1, 'alpha must be between 0 and 1'
         self.alpha = alpha
         return alpha
@@ -25,21 +25,8 @@ class MovingAverage(commune.Module):
         for value in values:
             self.value = self.value * self.alpha + value * (1 - self.alpha)
         
-        self.value = sum(self.window_values)/len(self.window_values)
-        
         return self.value
 
-
-    
-    def to_dict(self) -> Dict:
-        state_dict = self.__dict__
-        return state_dict   
-    
-     
-    @classmethod
-    def from_dict(cls, state_dict:Dict):
-        
-        return cls(**state_dict)
 
     @classmethod
     def test(cls):

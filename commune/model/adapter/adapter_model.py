@@ -18,13 +18,7 @@ from commune.utils.tokenizer import decode_topk
 import streamlit as st
 # logger = logger.opt(colors=True)
 import commune
-commune.new_event_loop()
-if os.getenv('USE_STREAMLIT') == 'true':
-    import streamlit as st
 import os
-    
-# import torch
-import commune
 # commune.utils
 from torch import nn
 from torch import Tensor
@@ -37,31 +31,33 @@ from torch import nn
 class AdapterModel(commune.model.Model):
     
     def __init__(self, model:str='model::gptj', 
-                 optimizer=None,
+                 optimizer={'lr': 0.02},
                  device='cuda', 
                  tokenizer: str = 'gptj',
+                 tag = 'bro',
                  params = None,
                  load = False,
                  **kwargs):
-        self.model_name = model + "::adapter"
+        self.model_name = model + ("::"+tag if tag != None else '')
         kwargs['tag'] = self.model_name
         commune.model.Model.__init__(self, **kwargs )
         
         self.model = model
         self.params = params if params != None else {}
-        self.set_model(model=model,**self.params)
-        self.set_optimizer(**(optimizer if optimizer != None else {}))
         self.set_tokenizer(tokenizer=tokenizer)
-        self.set_device(device)
+
+        self.set_model(model=model, device=device, **self.params)
+        self.set_optimizer(optimizer=optimizer)
+
         
         if load:
             self.load()
-    
 
 
     def forward(self, *args, 
                 output_length=10,
                 topk=512, 
+                alpha = 1,
                 **kwargs):
         
         kwargs.update(dict(
@@ -75,30 +71,49 @@ class AdapterModel(commune.model.Model):
             topk=topk
         ))
         
+        kwargs['input_ids'] = kwargs['input_ids'].to(self.device)
+        
         
         model_output = self.model.forward(*args, **kwargs)
 
-        model_output['logits'] = decode_topk(model_output['topk'], vocab_size=int(self.vocab_size), topk= topk)
+        model_output['logits'] = decode_topk(model_output['topk'], vocab_size=int(self.vocab_size), topk= topk).to(self.device)
         model_output['hidden_states'] = model_output['hidden_states'][..., :self.hidden_dim]
-        model_output['adapter_emb'] = self.adapter(model_output['hidden_states'])
+        model_output['adapter_logits'] = self.adapter(model_output['hidden_states'].to(self.device))
 
+        
+        
+        model_output['logits'] = self.combine_logits(model_output['logits'], model_output['adapter_logits'], weights = [1, 0.2])
         return Munch(model_output)
-    
 
 
+    def combine_logits(self, *logits, weights = None):
+        combined_probs = 0
+        combined_probs =torch.zeros_like(logits[0]).to(self.device)
+        if weights == None:
+            weights = [1] * len(logits)
+        for i, logit in enumerate(logits):
+            print( logit.device, combined_probs.device)
+            combined_probs = torch.softmax(logit, dim=-1)*weights[i] + combined_probs
+            
+        combined_probs = combined_probs / combined_probs.sum(dim=-1, keepdim=True)
+        combined_logits = torch.log(combined_probs + 1e-8)
+        return combined_logits
     def set_model(self, model:List[str], device:str = None, **model_kwargs ):
         
         
         self.model = commune.connect(model)
         
         self.config = Munch(self.model.model_config)
+        model_kwargs['out_dim'] = self.tokenizer.vocab_size
+        self.adapter = AdapterBlock(**model_kwargs).to(self.device)
         
-        self.adapter = AdapterBlock(**model_kwargs)
-        self.config.hidden_size = self.config.hidden_dim = self.adapter.hidden_dim
-        self.hidden_size = self.hidden_dim = self.adapter.hidden_dim
+        st.write(self.adapter.device)
+        self.hidden_size = self.hidden_dim = self.config.hidden_dim = self.adapter.hidden_dim
         self.config['adapter'] = self.adapter.config
         
         self.set_device(device)
+        self.config.pad_token_id = self.tokenizer.pad_token_id
+        self.config.eos_token_id = self.tokenizer.eos_token_id
         return self.model
 
     shortcuts =  {
@@ -135,8 +150,7 @@ class AdapterModel(commune.model.Model):
         
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.config.pad_token_id = self.tokenizer.pad_token_id
-        self.config.eos_token_id = self.tokenizer.eos_token_id
+
         return self.tokenizer
   
 
@@ -183,7 +197,6 @@ class AdapterModel(commune.model.Model):
         
         model = cls(load=True)
         dataset = commune.connect('dataset::bittensor')
-        model = model.to('cuda')
         for i in range(100):
             sample = dataset.sample(sequence_length=256)
             output = model.learn_step(**sample, save=True)
@@ -237,11 +250,8 @@ class AdapterModel(commune.model.Model):
         loss = self.calculate_loss(**model_output, **sample)   
         loss.backward()
         self.optimizer.step()
-        
-        self.set_metric('loss', loss.item())
-        self.stats['learn_steps'] =  self.stats.get('learn_steps', 0) + 1
-
-        
+        self.set_metric('loss2', loss.item(), metric='metric')
+        self.set_metric('learn_steps', metric='counter')
         
         if not original_kwargs['output_logits']:
             del model_output['logits']

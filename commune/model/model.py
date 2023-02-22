@@ -23,7 +23,6 @@ import commune
 from torch import nn
 # commune.new_event_loop()
 from commune.metric import MetricMap
-import bittensor
 from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
         encode_topk, decode_topk
@@ -69,11 +68,11 @@ class Model( nn.Module, commune.Module):
             self.metrics[key] = metric
                 
           
-    def set_metric(self, key:str, value:float, **kwargs):
-        return self.metrics.set_metric(key=key, value=value, **kwargs)
+    def set_metric(self, *args, **kwargs):
+        return self.metrics.set_metric(*args, **kwargs)
         
-    def get_metric(self, key:str, value:float, **kwargs) -> float:
-        return self.metrics.get_metric(key=key, value=value, **kwargs)
+    def get_metric(self, *args, **kwargs) -> float:
+        return self.metrics.get_metric(*args,  **kwargs)
     
     def get_metrics(self)-> Dict:
         return self.metrics.get_metrics()
@@ -83,13 +82,12 @@ class Model( nn.Module, commune.Module):
         
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
-            assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
             optimizer_class = self.import_object(module_path) 
             kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
                 
         elif optimizer == None:
             optimizer_class = torch.optim.Adam
-            kwargs = {'lr': 0.00002}
+            kwargs = {'lr': 0.02}
             
         
         else:
@@ -171,13 +169,10 @@ class Model( nn.Module, commune.Module):
     
     def resolve_module_tag(self, tag=None):
         tag = tag if tag else self.tag
-        module_tag = self.model_name.replace("/", "_")
-        if tag:
-            module_tag +=  f'_{tag}'
-        return module_tag
+        return tag
     
 
-    def save(self, tag:str = None, trainable_only:bool = True):
+    def save(self, tag:str = None, trainable_only:bool = True, verbose:bool = True):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
         model_state_dict = self.state_dict()
@@ -185,7 +180,8 @@ class Model( nn.Module, commune.Module):
         if trainable_only:
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
     
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        os.makedirs(path, exist_ok=True)
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
@@ -196,29 +192,35 @@ class Model( nn.Module, commune.Module):
         
         logger.success(f'Saving path {path}')
         
-    
-        torch.save(state_dict, path)
+        for k,v in state_dict.items():
+            torch.save(state_dict[k], os.path.join(path, f'{k}.pt'))
         
         return path
     
     def load(self, tag=None):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
-        if not os.path.exists(path):
-            logger.warning('No saved model found at {path}')
-            return
-        loaded_state  = torch.load( path)
+        
+        import glob
+        path_list = glob.glob(os.path.join(path, '*.pt'))
+        loaded_state_dict = {}
+        for path in path_list:
+            key = os.path.basename(path).replace('.pt', '')
+            if not os.path.exists(path):
+                logger.warning('No saved model found at {path}')
+                return
+            loaded_state_dict[key] = torch.load( path)
+        
         state_dict = self.state_dict()
         
-        
-        for k,v in loaded_state['model'].items():
+        for k,v in loaded_state_dict['model'].items():
             assert k in state_dict
             state_dict[k] = v
             
         self.load_state_dict(state_dict)
-        self.optimizer.load_state_dict(loaded_state['optimizer'])
-        self.metrics = MetricMap.from_dict(loaded_state.get('metrics', {}))
-        self.set_stats(**loaded_state['stats'])
+        self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
+        self.metrics = MetricMap.from_dict(loaded_state_dict.get('metrics', {}))
+        self.set_stats(**loaded_state_dict['stats'])
         
 
     def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
