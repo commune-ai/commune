@@ -14,22 +14,19 @@ from munch import Munch
 import argparse
 import torch
 import json
-from commune.utils.tokenizer import encode_topk, decode_topk
 
 # logger = logger.opt(colors=True)
-
-if os.getenv('USE_STREAMLIT') == 'true':
-    import streamlit as st
-    
     
 # import torch
 import commune
 # commune.utils
 from torch import nn
-commune.new_event_loop()
+# commune.new_event_loop()
+
 import bittensor
-from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
-    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
+from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
+    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
+        encode_topk, decode_topk
  
 """
 Examples 
@@ -52,20 +49,23 @@ class TransformerModel( nn.Module, commune.Module):
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model_name: str="gpt125m",
+                tag :str = None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 optimizer: torch.optim  = None,
                 metrics: Dict[str, 'Metric'] = None,
                 device: str='cuda',
-                tag :str = None,
                 load: bool = True,
                 autocast: bool = False,
                 finetune : dict = dict(num_layers=4),
                 stats: dict = None, 
+                topk: int = 4096,
+                
                 **kwargs
                 ):
         
         
-        self.tag = tag
+        self.tag = tag if tag else model_name
+        self.topk = topk
         
         print('BROOO')
         
@@ -82,41 +82,34 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.set_optimizer(optimizer=optimizer)
         
-        self.set_metrics(metrics=metrics)
-        
+        from commune.metric import MetricMap
+        self.metrics = MetricMap(metrics=metrics)
         
         self.set_stats( **(stats if stats else {'tag': self.tag}))
         
         
         if load:
-            self.load()
+            self.load(tag)
         
         self.set_fine_tuning_params(**finetune)
         
         
-    def set_metrics(self, metrics: Dict[str, 'Metric'] = None) -> Dict[str, 'Metric']:
-        if metrics == None:
-            metrics = {}
-        self.metrics = metrics
-        return self.metrics
-    def set_metric(self, key:str, value: float, window_size: int = 100):
-        if key not in self.metrics:
-            metric_class = commune.get_module('commune.utils.math.MovingWindowAverage')
-            self.metrics[key] =  metric_class(value=value, window_size=window_size)
-        return self.metrics[key]
-    
-    def get_metric(self, key:str):
-        return self.metrics[key].value
+    def set_metric(self, key:str, value:float, **kwargs):
+        return self.metrics.set_metric(key=key, value=value, **kwargs)
         
-    def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
+    def get_metric(self, key:str, value:float, **kwargs):
+        return self.metrics.get_metric(key=key, value=value, **kwargs)
+        
+
+    def set_optimizer(self, optimizer:Dict=None):
         
         if isinstance(optimizer, dict):
-            module_path = optimizer.pop('module', torch.optim.Adam)
+            module_path = optimizer.pop('module', 'torch.optim.Adam')
             assert module_name != None, f'Please specify a valid optimizer ex: torch.optim.Adam'
             optimizer_class = self.import_object(module_path) 
             optimizer_kwargs = optimizer.get('kwargs', optimizer)
             optimizer_args = optimizer.get('args', [])
-            self.optimizeroptimizer_class(*optimizer_args,**optimizer_kwargs)
+            self.optimizer_class(*optimizer_args,**optimizer_kwargs)
                 
         elif optimizer == None:
             self.optimizer = torch.optim.Adam(self.parameters(), lr=0.00002)
@@ -159,9 +152,7 @@ class TransformerModel( nn.Module, commune.Module):
 
         #should the model learn from the input in this forward pass
         learn = kwargs['learn'] = kwargs.get('learn', True)
-        if learn:
-            no_grad = False
-        
+
         if no_grad:
             with torch.no_grad():
                 if autocast: 
@@ -183,8 +174,8 @@ class TransformerModel( nn.Module, commune.Module):
                 input_ids: torch.Tensor = None, 
                 
                 topk:int=4096, 
-                output_topk:bool = False,
-                output_hidden_states:bool=False,
+                output_topk:bool = True,
+                output_hidden_states:bool=True,
                 hidden_state_index: int = -1,
                 hidden_dim_bounds: List =  None,
                 output_logits:bool = True,
@@ -194,6 +185,7 @@ class TransformerModel( nn.Module, commune.Module):
                 verbose:bool = False,
                 return_keys:List[str] = None,
                 learn: bool = False,
+                client_mode: bool =  False,
                 **kwargs):
 
         # if isinstance(input_ids, str) or ((isinstance(input_ids, list) and isinstance(input_ids[0], str))):
@@ -203,7 +195,11 @@ class TransformerModel( nn.Module, commune.Module):
         # transformers.enable_full_determinism(0)
         # remap the tokens if token_remap is True
   
-        
+        # enable client mode for more efficient tensors to be sent over the wire
+        if client_mode == True:
+            output_logits = False
+            output_hidden_states = False
+            output_topk = True
         tokens = {
             'input_ids': input_ids,
         }
@@ -232,21 +228,6 @@ class TransformerModel( nn.Module, commune.Module):
         
         output_dict = {}
         
-        self.stats['learn_steps'] = self.stats.get('learn_steps', 0)
-        
-        if learn:
-            
-            loss = self.calculate_loss(pred=model_output.logits, input=tokens['input_ids'])   
-            loss.backward()
-            self.optimizer.step()
-            self.stats['learn_steps'] = self.stats['learn_steps'] + 1
-            self.set_metric('loss', loss.item())
-            self.stats['loss'] = self.metrics['loss'].value
-            
-            print(self.stats)
-        
-        output_dict['stats'] = self.stats
-
              
         # remap back to original tokens if token_remap is True
         if logit_remap:
@@ -331,17 +312,16 @@ class TransformerModel( nn.Module, commune.Module):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
 
         self.model_name = self.shortcuts.get(model_name, model_name)
-        # model_config = AutoConfig.from_pretrained(self.model_name)
+        # config = AutoConfig.from_pretrained(self.model_name)
         
         self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
                                             **extra_model_kwargs)        
         
-        # convert model_config to config
-        self.model_config = json.loads(self.model.config.to_json_string())
+        # convert config to config
+        self.config = json.loads(self.model.config.to_json_string())
         
         self.set_device(device=device)
         
-        logger.success(self.model.device, 'DEBUG')
         self.autocast = autocast
         if self.autocast:
             self.model = self.model.half()
@@ -363,6 +343,7 @@ class TransformerModel( nn.Module, commune.Module):
         
         
         self.std_tokenizer = bittensor.tokenizer()
+        from commune.utils.tokenizer import prep_tokenizer
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         
         self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
@@ -410,37 +391,69 @@ class TransformerModel( nn.Module, commune.Module):
         logits = self.forward(input_ids, output_hidden_states=True, topk=None,verbose=True)
     
 
-    def learn_forward(self, **sample ):
-        targets = sample['input_ids'][:,1:]
-        sample['input_ids'] = sample['input_ids'][:,:-1]
+    def learn_step(self, **sample):
+        '''
+        {
+            '
+        }
+        '''
+        save = sample.pop('save', False)
+        load = sample.pop('load', False)
+        tag = sample.pop('tag', None)
+        
+        if load:
+            self.load(tag)
+        sample['no_grad'] = False
+        
+        
+        original_kwargs = {}
+        original_kwargs['output_logits'] = sample.get('output_logits', True)
+        # we need the logits and we need to 
+        if  original_kwargs['output_logits'] == False:
+            sample['output_logits'] = True 
+        
         self.optimizer.zero_grad()
-        sample['topk'] = 4096
-        pred = self.forward(**sample, no_grad=False)
-        pred['logits'] = decode_topk(pred['topk'], vocab_size=self.model.config.vocab_size)
-        logits =  pred['logits']
-        targets = targets[:,-logits.shape[1]:]
-        pred = logits.reshape(-1, logits.size(-1))
-        loss = self.calculate_loss(prediction=logits.reshape(-1, logits.size(-1)), 
-                                    gt=targets.flatten().to(self.device))              
-        
-        self.stats['learn_steps'] = self.stats.get('learn_steps', 0)+1
-        
-        
+        model_output = self.forward(**sample)
+        loss = self.calculate_loss(pred=model_output['logits'], input=sample['input_ids'])   
         loss.backward()
         self.optimizer.step()
-    
         
-        return loss.item()
+        self.set_metric('loss', loss.item())
+        self.stats['learn_steps'] +=  self.stats.get('learn_stats', 0) + 1
+
+        
+        
+        if not original_kwargs['output_logits']:
+            del model_output['logits']
+            
+        model_output['stats'] = self.stats
+        
+        if save:
+            self.save(tag)
+        
+        return Munch(model_output)
     
 
     def set_stats(self, **stats) -> Dict[str, Any]: 
         if not hasattr(self, 'stats'):
             self.stats = {'tag': self.tag}
-            
-        self.stats = {**self.stats, **stats}
+        
+        self.stats.update(stats)
         return self.stats
         
-        
+    def set_stat(self, key:str, value:Any) -> Dict[str, Any]: 
+        if not hasattr(self, 'stats'):
+            self.stats = {'tag': self.tag}
+        self.stats[key] = value
+        return value
+    
+    def get_stat(self, key:str,default_value:Any= None) -> Any: 
+        if not hasattr(self, 'stats'):
+            self.stats = {'tag': self.tag}
+        return self.stats.get(key, default_value)
+    
+    
+    
     def get_stats(self ) -> dict:
         return self.stats
 
@@ -472,12 +485,15 @@ class TransformerModel( nn.Module, commune.Module):
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
     
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        
+        self.stats['metrics'] = self.metrics.to_dict()
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
-            'stats': self.stats
+            'stats': self.stats,
+            'config': self.config
         }
+        
+        logger.success(f'Saving path {path}')
         
     
         torch.save(state_dict, path)
@@ -488,15 +504,18 @@ class TransformerModel( nn.Module, commune.Module):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
         if not os.path.exists(path):
-            logger.warning(f'No saved model found at {path}')
+            logger.warning('No saved model found at {path}')
             return
         loaded_state  = torch.load( path)
         state_dict = self.model.state_dict()
+        
+        
         for k,v in loaded_state['model'].items():
             assert k in state_dict
             state_dict[k] = v
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
+        self.metrics = commune.metric.MetricMap.from_dict(loaded_state['stats'].pop('metrics', {'metrics': {}}))
         self.set_stats(**loaded_state['stats'])
         
 
@@ -728,13 +747,11 @@ class TransformerModel( nn.Module, commune.Module):
             tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
                                                        pad_offsets_batch)
         return tokens
-
     @classmethod
     def test(cls, topk=4096, output_length=20):
-        
         model = cls(model_name='gpt125m')
         sample = commune.connect('dataset::bittensor').sample()
-        output = model.forward(**sample, learn=True)
+        output = model.learn_step(**sample, save=True)
         print(output['stats'])
 
         # output['logits'] = decode_topk(output['topk'])
@@ -746,5 +763,6 @@ class TransformerModel( nn.Module, commune.Module):
 if __name__ == "__main__":
     
     TransformerModel.run()
+    # TransformerModel.test()
 
 

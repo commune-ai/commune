@@ -20,6 +20,7 @@ from huggingface_hub import hf_hub_download
 from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
     
+from transformers import  T5Tokenizer, T5ForConditionalGeneration
     
 
 import commune
@@ -36,7 +37,7 @@ Examples
 
 
 """
-class GPTNeoX( nn.Module, commune.Module):
+class T5Model( nn.Module, commune.Module):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -96,17 +97,16 @@ class GPTNeoX( nn.Module, commune.Module):
         self.model_config = AutoConfig.from_pretrained(self.model_name)
         self.model_config.use_cache = False 
         self.model_device = device
-        
+
         if  os.path.exists(self.checkpoint_path):
             commune.log(f'Found weights path at {self.checkpoint_path}', 'green')
         else:
             commune.log(f'Creating new weights path at {self.checkpoint_path}', 'purple')
-            AutoModelForCausalLM.from_config(self.model_config).save_pretrained(self.checkpoint_path)
+            T5Model.from_config(self.model_config).save_pretrained(self.checkpoint_path)
             
 
         with init_empty_weights():
             self.model = AutoModelForCausalLM.from_config(self.model_config)
-
 
         self.max_memory = self.resolve_max_memory(max_memory, max_per_gpu=max_per_gpu)
 
@@ -218,7 +218,7 @@ class GPTNeoX( nn.Module, commune.Module):
                                                         self.split_map_cache,
                                                         self.to_translation_map, 
                                                         self.from_translation_map,
-                                                        tokens['input_ids'], tokens['input_ids'])
+                                                        tokens['input_ids'], input_ids)
             probs_std = probs_std
             logits_std = torch.log(probs_std + 1e-40)            
             model_output.logits = logits_std.to(self.device)

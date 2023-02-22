@@ -349,7 +349,7 @@ class Module:
         return process
 
     shell = cmd = run_command
-
+    
 
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
@@ -556,6 +556,13 @@ class Module:
     @classmethod
     def simple2config(cls, path:str, to_munch=False)-> dict:
         return cls.load_config(cls.simple2configpath(path), to_munch=to_munch)
+    
+    
+    @classmethod
+    def import_path(cls):
+        return cls.path2objectpath(cls.__module_file__())
+    
+    
     @classmethod
     def path2objectpath(cls, path:str) -> str:
         config = cls.path2config(path=path, to_munch=False)
@@ -573,8 +580,8 @@ class Module:
     @classmethod
     def simple2object(cls, path:str) -> str:
         path = cls.simple2path(path)
-        path = cls.path2objectpath(path)
-        return cls.import_object(path)
+        object_path = cls.path2objectpath(path)
+        return cls.import_object(object_path)
 
     @classmethod
     def get_module(cls, path:str, verbose:bool = True) -> str:
@@ -1874,7 +1881,7 @@ class Module:
                 return module_class.__name__
             @classmethod
             def __module_file__(cls): 
-                return cls.get_module_path(obj=module_class, simple=False)
+                return cls.get_module_path(simple=False)
             
             def __call__(self, *args, **kwargs):
                 return self.module.__call__(self, *args, **kwargs)
@@ -2109,6 +2116,11 @@ class Module:
             device = 0
         gpu_map = cls.gpu_map()
         return gpu_map[device]
+
+    def resolve_tag(self, tag:str = None) -> str:
+        if tag is None:
+            tag = self.tag
+        return tag
 
     @classmethod
     def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
