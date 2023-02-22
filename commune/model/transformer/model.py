@@ -22,7 +22,7 @@ import commune
 # commune.utils
 from torch import nn
 # commune.new_event_loop()
-
+from commune.metric import MetricMap
 import bittensor
 from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
@@ -82,7 +82,6 @@ class TransformerModel( nn.Module, commune.Module):
         
         self.set_optimizer(optimizer=optimizer)
         
-        from commune.metric import MetricMap
         self.metrics = MetricMap(metrics=metrics)
         
         self.set_stats( **(stats if stats else {'tag': self.tag}))
@@ -97,8 +96,11 @@ class TransformerModel( nn.Module, commune.Module):
     def set_metric(self, key:str, value:float, **kwargs):
         return self.metrics.set_metric(key=key, value=value, **kwargs)
         
-    def get_metric(self, key:str, value:float, **kwargs):
+    def get_metric(self, key:str, value:float, **kwargs) -> float:
         return self.metrics.get_metric(key=key, value=value, **kwargs)
+    
+    def get_metrics(self)-> Dict:
+        return self.metrics.value_map
         
 
     def set_optimizer(self, optimizer:Dict=None):
@@ -419,13 +421,14 @@ class TransformerModel( nn.Module, commune.Module):
         self.optimizer.step()
         
         self.set_metric('loss', loss.item())
-        self.stats['learn_steps'] +=  self.stats.get('learn_stats', 0) + 1
+        self.stats['learn_steps'] =  self.stats.get('learn_steps', 0) + 1
 
         
         
         if not original_kwargs['output_logits']:
             del model_output['logits']
             
+        model_output['metrics'] = self.get_metrics()
         model_output['stats'] = self.stats
         
         if save:
@@ -485,11 +488,11 @@ class TransformerModel( nn.Module, commune.Module):
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
     
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        self.stats['metrics'] = self.metrics.to_dict()
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
             'stats': self.stats,
+            'metrics': self.metrics.to_dict(),
             'config': self.config
         }
         
@@ -515,7 +518,7 @@ class TransformerModel( nn.Module, commune.Module):
             state_dict[k] = v
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
-        self.metrics = commune.metric.MetricMap.from_dict(loaded_state['stats'].pop('metrics', {'metrics': {}}))
+        self.metrics = MetricMap.from_dict(loaded_state.get('metrics', {}))
         self.set_stats(**loaded_state['stats'])
         
 
@@ -749,10 +752,10 @@ class TransformerModel( nn.Module, commune.Module):
         return tokens
     @classmethod
     def test(cls, topk=4096, output_length=20):
-        model = cls(model_name='gpt125m')
+        model = cls(model_name='gpt125m', load=True)
         sample = commune.connect('dataset::bittensor').sample()
         output = model.learn_step(**sample, save=True)
-        print(output['stats'])
+        print(output)
 
         # output['logits'] = decode_topk(output['topk'])
         
