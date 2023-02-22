@@ -96,8 +96,18 @@ class MultiheadAttention(torch.nn.Module):
     bias_k: Optional[torch.Tensor]
     bias_v: Optional[torch.Tensor]
 
-    def __init__(self, embed_dim, num_heads, dropout=0., bias=True, add_bias_kv=False, add_zero_attn=False,
-                 kdim=None, vdim=None, batch_first=False, device=None, dtype=None) -> None:
+    def __init__(self, 
+                 embed_dim,
+                 num_heads, 
+                 dropout=0., 
+                 bias=True, 
+                 add_bias_kv=False,
+                 add_zero_attn=False,
+                 kdim=None, 
+                 vdim=None,
+                 batch_first=False,
+                 device=None, 
+                 dtype=None) -> None:
         factory_kwargs = {'device': device, 'dtype': dtype}
         super(MultiheadAttention, self).__init__()
         self.embed_dim = embed_dim
@@ -413,13 +423,12 @@ class AdapterModel(torch.nn.Module, commune.Module):
                  in_dim = 10,
                  hidden_dim:int=64,
                  num_layers:int=8,
-                 device: str = 'cpu',
+                 device: str = 'cuda',
                  out_dim: Optional[int] = None,
                  optimizer: Optional[torch.optim.Optimizer] = None):
         torch.nn.Module.__init__(self)
-        self.build(in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim, device=device)
+        self.set_model(in_dim=in_dim, hidden_dim=hidden_dim, out_dim=out_dim, device=device)
         self.set_optimizer(**(optimizer if optimizer != None else {}))
-        self.set_device(device)
         
     @property
     def device(self) -> str:
@@ -429,11 +438,13 @@ class AdapterModel(torch.nn.Module, commune.Module):
         self.to(device)
         self._device = device
         return device
-    def build(self, in_dim:int,
+    def set_model(self,
+                  in_dim:int,
               hidden_dim:int, 
               out_dim:int, 
               device='cpu',
               num_layers:int=1):
+        
         if out_dim == None:
             out_dim = in_dim
         
@@ -451,12 +462,29 @@ class AdapterModel(torch.nn.Module, commune.Module):
         
         decoder_blocks += [LayerBlock(hidden_dim, out_dim, norm_fn=None, act_fn=None)]
         self.decoder = torch.nn.Sequential(*decoder_blocks)
-    def forward(self, x):
+        self.set_device(device)
+        st.write(self.device)
+    def forward(self, x:torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        
         emb = self.encoder(x.to(self.device))
         emb = self.decoder(emb)
         emb = torch.nn.Softmax(dim=-1)(emb)
         emb = torch.log(emb + 1e-8)
         return emb
+
+    @property
+    def device(self):
+        if self._device == None:
+            self._device = commune.resolve_device('cuda')
+        return self._default
+    @property
+    def device(self):
+        return self._device
+    def set_device(self, device:str) -> str:
+        device = commune.resolve_device(device)
+        self.to(device)
+        self._device = device
+        return device
 
     def encode(self, x):
         return self.encoder(x)
@@ -501,7 +529,7 @@ class AdapterModel(torch.nn.Module, commune.Module):
 class EnsembleModel( nn.Module, commune.Module):
 
     def __init__(self,
-                models: List[str] = ['model::gpt125m', 'model::gptj', 'model::gpt3b'],
+                models: List[str] = [ 'model::gptj' ],
                 # models: List[str] = ['model::gpt125m'],
                 hidden_dim = 256,
                 tokenizer: 'tokenizer' = 'bittensor',
@@ -513,8 +541,7 @@ class EnsembleModel( nn.Module, commune.Module):
                 ):
         nn.Module.__init__(self)
         self.tag = tag
-        
-        self.model_device = 'cpu'
+    
         
         self.model_name = 'ensemble'
         
@@ -599,6 +626,8 @@ class EnsembleModel( nn.Module, commune.Module):
         return list(self.models.keys())
 
     def forward(self, *args, output_length=10, topk=512, return_topk_only=True,  **kwargs):
+        
+        
         kwargs.update(dict(
             output_hidden_states=True,
             hidden_dim_bounds = None,
@@ -628,6 +657,9 @@ class EnsembleModel( nn.Module, commune.Module):
         
         max_token_index = max([t['topk'][:,:, kwargs['topk']:].max().item() for t in peer_outputs])
         
+        
+        
+        
         model_names = self.model_names
         for model_i, peer_output in enumerate(peer_outputs):
             if 'hidden_states' in peer_output:
@@ -649,6 +681,9 @@ class EnsembleModel( nn.Module, commune.Module):
         
         output_dict = dict(
             # peer_logits = torch.stack([x['logits'] for x in peer_outputs], dim=0),
+            
+            logits = None,
+            
             peer_hidden_states = torch.stack([x['hidden_states'] for x in peer_outputs], dim=0),
             peer_logits = [],
             peer_loss_per_token = [],
@@ -673,6 +708,9 @@ class EnsembleModel( nn.Module, commune.Module):
         output_dict['peer_loss'] = torch.stack(output_dict['peer_loss'], dim=0)
         output_dict['best_peer_id'] = torch.argmin(output_dict['peer_loss'], dim=0)
         output_dict['best_peer_loss'] = torch.index_select(output_dict['peer_loss'],  index = output_dict['best_peer_id'] , dim=0)
+        
+        
+        
         prior_routing_scores = output_dict['peer_loss_per_sentence'] 
         prior_routing_scores =  (prior_routing_scores - prior_routing_scores.max(0).values[None, ...])/(prior_routing_scores.std(0)[None,...] + 1E-10)
         
@@ -685,38 +723,31 @@ class EnsembleModel( nn.Module, commune.Module):
         # calculate the routing scores
         for model_i, peer_output in enumerate(peer_outputs):
             pred = peer_output['logits']
-            peer_score = prior_routing_scores[model_i, ...][:]
+            peer_score = (prior_routing_scores[model_i, ...][:].to(self.device) + peer_output['routing_score'][model_i])/2
             
             output_dict['peer_logits'] += [torch.einsum('ijk,i -> ijk', pred , prior_routing_scores[model_i])]
         
-        output_dict['logits'] = (self.aggregate(output_dict['peer_logits']).to('cuda') )
         
+        output_dict['logits'] = (self.aggregate(output_dict['peer_logits']).to('cuda') )
+        st.write(peer_output['routing_score'].shape )
+
         pred = output_dict['logits']
         
         
         output_dict['ensemble_loss_per_token'] = self.calculate_loss(pred=output_dict['logits'][:,:-1], input=kwargs['input_ids'], reduction='none')
         output_dict['ensemble_loss_per_token'] = output_dict['ensemble_loss_per_token'].reshape(-1, pred.shape[1]-1)
         output_dict['ensemble_loss_per_sentence'] = output_dict['ensemble_loss_per_token'].mean(-1)
-        
-        
-        
-        
         output_dict['ensemble_loss'] = output_dict['ensemble_loss_per_sentence'].mean()
-        
-        
-        st.write ('Stats Fam')
-        st.write('Ensemble Loss', output_dict['ensemble_loss'])
-        st.write('Peer Loss Per Sentence', output_dict['peer_loss'])
-        st.write('Best Peer Loss', output_dict['best_peer_loss'])
-
+    
         
         return Munch(output_dict)
     
 
+
     @property
-    def device(self):
-        # deepspeed has .module.device to access device
-        return self.model_device
+    def device(self) -> str:
+        return self._device
+
 
     def set_model(self, models:List[str], hidden_dim:int=256, load:bool=True, device:str = None):
         
@@ -728,8 +759,11 @@ class EnsembleModel( nn.Module, commune.Module):
             self.model_adapter[model] = AdapterModel(in_dim=hidden_dim, out_dim=128, hidden_dim=256)
         
         self.config = Munch(self.models[model].model_config)
-        self.hidden_dim = hidden_dim
+        self.hidden_dim  = self.config.hidden_size = hidden_dim 
         self.routing_layer = LayerBlock(in_dim=128, out_dim=1, norm_fn=None, act_fn=None)
+        
+        self.set_device(device)
+        self.to(self.device)
         return self.models
     
 
@@ -949,11 +983,16 @@ class EnsembleModel( nn.Module, commune.Module):
         n = neuron(model=self)  
         n.run()
  
+
+    def set_device(self, device:str = None):
+        if device == None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self._device = torch.device(device)
+        return self.device
 if __name__ == "__main__":
     
-    
-    EnsembleModel.run_neuron()
-    # EnsembleModel.test_neuron()
+    # EnsembleModel.run_neuron()
+    EnsembleModel.test_neuron()
     # print('FUCK')
     # TransformerModel('gptj', tag='demo', load=True).save_pretrained()
     

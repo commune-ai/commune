@@ -14,13 +14,8 @@ from munch import Munch
 import argparse
 import torch
 import json
-from commune.utils.tokenizer import encode_topk, decode_topk
-
 # logger = logger.opt(colors=True)
 
-if os.getenv('USE_STREAMLIT') == 'true':
-    import streamlit as st
-    
     
 # import torch
 import commune
@@ -47,6 +42,7 @@ class  Model( nn.Module, commune.Module):
         
         
         self.tag = tag
+
         
         print('BROOO')
         self.device = self.set_device(device)
@@ -68,8 +64,16 @@ class  Model( nn.Module, commune.Module):
         self.set_stats()
         
         
+        
+        
         if load:
-            self.load()
+            if isinstance(load, str):
+                self.load(load)
+            elif isinstance(load, dict):
+                self.load(**load)
+            
+        self.load(tag=tag)
+        self.set_device(device)
         
         self.set_fine_tuning_params(**finetune)
         
@@ -140,21 +144,12 @@ class  Model( nn.Module, commune.Module):
                 verbose:bool = False,
                 **kwargs):
 
-        # if isinstance(input_ids, str) or ((isinstance(input_ids, list) and isinstance(input_ids[0], str))):
-        #     input_ids = self.tokenize(input_ids)
-        #     token_remap = False
-        # transformers.set_seed(0)
-        # transformers.enable_full_determinism(0)
-        # remap the tokens if token_remap is True
         tokens = {
             'input_ids': input_ids,
         }
         if token_remap:
             tokens = self.token_remap(input_ids, std_tokenizer=self.tokenizer)  # remap to server tokenizer
-    
-        # if verbose:
-        #     print('INPUT_STATISTICS: ',tensor_info_dict(input_dict))
-        
+
         tokens['input_ids'] = tokens['input_ids'].to(self.device)
 
         model_output = self.model(input_ids=tokens['input_ids'],
@@ -351,8 +346,7 @@ class  Model( nn.Module, commune.Module):
         self.tokenizer.save_pretrained(path, *args, **kwargs)
         
     def save(self, tag:str = None, trainable_only:bool = True):
-        module_tag = self.resolve_module_tag(tag=tag)
-        path = self.resolve_path(module_tag)
+        path = self.resolve_path(tag)
         model_state_dict = self.model.state_dict()
         
         if trainable_only:
@@ -372,6 +366,9 @@ class  Model( nn.Module, commune.Module):
         return path
     
     def load(self, tag=None):
+        """
+        
+        """
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
         if not os.path.exists(path):
@@ -385,254 +382,6 @@ class  Model( nn.Module, commune.Module):
         self.model.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state['optimizer'])
         self.set_stats(**loaded_state['stats'])
-        
-
-    def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
-        r''' Set to tune only the parameter of the last layer
-            Returns: 
-                reached_last_layer (:type:`bool`):
-                    If we have set partial of the model to requires grad.
-                
-                last_layer_name (:type:`string`):
-                    The name of the last layer that user specified or we found.
-                    None if the user did not specify and we couldnt find it. 
-        '''
-        def find_last_layer(model: torch.nn.Module) -> Optional[str]:    
-            r''' Recursively find the last layer in a nn.ModuleList
-                Args:
-                    model (:obj:`torch.module`):
-                        The model (or sub-model) to fine the last layer from. 
-                Returns:
-                    name (:type:`str`):
-                        The name (or sub-name) of the last layer.
-                        None if not found
-            '''
-            reverted_child_list = [(name, child) for name, child in model.named_children()]
-            reverted_child_list.reverse()
-
-            for name, child in reverted_child_list:    
-                if isinstance(child, nn.ModuleList):
-                    if num_layers > len(child):
-                        logger.warning(f'Number of finetune layers was set higher then the layers avaliable {len(child)}')
-                        return None
-                    return (name + '.' +str(len(child) - num_layers))
-                
-            for name, child in reverted_child_list:    
-                name_ = find_last_layer(child)
-                if name_ != None:
-                    return (name+'.'+ name_)
-
-            return None     
-
-        if layer_name == None:
-            last_layer_name = find_last_layer(self.model)
-        else:
-            last_layer_name = layer_name
-
-        reached_last_layer = False
-
-        # set the non-last layer parameters not to require grads
-        if (all) or (last_layer_name == None):
-            return False, last_layer_name
-
-        logger.success(f'Set to finetune layer {last_layer_name} and onwards')
-        
-        for name, param in self.model.named_parameters():
-            if last_layer_name in name or reached_last_layer == True:
-                param.requires_grad = True
-                reached_last_layer = True
-            else:
-                param.requires_grad = False
-
-        if reached_last_layer == False:
-            if all:
-                logger.warning('Set to finetune the whole model, this will significantly increase the memory usage.')
-            else:
-                logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
-
-        return reached_last_layer, last_layer_name
-
-
-    @classmethod
-    def run_train(cls, 
-                    model:str='gpt125m',
-                    tag:str = 'demo', 
-                    num_batches:int = 10000,
-                    window_size:int = 50,
-                    backoff_window_size:int = 25,
-                    max_iters_since_best:int = 100,
-                    dataset:str= 'dataset::bittensor',
-                    best_loss: float = 10e10,
-                    **kwargs
-                    ):
-        model = cls(model_name=model,tag=tag, load=True,  **kwargs)
-        dataset = commune.connect(dataset)
-        
-        stats = model.get_stats()
-        best_loss = stats.get('loss', best_loss)
-        if best_loss < 0.1:
-            best_loss = 10e10
-        
-        commune.log(f'Loaded {stats} from {tag}', 'yellow')
-
-        metric_window = commune.get_module('commune.utils.math.MovingWindowAverage')(value=2, window_size=window_size)
-        # if epoch > 0:
-        #     model.load(tag=tag)
-        fail_count = 0
-        iters_since_best = 0
-        for i in range(num_batches):
-            
-            if iters_since_best > max_iters_since_best:
-                model.load(tag=tag)
-            sample = dataset.sample()
-            
-            if not (isinstance(sample, dict) and 'input_ids' in sample):
-                fail_count += 1
-                commune.log(f'Failed to get sample {fail_count} times', 'red')
-                continue
-            
-            
-            loss = model.learn_step(**sample)
-            
-            # update the metric_window
-            metric_window.update(loss)
-            
-            window_loss = metric_window.value
-            info_str = f'Batch {i}/{num_batches} CE: {loss} Window Loss ({window_size}): {window_loss} Best Loss: {best_loss}'
-            commune.log(info_str, 'purple')
-            
-            if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
-                best_loss = window_loss
-                model.set_stats(loss=best_loss)
-                commune.log(f'Best Stats: {model.get_stats()} ', 'green')
-                iters_since_best = 0
-                model.save(tag=tag)
-
-                
-            else:
-                iters_since_best += 1
-       
-    @classmethod
-    def resolve_device(cls, device:str = None) -> str:
-        return commune.resolve_device(device=device)
-
-    def generate(self, 
-                 text:str = "Today is a beautiful day, and", 
-                 max_length:int=20):
-    
-        '''
-        Generate text from a given text.
-        '''
-        from transformers import (
-            AutoTokenizer,
-            AutoModelForCausalLM,
-            LogitsProcessorList,
-            MinLengthLogitsProcessor,
-            TopKLogitsWarper,
-            TemperatureLogitsWarper,
-            StoppingCriteriaList,
-            MaxLengthCriteria,
-        )
-        import torch
-
-        # set pad_token_id to eos_token_id because GPT2 does not have a EOS token
-        self.model.config.pad_token_id = self.model.config.eos_token_id
-        input_ids = self.tokenizer(text, return_tensors="pt").input_ids
-
-        # instantiate logits processors
-        logits_processor = LogitsProcessorList(
-            [
-                MinLengthLogitsProcessor(15, eos_token_id=self.model.config.eos_token_id),
-            ]
-        )
-        # instantiate logits processors
-        logits_warper = LogitsProcessorList(
-            [
-                TopKLogitsWarper(50),
-                TemperatureLogitsWarper(0.7),
-            ]
-        )
-
-        stopping_criteria = StoppingCriteriaList([MaxLengthCriteria(max_length=max_length)])
-
-        torch.manual_seed(0)
-        with torch.no_grad():
-            outputs = self.model.sample(
-                input_ids,
-                logits_processor=logits_processor,
-                logits_warper=logits_warper,
-                stopping_criteria=stopping_criteria,
-            )
-            
-        commune.print(f'outputs: {outputs.shape}', 'purple')
-
-        output_text = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-        return output_text
-    
-
-    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
-        r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
-            Args:
-                token_batch ( :obj:`torch.LongTensor`, `required`):
-                    token_batch to be retokenized, [batch_size, sequence_len]
-                std_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
-                    The standard tokenizer which was used to tokenize the input.
-                return_offsets_mapping ( :obj:`bool`, `required`):
-                    Return offsets_mapping in tokenization to delineate token segment positions.
-        """
-        if std_tokenizer is None:
-            std_tokenizer = self.std_tokenizer
-
-        text_batch = std_tokenizer.batch_decode(token_batch)  # decode tokens to original text
-        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
-        to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
-
-        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
-                                add_special_tokens=False).to(self.device)  # assume tokenizer.padding_side = 'left'
-
-        if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
-            server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
-            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
-
-            # pad offsets so that special token offset widths match for continued correct alignment
-            tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
-            tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
-                                                       pad_offsets_batch)
-        return tokens
-
-    @classmethod
-    def test(cls, topk=4096, output_length=20):
-        
-        model = commune.connect('model::gpt2.7b')
-        sample = commune.connect('dataset::bittensor').sample()
-        sample['input_ids'] = sample['input_ids'][:, :-1]
-        targets = sample['input_ids'][:, 1:]
- 
-        sample.update(dict(
-            output_hidden_states=False,
-            output_logits=False, 
-            output_topk=True, 
-            output_length=output_length,
-            token_remap = False , 
-            logit_remap = False,
-            topk=topk
-        ))
-        targets = sample['input_ids'][:,1:]
-        sample['input_ids'] = sample['input_ids'][:,:-1]
-        sample['topk'] = 4096
-        print(sample)
-        pred = model.forward(**sample, no_grad=True)
-        pred['logits'] = decode_topk(pred['topk'], vocab_size=50257)
-        logits =  pred['logits']
-        targets = targets[:,-logits.shape[1]:]
-        pred = logits.reshape(-1, logits.size(-1))
-        loss = cls.calculate_loss(prediction=logits.reshape(-1, logits.size(-1)), 
-                                    gt=targets.flatten())              
-        print(loss)
-        # output['logits'] = decode_topk(output['topk'])
-        
-        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         
 
 

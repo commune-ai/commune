@@ -3,18 +3,54 @@ from typing import Callable
 
 
 class LayerBlock(torch.nn.Module):
-    def __init__(self, in_dim:int=10, out_dim:int=10, norm_fn:Callable = None, act_fn:Callable = None):
+
+    def __init__(self, in_dim:int=10, out_dim:int=10, norm_fn:Callable = 'layer', act_fn:str = 'gelu'):
         super(LayerBlock, self).__init__()
         
         self.in_dim = in_dim
         self.out_dim = out_dim
         
-        self.W = torch.nn.Parameter(torch.randn(self.in_dim, self.out_dim))
-        self.b = torch.nn.Parameter(torch.randn(self.out_dim))
+        # self.W = torch.nn.Parameter(torch.randn(self.in_dim, self.out_dim))
+        # self.b = torch.nn.Parameter(torch.randn(self.out_dim))
+        self.layer = torch.nn.Linear(self.in_dim, self.out_dim)
+        self.norm_fn = self.set_norm_fn(norm_fn)
+    
+        self.act_fn = self.set_act_fn(act_fn)
+
+    norm_fn_map = {
+        'layer': 'LayerNorm',
+        'group': 'GroupNorm',
+        'batch': 'BatchNorm',
+    }
+    def set_norm_fn(self, norm_fn:str, **kwargs):
+        if norm_fn == None:
+            norm_fn = lambda x: x
+        elif isinstance(norm_fn, str):
+            norm_fn = self.norm_fn_map.get(norm_fn, norm_fn)
+            if norm_fn == 'LayerNorm':
+                kwargs = {'normalized_shape': self.out_dim}
+            norm_fn = getattr(torch.nn, norm_fn)(**kwargs)
+        self.norm_fn = norm_fn
         
-        self.norm_fn = torch.nn.LayerNorm(self.out_dim) if norm_fn == None else norm_fn
-        self.act_fn = torch.nn.GELU() if act_fn == None else act_fn
+        return self.norm_fn
+    act_fn_map = {
+        'relu': 'ReLU',
+        'gelu': 'GELU',
+        'tanh': 'Tanh',
+        'sigmoid': 'Sigmoid',
+        'softmax': 'Softmax'
+    }
+    def set_act_fn(self, act_fn:str):
+        if isinstance(act_fn, str):
+            act_fn = self.act_fn_map.get(act_fn, act_fn)
+            act_fn = getattr(torch.nn, act_fn)()
+        elif act_fn == None :
+            act_fn = lambda x: x   
+        else:
+            raise ValueError(f'Activation function {act_fn} not found')   
         
+        self.act_fn = act_fn
+        return self.act_fn
         # initialize the parameters
     def init_weights(self):
         in_d = self.W.shape[0]
@@ -24,39 +60,22 @@ class LayerBlock(torch.nn.Module):
 
     def forward(self, x:torch.Tensor, choice = 'left'):
         
-        x = x.to(self.W.device)
-        
+        x = x[..., :self.in_dim].to(self.layer.weight.device)
+        # cast x to the same device as the layer weights
+        x = x.to(self.layer.weight.dtype) # cast to the same dtype as the weights
         original_shape = x.shape
         x = x.reshape(-1, x.shape[-1])
-        emb = torch.einsum('ij,bi -> bj', [self.W, x]) + self.b
         
+        emb = self.layer(x)
+        # emb = torch.matmul(x.half(), self.W) + self.b
+        # emb = torch.einsum('ij,bi -> bj', [self.W, x]) + self.b
+        emb = self.act_fn(emb)     
         emb = self.norm_fn(emb)
-        
-        emb = emb.reshape(*orignal_shape[:-1], self.emb.shape[-1])
+
+        emb = emb.reshape(*original_shape[:-1], emb.shape[-1])
         
         return emb
     
-    @classmethod
-    def test(cls, in_dim=10, out_dim=100, batch_dim=10):
-        linear = Layer(in_dim=in_dim, out_dim=out_dim)
-        x = torch.randn([batch_dim, in_dim])
-        linear.to('cuda')
-        target = torch.randn([batch_dim, out_dim])
-        target = target.to('cuda')
-        
-        
-        optimizer = torch.optim.Adam(linear.parameters(), lr=0.1)
-        
-        for i in range(1000):
-            optimizer.zero_grad()
-            pred = linear(x=x)
-
-            loss = (pred - target).pow(2).mean()
-            loss.backward()
-            optimizer.step()
-            print(loss)
-    
-
 
     
     

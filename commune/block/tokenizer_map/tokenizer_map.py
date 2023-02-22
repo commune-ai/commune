@@ -402,7 +402,7 @@ class TokenizerMap(commune.Module):
         return self.tokenizer(text, **kwargs)
     
 
-    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
+    def token_remap(self, token_batch, return_offsets_mapping=False):
         r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
             Args:
                 token_batch ( :obj:`torch.LongTensor`, `required`):
@@ -412,19 +412,17 @@ class TokenizerMap(commune.Module):
                 return_offsets_mapping ( :obj:`bool`, `required`):
                     Return offsets_mapping in tokenization to delineate token segment positions.
         """
-        if std_tokenizer is None:
-            std_tokenizer = self.std_tokenizer
 
-        text_batch = std_tokenizer.batch_decode(token_batch)  # decode tokens to original text
-        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
+        text_batch = self.tokenizer.batch_decode(token_batch)  # decode tokens to original text
+        result = translate_special_token_text(text_batch, self.std_tokenizer, self.tokenizer)  # translate special tokens
         to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
 
-        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
+        tokens = self.std_tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
                                 add_special_tokens=False)  # assume tokenizer.padding_side = 'left'
 
         if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
             server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
-            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
+            std_tokens = self.std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
 
             # pad offsets so that special token offset widths match for continued correct alignment
             tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
@@ -531,8 +529,9 @@ class TokenizerMap(commune.Module):
         
         
         sample = dataset.sample(no_tokenizer=True)
-        tokenizer_map = cls('gpt20b')
-        sample = tokenizer_map.tokenize(sample['text'])
+        tokenizer = cls(tokenizer = 'gpt20b')
+        sample = tokenizer.tokenize(sample['text'])
+        
         
         
 
@@ -546,7 +545,7 @@ class TokenizerMap(commune.Module):
             logit_remap = False,
             topk=topk
         ))
-        sample['input_ids'] = tokenizer_map.token_remap(sample['input_ids'])['input_ids']
+        sample['input_ids'] = tokenizer.token_remap(sample['input_ids'])['input_ids']
         import streamlit as st
         st.write(sample['input_ids'])
         targets = sample['input_ids'][:,1:]
@@ -554,6 +553,7 @@ class TokenizerMap(commune.Module):
         pred = model.forward(**sample, no_grad=True)
         
         pred['logits'] = cls.decode_topk(pred['topk'])
+        
         logits =  pred['logits']
         import streamlit as st
         gt = targets[:,-logits.shape[1]:].flatten()

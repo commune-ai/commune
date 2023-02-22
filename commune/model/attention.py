@@ -1,6 +1,8 @@
 
 import torch
 from torch import nn
+from typing import *
+from torch import Tensor
 
 class MultiheadAttention(torch.nn.Module):
     r"""Allows the model to jointly attend to information
@@ -294,6 +296,9 @@ class MultiheadAttention(torch.nn.Module):
             return attn_output.transpose(1, 0), attn_output_weights
         else:
             return attn_output, attn_output_weights
+
+
+
 
 
 class Attention(nn.Module):
