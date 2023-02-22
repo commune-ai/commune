@@ -11,9 +11,9 @@ class AdapterBlock(torch.nn.Module, commune.Module):
     def __init__(self, 
                  in_dim = 10,
                  hidden_dim:int=64,
+                 out_dim: int = None,
                  num_layers:int=8,
-                 device: str = 'cuda',
-                 out_dim: Optional[int] = None):
+                 device: str = 'cuda'):
         
         self.config = dict(locals())
         self.__dict__.update(self.config)
@@ -56,7 +56,8 @@ class AdapterBlock(torch.nn.Module, commune.Module):
         emb = self.encoder(x.to(self.device))
         emb = self.decoder(emb)
         emb = torch.nn.Softmax(dim=-1)(emb)
-        emb = torch.log(emb + 1e-8)
+        emb = torch.log(emb + 1e-40)
+        print(emb.shape)
         return emb
 
     @property

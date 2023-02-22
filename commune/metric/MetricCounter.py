@@ -1,16 +1,11 @@
       
 import torch
 import commune
+from commune.metric import Metric
 from typing import *
 
-class MetricCounter(commune.Module):
-    metric_id = 'counter'
-    def __init__(self,value: Union[int, float] = 0, **kwargs): 
-    
-        self.metric_type = self.module_name()
-        self.value = value
-        
-         
+class MetricCounter(Metric):
+
     def update(self, *args, **kwargs):
         '''
         Update the moving window average with a new value.
@@ -20,16 +15,6 @@ class MetricCounter(commune.Module):
         
         return self.value
 
-
-    def to_dict(self) -> Dict:
-        state_dict = self.__dict__
-        return state_dict   
-    
-     
-    @classmethod
-    def from_dict(cls, state_dict:Dict):
-        
-        return cls(**state_dict)
 
     @classmethod
     def test(cls):
