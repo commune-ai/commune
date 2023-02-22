@@ -7,7 +7,7 @@ class MetricMap(commune.Module):
     
     default_metric = 'commune.metric.MetricMeanWindow'
     def __init__(self, metrics:Dict[str, commune.Module] = {}):
-        self.metrics = metrics
+        self.metrics = metrics if metrics is not None else {}
         
     def set_metric(self, key:str, value: float, metric: str = None, **metric_kwargs):
         
