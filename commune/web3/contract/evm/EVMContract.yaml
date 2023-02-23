@@ -1,9 +1,8 @@
-
-module: ContractManagerModule
+module: EVMContract
 
 
 network:
-  module: web3.evm.network
+  module: web3.network.evm
   kwargs:
     network: local.main
   actor: False
@@ -17,5 +16,3 @@ account:
   wrap: False
 
 client: [local]
-
-

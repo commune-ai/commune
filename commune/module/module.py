@@ -34,10 +34,6 @@ class Module:
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     
-    
-    
-    
-    
     @classmethod
     def __module_file__(cls) -> str:
         # get the file of the module
@@ -49,7 +45,7 @@ class Module:
         return os.path.dirname(cls.__module_file__())
     
     @classmethod
-    def get_module_path(cls, obj=None,  simple:bool=False) -> str:
+    def get_module_path(cls, obj: Any =None,  simple:bool=False) -> str:
         
         # odd case where the module is a module in streamlit
         if obj == None:
@@ -148,11 +144,6 @@ class Module:
         # if the config file does not exist, then create one where the python path is
 
         return __config_file__
-
-
-    @classmethod
-    def get_module_config_path(cls) -> str:
-        return cls.get_module_path(simple=False).replace('.py', '.yaml')
 
 
     @classmethod
@@ -331,7 +322,7 @@ class Module:
                     stdout_text += (new_line+c).decode()
                     if verbose:
                         log_color = verbose if isinstance(verbose, str) else 'green'
-                        cls.log(new_line.decode(), log_color)
+                        cls.log(new_line.decode(), 'success')
                     new_line = b''
                     continue
                 
@@ -431,6 +422,8 @@ class Module:
         
         The path is determined by the module path 
         
+        NOTE: ONLY RESOLVES PATHS RELATIVE TO THE MODULE ROOT DIRECTORY
+        
         '''
         tmp_dir = cls.tmp_dir()
         if tmp_dir not in path:
@@ -441,7 +434,7 @@ class Module:
 
         return path
     @classmethod
-    def resolve_port(cls, port:int=None, find_available:bool = False):
+    def resolve_port(cls, port:int=None, find_available:bool = False) -> int:
         
         '''
         
@@ -466,7 +459,7 @@ class Module:
     
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
-    def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
+    def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False) -> None:
         for k,v in kwargs.items():
             if k != 'self': # skip the self
                 # we dont want to overwrite existing variables from 
@@ -493,7 +486,7 @@ class Module:
             return cls.run_command('kill -9 $(lsof -t -i:{port})')
 
     @classmethod
-    def kill_server(cls, module:str, mode:str = 'pm2'):
+    def kill_server(cls, module:str, mode:str = 'pm2') -> str:
         '''
         Kill the server by the name
         '''
@@ -530,8 +523,21 @@ class Module:
             if file_ext == '.py':
                 if os.path.exists(file_path+'.yaml'):
                     modules.append(f)
+                    
         return modules
 
+    @classmethod
+    def get_python_file(cls) -> str:
+        python_file_text = ""
+        with open(cls.__module_file__()) as f:
+            lines = f.readlines()
+        
+        for line in lines:
+            cls.log(line)
+            python_file_text += line
+            
+        return python_file_text
+        
     @classmethod
     def path2simple(cls, path:str) -> str:
 
@@ -551,10 +557,10 @@ class Module:
         return cls.load_config(path, to_munch=to_munch)
     
     @classmethod
-    def path2configpath(cls, path:str):
+    def path2configpath(cls, path:str) -> str:
         return path.replace('.py', '.yaml')
     @classmethod
-    def simple2configpath(cls,  path:str):
+    def simple2configpath(cls,  path:str) -> str:
         return cls.path2configpath(cls.simple2path(path))
     @classmethod
     def simple2config(cls, path:str, to_munch=False)-> dict:
@@ -562,7 +568,7 @@ class Module:
     
     
     @classmethod
-    def import_path(cls):
+    def import_path(cls) -> str:
         return cls.path2objectpath(cls.__module_file__())
     
     
@@ -570,14 +576,15 @@ class Module:
     def path2objectpath(cls, path:str) -> str:
         
         module_file_basename = os.path.basename(path).split('.')[0]
-        if module_file_basename[0].is_upper():
-            object_name = module_file_basename
-        else:
-            config = cls.path2config(path=path, to_munch=False)
-            object_name = config.get('module', config.get('name')) 
+
+
+        config = cls.path2config(path=path, to_munch=False)
+        object_name = config.get('module', config.get('name')) 
         path = path.replace(cls.pwd, '').replace('.py','.').replace('/', '.') 
         if path[-1] != '.':
             path = path + '.'
+        if path[0] == '.':
+            path = path[1:]
         path = path + object_name
         return path
 
@@ -703,18 +710,28 @@ class Module:
     ############ JSON LAND ###############
 
     @classmethod
-    def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
+    def get_json(cls,path:str, 
+                 default=None, 
+                 resolve_path: bool = True,
+                 mode:str = 'json', **kwargs):
+        
+
         from commune.utils.dict import load_json
-        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
+        path = cls.resolve_path(path=path, extension=mode) if resolve_path else path
+        
         data = load_json(path, **kwargs)
         return data
     load_json = get_json
 
     @classmethod
-    def put_json(cls, path:str, data:Dict, resolve_path:bool = True, **kwargs) -> str:
+    def put_json(cls, path:str, 
+                 data:Dict,
+                 resolve_path:bool = True,
+                 mode='json', 
+                 **kwargs) -> str:
         
         from commune.utils.dict import put_json
-        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
+        path = cls.resolve_path(path=path, extension=mode) if resolve_path else path
         
         put_json(path=path, data=data, **kwargs)
         return path
@@ -1056,6 +1073,8 @@ class Module:
             elif 'cls' in function_info_map[fn]['default']:
                 function_info_map[fn]['method_type'] = 'cls'
                 function_info_map[fn]['default'].pop('cls')
+            else:
+                function_info_map[fn]['method_type'] = None
 
         return function_info_map    
     
@@ -1344,13 +1363,13 @@ class Module:
         return cls.run_command(f"pm2 restart {name}")
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.log(stdout, 'orange')
+            cls.log(stdout, 'success')
 
     @classmethod
     def pm2_status(cls, verbose=True):
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.log(stdout, 'green')
+            cls.log(stdout, 'success')
         return stdout
 
 
@@ -1367,7 +1386,7 @@ class Module:
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
-        cls.log(args, 'cyan')
+        cls.print(args, 'cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
         return args
@@ -2241,30 +2260,32 @@ class Module:
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
         return json.dumps(state_dict)
     
-    logger = None
+    
     @classmethod
     def log(cls, text, mode='info'):
-        if cls.logger is None:
-            from loguru import logger
-            cls.logger = logger.opt(colors=True)
+
+        logger = cls.get_logger()
         
         specific_logger = getattr(cls.logger, mode)
         return specific_logger(text)
+    
+    logger = None
+    @classmethod
+    def get_logger(cls,colors=True, **kwargs):
+        if cls.logger is None:
+            from loguru import logger
+            cls.logger = logger.opt(colors=colors, **kwargs)
+
+        return cls.logger
 
     @classmethod
     def from_json(cls, json_str:str) -> 'Module':
         import json
         return cls.from_dict(json.loads(json_str))
         
+
     @classmethod
-    def test(cls):
-        for f in dir(cls):
-            if f.startswith('test_'):
-                getattr(cls, f)()
-               
-               
-    @classmethod
-    def import_bittensor(cls):
+    def import_bittensor(cls) -> 'bittensor':
         try:
             import bittensor
         except RuntimeError:
@@ -2282,6 +2303,32 @@ class Module:
         time.sleep(seconds)
         return None
     
+    def dict_put(*args, **kwargs):
+        from commune.utils.dict import dict_put
+        return dict_put(*args, **kwargs)
+
+    def save_state(self, path:str = 'state', mode:str='json', tag:str=None):
+        state_dict = self.to_dict()
+        if tag:
+            path += '::' + str(tag)
+        getattr(self, 'put_{mode}')(path, state_dict)
+        
+        return path
+        
+    @classmethod
+    def load_state(cls, path:str = 'state', mode:str='json', tag:str=None):
+        if tag:
+            path += '::' + str(tag)
+        state_dict = getattr(self, f'get_{mode}')(path)
+        return cls.from_dict(state_dict)
+
+    @classmethod
+    def test(cls):
+        # tests all the functions with the test_ prefix
+        for f in dir(cls):
+            if f.startswith('test_'):
+                getattr(cls, f)()
+                  
     
 Block = Lego = Module
 if __name__ == "__main__":

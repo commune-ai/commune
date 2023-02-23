@@ -20,7 +20,7 @@ from typing import List, Dict, Union, Optional, Any
 logger = logging.getLogger(__name__)
 
 
-class AccountModule(Module):
+class EVMAccount(Module):
 
 
 
@@ -32,7 +32,7 @@ class AccountModule(Module):
         network: str = 'local.main',
         **kwargs
     ) -> None:
-        """Initialises AccountModule object."""
+        """Initialises EVMAccount object."""
         # assert private_key, "private_key is required."
         Module.__init__(self, **kwargs)
 
@@ -76,7 +76,7 @@ class AccountModule(Module):
 
     @staticmethod
     def reset_tx_count() -> None:
-        AccountModule._last_tx_count = dict()
+        EVMAccount._last_tx_count = dict()
 
     def get_nonce(self, address: str = None) -> int:
         # We cannot rely on `web3.eth.get_transaction_count` because when sending multiple
@@ -84,12 +84,12 @@ class AccountModule(Module):
         # update the transaction count for the self.account address in time.
         # So we have to manage this internally per self.account address.
         address = self.resolve_address(address)
-        if address not in AccountModule._last_tx_count:
-            AccountModule._last_tx_count[address] = self.web3.eth.get_transaction_count(address)
+        if address not in EVMAccount._last_tx_count:
+            EVMAccount._last_tx_count[address] = self.web3.eth.get_transaction_count(address)
         else:
-            AccountModule._last_tx_count[address] += 1
+            EVMAccount._last_tx_count[address] += 1
 
-        return AccountModule._last_tx_count[address]
+        return EVMAccount._last_tx_count[address]
 
 
     @property
@@ -113,7 +113,7 @@ class AccountModule(Module):
 
         signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
         logger.debug(f"Using gasPrice: {gas_price}")
-        logger.debug(f"`AccountModule` signed tx is {signed_tx}")
+        logger.debug(f"`EVMAccount` signed tx is {signed_tx}")
         return signed_tx.rawTransaction
 
     @property
@@ -240,12 +240,12 @@ class AccountModule(Module):
     }
     @staticmethod
     def resolve_hash_function(cls, hash_type='keccak'):
-        hash_fn = AccountModule.hash_fn_dict.get(hash_type)
+        hash_fn = EVMAccount.hash_fn_dict.get(hash_type)
         assert hash_fn != None, f'hash_fn: {hash_type} is not found'
         return hash_fn
 
     def hash(cls, input, hash_type='keccak',return_type='str',*args,**kwargs):
-        input_text = AccountModule.python2str(input)
+        input_text = EVMAccount.python2str(input)
         if hash_type == 'keccak':
             hash_output = Web3.keccak(text=input_text, *args, **kwargs)
             hash_output = Web3.toHex(hash_output)
@@ -291,7 +291,7 @@ class AccountModule(Module):
 
 
     def replicate(self, private_key, web3=None):
-        return AccountModule(private_key=private_key, web3=self.web3)
+        return EVMAccount(private_key=private_key, web3=self.web3)
         
 
     def set_network(self, network:str= 'local.main') -> None:
@@ -359,7 +359,7 @@ class AccountModule(Module):
         self.test_hash()
         
 if __name__ == '__main__':
-    AccountModule.test_hash()
+    EVMAccount.test_hash()
 
 
 

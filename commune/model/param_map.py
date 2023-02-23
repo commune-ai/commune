@@ -1,10 +1,15 @@
 import torch
 import torch.nn as nn
+import commune
 
 
-class ParamMap(nn.Module):
-    def __init__(self, device='cuda'):
+class ParamMap(nn.Module, commune.Module):
+    def __init__(self,
+                 device='cuda',
+                 tag: str = 'base'):
         super(ParamMap, self).__init__()
+        
+        self.tag = tag
         self.tensor = nn.ParameterDict()
         self.resolve_device(device)
 
@@ -32,6 +37,11 @@ class ParamMap(nn.Module):
         self.put('hey', torch.randn(10))
         self.put('brodf ', torch.randn(10))
         print(self.state_dict())
+        
+        
+    def save(self, path:str='param_map.pt''):
+        self.resolve_path(path)
+        torch.save(self.state_dict(), path)
         
     
     

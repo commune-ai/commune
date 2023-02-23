@@ -193,21 +193,21 @@ class Client( Serializer):
                     print(response) 
         except grpc.RpcError as rpc_error_call:
             response = str(rpc_error_call)
-            commune.log(f"Timeout Error: {response}", verbose=verbose,color='red')
+            commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
 
         # =======================
         # ==== Timeout Error ====
         # =======================
         except asyncio.TimeoutError:
             response = str(rpc_error_call)
-            commune.log(f"Timeout Error: {response}", verbose=verbose,color='red')
+            commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
     
         # ====================================
         # ==== Handle GRPC Unknown Errors ====
         # ====================================
         except Exception as e:
             response = str(e)
-            commune.log(f"GRPC Unknown Error: {response}", color='red')
+            commune.print(f"GRPC Unknown Error: {response}", color='red')
         return  response
     
     async_call = async_forward

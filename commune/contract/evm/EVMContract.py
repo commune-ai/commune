@@ -7,7 +7,7 @@ import asyncio
 import commune
 from glob import glob
 from typing import Dict, List, Union, Any, Optional, Tuple, Callable, TypeVar, Type, cast
-class ContractManagerModule(commune.Module):
+class EVMContract(commune.Module):
 
     def __init__(self, 
                  config:dict=None, 
@@ -400,7 +400,7 @@ class ContractManagerModule(commune.Module):
 
         
     def __reduce__(self):
-        deserializer = ContractManagerModule
+        deserializer = EVMContract
         serialized_data = (self.config)
         return deserializer, serialized_data
 
@@ -410,9 +410,9 @@ class ContractManagerModule(commune.Module):
         import streamlit as st
         commune.new_event_loop()
         st.write("## "+cls.__name__)
-        ContractManagerModule.new_event_loop()
+        EVMContract.new_event_loop()
 
-        self =  ContractManagerModule()
+        self =  EVMContract()
         # print(self.artifacts)
         contract = self.deploy_contract(contract='CommunalCluster',new=True, args=['BRO', 'BROCOIN'])
         # print(contract)
@@ -420,7 +420,7 @@ class ContractManagerModule(commune.Module):
 
 
 if __name__ == '__main__':
-    ContractManagerModule.streamlit()
+    EVMContract.streamlit()
 
 
  

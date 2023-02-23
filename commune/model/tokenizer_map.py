@@ -470,7 +470,7 @@ class TokenizerMap( nn.Module, commune.Module):
         if best_loss < 0.1:
             best_loss = 10e10
         
-        commune.log(f'Loaded {stats} from {tag}', 'yellow')
+        commune.print(f'Loaded {stats} from {tag}', 'yellow')
 
         metric_window = commune.get_module('commune.utils.math.MovingWindowAverage')(value=2, window_size=window_size)
         # if epoch > 0:
@@ -485,7 +485,7 @@ class TokenizerMap( nn.Module, commune.Module):
             
             if not (isinstance(sample, dict) and 'input_ids' in sample):
                 fail_count += 1
-                commune.log(f'Failed to get sample {fail_count} times', 'red')
+                commune.print(f'Failed to get sample {fail_count} times', 'red')
                 continue
             
             
@@ -496,12 +496,12 @@ class TokenizerMap( nn.Module, commune.Module):
             
             window_loss = metric_window.value
             info_str = f'Batch {i}/{num_batches} CE: {loss} Window Loss ({window_size}): {window_loss} Best Loss: {best_loss}'
-            commune.log(info_str, 'purple')
+            commune.print(info_str, 'purple')
             
             if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
                 best_loss = window_loss
                 model.set_stats(loss=best_loss)
-                commune.log(f'Best Stats: {model.get_stats()} ', 'green')
+                commune.print(f'Best Stats: {model.get_stats()} ', 'green')
                 iters_since_best = 0
                 model.save(tag=tag)
 

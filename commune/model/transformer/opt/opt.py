@@ -79,7 +79,7 @@ class OPT( nn.Module, commune.Module):
 
         self.checkpoint_path = checkpoint_path if checkpoint_path else self.default_checkpoint_path
         if not os.path.exists(self.checkpoint_path):
-            commune.log(f'Creating weights path at {self.checkpoint_path}', 'purple')
+            commune.print(f'Creating weights path at {self.checkpoint_path}', 'purple')
             AutoModelForCausalLM.from_config(self.model_config).save_pretrained(self.checkpoint_path)
             
         with init_empty_weights():
@@ -88,7 +88,7 @@ class OPT( nn.Module, commune.Module):
             
         self.max_memory = self.resolve_max_memory(max_memory)
         
-        commune.log(self.max_memory, 'green')
+        commune.print(self.max_memory, 'green')
         
         self.device_map = infer_auto_device_map(
             self.model, 
@@ -99,7 +99,7 @@ class OPT( nn.Module, commune.Module):
                 
         self.device_map.update(self.override_device_map)
         
-        commune.log(self.device_map, 'green')
+        commune.print(self.device_map, 'green')
 
         load_checkpoint_and_dispatch(
             self.model,

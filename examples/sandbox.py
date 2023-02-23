@@ -1,6 +1,6 @@
 import commune
 
-# commune.log(commune.pm2_list(), 'green')
+# commune.print(commune.pm2_list(), 'green')
 # print(commune.servers())
 # print(commune.pm2_list())
 # print(commune.servers())

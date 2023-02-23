@@ -295,7 +295,7 @@ def dict_get(input_dict,keys, default_value=False):
     except Exception as e:
         return default_value
 
-def dict_put(input_dict,keys, value ):
+def dict_put(input_dict,keys: Union[str, list], value: Any ):
     """
     insert keys that are dot seperated (key1.key2.key3) recursively into a dictionary
     """

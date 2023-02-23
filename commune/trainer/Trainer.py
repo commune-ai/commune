@@ -30,18 +30,20 @@ from torch import nn
 
 
 
-class AdapterModel(commune.model.Model): 
+class Trainer(commune.Module):
+    default_adapter = dict(
+                    module='commune.model.adapter.block.AdapterBlock', 
+                    params = {'in_dim': 10, 'hidden_dim': 64,  'num_layers': 8},
+                    key2attr = {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'},
+                    device = None
+                    )
     def __init__(self, model:str='model::gptj', 
                  optimizer:dict={'lr': 0.0001},
                  hidden_dim = 700,
                  device:str='cuda', 
                  tokenizer: str = 'gptj',
-                 tag:str = 'base',
-                 adapter:dict = dict(
-                                module='commune.model.adapter.block.AdapterBlock', 
-                                params = {'in_dim': 10, 'hidden_dim': 64,  'num_layers': 8},
-                                key2attr = {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'},
-                                ),
+                 tag:str = None,
+                 adapter:dict = default_adapter,
                  load:dict = False,
                  **kwargs):
         
@@ -50,17 +52,17 @@ class AdapterModel(commune.model.Model):
         commune.model.Model.__init__(self, **kwargs )
         
         
-        self.tag = tag
+        self.tag = tag if tag != None else 'base'
         self.model = model
         self.hidden_dim = hidden_dim
+        self.set_tokenizer(tokenizer=tokenizer)
 
-        self.set_params(model=model, 
-                        device=device,
-                        adapter=adapter, 
-                        tag=tag,
-                        optimizer = optimizer,
-                        tokenizer=tokenizer
-                        load=load)
+        self.set_model(model=model, device=device, adapter=adapter)
+        self.set_optimizer(optimizer=optimizer)
+
+        
+        if load:
+            self.load()
 
 
     def forward(self,
@@ -154,7 +156,8 @@ class AdapterModel(commune.model.Model):
     def set_adapter(self,
                     module:str='commune.model.adapter.block.AdapterBlock', 
                     params:dict = {'in_dim': 10, 'hidden_dim': 64,  'num_layers': 8},
-                    key2attr:dict = {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'}) -> None:
+                    key2attr:dict = {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'},
+                    device = None) -> None:
         
         device = device if device != None else self.device
         params = params if params != None else {}
@@ -165,45 +168,26 @@ class AdapterModel(commune.model.Model):
             
         adapter_block_class = commune.get_module(module)
         
-        self.adapter = adapter_block_class(**params)
+        self.adapter = adapter_block_class(**params).to(self.device)
         self.hidden_dim = self.hidden_dim
         self.config['adapter'] = self.adapter.config
         
         return self.adapter
     
-    
-    def set_model(self,model:str) -> None:
+    def set_model(self, model:List[str], device:str = None, adapter:dict = None ):
         if isinstance(model, str):
             model = commune.connect(model)
-                
         self.model = model
-    
-    def set_params(self, model:str = None, 
-                   device:str = None, 
-                   adapter:dict = None, 
-                   optimizer:dict=None,
-                   tokenizer: str = None,):
-        
-        
-        
-        if model :
-            self.set_model(model)
-                 
-        if optimizer:
-            self.set_optimizer(**optimizer)
-        if adapter:
-            self.set_adapter(**adapter)
-        
-        if tokenizer:
-            self.set_tokenizer(tokenizer)
-        
-        for k in ['optimizer', 'adapter', 'model']:
-            assert hasattr(self, k)
+                
+        if isinstance(model, str):
+            self.model_name = model + f'::adapter' + f'::{self.tag}'
+        else:
+            self.model_name = model.model_id + f'::adapter' + f'::{self.tag}'
             
             
         self.config = Munch(self.model.model_config)
-        
-
+        self.set_adapter(**adapter)
+        self.set_device(device)
         self.config.pad_token_id = self.tokenizer.pad_token_id
         self.config.eos_token_id = self.tokenizer.eos_token_id
         return self.model
@@ -218,8 +202,6 @@ class AdapterModel(commune.model.Model):
         'opt13b': 'facebook/opt-13b',
 
          }
-    
-    
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer
@@ -284,7 +266,9 @@ class AdapterModel(commune.model.Model):
         n.run()
 
     
-    def train(
+    @classmethod
+    def train(cls,
+             model:str='gptj', 
              dataset : Union[str, 'Module'] = 'dataset::bittensor',
              output_length:int=10,
              sequence_length:int=64,

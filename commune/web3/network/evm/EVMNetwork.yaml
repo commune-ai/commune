@@ -1,4 +1,4 @@
-module: NetworkModule
+module: EVMNetwork
 
 network: local.main
 

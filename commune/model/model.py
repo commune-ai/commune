@@ -52,7 +52,9 @@ class Model( nn.Module, commune.Module):
         
         nn.Module.__init__(self)
         
-        self.tag = tag 
+        if not hasattr(self, 'tag'):
+            self.tag = tag
+        
         self.metrics = metrics if metrics != None else MetricMap(metrics=metrics)
         self.stats = stats if stats != None else {'tag': self.tag}
         
@@ -102,9 +104,9 @@ class Model( nn.Module, commune.Module):
         no_grad = kwargs.pop('no_grad', True)
         autocast = kwargs.pop('autocast', True)
         #should the model learn from the input in this forward pass
-        learn = kwargs['learn'] = kwargs.get('learn', True)
+        train = kwargs['train'] = kwargs.get('train', True)
 
-        if learn == True:
+        if train == True:
             no_grad = False
         if no_grad:
             with torch.no_grad():
@@ -132,19 +134,19 @@ class Model( nn.Module, commune.Module):
             
         return self._device
 
-    def set_device(self, device:str = None):
+    def set_device(self, device:str = None, resolve_device: bool = True):
+        '''
+        Sets the device for the model and returns the device
+        '''
         if device is None:
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        device = self.resolve_device(device)
+        if resolve_device:
+            device = self.resolve_device(device)
         self._device = device
         self.to(device)
         return self._device
     
-    
-    def forward(self, x: Union[Dict, torch.Tensor])-> Union[torch.Tensor, Dict]:
-        raise NotImplementedError
-    
-    
+
     def calculate_metrics(self, x: Dict) -> Dict:
         raise NotImplementedError
         
@@ -173,8 +175,8 @@ class Model( nn.Module, commune.Module):
     
 
     def save(self, tag:str = None, trainable_only:bool = True, verbose:bool = True):
-        module_tag = self.resolve_module_tag(tag=tag)
-        path = self.resolve_path(module_tag)
+        tag = tag if tag else self.tag
+        path = f'/tmp/experiments/{tag}'
         model_state_dict = self.state_dict()
         
         if trainable_only:
@@ -198,8 +200,7 @@ class Model( nn.Module, commune.Module):
         return path
     
     def load(self, tag=None):
-        module_tag = self.resolve_module_tag(tag=tag)
-        path = self.resolve_path(module_tag)
+        path = f'/tmp/experiments/{tag}'
         import glob
         if not os.path.exists(path):
             return 
@@ -214,7 +215,6 @@ class Model( nn.Module, commune.Module):
         
         state_dict = self.state_dict()
         
-        print(loaded_state_dict.keys())
         
         for k,v in loaded_state_dict['model'].items():
             assert k in state_dict
@@ -313,7 +313,7 @@ class Model( nn.Module, commune.Module):
         if stats['best_loss'] < 0.1:
             stats['best_loss'] = 10e10
         
-        commune.log(f'Loaded {stats} from {tag}', 'yellow')
+        commune.print(f'Loaded {stats} from {tag}', 'yellow')
 
         
         # if epoch > 0:
@@ -328,7 +328,7 @@ class Model( nn.Module, commune.Module):
             
             if not (isinstance(sample, dict) and 'input_ids' in sample):
                 fail_count += 1
-                commune.log(f'Failed to get sample {fail_count} times', 'red')
+                commune.print(f'Failed to get sample {fail_count} times', 'red')
                 continue
             
             
@@ -340,12 +340,12 @@ class Model( nn.Module, commune.Module):
         
             if verbose:
                 info_str = f'Batch {i}/{num_batches} CE: {loss} : {window_loss} Best Loss: {best_loss}'
-                commune.log(info_str, 'purple')
+                commune.print(info_str, 'purple')
                 
             if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
                 best_loss = window_loss
                 model.set_stats(loss=best_loss)
-                commune.log(f'Best Stats: {model.get_stats()} ', 'green')
+                commune.print(f'Best Stats: {model.get_stats()} ', 'green')
                 iters_since_best = 0
                 model.save(tag=tag)
 

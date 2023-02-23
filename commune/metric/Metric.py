@@ -59,7 +59,6 @@ class Metric(commune.Module):
         import glob
         metric_map = {}
         import os
-        print(cls.__module_dir__())
         for f in glob.glob(cls.__module_dir__()+'/*'):
             if os.path.basename(f).startswith('Metric'):
                 metric_name = os.path.basename(f).split('.')[0]
@@ -68,7 +67,6 @@ class Metric(commune.Module):
                 metric_key = metric_key.lower()           
                 metric_map[metric_key] = cls.import_object(f'commune.metric.{metric_name}.{metric_name}')
                 
-        print(metric_map)
         return metric_map
     
     @property
@@ -79,11 +77,5 @@ class Metric(commune.Module):
     def metrics(self) -> List[str]:
         return list(self.get_metric_map().keys())
 if __name__ == '__main__':
-    # Metric.test_metrics()
-    t = commune.timer()
-    og_t = commune.time()
-    commune.sleep(1)
-    
-    print( commune.time() - og_t)
-    # print(t.seconds-og_t)
+    Metric.test_metrics()
     
