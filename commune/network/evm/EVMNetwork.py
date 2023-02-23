@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 
 from commune import Module
 
-class NetworkModule(Module):
+class EVMNetwork(Module):
 
 
     def __init__(self, network:str=None, **kwargs):

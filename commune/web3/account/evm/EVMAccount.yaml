@@ -1,5 +1,4 @@
-
-module: AccountModule
+module: EVMAccount
 
 private_key: alice
 

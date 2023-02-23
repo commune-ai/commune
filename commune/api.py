@@ -32,11 +32,11 @@ class API(commune.Module):
                 time.sleep(1)
                 time_elapsed += 1
                 server_running = module.server_running()
-                commune.log(f'Is Server Running {server_running} Time Elapsed: {time_elapsed}', 'yellow')
+                commune.print(f'Is Server Running {server_running} Time Elapsed: {time_elapsed}', 'yellow')
                 if server_running:
                     break
             
-            commune.log(f'COMMUNE IS SERVED {server_running}', 'green')
+            commune.print(f'COMMUNE IS SERVED {server_running}', 'green')
 
         
     
@@ -50,7 +50,7 @@ class API(commune.Module):
             obj = cls().module
             
         output =getattr(obj, args.function)(*args.args, **args.kwargs)  
-        commune.log(output, 'green')
+        commune.print(output, 'green')
 
 
 if __name__ == "__main__":

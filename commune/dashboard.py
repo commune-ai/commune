@@ -119,32 +119,18 @@ class Dashboard:
             peer_names = list(self.peer_registry[ip].keys())
             peer_info = list(self.peer_registry[ip].values())
 
+            for i, peer_name in enumerate(peer_names):
+                peer = peer_info[i]
+                with st.expander(f'{peer_name}', False):
+                    st.write(peer)
+
+                    kill_button = st.button(f'Kill {peer_name}')
+                    if kill_button:
+                        commune.kill_server(peer_name, mode='pm2')
+                        st.experimental_rerun()
+                        self.load_state()
     
-            for r_idx in range(num_rows):
-                cols = st.columns([1]*num_columns)
-                for c_idx in range(num_columns):
-                    i = r_idx * num_columns + c_idx
-                    if i >= num_peers:
-                        break
-                    
-                    peer_name = peer_names[i]
-                    peer = peer_info[i]
-                    with cols[c_idx]:
-                        st.write(peer_name)
-                        st.write(peer)
-                        kill_button = st.button(f'Kill {peer_name}')
-                        if kill_button:
-                            commune.kill_server(peer_name, mode='pm2')
-                            st.experimental_rerun()
-                            self.load_state()
-                        
                 
-                col_idx = i % num_columns
-                row_idx = i // num_columns
-                
-                    
-                
-            
 
         peer_info_map = {}
  
@@ -233,7 +219,7 @@ class Dashboard:
     @classmethod
     def streamlit(cls):
         self = cls()
-        # st.set_page_config(layout="wide")
+        st.set_page_config(layout="wide")
         
         self.streamlit_sidebar()
         tabs = st.tabs(['Module Launcher', 'Peers', 'Playground'])

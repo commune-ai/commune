@@ -99,9 +99,9 @@ class T5Model( nn.Module, commune.Module):
         self.model_device = device
 
         if  os.path.exists(self.checkpoint_path):
-            commune.log(f'Found weights path at {self.checkpoint_path}', 'green')
+            commune.print(f'Found weights path at {self.checkpoint_path}', 'green')
         else:
-            commune.log(f'Creating new weights path at {self.checkpoint_path}', 'purple')
+            commune.print(f'Creating new weights path at {self.checkpoint_path}', 'purple')
             T5Model.from_config(self.model_config).save_pretrained(self.checkpoint_path)
             
 
@@ -110,7 +110,7 @@ class T5Model( nn.Module, commune.Module):
 
         self.max_memory = self.resolve_max_memory(max_memory, max_per_gpu=max_per_gpu)
 
-        commune.log(f'max_memory: {self.max_memory}', 'yellow')
+        commune.print(f'max_memory: {self.max_memory}', 'yellow')
 
         if self.model_name == 'EleutherAI/gpt-neox-20b':
             self.no_split_module_classes =  ["GPTNeoXLayer"]
@@ -284,7 +284,7 @@ class T5Model( nn.Module, commune.Module):
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         self.tokenizer = tokenizer
         
-        commune.log(self.tokenizer, 'purple')
+        commune.print(self.tokenizer, 'purple')
         
         self.std_tokenizer = bittensor.tokenizer()
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
