@@ -229,6 +229,14 @@ class Serializer:
         data = module.deserialize(proto)
         st.write(data)
         return True
+    
+    @classmethod
+    def test(cls):
+        for f in dir(cls):
+            if f.startswith('test_'):
+                getattr(cls, f)()
+                
+                
 if __name__ == "__main__":
     Serializer.test_deserialize()
 

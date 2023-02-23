@@ -21,8 +21,8 @@ from multiprocessing import Process
 
 import bittensor
 from tqdm import tqdm
-import bittensor.utils.networking as net
-import bittensor.utils.weight_utils as weight_utils
+import commune.utils.networking as net
+import commune.subspace.utils.weight_utils as weight_utils
 from retry import retry
 from substrateinterface import SubstrateInterface
 from bittensor.utils.balance import Balance
@@ -322,20 +322,6 @@ To run a local node (See: docs/running_a_validator.md) \n
             with self.substrate as substrate:
                 MAX = 100
                 return substrate.query( module='SubtensorModule', storage_function = 'SynergyScalingLawPower' ).value/MAX
-        return make_substrate_call_with_retry()
-
-    @property
-    def validator_exclude_quantile (self) -> int:
-        r""" Returns ValidatorExcludeQuantile
-        Returns:
-            ValidatorExcludeQuantile (float):
-                the quantile that validators should exclude when setting their weights
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                MAX = 100
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorExcludeQuantile' ).value/MAX
         return make_substrate_call_with_retry()
 
     @property

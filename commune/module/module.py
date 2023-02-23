@@ -568,12 +568,17 @@ class Module:
     
     @classmethod
     def path2objectpath(cls, path:str) -> str:
-        config = cls.path2config(path=path, to_munch=False)
-        object_name = config.get('module', config.get('name')) 
-        if cls.pwd in path:
-            # get the path
-            path = path[len(cls.pwd)+1:]
-        path = path.replace(cls.pwd, '').replace('.py','.').replace('/', '.') + object_name
+        
+        module_file_basename = os.path.basename(path).split('.')[0]
+        if module_file_basename[0].is_upper():
+            object_name = module_file_basename
+        else:
+            config = cls.path2config(path=path, to_munch=False)
+            object_name = config.get('module', config.get('name')) 
+        path = path.replace(cls.pwd, '').replace('.py','.').replace('/', '.') 
+        if path[-1] != '.':
+            path = path + '.'
+        path = path + object_name
         return path
 
     @classmethod
@@ -1977,11 +1982,7 @@ class Module:
         if verbose:
             logger = cls.import_object('commune.logger.Logger')
             return logger.print(text=text, color=color, return_text=return_text)
-    
-    @classmethod
-    def log(cls, text:str, color:str='white', return_text:bool=False, verbose:bool = True):
-        return cls.print(text=text, color=color, return_text=return_text, verbose=verbose)
-    
+
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
@@ -2240,6 +2241,15 @@ class Module:
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
         return json.dumps(state_dict)
     
+    logger = None
+    @classmethod
+    def log(cls, text, mode='info'):
+        if cls.logger is None:
+            from loguru import logger
+            cls.logger = logger.opt(colors=True)
+        
+        specific_logger = getattr(cls.logger, mode)
+        return specific_logger(text)
 
     @classmethod
     def from_json(cls, json_str:str) -> 'Module':
@@ -2261,7 +2271,18 @@ class Module:
             cls.new_event_loop()
             import bittensor
         return bittensor
-            
+         
+    @classmethod  
+    def time( cls) -> float:
+        import time
+        return time.time()
+    @classmethod
+    def sleep(cls, seconds:float) -> None:
+        import time
+        time.sleep(seconds)
+        return None
+    
+    
 Block = Lego = Module
 if __name__ == "__main__":
     Module.run()

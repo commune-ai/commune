@@ -4,7 +4,7 @@ import commune
 from commune.metric import Metric
 from typing import *
 
-class MovingAverage(Metric):
+class MetricMovingAverage(Metric):
 
     def setup(self,
               value: Union[int, float] = None, 
@@ -32,12 +32,15 @@ class MovingAverage(Metric):
     def test(cls):
         
         # testing constant value
-        constant = 10
-        self = cls(value=constant)
+        constant_list  = [10, 10, 0, 0]
+        self = cls()
+        for constant in constant_list:
+            self.update(constant)
         
-        self.value == constant
+        # self.value == sum(constant_list)/len(constant_list)
         state_dict = self.to_dict()
         cls.from_dict(state_dict)
-        self.value == constant
-        print(self.window_values)
+        self.value == sum(constant_list)/len(constant_list)
+        
             
+        

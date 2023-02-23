@@ -20,11 +20,12 @@ class MetricCounter(Metric):
     def test(cls):
         
         # testing constant value
+        self = cls()
         iter_count = 10
         for i in range(iter_count):
             self.update()
             
-        assert constant == self.value
+        assert iter_count == self.value
         state_dict = self.to_dict()
         self = cls.from_dict(state_dict)
         self.value == iter_count
