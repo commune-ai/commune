@@ -25,7 +25,7 @@ from torch import Tensor
 from commune.model.attention import MultiheadAttention
 from commune.model.layer import LayerBlock
 from typing import *
-from adapter_block import AdapterBlock
+from AdapterBlock import AdapterBlock
 from torch import nn
 
 class AdapterModel(commune.model.Model):
@@ -83,7 +83,9 @@ class AdapterModel(commune.model.Model):
         
         
         model_output['logits'] = self.combine_logits(model_output['logits'], model_output['adapter_logits'], weights = [1, 0.2])
-        return Munch(model_output)
+        
+
+        return model_output
 
 
     def combine_logits(self, *logits, weights = None):
@@ -193,19 +195,22 @@ class AdapterModel(commune.model.Model):
 
     
     @classmethod
-    def test(cls, topk=1024, output_length=10):
+    def train(cls, 
+             output_length=10,
+             sequence_length=10, 
+             tag=None,
+             refresh: bool = False):
+        if refresh:
+            load = False
         
-        model = cls(load=True)
+        model = commune.connect('AdapterModel')
         dataset = commune.connect('dataset::bittensor')
         for i in range(100):
             sample = dataset.sample(sequence_length=256)
-            output = model.learn_step(**sample, save=True)
-            print(output['stats'])
+            sample.update({ 'output_length': output_length})
+            output = model.learn_step(**sample)
             
-        # output['logits'] = decode_topk(output['topk'])
-        
-        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
-     
+            print(output['stats'])
     @classmethod
     def calculate_loss( cls,  **kwargs) -> torch.Tensor:
         '''
@@ -231,6 +236,7 @@ class AdapterModel(commune.model.Model):
 
     def learn_step(self, **sample):
 
+        return_keys = sample.pop('return_keys', ['stats'])   
         save = sample.pop('save', False)
         load = sample.pop('load', False)
         tag = sample.pop('tag', None)
@@ -262,17 +268,26 @@ class AdapterModel(commune.model.Model):
         if save:
             self.save(tag)
             
+            
+        if 'return_keys' in sample:
+            return_keys = sample['return_keys']
+            for key in return_keys:
+                output_dict = {}
+                if key in model_output:
+                    output_dict[key] = model_output[key]
+                return output_dict
+            
+            
         
-        
-        
-        return Munch(model_output)
+        return model_output
     
 
 if __name__ == "__main__":
     
     
     # EnsembleModel.run_neuron()
-    AdapterModel.test()
+    AdapterModel.serve_module(wait_for_termination=False)
+    AdapterModel.run()
     # print('FUCK')
     # TransformerModel('gptj', tag='demo', load=True).save_pretrained()
     

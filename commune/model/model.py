@@ -200,18 +200,21 @@ class Model( nn.Module, commune.Module):
     def load(self, tag=None):
         module_tag = self.resolve_module_tag(tag=tag)
         path = self.resolve_path(module_tag)
-        
         import glob
+        if not os.path.exists(path):
+            return 
         path_list = glob.glob(os.path.join(path, '*.pt'))
         loaded_state_dict = {}
         for path in path_list:
             key = os.path.basename(path).replace('.pt', '')
             if not os.path.exists(path):
-                logger.warning('No saved model found at {path}')
+                logger.warning('No savƒed model found at {path}')
                 return
             loaded_state_dict[key] = torch.load( path)
         
         state_dict = self.state_dict()
+        
+        print(loaded_state_dict.keys())
         
         for k,v in loaded_state_dict['model'].items():
             assert k in state_dict
@@ -360,7 +363,7 @@ class Model( nn.Module, commune.Module):
 
 if __name__ == "__main__":
     
-    TransformerModel.run()
+    Model.run()
     # TransformerModel.test()
 
 

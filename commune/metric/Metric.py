@@ -3,7 +3,6 @@ import torch
 import commune
 from typing import *
 
-
 class Metric(commune.Module):
     
     def __init__(self,value: Union[int, float] = None, 
@@ -12,15 +11,22 @@ class Metric(commune.Module):
         self.metric_key =  self.module_name().replace('Metric','').lower() 
         if self.metric_key == '':
             self.metric_key = 'metric'
-        self.setup(value, **kwargs)
+        kwargs['value'] = value
+        self.setup(**kwargs)
+        if not hasattr(self, 'value'):
+            self.value = value
+        self.set_value(self.value)
         # self.value = value
         
     def set_value(self, value:Union[float, int], ) -> float:
+        if not hasattr(self, 'value'):
+            self.value = None
         self.value = value if value is not None else 0
 
 
-    def setup(self, value, **kwargs):
-        self.set_value(value)
+    def setup(self, **kwargs):
+        pass
+        
         
 
     def update(self, value, **kwargs):
@@ -37,9 +43,19 @@ class Metric(commune.Module):
         self = cls.from_dict(self.to_dict())
         print(self.to_dict())
         self.value == constant
+        
+    @classmethod
+    def test_metrics(cls):
+        metric_map = cls.get_metric_map()
+        for metric_key in cls.metrics():
+            commune.log(f'Testing {metric_key}')
+            metric = metric_map[metric_key]
+            metric.test()
+            commune.log(f'Testing {metric_key} passed', 'success')
+            
             
     @classmethod
-    def get_default_metric_map(cls) -> Dict[str, 'Metric']:
+    def get_metric_map(cls) -> Dict[str, 'Metric']:
         import glob
         metric_map = {}
         import os
@@ -56,7 +72,18 @@ class Metric(commune.Module):
         return metric_map
     
     @property
-    def default_metric_map(self):
-        return self.get_default_metric_map()
+    def metric_map(self):
+        return self.get_metric_map()
+    
+    @classmethod
+    def metrics(self) -> List[str]:
+        return list(self.get_metric_map().keys())
 if __name__ == '__main__':
-    Metric.test()
+    # Metric.test_metrics()
+    t = commune.timer()
+    og_t = commune.time()
+    commune.sleep(1)
+    
+    print( commune.time() - og_t)
+    # print(t.seconds-og_t)
+    
