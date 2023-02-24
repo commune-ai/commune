@@ -5,9 +5,9 @@ from typing import *
 class KeyValueStorage(commune.Module):
     
     def __init__(self, store: Dict = None):
-
+        self.set_store
         
-    def set_storage(self, storage: Dict):
+    def set_storage(self, store: Dict):
         if storage is not None:
             assert isinstance(storage, dict), 'storage must be a dictionary'
         

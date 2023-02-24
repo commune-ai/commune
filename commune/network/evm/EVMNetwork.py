@@ -87,5 +87,5 @@ class EVMNetwork(Module):
 
 if __name__ == '__main__':
     import streamlit as st
-    module = NetworkModule.deploy(actor={'name': 'network', 'wrap':True} )
+    module = EVMNetwork.deploy(actor={'name': 'network', 'wrap':True} )
     st.write(module.actor_name)
