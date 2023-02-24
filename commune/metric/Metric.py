@@ -69,6 +69,8 @@ class Metric(commune.Module):
                 
         return metric_map
     
+    def state_dict(self):
+        return self.to_dict()
     @property
     def metric_map(self):
         return self.get_metric_map()
