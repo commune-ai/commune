@@ -95,6 +95,8 @@ class MovingWindowAverage:
         self.__dict__.update(state_dict)
         return state_dict
 
+    def state_dict(self):
+        return self.to_dict()
 
     @classmethod
     def test(cls):

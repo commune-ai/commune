@@ -49,8 +49,6 @@ class AdapterModel(commune.model.Model):
 
         commune.model.Model.__init__(self, **kwargs )
         
-        
-        self.tag = tag
         self.model = model
         self.hidden_dim = hidden_dim
 
@@ -59,8 +57,14 @@ class AdapterModel(commune.model.Model):
                         adapter=adapter, 
                         tag=tag,
                         optimizer = optimizer,
-                        tokenizer=tokenizer
-                        load=load)
+                        tokenizer=tokenizer)
+        
+        if load:
+            self.laod()
+        
+        
+        
+        
 
 
     def forward(self,
@@ -117,8 +121,9 @@ class AdapterModel(commune.model.Model):
             
             loss.backward()
             self.optimizer.step()
-            model_output['stats'] = deepcopy(self.stats)
-            model_output['stats']['metrics'] = self.get_metrics()
+            model_output['stats'] = {
+                'metrics' :  self.get_metrics()
+            }
         
         
             
@@ -151,22 +156,23 @@ class AdapterModel(commune.model.Model):
         combined_logits = torch.log(combined_probs + 1e-8)
         return combined_logits
     
-    def set_adapter(self,
-                    module:str='commune.model.adapter.block.AdapterBlock', 
-                    params:dict = {'in_dim': 10, 'hidden_dim': 64,  'num_layers': 8},
-                    key2attr:dict = {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'}) -> None:
+    def set_adapter(self, adapter: dict) -> None:
         
-        device = device if device != None else self.device
-        params = params if params != None else {}
-        key2attr = key2attr if key2attr != None else {}
-        # map attributes to params
+        # get the module class
+        adapter_kwargs = {}
+        adapter_module_path = adapter.pop('module', 'commune.model.adapter.block.AdapterBlock')
+        key2attr = adapter.pop('key2attr',  {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'})
+        adapter_params = adapter.get('params', adapter.get('kwargs', adapter))
+        adapter_module_class = commune.get_module(adapter_module_path)
+        
+        # resolve params
         for key, attr in key2attr.items():
-            params[key] = getattr(self, attr)
-            
-        adapter_block_class = commune.get_module(module)
+            adapter_params[key] = getattr(self, attr)
         
-        self.adapter = adapter_block_class(**params)
-        self.hidden_dim = self.hidden_dim
+        
+        adapter_kwargs = {}
+        # set the config
+        self.adapter = adapter_module_class(**adapter_params)
         self.config['adapter'] = self.adapter.config
         
         return self.adapter
@@ -174,38 +180,42 @@ class AdapterModel(commune.model.Model):
     
     def set_model(self,model:str) -> None:
         if isinstance(model, str):
-            model = commune.connect(model)
-                
+            model = commune.connect(model) 
         self.model = model
+        self.config = Munch(self.model.model_config)
+        
     
-    def set_params(self, model:str = None, 
+    
+
+    def set_params(self, 
+                   model:str = None, 
                    device:str = None, 
                    adapter:dict = None, 
                    optimizer:dict=None,
-                   tokenizer: str = None,):
+                   tokenizer: str = None,
+                   tag: str = None):
         
-        
-        
+        # only set parts of the network when you want to
+        if tag:
+            self.set_tag(tag)
+            
         if model :
             self.set_model(model)
-                 
-        if optimizer:
-            self.set_optimizer(**optimizer)
-        if adapter:
-            self.set_adapter(**adapter)
-        
         if tokenizer:
             self.set_tokenizer(tokenizer)
         
-        for k in ['optimizer', 'adapter', 'model']:
+                     
+        if adapter:
+            self.set_adapter(adapter)
+            self.set_optimizer(optimizer)
+            
+
+        for k in ['optimizer', 'adapter', 'model', 'tag', 'tokenizer']:
             assert hasattr(self, k)
             
-            
-        self.config = Munch(self.model.model_config)
-        
 
-        self.config.pad_token_id = self.tokenizer.pad_token_id
-        self.config.eos_token_id = self.tokenizer.eos_token_id
+        
+        
         return self.model
 
     shortcuts =  {
@@ -242,6 +252,8 @@ class AdapterModel(commune.model.Model):
         if  self.tokenizer.pad_token == None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
+        self.config.pad_token_id = self.tokenizer.pad_token_id
+        self.config.eos_token_id = self.tokenizer.eos_token_id
         return self.tokenizer
     @property
     def vocab_size(self):
@@ -284,34 +296,41 @@ class AdapterModel(commune.model.Model):
         n.run()
 
     
-    def train(
+    def train(self,
              dataset : Union[str, 'Module'] = 'dataset::bittensor',
-             output_length:int=10,
-             sequence_length:int=64,
-             num_batches: int = 100, 
-             tag:str=None,
-             save : bool = True,
-             refresh: bool = False,
-             **kwargs):
+             params: dict = None,
+            output_length:int=10,
+            sequence_length:int=64,
+            num_batches: int = 100, 
+            save : bool = True,
+            load: bool = True,
+            refresh: bool = False,
+            **kwargs):
         if refresh:
             load = False
-        
-        model = cls(model=model, tag=tag, **kwargs)
+        if load:
+            self.load()
+        if params == None:
+            params = {}
+            
+        self.set_params(**params)
         
         if isinstance(dataset, str):
             dataset = commune.connect(dataset)
 
         for i in range(num_batches):
             sample = dataset.sample(sequence_length=sequence_length)
-            sample['output_length'] =  output_length
+            sample['output_length'] = output_length
             sample['return_keys'] = ['stats']
             sample['train'] = True
-            output = model.forward(**sample)
             
-            commune.print(output['stats'], 'cyan')
+            output = self.forward(**sample)
+            
+            commune.print(output, 'cyan')
             
         if save:
-            model.save(tag)
+            self.save()
+            
         return output['stats']
     
     
@@ -422,7 +441,7 @@ class AdapterModel(commune.model.Model):
 if __name__ == "__main__":
     
     # dataset = commune.connect('dataset::bittensor')
-    AdapterModel.hyperopt(num_batches=1)
+    AdapterModel().train(num_batches=10, refresh=True)
     # print(dataset.module_id)
     # for i in range(10):
     #     print('Alo')

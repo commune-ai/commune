@@ -104,7 +104,12 @@ class Module:
             return cls.module_name_class
         
         return cls.__name__
-
+    
+    
+    def set_tag(self, tag:str):
+        self.tag = tag
+        return tag
+    
     
     @property
     def module_tag(self) -> str:
@@ -113,6 +118,8 @@ class Module:
         (TODO: Should we call this flavor?)
         
         '''
+        if hasattr(self, 'tag'):
+            return self.tag
         if not hasattr(self, '_module_tag'):
             self.__dict__['_module_tag'] = None
         return self._module_tag
@@ -599,19 +606,39 @@ class Module:
         return cls.import_object(object_path)
 
     @classmethod
-    def get_module(cls, path:str, verbose:bool = True) -> str:
+    def get_module(cls, module:Union[str, Dict], verbose:bool = True) -> str:
         
-        try:
-            
-            path = cls.simple2path(path)
-            path = cls.path2objectpath(path)
-            
-        except KeyError as e:
-            cls.print(f'{e}', verbose=verbose)
-            
+        if isinstance(module, str):
+            module_path = deepcopy(module)
+            try:
+                
+                module_path = cls.simple2path(module_path)
+                module_path = cls.path2objectpath(module_path)
+                
+            except KeyError as e:
+                cls.print(f'{e}', verbose=verbose)
+
+            module = cls.import_object(module_path)
         
+        elif isinstance(module, dict):
+            module_dict = deepcopy(module)
+            module = module_dict['module']
+            assert isinstance(module,str)
+            module_class = cls.get_module(module)
+            kwargs = module_dict.get('params', module_dict.get('kwargs'))
+            args = module_dict.get('args', [])
+            fn = module_dict.get('fn', '__init__')
+            if fn == '__init__':
+                module = module_class(*args, **kwargs)
+            else:
+                module = getattr(module_class, fn)(*args, **kwargs)
+                
+        else:
+            raise NotImplementedError(type(module))
+        
+        return module
             
-        return cls.import_object(path)
+            
 
     @classmethod
     def module_tree(cls, mode='path') -> List[str]:

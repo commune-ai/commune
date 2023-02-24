@@ -39,11 +39,6 @@ class Model( nn.Module, commune.Module):
                 # model_name: str="EleutherAI/gpt-j-6B",
                 tag :str = None,
                 metrics: Dict[str, 'Metric'] = None,
-                stats: Dict[str, 'Metric'] = None,
-                device: str='cuda',
-                load: bool = False,
-                finetune: bool = None,
-                
                 **kwargs
                 ):
         
@@ -52,23 +47,20 @@ class Model( nn.Module, commune.Module):
         
         nn.Module.__init__(self)
         
-        if not hasattr(self, 'tag'):
-            self.tag = tag
+
+        self.set_tag(tag)
         
-        self.metrics = metrics if metrics != None else MetricMap(metrics=metrics)
-        self.stats = stats if stats != None else {'tag': self.tag}
+        self.set_metrics(metrics)
         
         
-    def set_metrics(self, metrics: Dict[str, 'Metric']  , from_dict:bool  = True) -> None:
-        if not hasattr(self, 'metrics'):
-            if from_dict:
-                self.metrics = MetricMap.from_dict(metrics)
-            else:
-                self.metrics = MetricMap(metrics=metrics)
-        
-        for key, metric in metrics.items():
-            self.metrics[key] = metric
-                
+    def set_metrics(self,
+                    metrics: Dict[str, 'Metric']  ,
+                    from_dict:bool  = True) -> None:
+        metrics = metrics if metrics != None else {}
+        if from_dict:
+            self.metrics = MetricMap.from_dict(metrics)
+        else:
+            self.metrics = MetricMap(metrics)
           
     def set_metric(self, *args, **kwargs):
         return self.metrics.set_metric(*args, **kwargs)
@@ -80,22 +72,21 @@ class Model( nn.Module, commune.Module):
         return self.metrics.get_metrics()
         
 
-    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None) -> None:
-        
+    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None, from_dict:bool = True):
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
             optimizer_class = self.import_object(module_path) 
-            kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
+            optimizer_params = optimizer.get('params', optimizer.get('kwargs', optimizer))
                 
         elif optimizer == None:
             optimizer_class = torch.optim.Adam
-            kwargs = {'lr': 0.02}
+            optimizer_params = {'lr': 0.02}
             
         
         else:
             raise NotImplementedError(optimizer)
         
-        self.optimizer = optimizer_class(self.parameters(), **kwargs)
+        self.optimizer = optimizer_class(self.parameters(), **optimizer_params)
 
 
 
@@ -150,35 +141,13 @@ class Model( nn.Module, commune.Module):
     def calculate_metrics(self, x: Dict) -> Dict:
         raise NotImplementedError
         
-    def set_stat(self, key:str, value:Any) -> Dict[str, Any]: 
-        if not hasattr(self, 'stats'):
-            self.stats = {'tag': self.tag}
-        self.stats[key] = value
-        return value
-    
-    def get_stat(self, key:str,default_value:Any= None) -> Any: 
-        if not hasattr(self, 'stats'):
-            self.stats = {'tag': self.tag}
-        return self.stats.get(key, default_value)
-    
 
-    def get_stats(self ) -> dict:
-        return self.stats
-
-    @property
-    def module_tag(self): 
-        return self.resolve_module_tag()
-    
-    def resolve_module_tag(self, tag=None):
-        tag = tag if tag else self.tag
-        return tag
-    
 
     def save(self, tag:str = None, trainable_only:bool = True, verbose:bool = True):
         tag = tag if tag else self.tag
-        path = f'/tmp/experiments/{tag}'
         model_state_dict = self.state_dict()
         
+        path = self.resolve_path(tag)
         if trainable_only:
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
     
@@ -187,8 +156,7 @@ class Model( nn.Module, commune.Module):
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
-            'stats': self.stats,
-            'metrics': self.metrics.to_dict(),
+            'metrics': self.metrics.state_dict(),
             'config': self.config
         }
         
@@ -200,7 +168,8 @@ class Model( nn.Module, commune.Module):
         return path
     
     def load(self, tag=None):
-        path = f'/tmp/experiments/{tag}'
+        tag = tag if tag != None else self.tag
+        path = self.resolve_path(tag)
         import glob
         if not os.path.exists(path):
             return 
@@ -209,7 +178,7 @@ class Model( nn.Module, commune.Module):
         for path in path_list:
             key = os.path.basename(path).replace('.pt', '')
             if not os.path.exists(path):
-                logger.warning('No savƒed model found at {path}')
+                logger.warning('No saved model found at {path}')
                 return
             loaded_state_dict[key] = torch.load( path)
         
@@ -222,8 +191,7 @@ class Model( nn.Module, commune.Module):
             
         self.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
-        self.metrics = MetricMap.from_dict(loaded_state_dict.get('metrics', {}))
-        self.set_stats(**loaded_state_dict['stats'])
+        self.set_metrics(loaded_state_dict.get('metrics', {}), )
         
 
     def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
@@ -290,73 +258,8 @@ class Model( nn.Module, commune.Module):
                 logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
 
         return reached_last_layer, last_layer_name
-
-
-    @classmethod
-    def run_train(cls, 
-                    model:str='gpt125m',
-                    tag:str = 'demo', 
-                    num_batches:int = 10000,
-                    window_size:int = 50,
-                    backoff_window_size:int = 25,
-                    max_iters_since_best:int = 100,
-                    dataset:str= 'dataset::bittensor',
-                    **kwargs
-                    ):
-        model = cls(model_name=model,tag=tag, load=True,  **kwargs)
-        dataset = commune.connect(dataset)
     
-        best_loss = 10e10
-        stats = model.get_stats()
-        stats['best_loss'] = stats.get('loss', best_loss)
-        
-        if stats['best_loss'] < 0.1:
-            stats['best_loss'] = 10e10
-        
-        commune.print(f'Loaded {stats} from {tag}', 'yellow')
-
-        
-        # if epoch > 0:
-        #     model.load(tag=tag)
-        fail_count = 0
-        iters_since_best = 0
-        for i in range(num_batches):
-            
-            if iters_since_best > max_iters_since_best:
-                model.load(tag=tag)
-            sample = dataset.sample()
-            
-            if not (isinstance(sample, dict) and 'input_ids' in sample):
-                fail_count += 1
-                commune.print(f'Failed to get sample {fail_count} times', 'red')
-                continue
-            
-            
-            loss = model.learn_step(**sample)
-            
-            # update the metric_window
-            metric.update(loss)
-            window_loss  = metric.value
-        
-            if verbose:
-                info_str = f'Batch {i}/{num_batches} CE: {loss} : {window_loss} Best Loss: {best_loss}'
-                commune.print(info_str, 'purple')
-                
-            if window_loss < best_loss and i > window_size and iters_since_best > backoff_window_size:
-                best_loss = window_loss
-                model.set_stats(loss=best_loss)
-                commune.print(f'Best Stats: {model.get_stats()} ', 'green')
-                iters_since_best = 0
-                model.save(tag=tag)
-
-                
-            else:
-                iters_since_best += 1
-       
-    def set_stats(self, **kwargs):
-        if not hasattr(self, 'stats'):
-            self.stats = {'tag': self.tag}
-        self.stats.update(kwargs)
+    
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)

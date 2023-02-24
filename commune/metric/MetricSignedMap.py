@@ -4,7 +4,7 @@ import commune
 from commune.metric import Metric
 
 
-class MetricMap(Metric):
+class MetricSignedMap(Metric):
     
     default_metric_path = 'metric'
     def __init__(self, metrics:Dict[str, commune.Module] =None):
@@ -114,5 +114,5 @@ class MetricMap(Metric):
             assert self.get_metric(metric_key) == sum(values)/len(values)
         
 if __name__ == "__main__":
-    MetricMap.test()
+    MetricSignedMap.test()
     
