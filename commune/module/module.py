@@ -865,6 +865,20 @@ class Module:
         return server_registry
     
     
+    @classmethod
+    def wait_until_server_exists(cls, 
+                          server_id:str,
+                          timeout:int = 10,
+                          check_step:int= 2) -> bool:
+
+
+        while not cls.server_exists(server_id) and wait_time <= timeout:
+            self.sleep(check_step)
+            wait_time += check_step
+            
+        if wait_time >= timeout:
+            raise Exception('Timeout')
+        return True
     
     def server_info(self): 
         self.server_registry(self.module_id)
@@ -1000,7 +1014,7 @@ class Module:
         
         cls.register_server(name=module_id, server=server)
     
-        
+
         server.serve(wait_for_termination=wait_for_termination)
         
         
@@ -1264,6 +1278,8 @@ class Module:
         '''
         Launch a module as pm2 or ray 
         '''
+        
+        
             
 
         kwargs = kwargs if kwargs else {}
@@ -1317,7 +1333,14 @@ class Module:
             launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
-         
+      
+    def restart(self, module_id:str = None, mode:str = 'pm2'):
+        module_id = module_id if module_id != None else module_id
+        if mode == 'pm2':
+            self.pm2_restart(module_id)
+        else:
+            raise NotImplementedError(mode)
+        
     @classmethod
     def pm2_list(cls, verbose:bool = False) -> List[str]:
         output_string = cls.run_command('pm2 status', verbose=False)
@@ -1914,6 +1937,8 @@ class Module:
         
         if isinstance(module, str):
             module = cls.get_module(module)
+            if cls.is_module(module):
+                return module
 
         
         # serve the module if the bool is True
@@ -2329,10 +2354,23 @@ class Module:
         import time
         time.sleep(seconds)
         return None
-    
+    @staticmethod
     def dict_put(*args, **kwargs):
         from commune.utils.dict import dict_put
         return dict_put(*args, **kwargs)
+    @staticmethod
+    def dict_get(*args, **kwargs) :
+        from commune.utils.dict import dict_get
+        return dict_get(*args, **kwargs)
+    @staticmethod
+    def deep2flat(*args, **kwargs) -> Dict:
+        from commune.utils.dict import deep2flat
+        return deep2flat(*args, **kwargs)
+
+    @staticmethod
+    def flat2deep(*args, **kwargs) -> Dict:
+        from commune.utils.dict import flat2deep
+        return flat2deep(*args, **kwargs)
 
     def save_state(self, path:str = 'state', mode:str='json', tag:str=None):
         state_dict = self.to_dict()
@@ -2355,7 +2393,9 @@ class Module:
         for f in dir(cls):
             if f.startswith('test_'):
                 getattr(cls, f)()
-                  
+               
+       
+
     
 Block = Lego = Module
 if __name__ == "__main__":

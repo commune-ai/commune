@@ -35,14 +35,17 @@ class AdapterModel(commune.model.Model):
                  optimizer:dict={'lr': 0.0001},
                  hidden_dim = 700,
                  device:str='cuda', 
+                 
                  tokenizer: str = 'gptj',
+                 metrics: dict = {},
                  tag:str = 'base',
                  adapter:dict = dict(
                                 module='commune.model.adapter.block.AdapterBlock', 
-                                params = {'in_dim': 10, 'hidden_dim': 64,  'num_layers': 8},
+                                in_dim= 10, 
+                                hidden_dim= 64,  
+                                num_layers= 8,
                                 key2attr = {'in_dim': 'hidden_dim', 'out_dim': 'vocab_size'},
                                 ),
-                 load:dict = False,
                  **kwargs):
         
 
@@ -58,13 +61,6 @@ class AdapterModel(commune.model.Model):
                         tag=tag,
                         optimizer = optimizer,
                         tokenizer=tokenizer)
-        
-        if load:
-            self.laod()
-        
-        
-        
-        
 
 
     def forward(self,
@@ -121,10 +117,7 @@ class AdapterModel(commune.model.Model):
             
             loss.backward()
             self.optimizer.step()
-            model_output['stats'] = {
-                'metrics' :  self.get_metrics()
-            }
-        
+            model_output['metrics'] = self.get_metrics()
         
             
         if save:
@@ -193,23 +186,27 @@ class AdapterModel(commune.model.Model):
                    adapter:dict = None, 
                    optimizer:dict=None,
                    tokenizer: str = None,
+                   metrics: dict = None,
                    tag: str = None):
         
         # only set parts of the network when you want to
-        if tag:
-            self.set_tag(tag)
-            
-        if model :
+
+        if model != None :
             self.set_model(model)
-        if tokenizer:
+        if tokenizer != None:
             self.set_tokenizer(tokenizer)
-        
-                     
-        if adapter:
+            
+        if adapter != None:
             self.set_adapter(adapter)
             self.set_optimizer(optimizer)
             
-
+        if tag != None:
+            self.set_tag(tag)
+            
+        if metrics != None:
+            self.metrics.set_metrics(metrics)
+            
+        self.set_device(device)
         for k in ['optimizer', 'adapter', 'model', 'tag', 'tokenizer']:
             assert hasattr(self, k)
             
@@ -296,42 +293,60 @@ class AdapterModel(commune.model.Model):
         n.run()
 
     
-    def train(self,
+    def train_model(self,
              dataset : Union[str, 'Module'] = 'dataset::bittensor',
              params: dict = None,
             output_length:int=10,
             sequence_length:int=64,
-            num_batches: int = 100, 
-            save : bool = True,
-            load: bool = True,
+            num_batches: int = 1, 
+            tag : str = None,
+            save : bool = False,
             refresh: bool = False,
+            metric_server: str = None,
+            best_tag: str = 'best_tag',
             **kwargs):
-        if refresh:
-            load = False
-        if load:
-            self.load()
-        if params == None:
-            params = {}
+
+        params = params if params != None else {}
+        params['tag'] = tag
             
         self.set_params(**params)
         
+        
+        commune.log(self.tag)
+        
         if isinstance(dataset, str):
             dataset = commune.connect(dataset)
-
+            
+            
         for i in range(num_batches):
             sample = dataset.sample(sequence_length=sequence_length)
             sample['output_length'] = output_length
-            sample['return_keys'] = ['stats']
+            sample['return_keys'] = ['metrics']
             sample['train'] = True
             
             output = self.forward(**sample)
             
             commune.print(output, 'cyan')
+
+
+        
+        is_best = False
+        if isinstance(metric_server, str):
+            metric_server = commune.connect(metric_server)
             
-        if save:
-            self.save()
             
-        return output['stats']
+            best_metric = metric_server.best_metric()
+            output['metrics']['is_best'] = is_best =  bool(output['metrics']['loss'] < best_metric)
+            metric_server.set_metric(self.tag, output['metrics']['loss'])
+            output['metrics']['best_metric'] = best_metric
+        
+    
+        if save :
+            self.save(keys=['metrics'])
+            if is_best:
+                self.save(tag=best_tag)
+            
+        return output
     
     
     
@@ -357,91 +372,12 @@ class AdapterModel(commune.model.Model):
         return loss
 
 
-
-    @classmethod
-    def get_hyperopt_tag(cls, config:dict, prefix:str = None):
-        tag = ''
-        if prefix:
-            tag += f'{prefix}::'
-        for k, v in config.items():
-            tag += f'{k}_{v}__'
                 
-        return tag
-                
-    @classmethod
-    def hyperopt(cls, 
-                 model: str = 'model::gptj',
-                 dataset: str = 'dataset::bittensor',
-                 num_batches: int =50, 
-                 metric: str = 'loss',
-                 mode :str = 'min',
-                 num_samples: int = 1,
-
-
-                 **kwargs):
-        from ray import tune
-
-        # 1. Define an objective function.
-        
-
-                
-        def objective(config = {'lr': 1e-4, 'hidden_dim': 32, 'num_layers': 1}, 
-                      model=model,
-                      dataset=dataset):
-            # tag = cls.get_hyperopt_tag(config, prefix=model)
-            # if isinstance(dataset, str):
-            #     dataset = commune.connect(dataset)
-            # if isinstance(model, str):
-            #     model = commune.connect(model)
-            # train_stats  = cls.train(
-            #                         model=model,
-            #                     adapter={'params': {'hidden_dim': config['hidden_dim'], 'num_layers': config['num_layers']}},
-            #                     optimizer={'lr': config['lr']}, 
-            #                     dataset = dataset,
-            #                     tag =tag ,
-            #                     save=True,
-            #                     num_batches=num_batches)
-            from commune.utils.dict import dict_put
-            tag = cls.get_hyperopt_tag(config, prefix=model)
-            
-            train_kwargs = dict(dataset = dataset,
-                                model = model,
-                                tag =tag ,
-                                save=True,
-                                num_batches=num_batches)
-            from commune.utils.dict import dict_put
-            for k, v in config.items():
-                dict_put(train_kwargs, k,v)
-            
-
-            train_stats={}
-            train_stats['metrics'] = 1
-            
-            print(train_kwargs)
-            
-            return train_stats['metrics']
-
-        # 2. Define a search space.
-        search_space = {
-            'optimizer.lr': tune.loguniform(1e-4, 1e-2),
-            "adapter.params.hidden_dim": tune.choice([32, 64, 128, 256, 512]),
-            'adapter.params.num_layers': tune.choice([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
-        }
-        objective_with_resources = tune.with_resources(objective, {"cpu": 4, "gpu": 2})
-        
-        
-        # 3. Start a Tune run and print the best result.
-        tuner = tune.Tuner(objective_with_resources, 
-                           param_space=search_space, 
-                           tune_config=tune.TuneConfig(num_samples=num_samples))
-        results = tuner.fit()
-        print(results.get_best_result(metric=metric, mode=mode).config)
-
 
 if __name__ == "__main__":
     
     # dataset = commune.connect('dataset::bittensor')
-    AdapterModel().train(num_batches=10, refresh=True)
+    AdapterModel.run()
     # print(dataset.module_id)
     # for i in range(10):
     #     print('Alo')

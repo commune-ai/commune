@@ -46,16 +46,13 @@ class Model( nn.Module, commune.Module):
         
         
         nn.Module.__init__(self)
-        
-
-        self.set_tag(tag)
-        
+                
         self.set_metrics(metrics)
         
         
     def set_metrics(self,
                     metrics: Dict[str, 'Metric']  ,
-                    from_dict:bool  = True) -> None:
+                    from_dict:bool  = False) -> None:
         metrics = metrics if metrics != None else {}
         if from_dict:
             self.metrics = MetricMap.from_dict(metrics)
@@ -143,11 +140,12 @@ class Model( nn.Module, commune.Module):
         
 
 
-    def save(self, tag:str = None, trainable_only:bool = True, verbose:bool = True):
+    def save(self, tag:str = None, keys:List[str]=None, trainable_only:bool = True, verbose:bool = True):
         tag = tag if tag else self.tag
+        path = self.resolve_path(tag)
+
         model_state_dict = self.state_dict()
         
-        path = self.resolve_path(tag)
         if trainable_only:
             model_state_dict = {k:v for k,v in model_state_dict.items() if v.requires_grad} 
     
@@ -159,15 +157,23 @@ class Model( nn.Module, commune.Module):
             'metrics': self.metrics.state_dict(),
             'config': self.config
         }
+        keys = state_dict.keys() if keys == None else keys
         
-        logger.success(f'Saving path {path}')
+        for k in keys:
+            assert k in state_dict, f'{k} not found in the state_dict'
         
-        for k,v in state_dict.items():
-            torch.save(state_dict[k], os.path.join(path, f'{k}.pt'))
         
+        for k in keys:
+            object_path = os.path.join(path, f'{k}.pt')
+            torch.save(state_dict[k], object_path)
+        
+            if verbose:
+                logger.success(f'Saving {k} to {object_path}')
+
         return path
     
-    def load(self, tag=None):
+    def load(self, tag=None, keys:List[str] = None, map_location: str = None):
+        map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
         path = self.resolve_path(tag)
         import glob
@@ -191,9 +197,17 @@ class Model( nn.Module, commune.Module):
             
         self.load_state_dict(state_dict)
         self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
-        self.set_metrics(loaded_state_dict.get('metrics', {}), )
+        self.set_metrics(loaded_state_dict.get('metrics', {}), from_dict=True)
         
 
+
+    def set_tag(self, tag):
+        if tag == None:
+            tag = 'base'
+        self.tag = tag
+        # self.load(tag)
+        
+        
     def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
