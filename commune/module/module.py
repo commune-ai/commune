@@ -296,11 +296,12 @@ class Module:
         return config
 
     @classmethod
-    def run_command(cls, 
+    def cmd(cls, 
                     command:str,
                     verbose:bool = True, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
+                    color: str = 'purple',
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -328,8 +329,7 @@ class Module:
                     line_count_idx += 1
                     stdout_text += (new_line+c).decode()
                     if verbose:
-                        log_color = verbose if isinstance(verbose, str) else 'green'
-                        cls.log(new_line.decode(), 'success')
+                        cls.print(new_line.decode(), color)
                     new_line = b''
                     continue
                 
@@ -349,7 +349,7 @@ class Module:
             
         return process
 
-    shell = cmd = run_command
+    shell  = run_command = cmd
     
 
     @classmethod
@@ -782,16 +782,25 @@ class Module:
 
         return rm_json(path )
 
+
     @classmethod
-    def glob(cls,  path ='**', resolve_path:bool = True, files_only:bool = True):
+    def ls(cls , path = '*', resolve_path:bool = True):
+        return cls.glob(path, resolve_path=resolve_path, files_only=False)
+        
+    @classmethod
+    def glob(cls,  path ='*', resolve_path:bool = True, files_only:bool = True):
         
         path = cls.resolve_path(path, extension=None) if resolve_path else path
         
+        if os.path.isdir(path):
+            if '/' != path[-1]:
+                path += '/'
+            path += '*'
         # if os.path.isdir(path):
         #     path = os.path.join(path, '**')
-            
+        print(path)
         paths = glob(path, recursive=True)
-        
+        print(paths)
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
@@ -811,8 +820,11 @@ class Module:
 
         server_registry =  Module.server_registry()
         if isinstance(name, str) and len(name.split(':')) == 2:
-            port = int(name.split(':')[1])
-            ip = name.split(':')[0]
+            try:
+                port = int(name.split(':')[1])
+                ip = name.split(':')[0]
+            except ValueError:
+                pass
             
         if ip == None and port == None:
             client_kwargs = server_registry[name]

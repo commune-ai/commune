@@ -83,7 +83,7 @@ miner:
 
 
 vali:
-	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/block/bittensor/neuron/validator/neuron.py --name vali_${coldkey}_${hotkey} --time --interpreter python3 -- --logging.debug --subtensor.network local  --neuron.device cuda:1 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --logging.trace True --logging.record_log True  --neuron.print_neuron_stats True
+	pm2 start commune/bittensor/neuron/validator/neuron.py --name vali_${coldkey}_${hotkey} --time --interpreter python3 -- --logging.debug --subtensor.chain_endpoint 194.163.191.101:9944  --neuron.device cuda:1 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --logging.trace True --logging.record_log True  --neuron.print_neuron_stats True
 
 dashboard:
 	streamlit run commune/dashboard.py 
@@ -92,7 +92,7 @@ sand:
 	python3 commune/sandbox.py
 
 python_pm2:
-	pm2 start {file} --name {name} --interpreter python3
+	pm2 start ${file} --name ${name} --interpreter python3
 
 streamlit_pm2:
 	pm2 start {file} --name {name} --interpreter streamlit -- --server.port {port}

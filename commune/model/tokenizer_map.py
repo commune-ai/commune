@@ -78,7 +78,7 @@ class TokenizerMap( nn.Module, commune.Module):
         if load:
             self.load()
         
-        self.set_fine_tuning_params(**finetune)
+        self.set_finetune(**finetune)
         
         
     def set_optimizer(self, optimizer:'torch.optim.Optimizer'=None, *args, **kwargs):
@@ -384,7 +384,7 @@ class TokenizerMap( nn.Module, commune.Module):
         self.set_stats(**loaded_state['stats'])
         
 
-    def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
+    def set_finetune(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):

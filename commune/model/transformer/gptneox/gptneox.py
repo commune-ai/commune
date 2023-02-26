@@ -29,14 +29,14 @@ import bittensor
 
 # commune.utils
 from torch import nn
-    
+from commune.model import Model
 """
 Examples 
 
 
 
 """
-class GPTNeoX( nn.Module, commune.Module):
+class GPTNeoX(Model):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -65,11 +65,11 @@ class GPTNeoX( nn.Module, commune.Module):
         
 
         
-        nn.Module.__init__(self)
+        Model.__init__(self)
         
         
 
-        self.tag = tag
+        self.set_tag(tag)
 
         self.set_model(model_name=model_name, override_device_map=override_device_map, 
                        no_split_module_classes=no_split_module_classes, 
@@ -77,7 +77,7 @@ class GPTNeoX( nn.Module, commune.Module):
                        max_memory=max_memory,
                        max_per_gpu=max_per_gpu)
         
-        self.tokenizer = self.set_tokenizer(tokenizer if tokenizer else self.model_name)
+        self.tokenizer = self.set_tokenizer(tokenizer)
         self.set_metrics(metrics=metrics)
 
         
@@ -97,6 +97,7 @@ class GPTNeoX( nn.Module, commune.Module):
         self.model_config.use_cache = False 
         self.model_device = device
         
+        
         if  os.path.exists(self.checkpoint_path):
             commune.print(f'Found weights path at {self.checkpoint_path}', 'green')
         else:
@@ -108,19 +109,19 @@ class GPTNeoX( nn.Module, commune.Module):
             self.model = AutoModelForCausalLM.from_config(self.model_config)
 
 
+        self.no_split_module_classes = self.model._no_split_modules
         self.max_memory = self.resolve_max_memory(max_memory, max_per_gpu=max_per_gpu)
 
         commune.print(f'max_memory: {self.max_memory}', 'yellow')
 
         if self.model_name == 'EleutherAI/gpt-neox-20b':
-            self.no_split_module_classes =  ["GPTNeoXLayer"]
             self.override_device_map = {'gpt_neox.embed_in': device}
 
 
         self.device_map = infer_auto_device_map(
             self.model, 
             no_split_module_classes= self.no_split_module_classes,
-            dtype=torch.bfloat16, #note: succeeds with float16 as well.
+            dtype=torch.float16, #note: succeeds with float16 as well.
             max_memory = self.max_memory,
             )    
                 
@@ -133,18 +134,20 @@ class GPTNeoX( nn.Module, commune.Module):
             device_map=self.device_map,
             offload_folder=None,
             offload_state_dict=False,
-            dtype="bfloat16"
+            dtype="float16"
         )
+        
+        self.model_config = commune.dict2munch(json.loads(self.model_config.to_json_string()))
+
             
         # convert model to bfloat16
-        self.model_config = commune.dict2munch(json.loads(self.model_config.to_json_string()))
 
 
 
         
     @property
     def checkpoint_path(self):
-        return f"{self.tmp_dir()}/checkpoints/{self.module_tag}"
+        return f"{self.tmp_dir()}/checkpoint/{self.tag}"
 
     def calculate_loss(self, pediction, gt):
         loss =  self.metrics['cross_entropy'](pediction, gt)
@@ -275,6 +278,7 @@ class GPTNeoX( nn.Module, commune.Module):
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer
+        tokenizer = tokenizer if tokenizer else self.model_name
         if isinstance(tokenizer, str):
             tokenizer = self.shortcuts.get(tokenizer, tokenizer)
             try:
@@ -375,73 +379,6 @@ class GPTNeoX( nn.Module, commune.Module):
         self.set_stats(state_dict['stats'])
         
 
-
-    def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
-        r''' Set to tune only the parameter of the last layer
-            Returns: 
-                reached_last_layer (:type:`bool`):
-                    If we have set partial of the model to requires grad.
-                
-                last_layer_name (:type:`string`):
-                    The name of the last layer that user specified or we found.
-                    None if the user did not specify and we couldnt find it. 
-        '''
-        def find_last_layer(model: torch.nn.Module) -> Optional[str]:    
-            r''' Recursively find the last layer in a nn.ModuleList
-                Args:
-                    model (:obj:`torch.module`):
-                        The model (or sub-model) to fine the last layer from. 
-                Returns:
-                    name (:type:`str`):
-                        The name (or sub-name) of the last layer.
-                        None if not found
-            '''
-            reverted_child_list = [(name, child) for name, child in model.named_children()]
-            reverted_child_list.reverse()
-
-            for name, child in reverted_child_list:    
-                if isinstance(child, nn.ModuleList):
-                    if num_layers > len(child):
-                        logger.warning(f'Number of finetune layers was set higher then the layers avaliable {len(child)}')
-                        return None
-                    return (name + '.' +str(len(child) - num_layers))
-                
-            for name, child in reverted_child_list:    
-                name_ = find_last_layer(child)
-                if name_ != None:
-                    return (name+'.'+ name_)
-
-            return None     
-
-        if layer_name == None:
-            last_layer_name = find_last_layer(self.model)
-        else:
-            last_layer_name = layer_name
-
-        reached_last_layer = False
-
-        # set the non-last layer parameters not to require grads
-        if (all) or (last_layer_name == None):
-            return False, last_layer_name
-
-        logger.success(f'Set to finetune layer {last_layer_name} and onwards')
-        
-        for name, param in self.model.named_parameters():
-            if last_layer_name in name or reached_last_layer == True:
-                param.requires_grad = True
-                reached_last_layer = True
-            else:
-                param.requires_grad = False
-
-        if reached_last_layer == False:
-            if all:
-                logger.warning('Set to finetune the whole model, this will significantly increase the memory usage.')
-            else:
-                logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
-
-        return reached_last_layer, last_layer_name
-
-  
         
     @classmethod
     def resolve_max_memory(cls, max_memory: Union[Dict[int, str], int], buffer_memory:int=10, max_per_gpu:int=50) -> Dict[int, str]:
@@ -465,6 +402,9 @@ class GPTNeoX( nn.Module, commune.Module):
             assert k in gpu_ids, f'gpu_id {k} not found in {gpu_ids}'
         
         return max_memory
+    
+    
+    
     @classmethod
     def infer_max_memory(cls, total_memory:int= None, buffer_memory:int=10, max_per_gpu:int=50) -> Dict[int, str]:
         """ Returns a dictionary of gpu_id to max memory for each gpu.
@@ -499,7 +439,7 @@ class GPTNeoX( nn.Module, commune.Module):
 
     
 
-    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
+    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=True):
         r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
             Args:
                 token_batch ( :obj:`torch.LongTensor`, `required`):

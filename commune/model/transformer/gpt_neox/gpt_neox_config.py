@@ -1,5 +1,6 @@
 
-class GPTNeoXConfig:
+from transformers.configuration_utils import PretrainedConfig
+class GPTNeoXConfig(PretrainedConfig):
 
     def __init__(
         self,
@@ -7,7 +8,7 @@ class GPTNeoXConfig:
         hidden_size=6144,
         num_hidden_layers=44,
         num_attention_heads=64,
-        intermediate_size=24576,
+        intermediate_size_factor=4,
         hidden_act="gelu",
         rotary_pct=0.25,
         rotary_emb_base=10000,
@@ -19,6 +20,7 @@ class GPTNeoXConfig:
         eos_token_id=2,
         tie_word_embeddings=False,
         use_parallel_residual=True,
+        pruned_heads = None
     ):
         r"""
         This is the configuration class to store the configuration of a [`GPTNeoXModel`]. It is used to instantiate an

@@ -5,24 +5,15 @@ from typing import *
 
 class Metric(commune.Module):
     
-    def __init__(self,value: Union[int, float] = None, 
-                 **kwargs): 
-    
-        self.metric_key =  self.module_name().replace('Metric','').lower() 
-        if self.metric_key == '':
-            self.metric_key = 'metric'
-        kwargs['value'] = value
+    def __init__(self, **kwargs): 
+        self.value = 0
         self.setup(**kwargs)
-        if not hasattr(self, 'value'):
-            self.value = value
-        self.set_value(self.value)
         # self.value = value
         
     def set_value(self, value:Union[float, int], ) -> float:
-        if not hasattr(self, 'value'):
-            self.value = None
-        self.value = value if value is not None else 0
-
+        if value == None:
+            value = 0
+        self.value = value 
 
     def setup(self, **kwargs):
         pass
@@ -78,6 +69,14 @@ class Metric(commune.Module):
     @classmethod
     def metrics(self) -> List[str]:
         return list(self.get_metric_map().keys())
+    
+
+    def set_params(self, params: dict) -> None:
+        '''
+        set the parameters of the metric
+        '''
+        for key, value in params.items():
+            getattr(self, f'set_{key}')(value)
 if __name__ == '__main__':
     Metric.test_metrics()
     

@@ -343,7 +343,7 @@ class OPT( nn.Module, commune.Module):
         
         
 
-    def set_fine_tuning_params(self) -> Tuple[bool, str]:
+    def set_finetune(self) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):
@@ -457,7 +457,7 @@ class OPT( nn.Module, commune.Module):
         
 
 
-    def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
+    def set_finetune(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):

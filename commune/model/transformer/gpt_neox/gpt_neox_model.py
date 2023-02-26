@@ -15,7 +15,7 @@
 """ PyTorch GPTNeoX model."""
 
 from typing import Optional, Tuple, Union
-
+from typing import *
 import torch
 import torch.utils.checkpoint
 from torch import nn
@@ -32,27 +32,8 @@ from transformers.file_utils import (
 )
 from transformers.modeling_utils import PreTrainedModel
 
-from munch import Munch
+from gpt_neox_config import GPTNeoXConfig
 
-GPTNeoXConfig =   Munch(
-    vocab_size=50432,
-    hidden_size=6144,
-    num_hidden_layers=44,
-    num_attention_heads=64,
-    intermediate_size_factor=4,
-    hidden_act="gelu",
-    rotary_pct=0.25,
-    rotary_emb_base=10000,
-    max_position_embeddings=2048,
-    initializer_range=0.02,
-    layer_norm_eps=1e-5,
-    use_cache=True,
-    bos_token_id=0,
-    eos_token_id=2,
-    tie_word_embeddings=False,
-    use_parallel_residual=True,
-    
-)
 class GPTNeoXPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
@@ -416,7 +397,11 @@ class GPTNeoXModel(GPTNeoXPreTrainedModel):
         self.config = config
 
         self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList([GPTNeoXLayer(config) for _ in range(config.num_hidden_layers)])
+        layers = []
+        for _ in range(config.num_hidden_layers):
+            print(_)
+            layers.append(GPTNeoXLayer(config))
+        self.layers = nn.ModuleList(layers)
         self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
 
         self.gradient_checkpointing = False
@@ -695,3 +680,7 @@ class GPTNeoXForCausalLM(GPTNeoXPreTrainedModel):
                 tuple(past_state.index_select(0, beam_idx) for past_state in layer_past[:2]) + layer_past[2:],
             )
         return reordered_past
+if __name__ == "__main__":
+
+    GPTNeoXForCausalLM.from_pretrained(pretrained_model_name_or_path='/tmp/commune/model/transformer/gptneox/gptneox/checkpoint/base')
+    
