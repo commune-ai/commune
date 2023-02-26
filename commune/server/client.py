@@ -87,7 +87,8 @@ class Client( Serializer):
             port: int = 80 ,
             max_processes: int = 1,
             timeout:int = 20,
-            loop = None
+            loop = None,
+            external_ip = None
         ):
         
 

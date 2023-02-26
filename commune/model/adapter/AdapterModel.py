@@ -22,6 +22,7 @@ import os
 # commune.utils
 from torch import nn
 from torch import Tensor
+from commune.model import Model
 from commune.model.attention import MultiheadAttention
 from commune.model.layer import LayerBlock
 from typing import *
@@ -30,12 +31,12 @@ from torch import nn
 
 
 
-class AdapterModel(commune.model.Model): 
-    def __init__(self, model:str='model::gptj', 
+class AdapterModel(Model): 
+    def __init__(self, 
+                 model:str='model::gptj', 
                  optimizer:dict={'lr': 0.0001},
                  hidden_dim = 700,
                  device:str='cuda', 
-                 
                  tokenizer: str = 'gptj',
                  metrics: dict = {},
                  tag:str = 'base',
@@ -50,7 +51,7 @@ class AdapterModel(commune.model.Model):
         
 
 
-        commune.model.Model.__init__(self, **kwargs )
+        Model.__init__(self,config=locals())
         
         self.model = model
         self.hidden_dim = hidden_dim
@@ -88,6 +89,10 @@ class AdapterModel(commune.model.Model):
             input_ids = input_ids.to(self.device),
             output_length=output_length,
             topk = topk,
+            output_topk=True,
+            output_logits=False,
+            output_hidden_state=True,
+            return_keys =['topk', 'hidden_states'],
             **server_kwargs
             ))
                 
@@ -137,18 +142,6 @@ class AdapterModel(commune.model.Model):
         return model_output
 
 
-    def combine_logits(self, *logits, weights = None):
-        combined_probs = 0
-        combined_probs =torch.zeros_like(logits[0]).to(self.device)
-        if weights == None:
-            weights = [1] * len(logits)
-        for i, logit in enumerate(logits):
-            combined_probs = torch.softmax(logit, dim=-1)*weights[i] + combined_probs
-            
-        combined_probs = combined_probs / combined_probs.sum(dim=-1, keepdim=True)
-        combined_logits = torch.log(combined_probs + 1e-8)
-        return combined_logits
-    
     def set_adapter(self, adapter: dict) -> None:
         
         # get the module class
@@ -186,7 +179,7 @@ class AdapterModel(commune.model.Model):
                    adapter:dict = None, 
                    optimizer:dict=None,
                    tokenizer: str = None,
-                   metrics: dict = None,
+                   stats: dict = None,
                    tag: str = None):
         
         # only set parts of the network when you want to
@@ -203,8 +196,8 @@ class AdapterModel(commune.model.Model):
         if tag != None:
             self.set_tag(tag)
             
-        if metrics != None:
-            self.metrics.set_metrics(metrics)
+        if stats != None:
+            self.set_stats(metrics)
             
         self.set_device(device)
         for k in ['optimizer', 'adapter', 'model', 'tag', 'tokenizer']:
@@ -297,110 +290,47 @@ class AdapterModel(commune.model.Model):
              dataset : Union[str, 'Module'] = 'dataset::bittensor',
              params: dict = None,
             output_length:int=10,
-            sequence_length:int=64,
+            sequence_length:int=256,
             num_batches: int = 1, 
             tag : str = None,
             save : bool = False,
+            load : bool = False,
             refresh: bool = False,
-            metric_server: str = None,
-            best_tag: str = 'best_tag',
             **kwargs):
+        st.write(self.config)
 
         params = params if params != None else {}
         params['tag'] = tag
-            
+
+        if load and (refresh == False):
+            self.load(tag=tag)
+        
         self.set_params(**params)
         
-        
-        commune.log(self.tag)
-        
-        if isinstance(dataset, str):
-            dataset = commune.connect(dataset)
+        if not hasattr(self, 'dataset'):
+            if isinstance(dataset, str):
+                dataset = commune.connect(dataset)
+            self.dataset = dataset
             
-            
-        for i in range(num_batches):
-            sample = dataset.sample(sequence_length=sequence_length)
-            sample['output_length'] = output_length
-            sample['return_keys'] = ['metrics']
-            sample['train'] = True
-            
-            output = self.forward(**sample)
-            
-            commune.print(output, 'cyan')
-
-
-        
-        is_best = False
-        if isinstance(metric_server, str):
-            metric_server = commune.connect(metric_server)
-            
-            
-            best_metric = metric_server.best_metric()
-            output['metrics']['is_best'] = is_best =  bool(output['metrics']['loss'] < best_metric)
-            metric_server.set_metric(self.tag, output['metrics']['loss'])
-            output['metrics']['best_metric'] = best_metric
-        
-    
-        if save :
-            self.save(keys=['metrics'])
-            if is_best:
-                self.save(tag=best_tag)
-            
-        return output
-    
-    
-    def eval_model(self,
-             dataset : Union[str, 'Module'] = 'dataset::bittensor',
-             model: dict = 'model::gptneox',
-            output_length:int=10,
-            sequence_length:int=64,
-            num_batches: int = 1, 
-            metric_server: str = None,
-            **kwargs):
-
-        params = params if params != None else {}
-        params['tag'] = tag
-            
-        # self.set_params(**params)
-        model = commune.connect(model)
-        
-        commune.log(self.tag)
-        
-        if isinstance(dataset, str):
-            dataset = commune.connect(dataset)
             
             
         for i in range(num_batches):
-            sample = dataset.sample(sequence_length=sequence_length)
-            sample['output_length'] = output_length
-            # sample['return_keys'] = ['metrics']
-            sample['train'] = True
+            sample = self.dataset.sample(sequence_length=sequence_length)
+            if isinstance(sample, str):
+                continue
+            sample.update(dict(
+                output_length=output_length,
+                return_keys=['stats'],
+                train = True
+            ))
             
             output = self.forward(**sample)
-            
             commune.print(output, 'cyan')
 
-
-        
-        is_best = False
-        if isinstance(metric_server, str):
-            metric_server = commune.connect(metric_server)
-            
-            
-            best_metric = metric_server.best_metric()
-            output['metrics']['is_best'] = is_best =  bool(output['metrics']['loss'] < best_metric)
-            metric_server.set_metric(self.tag, output['metrics']['loss'])
-            output['metrics']['best_metric'] = best_metric
-        
-    
         if save :
-            self.save(keys=['metrics'])
-            if is_best:
-                self.save(tag=best_tag)
+            self.save(tag=tag)
             
-        return output
-    
-    
+        return output['stats']
     
     @classmethod
     def calculate_loss( cls,  **kwargs) -> torch.Tensor:
@@ -423,6 +353,14 @@ class AdapterModel(commune.model.Model):
             return loss.item()
         return loss
 
+
+    @classmethod
+    def streamlit(cls):
+        import streamlit as st
+        self = cls(model = 'model:gptj:0')
+        
+        cls.train_model(self, num_batches=1, dataset='dataset::bittensor', sequence_length=256, output_length=10)
+        
 
                 
 

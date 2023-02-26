@@ -8,7 +8,7 @@ split: train
 idx_bounds: [0, 1000]
 
 dataset:
-  module: cortex.dataset.huggingface.HuggingfaceDataset
+  module: commune.dataset.text.huggingface
   actor: {refresh: False, cpus: 1, wrap: True}
 
 

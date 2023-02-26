@@ -60,13 +60,15 @@ class BittensorDataset(Module):
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             background_download: bool = False,
-            min_hash_count : int = 10000,
+            download: bool = False,
+            min_hash_count : int = 850000,
             loop: Optional['asyncio.loop'] = None ,
             nest_asyncio: bool = True):
 
         self.kwargs = locals()
         self.loop = loop if loop else self.get_event_loop()
         self.kwargs.pop('self')
+        self.kwargs.pop('download')
         
         if nest_asyncio:
             commune.nest_asyncio()
@@ -76,6 +78,8 @@ class BittensorDataset(Module):
         self.buffer_size = self.batch_size * self.buffer_size
         
         self.set_event_loop(loop=self.loop)
+        if isinstance(self.datasets, str):
+            self.datasets = [self.datasets]
         if self.datasets == 'default' or self.datasets == None:
             self.datasets = self.available_datasets
 
@@ -98,7 +102,8 @@ class BittensorDataset(Module):
         # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
         self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
         
-        self.download(background=self.background_download, min_hash_count=self.min_hash_count)
+        if download:
+            self.download(background=self.background_download, min_hash_count=self.min_hash_count)
       
       
     def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
@@ -458,7 +463,6 @@ class BittensorDataset(Module):
     
     def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False, verbose_rate = 1):
         
-        print('BROOOOOOO')
         if background:
             thread_fn_kwargs = dict(locals())
             thread_fn_kwasrgs['background'] = False
@@ -482,9 +486,9 @@ class BittensorDataset(Module):
         for i,  file_meta_chunk in enumerate(file_meta_chunks):
             if i % verbose_rate == 0:
                 total_hash_count = len(self.all_text_file_metas)
-                if total_hash_count < min_hash_count:
-                    print(f'Not enough hashes to download. {total_hash_count} < {min_hash_count}')
-                    return
+                # if total_hash_count < min_hash_count:
+                #     print(f'Not enough hashes to download. {total_hash_count} < {min_hash_count}')
+                #     return
                 num_saved_hashes = len(self.get_saved_hashes())
                 if num_saved_hashes > min_hash_count: 
                     break
@@ -507,16 +511,27 @@ class BittensorDataset(Module):
 
         if not hasattr(self, '_saved_hashes'):
             self._saved_hashes = self.get_saved_hashes()
+            self.dataset2hashes = {}
+            for h in self._saved_hashes:
+                h['Hash'] = h['Hash'].split('.')[0]
+                if h['Hash'] in self.hash_dataset_map:
+                    dataset = self.hash_dataset_map[h['Hash']]
+                    self.dataset2hashes[dataset] = h['Hash']
+                    
+            #  = {self.hash_dataset_map[h['Hash'].split('.')[0]]: h for h in self._saved_hashes}
+            
 
         return self._saved_hashes
 
 
     def get_saved_hashes(self, update:bool = True):
         
-        hash_urls = self.glob('saved_file_metas/*')
         _saved_hashes = []
-        for hash_url in hash_urls:
-            _saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
+        for dataset in self.datasets:
+            hash_urls = self.glob(f'saved_file_metas/{dataset}/*')
+            
+            for hash_url in hash_urls:
+                _saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
         if update:
             self._saved_hashes = _saved_hashes
         return _saved_hashes
@@ -546,7 +561,8 @@ class BittensorDataset(Module):
         
         length = length if length else self.max_hash_size
         cid = file_meta['Hash']
-        path=f'saved_file_metas/{cid}'
+        dataset = self.hash_dataset_map[cid]
+        path=f'saved_file_metas/{dataset}/{cid}'
         
         try:
             response = self.get_json(path=path, handle_error=True, default={}) if load else {}
@@ -807,8 +823,9 @@ class BittensorDataset(Module):
     def test_dataset(cls):
         import commune
         # self = bittensor.dataset(batch_size=32, block_size=256)
-        self = cls(batch_size=32, sequence_length=256, max_datasets=10)
-        print(len(self))
+        self = cls(batch_size=32, sequence_length=256, max_datasets=10, datasets=['ArXiv', 'Books3'])
+        st.write(len(self))
+        
         # print(self.download(chunk_size=200))
         # self.download()
         
@@ -821,7 +838,7 @@ class BittensorDataset(Module):
             
     @classmethod
     def sandbox(cls):
-        self = cls(batch_size=32, sequence_length=256, max_datasets=10)
+        self = cls(batch_size=32, sequence_length=256, max_datasets=10, datasets=['ArXiv', 'Books3'])
         print('START')
         import commune
         
@@ -829,6 +846,48 @@ class BittensorDataset(Module):
         # t = commune.timer()
         # for i in range(1000):
             # print(self.sample()['input_ids'].shape, i/t.seconds)
+            
+            
+    @classmethod
+    def deploy_swarm(cls):
+        dataset_module = commune.get_module('dataset.text.bittensor')
+        datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'DMMathematics', 'OpenSubtitles']
 
+        for dataset in datasets:
+            module_id = f'dataset:{dataset.lower()}'
+            cls.launch(name=f'dataset:{dataset.lower()}', kwargs={'datasets': dataset})
+    @classmethod
+    def test_swarm(cls):
+        dataset_module = commune.get_module('dataset.text.bittensor')
+        datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'OpenSubtitles', 'DMMathematics']
+
+        for dataset in datasets:
+            module_id = f'dataset:{dataset.lower()}'
+            print(commune.connect(module_id).sample())
+            
+    @classmethod
+    def streamlit(cls):
+        import streamlit as st
+        self = cls(datasets=['Books3'], batch_size=32, sequence_length=256, max_datasets=10, download=False)
+        print(self.sample())
+
+        # files = self.glob('saved_file_metas/*')
+        # for i, h_url in enumerate(files):
+        #     h = os.path.basename(h_url).split('.')[0]
+        #     self.saved_hashes.append(h)
+        #     if h in self.hash_dataset_map:
+        #         dataset = self.hash_dataset_map[h]
+        #         text = self.get_json(f'saved_file_metas/{h}.json')
+        #         self.save_json(f'saved_file_metas/{dataset}/{h}.json', text )
+        #         self.rm_json(f'saved_file_metas/{h}.json')
+        #         if i %  100 == 0:
+        #             st.write(f'{i}/{len(files)}')
+        # for h in self.saved_hashes:
+            
+            
+        # st.write(len(dataset))
+        
+        
+        
 if __name__ == "__main__":
     BittensorDataset.run()

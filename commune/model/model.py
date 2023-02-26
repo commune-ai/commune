@@ -160,10 +160,10 @@ class Model( nn.Module, commune.Module):
 
         return path
     
-    def load(self, tag=None, keys:List[str] = None, map_location: str = None):
+    def load(self, tag=None, keys:List[str] = None, map_location: str = None, resolve_path:bool = True):
         map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
-        path = self.resolve_path(tag)
+        path = self.resolve_path(tag) if resolve_path else tag
         import glob
         if not os.path.exists(path):
             return 
@@ -305,6 +305,23 @@ class Model( nn.Module, commune.Module):
                 stats = {}
         self.stats = stats
         self.config['stats'] = self.stats
+
+
+    @classmethod
+    def launchpad(cls, models = ['gptj', 'gpt3b'], replicas = 3,):
+        '''
+        ArXiv/            Gutenberg_PG/
+        BookCorpus2/      HackerNews/
+        Books3/           NIHExPorter/
+        DMMathematics/    OpenSubtitles/
+        '''
+        model_module = commune.get_module('model.transformer')
+        datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'DMMathematics', 'OpenSubtitles']
+        import time
+        for model in models:
+            for i in range(replicas):
+                model_module.pm2_kill(name=f'model::{model}::{i}::{i}')
+                model_module.launch(name=f'model::{model}', kwargs={'model': model, 'tag': str(i)})
 
 if __name__ == "__main__":
     

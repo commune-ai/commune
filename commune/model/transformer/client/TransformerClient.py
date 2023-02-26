@@ -400,6 +400,21 @@ class TransformerClient(Module, nn.Module):
                                                         pad_offsets_batch)
         return tokens
 
+
+
+    def logits_remap(logits, tokens):
+        from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
+            translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
+
+        probs_std = translate_logits_to_probs_std(logits,
+                                                    tokens['offset_mapping'], tokens['offset_mapping_std'],
+                                                    self.tokenizer, self.std_tokenizer,
+                                                    self.split_map_cache,
+                                                    self.to_translation_map, 
+                                                    self.from_translation_map,
+                                                    tokens['input_ids'], tokens['input_ids'])
+        return probs_std
+
     
 if __name__ == "__main__":
     
