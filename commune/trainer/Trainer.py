@@ -9,21 +9,21 @@ from copy import deepcopy
 
 class Trainer(commune.Module):
     def __init__(self, 
-                 model: str = 'model:gpt125m', 
-                 tag : str ='base',
+                 model: str = 'model:gptj:train', 
+                 tag : str ='base_trainer',
                  metrics_server: str = 'metrics_server' ,
                  tuner: Dict = dict(
                      metric = 'loss',
                      mode = 'min',
                      max_concurrent_trials = 1,
-                     resources_per_trial = {"cpu": 1, "gpu": 0},
+                     resources_per_trial = {"cpu": 2, "gpu": 0},
                      num_samples= 1000
                  ),
-                 best_trial_tag = 'best_trial_tag',
                  **kwargs):
         
-        self.model = model
+        
         self.set_config(config = locals())
+        self.set_model(self.config['model'])
         self.set_tag(self.config['tag'])
         self.set_metrics_server(self.config['metrics_server'])
         self.set_tuner(**self.config['tuner'])
@@ -35,6 +35,25 @@ class Trainer(commune.Module):
         self.config.pop('args', None)
         
         # self.model = self.connect(self.model_name)
+
+
+        
+    def set_model(self, 
+                          model:str,
+                          refresh:bool = True,
+                          timeout:int = 1000,
+                          check_step:int= 2):
+        # if not self.server_exists(metrics_server):
+        wait_time = 0
+        while not self.server_exists(model) and wait_time <= timeout:
+            self.sleep(check_step)
+            wait_time += check_step
+            
+        if wait_time >= timeout:
+            raise Exception('Your peer is not visible')
+        
+        self.model = model
+    
         
     def set_metrics_server(self, 
                           metrics_server:str,
@@ -71,23 +90,24 @@ class Trainer(commune.Module):
  
                 
     def objective(self, 
-                  params:dict = None, 
-                  train_kwargs = {'num_batches': 100, 'refresh': True, 'save': True},
-                  timeout:int=100) -> Dict:
+                  hyperparams:dict = None, 
+                  train_kwargs = {'num_batches': 100},
+                  timeout:int=1000) -> Dict:
 
-        if params is None:
-            params = {}
+        if hyperparams is None:
+            hyperparams = {}
             
+            
+        
+        
+        params = self.hyper2params(deepcopy(hyperparams))
         params['stats'] = {}
-        params = self.hyper2params(params)
-
-        tag = self.get_hyperopt_tag(params)
-        train_kwargs = dict(
-            tag=tag,
+        train_kwargs.update(dict(
+            tag=self.tag,
             params = params,
             save = False,
-            load = params.pop('load', False)
-        )
+            load = False,
+        ))
         
         model = commune.connect(self.model)
 
@@ -102,20 +122,28 @@ class Trainer(commune.Module):
         elif self.config['tuner']['mode'] == 'max':
             is_best =  bool(output['loss'] >  best_metric)
             
-        
-        metric_server.set_metric(tag, output['loss'])
+        hyperopt_tag = self.get_hyperopt_tag(hyperparams)
+
+        metric_server.set_metric(hyperopt_tag, output['loss'])
         
     
-        model.save(keys=['config'], tag=tag)
+        model.save(keys=['config'], tag=self.tag)
+        
+        trial_info_dict =  {**output, **hyperparams}
+        
+        trial_info_path =f'experiment/{self.model}/{self.tag}/{hyperopt_tag}.json'
+        model.save(trial_info_path, keys=['config'])
+                
         if is_best:
-            model.save(tag=self.config['best_trial_tag'])
+            model.save(tag=self.tag)
             
         return output
     @classmethod
     def default_search_space(cls):
         search_space = {
-            'optimizer.lr': tune.loguniform(1e-6, 1e-3),
+            'optimizer.lr': tune.loguniform(1e-6, 1e-4),
             "finetune.num_layers": tune.choice([1,2,3,4,5,6,7]),
+            # 'load': tune.choice([True, False]),
         }
         
         return search_space

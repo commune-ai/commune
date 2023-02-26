@@ -465,6 +465,7 @@ class Server(ServerServicer, Serializer):
         return dict(
             ip=self.ip,
             port= self.port,
+            external_ip = self.external_ip
         )
         
         

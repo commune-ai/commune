@@ -152,6 +152,9 @@ class Dashboard:
         with launch_col:
        
             name = st.text_input('**Name**', self.module_name) 
+            tag = st.text_input('**Tag**', 'None')
+            if tag == 'None' or tag == '' or tag == 'null':
+                tag = None
             refresh = st.checkbox('**Refresh**', False)
             # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
             mode = 'pm2'
@@ -197,7 +200,7 @@ class Dashboard:
             launch_kwargs = dict(
                 module = self.selected_module,
                 name = name,
-                tag = None,
+                tag = tag,
                 mode = mode,
                 refresh = refresh,
                 serve = serve,
@@ -206,6 +209,10 @@ class Dashboard:
             commune.launch(**launch_kwargs)
         
     def streamlit_playground(self):
+        
+        st.write('fam')
+        
+        
         pass
         # dataset = commune.connect('HFDataset')
         

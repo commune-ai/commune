@@ -34,7 +34,7 @@ from transformers.modeling_utils import PreTrainedModel
 
 from gpt_neox_config import GPTNeoXConfig
 
-class GPTNeoXPreTrainedModel(PreTrainedModel):
+class GPTNeoXPreTrainedModel:
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
     models.
@@ -43,7 +43,7 @@ class GPTNeoXPreTrainedModel(PreTrainedModel):
     config_class = GPTNeoXConfig
     base_model_prefix = "gpt_neox"
     supports_gradient_checkpointing = True
-    _no_split_modules = ["GPTNeoXLayer"]
+    no_split_modules = ["GPTNeoXLayer"]
 
     def _init_weights(self, module):
         """Initialize the weights"""

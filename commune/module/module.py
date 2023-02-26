@@ -497,12 +497,12 @@ class Module:
         '''
         Kill the server by the name
         '''
-        server_info = cls.get_server_info(module)
+        server_stats = cls.get_server_stats(module)
         import streamlit as st
-        if 'external_ip' in server_info:
-            assert server_info.get('external_ip') == cls.external_ip()
+        if 'external_ip' in server_stats:
+            assert server_stats.get('external_ip') == cls.external_ip()
         if isinstance(module, int) or mode == 'local':
-            return cls.kill_port(server_info['port'])
+            return cls.kill_port(server_stats['port'])
         if mode == 'pm2':
             return cls.pm2_kill(module)
         else:
@@ -766,7 +766,7 @@ class Module:
     save_json = put_json
     
     @classmethod
-    def exists(cls, path:str, resolve_path:bool = True, extension = 'json')-> bool:
+    def exists_json(cls, path:str, resolve_path:bool = True, extension = 'json')-> bool:
         path = cls.resolve_path(path=path, extension=extension) if resolve_path else path
         return os.path.exists(path)
 
@@ -798,9 +798,7 @@ class Module:
             path += '*'
         # if os.path.isdir(path):
         #     path = os.path.join(path, '**')
-        print(path)
         paths = glob(path, recursive=True)
-        print(paths)
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
@@ -810,23 +808,24 @@ class Module:
         return cls.__name__
 
     @classmethod
-    def get_server_info(cls,name:str) -> Dict:
+    def get_server_stats(cls,name:str) -> Dict:
         return cls.server_registry().get(name, {})
     @classmethod
     def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
         
         
-        
 
-        server_registry =  Module.server_registry()
         if isinstance(name, str) and len(name.split(':')) == 2:
             try:
                 port = int(name.split(':')[1])
                 ip = name.split(':')[0]
-            except ValueError:
+            except ValueError as e:
                 pass
             
+            
+            
         if ip == None and port == None:
+            server_registry = cls.server_registry()
             client_kwargs = server_registry[name]
         else:
             client_kwargs = dict(ip=ip, port=port)
@@ -846,15 +845,13 @@ class Module:
         import nest_asyncio
         nest_asyncio.apply()
         
+
+
+    cache = {}
     @classmethod
-    def peer_registry(cls) -> Dict:
-        peer_registry = {}
-        for peer in cls.pm2_list():
-            peer_stub = cls.connect(peer)
-            peer_registry[peer] = peer_stub.server_stats
-        return peer_registry
-    @classmethod
-    def server_registry(cls)-> dict:
+    def server_registry(cls,
+                        max_age_seconds: int = 0,
+                        filename:str =  'server_registry')-> dict:
         '''
         
         The module port is where modules can connect with each othe.
@@ -865,15 +862,36 @@ class Module:
         
         
         '''
-        # from copy import deepcopy
         
-        # get the module port if its saved.
-        # if it doesnt exist, then return default ({})
-        server_registry = Module.get_json('server_registry', handle_error=True, default={})
-        for k in deepcopy(list(server_registry.keys())):
-            if not Module.port_used(**server_registry[k]):
-                del server_registry[k]
-        Module.put_json('server_registry',server_registry)
+        # from copy import deepcopy
+    
+        if cls.exists_json(filename):
+            cached_data =cls.get_json(filename)
+            cached_timestamp = cached_data['timestamp']
+            cached_age_seconds= cls.time() - cached_timestamp
+            if cached_age_seconds < max_age_seconds:
+                return cached_data['data']
+            
+
+        local_used_ports = cls.get_used_ports()
+        server_registry = {}
+        for port in local_used_ports:
+            module = cls.connect(f'0.0.0.0:{port}')
+            try:
+                server_stats = module.server_stats
+                module_id = module.module_id
+                server_registry[module_id] = server_stats
+            except:
+                pass
+    
+
+        cache_data =  {
+            'data': server_registry,
+            'timestamp': cls.time()
+            }
+        # print(cache_data, 'DEBUG')
+        cls.put_json(filename, cache_data)
+        
         return server_registry
     
     
@@ -892,8 +910,8 @@ class Module:
             raise Exception('Timeout')
         return True
     
-    def server_info(self): 
-        self.server_registry(self.module_id)
+    def server_stats(self): 
+        return self.server_registry(self.module_id)
   
     @classmethod
     def servers(cls, search:str = None) -> List[str]:
@@ -904,21 +922,14 @@ class Module:
             servers = [s for s in servers if search in s]
             
         return servers
+    
     list_servers = servers
     
     
-    
-    @classmethod
-    def register_server(cls, name: str, server: 'commune.Server')-> dict:
-        server_registry = cls.server_registry()
-        server_registry[name] = dict(ip=server.ip, port=server.port)
-        Module.put_json(path='server_registry', data=server_registry) 
-        
-        return server_registry
   
     @classmethod
     def is_module(cls, obj=None) -> bool:
-        return hasattr(cls, 'module_name')
+        return bool(hasattr(cls, 'module_name') and hasattr(cls, 'module'))
 
     @classmethod
     def new_event_loop(cls) -> 'asyncio.AbstractEventLoop':
@@ -955,8 +966,12 @@ class Module:
     def get_module_id(cls, name:str=None, tag:str=None) -> str:
         module_id = name if name else cls.module_name()
             
+
+            
         if tag:
-            module_id = f'{module_id}::{tag}'
+            if tag != module_id[-len(tag):]:
+                module_id = f'{module_id}::{tag}'
+        
         return module_id
     
     @classmethod
@@ -1007,26 +1022,23 @@ class Module:
         else:
             module_id = self.get_module_id(name=name, tag=tag)
            
+        self.module_id = module_id
         '''check if the server exists'''
-        if self.server_exists(module_id): 
+        if self.server_exists(self.module_id): 
             if replace:
-                self.kill_server(module_id)
+                self.kill_server(self.module_id)
             else: 
-                raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
+                raise Exception(f'The server {self.module_id} already exists on port {existing_server_port}')
     
         
-        self.module_id = module_id
+        
 
-    
-        Server = cls.import_object('commune.server.server.Server')
+        # import the server Object
+        Server = cls.import_object('commune.server.Server')
         server = Server(ip=ip, port=port, module = self )
         
-        self.server_stats = dict(ip=server.ip, port=server.port, external_ip = server.external_ip)
+        self.server_stats = server.info
         
-        
-        cls.register_server(name=module_id, server=server)
-    
-
         server.serve(wait_for_termination=wait_for_termination)
         
         
@@ -1393,6 +1405,7 @@ class Module:
             
     
         module_path = module.__module_file__()
+        
         module_id = cls.get_module_id(name=name, tag=tag) 
         
         # build command to run pm2
@@ -2262,6 +2275,7 @@ class Module:
     def peer_registry(cls, module = None):
         if module == None:
             module = cls
+            
         if isinstance(module, str):
             module = cls.connect(module)
             return module.peer_registry()
@@ -2275,12 +2289,15 @@ class Module:
         
         peer_map = {}
         for p in peers:
-            peer = cls.connect(p)
-            peer_stats = peer.server_stats
-            peer_info = {}
-            peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
-            peer_info['is_local'] = external_ip == peer_stats['external_ip']
-            peer_map[p] = peer_info
+            try:
+                peer = cls.connect(p)
+                peer_stats = peer.server_stats
+                peer_info = {}
+                peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
+                peer_info['is_local'] = external_ip == peer_stats['external_ip']
+                peer_map[p] = peer_info
+            except Exception as e:
+                pass
         peer_registry[external_ip] = peer_map
         
         cls.put_json('peer_registry', peer_registry)
@@ -2406,7 +2423,17 @@ class Module:
             if f.startswith('test_'):
                 getattr(cls, f)()
                
-       
+               
+    def get_my_peers(cls):
+        for peer in cls.peers():
+            if peer == cls.my_endpoint():
+                return peer
+            
+    @classmethod
+    def streamlit(cls):
+        import streamlit as st
+
+        st.write(cls.server_registry())
 
     
 Block = Lego = Module

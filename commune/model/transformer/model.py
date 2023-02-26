@@ -54,7 +54,7 @@ class TransformerModel( Model):
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model: str="gpt125m",
-                tag :str = 'base',
+                tag :str = None,
                 tokenizer:Union[str, 'tokenizer'] = None,
                 device: str = 'cuda',
                 optimizer: dict = {'lr': 0.00001},
@@ -169,7 +169,7 @@ class TransformerModel( Model):
             loss.backward()
             self.optimizer.step()
             
-            alpha = 0.95
+            alpha = 0.9
             loss = loss.item()
             self.print(loss, 'green')
             self.stats['loss'] = self.stats.get('loss', loss)*(alpha) + loss*(1-alpha)
@@ -235,25 +235,26 @@ class TransformerModel( Model):
             pass
 
         else:
-            self.model_name = self.config['model_name'] = self.shortcuts.get(model_name, model_name)
+            self.model_name =  model_name
+            self.model_path = self.shortcuts.get(model_name, model_name)
             # config = AutoConfig.from_pretrained(self.model_name)
             
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_name)        
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_path)        
             
             # convert config to config
-            model_config = json.loads(self.model.config.to_json_string())
-            model_config['model_name'] = self.model_name
-            
+            model_config = json.loads(self.model.config.to_json_string())         
             self.config['model'] = model_config
+            self.config['model']['model_name'] = self.model_name
+            self.config['model']['model_path'] = self.model_path
                     
         if state_dict:
             self.model.load_state_dict(state_dict)
-            
-        self.set_tokenizer(self.model_name)
+
+        self.set_tokenizer(tokenizer=self.model_path)
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
-        tokenizer = tokenizer if tokenizer else self.model_name
+        tokenizer = tokenizer if tokenizer else self.model_path
         from transformers import AutoTokenizer
         
         if isinstance(tokenizer, str):
@@ -451,12 +452,74 @@ class TransformerModel( Model):
             self.save(tag=tag)
             
         return output['stats']
+    
+    
+    @classmethod
+    def train_remote(cls,
+             model:str='model:gptj',  
+             dataset : Union[str, 'Module'] = 'dataset::bittensor',
+             params: dict = None,
+            output_length:int=10,
+            sequence_length:int=256,
+            num_batches: int = 1, 
+            num_epochs: int = 1,
+            tag : str = None,
+            save : bool = False,
+            load : bool = False,
+            refresh: bool = False,
+            **kwargs):
+        self = commune.connect(model)
+        params = params if params != None else {}
+        params['tag'] = tag
+
+        if load and (refresh == False):
+            self.load(tag=tag)
+        
+        self.set_params(**params)
+        
+  
+        dataset = commune.connect(dataset)
+            
+            
+        for i in range(num_epochs):
+            for i in range(num_batches):
+                sample = dataset.sample(sequence_length=sequence_length)
+                if isinstance(sample, str):
+                    continue
+                print(sample)
+                sample.update(dict(
+                    output_length=output_length,
+                    return_keys=['stats'],
+                    train = True
+                ))
+                
+                output = self.forward(**sample)
+                commune.print(output, 'cyan')
+
+            if save :
+                self.save(tag=tag)
+        print(output)
+        return output['stats']
+    
+    
     @classmethod
     def sandbox(cls):
-        model = cls('gpt125m')
-        st.write(model.train_model(num_batches=10, save=True, load=True , params={'optimizer': {'lr': 0.00001}}))
-        st.write(model.config)
-    
+        datasets = [ 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'OpenSubtitles']
+
+        models = [ 'gptj', 'gpt3b']
+
+        for model in models:
+            for i in range(len(datasets)):
+                dataset = datasets[i].lower()
+                dataset_id = f'dataset:{dataset}'
+                
+                model_idx = i % 4
+                model_id = f'model::{model}::{model_idx}'
+                kwargs = dict(model=model_id, dataset=dataset_id, num_batches=300, num_epochs=100, save=True, load=False, refresh=False)
+                train_id = f'train::{model_id}::{dataset_id}'
+                train_id = train_id.lower()
+                cls.pm2_kill(train_id)
+                cls.pm2_launch(name = train_id.lower(), fn='train_remote', kwargs=kwargs)
 if __name__ == "__main__":
     
     TransformerModel.run()

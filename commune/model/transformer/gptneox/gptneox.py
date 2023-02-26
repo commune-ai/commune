@@ -19,8 +19,8 @@ from accelerate import init_empty_weights, infer_auto_device_map, load_checkpoin
 from huggingface_hub import hf_hub_download
 from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
-    
-    
+
+
 
 import commune
 commune.new_event_loop()
