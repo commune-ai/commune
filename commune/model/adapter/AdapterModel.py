@@ -349,6 +349,58 @@ class AdapterModel(commune.model.Model):
         return output
     
     
+    def eval_model(self,
+             dataset : Union[str, 'Module'] = 'dataset::bittensor',
+             model: dict = 'model::gptneox',
+            output_length:int=10,
+            sequence_length:int=64,
+            num_batches: int = 1, 
+            metric_server: str = None,
+            **kwargs):
+
+        params = params if params != None else {}
+        params['tag'] = tag
+            
+        # self.set_params(**params)
+        model = commune.connect(model)
+        
+        commune.log(self.tag)
+        
+        if isinstance(dataset, str):
+            dataset = commune.connect(dataset)
+            
+            
+        for i in range(num_batches):
+            sample = dataset.sample(sequence_length=sequence_length)
+            sample['output_length'] = output_length
+            # sample['return_keys'] = ['metrics']
+            sample['train'] = True
+            
+            output = self.forward(**sample)
+            
+            commune.print(output, 'cyan')
+
+
+        
+        is_best = False
+        if isinstance(metric_server, str):
+            metric_server = commune.connect(metric_server)
+            
+            
+            best_metric = metric_server.best_metric()
+            output['metrics']['is_best'] = is_best =  bool(output['metrics']['loss'] < best_metric)
+            metric_server.set_metric(self.tag, output['metrics']['loss'])
+            output['metrics']['best_metric'] = best_metric
+        
+    
+        if save :
+            self.save(keys=['metrics'])
+            if is_best:
+                self.save(tag=best_tag)
+            
+        return output
+    
+    
     
     @classmethod
     def calculate_loss( cls,  **kwargs) -> torch.Tensor:

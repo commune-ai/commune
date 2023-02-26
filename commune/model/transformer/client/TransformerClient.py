@@ -22,7 +22,7 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
 
-class ModelClient(Module, nn.Module):
+class TransformerClient(Module, nn.Module):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -368,15 +368,44 @@ class ModelClient(Module, nn.Module):
         self = cls(model=model, tokenizer=tokenizer)
         n = neuron(model=self)  
         n.run()
- 
+    
 
- 
+    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=True):
+        r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
+            Args:
+                token_batch ( :obj:`torch.LongTensor`, `required`):
+                    token_batch to be retokenized, [batch_size, sequence_len]
+                std_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
+                    The standard tokenizer which was used to tokenize the input.
+                return_offsets_mapping ( :obj:`bool`, `required`):
+                    Return offsets_mapping in tokenization to delineate token segment positions.
+        """
+        if std_tokenizer is None:
+            std_tokenizer = self.std_tokenizer
+
+        text_batch = std_tokenizer.batch_decode(token_batch)  # decode tokens to original text
+        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
+        to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
+
+        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
+                                add_special_tokens=False).to(self.device)  # assume tokenizer.padding_side = 'left'
+
+        if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
+            server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
+            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
+
+            # pad offsets so that special token offset widths match for continued correct alignment
+            tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
+            tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
+                                                        pad_offsets_batch)
+        return tokens
+
+    
 if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    model_kwargs = dict(model={'ip': '65.49.81.154', 'port': 50050}, tokenizer='gptj')
     # ModelClient.test_neuron('model::gpt20b', tokenizer='gpt20b')
-    ModelClient.run_neuron(**model_kwargs)
+    TransformerClient.run()
     
     # ModelClient.r()

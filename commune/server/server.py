@@ -238,8 +238,6 @@ class Server(ServerServicer, Serializer):
             
         except Exception as ex:
             commune.print(f'Exception in server: {ex}', 'red')
-            output_data = str(ex)
-            commune.print(output_data, 'red')
         
         # calculate states
         self.stats['call_count'] += 1

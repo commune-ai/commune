@@ -15,6 +15,9 @@ import argparse
 import torch
 import json
 
+import streamlit as st
+
+
 # logger = logger.opt(colors=True)
     
 # import torch
@@ -39,6 +42,7 @@ class TransformerModel( Model):
     shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptneox': 'EleutherAI/gpt-neox-20b',
@@ -49,36 +53,35 @@ class TransformerModel( Model):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
-                model_name: str="gpt125m",
-                tag :str = None,
-                topk: int = 4096,
+                model: str="gpt125m",
+                tag :str = 'base',
                 tokenizer:Union[str, 'tokenizer'] = None,
                 device: str = 'cuda',
-                optimizer: dict = {'lr': 0.0001},
+                optimizer: dict = {'lr': 0.00001},
+                finetune : dict = {'num_layers': 4},
                 load: bool = False,
-                finetune : dict = None,
                 **kwargs
                 ):
         
-        
-        
-        Model.__init__(self, **kwargs)
-        
-        self.tag = tag if tag else model_name
-        self.topk = topk
-        
+
+        Model.__init__(self, config =locals())
         # set model and tokenizer
 
-        self.set_model(model_name=model_name,device=device,  **kwargs)
+        self.set_params(**self.config)
 
         # set tokenizer to model name (HF only) if tokenizer == None
-        self.set_tokenizer(tokenizer=tokenizer if tokenizer != None else self.model_name)
-        self.set_optimizer(optimizer)        
         
         if load:
             self.load(self.tag)
         
 
+    def set_tag(self,tag:str):
+        if tag == None:
+            if hasattr( self, 'tag'):
+                return self.tag
+            else:
+                tag = 'base'
+        self.tag = self.model_name + '::' +tag
     @classmethod
     def calculate_loss( cls,  **kwargs) -> torch.Tensor:
         '''
@@ -128,15 +131,18 @@ class TransformerModel( Model):
             sample = {
             'input_ids': input_ids,
             }
+        for k,v in sample.items():
+            if isinstance(v, torch.Tensor):
+                sample[k] = sample[k].to(self.device)
         
         if train:
             self.optimizer.zero_grad()
             
-            
-        model_output = self.model(input_ids=sample['input_ids'].to(self.device),
+        model_output = self.model(input_ids=sample['input_ids'],
                                   output_hidden_states=True)
         
     
+        print(model_output.logits.device)
     
         # sometime we dont care about the begginning of the sequence
         
@@ -156,17 +162,20 @@ class TransformerModel( Model):
              
         if train:
             for key in sample:
-                if key not in model_output:
-                    model_output[key] = sample[key]
+                if key not in output_dict:
+                    output_dict[key] = sample[key]
             
-            loss = self.calculate_loss(**model_output)   
-            self.set_metric('loss', loss.item(), metric='metric')
-            self.set_metric('learn_steps', metric='counter')
-            
+            loss = self.calculate_loss(**output_dict)  
             loss.backward()
             self.optimizer.step()
-            model_output['stats'] = deepcopy(self.stats)
-            model_output['stats']['metrics'] = self.get_metrics()
+            
+            alpha = 0.95
+            loss = loss.item()
+            self.print(loss, 'green')
+            self.stats['loss'] = self.stats.get('loss', loss)*(alpha) + loss*(1-alpha)
+            self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
+            
+            output_dict['stats'] = deepcopy(self.stats)
         
             
         # remap back to original tokens if token_remap is True
@@ -179,45 +188,84 @@ class TransformerModel( Model):
         hidden_dim_bounds = hidden_dim_bounds if hidden_dim_bounds else [0, hidden_dim+1]
         
         return_keys = return_keys if return_keys else []
-        if output_logits:
-            return_keys.append('logits')
-        if output_topk:
-            return_keys.append('topk')
-        if output_hidden_states:
-            return_keys.append('hidden_states')
-        return {key:output_dict for key in return_keys}
+        return {key:output_dict[key] for key in return_keys}
 
-
-    def set_model(self, model_name:str, device:str = None, finetune: dict = None,  **extra_model_kwargs):
+        
+    def set_params(self, 
+                   model:str = None,
+                   optimizer:dict = None,
+                   tokenizer: Union[str, 'tokenizer'] = None,
+                   tag:str= None, 
+                   finetune: dict = None,
+                   stats: dict = None, 
+                   device:str=None, 
+                   **kwargs) -> None:        
+        if model!= None:
+            self.set_model(model)
+        if tokenizer != None:
+            self.set_tokenizer(tokenizer)
+        if optimizer!= None:
+            self.set_optimizer(optimizer)
+        if finetune!= None:
+            self.set_finetune(finetune)
+        if device!= None:
+            self.set_device(device)
+        
+        self.set_stats(stats)    
+        self.set_tag(tag)
+        
+        
+        
+            
+        
+    def set_model(self, model: Union[str, Dict],state_dict:Dict = None) -> None:
+        
+        
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
 
-        self.model_name = self.shortcuts.get(model_name, model_name)
-        # config = AutoConfig.from_pretrained(self.model_name)
+        if isinstance(model, str):
+            model_name = model
+        elif isinstance(model, dict):
+            model_name = model['model_name']
+            state_dict = model.get('state_dict', None)
+        else:
+            raise ValueError(f'invalid model type: {type(model)}')
         
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_name, 
-                                            **extra_model_kwargs)        
-        
-        # convert config to config
-        self.config = json.loads(self.model.config.to_json_string())
-        
-        self.set_device(device=device)
-        
-        if finetune:
-            self.set_fine_tuning_params(**finetune)
-            
-        return self.model
+        if hasattr(self, 'model_name') and self.model_name == model_name:
+            pass
 
+        else:
+            self.model_name = self.config['model_name'] = self.shortcuts.get(model_name, model_name)
+            # config = AutoConfig.from_pretrained(self.model_name)
+            
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name)        
+            
+            # convert config to config
+            model_config = json.loads(self.model.config.to_json_string())
+            model_config['model_name'] = self.model_name
+            
+            self.config['model'] = model_config
+                    
+        if state_dict:
+            self.model.load_state_dict(state_dict)
+            
+        self.set_tokenizer(self.model_name)
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
+        tokenizer = tokenizer if tokenizer else self.model_name
         from transformers import AutoTokenizer
+        
         if isinstance(tokenizer, str):
             tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+            self.config['tokenizer'] = tokenizer
+
             try:
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
             except ValueError:
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+        
         self.tokenizer = tokenizer
         
         
@@ -325,19 +373,23 @@ class TransformerModel( Model):
         
 
     @classmethod
-    def train(cls,
-              model:str='gpt125m', 
+    def run_train(cls,
+              model:str='gptj', 
               dataset : Union[str, 'Module'] = 'dataset::bittensor',
              output_length:int=10,
              sequence_length:int=256,
              adapter: dict = None,
-             num_batches: int = 100, 
+             num_batches: int = 10000, 
              tag:str=None,
+             load: bool = False,
+             save: bool= True,
              refresh: bool = False):
         if refresh:
             load = False
+            
+
+        model = cls(model=model, tag=tag, load=load)
         
-        model = cls()
         if isinstance(dataset, str):
             dataset = commune.connect(dataset)
 
@@ -347,14 +399,68 @@ class TransformerModel( Model):
             sample['return_keys'] = ['stats']
             sample['train'] = True
             output = model.forward(**sample)
+            print(output)
+        if save:
+            model.save(tag=tag)
             
         return output['stats']
     
     
+    def train_model(self,
+             dataset : Union[str, 'Module'] = 'dataset::bittensor',
+             params: dict = None,
+            output_length:int=10,
+            sequence_length:int=256,
+            num_batches: int = 1, 
+            tag : str = None,
+            save : bool = False,
+            load : bool = False,
+            refresh: bool = False,
+            **kwargs):
+        st.write(self.config)
 
+        params = params if params != None else {}
+        params['tag'] = tag
+
+        if load and (refresh == False):
+            self.load(tag=tag)
+        
+        self.set_params(**params)
+        
+        if not hasattr(self, 'dataset'):
+            if isinstance(dataset, str):
+                dataset = commune.connect(dataset)
+            self.dataset = dataset
+            
+            
+            
+        for i in range(num_batches):
+            sample = self.dataset.sample(sequence_length=sequence_length)
+            if isinstance(sample, str):
+                continue
+            sample.update(dict(
+                output_length=output_length,
+                return_keys=['stats'],
+                train = True
+            ))
+            
+            output = self.forward(**sample)
+            commune.print(output, 'cyan')
+
+        if save :
+            self.save(tag=tag)
+            
+        return output['stats']
+    @classmethod
+    def sandbox(cls):
+        model = cls('gpt125m')
+        st.write(model.train_model(num_batches=10, save=True, load=True , params={'optimizer': {'lr': 0.00001}}))
+        st.write(model.config)
+    
 if __name__ == "__main__":
     
     TransformerModel.run()
+
     # TransformerModel.test()
 
 

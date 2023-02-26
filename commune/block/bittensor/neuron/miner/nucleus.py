@@ -71,7 +71,7 @@ class server(torch.nn.Module):
 
         if self.config.neuron.local_train or self.config.neuron.remote_train:
             self.model.train()
-            self.set_fine_tuning_params()
+            self.set_finetune()
 
         else:
             self.model.eval()
@@ -140,7 +140,7 @@ class server(torch.nn.Module):
         self.tokenizer = tokenizer
 
 
-    def set_fine_tuning_params(self) -> Tuple[bool, str]:
+    def set_finetune(self) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):

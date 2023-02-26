@@ -2,13 +2,14 @@ import commune
 from ray import tune
 from typing import *
 import torch
+from copy import deepcopy
 
 
 
 
 class Trainer(commune.Module):
     def __init__(self, 
-                 model: str = 'model.adapter', 
+                 model: str = 'model:gpt125m', 
                  tag : str ='base',
                  metrics_server: str = 'metrics_server' ,
                  tuner: Dict = dict(
@@ -16,30 +17,22 @@ class Trainer(commune.Module):
                      mode = 'min',
                      max_concurrent_trials = 1,
                      resources_per_trial = {"cpu": 1, "gpu": 0},
-                     num_samples= 100
+                     num_samples= 1000
                  ),
+                 best_trial_tag = 'best_trial_tag',
                  **kwargs):
-        self.set_tag(tag)
-        self.set_model(model, **kwargs)
         
-        # setup the metrics serfver
-        self.set_metrics_server(metrics_server)
-        
-        # setup the tune
-        self.set_tuner(**tuner)
-    
-        
-    
-    def set_model(self, model:str, **kwargs):
-        model_module = self.get_module(model)
-        self.model = f'trainer::{model}'
-        
-        if not self.server_exists(self.model):
-            model_module.launch(name=self.model, **kwargs)
-        
-        while not self.server_exists(self.model):
-            self.sleep(1)
-            self.log(f'waiting for {self.model} to register')
+        self.model = model
+        self.set_config(config = locals())
+        self.set_tag(self.config['tag'])
+        self.set_metrics_server(self.config['metrics_server'])
+        self.set_tuner(**self.config['tuner'])
+
+    def set_config(self, config) -> None:
+        self.config = deepcopy(config)
+        self.config.pop('self',None)
+        self.config.pop('kwargs', None)
+        self.config.pop('args', None)
         
         # self.model = self.connect(self.model_name)
         
@@ -67,9 +60,6 @@ class Trainer(commune.Module):
         
     def hyper2params(self, params: Dict) -> Dict:
         return self.flat2deep(params)
-   
-   
-   
 
     def get_hyperopt_tag(self, config:dict):
         
@@ -79,29 +69,53 @@ class Trainer(commune.Module):
                 
         return tag
  
- 
                 
     def objective(self, 
-                  params:dict = {'optimizer.lr': 1e-4, 'adapter.num_layers': 2, 'adapter.hidden_dim': 3}, 
+                  params:dict = None, 
                   train_kwargs = {'num_batches': 100, 'refresh': True, 'save': True},
                   timeout:int=100) -> Dict:
 
-        train_kwargs['tag'] = self.get_hyperopt_tag(params)
-        train_kwargs['params'] = self.hyper2params(params)
-        train_kwargs['metric_server'] = self.metrics_server
-        train_kwargs['params']['metrics'] = {}
-        train_kwargs['best_tag'] = train_kwargs['tag'].split('__')[0] + '__' + 'best'
-        metrics_server = self.connect(self.metrics_server)
-        model = self.connect(self.model)
-        train_stats = model.train_model(**train_kwargs, timeout=timeout)
-        print(train_stats['metrics'])
-        return train_stats.get('metrics', 1000)
+        if params is None:
+            params = {}
+            
+        params['stats'] = {}
+        params = self.hyper2params(params)
+
+        tag = self.get_hyperopt_tag(params)
+        train_kwargs = dict(
+            tag=tag,
+            params = params,
+            save = False,
+            load = params.pop('load', False)
+        )
+        
+        model = commune.connect(self.model)
+
+        output = model.train_model(**train_kwargs, timeout=timeout)
+        
+        metric_server = commune.connect(self.metrics_server)
+        best_metric = metric_server.best_metric()
+        
+        is_best = False
+        if self.config['tuner']['mode'] == 'min':
+            is_best =  bool(output['loss'] <  best_metric)
+        elif self.config['tuner']['mode'] == 'max':
+            is_best =  bool(output['loss'] >  best_metric)
+            
+        
+        metric_server.set_metric(tag, output['loss'])
+        
+    
+        model.save(keys=['config'], tag=tag)
+        if is_best:
+            model.save(tag=self.config['best_trial_tag'])
+            
+        return output
     @classmethod
     def default_search_space(cls):
         search_space = {
-            'optimizer.lr': tune.loguniform(1e-4, 1e-2),
-            "adapter.hidden_dim": tune.choice([32, 64, 128, 256, 512]),
-            'adapter.num_layers': tune.choice([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
+            'optimizer.lr': tune.loguniform(1e-6, 1e-3),
+            "finetune.num_layers": tune.choice([1,2,3,4,5,6,7]),
         }
         
         return search_space
@@ -139,11 +153,19 @@ class Trainer(commune.Module):
         results = self.tuner.fit()
         print(results.get_best_result(metric=self.metric, mode=self.mode).config)
 
-
+    @classmethod
+    def test(cls):
+        trainer = cls()
+        print(trainer.fit())
+        
+        # print(self.model)
+        # print(self.model_name)
+        
+        
 if __name__ == "__main__":
-    
+    Trainer.test()
     # dataset = commune.connect('dataset::bittensor')
-    print(Trainer().fit())
+    
     # print(dataset.module_id)
     # for i in range(10):
     #     print('Alo')

@@ -124,7 +124,7 @@ class neuron:
         self.subtensor = bittensor.subtensor ( config = self.config ) if subtensor == None else subtensor
         self.metagraph = bittensor.metagraph ( config = self.config, subtensor = self.subtensor ) if metagraph == None else metagraph
         self.dendrite = bittensor.dendrite ( config = self.config, wallet = self.wallet, max_active_receptors = 0 ) if dendrite == None else dendrite # Dendrite should not store receptor in validator.
-        self.axon = bittensor.axon ( config = self.config, wallet = self.wallet ) if axon == None else axon
+        # self.axon = bittensor.axon ( config = self.config, wallet = self.wallet ) if axon == None else axon
         self.device = torch.device ( device = self.config.neuron.device )    
         self.nucleus = nucleus ( config = self.config, device = self.device, subtensor = self.subtensor ).to( self.device )
         self.dataset = (bittensor.dataset(config=self.config, batch_size=self.subtensor.validator_batch_size,
@@ -266,7 +266,7 @@ class neuron:
 
         # === Set prometheus run info ===
         # Serve the axon so we can determine where the prometheus server port is (the axon is only served for this reason.)
-        self.axon.serve( subtensor = self.subtensor )
+        # self.axon.serve( subtensor = self.subtensor )
         self.prometheus_gauges.labels( "model_size_params" ).set( sum(p.numel() for p in self.nucleus.parameters()) )
         self.prometheus_gauges.labels( "model_size_bytes" ).set( sum(p.element_size() * p.nelement() for p in self.nucleus.parameters()) )
         self.prometheus_info.info({
@@ -777,5 +777,5 @@ class neuron:
 
 
 if __name__ == '__main__':
-    neuron.run()
+    neuron().run()
 

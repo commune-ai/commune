@@ -3,15 +3,21 @@
 from commune.metric import Metric
 
 import torch
+
 class MetricCrossEntropy(Metric):
     
+    def __init__(self,*args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
 
-    def calculate(self, gt = None, input = None, pred =None, **kwargs ):
+    def calculate(self,  value ):
         
         
-        if input != None:
-            gt = input[:, -(pred.shape[1]-1):].flatten()
-            pred = pred[:, :pred.shape[1]-1]
+        input_ids = value.get('input_ids', None)
+        pred = value.get('logits', None)
+        if input_ids != None:
+            gt = input_ids[:, -(pred.shape[1]-1):].flatten()
+            pred = pred[:, :-1]
             
         assert isinstance(gt, torch.Tensor), f'gt is not a torch.Tensor. gt: {gt}'
         assert isinstance(pred, torch.Tensor), f'gt is not a torch.Tensor. gt: {gt}'
@@ -21,20 +27,18 @@ class MetricCrossEntropy(Metric):
         
         assert gt.shape == pred.shape[:1], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
 
-        loss_fn = torch.nn.CrossEntropyLoss( *args, **kwargs)
+        loss_fn = torch.nn.CrossEntropyLoss( *self.args, **self.kwargs)
         loss =  loss_fn(pred, gt.to(pred.device))
         
         return loss
         
     
-    
-    @classmethod
-    def update( cls, value:dict, *args, **kwargs) -> torch.Tensor:
+    def update( self, value:dict, return_value:bool = False, *params) -> torch.Tensor:
         '''
         Calculate the loss for the model.
         '''
         
-        value = self.calculate(**value)
+        loss = self.calculate(value)
         
 
         self.value = loss.item()

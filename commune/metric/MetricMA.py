@@ -18,10 +18,18 @@ class MetricMA(Metric):
         self.alpha = alpha
         return alpha
     
-    def update(self, value, window_size:int=None):
+    def set_params(self, params: dict) -> None:
+        '''
+        set the parameters of the metric
+        '''
+        for key, value in params.items():
+            getattr(self, f'set_{key}')(value)
+         
+    def update(self, value, **params):
         '''
         Update the moving window average with a new value.
         '''
+        self.set_params(params)
         
         if self.value == 0 or self.value is None:
             self.value = value

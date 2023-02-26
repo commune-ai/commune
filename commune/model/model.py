@@ -36,57 +36,48 @@ Examples
 class Model( nn.Module, commune.Module):
 
     def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6B",
-                tag :str = None,
-                metrics: Dict[str, 'Metric'] = None,
-                **kwargs
+                 config = None,
                 ):
         
         
+        nn.Module.__init__(self) 
+        self.set_config(config)
         
         
-        nn.Module.__init__(self)
-                
-        self.set_metrics(metrics)
+    def register_params(self, locals_dict: dict) -> None :
+        
+        if not hasattr(self, 'params'):
+            self.params = {}
+        for k, v in locals_dict.items():
+            if k not in ['self', 'kwargs', 'args']:
+                if v != None:
+                    self.params[k] = deepcopy(locals_dict[k])
+                    
         
         
-    def set_metrics(self,
-                    metrics: Dict[str, 'Metric']  ,
-                    from_dict:bool  = False) -> None:
-        metrics = metrics if metrics != None else {}
-        if from_dict:
-            self.metrics = MetricMap.from_dict(metrics)
-        else:
-            self.metrics = MetricMap(metrics)
-          
-    def set_metric(self, *args, **kwargs):
-        return self.metrics.set_metric(*args, **kwargs)
         
-    def get_metric(self, *args, **kwargs) -> float:
-        return self.metrics.get_metric(*args,  **kwargs)
-    
-    def get_metrics(self)-> Dict:
-        return self.metrics.get_metrics()
-        
-
-    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None, from_dict:bool = True):
+    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
-            optimizer_class = self.import_object(module_path) 
-            optimizer_params = optimizer.get('params', optimizer.get('kwargs', optimizer))
-                
+            optimizer_kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
+        
         elif optimizer == None:
-            optimizer_class = torch.optim.Adam
-            optimizer_params = {'lr': 0.02}
+            module_path = 'torch.optim.Adam'
+            optimizer_kwargs = {'lr': 0.02}
             
         
         else:
             raise NotImplementedError(optimizer)
         
-        self.optimizer = optimizer_class(self.parameters(), **optimizer_params)
 
+        optimizer_class = self.import_object(module_path) 
 
-
+        self.optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
+        
+        self.config['optimizer'] = {
+            'module': module_path,
+            **optimizer_kwargs,
+        }
     def forward(self,  **kwargs) -> Union[Dict, torch.Tensor]:
         # import ipdb; ipdb.set_trace()
         no_grad = kwargs.pop('no_grad', True)
@@ -117,10 +108,10 @@ class Model( nn.Module, commune.Module):
     @property
     def device(self):
         # deepspeed has .module.device to access device
-        if not hasattr(self, '_device'):
+        if 'device' not in  self.config:
             self.set_device(device=None)
             
-        return self._device
+        return self.config['device']
 
     def set_device(self, device:str = None, resolve_device: bool = True):
         '''
@@ -130,14 +121,11 @@ class Model( nn.Module, commune.Module):
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         if resolve_device:
             device = self.resolve_device(device)
-        self._device = device
         self.to(device)
-        return self._device
+        self.config['device'] = device
+        return device
     
 
-    def calculate_metrics(self, x: Dict) -> Dict:
-        raise NotImplementedError
-        
 
 
     def save(self, tag:str = None, keys:List[str]=None, trainable_only:bool = True, verbose:bool = True):
@@ -154,9 +142,9 @@ class Model( nn.Module, commune.Module):
         state_dict = {
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
-            'metrics': self.metrics.state_dict(),
-            'config': self.config
-        }
+            'config': self.config,
+            }
+        
         keys = state_dict.keys() if keys == None else keys
         
         for k in keys:
@@ -190,25 +178,44 @@ class Model( nn.Module, commune.Module):
         
         state_dict = self.state_dict()
         
+
         
-        for k,v in loaded_state_dict['model'].items():
-            assert k in state_dict
-            state_dict[k] = v
+        # we want to save the base layers in case we want to change the layers
+
+        # set the params and stats
+        if 'config' in loaded_state_dict:
+            self.set_config(config=loaded_state_dict['config'])
+            self.set_params(**self.config)
             
-        self.load_state_dict(state_dict)
-        self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
-        self.set_metrics(loaded_state_dict.get('metrics', {}), from_dict=True)
+        if 'model' in loaded_state_dict:
+            if  hasattr(self, 'base_state_dict'):
+                state_dict.update(self.base_state_dict)
+                 
+            else:
+                self.base_state_dict = {}
+                for k in loaded_state_dict['model'].keys():
+                    self.base_state_dict[k] = state_dict[k].clone()
+            
+            state_dict.update(loaded_state_dict['model'])
+            self.load_state_dict(state_dict)
         
-
-
+        if 'optimizer' in state_dict:
+            self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
+        
+        
     def set_tag(self, tag):
+
         if tag == None:
-            tag = 'base'
+            if hasattr(self, 'tag'):
+                return self.tag
+            else:
+                tag = 'base'
+                
         self.tag = tag
         # self.load(tag)
         
         
-    def set_fine_tuning_params(self, num_layers:int=1, layer_name:str = None, all:bool = False) -> Tuple[bool, str]:
+    def set_finetune(self, finetune ) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):
@@ -218,6 +225,12 @@ class Model( nn.Module, commune.Module):
                     The name of the last layer that user specified or we found.
                     None if the user did not specify and we couldnt find it. 
         '''
+        default_kwargs = dict(num_layers=1, layer_name = None, all = False)
+        
+        num_layers = finetune.get('num_layers', default_kwargs['num_layers'])
+        layer_name = finetune.get('layer_name', default_kwargs['layer_name'])
+        all = finetune.get('all', default_kwargs['all'])
+
         def find_last_layer(model: torch.nn.Module) -> Optional[str]:    
             r''' Recursively find the last layer in a nn.ModuleList
                 Args:
@@ -277,6 +290,21 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)
+    
+    def set_config(self, config) -> None:
+        self.config = deepcopy(config)
+        self.config.pop('self',None)
+        self.config.pop('kwargs', None)
+        self.config.pop('args', None)
+    
+    def set_stats(self, stats: dict):
+        if stats == None:
+            if hasattr(self, 'stats'):
+                stats = self.stats
+            else:
+                stats = {}
+        self.stats = stats
+        self.config['stats'] = self.stats
 
 if __name__ == "__main__":
     
