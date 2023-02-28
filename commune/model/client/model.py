@@ -63,7 +63,7 @@ class ModelClient(Module, nn.Module):
             
         self.model_name = self.model.getattr('model_name')
         # print(self.model.getattr('model_config'))
-        self.config = Munch(self.model.getattr('model_config'))
+        self.config = Munch(self.model.getattr('config')['model'])
         self.config.hidden_size = self.config.get('hidden_size')
         
         
@@ -104,8 +104,10 @@ class ModelClient(Module, nn.Module):
             'input_ids': input_ids,
             'attention_mask': attention_mask,
             'output_hidden_states': False,
-            'token_remap': True,
+            'token_remap': False,
             'logit_remap': False,
+            'output_topk': True,
+            'return_keys': ['topk'],
             'topk': topk,
             'output_length': output_length,
             'output_logits': server_output_logits,
@@ -116,7 +118,7 @@ class ModelClient(Module, nn.Module):
         response_dict = self.model.forward(**model_kwargs)
         # if topk:
         output_dict = {}
-        
+                
         
         if output_logits:
             print(response_dict)
@@ -375,8 +377,9 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    model_kwargs = dict(model={'ip': '65.49.81.154', 'port': 50050}, tokenizer='gptj')
-    # ModelClient.test_neuron('model::gpt20b', tokenizer='gpt20b')
+    commune.server_registry(update=True)
+    model_kwargs = dict(model='model::gptj::6', tokenizer='gptj')
+    # ModelClient.test_neuron('model::gptj::7', tokenizer='gptj')
     ModelClient.run_neuron(**model_kwargs)
     
     # ModelClient.r()
