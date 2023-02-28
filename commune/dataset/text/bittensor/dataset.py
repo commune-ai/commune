@@ -854,8 +854,8 @@ class BittensorDataset(Module):
         datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'DMMathematics', 'OpenSubtitles']
 
         for dataset in datasets:
-            module_id = f'dataset:{dataset.lower()}'
-            cls.launch(name=f'dataset:{dataset.lower()}', kwargs={'datasets': dataset})
+            module_id = f'dataset::{dataset.lower()}'
+            cls.launch(name=module_id, kwargs={'datasets': dataset})
     @classmethod
     def test_swarm(cls):
         dataset_module = commune.get_module('dataset.text.bittensor')
@@ -865,6 +865,7 @@ class BittensorDataset(Module):
             module_id = f'dataset:{dataset.lower()}'
             print(commune.connect(module_id).sample())
             
+    
     @classmethod
     def streamlit(cls):
         import streamlit as st

@@ -52,9 +52,7 @@ class Model( nn.Module, commune.Module):
             if k not in ['self', 'kwargs', 'args']:
                 if v != None:
                     self.params[k] = deepcopy(locals_dict[k])
-                    
-        
-        
+                
         
     def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
         if isinstance(optimizer, dict):
@@ -82,8 +80,9 @@ class Model( nn.Module, commune.Module):
         # import ipdb; ipdb.set_trace()
         no_grad = kwargs.pop('no_grad', True)
         autocast = kwargs.pop('autocast', True)
+        empty_cache = kwargs.pop('empty_cache', True)
         #should the model learn from the input in this forward pass
-        train = kwargs['train'] = kwargs.get('train', True)
+        train = kwargs['train'] = kwargs.get('train', False)
 
         if train == True:
             no_grad = False
@@ -100,7 +99,10 @@ class Model( nn.Module, commune.Module):
                     result = self.local_forward(**kwargs)
             else:
                 result = self.local_forward(**kwargs)
-        # import ipdb; ipdb.set_trace()
+        
+        
+        if empty_cache:
+            torch.cuda.empty_cache()
         return result
 
     def local_forward(self, **kwargs):
@@ -308,7 +310,7 @@ class Model( nn.Module, commune.Module):
 
 
     @classmethod
-    def launchpad(cls, models = ['gptj', 'gpt3b'], replicas = 3,):
+    def launchpad(cls, models = ['gpt3b'], tags = list(range(8))):
         '''
         ArXiv/            Gutenberg_PG/
         BookCorpus2/      HackerNews/
@@ -319,9 +321,9 @@ class Model( nn.Module, commune.Module):
         datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'DMMathematics', 'OpenSubtitles']
         import time
         for model in models:
-            for i in range(replicas):
-                model_module.pm2_kill(name=f'model::{model}::{i}::{i}')
-                model_module.launch(name=f'model::{model}', kwargs={'model': model, 'tag': str(i)})
+            for tag in tags:
+                device = f'cuda:{tag}'
+                model_module.launch(name=f'model::{model}', tag=str(tag), kwargs={'model': model, 'tag': str(tag), 'device': device})
 
 if __name__ == "__main__":
     

@@ -56,24 +56,14 @@ class TransformerModel( Model):
                 model: str="gpt125m",
                 tag :str = None,
                 tokenizer:Union[str, 'tokenizer'] = None,
-                device: str = 'cuda',
+                device: str = 'cuda:0',
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
                 load: bool = False,
                 **kwargs
                 ):
-        
-
         Model.__init__(self, config =locals())
-        # set model and tokenizer
-
         self.set_params(**self.config)
-
-        # set tokenizer to model name (HF only) if tokenizer == None
-        
-        if load:
-            self.load(self.tag)
-        
 
     def set_tag(self,tag:str):
         if tag == None:
@@ -109,7 +99,7 @@ class TransformerModel( Model):
                 token_remap:bool = False,
                 logit_remap:bool = False,
                 output_length:int = 10,
-                output_logits:bool = True,
+                output_logits:bool = False,
                 output_topk:bool = True,
                 output_hidden_states:bool=True,
                 hidden_state_index: int = -1,
@@ -169,12 +159,8 @@ class TransformerModel( Model):
             loss.backward()
             self.optimizer.step()
             
-            alpha = 0.9
-            loss = loss.item()
-            self.print(loss, 'green')
-            self.stats['loss'] = self.stats.get('loss', loss)*(alpha) + loss*(1-alpha)
+            self.stats['loss'] =loss.item()
             self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
-            
             output_dict['stats'] = deepcopy(self.stats)
         
             
@@ -183,8 +169,6 @@ class TransformerModel( Model):
             output_dict['logits'] = self.logit_remap(logits = output_dict['logits'], input_ids=input_ids)
 
     
-        if isinstance(hidden_dim_bounds, int):
-            hidden_dim_bounds = [0, hidden_dim_bounds]
         hidden_dim_bounds = hidden_dim_bounds if hidden_dim_bounds else [0, hidden_dim+1]
         
         return_keys = return_keys if return_keys else []
@@ -199,6 +183,7 @@ class TransformerModel( Model):
                    finetune: dict = None,
                    stats: dict = None, 
                    device:str=None, 
+                   load: bool = False,
                    **kwargs) -> None:        
         if model!= None:
             self.set_model(model)
@@ -214,9 +199,9 @@ class TransformerModel( Model):
         self.set_stats(stats)    
         self.set_tag(tag)
         
+        if load:
+            self.load()
         
-        
-            
         
     def set_model(self, model: Union[str, Dict],state_dict:Dict = None) -> None:
         
@@ -246,7 +231,7 @@ class TransformerModel( Model):
             self.config['model'] = model_config
             self.config['model']['model_name'] = self.model_name
             self.config['model']['model_path'] = self.model_path
-                    
+            # yo 
         if state_dict:
             self.model.load_state_dict(state_dict)
 
@@ -285,6 +270,8 @@ class TransformerModel( Model):
 
         return self.tokenizer
 
+    
+    
     @staticmethod
     def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
         """ Returns topk tokens/probabilities given unnormalized logits as input. """
@@ -455,16 +442,16 @@ class TransformerModel( Model):
     
     
     @classmethod
-    def train_remote(cls,
-             model:str='model:gptj',  
+    def remote_train(cls,
+             model:str='model::gptj::5',  
              dataset : Union[str, 'Module'] = 'dataset::bittensor',
              params: dict = None,
             output_length:int=10,
             sequence_length:int=256,
-            num_batches: int = 1, 
-            num_epochs: int = 1,
+            num_batches: int = 100, 
+            num_epochs: int = 100,
             tag : str = None,
-            save : bool = False,
+            save : bool = True,
             load : bool = False,
             refresh: bool = False,
             **kwargs):
@@ -480,13 +467,17 @@ class TransformerModel( Model):
   
         dataset = commune.connect(dataset)
             
-            
-        for i in range(num_epochs):
-            for i in range(num_batches):
+        best_epoch_loss = self.stats.get('best_epoch_loss', 10)
+        for epoch in range(num_epochs):
+            epoch_loss = 0
+            for batch_idx in range(num_batches):
+                
                 sample = dataset.sample(sequence_length=sequence_length)
+                
+                print(sample)
                 if isinstance(sample, str):
                     continue
-                print(sample)
+                
                 sample.update(dict(
                     output_length=output_length,
                     return_keys=['stats'],
@@ -494,11 +485,17 @@ class TransformerModel( Model):
                 ))
                 
                 output = self.forward(**sample)
+                epoch_loss = output['stats']['loss'] / (batch_idx + 1)
                 commune.print(output, 'cyan')
-
-            if save :
+                
+                
+            if epoch_loss < best_epoch_loss and save:
+                output['stats']['epoch_loss'] = epoch_loss
+                output['stats']['num_batches'] = num_batches
+                output['stats']['best_epoch_loss'] = best_epoch_loss
+                self.set_stats(stats=dict(epoch=epoch, loss=epoch_loss))
                 self.save(tag=tag)
-        print(output)
+
         return output['stats']
     
     
@@ -516,10 +513,10 @@ class TransformerModel( Model):
                 model_idx = i % 4
                 model_id = f'model::{model}::{model_idx}'
                 kwargs = dict(model=model_id, dataset=dataset_id, num_batches=300, num_epochs=100, save=True, load=False, refresh=False)
-                train_id = f'train::{model_id}::{dataset_id}'
-                train_id = train_id.lower()
+                
+                train_id = f'train::{model_id}::{dataset}'.lower()
                 cls.pm2_kill(train_id)
-                cls.pm2_launch(name = train_id.lower(), fn='train_remote', kwargs=kwargs)
+                cls.pm2_launch(name = train_id, fn='train_remote', kwargs=kwargs)
 if __name__ == "__main__":
     
     TransformerModel.run()

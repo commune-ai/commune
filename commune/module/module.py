@@ -811,7 +811,12 @@ class Module:
     def get_server_stats(cls,name:str) -> Dict:
         return cls.server_registry().get(name, {})
     @classmethod
-    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
+    def connect(cls,name:str=None,
+                port:int=None ,
+                ip:str=None,
+                virtual:bool = True,
+                update:bool = False,
+                **kwargs ):
         
         
 
@@ -822,13 +827,12 @@ class Module:
             except ValueError as e:
                 pass
             
-            
-            
         if ip == None and port == None:
-            server_registry = cls.server_registry()
+            server_registry = cls.server_registry(update=update)
             client_kwargs = server_registry[name]
         else:
             client_kwargs = dict(ip=ip, port=port)
+
         Client = cls.import_object('commune.server.client.Client')
         client_module = Client( **kwargs,**client_kwargs)
         ip = client_kwargs['ip']
@@ -844,13 +848,22 @@ class Module:
     def nest_asyncio(cls):
         import nest_asyncio
         nest_asyncio.apply()
-        
 
-
-    cache = {}
+    
+    
+    server_registry_path = 'server_registry'
+    @classmethod
+    def register_server(cls, name: str, server_stats: Dict):
+        server_registry = Module.get_json(cls.server_registry_path)
+        server_registry[name] = server_stats
+        Module.put_json(cls.server_registry_path, server_registry)
+        return server_registry
+    
+    
     @classmethod
     def server_registry(cls,
-                        max_age_seconds: int = 0,
+                        update: bool = False,
+                        max_staleness_seconds: int = 60,
                         filename:str =  'server_registry')-> dict:
         '''
         
@@ -865,11 +878,11 @@ class Module:
         
         # from copy import deepcopy
     
-        if cls.exists_json(filename):
-            cached_data =cls.get_json(filename)
+        if Module.exists_json(filename) and update == False:
+            cached_data =Module.get_json(filename)
             cached_timestamp = cached_data['timestamp']
-            cached_age_seconds= cls.time() - cached_timestamp
-            if cached_age_seconds < max_age_seconds:
+            cached_staleness_seconds= cls.time() - cached_timestamp
+            if cached_staleness_seconds<max_staleness_seconds:
                 return cached_data['data']
             
 
@@ -878,7 +891,11 @@ class Module:
         for port in local_used_ports:
             module = cls.connect(f'0.0.0.0:{port}')
             try:
-                server_stats = module.server_stats
+                try:
+                    server_stats = module.getattr('server_stats', timeout=0.5)
+                except Exception as e:
+                    print(type(server_stats), 'DEBUG')
+                    continue
                 module_id = module.module_id
                 server_registry[module_id] = server_stats
             except:
@@ -890,7 +907,7 @@ class Module:
             'timestamp': cls.time()
             }
         # print(cache_data, 'DEBUG')
-        cls.put_json(filename, cache_data)
+        Module.put_json(filename, cache_data)
         
         return server_registry
     
@@ -910,9 +927,20 @@ class Module:
             raise Exception('Timeout')
         return True
     
-    def server_stats(self): 
-        return self.server_registry(self.module_id)
-  
+    @classmethod
+    def get_server_stats(cls, module): 
+        return cls.server_registry()[module]
+    
+    
+    @classmethod
+    def getpid(cls):
+        import os
+        return os.getpid()
+    @classmethod
+    def pid(cls):
+        import os
+        return os.getpid()
+    
     @classmethod
     def servers(cls, search:str = None) -> List[str]:
         servers =  list(cls.server_registry().keys())
@@ -934,8 +962,6 @@ class Module:
     @classmethod
     def new_event_loop(cls) -> 'asyncio.AbstractEventLoop':
         import asyncio
-        
-        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         return loop
@@ -1009,8 +1035,6 @@ class Module:
         else:
             self = module
             
-    
-    
         # resolve the module id
         
         # if the module is a class, then use the module_tag 
@@ -1030,15 +1054,11 @@ class Module:
             else: 
                 raise Exception(f'The server {self.module_id} already exists on port {existing_server_port}')
     
-        
-        
-
         # import the server Object
         Server = cls.import_object('commune.server.Server')
         server = Server(ip=ip, port=port, module = self )
-        
         self.server_stats = server.info
-        
+        self.register_server(name=self.module_id, server_stats=self.server_stats)
         server.serve(wait_for_termination=wait_for_termination)
         
         
@@ -1162,6 +1182,8 @@ class Module:
         
         return info
     
+    
+    
     def peer_info(self) -> Dict[str, Any]:
         function_schema_map = self.function_schema_map()
         info  = dict(
@@ -1173,6 +1195,7 @@ class Module:
 
 
         )
+        return info
 
 
     @classmethod
