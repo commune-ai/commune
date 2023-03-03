@@ -9,6 +9,7 @@ services:
     shm_size: '20gb' # for the shared memory size
     environment:
       - RAY_PORT=6378
+
     volumes:
 
       # COMMUNE 
@@ -53,13 +54,13 @@ services:
 
 
       
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
     command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"
 

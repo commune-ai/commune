@@ -3,7 +3,7 @@
 dirpath=$1
 
 
-filename="${dirpath}/ansible/scripts/mnemonics.txt"
+filename="${dirpath}/commune_ansible/src/mnemonics.txt"
 
 echo "$filename"
 #While loop to read line by line

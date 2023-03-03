@@ -1,0 +1,22 @@
+
+all:
+  hosts:
+    server1:
+      ansible_host: 184.105.175.58 
+      ansible_user: paperspace
+    server2:
+      ansible_host: 184.105.175.107
+      ansible_user: paperspace
+    server3:
+      ansible_host: 184.105.175.141
+      ansible_user: paperspace
+    server4:
+      ansible_host: 184.105.175.154
+      ansible_user: paperspace
+    server5:
+      ansible_host: 184.105.175.157
+      ansible_user: paperspace
+    
+
+    
+    

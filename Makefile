@@ -5,13 +5,11 @@
 COMMUNE=commune
 SUBSPACE=subspace
 SUBTENSOR=0.0.0.0:9944
+
 PYTHON=python3
-
-
 
 down:
 	docker compose down
-
 stop:
 	make down
 up:
@@ -79,11 +77,11 @@ ray_status:
 	ray status
 
 miner:
-	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/model/${mode}/model.py --name miner_${coldkey}_${hotkey} --time --interpreter $(PYTHON) --  --logging.debug  --subtensor.chain_endpoint 194.163.191.101:9944 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --axon.port ${port}
+	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/model/${mode}/model.py --name miner_${coldkey}_${hotkey}_${mode} --time --interpreter $(PYTHON) --  --logging.debug  --subtensor.chain_endpoint 194.163.191.101:9944 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --axon.port ${port}
 
 
 vali:
-	pm2 start commune/bittensor/neuron/validator/neuron.py --name vali_${coldkey}_${hotkey} --time --interpreter python3 -- --logging.debug --subtensor.chain_endpoint 194.163.191.101:9944  --neuron.device cuda:1 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --logging.trace True --logging.record_log True  --neuron.print_neuron_stats True
+	PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python pm2 start commune/block/bittensor/neuron/validator/neuron.py --name vali_${coldkey}_${hotkey} --time --interpreter python3 -- --logging.debug --subtensor.network local  --neuron.device cuda:1 --wallet.name ${coldkey} --wallet.hotkey ${hotkey} --logging.trace True --logging.record_log True  --neuron.print_neuron_stats True
 
 dashboard:
 	streamlit run commune/dashboard.py 
@@ -92,20 +90,24 @@ sand:
 	python3 commune/sandbox.py
 
 python_pm2:
-	pm2 start ${file} --name ${name} --interpreter python3
+	pm2 start {file} --name {name} --interpreter python3
 
 streamlit_pm2:
 	pm2 start {file} --name {name} --interpreter streamlit -- --server.port {port}
 register_loop:
 	pm2 start commune/block/bittensor/bittensor_module.py --name register_loop --interpreter python3 -- --fn register_loop
 
-sandbox:
-	streamlit run commune/sandbox.py
 
 st_ensemble:
 	streamlit run commune/model/ensemble/model.py
 streamlit:
 	pm2 start commune/dashboard.py --name dashboard --interpreter python3 -- -m streamlit run 
 
-bittensor_dashboard:
-	streamlit run commune/bittensor/dashboard.py
+enver_env:
+	source env/bin/activate
+
+venv_build:
+	./scripts/install_python_env.sh
+
+venv_up:
+	source venv/bin/activate

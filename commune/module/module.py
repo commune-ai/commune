@@ -20,7 +20,7 @@ class Module:
     # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     
-    # get the current working directory
+    # get the current working directory  (doesnt have /)
     pwd = os.getenv('PWD')
     
     # get the root directory (default commune)
@@ -34,6 +34,10 @@ class Module:
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     
+    
+    
+    
+    
     @classmethod
     def __module_file__(cls) -> str:
         # get the file of the module
@@ -45,7 +49,7 @@ class Module:
         return os.path.dirname(cls.__module_file__())
     
     @classmethod
-    def get_module_path(cls, obj: Any =None,  simple:bool=False) -> str:
+    def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
         # odd case where the module is a module in streamlit
         if obj == None:
@@ -104,12 +108,7 @@ class Module:
             return cls.module_name_class
         
         return cls.__name__
-    
-    
-    def set_tag(self, tag:str):
-        self.tag = tag
-        return tag
-    
+
     
     @property
     def module_tag(self) -> str:
@@ -118,8 +117,6 @@ class Module:
         (TODO: Should we call this flavor?)
         
         '''
-        if hasattr(self, 'tag'):
-            return self.tag
         if not hasattr(self, '_module_tag'):
             self.__dict__['_module_tag'] = None
         return self._module_tag
@@ -151,6 +148,11 @@ class Module:
         # if the config file does not exist, then create one where the python path is
 
         return __config_file__
+
+
+    @classmethod
+    def get_module_config_path(cls) -> str:
+        return cls.get_module_path(simple=False).replace('.py', '.yaml')
 
 
     @classmethod
@@ -296,12 +298,11 @@ class Module:
         return config
 
     @classmethod
-    def cmd(cls, 
+    def run_command(cls, 
                     command:str,
                     verbose:bool = True, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
-                    color: str = 'purple',
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -329,7 +330,8 @@ class Module:
                     line_count_idx += 1
                     stdout_text += (new_line+c).decode()
                     if verbose:
-                        cls.print(new_line.decode(), color)
+                        log_color = verbose if isinstance(verbose, str) else 'green'
+                        cls.log(new_line.decode())
                     new_line = b''
                     continue
                 
@@ -349,7 +351,7 @@ class Module:
             
         return process
 
-    shell  = run_command = cmd
+    shell = cmd = run_command
     
 
     @classmethod
@@ -429,8 +431,6 @@ class Module:
         
         The path is determined by the module path 
         
-        NOTE: ONLY RESOLVES PATHS RELATIVE TO THE MODULE ROOT DIRECTORY
-        
         '''
         tmp_dir = cls.tmp_dir()
         if tmp_dir not in path:
@@ -441,7 +441,7 @@ class Module:
 
         return path
     @classmethod
-    def resolve_port(cls, port:int=None, find_available:bool = False) -> int:
+    def resolve_port(cls, port:int=None, find_available:bool = False):
         
         '''
         
@@ -466,7 +466,7 @@ class Module:
     
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
-    def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False) -> None:
+    def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
         for k,v in kwargs.items():
             if k != 'self': # skip the self
                 # we dont want to overwrite existing variables from 
@@ -493,16 +493,16 @@ class Module:
             return cls.run_command('kill -9 $(lsof -t -i:{port})')
 
     @classmethod
-    def kill_server(cls, module:str, mode:str = 'pm2') -> str:
+    def kill_server(cls, module:str, mode:str = 'pm2'):
         '''
         Kill the server by the name
         '''
-        server_stats = cls.get_server_stats(module)
+        server_info = cls.get_server_info(module)
         import streamlit as st
-        if 'external_ip' in server_stats:
-            assert server_stats.get('external_ip') == cls.external_ip()
+        if 'external_ip' in server_info:
+            assert server_info.get('external_ip') == cls.external_ip()
         if isinstance(module, int) or mode == 'local':
-            return cls.kill_port(server_stats['port'])
+            return cls.kill_port(server_info['port'])
         if mode == 'pm2':
             return cls.pm2_kill(module)
         else:
@@ -530,21 +530,8 @@ class Module:
             if file_ext == '.py':
                 if os.path.exists(file_path+'.yaml'):
                     modules.append(f)
-                    
         return modules
 
-    @classmethod
-    def get_python_file(cls) -> str:
-        python_file_text = ""
-        with open(cls.__module_file__()) as f:
-            lines = f.readlines()
-        
-        for line in lines:
-            cls.log(line)
-            python_file_text += line
-            
-        return python_file_text
-        
     @classmethod
     def path2simple(cls, path:str) -> str:
 
@@ -564,10 +551,10 @@ class Module:
         return cls.load_config(path, to_munch=to_munch)
     
     @classmethod
-    def path2configpath(cls, path:str) -> str:
+    def path2configpath(cls, path:str):
         return path.replace('.py', '.yaml')
     @classmethod
-    def simple2configpath(cls,  path:str) -> str:
+    def simple2configpath(cls,  path:str):
         return cls.path2configpath(cls.simple2path(path))
     @classmethod
     def simple2config(cls, path:str, to_munch=False)-> dict:
@@ -575,24 +562,27 @@ class Module:
     
     
     @classmethod
-    def import_path(cls) -> str:
+    def import_path(cls):
         return cls.path2objectpath(cls.__module_file__())
     
     
     @classmethod
     def path2objectpath(cls, path:str) -> str:
         
+        import streamlit as st
+        
         module_file_basename = os.path.basename(path).split('.')[0]
-
-
-        config = cls.path2config(path=path, to_munch=False)
-        object_name = config.get('module', config.get('name')) 
-        path = path.replace(cls.pwd, '').replace('.py','.').replace('/', '.') 
+        if module_file_basename[0].isupper():
+            object_name = module_file_basename
+        else:
+            config = cls.path2config(path=path, to_munch=False)
+            object_name = config.get('module', config.get('name')) 
+        path = path.replace(cls.pwd+'/', '').replace('.py','.').replace('/', '.') 
         if path[-1] != '.':
             path = path + '.'
-        if path[0] == '.':
-            path = path[1:]
         path = path + object_name
+        
+        st.write(path, cls.pwd)
         return path
 
     @classmethod
@@ -606,39 +596,19 @@ class Module:
         return cls.import_object(object_path)
 
     @classmethod
-    def get_module(cls, module:Union[str, Dict], verbose:bool = True) -> str:
+    def get_module(cls, path:str, verbose:bool = True) -> str:
         
-        if isinstance(module, str):
-            module_path = deepcopy(module)
-            try:
-                
-                module_path = cls.simple2path(module_path)
-                module_path = cls.path2objectpath(module_path)
-                
-            except KeyError as e:
-                cls.print(f'{e}', verbose=verbose)
-
-            module = cls.import_object(module_path)
-        
-        elif isinstance(module, dict):
-            module_dict = deepcopy(module)
-            module = module_dict['module']
-            assert isinstance(module,str)
-            module_class = cls.get_module(module)
-            kwargs = module_dict.get('params', module_dict.get('kwargs'))
-            args = module_dict.get('args', [])
-            fn = module_dict.get('fn', '__init__')
-            if fn == '__init__':
-                module = module_class(*args, **kwargs)
-            else:
-                module = getattr(module_class, fn)(*args, **kwargs)
-                
-        else:
-            raise NotImplementedError(type(module))
-        
-        return module
+        try:
             
+            path = cls.simple2path(path)
+            path = cls.path2objectpath(path)
             
+        except KeyError as e:
+            cls.print(f'{e}', verbose=verbose)
+            
+        
+            
+        return cls.import_object(path)
 
     @classmethod
     def module_tree(cls, mode='path') -> List[str]:
@@ -736,29 +706,27 @@ class Module:
 
     ############ JSON LAND ###############
 
-    @classmethod
-    def get_json(cls,path:str, 
-                 default=None, 
-                 resolve_path: bool = True,
-                 mode:str = 'json', **kwargs):
-        
 
-        from commune.utils.dict import load_json
-        path = cls.resolve_path(path=path, extension=mode) if resolve_path else path
+
         
+    @classmethod
+    def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
+        from commune.utils.dict import load_json
+        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
         data = load_json(path, **kwargs)
+        assert isinstance(data, dict)
+        if 'data' in data and 'timestamp' in data:
+            data = data['data']
+        
         return data
+
     load_json = get_json
 
     @classmethod
-    def put_json(cls, path:str, 
-                 data:Dict,
-                 resolve_path:bool = True,
-                 mode='json', 
-                 **kwargs) -> str:
+    def put_json(cls, path:str, data:Dict, resolve_path:bool = True, **kwargs) -> str:
         
         from commune.utils.dict import put_json
-        path = cls.resolve_path(path=path, extension=mode) if resolve_path else path
+        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
         
         put_json(path=path, data=data, **kwargs)
         return path
@@ -766,7 +734,7 @@ class Module:
     save_json = put_json
     
     @classmethod
-    def exists_json(cls, path:str, resolve_path:bool = True, extension = 'json')-> bool:
+    def exists(cls, path:str, resolve_path:bool = True, extension = 'json')-> bool:
         path = cls.resolve_path(path=path, extension=extension) if resolve_path else path
         return os.path.exists(path)
 
@@ -782,23 +750,16 @@ class Module:
 
         return rm_json(path )
 
-
     @classmethod
-    def ls(cls , path = '*', resolve_path:bool = True):
-        return cls.glob(path, resolve_path=resolve_path, files_only=False)
-        
-    @classmethod
-    def glob(cls,  path ='*', resolve_path:bool = True, files_only:bool = True):
+    def glob(cls,  path ='**', resolve_path:bool = True, files_only:bool = True):
         
         path = cls.resolve_path(path, extension=None) if resolve_path else path
         
-        if os.path.isdir(path):
-            if '/' != path[-1]:
-                path += '/'
-            path += '*'
         # if os.path.isdir(path):
         #     path = os.path.join(path, '**')
+            
         paths = glob(path, recursive=True)
+        
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
@@ -808,31 +769,23 @@ class Module:
         return cls.__name__
 
     @classmethod
-    def get_server_stats(cls,name:str) -> Dict:
+    def get_server_info(cls,name:str) -> Dict:
         return cls.server_registry().get(name, {})
     @classmethod
-    def connect(cls,name:str=None,
-                port:int=None ,
-                ip:str=None,
-                virtual:bool = True,
-                update:bool = False,
-                **kwargs ):
+    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
+        
         
         
 
+        server_registry =  Module.server_registry()
         if isinstance(name, str) and len(name.split(':')) == 2:
-            try:
-                port = int(name.split(':')[1])
-                ip = name.split(':')[0]
-            except ValueError as e:
-                pass
+            port = int(name.split(':')[1])
+            ip = name.split(':')[0]
             
         if ip == None and port == None:
-            server_registry = cls.server_registry(update=update)
             client_kwargs = server_registry[name]
         else:
             client_kwargs = dict(ip=ip, port=port)
-
         Client = cls.import_object('commune.server.client.Client')
         client_module = Client( **kwargs,**client_kwargs)
         ip = client_kwargs['ip']
@@ -848,23 +801,16 @@ class Module:
     def nest_asyncio(cls):
         import nest_asyncio
         nest_asyncio.apply()
-
-    
-    
-    server_registry_path = 'server_registry'
+        
     @classmethod
-    def register_server(cls, name: str, server_stats: Dict):
-        server_registry = Module.get_json(cls.server_registry_path)
-        server_registry[name] = server_stats
-        Module.put_json(cls.server_registry_path, server_registry)
-        return server_registry
-    
-    
+    def peer_registry(cls) -> Dict:
+        peer_registry = {}
+        for peer in cls.pm2_list():
+            peer_stub = cls.connect(peer)
+            peer_registry[peer] = peer_stub.server_stats
+        return peer_registry
     @classmethod
-    def server_registry(cls,
-                        update: bool = False,
-                        max_staleness_seconds: int = 60,
-                        filename:str =  'server_registry')-> dict:
+    def server_registry(cls)-> dict:
         '''
         
         The module port is where modules can connect with each othe.
@@ -875,72 +821,23 @@ class Module:
         
         
         '''
-        
         # from copy import deepcopy
-    
-        if Module.exists_json(filename) and update == False:
-            cached_data =Module.get_json(filename)
-            cached_timestamp = cached_data['timestamp']
-            cached_staleness_seconds= cls.time() - cached_timestamp
-            if cached_staleness_seconds<max_staleness_seconds:
-                return cached_data['data']
-            
-
-        local_used_ports = cls.get_used_ports()
-        server_registry = {}
-        for port in local_used_ports:
-            module = cls.connect(f'0.0.0.0:{port}')
-            try:
-                try:
-                    server_stats = module.getattr('server_stats', timeout=0.5)
-                except Exception as e:
-                    print(type(server_stats), 'DEBUG')
-                    continue
-                module_id = module.module_id
-                server_registry[module_id] = server_stats
-            except:
-                pass
-    
-
-        cache_data =  {
-            'data': server_registry,
-            'timestamp': cls.time()
-            }
-        # print(cache_data, 'DEBUG')
-        Module.put_json(filename, cache_data)
         
+        # get the module port if its saved.
+        # if it doesnt exist, then return default ({})
+        server_registry = Module.get_json('server_registry', handle_error=True, default={})
+        
+        for k in deepcopy(list(server_registry.keys())):
+            if not Module.port_used(**server_registry[k]):
+                del server_registry[k]
+        Module.put_json('server_registry',server_registry)
         return server_registry
     
     
-    @classmethod
-    def wait_until_server_exists(cls, 
-                          server_id:str,
-                          timeout:int = 10,
-                          check_step:int= 2) -> bool:
-
-
-        while not cls.server_exists(server_id) and wait_time <= timeout:
-            self.sleep(check_step)
-            wait_time += check_step
-            
-        if wait_time >= timeout:
-            raise Exception('Timeout')
-        return True
     
-    @classmethod
-    def get_server_stats(cls, module): 
-        return cls.server_registry()[module]
-    
-    
-    @classmethod
-    def getpid(cls):
-        import os
-        return os.getpid()
-    @classmethod
-    def pid(cls):
-        import os
-        return os.getpid()
-    
+    def server_info(self): 
+        self.server_registry(self.module_id)
+  
     @classmethod
     def servers(cls, search:str = None) -> List[str]:
         servers =  list(cls.server_registry().keys())
@@ -950,18 +847,27 @@ class Module:
             servers = [s for s in servers if search in s]
             
         return servers
-    
     list_servers = servers
     
     
+    
+    @classmethod
+    def register_server(cls, name: str, server: 'commune.Server')-> dict:
+        server_registry = cls.server_registry()
+        server_registry[name] = dict(ip=server.ip, port=server.port)
+        Module.put_json(path='server_registry', data=server_registry) 
+        
+        return server_registry
   
     @classmethod
     def is_module(cls, obj=None) -> bool:
-        return bool(hasattr(cls, 'module_name') and hasattr(cls, 'module'))
+        return hasattr(cls, 'module_name')
 
     @classmethod
     def new_event_loop(cls) -> 'asyncio.AbstractEventLoop':
         import asyncio
+        
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         return loop
@@ -992,12 +898,8 @@ class Module:
     def get_module_id(cls, name:str=None, tag:str=None) -> str:
         module_id = name if name else cls.module_name()
             
-
-            
         if tag:
-            if tag != module_id[-len(tag):]:
-                module_id = f'{module_id}::{tag}'
-        
+            module_id = f'{module_id}::{tag}'
         return module_id
     
     @classmethod
@@ -1017,6 +919,12 @@ class Module:
         
         
     @classmethod
+    def get_streamlit(cls):
+        import streamlit
+        return streamlit 
+    
+    
+    @classmethod
     def serve_module(cls, 
               module:Any = None ,
               port:int=None ,
@@ -1035,6 +943,8 @@ class Module:
         else:
             self = module
             
+    
+    
         # resolve the module id
         
         # if the module is a class, then use the module_tag 
@@ -1046,19 +956,26 @@ class Module:
         else:
             module_id = self.get_module_id(name=name, tag=tag)
            
-        self.module_id = module_id
         '''check if the server exists'''
-        if self.server_exists(self.module_id): 
+        if self.server_exists(module_id): 
             if replace:
-                self.kill_server(self.module_id)
+                self.kill_server(module_id)
             else: 
-                raise Exception(f'The server {self.module_id} already exists on port {existing_server_port}')
+                raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
     
-        # import the server Object
-        Server = cls.import_object('commune.server.Server')
+        
+        self.module_id = module_id
+
+    
+        Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, port=port, module = self )
-        self.server_stats = server.info
-        self.register_server(name=self.module_id, server_stats=self.server_stats)
+        
+        self.server_stats = dict(ip=server.ip, port=server.port, external_ip = server.external_ip)
+        
+        
+        cls.register_server(name=module_id, server=server)
+    
+        
         server.serve(wait_for_termination=wait_for_termination)
         
         
@@ -1091,6 +1008,7 @@ class Module:
                     new_functions.append(f)
             functions = new_functions
         
+        cls.print(functions, 'blue')
         return functions
 
     @classmethod
@@ -1158,8 +1076,6 @@ class Module:
             elif 'cls' in function_info_map[fn]['default']:
                 function_info_map[fn]['method_type'] = 'cls'
                 function_info_map[fn]['default'].pop('cls')
-            else:
-                function_info_map[fn]['method_type'] = None
 
         return function_info_map    
     
@@ -1182,8 +1098,6 @@ class Module:
         
         return info
     
-    
-    
     def peer_info(self) -> Dict[str, Any]:
         function_schema_map = self.function_schema_map()
         info  = dict(
@@ -1195,7 +1109,6 @@ class Module:
 
 
         )
-        return info
 
 
     @classmethod
@@ -1317,7 +1230,7 @@ class Module:
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
-               mode:str = 'pm2',
+               mode:str = 'local',
                name:Optional[str]=None, 
                tag:str=None, 
                serve: bool = True,
@@ -1325,8 +1238,6 @@ class Module:
         '''
         Launch a module as pm2 or ray 
         '''
-        
-        
             
 
         kwargs = kwargs if kwargs else {}
@@ -1380,14 +1291,7 @@ class Module:
             launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
-      
-    def restart(self, module_id:str = None, mode:str = 'pm2'):
-        module_id = module_id if module_id != None else module_id
-        if mode == 'pm2':
-            self.pm2_restart(module_id)
-        else:
-            raise NotImplementedError(mode)
-        
+         
     @classmethod
     def pm2_list(cls, verbose:bool = False) -> List[str]:
         output_string = cls.run_command('pm2 status', verbose=False)
@@ -1410,30 +1314,33 @@ class Module:
                    kwargs: dict = None,
                    device:str=None, 
                    interpreter:str='python3', 
+                   no_autorestart: bool = False,
                    refresh:bool=True, ):
         
         # avoid these references fucking shit up
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
+        import streamlit as st
+        st.write(module, 'bro')
         if isinstance(module, str):
             assert isinstance(module, str), f'module must be a string, not {type(module)}'
-            module = cls.module(module)
+            module = cls.get_module(module)
         else:
             module = cls
             
         
         
+
         name = module.module_name() if name == None else name
             
     
         module_path = module.__module_file__()
-        
         module_id = cls.get_module_id(name=name, tag=tag) 
         
         # build command to run pm2
         command = f" pm2 start {module_path} --name {module_id} --interpreter {interpreter}"
-       
+        
         # convert args and kwargs to json strings
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         args_str = json.dumps(args).replace('"', "'")
@@ -1461,13 +1368,13 @@ class Module:
         return cls.run_command(f"pm2 restart {name}")
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.log(stdout, 'success')
+            cls.print(stdout, 'orange')
 
     @classmethod
     def pm2_status(cls, verbose=True):
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.log(stdout, 'success')
+            cls.print(stdout, 'green')
         return stdout
 
 
@@ -1985,8 +1892,6 @@ class Module:
         
         if isinstance(module, str):
             module = cls.get_module(module)
-            if cls.is_module(module):
-                return module
 
         
         # serve the module if the bool is True
@@ -2298,7 +2203,6 @@ class Module:
     def peer_registry(cls, module = None):
         if module == None:
             module = cls
-            
         if isinstance(module, str):
             module = cls.connect(module)
             return module.peer_registry()
@@ -2312,15 +2216,12 @@ class Module:
         
         peer_map = {}
         for p in peers:
-            try:
-                peer = cls.connect(p)
-                peer_stats = peer.server_stats
-                peer_info = {}
-                peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
-                peer_info['is_local'] = external_ip == peer_stats['external_ip']
-                peer_map[p] = peer_info
-            except Exception as e:
-                pass
+            peer = cls.connect(p)
+            peer_stats = peer.server_stats
+            peer_info = {}
+            peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
+            peer_info['is_local'] = external_ip == peer_stats['external_ip']
+            peer_map[p] = peer_info
         peer_registry[external_ip] = peer_map
         
         cls.put_json('peer_registry', peer_registry)
@@ -2364,32 +2265,30 @@ class Module:
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
         return json.dumps(state_dict)
     
-    
+    logger = None
     @classmethod
     def log(cls, text, mode='info'):
-
-        logger = cls.get_logger()
+        if cls.logger is None:
+            from loguru import logger
+            cls.logger = logger.opt(colors=True)
         
         specific_logger = getattr(cls.logger, mode)
         return specific_logger(text)
-    
-    logger = None
-    @classmethod
-    def get_logger(cls,colors=True, **kwargs):
-        if cls.logger is None:
-            from loguru import logger
-            cls.logger = logger.opt(colors=colors, **kwargs)
-
-        return cls.logger
 
     @classmethod
     def from_json(cls, json_str:str) -> 'Module':
         import json
         return cls.from_dict(json.loads(json_str))
         
-
     @classmethod
-    def import_bittensor(cls) -> 'bittensor':
+    def test(cls):
+        for f in dir(cls):
+            if f.startswith('test_'):
+                getattr(cls, f)()
+               
+               
+    @classmethod
+    def import_bittensor(cls):
         try:
             import bittensor
         except RuntimeError:
@@ -2406,58 +2305,7 @@ class Module:
         import time
         time.sleep(seconds)
         return None
-    @staticmethod
-    def dict_put(*args, **kwargs):
-        from commune.utils.dict import dict_put
-        return dict_put(*args, **kwargs)
-    @staticmethod
-    def dict_get(*args, **kwargs) :
-        from commune.utils.dict import dict_get
-        return dict_get(*args, **kwargs)
-    @staticmethod
-    def deep2flat(*args, **kwargs) -> Dict:
-        from commune.utils.dict import deep2flat
-        return deep2flat(*args, **kwargs)
-
-    @staticmethod
-    def flat2deep(*args, **kwargs) -> Dict:
-        from commune.utils.dict import flat2deep
-        return flat2deep(*args, **kwargs)
-
-    def save_state(self, path:str = 'state', mode:str='json', tag:str=None):
-        state_dict = self.to_dict()
-        if tag:
-            path += '::' + str(tag)
-        getattr(self, 'put_{mode}')(path, state_dict)
-        
-        return path
-        
-    @classmethod
-    def load_state(cls, path:str = 'state', mode:str='json', tag:str=None):
-        if tag:
-            path += '::' + str(tag)
-        state_dict = getattr(self, f'get_{mode}')(path)
-        return cls.from_dict(state_dict)
-
-    @classmethod
-    def test(cls):
-        # tests all the functions with the test_ prefix
-        for f in dir(cls):
-            if f.startswith('test_'):
-                getattr(cls, f)()
-               
-               
-    def get_my_peers(cls):
-        for peer in cls.peers():
-            if peer == cls.my_endpoint():
-                return peer
-            
-    @classmethod
-    def streamlit(cls):
-        import streamlit as st
-
-        st.write(cls.server_registry())
-
+    
     
 Block = Lego = Module
 if __name__ == "__main__":
