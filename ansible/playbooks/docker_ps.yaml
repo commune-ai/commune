@@ -1,5 +1,3 @@
-
-
 - name: Transfer and execute a script.
   hosts: all
   tasks:
@@ -8,6 +6,8 @@
       cmd: sudo docker ps
       chdir: commune/
     register: hello
+
+
   - debug: msg="{{ hello.stdout }}"
 
   - debug: msg="{{ hello.stderr }}"

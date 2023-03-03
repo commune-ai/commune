@@ -206,6 +206,7 @@ class Dashboard:
                 serve = serve,
                 kwargs = kwargs,
             )
+            st.write(launch_kwargs)
             commune.launch(**launch_kwargs)
         
     def streamlit_playground(self):

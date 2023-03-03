@@ -20,8 +20,16 @@ fi
 
 # Upgrade pip
 
-pip install --upgrade pip
+python3 -m pip install --upgrade pip
 
 # Install dependencies
 
-pip install -e .
+python3 -m pip install bittensor
+python3 -m git clone https://github.com/opentensor/cubit.git /cubit
+python3 -m pip install -e /cubit
+python3 -m pip install --upgrade torch
+python3 -m pip install -e .
+python3 -m pip install pytest
+python3 -m pip install jupyterlab
+python3 -m pip install accelerate
+
