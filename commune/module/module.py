@@ -344,7 +344,7 @@ class Module:
 
             
         process.stdout = stdout_text
-\
+
         if output_text:
             return process.stdout
 
@@ -352,8 +352,6 @@ class Module:
         return process
 
     shell = cmd = run_command
-    
-
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
@@ -455,8 +453,6 @@ class Module:
             else:
                 raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
         return port
-   
-    
     @classmethod
     def get_available_port(cls, port_range: List[int] = None, ip:str='0.0.0.0' ) -> int:
         port_range = port_range if port_range else cls.port_range
@@ -993,7 +989,7 @@ class Module:
         '''
         from commune.utils.function import get_functions
         
-        obj = obj if obj else cls
+        obj = obj if obj != None else cls
         
 
         functions = get_functions(obj=obj)
@@ -1022,6 +1018,8 @@ class Module:
                     pass
                 else:
                     continue
+            if not hasattr(cls, f):
+                continue
             if callable(getattr(cls, f )):
                 function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}        
         
@@ -1056,7 +1054,7 @@ class Module:
     
     @property
     def function_info_map(self):
-        return self.get_function_info_map(obj=self, include_module=include_module)
+        return self.get_function_info_map(obj=self, include_module=False)
     
     @classmethod
     def get_function_info_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
@@ -1070,12 +1068,15 @@ class Module:
                 **function_schema_map.get(fn, {}),
             }
             
-            if 'self' in function_info_map[fn]['default']:
+            if 'self' in function_info_map[fn]['schema']:
                 function_info_map[fn]['method_type'] = 'self'
-                function_info_map[fn]['default'].pop('self')
-            elif 'cls' in function_info_map[fn]['default']:
+                function_info_map[fn]['schema'].pop('self')
+            elif 'cls' in function_info_map[fn]['schema']:
                 function_info_map[fn]['method_type'] = 'cls'
-                function_info_map[fn]['default'].pop('cls')
+                function_info_map[fn]['schema'].pop('cls')
+            else:
+                function_info_map[fn]['method_type'] = 'static'
+                
 
         return function_info_map    
     
@@ -1117,15 +1118,17 @@ class Module:
         obj = obj if obj else cls
         
         function_schema_map = {}
-        for fn in cls.get_functions(include_module=include_module):
-            if not include_hidden:
-                if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
-                    if fn != '__init__':
-                        continue
-            if callable(getattr(cls, fn )):
+        print(cls.get_functions(obj))
+        for fn in cls.get_functions(obj, include_module=include_module):
+            # if not include_hidden:
+            #     if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
+            #         if fn != '__init__':
+            #             continue
+            
+            if callable(getattr(obj, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
-                for fn_k, fn_v in getattr(cls, fn ).__annotations__.items():
+                for fn_k, fn_v in getattr(obj, fn ).__annotations__.items():
                     
                     fn_v = str(fn_v)  
                     if fn_v == inspect._empty:
@@ -1137,7 +1140,7 @@ class Module:
                                         
                 function_schema_map[fn] = {
                     'schema': fn_schema,
-                    'docs': getattr(cls, fn ).__doc__
+                    'docs': getattr(obj, fn ).__doc__
                 }
         return function_schema_map
     
