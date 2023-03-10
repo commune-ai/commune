@@ -141,6 +141,7 @@ class Dashboard:
         function_info_map = self.module_info['function_info_map'] = self.module_info['module'].get_function_info_map(include_module=False)
         init_fn_name = '__init__'
         init_fn_info = function_info_map[init_fn_name]
+        
         init_kwarg = {}
         cols = st.columns([3,1,6])
         cols[0].write('#### Launcher')
@@ -152,7 +153,8 @@ class Dashboard:
         with launch_col:
        
             name = st.text_input('**Name**', self.module_name) 
-            tag = st.text_input('**Tag**', 'None')
+            tag = None
+            # tag = st.text_input('**Tag**', 'None')
             if tag == 'None' or tag == '' or tag == 'null':
                 tag = None
             refresh = st.checkbox('**Refresh**', False)
@@ -162,6 +164,9 @@ class Dashboard:
             launch_button = st.button('Launch Module')  
             
             
+        init_fn_info['default'].pop('self', None)
+        init_fn_info['default'].pop('cls', None)
+        
             
         # kwargs_cols[0].write('## Module Arguments')
         for i, (k,v) in enumerate(init_fn_info['default'].items()):
@@ -177,9 +182,13 @@ class Dashboard:
             if k in ['kwargs', 'args'] and v == 'NA':
                 continue
             
+            
+            
             kwargs_col_idx = kwargs_col_idx % (len(kwargs_cols))
             init_kwarg[k] = kwargs_cols[kwargs_col_idx].text_input(fn_key, v)
             
+        init_kwarg.pop('self', None )
+        init_kwarg.pop('cls', None)
         if launch_button:
             kwargs = {}
             for k,v in init_kwarg.items():
