@@ -835,7 +835,7 @@ class Module:
         self.server_registry(self.module_id)
   
     @classmethod
-    def servers(cls, search:str = None) -> List[str]:
+    def servers(cls, search:str = None, ) -> List[str]:
         servers =  list(cls.server_registry().keys())
         
         # filter based on the search
@@ -1110,6 +1110,7 @@ class Module:
 
 
         )
+        return info
 
 
     @classmethod
@@ -1233,7 +1234,7 @@ class Module:
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
-               mode:str = 'local',
+               mode:str = 'pm2',
                name:Optional[str]=None, 
                tag:str=None, 
                serve: bool = True,
@@ -2309,6 +2310,23 @@ class Module:
         time.sleep(seconds)
         return None
     
+    
+    # DICT LAND
+    
+    
+    @classmethod
+    def dict_put(cls, *args, **kwargs):
+        dict_put = cls.import_object('commune.utils.dict.dict_put')
+        return dict_put(*args, **kwargs)
+    @classmethod
+    def dict_get(cls, *args, **kwargs):
+        dict_get = cls.import_object('commune.utils.dict.dict_get')
+        return dict_get(*args, **kwargs)
+    
+    @classmethod
+    def dict_has(cls, *args, **kwargs):
+        dict_has = cls.import_object('commune.utils.dict.dict_has')
+        return dict_has(*args, **kwargs)
     
 Block = Lego = Module
 if __name__ == "__main__":

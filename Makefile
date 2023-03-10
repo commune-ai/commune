@@ -100,8 +100,8 @@ register_loop:
 
 st_ensemble:
 	streamlit run commune/model/ensemble/model.py
-streamlit:
-	pm2 start commune/dashboard.py --name dashboard --interpreter python3 -- -m streamlit run 
+st:
+	pm2 start commune/${arg}.py --name ${arg} --interpreter python3 -- -m streamlit run  
 
 enver_env:
 	source env/bin/activate

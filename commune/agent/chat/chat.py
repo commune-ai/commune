@@ -12,7 +12,10 @@ import commune
 # react = initialize_agent(tools, llm, agent="react-docstore", verbose=True)
 
 from typing import *
-class Judge(commune.Module):
+
+
+import commune
+class CustomChatbot(commune.Module):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.set_tokenizer(self.config['tokenizer'])
@@ -44,7 +47,11 @@ class Judge(commune.Module):
         
         
         return self.tokenizer
-    def num_tokens(self, text:str, tokenizer: str = None, **kwargs) -> int:
+    def chat(self, text:str) -> str:
+        return 'Im not in the mood baby, leave me alone'   
+    def num_tokens(self, text:str,
+                   tokenizer: str = None, 
+                   **kwargs) -> int:
         self.set_tokenizer(tokenizer)
         assert hasattr(self, 'tokenizer')
         return len(self.tokenizer(text,**kwargs)['input_ids'])
@@ -56,17 +63,35 @@ class Judge(commune.Module):
         self.config['price_per_token'] = price_per_token
         return price_per_token
     @classmethod
-    def sandbox(cls):
-        self = cls()
-        st.write(self.num_tokens('bro whadup, how is it going fam whadup'))
-        st.write(self.llm)
+    def test(cls):
+        
+        import commune
+        chatbot =  commune.connect('chatbot')
+        
+        user_input = 'Hey Honey, how is it going?'
+        ai_output = chatbot.chat(user_input)
+        st.write(f'**USER INPUT**: {user_input}')
+        st.write(f'**AI OUTPUT**: {ai_output}')
+        
+        # st.write(chatbot.chat('Hey Honey, how is it going?'))
+        
 
-
-
+        # del peer_info['intro']
+        # del peer_info['examples']
+        
+        # st.write(peer_info)
+        
+        
+        # st.multiselect('**My Modules**', live_servers, live_servers)
+        
+        # st.write(cls.servers())
+        # st.write(self.num_tokens('bro whadup, how is it going fam whadup'))
+        # st.write(self.llm.__dict__)
 
 if __name__ == "__main__":
     
-    Judge.run()
+    CustomChatbot.run()
+
 
 
 
