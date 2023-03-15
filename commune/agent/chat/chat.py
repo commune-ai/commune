@@ -15,8 +15,12 @@ from typing import *
 
 
 import commune
+
+
 class CustomChatbot(commune.Module):
-    def __init__(self, **kwargs):
+    def __init__(self, llm:str= 'gpt4',
+                 tokenizer:str='gpt2',
+                 **kwargs):
         super().__init__(**kwargs)
         self.set_tokenizer(self.config['tokenizer'])
         self.set_llm(self.config['llm'])
@@ -67,9 +71,10 @@ class CustomChatbot(commune.Module):
         
         import commune
         chatbot =  commune.connect('chatbot')
-        
         user_input = 'Hey Honey, how is it going?'
         ai_output = chatbot.chat(user_input)
+        
+        
         st.write(f'**USER INPUT**: {user_input}')
         st.write(f'**AI OUTPUT**: {ai_output}')
         

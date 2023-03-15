@@ -4,5 +4,5 @@ price_per_token: 0.0001
 llm: 
   module: langchain.OpenAI
   kwargs: 
-    openai_api_key: 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
+    openai_api_key: OPEN_API_KEY
   model: local

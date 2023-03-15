@@ -494,7 +494,6 @@ class Module:
         Kill the server by the name
         '''
         server_info = cls.get_server_info(module)
-        import streamlit as st
         if 'external_ip' in server_info:
             assert server_info.get('external_ip') == cls.external_ip()
         if isinstance(module, int) or mode == 'local':
@@ -565,7 +564,6 @@ class Module:
     @classmethod
     def path2objectpath(cls, path:str) -> str:
         
-        import streamlit as st
         
         module_file_basename = os.path.basename(path).split('.')[0]
         if module_file_basename[0].isupper():
@@ -578,7 +576,6 @@ class Module:
             path = path + '.'
         path = path + object_name
         
-        st.write(path, cls.pwd)
         return path
 
     @classmethod
@@ -1325,8 +1322,6 @@ class Module:
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         
-        import streamlit as st
-        st.write(module, 'bro')
         if isinstance(module, str):
             assert isinstance(module, str), f'module must be a string, not {type(module)}'
             module = cls.get_module(module)
@@ -2331,4 +2326,9 @@ class Module:
 Block = Lego = Module
 if __name__ == "__main__":
     Module.run()
+    import commune
+    # Merge with another peer's namespace 
+    commune.add_peer(peer='203.44.493.343:5000')
+    # Remove the other peer's namespace
+    commune.remove_peer(peer='203.44.493.343:5000')
 

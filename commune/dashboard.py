@@ -52,7 +52,7 @@ class Dashboard:
 
     @property
     def default_categories(self) -> List[str]:
-        default_categories = ['web3', 'model', 'dataset']
+        default_categories = ['web3', 'model', 'dataset', 'agent']
         return default_categories
 
     def streamlit_module_browser(self):
