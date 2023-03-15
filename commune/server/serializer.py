@@ -38,9 +38,7 @@ class Serializer:
             for k_index ,k in enumerate(object_map.keys()):
                 v = object_map[k]
                 block_ref_path = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split('.')))
-
                 k_metadata = {'block_ref_path': block_ref_path, 'block_ref_idx': k_index}
-
                 sub_blocks.append(self.serialize(data=v, metadata=deepcopy(k_metadata)))
                 dict_put(data, block_ref_path , k_metadata)
 

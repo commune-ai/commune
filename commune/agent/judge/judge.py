@@ -12,6 +12,9 @@ import commune
 # react = initialize_agent(tools, llm, agent="react-docstore", verbose=True)
 
 from typing import *
+
+
+import commune
 class Judge(commune.Module):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
