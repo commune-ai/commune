@@ -54,13 +54,13 @@ services:
 
 
       
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"
 

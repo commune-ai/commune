@@ -46,6 +46,7 @@ from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
 import ed25519_zebra
 
+import streamlit as st
 __all__ = ['Keypair', 'KeypairType', 'MnemonicLanguageCode']
 
 
@@ -106,11 +107,11 @@ class SubstrateAccount(commune.Module):
         seed_hex: hex string of seed
         crypto_type: Use KeypairType.SR25519 or KeypairType.ED25519 cryptography for generating the Keypair
         """
-
-        params = locals()
-        params.pop('self')
-        self.set_params(**params)
+        self.set_params(**self.get_params(locals()))
         
+    def get_params(self, params):
+        params.pop('self', None)
+        return params
     def set_params(self, ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
@@ -122,19 +123,22 @@ class SubstrateAccount(commune.Module):
         if ss58_address == None and public_key == None and private_key == None and seed_hex == None and mnemonic == None:
             mnemonic = self.generate_mnemonic()
 
+        self.params = self.get_params(locals())
+
         if mnemonic:
+
             mnemonic_data = self.create_from_mnemonic(mnemonic, data_only=True)
-            self.mnemonic = mnemonic_data.pop('mnemonic', None)
-            return self.set_keypair(**mnemonic_data)
-        else:
-            self.mnemonic = None
-        
-        self.params = locals()
-        self.params.pop('self')
-        
-        for k in ['public_key', 'private_key', 'seed_hex']:
-            if isinstance(self.params[k], bytes):
-                self.params[k] = self.params[k].hex()
+            self.params.update(mnemonic_data)
+            
+            public_key = self.params['public_key']
+            private_key = self.params['private_key']
+            ss58_format = self.params['ss58_format']
+            seed_hex = self.params['seed_hex']
+            crypto_type = self.params['crypto_type']
+            mnemonic = self.params.pop('mnemonic', None)
+
+        self.mnemonic = mnemonic
+
         
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
@@ -177,14 +181,12 @@ class SubstrateAccount(commune.Module):
                 ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
 
         self.ss58_format: int = ss58_format
-
         self.public_key: bytes = public_key
-
         self.ss58_address: str = ss58_address
-
-        self.private_key: bytes = private_key        
+        self.private_key: bytes = private_key    
+        
+            
         self.set_password(password)
-        self.set_hasher()
 
 
     set_keypair= set_params
@@ -265,7 +267,10 @@ class SubstrateAccount(commune.Module):
         keypair.mnemonic = mnemonic
 
         return keypair
-    
+    @classmethod
+    def create_from_password(cls, password):
+        seed = cls.hash(password)
+        return cls.create_from_seed(seed)
 
     @classmethod
     def create_from_seed(
@@ -637,7 +642,7 @@ class SubstrateAccount(commune.Module):
         
         demo_accounts = {}
         for demo_uri in demo_uris:
-            demo_accounts[demo_uri] =  cls.from_uri(demo_uri)
+            demo_accounts[demo_uri] =  cls.create_from_password(demo_uri)
             
         
         return demo_accounts 
@@ -647,6 +652,8 @@ class SubstrateAccount(commune.Module):
         if password == None:
             if not hasattr(self, 'password'):
                 self.password = self.private_key.hex()
+        else:
+            self.password = password
             
         seed = self.hash(self.password)
         
@@ -654,13 +661,11 @@ class SubstrateAccount(commune.Module):
         aes_key = commune.get_module('crypto.key.aes')
         self.aes_key = aes_key(seed)
         
-    def set_hasher(self) -> 'Hash':
-        self.hasher = commune.get_module('crypto.hash')()
-        
-    def hash(self, data: Union[str, bytes]) -> bytes:
-        if not hasattr(self, 'hasher'):
-            self.set_hasher()
-        return self.hasher.hash(data)
+    @classmethod
+    def hash(cls, data: Union[str, bytes]) -> bytes:
+        if not hasattr(cls, 'hash_module'):
+            cls.hash_module = commune.get_module('crypto.hash')()
+        return cls.hash_module(data)
     
     
     
@@ -673,20 +678,101 @@ class SubstrateAccount(commune.Module):
         return self.aes_key.decrypt(data)
     
     
-    def encrypted_state(self, password: str = None) -> bytes:
-        return {'data': self.encrypt(self.params, password)}
+    def state_dict(self, password: str = None, encrypt: bool = True) -> dict:
+        from copy import deepcopy
+        state_dict = {'data': {}, 'encrypted': encrypt}   
+        state_dict['data'] = deepcopy(self.params)
+        for k in ['public_key', 'private_key', 'seed_hex']:
+            if isinstance(self.params[k], bytes):
+                state_dict['data'][k] = self.params[k].hex()
         
-    def decrypted_state(self,data,  password: str = None) -> bytes:
-        return self.decrypt(data, password)
+        if encrypt == True:
+            state_dict['data'] = self.encrypt(data=state_dict['data'], password=password)
+            
+        return state_dict
+
+    def load_state_dict(self, state: dict, password: str = None):
+        
+        '''
+        
+        We assume that the state dict is encrypted if the key 'encrypted' is set to True.
+        We also assume that the data is encrypted as bytes
+        
+        Example of state dict:
+            state = {'data': b'encrypted_data', 'encrypted': True}
+  
+        '''
+        import streamlit as st
+        
+        encrypted = state.get('encrypted', False)
+        if encrypted == True:
+            state = self.decrypt(state['data'], password)
+        st.write()
+        self.params = state
+        self.set_params(**self.params)
+        
+    def save_state_dict(self,  password: str = None, encrypt: bool = True):
+        import streamlit as st
+        
+        encrypted = state.get('encrypted', False)
+        if encrypted == True:
+            state = self.decrypt(state['data'], password)
+        st.write()
+        self.params = state
+        self.set_params(**self.params)
+
+
 
     @classmethod
-    def test(cls):
+    def test_state_dict(cls):
         import streamlit as st
-        self = SubstrateAccount()
-        self.private_key
+        password = 'hello'
+        self = SubstrateAccount(password=password)
+        
+        self2 = SubstrateAccount(password=password)
         # testing recontraction of encrypted state
-        self2 = SubstrateAccount(**self.decrypted_state(**self.encrypted_state()))
-        st.write(self.private_key==self2.private_key)
+        self.state_dict()
+        self2.load_state_dict(self.state_dict())
+        self2.address == self.address
+        
+        self.state_dict(encrypt=False)
+        self2.load_state_dict(self.state_dict())
+        assert self2.address == self.address
+      
+    @classmethod  
+    def test_save_loader(cls, password: str = None):
+        # cls.test_state_dict()
+        
+        self  = cls()
+        self.save(password=password)
+        self.load(password=password)
+        
+    
+    @classmethod
+    def test(cls):
+        for fn in dir(cls):
+            if fn.startswith('test_'):
+                st.write(fn)
+                getattr(cls, fn)()
+        
+    def save( self, path: str = 'default', encrypt:bool = True, password: str = None):
+        
+        if not password:
+            password = self.password
+            
+        state_dict = self.state_dict(password=password, encrypt=encrypt)
+        self.put_json(path, state_dict)
+        
+    def load( self, path: str = 'default', password: str = None):
+        
+        if not password:
+            password = self.password
+            
+        state_dict = self.get_json(path)
+        self.load_state_dict(state_dict, password=password)
+        
+
+        
     
 if __name__ == '__main__':
     SubstrateAccount.test()

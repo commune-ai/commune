@@ -23,6 +23,8 @@ class Hash(commune.Module):
         else:
             raise NotImplemented(hash_type)
 
+    def __call__(self, *args, **kwargs):
+        return self.hash(*args, **kwargs)
 
 if __name__ == "__main__":
     Hash.run()
