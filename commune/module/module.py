@@ -2339,7 +2339,10 @@ class Module:
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
-        return bytes.decode(data, mode)
+        try:
+            return bytes.decode(data, mode)
+        except UnicodeDecodeError:
+            return data.hex()
     
     # JSON2BYTES
     @classmethod
@@ -2363,6 +2366,8 @@ class Module:
         input_type = type(input)
         if input_type in [dict]:
             input = json.dumps(input)
+        elif input_type in [bytes]:
+            input = cls.bytes2str(input)
         elif input_type in [list, tuple, set]:
             input = json.dumps(list(input))
         elif input_type in [int, float, bool]:

@@ -18,3 +18,6 @@ COPY ./scripts /app/scripts
 RUN ./scripts/install_python_env.sh
 # INSTALL NPM ENV
 RUN ./scripts/install_npm_env.sh
+
+# INSTALL RUST ENV
+RUN ./scripts/install_rust_env.sh
