@@ -14,13 +14,13 @@ from eth_account.messages import encode_defunct
 from eth_keys import keys
 from copy import deepcopy
 from eth_account.account import Account
-from commune import Module
+import commune
 from typing import List, Dict, Union, Optional, Any
 
 logger = logging.getLogger(__name__)
 
 
-class EVMAccount(Module):
+class EVMAccount(commune.Module):
 
 
 
@@ -34,7 +34,7 @@ class EVMAccount(Module):
     ) -> None:
         """Initialises EVMAccount object."""
         # assert private_key, "private_key is required."
-        Module.__init__(self, **kwargs)
+        commune.Module.__init__(self, **kwargs)
 
 
         self.account = self.set_account(private_key = private_key)
@@ -234,25 +234,6 @@ class EVMAccount(Module):
         s += [""]
         return "\n".join(s)
 
-
-    hash_fn_dict = {
-        'keccak': Web3.keccak
-    }
-    @staticmethod
-    def resolve_hash_function(cls, hash_type='keccak'):
-        hash_fn = EVMAccount.hash_fn_dict.get(hash_type)
-        assert hash_fn != None, f'hash_fn: {hash_type} is not found'
-        return hash_fn
-
-    def hash(cls, input, hash_type='keccak',return_type='str',*args,**kwargs):
-        input_text = EVMAccount.python2str(input)
-        if hash_type == 'keccak':
-            hash_output = Web3.keccak(text=input_text, *args, **kwargs)
-            hash_output = Web3.toHex(hash_output)
-            return hash_output
-        else:
-            raise NotImplemented(hash_type)
-
     
     def resolve_web3(self, web3=None):
         if web3 == None:
@@ -344,7 +325,6 @@ class EVMAccount(Module):
         message = {'bro': 'bro'}
         signature = self.sign(message)
         assert self.verify(message, signature=signature['signature'])
-        print(is_original_sig)
         
     @classmethod
     def test_hash(cls):

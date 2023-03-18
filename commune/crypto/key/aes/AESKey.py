@@ -7,7 +7,8 @@ import json
 import sys
 import inspect
 import time
-class AESKey:
+import commune
+class AESKey(commune.Module):
 
     def __init__(self, key): 
         self.bs = AES.block_size
@@ -17,6 +18,7 @@ class AESKey:
     def python2str(input):
         input = deepcopy(input)
         input_type = type(input)
+        
         if input_type in [dict]:
             input = json.dumps(input)
         elif input_type in [list, tuple, set]:
