@@ -239,7 +239,11 @@ class Module:
     
 
 
-    def set_config(self, config:Optional[Union[str, dict]]=None, kwargs:dict={}, save_if_not_exists:bool = False):
+    def set_config(self, 
+                   config:Optional[Union[str, dict]]=None, 
+                   kwargs:dict={},
+                   save_if_not_exists:bool = False,
+                   add_attributes: bool = True):
         '''
         Set the config as well as its local params
         '''
@@ -264,9 +268,12 @@ class Module:
             config = self.load_config(path=config, save_if_not_exists=False)
         
         config.update(kwargs)
-        
 
-        self.__dict__['config'] = dict2munch(config)
+        if add_attributes:
+            self.__dict__.update(config)
+            
+        #  add the config after in case the config has a config attribute lol
+        self.config = dict2munch(config)
         
         return self.config
 
@@ -2322,6 +2329,39 @@ class Module:
     def dict_has(cls, *args, **kwargs):
         dict_has = cls.import_object('commune.utils.dict.dict_has')
         return dict_has(*args, **kwargs)
+    
+    # BYTES LAND
+    
+    # STRING2BYTES
+    @classmethod
+    def str2bytes(cls, data: str, mode: str = 'utf-8') -> bytes:
+        return bytes(data, mode)
+    
+    @classmethod
+    def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
+        return bytes.decode(data, mode)
+    
+    # JSON2BYTES
+    @classmethod
+    def dict2str(cls, data: str) -> str:
+        return json.dumps(data)
+    
+    
+    @classmethod
+    def dict2bytes(cls, data: str) -> bytes:
+        return cls.str2bytes(cls.json2str(data))
+    
+    @classmethod
+    def bytes2dict(cls, data: bytes) -> str:
+        data = cls.bytes2str(data)
+        return json.loads(data)
+    
+    # # ARRAY2BYTES
+    # @classmethod
+    # def array2bytes(self, data: np.array) -> bytes:
+    #     if isinstance(data, np.array):
+    #         data = data.astype(np.float64)
+    #     return data.tobytes()
     
 Block = Lego = Module
 if __name__ == "__main__":

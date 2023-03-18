@@ -21,7 +21,7 @@ class Dashboard:
         
     @property
     def network_options(self):
-        return ['local','nakamoto', 'nobunaga', '0.0.0.0:9944'] 
+        return ['nakamoto', 'local', 'nobunaga', '0.0.0.0:9944'] 
     
     @property
     def chain_endpoint_options(self):

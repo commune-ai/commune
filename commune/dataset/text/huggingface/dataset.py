@@ -18,37 +18,36 @@ import commune
 
 
 class HFDataset(commune.Module):
-    def __init__(self,
-                path:str='glue',
-                flavor:str = 'cola',
-                split:str='train',
-                tokenizer:'tokenizer'=None, 
-                text_field: str='sentence',
-                config: dict=None, 
-                **kwargs):
-        self.config = self.set_config(config=config)
-
-        self.path = path
-        self.name = flavor
-        self.split = split
-        self.text_field = text_field
+    def __init__(self, config: dict=None):
         
+        self.set_params(config)
+
+    def set_params(self, config: dict = None, **kwargs) -> None:
+
+        if hasattr(self, 'config'):
+            config = config if config else {}
+            config = {**self.config, **config}
+        self.config = self.set_config(config)
+        self.config.update(kwargs)
+        self.set_tokenizer(tokenizer=self.tokenizer)
+        self.set_dataset(path=self.path, name=self.name, split=self.split)
+
+    def replicate(self, tag = None, **kwargs) -> None:
+        '''
+        Replicate the current module with a new tag.
+        '''
+
+        if isinstance(tag, list):
+            for t in tag:
+                self.replicate(tag=t)
+        elif isinstance(tag, str) or tag is None:
+            self.__class__.launch(kwargs={'config':self.config}, tag=tag,  **kwargs) 
         
-        self.load_tokenizer(tokenizer=tokenizer)
-        self.load_dataset(path=self.path, name=self.name, split=self.split)
-
-    def load_tokenizer(self, tokenizer=None): 
-        try:
-            import bittensor
-        except RuntimeError:
-            commune.new_event_loop()
-            import bittensor
-        tokenizer = tokenizer if tokenizer else bittensor.tokenizer()
-        self.tokenizer = tokenizer
-        return self.tokenizer
-    
-
-    def load_dataset(self, path:str=None, name:str=None, split:str=None):
+        elif type(tag) in [int]:
+            self.replicate(tag=str(tag))
+        else:
+            raise ValueError(f'Invalid tag type: {type(tag)}')
+    def set_dataset(self, path:str=None, name:str=None, split:str=None):
         kwargs = {}
         kwargs['path'] = path if path  else self.path
         kwargs['name'] = name if name  else self.name
@@ -98,13 +97,18 @@ class HFDataset(commune.Module):
 
     @property
     def split(self):
-        return self.config['dataset']['split']
+        return self.config['split']
+    
+    def set_split(self, split):
+        assert split in self.available_splits
+        self.config['split'] = split
+        self.set_dataset(split=split)
 
     @split.setter
     def split(self, split):
         assert split in self.available_splits
-        self.config['dataset']['split'] = split
-        self.load_dataset(split=split)
+        self.config['split'] = split
+        self.set_dataset(split=split)
 
     def __len__(self):
         return len(self.dataset)
@@ -145,10 +149,10 @@ class HFDataset(commune.Module):
         final_sample = ' '.join(final_sample.split()[:sequence_length])
         return final_sample
 
-    def sample(self, batch_size:int=32, sequence_length:int=256, idx_list:List[int] = None, tokenize:bool= True)->dict:
+    def sample(self, batch_size:int=32, sequence_length:int=256, idx_list:List[int] = None, tokenize:bool= False)->dict:
         
         if idx_list == None:
-            idx_list = [None for i in range(batch_size)]
+            idx_list = [self.resolve_idx(None) for i in range(batch_size)]
 
         samples_text =  [self.__getitem__(idx=idx ) for idx in idx_list]
 
@@ -156,8 +160,8 @@ class HFDataset(commune.Module):
 
         if tokenize:
             sample_dict['input_ids'] = self.tokenizer(samples_text,   max_length=sequence_length, truncation=True, padding="max_length", return_tensors='pt')['input_ids']
-        else:
-            sample_dict['text'] = samples_text
+
+        sample_dict['text'] = samples_text
         return sample_dict
     
     forward = sample
@@ -195,7 +199,7 @@ class HFDataset(commune.Module):
         return filter_fn
 
     @staticmethod
-    def load_dataset_builder( path:str=None, factory_module_path:str=None):
+    def set_dataset_builder( path:str=None, factory_module_path:str=None):
         if factory_module_path == None:
             assert isinstance(path, str)
             factory_module = datasets.load.dataset_module_factory(path)
@@ -205,50 +209,50 @@ class HFDataset(commune.Module):
         return dataset_builder
 
     @staticmethod
-    def load_dataset_factory( path:str):
+    def set_dataset_factory( path:str):
         return datasets.load.dataset_module_factory(path)
 
     @property
     def dataset_factory(self):
         placeholder_name = '_dataset_factory'
         if not hasattr(self, placeholder_name):
-            setattr(self, placeholder_name,self.load_dataset_factory(self.path))
+            setattr(self, placeholder_name,self.set_dataset_factory(self.path))
         return getattr(self, placeholder_name)
 
     @property
     def dataset_builder(self):
         placeholder_name = '_dataset_builder'
         if not hasattr(self, placeholder_name):
-            setattr(self, placeholder_name,self.load_dataset_builder(self.path))
+            setattr(self, placeholder_name,self.set_dataset_builder(self.path))
         return getattr(self, placeholder_name)
 
     @property
     def path(self):
-        return self.config['dataset']['path']
+        return self.config['path']
     
     name = path
 
     @path.setter
     def path(self, value):
-        self.config['dataset']['path'] = value
+        self.config['path'] = value
 
     @property
     def text_field(self):
-        return self.config['dataset']['text_field']
+        return self.config['text_field']
 
     @text_field.setter
     def text_field(self, value):
-        self.config['dataset']['text_field'] = value
+        self.config['text_field'] = value
 
     @property
     def name(self):
-        name = self.config['dataset']['name'] = self.config.get('name', self.available_names[0])
+        name = self.config['name'] = self.config.get('name', self.available_names[0])
         return name
 
     @name.setter
     def name(self, name):
-        self.config['dataset']['name'] = name
-        self.load_dataset(name=name)
+        self.config['name'] = name
+        self.set_dataset(name=name)
 
     def list_configs(self):
         return self.config_map
@@ -288,6 +292,37 @@ class HFDataset(commune.Module):
         x = self.sample()
         print(x)
 
+    shortcuts =  {
+        'gptj': 'EleutherAI/gpt-j-6B',
+        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+        'gpt125m': 'EleutherAI/gpt-neo-125M',
+        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gptneox': 'EleutherAI/gpt-neox-20b',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt13b': 'facebook/opt-13b'
+
+         }
+    def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
+        tokenizer = tokenizer if tokenizer else 'gptj'
+        from transformers import AutoTokenizer
+        
+        if isinstance(tokenizer, str):
+            tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+            self.config['tokenizer'] = tokenizer
+
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
+            except ValueError:
+                print('resorting ot use_fast = False')
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+        
+        self.tokenizer = tokenizer
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        
+        return self.tokenizer
+
+    
 
 if __name__ == '__main__':
     # print(commune.Module.connect('dataset.huggingface').forward())
