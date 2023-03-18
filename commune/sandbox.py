@@ -1,28 +1,15 @@
 import commune 
 import streamlit as st
 
-
-st.write([commune.connect(m).dataset_byte_size_map for m in commune.servers('dataset')])
-# # print(commune.get_module('model.transformer').launch(name='model::gpt125m', tag='1'))
-# modules =  commune.pm2_list()
-# selected_modules = []
-# selected_modules = st.multiselect('Select a model', modules, selected_modules)
-
-# refresh_button = st.button('Refresh')
-# delete_button = st.button('Delete')
-
-# if delete_button:
-#     for module in selected_modules:
-#         commune.pm2_kill(name=module)
-#     selected_modules = []
-# if refresh_button:
-#     for module in selected_modules:
-#         commune.pm2_refresh(name=module)
-#     selected_modules = []
-
-# st.write(selected_modules)
+# commune.get_module("web3.account.substrate").from_mnemonic("")
 
 
-# st.write(commune.get_module('model.transformer').glob("**"))
+from substrateinterface import Keypair
 
-# # print(commune.cmd('pm2 logs model::gptj::0'))
+# Generate a substrate keypair from a string
+my_string = "Hello, world!"
+keypair = Keypair.create_from_mnemonic(my_string)
+
+# Print the generated keypair
+print(f"Public key: {keypair.public_key}")
+print(f"Secret key: {keypair.secret_key}")

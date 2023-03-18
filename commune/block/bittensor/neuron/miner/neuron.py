@@ -120,6 +120,8 @@ class neuron:
         if config == None: config = server.config()
         config = config; 
         
+        self.check_config(config)
+        
         self.relay_enabled = relay_enabled
 
         if synapse_list != None:

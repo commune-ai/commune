@@ -123,9 +123,30 @@ class Serializer:
         return json.loads(json_object_bytes)
 
 
+
     """
     ################ BIG TORCH LAND ############################
     """
+    def torch2bytes(self, data:torch.Tensor)-> bytes:
+        if data.requires_grad:
+            data = data.detach()
+        torch_numpy = np.array(data.cpu().tolist())
+        # torch_numpy = data.cpu().numpy().copy()
+        data_buffer = msgpack.packb(torch_numpy, default=msgpack_numpy.encode)
+        return data_buffer
+
+
+    def bytes2torch(self, data:bytes, shape:list, dtype:str, requires_grad:bool=False) -> torch.Tensor:
+        numpy_object = msgpack.unpackb(data, object_hook=msgpack_numpy.decode).copy()
+
+        int64_workaround = bool(numpy_object.dtype == np.int64)
+        if int64_workaround:
+            numpy_object = numpy_object.astype(np.float64)
+        torch_object = torch.tensor(numpy_object).view(shape).requires_grad_(requires_grad)
+        if int64_workaround:
+            dtype = torch.int64
+        torch_object =  torch_object.to(dtype)
+        return torch_object
 
 
     def serialize_torch(self, data: torch.Tensor, metadata:dict) -> DataBlock:
@@ -150,30 +171,6 @@ class Serializer:
 
 
         return data
-    def torch2bytes(self, data:torch.Tensor)-> bytes:
-        if data.requires_grad:
-            data = data.detach()
-            
-        
-
-        torch_numpy = np.array(data.cpu().tolist())
-        # torch_numpy = data.cpu().numpy().copy()
-        data_buffer = msgpack.packb(torch_numpy, default=msgpack_numpy.encode)
-
-        return data_buffer
-
-
-    def bytes2torch(self, data:bytes, shape:list, dtype:str, requires_grad:bool=False) -> torch.Tensor:
-        numpy_object = msgpack.unpackb(data, object_hook=msgpack_numpy.decode).copy()
-
-        int64_workaround = bool(numpy_object.dtype == np.int64)
-        if int64_workaround:
-            numpy_object = numpy_object.astype(np.float64)
-        torch_object = torch.tensor(numpy_object).view(shape).requires_grad_(requires_grad)
-        if int64_workaround:
-            dtype = torch.int64
-        torch_object =  torch_object.to(dtype)
-        return torch_object
 
     def get_str_type(self, data):
         data_type = str(type(data)).split("'")[1]
