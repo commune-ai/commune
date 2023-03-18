@@ -2356,6 +2356,28 @@ class Module:
         data = cls.bytes2str(data)
         return json.loads(data)
     
+    
+    @classmethod
+    def python2str(cls, input):
+        input = deepcopy(input)
+        input_type = type(input)
+        if input_type in [dict]:
+            input = json.dumps(input)
+        elif input_type in [list, tuple, set]:
+            input = json.dumps(list(input))
+        elif input_type in [int, float, bool]:
+            input = str(input)
+        return input
+
+    @staticmethod
+    def str2python(cls, input)-> dict:
+        assert isinstance(input, str)
+        try:
+            output_dict = json.loads(input)
+        except json.JSONDecodeError as e:
+            return input
+
+        return output_dict
     # # ARRAY2BYTES
     # @classmethod
     # def array2bytes(self, data: np.array) -> bytes:

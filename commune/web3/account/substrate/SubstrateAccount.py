@@ -92,6 +92,7 @@ class SubstrateAccount(commune.Module):
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = KeypairType.SR25519,
+                 password: str = None,
                  mnemonic: str = None):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -108,21 +109,32 @@ class SubstrateAccount(commune.Module):
 
         params = locals()
         params.pop('self')
-        self.set_keypair(**params)
+        self.set_params(**params)
         
-        
-    def set_keypair(self, ss58_address: str = None, 
+    def set_params(self, ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = KeypairType.SR25519,
+                 password: str = None,
                  mnemonic : str= None):
-        
+        if ss58_address == None and public_key == None and private_key == None and seed_hex == None and mnemonic == None:
+            mnemonic = self.generate_mnemonic()
+
         if mnemonic:
             mnemonic_data = self.create_from_mnemonic(mnemonic, data_only=True)
             self.mnemonic = mnemonic_data.pop('mnemonic', None)
             return self.set_keypair(**mnemonic_data)
+        else:
+            self.mnemonic = None
+        
+        self.params = locals()
+        self.params.pop('self')
+        
+        for k in ['public_key', 'private_key', 'seed_hex']:
+            if isinstance(self.params[k], bytes):
+                self.params[k] = self.params[k].hex()
         
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
@@ -170,10 +182,12 @@ class SubstrateAccount(commune.Module):
 
         self.ss58_address: str = ss58_address
 
-        self.private_key: bytes = private_key
+        self.private_key: bytes = private_key        
+        self.set_password(password)
+        self.set_hasher()
 
 
-    set_params = set_keypair
+    set_keypair= set_params
 
 
 
@@ -629,14 +643,58 @@ class SubstrateAccount(commune.Module):
         return demo_accounts 
 
 
+    def set_password(self, password: str = None) -> 'AESKey':
+        if password == None:
+            if not hasattr(self, 'password'):
+                self.password = self.private_key.hex()
+            
+        seed = self.hash(self.password)
+        
+        # get the AES key module and create an instance for encryption
+        aes_key = commune.get_module('crypto.key.aes')
+        self.aes_key = aes_key(seed)
+        
+    def set_hasher(self) -> 'Hash':
+        self.hasher = commune.get_module('crypto.hash')()
+        
+    def hash(self, data: Union[str, bytes]) -> bytes:
+        if not hasattr(self, 'hasher'):
+            self.set_hasher()
+        return self.hasher.hash(data)
+    
+    
+    
+    def encrypt(self, data: Union[str, bytes], password:str = None) -> bytes:
+        self.set_password(password)
+        return self.aes_key.encrypt(data)
+    
+    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        self.set_password(password)
+        return self.aes_key.decrypt(data)
+    
+    
+    def encrypted_state(self, password: str = None) -> bytes:
+        return {'data': self.encrypt(self.params, password)}
+        
+    def decrypted_state(self,data,  password: str = None) -> bytes:
+        return self.decrypt(data, password)
 
+    @classmethod
+    def test(cls):
+        import streamlit as st
+        self = SubstrateAccount()
+        self.private_key
+        # testing recontraction of encrypted state
+        self2 = SubstrateAccount(**self.decrypted_state(**self.encrypted_state()))
+        st.write(self.private_key==self2.private_key)
+    
 if __name__ == '__main__':
-    import streamlit as st
-    mnemonic = SubstrateAccount.generate_mnemonic()
+    SubstrateAccount.test()
+
     
-    self = SubstrateAccount(mnemonic=mnemonic)
-    
-    st.write(self.mnemonic)
+
+
+    # st.write(self.encrypt_message('brooo whadup')
     # st.write(self.sign(self.str2bytes('brooo whadup'), return_dict=True)['data'].decode('utf-8'))
     
     # st.write(module)
