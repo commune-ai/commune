@@ -89,9 +89,7 @@ while :; do
         --subspace)
 
         COMPOSE_FILES+=" -f subspace/docker-compose.yml"
-        ;;
-        --subtensor)
-        COMPOSE_FILES+=" -f subtensor/docker-compose.yml"
+        
         ;;
 
         --ipfs)
