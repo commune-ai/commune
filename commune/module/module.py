@@ -2052,7 +2052,7 @@ class Module:
         return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
 
     @classmethod
-    def public_ip(cls):
+    def public_ip(cls, *args, **kwargs):
         return cls.get_public_ip(*args, **kwargs)
     
     @staticmethod
@@ -2271,10 +2271,9 @@ class Module:
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
         return json.dumps(state_dict)
     
-    logger = None
     @classmethod
     def log(cls, text, mode='info'):
-        if cls.logger is None:
+        if not hasattr(cls,'logger'):
             from loguru import logger
             cls.logger = logger.opt(colors=True)
         
