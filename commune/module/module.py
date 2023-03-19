@@ -2390,6 +2390,8 @@ class Module:
     #         data = data.astype(np.float64)
     #     return data.tobytes()
     
+    from rich.console import Console
+    __console__ = Console()
 Block = Lego = Module
 if __name__ == "__main__":
     Module.run()
