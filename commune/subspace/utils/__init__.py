@@ -7,7 +7,6 @@ import requests
 import torch
 from substrateinterface import Keypair
 from substrateinterface.utils import ss58
-from .registration import *
 
 
 def indexed_values_to_dataframe ( 
@@ -107,7 +106,7 @@ def is_valid_ed25519_pubkey( public_key: Union[str, bytes] ) -> bool:
     except (ValueError, IndexError):
         return False
 
-def is_valid_subspace_address_or_public_key( address: Union[str, bytes] ) -> bool:
+def is_valid_address_or_public_key( address: Union[str, bytes] ) -> bool:
     """
     Checks if the given address is a valid destination address.
 

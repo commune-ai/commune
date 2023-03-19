@@ -22,6 +22,6 @@ fastapi
 msgpack_numpy
 ansible
 diffusers
-
+retry
 
 
