@@ -1,1 +1,14 @@
 module: Subspace
+url: ws://127.0.0.1:9944
+network: null
+websocket: null
+ss58_format: 42
+type_registry: null
+type_registry_preset: null
+cache_region: null
+runtime_config: null
+use_remote_preset: false
+ws_options: null
+auto_discover: true
+auto_reconnect: true
+substrate: null

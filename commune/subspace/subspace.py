@@ -18,27 +18,26 @@ import torch
 from rich.prompt import Confirm, Prompt
 from typing import List, Dict, Union, Optional
 from multiprocessing import Process
-
-import bittensor
-from tqdm import tqdm
-import commune.utils.networking as net
-import commune.subspace.utils.weight_utils as weight_utils
-from retry import retry
-from substrateinterface import SubstrateInterface
-from bittensor.utils.balance import Balance
-from bittensor.utils import is_valid_bittensor_address_or_public_key
-from types import SimpleNamespace
-
 # Mocking imports
 import os
 import random
 import scalecodec
 import time
-import subprocess
-from sys import platform   
-import commune
 from loguru import logger
 logger = logger.opt(colors=True)
+
+import commune
+from tqdm import tqdm
+import commune.utils.network as net
+import commune.subspace.utils.weight_utils as weight_utils
+from retry import retry
+from substrateinterface import SubstrateInterface, Keypair
+from commune.subspace.balance import Balance
+from commune.subspace.utils import is_valid_address_or_public_key
+from types import SimpleNamespace
+from .balance import Balance
+
+
 
 class Subspace(commune.Module):
     """
@@ -46,9 +45,10 @@ class Subspace(commune.Module):
     """
     def __init__( 
         self, 
-        subspace: 'SubstrateInterface',
-        network: str,
-        chain_endpoint: str,
+        substrate: 'SubstrateInterface' = None, 
+        network: str = 'local',
+        url: str = '127.0.0.1:9944',
+        **kwargs,
     ):
         r""" Initializes a subtensor chain interface.
             Args:
@@ -65,16 +65,103 @@ class Subspace(commune.Module):
                     The subtensor endpoint flag. If set, overrides the network argument.
         """
         self.network = network
+        self.set_substrate(substrate=substrate, network=network, url=url)
         self.chain_endpoint = chain_endpoint
         self.substrate = substrate
+
+    network2url_map = {
+        'local': 'ws://127.0.0.1:9944'
+        }
+    @classmethod
+    def network2url(cls, network:str) -> str:
+        return cls.network2url_map.get(network, None)
+    @classmethod
+    def url2network(cls, url:str) -> str:
+        return {v: k for k, v in cls.network2url_map.items()}.get(url, None)
+    
+    def set_substrate(self, 
+                url:str="ws://127.0.0.1:9944", 
+                network:str = None,
+                websocket:str=None, 
+                ss58_format:int=42, 
+                type_registry:dict=None, 
+                type_registry_preset=None, 
+                cache_region=None, 
+                runtime_config=None, 
+                use_remote_preset=False,
+                ws_options=None, 
+                auto_discover=True, 
+                auto_reconnect=True, 
+                substrate: 'SubstrateInterface' = None,
+
+                *args, 
+                **kwargs):
+
+        '''
+        A specialized class in interfacing with a Substrate node.
+
+        Parameters
+       A specialized class in interfacing with a Substrate node.
+
+        Parameters
+        url : the URL to the substrate node, either in format <https://127.0.0.1:9933> or wss://127.0.0.1:9944
+        
+        ss58_format : The address type which account IDs will be SS58-encoded to Substrate addresses. Defaults to 42, for Kusama the address type is 2
+        
+        type_registry : A dict containing the custom type registry in format: {'types': {'customType': 'u32'},..}
+        
+        type_registry_preset : The name of the predefined type registry shipped with the SCALE-codec, e.g. kusama
+        
+        cache_region : a Dogpile cache region as a central store for the metadata cache
+        
+        use_remote_preset : When True preset is downloaded from Github master, otherwise use files from local installed scalecodec package
+        
+        ws_options : dict of options to pass to the websocket-client create_connection function
+        : dict of options to pass to the websocket-client create_connection function
+                
+        '''
+        from substrateinterface import SubstrateInterface
+        if isinstance(substrate, SubstrateInterface):
+            return substrate
+        else:
+            if url == None:
+                assert network != None, "network or url must be set"
+                url = self.network2url(network)
+            if not url.startswith('ws://'):
+                url = f'ws://{url}'
+            
+            if network == None:
+                network = self.url2network(url)
+            self.network = network 
+            
+            
+            
+            substrate= SubstrateInterface.__init__(self,
+                                        url=url, 
+                                        websocket=websocket, 
+                                        ss58_format=ss58_format, 
+                                        type_registry=type_registry, 
+                                        type_registry_preset=type_registry_preset, 
+                                        cache_region=cache_region, 
+                                        runtime_config=runtime_config, 
+                                        use_remote_preset=use_remote_preset,
+                                        ws_options=ws_options, 
+                                        auto_discover=auto_discover, 
+                                        auto_reconnect=auto_reconnect, 
+                                        *args,
+                                        **kwargs)
+        
+        
+
+    
 
     def __str__(self) -> str:
         if self.network == self.chain_endpoint:
             # Connecting to chain endpoint without network known.
-            return "Subtensor({})".format( self.chain_endpoint )
+            return "Subspace({})".format( self.chain_endpoint )
         else:
             # Connecting to network with endpoint known.
-            return "Subtensor({}, {})".format( self.network, self.chain_endpoint )
+            return "Subspace({}, {})".format( self.network, self.chain_endpoint )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -144,7 +231,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'Rho' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'Rho' ).value
         return make_substrate_call_with_retry()
 
 
@@ -161,7 +248,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'Kappa' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'Kappa' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -174,11 +261,11 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'Difficulty' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'Difficulty' ).value
         return make_substrate_call_with_retry()
 
     @property
-    def total_issuance (self) -> 'bittensor.Balance':
+    def total_issuance (self) -> 'Balance':
         r""" Returns the total token issuance.
         Returns:
             total_issuance (int):
@@ -187,7 +274,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return bittensor.Balance.from_rao( substrate.query(  module='SubtensorModule', storage_function = 'TotalIssuance').value )
+                return Balance.from_rao( substrate.query(  module='SubspaceModule', storage_function = 'TotalIssuance').value )
         return make_substrate_call_with_retry()
 
     @property
@@ -200,7 +287,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'ImmunityPeriod' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'ImmunityPeriod' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -213,7 +300,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorBatchSize' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorBatchSize' ).value
         return make_substrate_call_with_retry()
 
 
@@ -227,7 +314,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorSequenceLength' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorSequenceLength' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -240,7 +327,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorEpochsPerReset' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorEpochsPerReset' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -253,20 +340,20 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorEpochLen' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorEpochLen' ).value
         return make_substrate_call_with_retry()
 
     @property
-    def total_stake (self) -> 'bittensor.Balance':
+    def total_stake (self) -> 'Balance':
         r""" Returns total stake on the chain.
         Returns:
-            total_stake (bittensor.Balance):
+            total_stake (Balance):
                 Total stake as balance.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return bittensor.Balance.from_rao( substrate.query(  module='SubtensorModule', storage_function = 'TotalStake' ).value )
+                return Balance.from_rao( substrate.query(  module='SubspaceModule', storage_function = 'TotalStake' ).value )
         return make_substrate_call_with_retry()
 
     @property
@@ -279,7 +366,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'MinAllowedWeights' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'MinAllowedWeights' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -293,7 +380,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 U32_MAX = 4294967295
-                return substrate.query( module='SubtensorModule', storage_function = 'MaxWeightLimit' ).value/U32_MAX
+                return substrate.query( module='SubspaceModule', storage_function = 'MaxWeightLimit' ).value/U32_MAX
         return make_substrate_call_with_retry()
 
     @property
@@ -307,7 +394,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 MAX = 100
-                return substrate.query( module='SubtensorModule', storage_function = 'ScalingLawPower' ).value/MAX
+                return substrate.query( module='SubspaceModule', storage_function = 'ScalingLawPower' ).value/MAX
         return make_substrate_call_with_retry()
 
     @property
@@ -321,7 +408,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 MAX = 100
-                return substrate.query( module='SubtensorModule', storage_function = 'SynergyScalingLawPower' ).value/MAX
+                return substrate.query( module='SubspaceModule', storage_function = 'SynergyScalingLawPower' ).value/MAX
         return make_substrate_call_with_retry()
 
     @property
@@ -334,33 +421,33 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'MaxAllowedMaxMinRatio' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'MaxAllowedMaxMinRatio' ).value
         return make_substrate_call_with_retry()
 
     @property
     def n (self) -> int:
-        r""" Returns total number of neurons on the chain.
+        r""" Returns total number of modules on the chain.
         Returns:
             n (int):
-                Total number of neurons on chain.
+                Total number of modules on chain.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'N' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'N' ).value
         return make_substrate_call_with_retry()
 
     @property
     def max_n (self) -> int:
-        r""" Returns maximum number of neuron positions on the graph.
+        r""" Returns maximum number of module positions on the graph.
         Returns:
             max_n (int):
-                Maximum number of neuron positions on the graph.
+                Maximum number of module positions on the graph.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'MaxAllowedUids' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'MaxAllowedUids' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -382,7 +469,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'BlocksSinceLastStep' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'BlocksSinceLastStep' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -395,20 +482,20 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'BlocksPerStep' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'BlocksPerStep' ).value
         return make_substrate_call_with_retry()
 
     def get_n (self, block: int = None) -> int:
-        r""" Returns total number of neurons on the chain.
+        r""" Returns total number of modules on the chain.
         Returns:
             n (int):
-                Total number of neurons on chain.
+                Total number of modules on chain.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 return substrate.query(  
-                    module='SubtensorModule', 
+                    module='SubspaceModule', 
                     storage_function = 'N',
                     block_hash = None if block == None else substrate.get_block_hash( block )
                 ).value
@@ -424,7 +511,7 @@ To run a local node (See: docs/running_a_validator.md) \n
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorPruneLen' ).value
+                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorPruneLen' ).value
         return make_substrate_call_with_retry()
 
     @property
@@ -438,20 +525,20 @@ To run a local node (See: docs/running_a_validator.md) \n
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 U64MAX = 18446744073709551615
-                return substrate.query( module='SubtensorModule', storage_function = 'ValidatorLogitsDivergence' ).value/U64MAX
+                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorLogitsDivergence' ).value/U64MAX
         return make_substrate_call_with_retry()
 
-    def serve_axon (
+    def serve_module (
         self,
-        axon: 'bittensor.Axon',
-        use_upnpc: bool = False,
+        module: 'commune.Axon',
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         prompt: bool = False,
+        key: Keypair = None,
     ) -> bool:
         r""" Serves the axon to the network.
         Args:
-            axon (bittensor.Axon):
+            axon (commune.Axon):
                 Axon to serve.
             use_upnpc (:type:bool, `optional`): 
                 If true, the axon attempts port forward through your router before 
@@ -469,40 +556,31 @@ To run a local node (See: docs/running_a_validator.md) \n
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
-        axon.wallet.hotkey
-        axon.wallet.coldkeypub
 
-        # ---- Setup UPNPC ----
-        if use_upnpc:
-            if prompt:
-                if not Confirm.ask("Attempt port forwarding with upnpc?"):
-                    return False
-            try:
-                external_port = net.upnpc_create_port_map( port = axon.port )
-                bittensor.__console__.print(":white_heavy_check_mark: [green]Forwarded port: {}[/green]".format( axon.port ))
-                bittensor.logging.success(prefix = 'Forwarded port', sufix = '<blue>{}</blue>'.format( axon.port ))
-            except net.UPNPCException as upnpc_exception:
-                raise RuntimeError('Failed to hole-punch with upnpc with exception {}'.format( upnpc_exception )) from upnpc_exception
-        else:
-            external_port = axon.external_port
 
-        # ---- Get external ip ----
-        if axon.external_ip == None:
-            try:
-                external_ip = net.get_external_ip()
-                bittensor.__console__.print(":white_heavy_check_mark: [green]Found external ip: {}[/green]".format( external_ip ))
-                bittensor.logging.success(prefix = 'External IP', sufix = '<blue>{}</blue>'.format( external_ip ))
-            except Exception as E:
-                raise RuntimeError('Unable to attain your external ip. Check your internet connection. error: {}'.format(E)) from E
+        if hasattr(module, 'ip'):
+            ip = module.ip
+        elif hasattr(module, 'external_ip'):
+            ip = module.external_ip()
         else:
-            external_ip = axon.external_ip
+            ip = commune.external_ip()
             
+        if hasattr(module, 'port'):
+            port = module.port
+            
+            
+            
+            
+
+        
+        commune.__console__.print(":white_heavy_check_mark: [green]Found external ip: {}[/green]".format( external_ip ))
+        commune.logging.success(prefix = 'External IP', sufix = '<blue>{}</blue>'.format( external_ip ))
+        
         # ---- Subscribe to chain ----
         serve_success = self.serve(
-                wallet = axon.wallet,
-                ip = external_ip,
-                port = external_port,
-                modality = 0,
+                key = key,
+                ip = ip,
+                port = port,
                 wait_for_inclusion = wait_for_inclusion,
                 wait_for_finalization = wait_for_finalization,
                 prompt = prompt
@@ -511,23 +589,14 @@ To run a local node (See: docs/running_a_validator.md) \n
 
     def register (
         self,
-        wallet: 'bittensor.Wallet',
+        key: 'commune.key',
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
-        prompt: bool = False,
-        max_allowed_attempts: int = 3,
-        output_in_place: bool = True,
-        cuda: bool = False,
-        dev_id: Union[List[int], int] = 0,
-        TPB: int = 256,
-        num_processes: Optional[int] = None,
-        update_interval: Optional[int] = None,
-        log_verbose: bool = False,
     ) -> bool:
-        r""" Registers the wallet to chain.
+        r""" Registers the key to chain.
         Args:
-            wallet (bittensor.wallet):
-                bittensor wallet object.
+            key (Keypair):
+                commune key object.
             wait_for_inclusion (bool):
                 If set, waits for the extrinsic to enter a block before returning true, 
                 or returns false if the extrinsic fails to enter the block within the timeout.   
@@ -536,134 +605,63 @@ To run a local node (See: docs/running_a_validator.md) \n
                 or returns false if the extrinsic fails to be finalized within the timeout.
             prompt (bool):
                 If true, the call waits for confirmation from the user before proceeding.
-            max_allowed_attempts (int):
-                Maximum number of attempts to register the wallet.
-            cuda (bool):
-                If true, the wallet should be registered using CUDA device(s).
-            dev_id (Union[List[int], int]):
-                The CUDA device id to use, or a list of device ids.
-            TPB (int):
-                The number of threads per block (CUDA).
-            num_processes (int):
-                The number of processes to use to register.
-            update_interval (int):
-                The number of nonces to solve between updates.
-            log_verbose (bool):
-                If true, the registration process will log more information.
         Returns:
             success (bool):
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
 
-        with bittensor.__console__.status(":satellite: Checking Account..."):
-             neuron = self.neuron_for_pubkey( wallet.hotkey.ss58_address )
-             if not neuron.is_null:
-                 bittensor.__console__.print(":white_heavy_check_mark: [green]Already Registered[/green]:\n  uid: [bold white]{}[/bold white]\n  hotkey: [bold white]{}[/bold white]\n  coldkey: [bold white]{}[/bold white]".format(neuron.uid, neuron.hotkey, neuron.coldkey))
+        with commune.__console__.status(":satellite: Checking Account..."):
+             module = self.module_for_pubkey( key.ss58_address )
+             if not module.is_null:
+                 commune.__console__.print(":white_heavy_check_mark: [green]Already Registered[/green]:\n  uid: [bold white]{}[/bold white]\n  hotkey: [bold white]{}[/bold white]\n  coldkey: [bold white]{}[/bold white]".format(module.uid, module.key, module.coldkey))
                  return True
 
-        if prompt:
-            if not Confirm.ask("Continue Registration?\n  hotkey:     [bold white]{}[/bold white]\n  coldkey:    [bold white]{}[/bold white]\n  network:    [bold white]{}[/bold white]".format( wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address, self.network ) ):
-                return False
 
-        # Attempt rolling registration.
-        attempts = 1
-        while True:
-            bittensor.__console__.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
-            # Solve latest POW.
-            if cuda:
-                if not torch.cuda.is_available():
-                    if prompt:
-                        bittensor.__console__.error('CUDA is not available.')
-                    return False
-                pow_result = bittensor.utils.create_pow( self, wallet, output_in_place, cuda, dev_id, TPB, num_processes=num_processes, update_interval=update_interval, log_verbose=log_verbose )
-            else:
-                pow_result = bittensor.utils.create_pow( self, wallet, output_in_place, num_processes=num_processes, update_interval=update_interval, log_verbose=log_verbose )
+        with self.substrate as substrate:
+            # create extrinsic call
+            call = substrate.compose_call( 
+                call_module='SubspaceModule',  
+                call_function='register', 
+                call_params={} 
+            )
+        extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+        response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
+        
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            commune.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
+            return True
+        
+        # process if registration successful, try again if pow is still valid
+        response.process_events()
+        if not response.is_success:
+            if 'key is already registered' in response.error_message:
+                # Error meant that the key is already registered.
+                commune.__console__.print(":white_heavy_check_mark: [green]Already Registered[/green]")
+                return True
 
-            # pow failed
-            if not pow_result:
-                # might be registered already
-                if (wallet.is_registered( self )):
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Registered[/green]")
-                    return True
-                
-            # pow successful, proceed to submit pow to chain for registration
-            else:
-                with bittensor.__console__.status(":satellite: Submitting POW..."):
-                    # check if pow result is still valid
-                    while bittensor.utils.POWNotStale(self, pow_result):
-                        with self.substrate as substrate:
-                            # create extrinsic call
-                            call = substrate.compose_call( 
-                                call_module='SubtensorModule',  
-                                call_function='register', 
-                                call_params={ 
-                                    'block_number': pow_result['block_number'], 
-                                    'nonce': pow_result['nonce'], 
-                                    'work': bittensor.utils.hex_bytes_to_u8_list( pow_result['work'] ), 
-                                    'hotkey': wallet.hotkey.ss58_address, 
-                                    'coldkey': wallet.coldkeypub.ss58_address
-                                } 
-                            )
-                            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.hotkey )
-                            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
-                            
-                            # We only wait here if we expect finalization.
-                            if not wait_for_finalization and not wait_for_inclusion:
-                                bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
-                                return True
-                            
-                            # process if registration successful, try again if pow is still valid
-                            response.process_events()
-                            if not response.is_success:
-                                if 'key is already registered' in response.error_message:
-                                    # Error meant that the key is already registered.
-                                    bittensor.__console__.print(":white_heavy_check_mark: [green]Already Registered[/green]")
-                                    return True
+            commune.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+            time.sleep(0.5)
+        
 
-                                bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                                time.sleep(0.5)
-                            
-                            # Successful registration, final check for neuron and pubkey
-                            else:
-                                bittensor.__console__.print(":satellite: Checking Balance...")
-                                neuron = self.neuron_for_pubkey( wallet.hotkey.ss58_address )
-                                if not neuron.is_null:
-                                    bittensor.__console__.print(":white_heavy_check_mark: [green]Registered[/green]")
-                                    return True
-                                else:
-                                    # neuron not found, try again
-                                    bittensor.__console__.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
-                                    continue
-                    else:
-                        # Exited loop because pow is no longer valid.
-                        bittensor.__console__.print( "[red]POW is stale.[/red]" )
-                        # Try again.
-                        continue
-                        
-            if attempts < max_allowed_attempts:
-                #Failed registration, retry pow
-                attempts += 1
-                bittensor.__console__.print( ":satellite: Failed registration, retrying pow ...({}/{})".format(attempts, max_allowed_attempts))
-            else:
-                # Failed to register after max attempts.
-                bittensor.__console__.print( "[red]No more attempts.[/red]" )
-                return False 
+
+
 
     def serve (
             self, 
-            wallet: 'bittensor.wallet',
             ip: str, 
             port: int, 
-            modality: int, 
             wait_for_inclusion: bool = False,
             wait_for_finalization = True,
             prompt: bool = False,
+            key: 'Keypair' = None,
+
         ) -> bool:
-        r""" Subscribes an bittensor endpoint to the substensor chain.
+        r""" Subscribes an commune endpoint to the substensor chain.
         Args:
-            wallet (bittensor.wallet):
-                bittensor wallet object.
+            key (Keypair):
+                commune key object.
             ip (str):
                 endpoint host port i.e. 192.122.31.4
             port (int):
@@ -684,70 +682,62 @@ To run a local node (See: docs/running_a_validator.md) \n
                 If we did not wait for finalization / inclusion, the response is true.
         """
 
-        # Decrypt hotkey
-        wallet.hotkey
-
         params = {
-            'version': bittensor.__version_as_int__,
             'ip': net.ip_to_int(ip),
             'port': port,
             'ip_type': net.ip_version(ip),
-            'modality': modality,
-            'coldkey': wallet.coldkeypub.ss58_address,
+            'key': key.ss58_address,
         }
 
-        with bittensor.__console__.status(":satellite: Checking Axon..."):
-            neuron = self.neuron_for_pubkey( wallet.hotkey.ss58_address )
-            neuron_up_to_date = not neuron.is_null and params == {
-                'version': neuron.version,
-                'ip': neuron.ip,
-                'port': neuron.port,
-                'ip_type': neuron.ip_type,
-                'modality': neuron.modality,
-                'coldkey': neuron.coldkey
+        with commune.__console__.status(":satellite: Checking Axon..."):
+            module = self.module_for_pubkey( key.hotkey.ss58_address )
+            module_up_to_date = not module.is_null and params == {
+                'ip': module.ip,
+                'port': module.port,
             }
-            if neuron_up_to_date:
-                bittensor.__console__.print(":white_heavy_check_mark: [green]Already Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]".format(ip, port, modality, wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address))
+            if module_up_to_date:
+                commune.__console__.print(":white_heavy_check_mark: [green]Already Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]".format(ip, port, modality, key.hotkey.ss58_address, key.coldkeypub.ss58_address))
                 return True
 
         if prompt:
-            if not Confirm.ask("Do you want to serve axon:\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]".format(ip, port, modality, wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address)):
+            if not Confirm.ask("Do you want to serve axon:\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]".format(ip, port, modality, key.hotkey.ss58_address, key.coldkeypub.ss58_address)):
                 return False
         
-        with bittensor.__console__.status(":satellite: Serving axon on: [white]{}[/white] ...".format(self.network)):
+        with commune.__console__.status(":satellite: Serving axon on: [white]{}[/white] ...".format(self.network)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
-                    call_module='SubtensorModule',
+                    call_module='SubspaceModule',
                     call_function='serve_axon',
                     call_params=params
                 )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.hotkey)
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey)
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
                 if wait_for_inclusion or wait_for_finalization:
                     response.process_events()
                     if response.is_success:
-                        bittensor.__console__.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]'.format(ip, port, modality, wallet.hotkey.ss58_address, wallet.coldkeypub.ss58_address ))
+                        commune.__console__.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]'.format(ip, port, modality, key.hotkey.ss58_address, key.coldkeypub.ss58_address ))
                         return True
                     else:
-                        bittensor.__console__.print(':cross_mark: [green]Failed to Subscribe[/green] error: {}'.format(response.error_message))
+                        commune.__console__.print(':cross_mark: [green]Failed to Subscribe[/green] error: {}'.format(response.error_message))
                         return False
                 else:
                     return True
 
     def add_stake(
             self, 
-            wallet: 'bittensor.wallet',
             amount: Union[Balance, float] = None, 
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
             prompt: bool = False,
+            key: Keypair = None,
+
         ) -> bool:
         r""" Adds the specified amount of stake to passed hotkey uid.
         Args:
-            wallet (bittensor.wallet):
-                Bittensor wallet object.
+            key (Keypair):
+                Bittensor key object.
             amount (Union[Balance, float]):
-                Amount to stake as bittensor balance, or float interpreted as Tao.
+                Amount to stake as commune balance, or float interpreted as Tao.
             wait_for_inclusion (bool):
                 If set, waits for the extrinsic to enter a block before returning true, 
                 or returns false if the extrinsic fails to enter the block within the timeout.   
@@ -761,303 +751,112 @@ To run a local node (See: docs/running_a_validator.md) \n
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
-        # Decrypt keys,
-        wallet.coldkey
-        wallet.hotkey
 
-        with bittensor.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( wallet.coldkey.ss58_address )
-            neuron = self.neuron_for_pubkey( ss58_hotkey = wallet.hotkey.ss58_address )
-        if neuron.is_null:
-            bittensor.__console__.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(wallet.hotkey_str))
+
+        with commune.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
+            old_balance = self.get_balance( key.ss58_address )
+            module = self.module_for_pubkey( ss58_key = key.ss58_address )
+        if module.is_null:
+            commune.__console__.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.hotkey_str))
             return False
 
-        # Covert to bittensor.Balance
+        # Covert to Balance
         if amount == None:
             # Stake it all.
-            staking_balance = bittensor.Balance.from_tao( old_balance.tao )
-        elif not isinstance(amount, bittensor.Balance ):
-            staking_balance = bittensor.Balance.from_tao( amount )
+            staking_balance = Balance.from_tao( old_balance.tao )
+        elif not isinstance(amount, Balance ):
+            staking_balance = Balance.from_tao( amount )
         else:
             staking_balance = amount
 
         # Remove existential balance to keep key alive.
-        if staking_balance > bittensor.Balance.from_rao( 1000 ):
-            staking_balance = staking_balance - bittensor.Balance.from_rao( 1000 )
+        if staking_balance > Balance.from_rao( 1000 ):
+            staking_balance = staking_balance - Balance.from_rao( 1000 )
         else:
             staking_balance = staking_balance
 
         # Estimate transfer fee.
         staking_fee = None # To be filled.
-        with bittensor.__console__.status(":satellite: Estimating Staking Fees..."):
+        with commune.__console__.status(":satellite: Estimating Staking Fees..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
-                    call_module='SubtensorModule', 
+                    call_module='SubspaceModule', 
                     call_function='add_stake',
                     call_params={
-                        'hotkey': wallet.hotkey.ss58_address,
+                        'hotkey': key.hotkey.ss58_address,
                         'ammount_staked': staking_balance.rao
                     }
                 )
-                payment_info = substrate.get_payment_info(call = call, keypair = wallet.coldkey)
+                payment_info = substrate.get_payment_info(call = call, keypair = key)
                 if payment_info:
-                    staking_fee = bittensor.Balance.from_rao(payment_info['partialFee'])
-                    bittensor.__console__.print("[green]Estimated Fee: {}[/green]".format( staking_fee ))
+                    staking_fee = Balance.from_rao(payment_info['partialFee'])
+                    commune.__console__.print("[green]Estimated Fee: {}[/green]".format( staking_fee ))
                 else:
-                    staking_fee = bittensor.Balance.from_tao( 0.2 )
-                    bittensor.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
+                    staking_fee = Balance.from_tao( 0.2 )
+                    commune.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
 
         # Check enough to unstake.
         if staking_balance > old_balance + staking_fee:
-            bittensor.__console__.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  fee: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, staking_fee, wallet.name))
+            commune.__console__.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  fee: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, staking_fee, key.name))
             return False
                 
         # Ask before moving on.
         if prompt:
-            if not Confirm.ask("Do you want to stake:[bold white]\n  amount: {}\n  to: {}\n  fee: {}[/bold white]".format( staking_balance, wallet.hotkey_str, staking_fee) ):
+            if not Confirm.ask("Do you want to stake:[bold white]\n  amount: {}\n  to: {}\n  fee: {}[/bold white]".format( staking_balance, key.hotkey_str, staking_fee) ):
                 return False
 
-        with bittensor.__console__.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+        with commune.__console__.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
-                    call_module='SubtensorModule', 
+                    call_module='SubspaceModule', 
                     call_function='add_stake',
                     call_params={
-                        'hotkey': wallet.hotkey.ss58_address,
+                        'hotkey': key.hotkey.ss58_address,
                         'ammount_staked': staking_balance.rao
                     }
                 )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.coldkey )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    commune.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
                     return True
 
                 if response.is_success:
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    commune.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 else:
-                    bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                    commune.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
         if response.is_success:
-            with bittensor.__console__.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
-                new_balance = self.get_balance( wallet.coldkey.ss58_address )
-                old_stake = bittensor.Balance.from_tao( neuron.stake )
-                new_stake = bittensor.Balance.from_tao( self.neuron_for_pubkey( ss58_hotkey = wallet.hotkey.ss58_address ).stake)
-                bittensor.__console__.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-                bittensor.__console__.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+            with commune.__console__.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
+                new_balance = self.get_balance( key.ss58_address )
+                old_stake = Balance.from_tao( module.stake )
+                new_stake = Balance.from_tao( self.module_for_pubkey( ss58_hotkey = key.ss58_address ).stake)
+                commune.__console__.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                commune.__console__.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
                 return True
         
-        return False
-
-    def add_stake_multiple (
-            self, 
-            wallets: List['bittensor.wallet'],
-            amounts: List[Union[Balance, float]] = None, 
-            wait_for_inclusion: bool = True,
-            wait_for_finalization: bool = False,
-            prompt: bool = False,
-        ) -> bool:
-        r""" Adds stake to each wallet hotkey in the list, using each amount, from the common coldkey.
-        Args:
-            wallets (List[bittensor.wallet]):
-                List of wallets to stake.
-            amounts (List[Union[Balance, float]]):
-                List of amounts to stake. If None, stake all to the first hotkey.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or included in the block.
-                flag is true if any wallet was staked.
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-        if not isinstance(wallets, list):
-            raise TypeError("wallets must be a list of bittensor.wallet")
-        
-        if len(wallets) == 0:
-            return True
-            
-
-        if amounts is not None and len(amounts) != len(wallets):
-            raise ValueError("amounts must be a list of the same length as wallets")
-
-        if amounts is not None and not all(isinstance(amount, (Balance, float)) for amount in amounts):
-            raise TypeError("amounts must be a [list of bittensor.Balance or float] or None")
-
-        if amounts is None:
-            amounts = [None] * len(wallets)
-        else:
-            # Convert to Balance
-            amounts = [bittensor.Balance.from_tao(amount) if isinstance(amount, float) else amount for amount in amounts ]
-
-            if sum(amount.tao for amount in amounts) == 0:
-                # Staking 0 tao
-                return True
-
-        wallet_0: 'bittensor.wallet' = wallets[0]
-        # Decrypt coldkey for all wallet(s) to use
-        wallet_0.coldkey
-
-        neurons = []
-        with bittensor.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( wallet_0.coldkey.ss58_address )
-
-            for wallet in wallets:
-                neuron = self.neuron_for_pubkey( ss58_hotkey = wallet.hotkey.ss58_address )
-
-                if neuron.is_null:
-                    neurons.append( None )
-                    continue
-
-                neurons.append( neuron )
-
-        # Remove existential balance to keep key alive.
-        ## Keys must maintain a balance of at least 1000 rao to stay alive.
-        total_staking_rao = sum([amount.rao if amount is not None else 0 for amount in amounts])
-        if total_staking_rao == 0:
-            # Staking all to the first wallet.
-            if old_balance.rao > 1000:
-                old_balance -= bittensor.Balance.from_rao(1000)
-
-        elif total_staking_rao < 1000:
-            # Staking less than 1000 rao to the wallets.
-            pass
-        else:
-            # Staking more than 1000 rao to the wallets.
-            ## Reduce the amount to stake to each wallet to keep the balance above 1000 rao.
-            percent_reduction = 1 - (1000 / total_staking_rao)
-            amounts = [Balance.from_tao(amount.tao * percent_reduction) for amount in amounts]
-        
-        successful_stakes = 0
-        for wallet, amount, neuron in zip(wallets, amounts, neurons):
-            if neuron is None:
-                bittensor.__console__.print(":cross_mark: [red]Hotkey: {} is not registered. Skipping ...[/red]".format( wallet.hotkey_str ))
-                continue
-
-            if wallet.coldkeypub.ss58_address != wallet_0.coldkeypub.ss58_address:
-                bittensor.__console__.print(":cross_mark: [red]Hotkey: {} is not under the same coldkey. Skipping ...[/red]".format( wallet.hotkey_str ))
-                continue
-
-            # Assign decrypted coldkey from wallet_0
-            #  so we don't have to decrypt again
-            wallet._coldkey = wallet_0.coldkey
-            staking_all = False
-            # Convert to bittensor.Balance
-            if amount == None:
-                # Stake it all.
-                staking_balance = bittensor.Balance.from_tao( old_balance.tao )
-                staking_all = True
-            else:
-                # Amounts are cast to balance earlier in the function
-                assert isinstance(amount, bittensor.Balance)
-                staking_balance = amount
-
-            # Estimate staking fee.
-            stake_fee = None # To be filled.
-            with bittensor.__console__.status(":satellite: Estimating Staking Fees..."):
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                    call_module='SubtensorModule', 
-                    call_function='add_stake',
-                    call_params={
-                        'hotkey': wallet.hotkey.ss58_address,
-                        'ammount_staked': staking_balance.rao
-                        }
-                    )
-                    payment_info = substrate.get_payment_info(call = call, keypair = wallet.coldkey)
-                    if payment_info:
-                        stake_fee = bittensor.Balance.from_rao(payment_info['partialFee'])
-                        bittensor.__console__.print("[green]Estimated Fee: {}[/green]".format( stake_fee ))
-                    else:
-                        stake_fee = bittensor.Balance.from_tao( 0.2 )
-                        bittensor.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
-
-            # Check enough to stake
-            if staking_all:
-                staking_balance -= stake_fee
-                max(staking_balance, bittensor.Balance.from_tao(0))
-
-            if staking_balance > old_balance - stake_fee:
-                bittensor.__console__.print(":cross_mark: [red]Not enough balance[/red]: [green]{}[/green] to stake: [blue]{}[/blue] from coldkey: [white]{}[/white]".format(old_balance, staking_balance, wallet.name))
-                continue
-                            
-            # Ask before moving on.
-            if prompt:
-                if not Confirm.ask("Do you want to stake:\n[bold white]  amount: {}\n  hotkey: {}\n  fee: {}[/bold white ]?".format( staking_balance, wallet.hotkey_str, stake_fee) ):
-                    continue
-
-            with bittensor.__console__.status(":satellite: Staking to chain: [white]{}[/white] ...".format(self.network)):
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                    call_module='SubtensorModule', 
-                    call_function='add_stake',
-                    call_params={
-                        'hotkey': wallet.hotkey.ss58_address,
-                        'ammount_staked': staking_balance.rao
-                        }
-                    )
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.coldkey )
-                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                    # We only wait here if we expect finalization.
-                    if not wait_for_finalization and not wait_for_inclusion:
-                        bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
-                        old_balance -= staking_balance + stake_fee
-                        successful_stakes += 1
-                        if staking_all:
-                            # If staked all, no need to continue
-                            break
-
-                        continue
-
-                    response.process_events()
-                    if response.is_success:
-                        bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                    else:
-                        bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-
-            if response.is_success:
-                block = self.get_current_block()
-                new_stake = bittensor.Balance.from_tao( self.neuron_for_uid( uid = neuron.uid, block = block ).stake)
-                new_balance = self.get_balance( wallet.coldkey.ss58_address )
-                bittensor.__console__.print("Stake ({}): [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( neuron.uid, neuron.stake, new_stake ))
-                old_balance = new_balance
-                successful_stakes += 1
-                if staking_all:
-                    # If staked all, no need to continue
-                    break
-        
-        if successful_stakes != 0:
-            with bittensor.__console__.status(":satellite: Checking Balance on: ([white]{}[/white] ...".format(self.network)):
-                new_balance = self.get_balance( wallet.coldkey.ss58_address )
-            bittensor.__console__.print("Balance: [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-            return True
-
         return False
 
     def transfer(
             self, 
-            wallet: 'bittensor.wallet',
             dest: str, 
             amount: Union[Balance, float], 
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
             prompt: bool = False,
+            key: Keypair = None,
+
+
         ) -> bool:
-        r""" Transfers funds from this wallet to the destination public key address
+        r""" Transfers funds from this key to the destination public key address
         Args:
-            wallet (bittensor.wallet):
-                Bittensor wallet object to make transfer from.
+            key (Keypair):
+                Bittensor key object to make transfer from.
             dest (str, ss58_address or ed25519):
                 Destination public key address of reciever. 
             amount (Union[Balance, int]):
-                Amount to stake as bittensor balance, or float interpreted as Tao.
+                Amount to stake as commune balance, or float interpreted as Tao.
             wait_for_inclusion (bool):
                 If set, waits for the extrinsic to enter a block before returning true, 
                 or returns false if the extrinsic fails to enter the block within the timeout.   
@@ -1072,29 +871,28 @@ To run a local node (See: docs/running_a_validator.md) \n
                 If we did not wait for finalization / inclusion, the response is true.
         """
         # Validate destination address.
-        if not is_valid_bittensor_address_or_public_key( dest ):
-            bittensor.__console__.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
+        if not is_valid_address_or_public_key( dest ):
+            commune.__console__.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
             return False
 
         if isinstance( dest, bytes):
             # Convert bytes to hex string.
             dest = "0x" + dest.hex()
 
-        # Unlock wallet coldkey.
-        wallet.coldkey
+        # Unlock key coldkey.
 
-        # Convert to bittensor.Balance
-        if not isinstance(amount, bittensor.Balance ):
-            transfer_balance = bittensor.Balance.from_tao( amount )
+        # Convert to Balance
+        if not isinstance(amount, Balance ):
+            transfer_balance = Balance.from_tao( amount )
         else:
             transfer_balance = amount
 
         # Check balance.
-        with bittensor.__console__.status(":satellite: Checking Balance..."):
-            account_balance = self.get_balance( wallet.coldkey.ss58_address )
+        with commune.__console__.status(":satellite: Checking Balance..."):
+            account_balance = self.get_balance( key.ss58_address )
 
         # Estimate transfer fee.
-        with bittensor.__console__.status(":satellite: Estimating Transfer Fees..."):
+        with commune.__console__.status(":satellite: Estimating Transfer Fees..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='Balances',
@@ -1104,25 +902,25 @@ To run a local node (See: docs/running_a_validator.md) \n
                         'value': transfer_balance.rao
                     }
                 )
-                payment_info = substrate.get_payment_info(call = call, keypair = wallet.coldkey)
+                payment_info = substrate.get_payment_info(call = call, keypair = key)
                 transfer_fee = "N/A"
                 if payment_info:
-                    transfer_fee = bittensor.Balance.from_rao(payment_info['partialFee'])
-                    bittensor.__console__.print("[green]Estimated Fee: {}[/green]".format( transfer_fee ))
+                    transfer_fee = Balance.from_rao(payment_info['partialFee'])
+                    commune.__console__.print("[green]Estimated Fee: {}[/green]".format( transfer_fee ))
                 else:
-                    bittensor.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate transfer fee, assuming base fee of 0.2")
-                    transfer_fee = bittensor.Balance.from_tao( 0.2 )
+                    commune.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate transfer fee, assuming base fee of 0.2")
+                    transfer_fee = Balance.from_tao( 0.2 )
 
         if account_balance < transfer_balance + transfer_fee:
-            bittensor.__console__.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {} fee: {}[/bold white]".format( account_balance, transfer_balance, transfer_fee ))
+            commune.__console__.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {} fee: {}[/bold white]".format( account_balance, transfer_balance, transfer_fee ))
             return False
 
         # Ask before moving on.
         if prompt:
-            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}:{}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, wallet.name, wallet.coldkey.ss58_address, dest, transfer_fee )):
+            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}:{}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, key.name, key.coldkey.ss58_address, dest, transfer_fee )):
                 return False
 
-        with bittensor.__console__.status(":satellite: Transferring..."):
+        with commune.__console__.status(":satellite: Transferring..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='Balances',
@@ -1132,46 +930,46 @@ To run a local node (See: docs/running_a_validator.md) \n
                         'value': transfer_balance.rao
                     }
                 )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.coldkey )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.coldkey )
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    commune.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
                     return True
 
                 # Otherwise continue with finalization.
                 response.process_events()
                 if response.is_success:
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    commune.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
                     block_hash = response.block_hash
-                    bittensor.__console__.print("[green]Block Hash: {}[/green]".format( block_hash ))
+                    commune.__console__.print("[green]Block Hash: {}[/green]".format( block_hash ))
                     explorer_url = "https://explorer.nakamoto.opentensor.ai/#/explorer/query/{block_hash}".format( block_hash = block_hash )
-                    bittensor.__console__.print("[green]Explorer Link: {}[/green]".format( explorer_url ))
+                    commune.__console__.print("[green]Explorer Link: {}[/green]".format( explorer_url ))
                 else:
-                    bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                    commune.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
         if response.is_success:
-            with bittensor.__console__.status(":satellite: Checking Balance..."):
-                new_balance = self.get_balance( wallet.coldkey.ss58_address )
-                bittensor.__console__.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+            with commune.__console__.status(":satellite: Checking Balance..."):
+                new_balance = self.get_balance( key.coldkey.ss58_address )
+                commune.__console__.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
                 return True
         
         return False
 
     def unstake (
             self, 
-            wallet: 'bittensor.wallet',
+            key: 'Keypair',
             amount: Union[Balance, float] = None, 
             wait_for_inclusion:bool = True, 
             wait_for_finalization:bool = False,
             prompt: bool = False,
         ) -> bool:
-        r""" Removes stake into the wallet coldkey from the specified hotkey uid.
+        r""" Removes stake into the key coldkey from the specified hotkey uid.
         Args:
-            wallet (bittensor.wallet):
-                bittensor wallet object.
+            key (Keypair):
+                commune key object.
             amount (Union[Balance, float]):
-                Amount to stake as bittensor balance, or float interpreted as tao.
+                Amount to stake as commune balance, or float interpreted as tao.
             wait_for_inclusion (bool):
                 if set, waits for the extrinsic to enter a block before returning true, 
                 or returns false if the extrinsic fails to enter the block within the timeout.   
@@ -1186,265 +984,63 @@ To run a local node (See: docs/running_a_validator.md) \n
                 If we did not wait for finalization / inclusion, the response is true.
         """
         # Decrypt keys,
-        wallet.coldkey
-        wallet.hotkey
 
-        with bittensor.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( wallet.coldkey.ss58_address )
-            neuron = self.neuron_for_pubkey( ss58_hotkey = wallet.hotkey.ss58_address )
-        if neuron.is_null:
-            bittensor.__console__.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format( wallet.hotkey_str ))
+        with commune.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
+            old_balance = self.get_balance( key.ss58_address )
+            module = self.module_for_pubkey( ss58_hotkey = key.ss58_address )
+        if module.is_null:
+            commune.__console__.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format( key.hotkey_str ))
             return False
 
-        # Covert to bittensor.Balance
+        # Covert to Balance
         if amount == None:
             # Unstake it all.
-            unstaking_balance = bittensor.Balance.from_tao( neuron.stake )
-        elif not isinstance(amount, bittensor.Balance ):
-            unstaking_balance = bittensor.Balance.from_tao( amount )
+            unstaking_balance = Balance.from_tao( module.stake )
+        elif not isinstance(amount, Balance ):
+            unstaking_balance = Balance.from_tao( amount )
         else:
             unstaking_balance = amount
 
         # Check enough to unstake.
-        stake_on_uid = bittensor.Balance.from_tao( neuron.stake )
+        stake_on_uid = Balance.from_tao( module.stake )
         if unstaking_balance > stake_on_uid:
-            bittensor.__console__.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from hotkey: [white]{}[/white]".format(stake_on_uid, unstaking_balance, wallet.hotkey_str))
+            commune.__console__.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from hotkey: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.hotkey_str))
             return False
 
         # Estimate unstaking fee.
         unstake_fee = None # To be filled.
-        with bittensor.__console__.status(":satellite: Estimating Staking Fees..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubtensorModule', 
-                    call_function='remove_stake',
-                    call_params={
-                        'hotkey': wallet.hotkey.ss58_address,
-                        'ammount_unstaked': unstaking_balance.rao
-                    }
-                )
-                payment_info = substrate.get_payment_info(call = call, keypair = wallet.coldkey)
-                if payment_info:
-                    unstake_fee = bittensor.Balance.from_rao(payment_info['partialFee'])
-                    bittensor.__console__.print("[green]Estimated Fee: {}[/green]".format( unstake_fee ))
-                else:
-                    unstake_fee = bittensor.Balance.from_tao( 0.2 )
-                    bittensor.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
-                        
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to unstake:\n[bold white]  amount: {}\n  hotkey: {}\n  fee: {}[/bold white ]?".format( unstaking_balance, wallet.hotkey_str, unstake_fee) ):
-                return False
 
-        with bittensor.__console__.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubtensorModule', 
-                    call_function='remove_stake',
-                    call_params={
-                        'hotkey': wallet.hotkey.ss58_address,
-                        'ammount_unstaked': unstaking_balance.rao
-                    }
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.coldkey )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='SubspaceModule', 
+                call_function='remove_stake',
+                call_params={
+                    'ammount_unstaked': unstaking_balance.rao
+                }
+            )
+            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+            response.process_events()
 
-                response.process_events()
-                if response.is_success:
-                    bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                else:
-                    bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-
-        if response.is_success:
-            with bittensor.__console__.status(":satellite: Checking Balance on: ([white]{}[/white] ...".format(self.network)):
-                new_balance = self.get_balance( wallet.coldkey.ss58_address )
-                block = self.get_current_block()
-                new_stake = bittensor.Balance.from_tao( self.neuron_for_uid( uid = neuron.uid, block = block ).stake)
-                bittensor.__console__.print("Balance: [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-                bittensor.__console__.print("Stake: [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( stake_on_uid, new_stake ))
-                return True
         
         return False
-
-    def unstake_multiple (
-            self, 
-            wallets: List['bittensor.wallet'],
-            amounts: List[Union[Balance, float]] = None, 
-            wait_for_inclusion: bool = True, 
-            wait_for_finalization: bool = False,
-            prompt: bool = False,
-        ) -> bool:
-        r""" Removes stake from each wallet hotkey in the list, using each amount, to their common coldkey.
-        Args:
-            wallets (List[bittensor.wallet]):
-                List of wallets to unstake.
-            amounts (List[Union[Balance, float]]):
-                List of amounts to unstake. If None, unstake all.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or included in the block.
-                flag is true if any wallet was unstaked.
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-        if not isinstance(wallets, list):
-            raise TypeError("wallets must be a list of bittensor.wallet")
-        
-        if len(wallets) == 0:
-            return True
-
-        if amounts is not None and len(amounts) != len(wallets):
-            raise ValueError("amounts must be a list of the same length as wallets")
-
-        if amounts is not None and not all(isinstance(amount, (Balance, float)) for amount in amounts):
-            raise TypeError("amounts must be a [list of bittensor.Balance or float] or None")
-
-        if amounts is None:
-            amounts = [None] * len(wallets)
-        else:
-            # Convert to Balance
-            amounts = [bittensor.Balance.from_tao(amount) if isinstance(amount, float) else amount for amount in amounts ]
-
-            if sum(amount.tao for amount in amounts) == 0:
-                # Staking 0 tao
-                return True
-
-
-        wallet_0: 'bittensor.wallet' = wallets[0]
-        # Decrypt coldkey for all wallet(s) to use
-        wallet_0.coldkey
-
-        neurons = []
-        with bittensor.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( wallet_0.coldkey.ss58_address )
-
-            for wallet in wallets:
-                neuron = self.neuron_for_pubkey( ss58_hotkey = wallet.hotkey.ss58_address )
-
-                if neuron.is_null:
-                    neurons.append( None )
-                    continue
-
-                neurons.append( neuron )
-
-        successful_unstakes = 0
-        for wallet, amount, neuron in zip(wallets, amounts, neurons):
-            if neuron is None:
-                bittensor.__console__.print(":cross_mark: [red]Hotkey: {} is not registered. Skipping ...[/red]".format( wallet.hotkey_str ))
-                continue
-
-            if wallet.coldkeypub.ss58_address != wallet_0.coldkeypub.ss58_address:
-                bittensor.__console__.print(":cross_mark: [red]Hotkey: {} is not under the same coldkey. Skipping ...[/red]".format( wallet.hotkey_str ))
-                continue
-
-            # Assign decrypted coldkey from wallet_0
-            #  so we don't have to decrypt again
-            wallet._coldkey = wallet_0._coldkey
-
-            # Covert to bittensor.Balance
-            if amount == None:
-                # Unstake it all.
-                unstaking_balance = bittensor.Balance.from_tao( neuron.stake )
-            elif not isinstance(amount, bittensor.Balance ):
-                unstaking_balance = bittensor.Balance.from_tao( amount )
-            else:
-                unstaking_balance = amount
-
-            # Check enough to unstake.
-            stake_on_uid = bittensor.Balance.from_tao( neuron.stake )
-            if unstaking_balance > stake_on_uid:
-                bittensor.__console__.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from hotkey: [white]{}[/white]".format(stake_on_uid, unstaking_balance, wallet.hotkey_str))
-                continue
-
-            # Estimate unstaking fee.
-            unstake_fee = None # To be filled.
-            with bittensor.__console__.status(":satellite: Estimating Staking Fees..."):
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                        call_module='SubtensorModule', 
-                        call_function='remove_stake',
-                        call_params={
-                            'hotkey': wallet.hotkey.ss58_address,
-                            'ammount_unstaked': unstaking_balance.rao
-                        }
-                    )
-                    payment_info = substrate.get_payment_info(call = call, keypair = wallet.coldkey)
-                    if payment_info:
-                        unstake_fee = bittensor.Balance.from_rao(payment_info['partialFee'])
-                        bittensor.__console__.print("[green]Estimated Fee: {}[/green]".format( unstake_fee ))
-                    else:
-                        unstake_fee = bittensor.Balance.from_tao( 0.2 )
-                        bittensor.__console__.print(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
-                            
-            # Ask before moving on.
-            if prompt:
-                if not Confirm.ask("Do you want to unstake:\n[bold white]  amount: {}\n  hotkey: {}\n  fee: {}[/bold white ]?".format( unstaking_balance, wallet.hotkey_str, unstake_fee) ):
-                    continue
-
-            with bittensor.__console__.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                        call_module='SubtensorModule', 
-                        call_function='remove_stake',
-                        call_params={
-                            'hotkey': wallet.hotkey.ss58_address,
-                            'ammount_unstaked': unstaking_balance.rao
-                        }
-                    )
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.coldkey )
-                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                    # We only wait here if we expect finalization.
-                    if not wait_for_finalization and not wait_for_inclusion:
-                        bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
-                        successful_unstakes += 1
-                        continue
-
-                    response.process_events()
-                    if response.is_success:
-                        bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                    else:
-                        bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-
-            if response.is_success:
-                block = self.get_current_block()
-                new_stake = bittensor.Balance.from_tao( self.neuron_for_uid( uid = neuron.uid, block = block ).stake)
-                bittensor.__console__.print("Stake ({}): [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( neuron.uid, stake_on_uid, new_stake ))
-                successful_unstakes += 1
-        
-        if successful_unstakes != 0:
-            with bittensor.__console__.status(":satellite: Checking Balance on: ([white]{}[/white] ...".format(self.network)):
-                new_balance = self.get_balance( wallet.coldkey.ss58_address )
-            bittensor.__console__.print("Balance: [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-            return True
-
-        return False
-                
+         
     def set_weights(
             self, 
-            wallet: 'bittensor.wallet',
             uids: Union[torch.LongTensor, list],
             weights: Union[torch.FloatTensor, list],
             wait_for_inclusion:bool = False,
             wait_for_finalization:bool = False,
-            prompt:bool = False
+            prompt:bool = False,
+            key: Keypair = None,
+
         ) -> bool:
-        r""" Sets the given weights and values on chain for wallet hotkey account.
+        r""" Sets the given weights and values on chain for key hotkey account.
         Args:
-            wallet (bittensor.wallet):
-                bittensor wallet object.
+            key (Keypair):
+                commune key object.
             uids (Union[torch.LongTensor, list]):
-                uint64 uids of destination neurons.
+                uint64 uids of destination modules.
             weights ( Union[torch.FloatTensor, list]):
                 weights to set which must floats and correspond to the passed uids.
             wait_for_inclusion (bool):
@@ -1474,36 +1070,36 @@ To run a local node (See: docs/running_a_validator.md) \n
             if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/4294967295) for v in weight_vals], weight_uids) ):
                 return False
 
-        with bittensor.__console__.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
+        with commune.__console__.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
             try:
                 with self.substrate as substrate:
                     call = substrate.compose_call(
-                        call_module='SubtensorModule',
+                        call_module='SubspaceModule',
                         call_function='set_weights',
                         call_params = {'dests': weight_uids, 'weights': weight_vals}
                     )
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.hotkey )
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey )
                     response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
                     # We only wait here if we expect finalization.
                     if not wait_for_finalization and not wait_for_inclusion:
-                        bittensor.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
+                        commune.__console__.print(":white_heavy_check_mark: [green]Sent[/green]")
                         return True
 
                     response.process_events()
                     if response.is_success:
-                        bittensor.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                        bittensor.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
+                        commune.__console__.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                        commune.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
                     else:
-                        bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                        bittensor.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                        commune.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                        commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
 
             except Exception as e:
-                bittensor.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-                bittensor.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
+                commune.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+                commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
                 return False
 
         if response.is_success:
-            bittensor.__console__.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
+            commune.log("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
             message = '<green>Success: </green>' + f'Set {len(uids)} weights, top 5 weights' + str(list(zip(uids.tolist()[:5], [round (w,4) for w in weights.tolist()[:5]] )))
             logger.debug('Set weights:'.ljust(20) +  message)
             return True
@@ -1516,7 +1112,7 @@ To run a local node (See: docs/running_a_validator.md) \n
             address (Substrate address format, default = 42):
                 ss58 chain address.
         Return:
-            balance (bittensor.utils.balance.Balance):
+            balance (commune.utils.balance.Balance):
                 account balance
         """
         try:
@@ -1531,7 +1127,7 @@ To run a local node (See: docs/running_a_validator.md) \n
                     )
             result = make_substrate_call_with_retry()
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
-            logger.critical("Your wallet it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+            logger.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
             return Balance(1000)
         return Balance( result.value['data']['free'] )
 
@@ -1559,103 +1155,89 @@ To run a local node (See: docs/running_a_validator.md) \n
         result = make_substrate_call_with_retry()
         return_dict = {}
         for r in result:
-            bal = bittensor.Balance( int( r[1]['data']['free'].value ) )
+            bal = Balance( int( r[1]['data']['free'].value ) )
             return_dict[r[0].value] = bal
         return return_dict
 
-    def neurons(self, block: int = None ) -> List[SimpleNamespace]: 
-        r""" Returns a list of neuron from the chain. 
+    def modules(self, block: int = None ) -> List[SimpleNamespace]: 
+        r""" Returns a list of module from the chain. 
         Args:
             block (int):
                 block to sync from.
         Returns:
-            neuron (List[SimpleNamespace]):
-                List of neuron objects.
+            module (List[SimpleNamespace]):
+                List of module objects.
         """
-        neurons = []
+        modules = []
         for id in tqdm(range(self.get_n( block ))): 
             try:
-                neuron = self.neuron_for_uid(id, block)
-                neurons.append( neuron )
+                module = self.module_for_uid(id, block)
+                modules.append( module )
             except Exception as e:
-                logger.error('Exception encountered when pulling neuron {}: {}'.format(id, e))
+                logger.error('Exception encountered when pulling module {}: {}'.format(id, e))
                 break
-        return neurons
+        return modules
 
     @staticmethod
-    def _null_neuron() -> SimpleNamespace:
-        neuron = SimpleNamespace()
-        neuron.active = 0   
-        neuron.stake = 0
-        neuron.rank = 0
-        neuron.trust = 0
-        neuron.consensus = 0
-        neuron.incentive = 0
-        neuron.dividends = 0
-        neuron.emission = 0
-        neuron.weights = []
-        neuron.bonds = []
-        neuron.version = 0
-        neuron.modality = 0
-        neuron.uid = 0
-        neuron.port = 0
-        neuron.priority = 0
-        neuron.ip_type = 0
-        neuron.last_update = 0
-        neuron.ip = 0
-        neuron.is_null = True
-        neuron.coldkey = "000000000000000000000000000000000000000000000000"
-        neuron.hotkey = "000000000000000000000000000000000000000000000000"
-        return neuron
+    def _null_module() -> SimpleNamespace:
+        module = SimpleNamespace()
+        module.active = 0   
+        module.stake = 0
+        module.incentive = 0
+        module.dividends = 0
+        module.emission = 0
+        module.weights = []
+        module.bonds = []
+        module.uid = 0
+        module.port = 0
+        module.last_update = 0
+        module.ip = 0
+        module.key = "000000000000000000000000000000000000000000000000"
+        return module
 
     @staticmethod
-    def _neuron_dict_to_namespace(neuron_dict) -> SimpleNamespace:
-        if neuron_dict['hotkey'] == '5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM':
-            return Subtensor._null_neuron()
+    def _module_dict_to_namespace(module_dict) -> SimpleNamespace:
+        if module_dict['hotkey'] == '5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM':
+            return Subspace._null_module()
         else:
-            RAOPERTAO = 1000000000
             U64MAX = 18446744073709551615
-            neuron = SimpleNamespace( **neuron_dict )
-            neuron.stake = neuron.stake / RAOPERTAO
-            neuron.rank = neuron.rank / U64MAX
-            neuron.trust = neuron.trust / U64MAX
-            neuron.consensus = neuron.consensus / U64MAX
-            neuron.incentive = neuron.incentive / U64MAX
-            neuron.dividends = neuron.dividends / U64MAX
-            neuron.emission = neuron.emission / RAOPERTAO
-            neuron.is_null = False
-            return neuron
+            module = SimpleNamespace( **module_dict )
+            module.rank = module.rank / U64MAX
+            module.incentive = module.incentive / U64MAX
+            module.dividends = module.dividends / U64MAX
+            module.is_null = False
+            return module
 
-    def neuron_for_uid( self, uid: int, block: int = None ) -> Union[ dict, None ]: 
-        r""" Returns a list of neuron from the chain. 
+    def module_for_uid( self, uid: int, block: int = None ) -> Union[ dict, None ]: 
+        r""" Returns a list of module from the chain. 
         Args:
             uid ( int ):
-                The uid of the neuron to query for.
+                The uid of the module to query for.
             block ( int ):
-                The neuron at a particular block
+                The module at a particular block
         Returns:
-            neuron (dict(NeuronMetadata)):
-                neuron object associated with uid or None if it does not exist.
+            module (dict(moduleMetadata)):
+                module object associated with uid or None if it does not exist.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 result = dict( substrate.query( 
-                    module='SubtensorModule',  
-                    storage_function='Neurons', 
+                    module='SubspaceModule',  
+                    storage_function='modules', 
                     params = [ uid ], 
                     block_hash = None if block == None else substrate.get_block_hash( block )
                 ).value )
             return result
         result = make_substrate_call_with_retry()
-        neuron = Subtensor._neuron_dict_to_namespace( result )
-        return neuron
+        module = Subspace._module_dict_to_namespace( result )
+        return module
 
-    def get_uid_for_hotkey( self, ss58_hotkey: str, block: int = None) -> int:
+    def get_uid_for_key( self, ss58_key: str, block: int = None) -> int:
         r""" Returns true if the passed hotkey is registered on the chain.
         Args:
             ss58_hotkey ( str ):
-                The hotkey to query for a neuron.
+                The hotkey to query for a module.
         Returns:
             uid ( int ):
                 UID of passed hotkey or -1 if it is non-existent.
@@ -1664,88 +1246,88 @@ To run a local node (See: docs/running_a_validator.md) \n
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 return substrate.query (
-                    module='SubtensorModule',
-                    storage_function='Hotkeys',
-                    params = [ ss58_hotkey ],
+                    module='SubspaceModule',
+                    storage_function='Keys',
+                    params = [ ss58_key ],
                     block_hash = None if block == None else substrate.get_block_hash( block )
                 )
         result = make_substrate_call_with_retry()
         # Process the result.
         uid = int(result.value)
         
-        neuron = self.neuron_for_uid( uid, block )
-        if neuron.hotkey != ss58_hotkey:
+        module = self.module_for_uid( uid, block )
+        if module.key != ss58_key:
             return -1
         else:
             return uid
 
 
-    def is_hotkey_registered( self, ss58_hotkey: str, block: int = None) -> bool:
+    def is_key_registered( self, ss58_key: str, block: int = None) -> bool:
         r""" Returns true if the passed hotkey is registered on the chain.
         Args:
             ss58_hotkey ( str ):
-                The hotkey to query for a neuron.
+                The hotkey to query for a module.
         Returns:
             is_registered ( bool):
                 True if the passed hotkey is registered on the chain.
         """
-        uid = self.get_uid_for_hotkey( ss58_hotkey = ss58_hotkey, block = block)
+        uid = self.get_uid_for_key( ss58_key = ss58_key, block = block)
         if uid == -1:
             return False
         else:
             return True
 
-    def neuron_for_pubkey( self, ss58_hotkey: str, block: int = None ) -> SimpleNamespace: 
-        r""" Returns a list of neuron from the chain. 
+    def module_for_pubkey( self, ss58_key: str, block: int = None ) -> SimpleNamespace: 
+        r""" Returns a list of module from the chain. 
         Args:
             ss58_hotkey ( str ):
-                The hotkey to query for a neuron.
+                The hotkey to query for a module.
 
         Returns:
-            neuron ( dict(NeuronMetadata) ):
-                neuron object associated with uid or None if it does not exist.
+            module ( dict(moduleMetadata) ):
+                module object associated with uid or None if it does not exist.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
                 return substrate.query (
-                    module='SubtensorModule',
-                    storage_function='Hotkeys',
-                    params = [ ss58_hotkey ],
+                    module='SubspaceModule',
+                    storage_function='Keys',
+                    params = [ ss58_key ],
                     block_hash = None if block == None else substrate.get_block_hash( block )
                 )
         result = make_substrate_call_with_retry()
         # Get response uid. This will be zero if it doesn't exist.
         uid = int(result.value)
-        neuron = self.neuron_for_uid( uid, block )
-        if neuron.hotkey != ss58_hotkey:
-            return Subtensor._null_neuron()
+        module = self.module_for_uid( uid, block )
+        if module.key != ss58_key:
+            return Subspace._null_module()
         else:
-            return neuron
+            return module
 
     def get_n( self, block: int = None ) -> int: 
-        r""" Returns the number of neurons on the chain at block.
+        r""" Returns the number of modules on the chain at block.
         Args:
             block ( int ):
-                The block number to get the neuron count from.
+                The block number to get the module count from.
 
         Returns:
             n ( int ):
-                the number of neurons subscribed to the chain.
+                the number of modules subscribed to the chain.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
-                return int(substrate.query(  module='SubtensorModule', storage_function = 'N', block_hash = None if block == None else substrate.get_block_hash( block ) ).value)
+                return int(substrate.query(  module='SubspaceModule', storage_function = 'N', block_hash = None if block == None else substrate.get_block_hash( block ) ).value)
         return make_substrate_call_with_retry()
 
-    def neuron_for_wallet( self, wallet: 'bittensor.Wallet', block: int = None ) -> SimpleNamespace: 
-        r""" Returns a list of neuron from the chain. 
+    def module_for_key( self, key: 'commune.Wallet', block: int = None ) -> SimpleNamespace: 
+        r""" Returns a list of module from the chain. 
         Args:
-            wallet ( `bittensor.Wallet` ):
-                Checks to ensure that the passed wallet is subscribed.
+            key ( `commune.Wallet` ):
+                Checks to ensure that the passed key is subscribed.
         Returns:
-            neuron ( dict(NeuronMetadata) ):
-                neuron object associated with uid or None if it does not exist.
+            module ( dict(moduleMetadata) ):
+                module object associated with uid or None if it does not exist.
         """
-        return self.neuron_for_pubkey ( wallet.hotkey.ss58_address, block = block )
+        return self.module_for_pubkey ( key.ss58_address, block = block )
