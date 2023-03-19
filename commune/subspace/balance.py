@@ -1,5 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
+# Copyright © 2021 Yuma nano
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -19,52 +19,52 @@ from typing import Union
 
 class Balance:
     """
-    Represents the bittensor balance of the wallet, stored as rao (int)
+    Represents the bittensor balance of the wallet, stored as nano (int)
     The Balance object is immutable, and can be used as a number or as a string
-    Can only guarantee that the balance is accurate to 9 decimal places (tao)
+    Can only guarantee that the balance is accurate to 9 decimal places (token)
 
-    Note: In operations between Balance and int/float, the other value is assumed to be in rao
+    Note: In operations between Balance and int/float, the other value is assumed to be in nano
     """
 
-    unit: str = "\u03C4" # This is the tao unit
-    rao_unit: str = "\u03C1" # This is the rao unit
-    rao: int
-    tao: float
+    unit: str = "\u03C4" # This is the token unit
+    nano_unit: str = "\u03C1" # This is the nano unit
+    nano: int
+    token: float
 
     def __init__(self, balance: Union[int, float]):
         if isinstance(balance, int):
-            self.rao = balance
+            self.nano = balance
         elif isinstance(balance, float):
-            # Assume tao value for the float
-            self.rao = int(balance * pow(10, 9))
+            # Assume token value for the float
+            self.nano = int(balance * pow(10, 9))
         else:
-            raise TypeError("balance must be an int (rao) or a float (tao)")
+            raise TypeError("balance must be an int (nano) or a float (token)")
 
     @property
-    def tao(self):
-        return self.rao / pow(10, 9)
+    def token(self):
+        return self.nano / pow(10, 9)
 
     def __int__(self):
-        return self.rao
+        return self.nano
 
     def __float__(self):
-        return self.tao
+        return self.token
 
     def __str__(self):
-        return f"{self.unit}{float(self.tao):,.9f}"
+        return f"{self.unit}{float(self.token):,.9f}"
 
     def __rich__(self):
         return "[green]{}[/green][green]{}[/green][green].[/green][dim green]{}[/dim green]".format(
             self.unit,
-            format(float(self.tao), "f").split(".")[0],
-            format(float(self.tao), "f").split(".")[1],
+            format(float(self.token), "f").split(".")[0],
+            format(float(self.token), "f").split(".")[1],
         )
 
-    def __str_rao__(self):
-        return f"{self.rao_unit}{int(self.rao)}"
+    def __str_nano__(self):
+        return f"{self.nano_unit}{int(self.nano)}"
 
-    def __rich_rao__(self):
-        return f"[green]{self.rao_unit}{int(self.rao)}[/green]"
+    def __rich_nano__(self):
+        return f"[green]{self.nano_unit}{int(self.nano)}[/green]"
 
     def __repr__(self):
         return self.__str__()
@@ -73,13 +73,13 @@ class Balance:
         if other is None:
             return False
             
-        if hasattr(other, "rao"):
-            return self.rao == other.rao
+        if hasattr(other, "nano"):
+            return self.nano == other.nano
         else:
             try:
-                # Attempt to cast to int from rao
-                other_rao = int(other)
-                return self.rao == other_rao
+                # Attempt to cast to int from nano
+                other_nano = int(other)
+                return self.nano == other_nano
             except (TypeError, ValueError):
                 raise NotImplementedError("Unsupported type")
 
@@ -87,24 +87,24 @@ class Balance:
         return not self == other
 
     def __gt__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return self.rao > other.rao
+        if hasattr(other, "nano"):
+            return self.nano > other.nano
         else:
             try:
-                # Attempt to cast to int from rao
-                other_rao = int(other)
-                return self.rao > other_rao
+                # Attempt to cast to int from nano
+                other_nano = int(other)
+                return self.nano > other_nano
             except ValueError:
                 raise NotImplementedError("Unsupported type")
 
     def __lt__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return self.rao < other.rao
+        if hasattr(other, "nano"):
+            return self.nano < other.nano
         else:
             try:
-                # Attempt to cast to int from rao
-                other_rao = int(other)
-                return self.rao < other_rao
+                # Attempt to cast to int from nano
+                other_nano = int(other)
+                return self.nano < other_nano
             except ValueError:
                 raise NotImplementedError("Unsupported type")
 
@@ -121,12 +121,12 @@ class Balance:
             raise NotImplementedError("Unsupported type")
 
     def __add__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return Balance.from_rao(int(self.rao + other.rao))
+        if hasattr(other, "nano"):
+            return Balance.from_nano(int(self.nano + other.nano))
         else:
             try:
-                # Attempt to cast to int from rao
-                return Balance.from_rao(int(self.rao + other))
+                # Attempt to cast to int from nano
+                return Balance.from_nano(int(self.nano + other))
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
@@ -149,12 +149,12 @@ class Balance:
             raise NotImplementedError("Unsupported type")
 
     def __mul__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return Balance.from_rao(int(self.rao * other.rao))
+        if hasattr(other, "nano"):
+            return Balance.from_nano(int(self.nano * other.nano))
         else:
             try:
-                # Attempt to cast to int from rao
-                return Balance.from_rao(int(self.rao * other))
+                # Attempt to cast to int from nano
+                return Balance.from_nano(int(self.nano * other))
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
@@ -162,76 +162,76 @@ class Balance:
         return self * other
 
     def __truediv__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return Balance.from_rao(int(self.rao / other.rao))
+        if hasattr(other, "nano"):
+            return Balance.from_nano(int(self.nano / other.nano))
         else:
             try:
-                # Attempt to cast to int from rao
-                return Balance.from_rao(int(self.rao / other))
+                # Attempt to cast to int from nano
+                return Balance.from_nano(int(self.nano / other))
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
     def __rtruediv__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return Balance.from_rao(int(other.rao / self.rao))
+        if hasattr(other, "nano"):
+            return Balance.from_nano(int(other.nano / self.nano))
         else:
             try:
-                # Attempt to cast to int from rao
-                return Balance.from_rao(int(other / self.rao))
+                # Attempt to cast to int from nano
+                return Balance.from_nano(int(other / self.nano))
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
     def __floordiv__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return Balance.from_rao(int(self.tao // other.tao))
+        if hasattr(other, "nano"):
+            return Balance.from_nano(int(self.token // other.token))
         else:
             try:
-                # Attempt to cast to int from rao
-                return Balance.from_rao(int(self.rao // other))
+                # Attempt to cast to int from nano
+                return Balance.from_nano(int(self.nano // other))
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
     def __rfloordiv__(self, other: Union[int, float, "Balance"]):
-        if hasattr(other, "rao"):
-            return Balance.from_rao(int(other.rao // self.rao))
+        if hasattr(other, "nano"):
+            return Balance.from_nano(int(other.nano // self.nano))
         else:
             try:
-                # Attempt to cast to int from rao
-                return Balance.from_rao(int(other // self.rao))
+                # Attempt to cast to int from nano
+                return Balance.from_nano(int(other // self.nano))
             except (ValueError, TypeError):
                 raise NotImplementedError("Unsupported type")
 
     def __int__(self) -> int:
-        return self.rao
+        return self.nano
 
     def __float__(self) -> float:
-        return self.tao
+        return self.token
 
     def __nonzero__(self) -> bool:
-        return bool(self.rao)
+        return bool(self.nano)
 
     def __neg__(self):
-        return Balance.from_rao(-self.rao)
+        return Balance.from_nano(-self.nano)
 
     def __pos__(self):
-        return Balance.from_rao(self.rao)
+        return Balance.from_nano(self.nano)
 
     def __abs__(self):
-        return Balance.from_rao(abs(self.rao))
+        return Balance.from_nano(abs(self.nano))
 
     @staticmethod
     def from_float(amount: float):
-        """Given tao (float), return Balance object with rao(int) and tao(float), where rao = int(tao*pow(10,9))"""
-        rao = int(amount * pow(10, 9))
-        return Balance(rao)
+        """Given token (float), return Balance object with nano(int) and token(float), where nano = int(token*pow(10,9))"""
+        nano = int(amount * pow(10, 9))
+        return Balance(nano)
 
     @staticmethod
-    def from_tao(amount: float):
-        """Given tao (float), return Balance object with rao(int) and tao(float), where rao = int(tao*pow(10,9))"""
-        rao = int(amount * pow(10, 9))
-        return Balance(rao)
+    def from_token(amount: float):
+        """Given token (float), return Balance object with nano(int) and token(float), where nano = int(token*pow(10,9))"""
+        nano = int(amount * pow(10, 9))
+        return Balance(nano)
 
     @staticmethod
-    def from_rao(amount: int):
-        """Given rao (int), return Balance object with rao(int) and tao(float), where rao = int(tao*pow(10,9))"""
+    def from_nano(amount: int):
+        """Given nano (int), return Balance object with nano(int) and token(float), where nano = int(token*pow(10,9))"""
         return Balance(amount)

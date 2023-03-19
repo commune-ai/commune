@@ -45,7 +45,6 @@ class Subspace(commune.Module):
     """
     def __init__( 
         self, 
-        substrate: 'SubstrateInterface' = None, 
         network: str = 'local',
         url: str = '127.0.0.1:9944',
         **kwargs,
@@ -64,10 +63,8 @@ class Subspace(commune.Module):
                 chain_endpoint (default=None, type=str)
                     The subtensor endpoint flag. If set, overrides the network argument.
         """
-        self.network = network
-        self.set_substrate(substrate=substrate, network=network, url=url)
-        self.chain_endpoint = chain_endpoint
-        self.substrate = substrate
+        self.set_substrate( network=network, url=url)
+
 
     network2url_map = {
         'local': 'ws://127.0.0.1:9944'
@@ -92,7 +89,6 @@ class Subspace(commune.Module):
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
-                substrate: 'SubstrateInterface' = None,
 
                 *args, 
                 **kwargs):
@@ -121,47 +117,48 @@ class Subspace(commune.Module):
                 
         '''
         from substrateinterface import SubstrateInterface
-        if isinstance(substrate, SubstrateInterface):
-            return substrate
-        else:
-            if url == None:
-                assert network != None, "network or url must be set"
-                url = self.network2url(network)
-            if not url.startswith('ws://'):
-                url = f'ws://{url}'
-            
-            if network == None:
-                network = self.url2network(url)
-            self.network = network 
-            
-            
-            
-            substrate= SubstrateInterface.__init__(self,
-                                        url=url, 
-                                        websocket=websocket, 
-                                        ss58_format=ss58_format, 
-                                        type_registry=type_registry, 
-                                        type_registry_preset=type_registry_preset, 
-                                        cache_region=cache_region, 
-                                        runtime_config=runtime_config, 
-                                        use_remote_preset=use_remote_preset,
-                                        ws_options=ws_options, 
-                                        auto_discover=auto_discover, 
-                                        auto_reconnect=auto_reconnect, 
-                                        *args,
-                                        **kwargs)
+
+        if url == None:
+            assert network != None, "network or url must be set"
+            url = self.network2url(network)
+        if not url.startswith('ws://'):
+            url = f'ws://{url}'
         
+        if network == None:
+            network = self.url2network(url)
+        self.network = network 
+        self.url = url
+        
+        
+        
+        self.substrate= SubstrateInterface.__init__(self,
+                                    url=url, 
+                                    websocket=websocket, 
+                                    ss58_format=ss58_format, 
+                                    type_registry=type_registry, 
+                                    type_registry_preset=type_registry_preset, 
+                                    cache_region=cache_region, 
+                                    runtime_config=runtime_config, 
+                                    use_remote_preset=use_remote_preset,
+                                    ws_options=ws_options, 
+                                    auto_discover=auto_discover, 
+                                    auto_reconnect=auto_reconnect, 
+                                    *args,
+                                    **kwargs)
+        
+        
+    
         
 
     
 
     def __str__(self) -> str:
-        if self.network == self.chain_endpoint:
+        if self.network == self.url:
             # Connecting to chain endpoint without network known.
-            return "Subspace({})".format( self.chain_endpoint )
+            return "Subspace({})".format( self.url )
         else:
             # Connecting to network with endpoint known.
-            return "Subspace({}, {})".format( self.network, self.chain_endpoint )
+            return "Subspace({}, {})".format( self.network, self.url )
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -175,24 +172,24 @@ class Subspace(commune.Module):
         """
 
         # Chain endpoint overrides the --network flag.
-        if self.chain_endpoint != None:
-            if self.chain_endpoint in blacklist:
+        if self.url != None:
+            if self.url in blacklist:
                 return None
             else:
-                return self.chain_endpoint
+                return self.url
 
     def connect( self, timeout: int = 10, failure = True ) -> bool:
         attempted_endpoints = []
         while True:
             def connection_error_message():
                 print('''
-Check that your internet connection is working and the chain endpoints are available: <blue>{}</blue>
-The subtensor.network should likely be one of the following choices:
-    -- local - (your locally running node)
-    -- nobunaga - (staging)
-    -- nakamoto - (main)
-Or you may set the endpoint manually using the --subtensor.chain_endpoint flag 
-To run a local node (See: docs/running_a_validator.md) \n
+                        Check that your internet connection is working and the chain endpoints are available: <blue>{}</blue>
+                        The subtensor.network should likely be one of the following choices:
+                            -- local - (your locally running node)
+                            -- nobunaga - (staging)
+                            -- nakamoto - (main)
+                        Or you may set the endpoint manually using the --subtensor.chain_endpoint flag 
+                        To run a local node (See: docs/running_a_validator.md) \n
                               '''.format( attempted_endpoints) )
 
             # ---- Get next endpoint ----
@@ -204,6 +201,7 @@ To run a local node (See: docs/running_a_validator.md) \n
                     logger.critical('Unable to connect to network:<blue>{}</blue>.\nMake sure your internet connection is stable and the network is properly set.'.format(self.network))
                 else:
                     return False
+            
             attempted_endpoints.append(ws_chain_endpoint)
 
             # --- Attempt connection ----
@@ -221,48 +219,7 @@ To run a local node (See: docs/running_a_validator.md) \n
                 else:
                     return False
 
-    @property
-    def rho (self) -> int:
-        r""" Incentive mechanism rho parameter.
-        Returns:
-            rho (int):
-                Incentive mechanism rho parameter.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'Rho' ).value
-        return make_substrate_call_with_retry()
 
-
-    def getattr()
-
-
-    @property
-    def kappa (self) -> int:
-        r""" Incentive mechanism kappa parameter.
-        Returns:
-            kappa (int):
-                Incentive mechanism kappa parameter.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'Kappa' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def difficulty (self) -> int:
-        r""" Returns registration difficulty from the chain.
-        Returns:
-            difficulty (int):
-                Registration difficulty.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'Difficulty' ).value
-        return make_substrate_call_with_retry()
 
     @property
     def total_issuance (self) -> 'Balance':
@@ -291,59 +248,6 @@ To run a local node (See: docs/running_a_validator.md) \n
         return make_substrate_call_with_retry()
 
     @property
-    def validator_batch_size (self) -> int:
-        r""" Returns the chain default validator batch size.
-        Returns:
-            batch_size (int):
-                Chain default validator batch size.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorBatchSize' ).value
-        return make_substrate_call_with_retry()
-
-
-    @property
-    def validator_sequence_length (self) -> int:
-        r""" Returns the chain default validator sequence length.
-        Returns:
-            sequence_length (int):
-                Chain default validator sequence length.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorSequenceLength' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def validator_epochs_per_reset (self) -> int:
-        r""" Epochs passed before the validator resets its weights.
-        Returns:
-            validator_epochs_per_reset (int):
-                Epochs passed before the validator resets its weights.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorEpochsPerReset' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def validator_epoch_length (self) -> int:
-        r""" Default validator epoch length.
-        Returns:
-            validator_epoch_length (int):
-                Default validator epoch length. 
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorEpochLen' ).value
-        return make_substrate_call_with_retry()
-
-    @property
     def total_stake (self) -> 'Balance':
         r""" Returns total stake on the chain.
         Returns:
@@ -356,73 +260,6 @@ To run a local node (See: docs/running_a_validator.md) \n
                 return Balance.from_rao( substrate.query(  module='SubspaceModule', storage_function = 'TotalStake' ).value )
         return make_substrate_call_with_retry()
 
-    @property
-    def min_allowed_weights (self) -> int:
-        r""" Returns min allowed number of weights.
-        Returns:
-            min_allowed_weights (int):
-                Min number of weights allowed to be set.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'MinAllowedWeights' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def max_weight_limit (self) -> int:
-        r""" Returns MaxWeightLimit
-        Returns:
-            max_weight (int):
-                the max value for weights after normalizaiton
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                U32_MAX = 4294967295
-                return substrate.query( module='SubspaceModule', storage_function = 'MaxWeightLimit' ).value/U32_MAX
-        return make_substrate_call_with_retry()
-
-    @property
-    def scaling_law_power (self) -> int:
-        r""" Returns ScalingLawPower
-        Returns:
-            ScalingLawPower (float):
-                the power term attached to scaling law
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                MAX = 100
-                return substrate.query( module='SubspaceModule', storage_function = 'ScalingLawPower' ).value/MAX
-        return make_substrate_call_with_retry()
-
-    @property
-    def synergy_scaling_law_power (self) -> int:
-        r""" Returns SynergyScalingLawPower
-        Returns:
-            SynergyScalingLawPower (float):
-                the term attached to synergy calculation during shapley scores
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                MAX = 100
-                return substrate.query( module='SubspaceModule', storage_function = 'SynergyScalingLawPower' ).value/MAX
-        return make_substrate_call_with_retry()
-
-    @property
-    def max_allowed_min_max_ratio(self) -> int:
-        r""" Returns the chains max_allowed_min_max_ratio
-        Returns:
-            max_allowed_min_max_ratio (int):
-                The max ratio allowed between the min and max.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'MaxAllowedMaxMinRatio' ).value
-        return make_substrate_call_with_retry()
 
     @property
     def n (self) -> int:
@@ -501,32 +338,6 @@ To run a local node (See: docs/running_a_validator.md) \n
                 ).value
         return make_substrate_call_with_retry()
 
-    @property
-    def prune_len (self) -> int:
-        r""" Returns PruneLen 
-        Returns:
-            prune_len (int):
-                the number of pruned tokens from each requests 
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorPruneLen' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def logits_divergence (self) -> int:
-        r""" Returns logits_divergence
-        Returns:
-            logits_divergence (int):
-                the divergence value for logit distances, a measure for anomaly detection 
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                U64MAX = 18446744073709551615
-                return substrate.query( module='SubspaceModule', storage_function = 'ValidatorLogitsDivergence' ).value/U64MAX
-        return make_substrate_call_with_retry()
 
     def serve_module (
         self,
@@ -568,10 +379,6 @@ To run a local node (See: docs/running_a_validator.md) \n
         if hasattr(module, 'port'):
             port = module.port
             
-            
-            
-            
-
         
         commune.__console__.print(":white_heavy_check_mark: [green]Found external ip: {}[/green]".format( external_ip ))
         commune.logging.success(prefix = 'External IP', sufix = '<blue>{}</blue>'.format( external_ip ))
@@ -642,8 +449,6 @@ To run a local node (See: docs/running_a_validator.md) \n
                 return True
 
             commune.__console__.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-            time.sleep(0.5)
-        
 
 
 
@@ -800,11 +605,6 @@ To run a local node (See: docs/running_a_validator.md) \n
             commune.__console__.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  fee: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, staking_fee, key.name))
             return False
                 
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to stake:[bold white]\n  amount: {}\n  to: {}\n  fee: {}[/bold white]".format( staking_balance, key.hotkey_str, staking_fee) ):
-                return False
-
         with commune.__console__.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
@@ -1189,24 +989,22 @@ To run a local node (See: docs/running_a_validator.md) \n
         module.weights = []
         module.bonds = []
         module.uid = 0
-        module.port = 0
         module.last_update = 0
         module.ip = 0
+        module.port = 0
         module.key = "000000000000000000000000000000000000000000000000"
         return module
 
     @staticmethod
     def _module_dict_to_namespace(module_dict) -> SimpleNamespace:
-        if module_dict['hotkey'] == '5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM':
-            return Subspace._null_module()
-        else:
-            U64MAX = 18446744073709551615
-            module = SimpleNamespace( **module_dict )
-            module.rank = module.rank / U64MAX
-            module.incentive = module.incentive / U64MAX
-            module.dividends = module.dividends / U64MAX
-            module.is_null = False
-            return module
+
+        U64MAX = 18446744073709551615
+        module = SimpleNamespace( **module_dict )
+        module.rank = module.rank / U64MAX
+        module.incentive = module.incentive / U64MAX
+        module.dividends = module.dividends / U64MAX
+        module.is_null = False
+        return module
 
     def module_for_uid( self, uid: int, block: int = None ) -> Union[ dict, None ]: 
         r""" Returns a list of module from the chain. 
