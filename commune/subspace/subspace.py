@@ -37,6 +37,41 @@ from commune.subspace.utils import is_valid_address_or_public_key
 from types import SimpleNamespace
 from balance import Balance
 
+import streamlit as st
+
+
+
+__type_registery__ = {
+    "runtime_id": 2,
+    "types": {
+        "Balance": "u64",
+        "NeuronMetadataOf": {
+            "type": "struct",
+            "type_mapping": [
+                ["version", "u32"],
+                ["ip", "u128"], 
+                ["port", "u16"], 
+                ["ip_type", "u8"], 
+                ["uid", "u32"], 
+                ["modality", "u8"], 
+                ["hotkey", "AccountId"], 
+                ["coldkey", "AccountId"], 
+                ["active", "u32"],
+                ["last_update", "u64"],
+                ["priority", "u64"],
+                ["stake", "u64"],
+                ["rank", "u64"],
+                ["trust", "u64"],
+                ["consensus", "u64"],
+                ["incentive", "u64"],
+                ["dividends", "u64"],
+                ["emission", "u64"],
+                ["bonds", "Vec<(u32, u64)>"],
+                ["weights", "Vec<(u32, u32)>"]
+            ]
+        }
+    }
+}
 
 
 class Subspace(commune.Module):
@@ -81,7 +116,7 @@ class Subspace(commune.Module):
                 network:str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
-                type_registry:dict=None, 
+                type_registry:dict=__type_registery__, 
                 type_registry_preset=None, 
                 cache_region=None, 
                 runtime_config=None, 
@@ -417,12 +452,13 @@ class Subspace(commune.Module):
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
-
-        with commune.__console__.status(":satellite: Checking Account..."):
-             module = self.module_for_pubkey( key.ss58_address )
-             if not module.is_null:
-                 commune.log(":white_heavy_check_mark: [green]Already Registered[/green]:\n  uid: [bold white]{}[/bold white]\n  hotkey: [bold white]{}[/bold white]\n  coldkey: [bold white]{}[/bold white]".format(module.uid, module.key, module.coldkey))
-                 return True
+        # if self.is_key_registered( key.ss58_address ):
+        #     with commune.log(":satellite: Checking Account..."):
+                
+        #         module = self.module_for_pubkey( key.ss58_address )
+        #         if not module.is_null:
+        #             commune.log(":white_heavy_check_mark: [green]Already Registered[/green]:\n  uid: [bold white]{}[/bold white]\n  hotkey: [bold white]{}[/bold white]\n  coldkey: [bold white]{}[/bold white]".format(module.uid, module.key, module.coldkey))
+        #             return True
 
 
         with self.substrate as substrate:
@@ -430,9 +466,12 @@ class Subspace(commune.Module):
             call = substrate.compose_call( 
                 call_module='SubspaceModule',  
                 call_function='register', 
-                call_params={} 
+                # call_params={} 
             )
         extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+        
+        
+        st.write(extrinsic)
         response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
         
         # We only wait here if we expect finalization.
@@ -494,39 +533,32 @@ class Subspace(commune.Module):
             'key': key.ss58_address,
         }
 
-        with commune.__console__.status(":satellite: Checking Axon..."):
-            module = self.module_for_pubkey( key.hotkey.ss58_address )
-            module_up_to_date = not module.is_null and params == {
-                'ip': module.ip,
-                'port': module.port,
-            }
-            if module_up_to_date:
-                commune.log(":white_heavy_check_mark: [green]Already Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]".format(ip, port, modality, key.hotkey.ss58_address, key.coldkeypub.ss58_address))
-                return True
+        commune.log(":satellite: Checking Axon...")
+        module = self.module_for_pubkey( key.hotkey.ss58_address )
+        module_up_to_date = not module.is_null and params == {
+            'ip': module.ip,
+            'port': module.port,
+        }
 
-        if prompt:
-            if not Confirm.ask("Do you want to serve axon:\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]".format(ip, port, modality, key.hotkey.ss58_address, key.coldkeypub.ss58_address)):
-                return False
-        
-        with commune.__console__.status(":satellite: Serving axon on: [white]{}[/white] ...".format(self.network)):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubspaceModule',
-                    call_function='serve_axon',
-                    call_params=params
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey)
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                if wait_for_inclusion or wait_for_finalization:
-                    response.process_events()
-                    if response.is_success:
-                        commune.log(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  hotkey: {}\n  coldkey: {}[/bold white]'.format(ip, port, modality, key.hotkey.ss58_address, key.coldkeypub.ss58_address ))
-                        return True
-                    else:
-                        commune.log(':cross_mark: [green]Failed to Subscribe[/green] error: {}'.format(response.error_message))
-                        return False
-                else:
+        commune.log(":satellite: Serving axon on: [white]{}[/white] ...".format(self.network))
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='SubspaceModule',
+                call_function='serve_axon',
+                call_params=params
+            )
+            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey)
+            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+            if wait_for_inclusion or wait_for_finalization:
+                response.process_events()
+                if response.is_success:
+                    commune.log(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  key: {}[/bold white]'.format(ip, port, key.ss58_address, key.ss58_address ))
                     return True
+                else:
+                    commune.log(':cross_mark: [green]Failed to Subscribe[/green] error: {}'.format(response.error_message))
+                    return False
+            else:
+                return True
 
     def add_stake(
             self, 
@@ -558,9 +590,9 @@ class Subspace(commune.Module):
         """
 
 
-        with commune.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( key.ss58_address )
-            module = self.module_for_pubkey( ss58_key = key.ss58_address )
+        commune.log(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network))
+        old_balance = self.get_balance( key.ss58_address )
+        module = self.module_for_pubkey( ss58_key = key.ss58_address )
         if module.is_null:
             commune.log(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.hotkey_str))
             return False
@@ -582,65 +614,65 @@ class Subspace(commune.Module):
 
         # Estimate transfer fee.
         staking_fee = None # To be filled.
-        with commune.__console__.status(":satellite: Estimating Staking Fees..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubspaceModule', 
-                    call_function='add_stake',
-                    call_params={
-                        'hotkey': key.hotkey.ss58_address,
-                        'ammount_staked': staking_balance.nano
-                    }
-                )
-                payment_info = substrate.get_payment_info(call = call, keypair = key)
-                if payment_info:
-                    staking_fee = Balance.from_nano(payment_info['partialFee'])
-                    commune.log("[green]Estimated Fee: {}[/green]".format( staking_fee ))
-                else:
-                    staking_fee = Balance.from_token( 0.2 )
-                    commune.log(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
+        commune.log(":satellite: Estimating Staking Fees...")
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='SubspaceModule', 
+                call_function='add_stake',
+                call_params={
+                    'hotkey': key.hotkey.ss58_address,
+                    'ammount_staked': staking_balance.nano
+                }
+            )
+            payment_info = substrate.get_payment_info(call = call, keypair = key)
+            if payment_info:
+                staking_fee = Balance.from_nano(payment_info['partialFee'])
+                commune.log("[green]Estimated Fee: {}[/green]".format( staking_fee ))
+            else:
+                staking_fee = Balance.from_token( 0.2 )
+                commune.log(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
 
         # Check enough to unstake.
         if staking_balance > old_balance + staking_fee:
             commune.log(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  fee: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, staking_fee, key.name))
             return False
                 
-        with commune.__console__.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubspaceModule', 
-                    call_function='add_stake',
-                    call_params={
-                        'hotkey': key.hotkey.ss58_address,
-                        'ammount_staked': staking_balance.nano
-                    }
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
+        commune.log(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network))
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='SubspaceModule', 
+                call_function='add_stake',
+                call_params={
+                    'hotkey': key.hotkey.ss58_address,
+                    'ammount_staked': staking_balance.nano
+                }
+            )
+            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                commune.log(":white_heavy_check_mark: [green]Sent[/green]")
+                return True
 
-                if response.is_success:
-                    commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
-                else:
-                    commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+            if response.is_success:
+                commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
+            else:
+                commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
         if response.is_success:
-            with commune.__console__.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
-                new_balance = self.get_balance( key.ss58_address )
-                old_stake = Balance.from_token( module.stake )
-                new_stake = Balance.from_token( self.module_for_pubkey( ss58_hotkey = key.ss58_address ).stake)
-                commune.log("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-                commune.log("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
-                return True
+            commune.log(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network))
+            new_balance = self.get_balance( key.ss58_address )
+            old_stake = Balance.from_token( module.stake )
+            new_stake = Balance.from_token( self.module_for_pubkey( ss58_hotkey = key.ss58_address ).stake)
+            commune.log("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+            commune.log("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+            return True
         
         return False
 
     def transfer(
             self, 
-            dest: str, 
+            dest: Union[str, Keypair], 
             amount: Union[Balance, float], 
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
@@ -671,6 +703,9 @@ class Subspace(commune.Module):
                 If we did not wait for finalization / inclusion, the response is true.
         """
         # Validate destination address.
+        if isinstance( dest, Keypair ):
+            dest = dest.ss58_address
+            
         if not is_valid_address_or_public_key( dest ):
             commune.log(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
             return False
@@ -688,71 +723,69 @@ class Subspace(commune.Module):
             transfer_balance = amount
 
         # Check balance.
-        with commune.__console__.status(":satellite: Checking Balance..."):
-            account_balance = self.get_balance( key.ss58_address )
+        commune.log(":satellite: Checking Balance...")
+        account_balance = self.get_balance( key.ss58_address )
 
         # Estimate transfer fee.
-        with commune.__console__.status(":satellite: Estimating Transfer Fees..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='Balances',
-                    call_function='transfer',
-                    call_params={
-                        'dest': dest, 
-                        'value': transfer_balance.nano
-                    }
-                )
-                payment_info = substrate.get_payment_info(call = call, keypair = key)
-                transfer_fee = "N/A"
-                if payment_info:
-                    transfer_fee = Balance.from_nano(payment_info['partialFee'])
-                    commune.log("[green]Estimated Fee: {}[/green]".format( transfer_fee ))
-                else:
-                    commune.log(":cross_mark: [red]Failed[/red]: could not estimate transfer fee, assuming base fee of 0.2")
-                    transfer_fee = Balance.from_token( 0.2 )
+        commune.log(":satellite: Estimating Transfer Fees...")
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='Balances',
+                call_function='transfer',
+                call_params={
+                    'dest': dest, 
+                    'value': transfer_balance.nano
+                }
+            )
+            payment_info = substrate.get_payment_info(call = call, keypair = key)
+            transfer_fee = "N/A"
+            if payment_info:
+                transfer_fee = Balance.from_nano(payment_info['partialFee'])
+                commune.log("[green]Estimated Fee: {}[/green]".format( transfer_fee ))
+            else:
+                commune.log(":cross_mark: [red]Failed[/red]: could not estimate transfer fee, assuming base fee of 0.2")
+                transfer_fee = Balance.from_token( 0.2 )
 
         if account_balance < transfer_balance + transfer_fee:
             commune.log(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {} fee: {}[/bold white]".format( account_balance, transfer_balance, transfer_fee ))
             return False
 
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}:{}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, key.name, key.coldkey.ss58_address, dest, transfer_fee )):
-                return False
 
-        with commune.__console__.status(":satellite: Transferring..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='Balances',
-                    call_function='transfer',
-                    call_params={
-                        'dest': dest, 
-                        'value': transfer_balance.nano
-                    }
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.coldkey )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
+        commune.log(":satellite: Transferring...")
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='Balances',
+                call_function='transfer',
+                call_params={
+                    'dest': dest, 
+                    'value': transfer_balance.nano
+                }
+            )
+            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+            
+            st.write("extrinsic", extrinsic)
+            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+            # We only wait here if we expect finalization.
+            if not wait_for_finalization and not wait_for_inclusion:
+                commune.log(":white_heavy_check_mark: [green]Sent[/green]")
+                return True
 
-                # Otherwise continue with finalization.
-                response.process_events()
-                if response.is_success:
-                    commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
-                    block_hash = response.block_hash
-                    commune.log("[green]Block Hash: {}[/green]".format( block_hash ))
-                    explorer_url = "https://explorer.nakamoto.opentensor.ai/#/explorer/query/{block_hash}".format( block_hash = block_hash )
-                    commune.log("[green]Explorer Link: {}[/green]".format( explorer_url ))
-                else:
-                    commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+            # Otherwise continue with finalization.
+            response.process_events()
+            if response.is_success:
+                commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
+                block_hash = response.block_hash
+                commune.log("[green]Block Hash: {}[/green]".format( block_hash ))
+                explorer_url = "https://explorer.nakamoto.opentensor.ai/#/explorer/query/{block_hash}".format( block_hash = block_hash )
+                commune.log("[green]Explorer Link: {}[/green]".format( explorer_url ))
+            else:
+                commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
         if response.is_success:
-            with commune.__console__.status(":satellite: Checking Balance..."):
-                new_balance = self.get_balance( key.coldkey.ss58_address )
-                commune.log("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
-                return True
+            commune.log(":satellite: Checking Balance...")
+            new_balance = self.get_balance( key.ss58_address )
+            commune.log("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+            return True
         
         return False
 
@@ -785,9 +818,9 @@ class Subspace(commune.Module):
         """
         # Decrypt keys,
 
-        with commune.__console__.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( key.ss58_address )
-            module = self.module_for_pubkey( ss58_hotkey = key.ss58_address )
+        commune.log(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network))
+        old_balance = self.get_balance( key.ss58_address )
+        module = self.module_for_pubkey( ss58_hotkey = key.ss58_address )
         if module.is_null:
             commune.log(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format( key.hotkey_str ))
             return False
@@ -870,33 +903,33 @@ class Subspace(commune.Module):
             if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/4294967295) for v in weight_vals], weight_uids) ):
                 return False
 
-        with commune.__console__.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
-            try:
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                        call_module='SubspaceModule',
-                        call_function='set_weights',
-                        call_params = {'dests': weight_uids, 'weights': weight_vals}
-                    )
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey )
-                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                    # We only wait here if we expect finalization.
-                    if not wait_for_finalization and not wait_for_inclusion:
-                        commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-                        return True
+        commune.log(":satellite: Setting weights on [white]{}[/white] ...".format(self.network))
+        try:
+            with self.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='SubspaceModule',
+                    call_function='set_weights',
+                    call_params = {'dests': weight_uids, 'weights': weight_vals}
+                )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey )
+                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.log(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
 
-                    response.process_events()
-                    if response.is_success:
-                        commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
-                        commune.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
-                    else:
-                        commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                        commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                response.process_events()
+                if response.is_success:
+                    commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
+                    commune.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
+                else:
+                    commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                    commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
 
-            except Exception as e:
-                commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-                commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
-                return False
+        except Exception as e:
+            commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+            commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
+            return False
 
         if response.is_success:
             commune.log("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
@@ -1022,7 +1055,7 @@ class Subspace(commune.Module):
             with self.substrate as substrate:
                 result = dict( substrate.query( 
                     module='SubspaceModule',  
-                    storage_function='modules', 
+                    storage_function='Modules', 
                     params = [ uid ], 
                     block_hash = None if block == None else substrate.get_block_hash( block )
                 ).value )
@@ -1097,6 +1130,8 @@ class Subspace(commune.Module):
         result = make_substrate_call_with_retry()
         # Get response uid. This will be zero if it doesn't exist.
         uid = int(result.value)
+
+        st.write(uid)
         module = self.module_for_uid( uid, block )
         if module.key != ss58_key:
             return Subspace._null_module()
@@ -1131,9 +1166,42 @@ class Subspace(commune.Module):
         return self.module_for_pubkey ( key.ss58_address, block = block )
 
 
+    @classmethod
+    def get_test_keys(cls, uri_list = ['Alice', 'Bob', 'Chris']):
+        test_keys = {}
+        for uri in uri_list:
+            key = Keypair.create_from_uri('/'+uri)
+            test_keys[uri.lower()] = key
+            
+            
+        return test_keys
+        
+
+    @classmethod
+    def test_transfer(cls):
+        self = cls()
+        from substrateinterface import Keypair
+        keys = cls.get_test_keys()
+        
+        commune.log(self.get_balance(keys['alice'].ss58_address))
+        commune.log(keys['bob'].ss58_address)
+        commune.log(self.transfer(key=keys['alice'],  dest=keys['bob'], amount=10000))
+            
+    @classmethod
+    def sandbox(cls):
+        import streamlit as st
+        self = Subspace()
+        from substrateinterface import Keypair
+        keys = cls.get_test_keys()
+        
+        st.write(self.get_balance(keys['alice'].ss58_address))
+
+        st.write(keys['bob'].ss58_address)
+        st.write(self.transfer(key=keys['alice'],  dest=keys['bob'], amount=10000))
+            
+
+
 if __name__ == "__main__":
-    import streamlit as st
-    self = Subspace()
     
-    st.write(self.modules())
+    Subspace.sandbox()
     

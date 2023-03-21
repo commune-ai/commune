@@ -16,6 +16,8 @@ up:
 	docker compose up -d
 start:
 	make start
+restart:
+	make down && make up
 logs:
 	./$(COMMUNE).sh --commune
 

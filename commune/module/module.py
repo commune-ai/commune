@@ -2382,6 +2382,18 @@ class Module:
             return input
 
         return output_dict
+    
+    
+    def is_json_serializable(self, value):
+        import json
+        try:
+            json.dumps(value)
+            return True
+        except:
+            return False
+            
+        
+    
     # # ARRAY2BYTES
     # @classmethod
     # def array2bytes(self, data: np.array) -> bytes:
