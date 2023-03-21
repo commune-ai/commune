@@ -13,6 +13,7 @@ class Validator(commune.Module):
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
+                 alpha: float = 0.5,
                  ):
         
         self.set_dataset(dataset)
@@ -20,6 +21,11 @@ class Validator(commune.Module):
         self.set_key(key)
         self.set_metric(metric)
         self.set_stats(stats)
+        self.set_alpha(alpha)
+        
+    def set_alpha(self, alpha: float) -> None:
+        # set alpha for exponential moving average
+        self.alpha = alpha
         
     def add_model(self, model: str, signature: Dict = None) -> None:
         if not hasattr(self, 'models'):
@@ -109,8 +115,8 @@ class Validator(commune.Module):
             
             if isinstance(v, torch.Tensor):
                 metadata_k.update({
-                    'shape': v.shape,
-                    'dtype': v.dtype,
+                    'shape': str(v.shape),
+                    'dtype': str(v.dtype),
                 })
             elif type(v) in [list, set, tuple]:
                 metadata_k.update({
@@ -142,20 +148,43 @@ class Validator(commune.Module):
         metric = self.calculate_metric(output)
         
         
-        # add to stats
-        if model in self.stats:
-            old_stats = deepcopy(self.stats[model])
-        
-        self.stats[model_key] = {
-                            'metric': metric,
-                            'timestamp': commune.time(),
-                            'elapsed_time': elapsed_time,
-                            'sample_metadata': self.get_sample_metatdata(sample),
+
+        model_stat={ 
+                        'metric': metric,
+                        'timestamp': commune.time(),
+                        'elapsed_time': elapsed_time,
+                        'sample_metadata': self.get_sample_metatdata(sample),
                              }
+        
+        
+        self.set_stat(key=model_key, stat = model_stat)
         
         
         return metric
 
+
+    def set_stat(self, key: str, stat: Dict[str, Any]) -> None:
+        
+        prev_stat = deepcopy(self.stats.pop(key, {}))
+        if 'metric' in prev_stat:
+            stat['metric'] =  self.alpha*prev_stat['metric'] + (1-self.alpha)*stat['metric']
+        
+        self.stats[key] = stat
+        
+    def calculate_weights(self):
+        
+        
+        total_weights = 0 
+        weight_map = {}
+        for k in self.stats.keys():
+            weight_map[k] =  1 / (self.stats[k]['metric'] + 1e-8)
+            total_weights = total_weights + weight_map[k]
+
+
+        for k in self.stats.keys():
+            weight_map[k] = weight_map[k] / total_weights
+            self.stats[k]['weight'] = weight_map[k]
+            
     def random_model_key(self):
         random_model_key = random.choice(self.model_keys)
         return random_model_key
@@ -170,6 +199,9 @@ if __name__ == '__main__':
     for _ in range(10):
         st.write(self.validate_model())
         
+
+    self.calculate_weights()
+    
     st.write(self.stats)
     
     
