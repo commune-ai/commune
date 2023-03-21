@@ -56,7 +56,7 @@ class TransformerModel( Model):
                 model: str="gpt125m",
                 tag :str = None,
                 tokenizer:Union[str, 'tokenizer'] = None,
-                device: str = 'cuda:0',
+                device: str = 'cpu',
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
                 load: bool = False,
@@ -254,13 +254,8 @@ class TransformerModel( Model):
         
         self.tokenizer = tokenizer
         
-        
-        try:
-            import bittensor
-        except RuntimeError:
-            commune.new_event_loop()
-            import bittensor
-        self.std_tokenizer = bittensor.tokenizer()
+    
+        self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         from commune.utils.tokenizer import prep_tokenizer
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         

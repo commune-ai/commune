@@ -1,15 +1,22 @@
-import commune 
-import streamlit as st
+# import requests
+# import torch
+# from PIL import Image
+# from io import BytesIO
 
-# commune.get_module("web3.account.substrate").from_mnemonic("")
+# from diffusers import StableDiffusionImg2ImgPipeline
 
+# device = "cuda"
+# model_id_or_path = "runwayml/stable-diffusion-v1-5"
+# pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model_id_or_path, torch_dtype=torch.float16)
+# pipe = pipe.to(device)
 
-from substrateinterface import Keypair
+# url = "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/assets/stable-samples/img2img/sketch-mountains-input.jpg"
 
-# Generate a substrate keypair from a string
-my_string = "Hello, world!"
-keypair = Keypair.create_from_mnemonic(my_string)
+# response = requests.get(url)
+# init_image = Image.open(BytesIO(response.content)).convert("RGB")
+# init_image = init_image.resize((768, 512))
 
-# Print the generated keypair
-print(f"Public key: {keypair.public_key}")
-print(f"Secret key: {keypair.secret_key}")
+# prompt = "A fantasy landscape, trending on artstation"
+
+# images = pipe(prompt=prompt, image=init_image, strength=0.75, guidance_scale=7.5).images
+# images[0].save("fantasy_landscape.png")
