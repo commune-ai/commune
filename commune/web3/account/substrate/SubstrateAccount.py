@@ -520,7 +520,7 @@ class SubstrateAccount(commune.Module):
             }
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str]) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str], public_key: str = None) -> bool:
         """
         Verifies data with specified signature
         Parameters
@@ -531,6 +531,10 @@ class SubstrateAccount(commune.Module):
         -------
         True if data is signed with this SubstrateAccount, otherwise False
         """
+        public_key =  public_key if public_key else self.public_key
+
+        if not isinstance(data, str):
+            data = self.python2str(data)
 
         if type(data) is ScaleBytes:
             data = bytes(data.data)
@@ -554,12 +558,13 @@ class SubstrateAccount(commune.Module):
         else:
             raise ConfigurationError("Crypto type not supported")
 
-        verified = crypto_verify_fn(signature, data, self.public_key)
+        verified = crypto_verify_fn(signature, data, public_key)
 
         if not verified:
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
-            verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', self.public_key)
+            
+            verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
 
         return verified
 

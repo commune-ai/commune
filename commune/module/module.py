@@ -1375,6 +1375,16 @@ class Module:
         stdout = cls.run_command(f"pm2 status")
         if verbose:
             cls.print(stdout, 'orange')
+            
+    @classmethod
+    def restart(cls, name:str, mode:str='pm2'):
+        if mode == 'pm2':
+            return cls.pm2_restart(name)
+        elif mode == 'ray':
+            return cls.ray_restart(name)
+        else:
+            raise Exception(f'mode {mode} not supported')
+        
 
     @classmethod
     def pm2_status(cls, verbose=True):
@@ -2286,6 +2296,7 @@ class Module:
         
     @classmethod
     def test(cls):
+        # test all the functions that start with test_
         for f in dir(cls):
             if f.startswith('test_'):
                 getattr(cls, f)()
@@ -2391,7 +2402,64 @@ class Module:
         except:
             return False
             
+            
+            
+
+    def restart_module(self, module:str) -> None:
+        module = self.get_module(module)
+        module.restart()
+        return None
+    
+    
+    # MODULE IDENTITY LAND
+    
+    @classmethod
+    def key(cls, mode='substrate', *args, **kwargs) -> None:
+        if mode == 'substrate':
+            return cls.get_module('web3.account.substrate')(*args, **kwargs)
+        elif mode == 'evm':
+            return cls.get_module('web3.account.evm')(*args, **kwargs)
+        elif  mode == 'aes':
+            return cls.get_module('crypto.key.aes')(*args, **kwargs)
+        else:
+            raise ValueError('Invalid mode for key')
         
+        
+    @classmethod
+    def hash(cls, data: Union[str, bytes]) -> bytes:
+        if not hasattr(cls, 'hash_module'):
+            cls.hash_module = commune.get_module('crypto.hash')()
+        return cls.hash_module(data)
+    
+    @classmethod
+    def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        data = self.python2str(data)
+        key = self.key('aes', password=password)
+        return key.encrypt(data)
+    def call(self, module:str, fn: str ,  *args, **kwargs) -> None:
+        # call a module
+        module = self.get_module(module)
+        module_fn = getattr(module, fn)
+        return module_fn(*args, **kwargs)
+        
+    def sign(self, message: Dict[str, Any], **kwargs) -> Dict[str, Any]:
+        hash = self.key.hash(message)
+        signature = self.key.sign(hash)
+        return signature
+    
+    
+    def verify(self, message: Dict[str, Any],
+               signature: Dict[str, Any],
+               public_key : str = None, 
+               use_hash: bool = True,**kwargs) -> bool:
+        if use_hash:
+            message = self.key.hash(message)
+            
+        public_key = public_key if public_key else self.key.public_key
+        
+        return self.key.verify(message, signature)
+        
+    
     
     # # ARRAY2BYTES
     # @classmethod

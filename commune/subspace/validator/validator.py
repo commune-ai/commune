@@ -193,17 +193,45 @@ class Validator(commune.Module):
         random_model_key = self.random_model_key()
         return self.models[random_model_key]
     
-if __name__ == '__main__':
-    models = [m for m in commune.servers() if m.startswith('model')]
-    self = Validator(models=models)
-    for _ in range(10):
-        st.write(self.validate_model())
+    
+    @classmethod
+    def test(cls):
+        models = [m for m in commune.servers() if m.startswith('model')]
+        self = Validator(models=models)
+        for _ in range(10):
+            st.write(self.validate_model())
+        self.calculate_weights()
+        st.write(self.stats)
+      
+    @classmethod
+    def test_validation_keys(cls):
+        vals = [Validator() for _ in range(10)]
+        st.write([v.key.address for v in vals])
+        hash = vals[0].key.hash({'hey': 'whadup'})
+        sig = vals[0].key.sign(hash)
         
+        assert not vals[0].key.verify(hash, signature = sig, public_key = vals[1].key.public_key )
+        assert vals[0].key.verify(hash, signature = sig, public_key = vals[0].key.public_key )
+        
+        
+    def sign(self, message: Dict[str, Any]) -> Dict[str, Any]:
+        hash = self.key.hash(message)
+        signature = self.key.sign(hash)
+        return signature
+    
+    
+    def verify(self, message: Dict[str, Any],
+               signature: Dict[str, Any],
+               public_key : str = None, 
+               use_hash: bool = True) -> bool:
+        if use_hash:
+            message = self.key.hash(message)
+            
+        public_key = public_key if public_key else self.key.public_key
+        
+        return self.key.verify(message, signature)
+        
+if __name__ == '__main__':
 
-    self.calculate_weights()
-    
-    st.write(self.stats)
-    
-    
-
-    st.write()
+    self = Validator()
+    st.write(self.key)

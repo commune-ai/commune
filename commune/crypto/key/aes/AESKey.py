@@ -38,13 +38,13 @@ class AESKey(commune.Module):
         return output_dict
 
 
-    def encrypt(self, raw, return_string = True):
-        raw = self.python2str(raw)
-        raw = self._pad(raw)
+    def encrypt(self, data, return_string = True):
+        data = self.python2str(data)
+        data = self._pad(data)
         iv = Random.new().read(AES.block_size)
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
         
-        encrypted_bytes = base64.b64encode(iv + cipher.encrypt(raw.encode()))
+        encrypted_bytes = base64.b64encode(iv + cipher.encrypt(data.encode()))
         encrypted_data =  encrypted_bytes.decode() if return_string else encrypted_bytes
 
         return encrypted_data
