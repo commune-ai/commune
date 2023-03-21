@@ -171,7 +171,7 @@ class TransformerModel( Model):
     
         hidden_dim_bounds = hidden_dim_bounds if hidden_dim_bounds else [0, hidden_dim+1]
         
-        return_keys = return_keys if return_keys else []
+        return_keys = return_keys if return_keys else ['topk']
         return {key:output_dict[key] for key in return_keys}
 
         
@@ -285,13 +285,31 @@ class TransformerModel( Model):
 
 
 
-    def tokenize(self, text: str = 'Whadup',device:str = None, **kwargs) -> torch.Tensor:
+    def tokenize(self, text: str = 'Whadup',
+                 padding=True, 
+                 truncation=True, 
+                 max_length=64,
+                 return_tensors='pt',
+                 add_special_tokens=False,
+                 device:str = None, 
+                 **kwargs) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
-        
+        sample = self.tokenizer(text, 
+                                             padding=padding, 
+                                             truncation=truncation, 
+                                             max_length=max_length, 
+                                             return_tensors=return_tensors,
+                                             add_special_tokens=add_special_tokens, 
+                                             **kwargs)  # assume tokenizer.padding_side = 'left'
+
         device = device if device != None else self.device
-        tokenizer_output = self.tokenizer(text, **kwargs)
         
-        return tokenizer_output.input_ids.to(device)
+        sample = dict(
+            input_ids= sample['input_ids'].to(device),
+            attention_mask= sample['attention_mask'].to(device)
+        )
+        
+        return sample
 
 
     def save_pretrained(self, path:str = None, tag:str = None,  *args, **kwargs):
@@ -346,10 +364,14 @@ class TransformerModel( Model):
         return tokens
     @classmethod
     def test(cls, topk=4096, output_length=20):
-        model = cls(model_name='gpt125m', load=True)
-        sample = commune.connect('dataset::bittensor').sample()
-        output = model.forward(**sample, train=True)
+        self = cls(model_name='gpt125m', load=True)
+        dataset = commune.connect('dataset')
+        sample = dataset.sample(batch_size=2)
+        sample = self.tokenize(sample['text'])  # assume tokenizer.padding_side = 'left'
 
+        output = self.forward(**sample, train=False)
+
+        print(output)
         # output['logits'] = decode_topk(output['topk'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))

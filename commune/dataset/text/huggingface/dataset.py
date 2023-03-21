@@ -85,9 +85,34 @@ class HFDataset(commune.Module):
 
     default_receptor_path = 'bittensor.receptor.pool.module.ReceptorPoolModule'
 
-    def tokenize(self, text, padding=True, *args, **kwargs):
-        device = kwargs.pop('device', self.device)
-        return torch.tensor(self.tokenizer(text=text, padding=padding)['input_ids']).to(device)
+
+    def tokenize(self, text: str = 'Whadup',
+                 padding=True, 
+                 truncation=True, 
+                 max_length=64,
+                 return_tensors='pt',
+                 add_special_tokens=False,
+                 device:str = None, 
+                 **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        sample = self.tokenizer(text, 
+                                             padding=padding, 
+                                             truncation=truncation, 
+                                             max_length=max_length, 
+                                             return_tensors=return_tensors,
+                                             add_special_tokens=add_special_tokens, 
+                                             **kwargs)  # assume tokenizer.padding_side = 'left'
+
+        device = device if device != None else self.device
+        
+        sample = dict(
+            input_ids= sample['input_ids'].to(device),
+            attention_mask= sample['attention_mask'].to(device)
+        )
+        
+        return sample
+
+
 
     @property
     def splits(self):
@@ -153,15 +178,14 @@ class HFDataset(commune.Module):
         
         if idx_list == None:
             idx_list = [self.resolve_idx(None) for i in range(batch_size)]
-
-        samples_text =  [self.__getitem__(idx=idx ) for idx in idx_list]
-
-        sample_dict = {}
-
+            
+        sample_dict = {
+            'text': [self.__getitem__(idx=idx ) for idx in idx_list]
+        }
+        
         if tokenize:
-            sample_dict['input_ids'] = self.tokenizer(samples_text,   max_length=sequence_length, truncation=True, padding="max_length", return_tensors='pt')['input_ids']
+            sample_dict = self.tokenize(text=sample_dict['text'], max_length=sequence_length)
 
-        sample_dict['text'] = samples_text
         return sample_dict
     
     forward = sample
@@ -304,7 +328,7 @@ class HFDataset(commune.Module):
 
          }
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
-        tokenizer = tokenizer if tokenizer else 'gptj'
+        tokenizer = tokenizer if tokenizer else 'gpt2'
         from transformers import AutoTokenizer
         
         if isinstance(tokenizer, str):
