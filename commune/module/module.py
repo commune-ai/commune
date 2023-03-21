@@ -2176,7 +2176,6 @@ class Module:
             if verbose:
                 device_info = cls.gpu_info(gpu_id)
                 cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', 'yellow')
-        
         return device  
     
     
