@@ -14,6 +14,9 @@ def get_parent_functions(cls) -> List[str]:
 
     return list(set(function_list))
 
+def is_property(fn: 'Callable') -> bool:
+    return isinstance(getattr(type(fn), fn_name), property)
+
 def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = False) -> List[str]:
     '''
     Get a list of functions in a class
@@ -26,12 +29,13 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
     
     
     fn_list = []
+
+    
+    # TODO: this is a hack to get around the fact that the parent functions are not being
     parent_fn_list = [] 
     # if not include_parents:
     #     parent_fn_list = get_parent_functions(cls)
     #     st.write(parent_fn_list)
-    
-    parent_fn_list = []
     # if include_parents:
     #     parent_fn_list = get_parent_functions(cls)
     for fn_name in dir(obj):
@@ -53,6 +57,8 @@ def get_functions(obj: Any, include_parents:bool=False, include_hidden:bool = Fa
         if hasattr(type(obj), fn_name) and \
             isinstance(getattr(type(obj), fn_name), property):
             continue
+        
+        # if the function is callable, include it
         if callable(getattr(obj, fn_name)):
             fn_list.append(fn_name)
     return fn_list
@@ -263,7 +269,7 @@ def has_fn(obj, fn_name):
     return callable(getattr(obj, fn_name, None))
 
 
-def try_fn_n_times(fn, kwargs:Dict, try_count_limit):
+def try_fn_n_times(fn, kwargs:Dict, try_count_limit: int = 10):
     '''
     try a function n times
     '''
