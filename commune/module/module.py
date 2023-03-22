@@ -2414,7 +2414,13 @@ class Module:
     # MODULE IDENTITY LAND
     
     @classmethod
-    def key(cls, mode='substrate', *args, **kwargs) -> None:
+    def key(cls,  *args,mode='substrate', **kwargs) -> None:
+        
+        if len(args) == 1:
+            key = args[0]
+            if isinstance(key, dict):
+                kwargs = key
+            
         if mode == 'substrate':
             return cls.get_module('web3.account.substrate')(*args, **kwargs)
         elif mode == 'evm':

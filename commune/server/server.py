@@ -268,19 +268,17 @@ class Server(ServerServicer, Serializer):
 
 
         
-        t = commune.timer()
+        deserialize_timer = commune.timer()
         request = self.deserialize(request)
-        self.stats['time']['deserialize'] = t.seconds
+        self.stats['time']['deserialize'] = deserialize_timer.seconds
         
-        t = commune.timer()
-        
+        forward_timer = commune.timer()
         response = self(**request)
-        self.stats['time']['module'] = t.seconds
+        self.stats['time']['module'] = forward_timer.seconds
         
-        t = commune.timer()
-        
+        serializer_timer = commune.timer()
         response = self.serialize(**response)
-        self.stats['time']['serialize'] = t.seconds
+        self.stats['time']['serialize'] = serializer_timer.seconds
         return response
 
     def __del__(self):
