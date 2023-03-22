@@ -216,6 +216,8 @@ class Server(ServerServicer, Serializer):
                 fn_kwargs = data.get('kwargs', {})
                 fn_args = data.get('args', [])
                 
+                
+                
                 assert data['fn'] in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
                 
                 commune.print('Calling Function: '+data['fn'], color='cyan')

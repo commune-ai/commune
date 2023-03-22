@@ -1062,7 +1062,7 @@ class Module:
     
     @classmethod
     def get_function_info_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
-        obj = obj if obj else cls
+        obj = obj if obj != None else cls
         function_schema_map = cls.get_function_schema_map(obj=obj,include_module=include_module)
         function_default_map = cls.get_function_default_map(obj=obj,include_module=include_module)
         function_info_map = {}
@@ -1071,16 +1071,18 @@ class Module:
                 'default':function_default_map.get(fn, 'NA'),
                 **function_schema_map.get(fn, {}),
             }
+            # check if the function is a class method or a static method
             
             if 'self' in function_info_map[fn]['schema']:
                 function_info_map[fn]['method_type'] = 'self'
                 function_info_map[fn]['schema'].pop('self')
+                
             elif 'cls' in function_info_map[fn]['schema']:
                 function_info_map[fn]['method_type'] = 'cls'
                 function_info_map[fn]['schema'].pop('cls')
-            else:
-                function_info_map[fn]['method_type'] = 'static'
                 
+            else:
+                function_info_map[fn]['method_type'] = 'static'  
 
         return function_info_map    
     
@@ -1185,6 +1187,18 @@ class Module:
             fn = getattr(cls, fn)
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
+    
+    def module_schema(self, 
+                      
+                      include_hidden:bool = False, 
+                      include_module:bool = False):
+        module_schema = {
+            'module_id':self.module_id,
+            'server':self.server_stats,
+            'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
+        }
+        return module_schema
+    
     def function_schema(self, fn:str)->dict:
         '''
         Get function schema of function in cls
@@ -2214,6 +2228,14 @@ class Module:
         return peer_info_list
       
 
+    @property
+    def server_stats(self) -> Dict[str, Union[str, int]]:
+        return self._server_stats
+    
+    @server_stats.setter
+    def server_stats(self, server_stats:Dict[str, Union[str, int]]):
+        self._server_stats = server_stats
+
     @classmethod
     def peer_registry(cls, module = None):
         if module == None:
@@ -2411,6 +2433,8 @@ class Module:
         return None
     
     
+    
+
     # MODULE IDENTITY LAND
     
     @classmethod
@@ -2453,7 +2477,6 @@ class Module:
         signature = self.key.sign(hash)
         return signature
     
-    
     def verify(self, message: Dict[str, Any],
                signature: Dict[str, Any],
                public_key : str = None, 
@@ -2474,14 +2497,8 @@ class Module:
     #         data = data.astype(np.float64)
     #     return data.tobytes()
     
-    from rich.console import Console
-    __console__ = Console()
 Block = Lego = Module
 if __name__ == "__main__":
     Module.run()
-    import commune
-    # Merge with another peer's namespace 
-    commune.add_peer(peer='203.44.493.343:5000')
-    # Remove the other peer's namespace
-    commune.remove_peer(peer='203.44.493.343:5000')
+    
 

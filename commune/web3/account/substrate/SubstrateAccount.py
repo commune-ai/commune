@@ -87,13 +87,15 @@ class MnemonicLanguageCode:
 class SubstrateAccount(commune.Module):
     
 
-    def __init__(self, ss58_address: str = None, 
+    def __init__(self, 
+                 ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = SubstrateAccountType.SR25519,
                  password: str = None,
+                 seed : str = None,
                  mnemonic: str = None):
         """
         Allows generation of SubstrateAccounts from a variety of input combination, such as a public/private key combination,
@@ -113,6 +115,19 @@ class SubstrateAccount(commune.Module):
         params.pop('self', None)
         return params
     
+    def is_hex(self, x):
+        if isinstance(x, bytes):
+            try:
+                x =x.decode('utf-8')
+            except:
+                x = x.hex()
+        
+        try:
+            int(x, 16)
+            return True
+        except ValueError:
+            return False
+    
     def set_params(self, ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
@@ -120,34 +135,42 @@ class SubstrateAccount(commune.Module):
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = SubstrateAccountType.SR25519,
                  password: str = None,
-                 mnemonic : str= None):
+                 mnemonic : str= None,
+                 seed : str = None):
+        
+        
         if ss58_address == None and public_key == None and private_key == None and seed_hex == None and mnemonic == None:
             mnemonic = self.generate_mnemonic()
 
-        self.params = self.get_params(locals())
+        params = self.get_params(locals())
+        
+        
 
         if mnemonic:
-
             mnemonic_data = self.create_from_mnemonic(mnemonic, data_only=True)
-            self.params.update(mnemonic_data)
+            params.update(mnemonic_data)
             
-            public_key = self.params['public_key']
-            private_key = self.params['private_key']
-            ss58_format = self.params['ss58_format']
-            seed_hex = self.params['seed_hex']
-            crypto_type = self.params['crypto_type']
-            mnemonic = self.params.pop('mnemonic', None)
-
-        self.mnemonic = mnemonic
-
+        if seed:
+            seed_data = self.create_from_seed(seed, data_only=True)
+            params.update(seed_data)
+            
+        # check if variable is a hex string
         
-        self.crypto_type = crypto_type
-        self.seed_hex = seed_hex
-        self.derive_path = None
-            
+        
+        self.crypto_type = crypto_type = params['crypto_type']
+        seed_hex = params['seed_hex']
+        private_key = params['private_key']
+        public_key = params['public_key']
+        ss58_address = params['ss58_address']
+        ss58_format = params['ss58_format']
+        password = params['password']
+        mnemonic = params['mnemonic']
+        seed = params['seed']
+    
 
         if crypto_type != SubstrateAccountType.ECDSA and ss58_address and not public_key:
-            public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
+            public_key = ss58_decode(ss58_address, 
+                                     valid_ss58_format=s58_format)
 
         if private_key:
 
@@ -185,8 +208,6 @@ class SubstrateAccount(commune.Module):
         self.public_key: bytes = public_key
         self.ss58_address: str = ss58_address
         self.private_key: bytes = private_key    
-        
-            
         self.set_password(password)
 
 
@@ -632,8 +653,8 @@ class SubstrateAccount(commune.Module):
     def from_uri(cls, uri):
         """ Create a SubstrateAccount from a URI.
         """
-        if not uri.startswith('//'):
-            uri = '//' + uri
+        if not uri.startswith('/'):
+            uri = '/' + uri
         
         keypair =  cls(keypair=cls.create_from_uri(uri))
         # keypair = cls.create_from_uri(uri)

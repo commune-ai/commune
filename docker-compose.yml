@@ -12,7 +12,7 @@ services:
 
     volumes:
 
-      # COMMUNE 
+      # COMMUNE VOLUME MOUNTS
       - ./commune:/app/commune
       - ./test:/app/test
       - ./docs:/app/docs
@@ -29,8 +29,6 @@ services:
       - ./scripts:/app/scripts
       - ./contracts:/app/contracts
 
-      - ./test:/test # MOUNT TEST
-
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
       - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
@@ -38,19 +36,10 @@ services:
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
 
-
       # EXTERNAL LIBRARIES (CURRENTLY COMMENTED OUT AND NOT USED)
-
       # BITTENSOR
       - ~/.bittensor:/root/.bittensor
 
-      # # DIFFUSERS
-      # - ./diffusers/diffusers:/app/diffusers/diffusers
-
-      # #LANGCHAIN
-      # - ./langchain/langchain:/app/langchain/langchain
-      # #OCEAN
-      # - ./ocean.py/ocean_lib:/app/ocean.py/ocean_lib
     deploy:
       resources:
         reservations:
