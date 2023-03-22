@@ -1,0 +1,4 @@
+module: Validator
+dataset: dataset
+tokenizer: gpt2
+network:  local

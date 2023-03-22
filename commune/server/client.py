@@ -55,7 +55,7 @@ class VirtualModule:
         '''
         from functools import partial
                 
-        for attr in self.module_client.whitelist_functions:
+        for attr in self.module_client.server_functions:
             # continue if attribute is private and we don't want to include hidden attributes
             if attr.startswith('_') and (not include_hiddden):
                 continue
@@ -80,7 +80,6 @@ class Client( Serializer):
     """
     default_ip = '0.0.0.0'
     
-    
     def __init__( 
             self,
             ip: str ='0.0.0.0',
@@ -88,38 +87,80 @@ class Client( Serializer):
             max_processes: int = 1,
             timeout:int = 20,
             loop = None,
-            external_ip = None
+            external_ip = None,
+            key = None,
         ):
         
-
-        # Get endpoint string.
-        self.ip = ip if ip else self.default_ip
-        self.port = port
-        try:
-            self.loop = loop if loop else asyncio.get_event_loop()
-        except RuntimeError as e:
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
         
+        self.set_key(key)
+        
+        self.set_client(ip =ip,
+                        port = port ,
+                        max_processes = max_processes,
+                        timeout = timeout,
+                        loop = loop,
+                        external_ip = external_ip)
+        
+    def set_key(self, key: 'Keypair') -> None:
+        return commune.key(key)
+        
+       
+    
+    def set_event_loop(self, loop: 'asyncio.EventLoop') -> None:
+        try:
+            loop = loop if loop else asyncio.get_event_loop()
+        except RuntimeError as e:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        self.loop = loop
+                
+        
+        
+    def resolve_ip_and_port(self, ip, port) -> Tuple[str, int]:
+        ip =ip if ip else self.default_ip
+        
+        
+        if len(ip.split(":")) == 2:
+            ip = ip.split(":")[0]
+            port = int(ip.split(":")[1])
+
+        assert isinstance(ip, str), f"ip must be a str, not {type(ip)}"
+        assert isinstance(port, int), f"port must be an int, not {type(port)}"
+            
+        return ip, port
+    def set_client(self,
+            ip: str ='0.0.0.0',
+            port: int = 80 ,
+            max_processes: int = 1,
+            timeout:int = 20,
+            external_ip: str = None,
+            loop: 'asycnio.EventLoop' = None
+            ):
+        from commune.server.proto  import ServerStub
+        # hopeful the only tuple i output, tehe
+        self.ip, self.port = self.resolve_ip_and_port(ip=ip, port=port)
+        self.set_event_loop(loop)
         channel = grpc.aio.insecure_channel(
             self.endpoint,
             options=[('grpc.max_send_message_length', -1),
                      ('grpc.max_receive_message_length', -1),
                      ('grpc.keepalive_time_ms', 100000)])
-        from .proto  import ServerStub
-        stub = ServerStub( channel )
 
+        
+        stub = ServerStub( channel )
         self.channel = channel
         self.stub = stub
         self.client_uid = str(uuid.uuid1())
         self.semaphore = threading.Semaphore(max_processes)
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
-        self.sync_the_async()
         
-        # only get the visible functions from the server
-        self.whitelist_functions = list(set(self(fn='functions', args=[False]) )) + ['functions', 'function_schema_map', 'servers', 'external_ip', 'getattr']
+
+        self.sync_the_async(loop=self.loop)
+        self.server_functions = self.forward(fn='functions', args=[True])
 
 
+    
     @property
     def endpoint(self):
         return f"{self.ip}:{self.port}"
@@ -214,12 +255,12 @@ class Client( Serializer):
     
     async_call = async_forward
 
-    def sync_the_async(self):
+    def sync_the_async(self, loop = None):
         for f in dir(self):
             if 'async_' in f:
-                setattr(self, f.replace('async_',  ''), self.sync_wrapper(getattr(self, f)))
+                setattr(self, f.replace('async_',  ''), self.sync_wrapper(getattr(self, f), loop=loop))
 
-    def sync_wrapper(self,fn:'asyncio.callable') -> 'callable':
+    def sync_wrapper(self,fn:'asyncio.callable', loop = None) -> 'callable':
         '''
         Convert Async funciton to Sync.
 
@@ -231,6 +272,7 @@ class Client( Serializer):
             wrapper_fn (callable):
                 Synchronous version of asyncio function.
         '''
+        loop = loop if loop else self.loop
         def wrapper_fn(*args, **kwargs):
             return self.loop.run_until_complete(fn(*args, **kwargs))
         return  wrapper_fn

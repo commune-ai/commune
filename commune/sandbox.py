@@ -1,3 +1,10 @@
+
+
+import commune
+import streamlit as st
+# commune.kill('HFDataset')
+dataset = commune.connect('dataset')
+st.write(dataset.sample(tokenize=True))
 # import requests
 # import torch
 # from PIL import Image
