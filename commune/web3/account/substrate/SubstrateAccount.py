@@ -162,20 +162,17 @@ class SubstrateAccount(commune.Module):
         # check if variable is a hex string
         
         
-        self.crypto_type = crypto_type = params['crypto_type']
-        self.seed_hex = params['seed_hex']
+        crypto_type = params['crypto_type']
+        params['seed_hex']
         private_key = params['private_key']
         public_key = params['public_key']
         ss58_address = params['ss58_address']
         ss58_format = params['ss58_format']
         password = params['password']
-        self.mnemonic = mnemonic = params['mnemonic']
+        mnemonic = params['mnemonic']
         seed_hex = params['seed_hex']
         
 
-
-    
-        self.params = params
         if crypto_type != SubstrateAccountType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, 
                                      valid_ss58_format=ss58_format)
@@ -185,18 +182,19 @@ class SubstrateAccount(commune.Module):
             if type(private_key) is str:
                 private_key = bytes.fromhex(private_key.replace('0x', ''))
 
-            if self.crypto_type == SubstrateAccountType.SR25519:
+            if crypto_type == SubstrateAccountType.SR25519:
                 if len(private_key) != 64:
                     raise ValueError('Secret key should be 64 bytes long')
                 if not public_key:
                    public_key = sr25519.public_from_secret_key(private_key)
 
-            if self.crypto_type == SubstrateAccountType.ECDSA:
+            if crypto_type == SubstrateAccountType.ECDSA:
                 private_key_obj = PrivateKey(private_key)
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
 
 
+        params.update({'public_key': public_key, 'private_key': private_key, 'ss58_address': ss58_address})
         if not public_key:
             raise ValueError('No SS58 formatted address or public key provided')
 
@@ -215,7 +213,7 @@ class SubstrateAccount(commune.Module):
 
         self.__dict__.update(params)
         
-            
+        # convert params to json serializable
         for key, value in params.items():
  
             if hasattr(value, 'hex'):
@@ -729,6 +727,8 @@ class SubstrateAccount(commune.Module):
                     self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
                 password = self.private_key.hex()
             elif self.public_key != None:
+                if type(self.public_key) is str:
+                    self.public_key = bytes.fromhex(self.public_key.replace('0x', ''))
                 password = self.public_key.hex()
             else:
                 raise ValueError("No password or private/public key provided")

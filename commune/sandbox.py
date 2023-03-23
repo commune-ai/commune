@@ -12,6 +12,9 @@ key2 = commune.key(mnemonic=mnemonic)
 # if nothing is provided, a random key is generated (using the mnemonic method)
 key3 = commune.key()
 
+# for public only keys, just pass in the public key 
+key4 = key_class(ss58_address='5DkZvMMw5oPiy6UPs2Bi8AXzDQKMUwTsvJ52S97jimXnxGNP')
+
 # verify that the key is the same as the signture
 
 data_list = [{'bro': 'bro'}, 'whadup']
@@ -28,8 +31,10 @@ for data in data_list:
     signature['public_key'] = key2.public_key
     assert key.verify(signature) == False
 
-st.write(key3.params)
+st.write(key4.params)
 key2.set_params(**key3.params)
+st.write(key2.load_state_dict(key4.state_dict(password='password'), password='password'))
 st.write(key2.params)
+
 
 
