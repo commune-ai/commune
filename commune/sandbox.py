@@ -3,7 +3,7 @@
 import commune
 import streamlit as st
 
-bro = commune.get_module('web3.account.substrate')(seed='whadup')
+bro = commune.key(seed_hex = 'whadup')
 
 st.write(bro.__dict__)
 
