@@ -166,19 +166,25 @@ class SubstrateAccount(commune.Module):
 
         
         self.crypto_type = crypto_type = params['crypto_type']
-        seed_hex = params['seed_hex']
+        self.seed_hex = params['seed_hex']
         private_key = params['private_key']
         public_key = params['public_key']
         ss58_address = params['ss58_address']
         ss58_format = params['ss58_format']
         password = params['password']
-        mnemonic = params['mnemonic']
+        self.mnemonic = mnemonic = params['mnemonic']
         seed_hex = params['seed_hex']
+        
+        # for key, value in params.items():
+        #     if isinstance(value, bytes):
+        #         params[key] = '0x'+value.hex()
+                
+        self.params = params
     
 
         if crypto_type != SubstrateAccountType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, 
-                                     valid_ss58_format=s58_format)
+                                     valid_ss58_format=ss58_format)
 
         if private_key:
 
@@ -189,12 +195,13 @@ class SubstrateAccount(commune.Module):
                 if len(private_key) != 64:
                     raise ValueError('Secret key should be 64 bytes long')
                 if not public_key:
-                    public_key = sr25519.public_from_secret_key(private_key)
+                   public_key = sr25519.public_from_secret_key(private_key)
 
             if self.crypto_type == SubstrateAccountType.ECDSA:
                 private_key_obj = PrivateKey(private_key)
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
+
 
         if not public_key:
             raise ValueError('No SS58 formatted address or public key provided')
@@ -212,12 +219,10 @@ class SubstrateAccount(commune.Module):
             if not ss58_address:
                 ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
 
-        self.ss58_format: int = ss58_format
-        self.public_key: bytes = public_key
-        self.ss58_address: str = ss58_address
-        self.private_key: bytes = private_key    
+        self.__dict__.update(params)
         
             
+        st.write(params)
         self.set_password(password)
 
 
@@ -349,7 +354,11 @@ class SubstrateAccount(commune.Module):
 
     @classmethod
     def create_from_uri(
-            cls, suri: str, ss58_format: Optional[int] = 42, crypto_type=SubstrateAccountType.SR25519, language_code: str = MnemonicLanguageCode.ENGLISH
+            cls, suri: str, 
+            ss58_format: Optional[int] = 42,
+            crypto_type=SubstrateAccountType.SR25519,
+            language_code: str = MnemonicLanguageCode.ENGLISH,
+            return_data: bool = False
     ) -> 'SubstrateAccount':
         """
         Creates SubstrateAccount for specified suri in following format: `[mnemonic]/[soft-path]//[hard-path]`
@@ -417,8 +426,13 @@ class SubstrateAccount(commune.Module):
                             (junction.chain_code, child_pubkey, child_privkey),
                             b''
                         )
+                        
+                key_kwargs = dict(public_key=child_pubkey, private_key=child_privkey, ss58_format=ss58_format)
+                if return_data:
+                    return key_kwargs
+                    
 
-                derived_keypair = SubstrateAccount(public_key=child_pubkey, private_key=child_privkey, ss58_format=ss58_format)
+                derived_keypair = cls(key_kwargs)
 
         return derived_keypair
 
@@ -689,16 +703,20 @@ class SubstrateAccount(commune.Module):
 
     def set_password(self, password: str = None) -> 'AESKey':
         if password == None:
-            if not hasattr(self, 'password'):
-                self.password = self.private_key.hex()
-        else:
-            self.password = password
+            if  self.private_key != None:
+                password = self.private_key.hex()
+            elif self.public_key != None:
+                password = self.public_key.hex()
+            else:
+                raise ValueError("No password or private/public key provided")
             
-        seed = self.hash(self.password)
+        self.password = password
+        st.write(self.password, 'bro')
+        aes_seed = self.hash(self.password)
         
         # get the AES key module and create an instance for encryption
         aes_key = commune.get_module('crypto.key.aes')
-        self.aes_key = aes_key(seed)
+        self.aes_key = aes_key(aes_seed)
         
     @classmethod
     def hash(cls, data: Union[str, bytes], **kwargs) -> bytes:
