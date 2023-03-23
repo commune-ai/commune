@@ -3,8 +3,7 @@
 import commune
 import streamlit as st
 
-bro = commune.key(seed_hex = 'whadup')
+key = commune.key('whadup')
 
-st.write(bro.__dict__)
-
-st.write(bro)
+st.write(key.params)
+st.write(commune.key(**key.params))
