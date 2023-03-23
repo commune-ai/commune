@@ -89,13 +89,13 @@ class SubstrateAccount(commune.Module):
 
     def __init__(self, 
                  ss58_address: str = None, 
+                 seed_hex: Union[str, bytes] = None,
+                 uri: str = None,
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = 42, 
-                 seed_hex: Union[str, bytes] = None,
                  crypto_type: int = SubstrateAccountType.SR25519,
                  password: str = None,
-                 seed : str = None,
                  mnemonic: str = None):
         """
         Allows generation of SubstrateAccounts from a variety of input combination, such as a public/private key combination,
@@ -127,6 +127,8 @@ class SubstrateAccount(commune.Module):
             return True
         except ValueError:
             return False
+        except TypeError:
+            return False
     
     def set_params(self, ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
@@ -134,9 +136,9 @@ class SubstrateAccount(commune.Module):
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = SubstrateAccountType.SR25519,
+                 uri: str = None,
                  password: str = None,
-                 mnemonic : str= None,
-                 seed : str = None):
+                 mnemonic : str= None):
         
         
         if ss58_address == None and public_key == None and private_key == None and seed_hex == None and mnemonic == None:
@@ -144,19 +146,20 @@ class SubstrateAccount(commune.Module):
 
         params = self.get_params(locals())
         
-        
+        if not self.is_hex(ss58_address) and ss58_address != None: 
+            seed_hex = ss58_address
 
         if mnemonic:
             mnemonic_data = self.create_from_mnemonic(mnemonic, data_only=True)
             params.update(mnemonic_data)
             
-        if seed:
-            st.write(seed)
-            seed_data = self.create_from_seed(seed_hex = seed, 
+        
+        if seed_hex:
+            seed_hex_data = self.create_from_seed(seed_hex = seed_hex, 
                                               ss58_format = ss58_format,
                                               crypto_type = crypto_type,
                                               data_only=True)
-            params.update(seed_data)
+            params.update(seed_hex_data)
             
         # check if variable is a hex string
         
@@ -170,7 +173,7 @@ class SubstrateAccount(commune.Module):
         ss58_format = params['ss58_format']
         password = params['password']
         mnemonic = params['mnemonic']
-        seed = params['seed']
+        seed_hex = params['seed_hex']
     
 
         if crypto_type != SubstrateAccountType.ECDSA and ss58_address and not public_key:
