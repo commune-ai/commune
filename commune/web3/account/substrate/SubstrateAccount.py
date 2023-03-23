@@ -122,6 +122,7 @@ class SubstrateAccount(commune.Module):
             except:
                 x = x.hex()
         
+        
         try:
             int(x, 16)
             return True
@@ -145,25 +146,21 @@ class SubstrateAccount(commune.Module):
             mnemonic = self.generate_mnemonic()
 
         params = self.get_params(locals())
-        
-        if not self.is_hex(ss58_address) and ss58_address != None: 
-            seed_hex = ss58_address
 
         if mnemonic:
             mnemonic_data = self.create_from_mnemonic(mnemonic, data_only=True)
             params.update(mnemonic_data)
             
-        
-        if seed_hex:
+        elif seed_hex:
             seed_hex_data = self.create_from_seed(seed_hex = seed_hex, 
                                               ss58_format = ss58_format,
                                               crypto_type = crypto_type,
                                               data_only=True)
             params.update(seed_hex_data)
+
             
         # check if variable is a hex string
         
-
         
         self.crypto_type = crypto_type = params['crypto_type']
         self.seed_hex = params['seed_hex']
@@ -175,15 +172,8 @@ class SubstrateAccount(commune.Module):
         self.mnemonic = mnemonic = params['mnemonic']
         seed_hex = params['seed_hex']
         
-        # for key, value in params.items():
-        #     if isinstance(value, bytes):
-        #         params[key] = '0x'+value.hex()
-                
-        
-        for key, value in params.items():
-            if isinstance(value, bytes):
-                params[key] = '0x'+value.hex()
-        
+
+
     
         self.params = params
         if crypto_type != SubstrateAccountType.ECDSA and ss58_address and not public_key:
@@ -226,7 +216,16 @@ class SubstrateAccount(commune.Module):
         self.__dict__.update(params)
         
             
-        st.write(params)
+        for key, value in params.items():
+ 
+            if hasattr(value, 'hex'):
+                params[key] = value.hex()
+            elif isinstance(value, bytes):
+                params[key] = value.decode()
+        
+        
+        self.params = params
+        
         self.set_password(password)
 
 
@@ -532,7 +531,9 @@ class SubstrateAccount(commune.Module):
 
         return json_data
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], return_dict:bool = False) -> bytes:
+    def sign(self, data: Union[ScaleBytes, bytes, str],
+             return_dict:bool = False, 
+             return_string: bool = True) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -542,12 +543,14 @@ class SubstrateAccount(commune.Module):
         -------
         signature in bytes
         """
+        data = self.python2str(data)
         if type(data) is ScaleBytes:
             data = bytes(data.data)
         elif data[0:2] == '0x':
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
+
 
         if not self.private_key:
             raise ConfigurationError('No private key set to create signatures')
@@ -563,15 +566,21 @@ class SubstrateAccount(commune.Module):
 
         else:
             raise ConfigurationError("Crypto type not supported")
+
+            
+        if return_string:
+            signature = self.python2str(signature)
         if return_dict:
             return {
-                'data': data,
+                'data': data.decode(),
                 'signature': signature,
-                'public_key': self.public_key,
+                'public_key': self.public_key.hex(),
             }
+
+        
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str], public_key: str = None) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str] = None, public_key: str = None) -> bool:
         """
         Verifies data with specified signature
         Parameters
@@ -582,20 +591,28 @@ class SubstrateAccount(commune.Module):
         -------
         True if data is signed with this SubstrateAccount, otherwise False
         """
+        if isinstance(data, dict) and 'signature' in data:
+            signature = data['signature']
+            public_key = data['public_key']
+            data = data['data']
+            
         public_key =  public_key if public_key else self.public_key
 
+        if type(public_key) is str:
+            public_key = bytes.fromhex(public_key.replace('0x', ''))
         if not isinstance(data, str):
             data = self.python2str(data)
 
         if type(data) is ScaleBytes:
             data = bytes(data.data)
+            
         elif data[0:2] == '0x':
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
             data = data.encode()
 
-        if type(signature) is str and signature[0:2] == '0x':
-            signature = bytes.fromhex(signature[2:])
+        if type(signature) is str:
+            signature = bytes.fromhex(signature.replace('0x', ''))
 
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")
@@ -717,7 +734,6 @@ class SubstrateAccount(commune.Module):
                 raise ValueError("No password or private/public key provided")
             
         self.password = password
-        st.write(self.password, 'bro')
         aes_seed = self.hash(self.password)
         
         # get the AES key module and create an instance for encryption
@@ -770,7 +786,8 @@ class SubstrateAccount(commune.Module):
         encrypted = state.get('encrypted', False)
         if encrypted == True:
             state = self.decrypt(data=state['data'], password=password)
-        st.write()
+        else:
+            state = state['data']
         self.params = state
         self.set_params(**self.params)
         
@@ -811,7 +828,6 @@ class SubstrateAccount(commune.Module):
     def test(cls):
         for fn in dir(cls):
             if fn.startswith('test_'):
-                st.write(fn)
                 getattr(cls, fn)()
         
     def save( self, path: str = 'default', encrypt:bool = True, password: str = None):
@@ -837,10 +853,4 @@ if __name__ == '__main__':
     SubstrateAccount.test()
 
     
-
-
-    # st.write(self.encrypt_message('brooo whadup')
-    # st.write(self.sign(self.str2bytes('brooo whadup'), return_dict=True)['data'].decode('utf-8'))
-    
-    # st.write(module)
 
