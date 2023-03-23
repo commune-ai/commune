@@ -220,15 +220,15 @@ class Dashboard:
         
     def streamlit_playground(self):
         
-        st.write('fam')
+        # st.write('fam')
         
-        dataset = commune.connect('dataset')
+        # dataset = commune.connect('dataset')
         
-        model = commune.connect('model')
-        sample = dataset.sample(sequence_length=10, tokenize=True)
-        st.write(sample['input_ids'].shape)
-        # model.set_device('cpu')
-        st.write(model.forward(**sample, return_keys=['topk']))
+        # model = commune.connect('model')
+        # sample = dataset.sample(sequence_length=10, tokenize=True)
+        # st.write(sample['input_ids'].shape)
+        # # model.set_device('cpu')
+        # st.write(model.forward(**sample, return_keys=['topk']))
         
         pass
         # dataset = commune.connect('HFDataset')
