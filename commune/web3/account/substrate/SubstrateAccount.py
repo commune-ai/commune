@@ -179,9 +179,13 @@ class SubstrateAccount(commune.Module):
         #     if isinstance(value, bytes):
         #         params[key] = '0x'+value.hex()
                 
-        self.params = params
+        
+        for key, value in params.items():
+            if isinstance(value, bytes):
+                params[key] = '0x'+value.hex()
+        
     
-
+        self.params = params
         if crypto_type != SubstrateAccountType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, 
                                      valid_ss58_format=ss58_format)
@@ -704,6 +708,8 @@ class SubstrateAccount(commune.Module):
     def set_password(self, password: str = None) -> 'AESKey':
         if password == None:
             if  self.private_key != None:
+                if type(self.private_key) is str:
+                    self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
                 password = self.private_key.hex()
             elif self.public_key != None:
                 password = self.public_key.hex()
@@ -763,22 +769,18 @@ class SubstrateAccount(commune.Module):
         
         encrypted = state.get('encrypted', False)
         if encrypted == True:
-            state = self.decrypt(state['data'], password)
+            state = self.decrypt(data=state['data'], password=password)
         st.write()
         self.params = state
         self.set_params(**self.params)
         
-    def save_state_dict(self,  password: str = None, encrypt: bool = True):
-        import streamlit as st
-        
-        encrypted = state.get('encrypted', False)
-        if encrypted == True:
-            state = self.decrypt(state['data'], password)
-        st.write()
-        self.params = state
-        self.set_params(**self.params)
+    def save(self, path: str,  password: str = None, encrypt: bool = True):
+        state = self.encrypt(data=state['data'], password=password, encrypt=encrypt)
+        self.put_json(path, state)
 
-
+    def load(self, path: str, password: str = None):
+        state = self.get_json(path)
+        self.load_state_dict(state=state, password=password)
 
     @classmethod
     def test_state_dict(cls):
