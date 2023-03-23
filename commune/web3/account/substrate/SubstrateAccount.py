@@ -530,14 +530,18 @@ class SubstrateAccount(commune.Module):
         return json_data
 
     def sign(self, data: Union[ScaleBytes, bytes, str],
-             return_dict:bool = False, 
+             return_dict:bool = True, 
              return_string: bool = True) -> bytes:
         """
         Creates a signature for given data
         Parameters
         ----------
         data: data to sign in `Scalebytes`, bytes or hex string format
+        return_dict (bool): return a dict with the signature and the public key
+        
         Returns
+         
+         
         -------
         signature in bytes
         """
@@ -850,7 +854,7 @@ class SubstrateAccount(commune.Module):
         
     
 if __name__ == '__main__':
-    SubstrateAccount.test()
+    SubstrateAccount.run()
 
     
 

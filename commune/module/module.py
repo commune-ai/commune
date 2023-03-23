@@ -1266,6 +1266,11 @@ class Module:
         args = args if args else []
         if module == None:
             module = cls  
+            
+        if serve:
+            fn = 'serve_module'
+            kwargs['tag'] = kwargs.get('tag', tag)
+            kwargs['name'] = kwargs.get('name', name)
   
         if mode == 'local':
 
@@ -1280,10 +1285,6 @@ class Module:
 
         elif mode == 'pm2':
             
-            if serve:
-                fn = 'serve_module'
-                kwargs['tag'] = kwargs.get('tag', tag)
-                kwargs['name'] = kwargs.get('name', name)
             launch_kwargs = dict(
                     module=module, 
                     fn = fn,
@@ -2472,21 +2473,24 @@ class Module:
         module_fn = getattr(module, fn)
         return module_fn(*args, **kwargs)
         
-    def sign(self, message: Dict[str, Any], **kwargs) -> Dict[str, Any]:
-        hash = self.key.hash(message)
-        signature = self.key.sign(hash)
-        return signature
-    
-    def verify(self, message: Dict[str, Any],
-               signature: Dict[str, Any],
-               public_key : str = None, 
-               use_hash: bool = True,**kwargs) -> bool:
-        if use_hash:
-            message = self.key.hash(message)
+    def resolve_key(self, key: str) -> str:
+        if key == None:
+            if hasattr(self, 'key'):
+                key = self.key
+            else:
+                self.key = self.key()
+                
+                
+    def set_key(self, **kwargs) -> None:
+        key = self.key(**kwargs)
+        self.key = key
+        self.public_key = self.key.public_key
+      
             
-        public_key = public_key if public_key else self.key.public_key
-        
-        return self.key.verify(message, signature)
+    def sign(self, *args, **kwargs) -> bool:
+        return self.key.sign(*args, **kwargs)    
+    def verify(self, *args,  **kwargs) -> bool:
+        return self.key.verify(*args, **kwargs)
         
     
     

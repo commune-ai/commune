@@ -233,5 +233,7 @@ class Validator(commune.Module):
         
 if __name__ == '__main__':
 
-    self = Validator()
-    st.write(self.key)
+    # self = Validator()
+    model = commune.connect('model::a') 
+    st.write(model.set_finetune())
+    # st.write(self.test())

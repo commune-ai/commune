@@ -35,7 +35,7 @@ from substrateinterface import SubstrateInterface, Keypair
 from commune.subspace.balance import Balance
 from commune.subspace.utils import is_valid_address_or_public_key
 from types import SimpleNamespace
-from balance import Balance
+from .balance import Balance
 
 import streamlit as st
 
@@ -45,24 +45,18 @@ __type_registery__ = {
     "runtime_id": 2,
     "types": {
         "Balance": "u64",
-        "NeuronMetadataOf": {
+        "Module": {
             "type": "struct",
             "type_mapping": [
-                ["version", "u32"],
                 ["ip", "u128"], 
                 ["port", "u16"], 
-                ["ip_type", "u8"], 
                 ["uid", "u32"], 
-                ["modality", "u8"], 
-                ["hotkey", "AccountId"], 
-                ["coldkey", "AccountId"], 
+                ["key", "AccountId"], 
                 ["active", "u32"],
                 ["last_update", "u64"],
                 ["priority", "u64"],
                 ["stake", "u64"],
                 ["rank", "u64"],
-                ["trust", "u64"],
-                ["consensus", "u64"],
                 ["incentive", "u64"],
                 ["dividends", "u64"],
                 ["emission", "u64"],

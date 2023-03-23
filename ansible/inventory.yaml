@@ -1,9 +1,18 @@
 
 all:
   hosts:
-    server1:
+    luckee:
+      # ssh ubuntu@15.235.85.187
       ansible_host: 15.235.85.187
       ansible_user: ubuntu
-
-    
+    amsyaoo:
+      # ssh root@74.194.178.31 -p 62100
+      ansible_host: 74.194.178.31
+      ansible_user: root
+      ansible_port: 62100
+    huck:
+      # ssh endless@162.157.13.236 -p 9000
+      ansible_user: endless
+      ansible_host: 162.157.13.236
+      ansible_port: 9000
     
