@@ -14,11 +14,12 @@ class Hash(commune.Module):
         return hash_fn
 
 
-    def hash(cls, x, hash_type: str='keccak',return_type: str ='str',*args,**kwargs):
+    def hash(cls, x, hash_type: str='keccak',return_string: bool =True,*args,**kwargs):
         x = cls.python2str(x)
         if hash_type == 'keccak':
             hash_output = Web3.keccak(text=x, *args, **kwargs)
-            hash_output = Web3.toHex(hash_output)
+            if return_string:
+                hash_output = Web3.toHex(hash_output)
             return hash_output
         else:
             raise NotImplemented(hash_type)

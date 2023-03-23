@@ -91,7 +91,7 @@ class SubstrateAccount(commune.Module):
                  ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
-                 ss58_format: int = None, 
+                 ss58_format: int = 42, 
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = SubstrateAccountType.SR25519,
                  password: str = None,
@@ -151,11 +151,16 @@ class SubstrateAccount(commune.Module):
             params.update(mnemonic_data)
             
         if seed:
-            seed_data = self.create_from_seed(seed, data_only=True)
+            st.write(seed)
+            seed_data = self.create_from_seed(seed_hex = seed, 
+                                              ss58_format = ss58_format,
+                                              crypto_type = crypto_type,
+                                              data_only=True)
             params.update(seed_data)
             
         # check if variable is a hex string
         
+
         
         self.crypto_type = crypto_type = params['crypto_type']
         seed_hex = params['seed_hex']
@@ -208,6 +213,8 @@ class SubstrateAccount(commune.Module):
         self.public_key: bytes = public_key
         self.ss58_address: str = ss58_address
         self.private_key: bytes = private_key    
+        
+            
         self.set_password(password)
 
 
@@ -314,7 +321,9 @@ class SubstrateAccount(commune.Module):
         """
 
         if type(seed_hex) is str:
-            seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
+            # to hex bytes
+            seed_hex = cls.hash(seed_hex, return_string=False)
+         
 
         if crypto_type == SubstrateAccountType.SR25519:
             public_key, private_key = sr25519.pair_from_seed(seed_hex)
@@ -689,10 +698,10 @@ class SubstrateAccount(commune.Module):
         self.aes_key = aes_key(seed)
         
     @classmethod
-    def hash(cls, data: Union[str, bytes]) -> bytes:
+    def hash(cls, data: Union[str, bytes], **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
             cls.hash_module = commune.get_module('crypto.hash')()
-        return cls.hash_module(data)
+        return cls.hash_module(data, **kwargs)
     
     
     
