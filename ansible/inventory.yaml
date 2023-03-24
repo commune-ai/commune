@@ -10,9 +10,15 @@ all:
       ansible_host: 74.194.178.31
       ansible_user: root
       ansible_port: 62100
-    huck:
+    huck_0:
       # ssh endless@162.157.13.236 -p 9000
       ansible_user: endless
       ansible_host: 162.157.13.236
       ansible_port: 9000
+    
+    huck_1:
+      # ssh endless@162.157.13.236 -p 9401
+      ansible_user: endless
+      ansible_host: 162.157.13.236
+      ansible_port: 9401
     

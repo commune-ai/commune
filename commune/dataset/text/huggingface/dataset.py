@@ -18,19 +18,62 @@ import commune
 
 
 class HFDataset(commune.Module):
-    def __init__(self, config: dict=None):
-        
-        self.set_params(config)
+    def __init__(self,
+                path: str = 'glue',
+                name:str = None,
+                text_field:str = None,
+                split: str = 'train',
+                tokenizer: str =  'gptj',
+                dataset: str = None,
+                config: dict=None):
+        params = locals()
+        params.pop('self')
+        self.set_params(**params)
 
+    @property
+    def default_text_feature(self):
+        for k,v in self.features.items():
+            if  v.dtype == 'string':
+                return k
+        assert False, 'No text feature found'
+
+    @property
+    def templates(self):
+        templates = {}
+        
+        templates['glue'] = dict(
+                path = 'glue',
+                name = 'cola',
+                text_field = 'sentence',
+                split = 'train',
+                tokenizer =  'gptj',
+        )
+        
+        
+        templates['wikitext'] = dict(
+                path = 'wikitext',
+                text_field = 'sentence',
+                split = 'train',
+                tokenizer =  'gptj',
+        )
+        
+        return templates
+        
     def set_params(self, config: dict = None, **kwargs) -> None:
 
+        dataset = kwargs.get('dataset')
+        if dataset in self.templates:
+            return self.set_params(**self.templates[dataset])
         if hasattr(self, 'config'):
             config = config if config else {}
             config = {**self.config, **config}
         self.config = self.set_config(config)
         self.config.update(kwargs)
+        
         self.set_tokenizer(tokenizer=self.tokenizer)
         self.set_dataset(path=self.path, name=self.name, split=self.split)
+        if self.text_field == None:
+            self.text_field = self.default_text_feature
 
     def replicate(self, tag = None, **kwargs) -> None:
         '''
@@ -52,8 +95,12 @@ class HFDataset(commune.Module):
         kwargs['path'] = path if path  else self.path
         kwargs['name'] = name if name  else self.name
         kwargs['split'] = split if split  else self.split
-
-        self.dataset = self.import_object('datasets.load_dataset')(**kwargs)
+        if not hasattr(self, 'load_dataset'):
+            
+            self.load_dataset = self.import_object('datasets.load_dataset')
+            
+        st.write(kwargs)
+        self.dataset = self.load_dataset(**kwargs)
         return self.dataset
 
     @property
@@ -254,14 +301,14 @@ class HFDataset(commune.Module):
     def path(self):
         return self.config['path']
     
-    name = path
-
     @path.setter
     def path(self, value):
         self.config['path'] = value
 
     @property
     def text_field(self):
+        if  self.config.get('text_field', None) == None:
+            self.config['text_field'] = self.default_text_feature
         return self.config['text_field']
 
     @text_field.setter
@@ -270,7 +317,9 @@ class HFDataset(commune.Module):
 
     @property
     def name(self):
-        name = self.config['name'] = self.config.get('name', self.available_names[0])
+        name =  self.config.get('name', None)
+        if name == None:
+            self.config['name'] = self.available_names[0]
         return name
 
     @name.setter
@@ -286,6 +335,9 @@ class HFDataset(commune.Module):
         available_names = self.config['available_names'] = self.config.get('available_names', list(self.config_map.keys()))
         return available_names
 
+    def builder_configs(self):
+        return self.dataset_builder.BUILDER_CONFIGS
+        
     @property
     def config_map(self):
 
@@ -346,8 +398,9 @@ class HFDataset(commune.Module):
         
         return self.tokenizer
 
-    
+
 
 if __name__ == '__main__':
+    import streamlit as st
     # print(commune.Module.connect('dataset.huggingface').forward())
-    HFDataset.run()
+    st.write(HFDataset(path='wikitext').default_text_feature)

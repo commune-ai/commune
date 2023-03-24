@@ -1,6 +1,10 @@
 import commune
 import streamlit as st
-module = commune.Module()
-module.set_key()
-st.write(module.key.sign('broadcast'))
-st.write(module.verify(module.key.sign('broadcast')))
+import torch
+dataset = commune.connect('dataset')
+model = commune.connect('model')
+vec = dataset.sample(tokenize=True)['input_ids']
+st.write(model.config)
+input_ids = torch.clip(vec, max=model.config['model']['vocab_size']-1)
+
+st.write(model.forward(input_ids=input_ids))

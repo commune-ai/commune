@@ -714,7 +714,9 @@ class Module:
         from commune.utils.dict import load_json
         path = cls.resolve_path(path=path, extension='json') if resolve_path else path
         data = load_json(path, **kwargs)
-        assert isinstance(data, dict)
+        
+        if data == None:
+            data = {}
         if 'data' in data and 'timestamp' in data:
             data = data['data']
         
