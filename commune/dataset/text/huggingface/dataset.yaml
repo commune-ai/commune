@@ -1,8 +1,8 @@
 
 module: HFDataset
 path: glue
-name: cola
-text_field: sentence
+name: null
+text_field: null
 split: 'train'
 tokenizer: gptj
 

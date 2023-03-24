@@ -3,7 +3,7 @@
   tasks:
 
     - name: making ansible scripts executable
-      ansible.builtin.shell: "sudo docker compose up -d"
+      ansible.builtin.shell: "sudo docker-compose up -d"
       register: shell
       args:
         chdir: commune

@@ -70,12 +70,12 @@ The module.py file serves as an anchor in that it organizes future modules in wh
     make pull
     ```
 
-3. Start Docker compose. This builds and deploys all of the containers you need, which involves, commune (main enviornment), ipfs (decentralized storage), subspace (blockchain node), ganache (evm development node for local blockchain)
+3. Start docker-compose. This builds and deploys all of the containers you need, which involves, commune (main enviornment), ipfs (decentralized storage), subspace (blockchain node), ganache (evm development node for local blockchain)
 
     ```
     make up
     ```
-    - please note that if you are not using a gpu, you will need to comment out the following docker compose code in ./docker-compose.yml
+    - please note that if you are not using a gpu, you will need to comment out the following docker-compose code in ./docker-compose.yml
 
 4. Enter the commune evnironment 
     ```
@@ -83,19 +83,19 @@ The module.py file serves as an anchor in that it organizes future modules in wh
     ```
 
 
-## Docker Compose Environment Details
+## docker-compose Environment Details
 
 Available Containers In Compose
 
 
 ## Make Function Helpers
 
-Start docker compose
+Start docker-compose
 ```
 make up
 ```
 
-Stop docker compose
+Stop docker-compose
 
 ```
 make down

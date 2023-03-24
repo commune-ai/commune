@@ -128,15 +128,15 @@ while :; do
         --down)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
             # eval docker network rm ${PROJECT_NAME}_default || true;
-            eval docker compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
+            eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
             break;
         ;;
 
         
         --restart)
             printf $COLOR_R'Doing a deep clean ...\n\n'$COLOR_RESET
-            eval docker compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
-            eval docker compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up -d
+            eval docker-compose --project-name=$PROJECT_NAME "$COMPOSE_FILES" down;
+            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" up -d
             break
             ;;
 
@@ -151,7 +151,7 @@ while :; do
         *)
             [ ${FORCEPULL} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" pull
             [ ${FORCEBUILD} = "true" ] && eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME "$COMPOSE_FILES" build
-            eval docker compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME  "$COMPOSE_FILES" up -d 
+            eval docker-compose "$DOCKER_COMPOSE_EXTRA_OPTS" --project-name=$PROJECT_NAME  "$COMPOSE_FILES" up -d 
             break
     esac
     shift

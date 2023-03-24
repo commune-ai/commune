@@ -14,6 +14,6 @@ sudo git stash
 sudo git clean -d -f
 sudo git pull
 
-sudo docker compose up -d
+sudo docker-compose up -d
 
 cd ${original_path}
