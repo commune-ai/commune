@@ -40,14 +40,23 @@ Examples
 """
 class TransformerModel( Model):
     shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+
         'gpt125m': 'EleutherAI/gpt-neo-125M',
+
+        # 3ish B models
+        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+        'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+        
+        # 6B models
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+        'gptj': 'EleutherAI/gpt-j-6B',
+        
+        # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
         'opt13b': 'facebook/opt-13b'
+        
 
          }
 
