@@ -25,7 +25,8 @@ class HFDataset(commune.Module):
                 split: str = 'train',
                 tokenizer: str =  'gptj',
                 dataset: str = None,
-                config: dict=None):
+                config: dict=None
+                ):
         params = locals()
         params.pop('self')
         self.set_params(**params)
@@ -37,8 +38,8 @@ class HFDataset(commune.Module):
                 return k
         assert False, 'No text feature found'
 
-    @property
-    def templates(self):
+    @classmethod
+    def templates(cls):
         templates = {}
         
         templates['glue'] = dict(
@@ -52,18 +53,18 @@ class HFDataset(commune.Module):
         
         templates['wikitext'] = dict(
                 path = 'wikitext',
-                text_field = 'sentence',
                 split = 'train',
                 tokenizer =  'gptj',
         )
         
         return templates
         
-    def set_params(self, config: dict = None, **kwargs) -> None:
-
-        dataset = kwargs.get('dataset')
-        if dataset in self.templates:
-            return self.set_params(**self.templates[dataset])
+    def set_params(self, **kwargs) -> None:
+        config = kwargs.get('config')
+        path = kwargs.get('path')
+        kwargs_templates = self.templates()
+        kwargs = kwargs_templates.get(path, kwargs)
+        
         if hasattr(self, 'config'):
             config = config if config else {}
             config = {**self.config, **config}
@@ -99,7 +100,6 @@ class HFDataset(commune.Module):
             
             self.load_dataset = self.import_object('datasets.load_dataset')
             
-        st.write(kwargs)
         self.dataset = self.load_dataset(**kwargs)
         return self.dataset
 
@@ -139,10 +139,14 @@ class HFDataset(commune.Module):
                  max_length=64,
                  return_tensors='pt',
                  add_special_tokens=False,
-                 device:str = None, 
+                 device:str = None,
+                 tokenizer: str = None, 
                  **kwargs) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
-        sample = self.tokenizer(text, 
+        tokenizer = tokenizer if tokenizer else self.tokenizer
+        if isinstance(tokenizer, str):
+            raise NotImplementedError
+        sample = tokenizer(text, 
                                              padding=padding, 
                                              truncation=truncation, 
                                              max_length=max_length, 
@@ -190,7 +194,23 @@ class HFDataset(commune.Module):
         return {split: self.info_dict['splits'][split] for split in self.splits}
 
 
-
+    @classmethod
+    def list_datasets(cls) -> List[str]:
+        # list 
+        default_datasets = [
+            'glue',
+            'super_glue',
+            'wikitext',
+        ]
+        return default_datasets 
+        
+    @classmethod
+    def launch_datasets(cls, datasets:List[str] = None, refresh: bool = True, **kwargs):
+        datasets = datasets if datasets else cls.list_datasets()
+        for dataset in datasets:
+            commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
+            cls.launch(kwargs={'path':dataset}, name=f'dataset.text.{dataset}', refresh=refresh, **kwargs)
+            commune.print(f'LAUNCHED {dataset} dataset', 'yellow')
     def resolve_split(self, split:Optional[str]) -> str:
         if split == None:
             split = self.split
@@ -214,7 +234,8 @@ class HFDataset(commune.Module):
         final_sample  = ''
         while len(final_sample.split()) < sequence_length:
             sample = self.dataset[idx].get(self.text_field)
-            assert sample != None, f'Please specify a valid text_field {self.dataset[idx]}'
+            if sample == None:
+                raise Exception(f'Please specify a valid text_field {list(self.dataset[idx].keys())} {self.text_field}')
 
             final_sample += sample if len(final_sample) == 0 else '\n' + sample
             idx = (idx + 1 ) % len(self)
@@ -376,7 +397,8 @@ class HFDataset(commune.Module):
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b'
+        'opt13b': 'facebook/opt-13b',
+        'gpt2': 'gpt2'
 
          }
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
@@ -398,9 +420,24 @@ class HFDataset(commune.Module):
         
         return self.tokenizer
 
+    @classmethod
+    def test(cls):
+        for path in cls.list_datasets():
+            cls.print(f'TESTING ({cls.module_path()}): {path}', 'yellow')
+            self = cls(path=path)
+            sample = self.sample(tokenize=False)
+            assert 'text' in sample
+            sample = self.sample(tokenize=True)
+            assert 'input_ids' in sample
+            cls.print(f'PASSED ({cls.module_path()}): {path}', 'green')
 
+    @classmethod
+    def sandbox(cls):
+        import streamlit as st
+        st.write(cls.connect('dataset.text.super_glue').sample())
+        
 
 if __name__ == '__main__':
-    import streamlit as st
-    # print(commune.Module.connect('dataset.huggingface').forward())
-    st.write(HFDataset(path='wikitext').default_text_feature)
+    HFDataset.run()
+    
+    

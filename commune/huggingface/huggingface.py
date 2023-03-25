@@ -9,7 +9,7 @@ from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset, load_dataset_builder
 import commune
 
-class HubModule(commune.Module):
+class Huggingface(commune.Module):
     
     def __init__(self, config:dict=None):
         self.set_config(config)
@@ -125,13 +125,4 @@ class HubModule(commune.Module):
         indices =  df.apply(fn, axis=1)
         return df[indices]
 if __name__ == '__main__':
-    import streamlit as st
-    import numpy as np
-
-    hub = HubModule()
-    st.write(hub.datasets)
-    # st.write(module.datasets)
-
-    # st.write(px.histogram(x=module.datasets.query('num_tags>=0 & num_tags<10')['num_tags']))
-    # module.streamlit_main()
-    
+    HubModule.run()
