@@ -78,8 +78,8 @@ class Model( nn.Module, commune.Module):
         }
     def forward(self,  **kwargs) -> Union[Dict, torch.Tensor]:
         # import ipdb; ipdb.set_trace()
-        no_grad = kwargs.pop('no_grad', False)
-        autocast = kwargs.pop('autocast', False)
+        no_grad = kwargs.pop('no_grad', True)
+        autocast = kwargs.pop('autocast', True)
         empty_cache = kwargs.pop('empty_cache', False)
         #should the model learn from the input in this forward pass
         train = kwargs['train'] = kwargs.get('train', False)
