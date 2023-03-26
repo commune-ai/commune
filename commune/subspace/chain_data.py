@@ -51,7 +51,6 @@ custom_rpc_type_registry = {
                 ["uid", "Compact<u16>"],
                 ["netuid", "Compact<u16>"],
                 ["active", "bool"],
-                ["axon_info", "AxonInfo"],
                 ["stake", "Vec<(AccountId, Compact<u64>)>"],
                 ["rank", "Compact<u16>"],
                 ["emission", "Compact<u64>"],
@@ -115,7 +114,6 @@ class NeuronInfo:
     uid: int
     netuid: int
     active: int    
-    total_stake: int
     # mapping of coldkey to amount staked to this Neuron
     stake: Dict[str, Balance]
     rank: float
@@ -125,23 +123,24 @@ class NeuronInfo:
     last_update: int
     weights: List[List[int]]
     bonds: List[List[int]]
-    axon_info: 'AxonInfo'
-    is_null: bool = False
+    # axon_info: 'AxonInfo'
+    pruning_score : int = 0
 
     @classmethod
     def fix_decoded_values(cls, neuron_info_decoded: Any) -> 'NeuronInfo':
         r""" Fixes the values of the NeuronInfo object.
         """
-        neuron_info_decoded['key'] = ss58_encode(neuron_info_decoded['hotkey'], commune.subspace.__ss58_format__)
-        neuron_info_decoded['stake'] = { ss58_encode( coldkey, commune.__ss58_format__): commune.subspace.Balance.from_nano(int(stake)) for coldkey, stake in neuron_info_decoded['stake'] }
-        neuron_info_decoded['total_stake'] = sum(neuron_info_decoded['stake'].values())
+        neuron_info_decoded['key'] = ss58_encode(neuron_info_decoded['key'], commune.subspace.__ss58_format__)
+        neuron_info_decoded['stake'] = { ss58_encode( key, commune.__ss58_format__): commune.subspace.Balance.from_nano(int(stake)) for key, stake in neuron_info_decoded['stake'] }
         neuron_info_decoded['weights'] = [[int(weight[0]), int(weight[1])] for weight in neuron_info_decoded['weights']]
         neuron_info_decoded['bonds'] = [[int(bond[0]), int(bond[1])] for bond in neuron_info_decoded['bonds']]
         neuron_info_decoded['rank'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['rank'])
         neuron_info_decoded['emission'] = neuron_info_decoded['emission'] / NANOPERTOKEN
         neuron_info_decoded['incentive'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['incentive'])
         neuron_info_decoded['dividends'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['dividends'])
-        neuron_info_decoded['axon_info'] = AxonInfo.fix_decoded_values(neuron_info_decoded['axon_info'])
+        neuron_info_decoded['pruning_score'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['pruning_score'])
+
+        # neuron_info_decoded['axon_info'] = AxonInfo.fix_decoded_values(neuron_info_decoded['axon_info'])
 
         return cls(**neuron_info_decoded)
     
@@ -180,7 +179,7 @@ class NeuronInfo:
             netuid = 0,
             active =  0,
             stake = {},
-            total_stake = Balance.from_nano(0),
+            # total_stake = Balance.from_nano(0),
             rank = 0,
             emission = 0,
             incentive = 0,
@@ -188,8 +187,8 @@ class NeuronInfo:
             last_update = 0,
             weights = [],
             bonds = [],
-            axon_info = None,
-            is_null = True,
+            # axon_info = None,
+            # is_null = True,
             key = "000000000000000000000000000000000000000000000000",
             pruning_score = 0,
         )
@@ -199,7 +198,7 @@ class NeuronInfo:
     def _neuron_dict_to_namespace(neuron_dict) -> 'NeuronInfo':
         neuron = NeuronInfo( **neuron_dict )
         neuron.stake = { k: Balance.from_nano(stake) for k, stake in neuron.stake.items() }
-        neuron.total_stake = Balance.from_nano(neuron.total_stake)
+        # neuron.total_stake = Balance.from_nano(neuron.total_stake)
         neuron.rank = neuron.rank / U16_MAX
         neuron.incentive = neuron.incentive / U16_MAX
         neuron.dividends = neuron.dividends / U16_MAX

@@ -23,13 +23,14 @@ from retry import retry
 from typing import List, Dict, Union, Optional, Tuple
 from substrateinterface import SubstrateInterface
 from commune.subspace import Balance
-
+import commune
+from typing import List, Dict, Union, Optional, Tuple
 from rich.prompt import Confirm
 from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, NANOPERTOKEN, U16_MAX
 from commune.subspace.utils import is_valid_address_or_public_key
-from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo
+from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo, custom_rpc_type_registry
 from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
-
+import streamlit as st
 # Logging
 from loguru import logger
 logger = logger.opt(colors=True)
@@ -76,7 +77,7 @@ class Subspace(commune.Module):
                 network:str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
-                type_registry:dict=__type_registery__, 
+                type_registry:dict=custom_rpc_type_registry, 
                 type_registry_preset=None, 
                 cache_region=None, 
                 runtime_config=None, 
@@ -152,7 +153,7 @@ class Subspace(commune.Module):
     #####################
     def set_weights(
         self,
-        net: int,
+        netuid: int,
         uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
         key: 'commune.key' = None,
@@ -170,8 +171,6 @@ class Subspace(commune.Module):
                 uint64 uids of destination neurons.
             weights ( Union[torch.FloatTensor, list]):
                 weights to set which must floats and correspond to the passed uids.
-            version_key (int):
-                version key of the validator.
             wait_for_inclusion (bool):
                 if set, waits for the extrinsic to enter a block before returning true,
                 or returns false if the extrinsic fails to enter the block within the timeout.
@@ -185,7 +184,7 @@ class Subspace(commune.Module):
                 flag is true if extrinsic was finalized or uncluded in the block.
                 If we did not wait for finalization / inclusion, the response is true.
         """
-        netuid = self.resolve_net(net)
+        netuid = self.resolve_netuid(netuid)
         # First convert types.
         if isinstance( uids, list ):
             uids = torch.tensor( uids, dtype = torch.int64 )
@@ -210,7 +209,6 @@ class Subspace(commune.Module):
                             'dests': weight_uids,
                             'weights': weight_vals,
                             'netuid': netuid,
-                            'version_key': version_key,
                         }
                     )
                     # Period dictates how long the extrinsic will stay as part of waiting pool
@@ -282,15 +280,15 @@ class Subspace(commune.Module):
         return self.name2subnet.keys()
     
     
-    def resolve_net(self, net: Union[str, int]) -> int:
-        if isinstance(net, str):
-            net = self.name2subnet(net)
-        assert isinstance(net, int), f'Invalid net: {net}, your net must be one of {self.name2subnet.keys()}'
-        return net
+    def resolve_netuid(self, netuid: Union[str, int]) -> int:
+        if isinstance(netuid, str):
+            netuid = self.name2subnet(netuid)
+        assert isinstance(netuid, int), f'Invalid net: {netuid}, your net must be one of {self.name2subnet.keys()}'
+        return netuid
     
     def register (
-        self
-        net :int = 0 ,
+        self,
+        netuid :int = 0 ,
         key: 'commune.Key' = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
@@ -335,23 +333,24 @@ class Subspace(commune.Module):
         
         
         key = self.resolve_key(key)
-        netuid = self.resolve_net(net)
-
+        netuid = self.resolve_netuid(netuid)
+        
+    
         
         if not self.subnet_exists( netuid ):
             commune.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
             return False
 
+        
         with commune.status(f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."):
-            neuron = self.get_neuron_for_pubkey_and_subnet( key.ss58_address, netuid = netuid )
-            if not neuron.is_null:
-                commune.print(
+            if self.is_key_registered(key=key, netuid = netuid):
+                neuron = self.get_neuron_for_pubkey_and_subnet( key.ss58_address, netuid = netuid )
+                commune.status(
                 ':white_heavy_check_mark: [green]Already Registered[/green]:\n'\
                 'uid: [bold white]{}[/bold white]\n' \
                 'netuid: [bold white]{}[/bold white]\n' \
-                'hotkey: [bold white]{}[/bold white]\n' \
-                'coldkey: [bold white]{}[/bold white]' 
-                .format(neuron.uid, neuron.netuid, neuron.hotkey, neuron.coldkey))
+                'key: [bold white]{}[/bold white]\n' \
+                .format(neuron.uid, neuron.netuid, neuron.key))
                 return True
 
 
@@ -362,10 +361,10 @@ class Subspace(commune.Module):
 
             # pow failed
             # might be registered already on this subnet
-            if (self.is_key_registered(key=key, , netuid = netuid)):
+            if  self.is_key_registered(key=key, netuid = netuid):
                 commune.print(f":white_heavy_check_mark: [green]Already registered on netuid:{netuid}[/green]")
                 return True
-
+            else:
                 with self.substrate as substrate:
                     # create extrinsic call
                     call = substrate.compose_call( 
@@ -377,7 +376,6 @@ class Subspace(commune.Module):
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
                     response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
-                    
                     # We only wait here if we expect finalization.
                     if not wait_for_finalization and not wait_for_inclusion:
                         commune.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -587,7 +585,7 @@ class Subspace(commune.Module):
             'key': wallet.coldkeypub.ss58_address,
         }
 
-        with commune.status(":satellite: Checking Axon..."):
+        with commune.info(":satellite: Checking Axon..."):
             neuron = self.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
             neuron_up_to_date = not neuron.is_null and params == {
                 'ip': net.ip_to_int(neuron.axon_info.ip),
@@ -643,6 +641,7 @@ class Subspace(commune.Module):
 
 
     def add_stake(
+            self,
             key_ss58: Optional[str] = None,
             amount: Union[Balance, float] = None, 
             key: 'commune.Key' = None,
@@ -903,50 +902,15 @@ class Subspace(commune.Module):
     #### Hyper parameter calls. ####
     #####################################
 
-    """ Returns network Rho hyper parameter """
-    def rho (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace( "Rho", block, [netuid] ).value
-
-    """ Returns network Kappa hyper parameter """
-    def kappa (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
-        if not self.subnet_exists( netuid ): return None
-        return U16_NORMALIZED_FLOAT( self.query_subspace( "Kappa", block, [netuid] ).value )
-
-    """ Returns network Difficulty hyper parameter """
-    def difficulty (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace( "Difficulty", block, [netuid] ).value
-    
-    """ Returns network Burn hyper parameter """
-    def burn (self, netuid: int, block: Optional[int] = None ) -> Optional[Balance]:
-        if not self.subnet_exists( netuid ): return None
-        return Balance.from_nano( self.query_subspace( "Burn", block, [netuid] ).value )
-
     """ Returns network ImmunityPeriod hyper parameter """
     def immunity_period (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ImmunityPeriod", block, [netuid] ).value
 
-    """ Returns network ValidatorBatchSize hyper parameter """
-    def validator_batch_size (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace("ValidatorBatchSize", block, [netuid] ).value
-
     """ Returns network ValidatorPruneLen hyper parameter """
     def validator_prune_len (self, netuid: int, block: Optional[int] = None ) -> int:
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ValidatorPruneLen", block, [netuid] ).value
-
-    """ Returns network ValidatorLogitsDivergence hyper parameter """
-    def validator_logits_divergence (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
-        if not self.subnet_exists( netuid ): return None
-        return U16_NORMALIZED_FLOAT(self.query_subspace("ValidatorLogitsDivergence", block, [netuid]).value)
-
-    """ Returns network ValidatorSequenceLength hyper parameter """
-    def validator_sequence_length (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace("ValidatorSequenceLength", block, [netuid] ).value
 
     """ Returns network ValidatorEpochsPerReset hyper parameter """
     def validator_epochs_per_reset (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
@@ -957,11 +921,6 @@ class Subspace(commune.Module):
     def validator_epoch_length (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ValidatorEpochLen", block, [netuid] ).value
-
-    """ Returns network ValidatorEpochLen hyper parameter """
-    def validator_exclude_quantile (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
-        if not self.subnet_exists( netuid ): return None
-        return U16_NORMALIZED_FLOAT( self.query_subspace("ValidatorExcludeQuantile", block, [netuid] ).value )
 
     """ Returns network MaxAllowedValidators hyper parameter """
     def max_allowed_validators(self, netuid: int, block: Optional[int] = None) -> Optional[int]:
@@ -977,16 +936,6 @@ class Subspace(commune.Module):
     def max_weight_limit (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
         if not self.subnet_exists( netuid ): return None
         return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
-
-    """ Returns network ScalingLawPower hyper parameter """
-    def scaling_law_power (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace('ScalingLawPower', block, [netuid] ).value / 100.
-
-    """ Returns network SynergyScalingLawPower hyper parameter """
-    def synergy_scaling_law_power (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace('SynergyScalingLawPower', block, [netuid] ).value / 100.
 
     """ Returns network SubnetworkN hyper parameter """
     def subnetwork_n (self, netuid: int, block: Optional[int] = None ) -> int:
@@ -1065,7 +1014,7 @@ class Subspace(commune.Module):
     def subnet_exists( self, netuid: int, block: Optional[int] = None ) -> bool:
         return self.query_subspace( 'NetworksAdded', block, [netuid] ).value  
 
-    def get_all_subnet_netuids( self, block: Optional[int] = None ) -> List[int]:
+    def get_subnets( self, block: Optional[int] = None ) -> List[int]:
         subnet_netuids = []
         result = self.query_map_subspace( 'NetworksAdded', block )
         if result.records:
@@ -1077,24 +1026,10 @@ class Subspace(commune.Module):
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
         return self.query_subspace( 'TotalNetworks', block ).value      
-
-    def get_subnet_modality( self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        return self.query_subspace( 'NetworkModality', block, [netuid] ).value   
-
-    def get_subnet_connection_requirement( self, netuid_0: int, netuid_1: int, block: Optional[int] = None) -> Optional[int]:
-        return self.query_subspace( 'NetworkConnect', block, [netuid_0, netuid_1] ).value
-
+    
     def get_emission_value_by_subnet( self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
         return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
 
-    def get_subnet_connection_requirements( self, netuid: int, block: Optional[int] = None) -> Dict[str, int]:
-        result = self.query_map_subspace( 'NetworkConnect', block, [netuid] )
-        if result.records:
-            requirements = {}
-            for tuple in result.records:
-                requirements[str(tuple[0].value)] = tuple[1].value
-        else:
-            return {}
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
         subnets = []
@@ -1158,10 +1093,16 @@ class Subspace(commune.Module):
         return len( self.get_netuids_for_key( key.ss58_address, block) ) > 0
     
     def is_key_registered_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> bool:
-        return self.get_uid_for_key_on_subnet( key_ss58, netuid, block ) != None
+        uid = self.get_uid_for_key_on_subnet( key_ss58, netuid, block ) != None
+        return uid != None
 
-    def is_key_registered( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> bool:
-        return self.get_uid_for_key_on_subnet( key_ss58, netuid, block ) != None
+    def is_key_registered( self, key: str, netuid: int, block: Optional[int] = None) -> bool:
+        if not isinstance( key, str ):
+            key = key.ss58_address
+        uid = self.get_uid_for_key_on_subnet( key, netuid, block ) 
+        
+  
+        return uid != None
 
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
@@ -1182,8 +1123,8 @@ class Subspace(commune.Module):
 
     def get_all_neurons_for_key( self, key_ss58: str, block: Optional[int] = None ) -> List[NeuronInfo]:
         netuids = self.get_netuids_for_key( key_ss58, block) 
-        uids = [self.get_uid_for_key_on_subnet(key_ss58, net) for net in netuids] 
-        return [self.neuron_for_uid( uid, net ) for uid, net in list(zip(uids, netuids))]
+        uids = [self.get_uid_for_key_on_subnet(key_ss58, netuid) for netuid in netuids] 
+        return [self.neuron_for_uid( uid, netuid ) for uid, netuid in list(zip(uids, netuids))]
 
     def neuron_has_validator_permit( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[bool]:
         return self.query_subspace( 'ValidatorPermit', block, [ netuid, uid ] ).value
@@ -1221,7 +1162,6 @@ class Subspace(commune.Module):
 
         if result in (None, []):
             return NeuronInfo._null_neuron()
-        
         return NeuronInfo.from_vec_u8( result ) 
 
     def neurons(self, netuid: int =0 , block: Optional[int] = None ) -> List[NeuronInfo]: 
@@ -1333,3 +1273,25 @@ class Subspace(commune.Module):
             key = "000000000000000000000000000000000000000000000000",
         )
         return neuron
+
+
+    @classmethod
+    def test(cls):
+        subspace = cls()
+        keys = [commune.key(str(i)) for i in range(2)]
+        
+        subnets = subspace.get_subnets()
+   
+        for key in keys:
+            subspace.register(key=key, netuid=subnets[0])
+            
+
+if __name__ == "__main__":
+    Subspace.test()
+
+    
+    # st.write(key.sign('data'))
+    
+    # st.write(subspace.register(key=key, net=3))
+    # st.write(subspace.get_all_subnet_netuids())
+    

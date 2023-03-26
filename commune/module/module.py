@@ -2319,11 +2319,8 @@ class Module:
     
     @classmethod
     def log(cls, text, mode='info'):
-        if not hasattr(cls,'logger'):
-            from loguru import logger
-            cls.logger = logger.opt(colors=True)
-        
-        specific_logger = getattr(cls.logger, mode)
+        logger = cls.resolve_logger()
+        specific_logger = getattr(logger, mode)
         return specific_logger(text)
 
 
@@ -2343,7 +2340,7 @@ class Module:
             cls.console = Console()
         if console is not None:
             cls.console = console
-        return logger
+        return console
     
     @classmethod
     def critical(cls, *args, **kwargs):
@@ -2363,7 +2360,7 @@ class Module:
     @classmethod
     def status(cls, *args, **kwargs):
         console = cls.resolve_console()
-        return self.console.status(*args, **kwargs)
+        return cls.console.status(*args, **kwargs)
        
     @classmethod
     def test(cls):
