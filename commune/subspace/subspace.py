@@ -1,5 +1,6 @@
 # The MIT License (MIT)
-# Copyright © 2021 Yuma nano
+# Copyright © 2021 Yuma Rao
+# Copyright © 2023 Opentensor Foundation
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
@@ -14,83 +15,49 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
 # DEALINGS IN THE SOFTWARE.
+
+# Imports
 import torch
-from rich.prompt import Confirm, Prompt
-from typing import List, Dict, Union, Optional
-from multiprocessing import Process
-# Mocking imports
-import os
-import random
 import scalecodec
-import time
+from retry import retry
+from typing import List, Dict, Union, Optional, Tuple
+from substrateinterface import SubstrateInterface
+from commune.subspace import Balance
+
+from rich.prompt import Confirm
+from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, RAOPERTAO, U16_MAX
+from commune.subspace.utils import is_valid_address_or_public_key
+from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo
+from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
+
+# Logging
 from loguru import logger
 logger = logger.opt(colors=True)
-
 import commune
-from tqdm import tqdm
-import commune.utils.network as net
-import commune.subspace.utils.weight_utils as weight_utils
-from retry import retry
-from substrateinterface import SubstrateInterface, Keypair
-from commune.subspace.balance import Balance
-from commune.subspace.utils import is_valid_address_or_public_key
-from types import SimpleNamespace
-from .balance import Balance
-
-import streamlit as st
-
-
-
-__type_registery__ = {
-    "runtime_id": 2,
-    "types": {
-        "Balance": "u64",
-        "Module": {
-            "type": "struct",
-            "type_mapping": [
-                ["ip", "u128"], 
-                ["port", "u16"], 
-                ["uid", "u32"], 
-                ["key", "AccountId"], 
-                ["active", "u32"],
-                ["last_update", "u64"],
-                ["priority", "u64"],
-                ["stake", "u64"],
-                ["rank", "u64"],
-                ["incentive", "u64"],
-                ["dividends", "u64"],
-                ["emission", "u64"],
-                ["bonds", "Vec<(u32, u64)>"],
-                ["weights", "Vec<(u32, u32)>"]
-            ]
-        }
-    }
-}
-
-
 class Subspace(commune.Module):
     """
-    Handles interactions with the subtensor chain.
+    Handles interactions with the subspace chain.
     """
+    
     def __init__( 
         self, 
         network: str = 'local',
         url: str = '127.0.0.1:9944',
         **kwargs,
     ):
-        r""" Initializes a subtensor chain interface.
+        r""" Initializes a subspace chain interface.
             Args:
                 substrate (:obj:`SubstrateInterface`, `required`): 
                     substrate websocket client.
                 network (default='local', type=str)
-                    The subtensor network flag. The likely choices are:
+                    The subspace network flag. The likely choices are:
                             -- local (local running network)
                             -- nobunaga (staging network)
                             -- nakamoto (main network)
-                    If this option is set it overloads subtensor.chain_endpoint with 
+                    If this option is set it overloads subspace.chain_endpoint with 
                     an entry point node from that network.
                 chain_endpoint (default=None, type=str)
-                    The subtensor endpoint flag. If set, overrides the network argument.
+                    The subspace endpoint flag. If set, overrides the network argument.
         """
         self.set_substrate( network=network, url=url)
 
@@ -156,7 +123,7 @@ class Subspace(commune.Module):
         if network == None:
             network = self.url2network(url)
         self.network = network 
-        self.url = url
+        self.url = self.chain_endpoint = url
         
         
         
@@ -175,701 +142,37 @@ class Subspace(commune.Module):
                                     *args,
                                     **kwargs)
         
-        
-    
-        
-
-    
-
-    def __str__(self) -> str:
-        if self.network == self.url:
-            # Connecting to chain endpoint without network known.
-            return "Subspace({})".format( self.url )
-        else:
-            # Connecting to network with endpoint known.
-            return "Subspace({}, {})".format( self.network, self.url )
+      
 
     def __repr__(self) -> str:
         return self.__str__()
-  
-    def endpoint_for_network( 
-            self,
-            blacklist: List[str] = [] 
-        ) -> str:
-        r""" Returns a chain endpoint based on self.network.
-            Returns None if there are no available endpoints.
-        """
-
-        # Chain endpoint overrides the --network flag.
-        if self.url != None:
-            if self.url in blacklist:
-                return None
-            else:
-                return self.url
-
-    def connect( self, timeout: int = 10, failure = True ) -> bool:
-        attempted_endpoints = []
-        while True:
-            def connection_error_message():
-                print('''
-                        Check that your internet connection is working and the chain endpoints are available: <blue>{}</blue>
-                        The subtensor.network should likely be one of the following choices:
-                            -- local - (your locally running node)
-                            -- nobunaga - (staging)
-                            -- nakamoto - (main)
-                        Or you may set the endpoint manually using the --subtensor.chain_endpoint flag 
-                        To run a local node (See: docs/running_a_validator.md) \n
-                              '''.format( attempted_endpoints) )
-
-            # ---- Get next endpoint ----
-            ws_chain_endpoint = self.endpoint_for_network( blacklist = attempted_endpoints )
-            if ws_chain_endpoint == None:
-                logger.error("No more endpoints available for subtensor.network: <blue>{}</blue>, attempted: <blue>{}</blue>".format(self.network, attempted_endpoints))
-                connection_error_message()
-                if failure:
-                    logger.critical('Unable to connect to network:<blue>{}</blue>.\nMake sure your internet connection is stable and the network is properly set.'.format(self.network))
-                else:
-                    return False
-            
-            attempted_endpoints.append(ws_chain_endpoint)
-
-            # --- Attempt connection ----
-            try:
-                with self.substrate:
-                    logger.success("Network:".ljust(20) + "<blue>{}</blue>", self.network)
-                    logger.success("Endpoint:".ljust(20) + "<blue>{}</blue>", ws_chain_endpoint)
-                    return True
-            
-            except Exception:
-                logger.error( "Error while connecting to network:<blue>{}</blue> at endpoint: <blue>{}</blue>".format(self.network, ws_chain_endpoint))
-                connection_error_message()
-                if failure:
-                    raise RuntimeError('Unable to connect to network:<blue>{}</blue>.\nMake sure your internet connection is stable and the network is properly set.'.format(self.network))
-                else:
-                    return False
 
 
-
-    @property
-    def total_issuance (self) -> 'Balance':
-        r""" Returns the total token issuance.
-        Returns:
-            total_issuance (int):
-                Total issuance as balance.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return Balance.from_nano( substrate.query(  module='SubspaceModule', storage_function = 'TotalIssuance').value )
-        return make_substrate_call_with_retry()
-
-    @property
-    def immunity_period (self) -> int:
-        r""" Returns the chain registration immunity_period
-        Returns:
-            immunity_period (int):
-                Chain registration immunity_period
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'ImmunityPeriod' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def total_stake (self) -> 'Balance':
-        r""" Returns total stake on the chain.
-        Returns:
-            total_stake (Balance):
-                Total stake as balance.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return Balance.from_nano( substrate.query(  module='SubspaceModule', storage_function = 'TotalStake' ).value )
-        return make_substrate_call_with_retry()
-
-
-    @property
-    def n (self) -> int:
-        r""" Returns total number of modules on the chain.
-        Returns:
-            n (int):
-                Total number of modules on chain.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'N' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def max_n (self) -> int:
-        r""" Returns maximum number of module positions on the graph.
-        Returns:
-            max_n (int):
-                Maximum number of module positions on the graph.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'MaxAllowedUids' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def block (self) -> int:
-        r""" Returns current chain block.
-        Returns:
-            block (int):
-                Current chain block.
-        """
-        return self.get_current_block()
-
-    @property
-    def blocks_since_epoch (self) -> int:
-        r""" Returns blocks since last epoch.
-        Returns:
-            blocks_since_epoch (int):
-                blocks_since_epoch 
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'BlocksSinceLastStep' ).value
-        return make_substrate_call_with_retry()
-
-    @property
-    def blocks_per_epoch (self) -> int:
-        r""" Returns blocks per chain epoch.
-        Returns:
-            blocks_per_epoch (int):
-                blocks_per_epoch 
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query( module='SubspaceModule', storage_function = 'BlocksPerStep' ).value
-        return make_substrate_call_with_retry()
-
-    def get_n (self, block: int = None) -> int:
-        r""" Returns total number of modules on the chain.
-        Returns:
-            n (int):
-                Total number of modules on chain.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query(  
-                    module='SubspaceModule', 
-                    storage_function = 'N',
-                    block_hash = None if block == None else substrate.get_block_hash( block )
-                ).value
-        return make_substrate_call_with_retry()
-
-
-    def serve_module (
-        self,
-        module: 'commune.Axon',
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
-        prompt: bool = False,
-        key: Keypair = None,
-    ) -> bool:
-        r""" Serves the axon to the network.
-        Args:
-            axon (commune.Axon):
-                Axon to serve.
-            use_upnpc (:type:bool, `optional`): 
-                If true, the axon attempts port forward through your router before 
-                subscribing.                
-            wait_for_inclusion (bool):
-                If set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                If set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-
-
-        if hasattr(module, 'ip'):
-            ip = module.ip
-        elif hasattr(module, 'external_ip'):
-            ip = module.external_ip()
-        else:
-            ip = commune.external_ip()
-            
-        if hasattr(module, 'port'):
-            port = module.port
-            
-        
-        commune.log(":white_heavy_check_mark: [green]Found external ip: {}[/green]".format( external_ip ))
-        commune.logging.success(prefix = 'External IP', sufix = '<blue>{}</blue>'.format( external_ip ))
-        
-        # ---- Subscribe to chain ----
-        serve_success = self.serve(
-                key = key,
-                ip = ip,
-                port = port,
-                wait_for_inclusion = wait_for_inclusion,
-                wait_for_finalization = wait_for_finalization,
-                prompt = prompt
-        )
-        return serve_success
-
-    def register (
-        self,
-        key: 'commune.key',
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
-    ) -> bool:
-        r""" Registers the key to chain.
-        Args:
-            key (Keypair):
-                commune key object.
-            wait_for_inclusion (bool):
-                If set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                If set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-        # if self.is_key_registered( key.ss58_address ):
-        #     with commune.log(":satellite: Checking Account..."):
-                
-        #         module = self.module_for_pubkey( key.ss58_address )
-        #         if not module.is_null:
-        #             commune.log(":white_heavy_check_mark: [green]Already Registered[/green]:\n  uid: [bold white]{}[/bold white]\n  hotkey: [bold white]{}[/bold white]\n  coldkey: [bold white]{}[/bold white]".format(module.uid, module.key, module.coldkey))
-        #             return True
-
-
-        with self.substrate as substrate:
-            # create extrinsic call
-            call = substrate.compose_call( 
-                call_module='SubspaceModule',  
-                call_function='register', 
-                # call_params={} 
-            )
-        extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-        
-        
-        st.write(extrinsic)
-        response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
-        
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-            return True
-        
-        # process if registration successful, try again if pow is still valid
-        response.process_events()
-        if not response.is_success:
-            if 'key is already registered' in response.error_message:
-                # Error meant that the key is already registered.
-                commune.log(":white_heavy_check_mark: [green]Already Registered[/green]")
-                return True
-
-            commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-
-
-
-
-    def serve (
-            self, 
-            ip: str, 
-            port: int, 
-            wait_for_inclusion: bool = False,
-            wait_for_finalization = True,
-            prompt: bool = False,
-            key: 'Keypair' = None,
-
-        ) -> bool:
-        r""" Subscribes an commune endpoint to the substensor chain.
-        Args:
-            key (Keypair):
-                commune key object.
-            ip (str):
-                endpoint host port i.e. 192.122.31.4
-            port (int):
-                endpoint port number i.e. 9221
-            modality (int):
-                int encoded endpoint modality i.e 0 for TEXT
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-
-        params = {
-            'ip': net.ip_to_int(ip),
-            'port': port,
-            'ip_type': net.ip_version(ip),
-            'key': key.ss58_address,
-        }
-
-        commune.log(":satellite: Checking Axon...")
-        module = self.module_for_pubkey( key.hotkey.ss58_address )
-        module_up_to_date = not module.is_null and params == {
-            'ip': module.ip,
-            'port': module.port,
-        }
-
-        commune.log(":satellite: Serving axon on: [white]{}[/white] ...".format(self.network))
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='SubspaceModule',
-                call_function='serve_axon',
-                call_params=params
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey)
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-            if wait_for_inclusion or wait_for_finalization:
-                response.process_events()
-                if response.is_success:
-                    commune.log(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]ip: {}\n  port: {}\n  modality: {}\n  key: {}[/bold white]'.format(ip, port, key.ss58_address, key.ss58_address ))
-                    return True
-                else:
-                    commune.log(':cross_mark: [green]Failed to Subscribe[/green] error: {}'.format(response.error_message))
-                    return False
-            else:
-                return True
-
-    def add_stake(
-            self, 
-            amount: Union[Balance, float] = None, 
-            wait_for_inclusion: bool = True,
-            wait_for_finalization: bool = False,
-            prompt: bool = False,
-            key: Keypair = None,
-
-        ) -> bool:
-        r""" Adds the specified amount of stake to passed hotkey uid.
-        Args:
-            key (Keypair):
-                Bittensor key object.
-            amount (Union[Balance, float]):
-                Amount to stake as commune balance, or float interpreted as token.
-            wait_for_inclusion (bool):
-                If set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                If set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-
-
-        commune.log(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network))
-        old_balance = self.get_balance( key.ss58_address )
-        module = self.module_for_pubkey( ss58_key = key.ss58_address )
-        if module.is_null:
-            commune.log(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.hotkey_str))
-            return False
-
-        # Covert to Balance
-        if amount == None:
-            # Stake it all.
-            staking_balance = Balance.from_token( old_balance.token )
-        elif not isinstance(amount, Balance ):
-            staking_balance = Balance.from_token( amount )
-        else:
-            staking_balance = amount
-
-        # Remove existential balance to keep key alive.
-        if staking_balance > Balance.from_nano( 1000 ):
-            staking_balance = staking_balance - Balance.from_nano( 1000 )
-        else:
-            staking_balance = staking_balance
-
-        # Estimate transfer fee.
-        staking_fee = None # To be filled.
-        commune.log(":satellite: Estimating Staking Fees...")
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='SubspaceModule', 
-                call_function='add_stake',
-                call_params={
-                    'hotkey': key.hotkey.ss58_address,
-                    'ammount_staked': staking_balance.nano
-                }
-            )
-            payment_info = substrate.get_payment_info(call = call, keypair = key)
-            if payment_info:
-                staking_fee = Balance.from_nano(payment_info['partialFee'])
-                commune.log("[green]Estimated Fee: {}[/green]".format( staking_fee ))
-            else:
-                staking_fee = Balance.from_token( 0.2 )
-                commune.log(":cross_mark: [red]Failed[/red]: could not estimate staking fee, assuming base fee of 0.2")
-
-        # Check enough to unstake.
-        if staking_balance > old_balance + staking_fee:
-            commune.log(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  fee: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, staking_fee, key.name))
-            return False
-                
-        commune.log(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network))
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='SubspaceModule', 
-                call_function='add_stake',
-                call_params={
-                    'hotkey': key.hotkey.ss58_address,
-                    'ammount_staked': staking_balance.nano
-                }
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-            # We only wait here if we expect finalization.
-            if not wait_for_finalization and not wait_for_inclusion:
-                commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-                return True
-
-            if response.is_success:
-                commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
-            else:
-                commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-
-        if response.is_success:
-            commune.log(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network))
-            new_balance = self.get_balance( key.ss58_address )
-            old_stake = Balance.from_token( module.stake )
-            new_stake = Balance.from_token( self.module_for_pubkey( ss58_hotkey = key.ss58_address ).stake)
-            commune.log("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-            commune.log("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
-            return True
-        
-        return False
-
-    def transfer(
-            self, 
-            dest: Union[str, Keypair], 
-            amount: Union[Balance, float], 
-            wait_for_inclusion: bool = True,
-            wait_for_finalization: bool = False,
-            prompt: bool = False,
-            key: Keypair = None,
-
-
-        ) -> bool:
-        r""" Transfers funds from this key to the destination public key address
-        Args:
-            key (Keypair):
-                Bittensor key object to make transfer from.
-            dest (str, ss58_address or ed25519):
-                Destination public key address of reciever. 
-            amount (Union[Balance, int]):
-                Amount to stake as commune balance, or float interpreted as token.
-            wait_for_inclusion (bool):
-                If set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                If set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                Flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-        # Validate destination address.
-        if isinstance( dest, Keypair ):
-            dest = dest.ss58_address
-            
-        if not is_valid_address_or_public_key( dest ):
-            commune.log(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
-            return False
-
-        if isinstance( dest, bytes):
-            # Convert bytes to hex string.
-            dest = "0x" + dest.hex()
-
-        # Unlock key coldkey.
-
-        # Convert to Balance
-        if not isinstance(amount, Balance ):
-            transfer_balance = Balance.from_token( amount )
-        else:
-            transfer_balance = amount
-
-        # Check balance.
-        commune.log(":satellite: Checking Balance...")
-        account_balance = self.get_balance( key.ss58_address )
-
-        # Estimate transfer fee.
-        commune.log(":satellite: Estimating Transfer Fees...")
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='Balances',
-                call_function='transfer',
-                call_params={
-                    'dest': dest, 
-                    'value': transfer_balance.nano
-                }
-            )
-            payment_info = substrate.get_payment_info(call = call, keypair = key)
-            transfer_fee = "N/A"
-            if payment_info:
-                transfer_fee = Balance.from_nano(payment_info['partialFee'])
-                commune.log("[green]Estimated Fee: {}[/green]".format( transfer_fee ))
-            else:
-                commune.log(":cross_mark: [red]Failed[/red]: could not estimate transfer fee, assuming base fee of 0.2")
-                transfer_fee = Balance.from_token( 0.2 )
-
-        if account_balance < transfer_balance + transfer_fee:
-            commune.log(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {} fee: {}[/bold white]".format( account_balance, transfer_balance, transfer_fee ))
-            return False
-
-
-        commune.log(":satellite: Transferring...")
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='Balances',
-                call_function='transfer',
-                call_params={
-                    'dest': dest, 
-                    'value': transfer_balance.nano
-                }
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-            
-            st.write("extrinsic", extrinsic)
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-            # We only wait here if we expect finalization.
-            if not wait_for_finalization and not wait_for_inclusion:
-                commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-                return True
-
-            # Otherwise continue with finalization.
-            response.process_events()
-            if response.is_success:
-                commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
-                block_hash = response.block_hash
-                commune.log("[green]Block Hash: {}[/green]".format( block_hash ))
-                explorer_url = "https://explorer.nakamoto.opentensor.ai/#/explorer/query/{block_hash}".format( block_hash = block_hash )
-                commune.log("[green]Explorer Link: {}[/green]".format( explorer_url ))
-            else:
-                commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-
-        if response.is_success:
-            commune.log(":satellite: Checking Balance...")
-            new_balance = self.get_balance( key.ss58_address )
-            commune.log("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
-            return True
-        
-        return False
-
-    def unstake (
-            self, 
-            key: 'Keypair',
-            amount: Union[Balance, float] = None, 
-            wait_for_inclusion:bool = True, 
-            wait_for_finalization:bool = False,
-            prompt: bool = False,
-        ) -> bool:
-        r""" Removes stake into the key coldkey from the specified hotkey uid.
-        Args:
-            key (Keypair):
-                commune key object.
-            amount (Union[Balance, float]):
-                Amount to stake as commune balance, or float interpreted as token.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
-        # Decrypt keys,
-
-        commune.log(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network))
-        old_balance = self.get_balance( key.ss58_address )
-        module = self.module_for_pubkey( ss58_hotkey = key.ss58_address )
-        if module.is_null:
-            commune.log(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format( key.hotkey_str ))
-            return False
-
-        # Covert to Balance
-        if amount == None:
-            # Unstake it all.
-            unstaking_balance = Balance.from_token( module.stake )
-        elif not isinstance(amount, Balance ):
-            unstaking_balance = Balance.from_token( amount )
-        else:
-            unstaking_balance = amount
-
-        # Check enough to unstake.
-        stake_on_uid = Balance.from_token( module.stake )
-        if unstaking_balance > stake_on_uid:
-            commune.log(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from hotkey: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.hotkey_str))
-            return False
-
-        # Estimate unstaking fee.
-        unstake_fee = None # To be filled.
-
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='SubspaceModule', 
-                call_function='remove_stake',
-                call_params={
-                    'ammount_unstaked': unstaking_balance.nano
-                }
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-            response.process_events()
-
-        
-        return False
-         
+    #####################
+    #### Set Weights ####
+    #####################
     def set_weights(
-            self, 
-            uids: Union[torch.LongTensor, list],
-            weights: Union[torch.FloatTensor, list],
-            wait_for_inclusion:bool = False,
-            wait_for_finalization:bool = False,
-            prompt:bool = False,
-            key: Keypair = None,
-
-        ) -> bool:
+        self,
+        net: int,
+        uids: Union[torch.LongTensor, list] ,
+        weights: Union[torch.FloatTensor, list],
+        key: 'commune.key' = None,
+        wait_for_inclusion:bool = False,
+        wait_for_finalization:bool = False,
+        prompt:bool = False,
+    ) -> bool:
         r""" Sets the given weights and values on chain for key hotkey account.
         Args:
-            key (Keypair):
-                commune key object.
+            key (bittensor.key):
+                bittensor key object.
+            netuid (int):
+                netuid of the subent to set weights for.
             uids (Union[torch.LongTensor, list]):
-                uint64 uids of destination modules.
+                uint64 uids of destination neurons.
             weights ( Union[torch.FloatTensor, list]):
                 weights to set which must floats and correspond to the passed uids.
+            version_key (int):
+                version key of the validator.
             wait_for_inclusion (bool):
                 if set, waits for the extrinsic to enter a block before returning true,
                 or returns false if the extrinsic fails to enter the block within the timeout.
@@ -883,6 +186,7 @@ class Subspace(commune.Module):
                 flag is true if extrinsic was finalized or uncluded in the block.
                 If we did not wait for finalization / inclusion, the response is true.
         """
+        netuid = self.resolve_net(net)
         # First convert types.
         if isinstance( uids, list ):
             uids = torch.tensor( uids, dtype = torch.int64 )
@@ -894,44 +198,1070 @@ class Subspace(commune.Module):
 
         # Ask before moving on.
         if prompt:
-            if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/4294967295) for v in weight_vals], weight_uids) ):
+            if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/65535) for v in weight_vals], weight_uids) ):
                 return False
 
-        commune.log(":satellite: Setting weights on [white]{}[/white] ...".format(self.network))
-        try:
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubspaceModule',
-                    call_function='set_weights',
-                    call_params = {'dests': weight_uids, 'weights': weight_vals}
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key.hotkey )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    commune.log(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
+        with commune.status(":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)):
+            try:
+                with self.substrate as substrate:
+                    call = substrate.compose_call(
+                        call_module='SubtensorModule',
+                        call_function='set_weights',
+                        call_params = {
+                            'dests': weight_uids,
+                            'weights': weight_vals,
+                            'netuid': netuid,
+                            'version_key': version_key,
+                        }
+                    )
+                    # Period dictates how long the extrinsic will stay as part of waiting pool
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                    # We only wait here if we expect finalization.
+                    if not wait_for_finalization and not wait_for_inclusion:
+                        commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                        return True
 
-                response.process_events()
-                if response.is_success:
-                    commune.log(":white_heavy_check_mark: [green]Finalized[/green]")
-                    commune.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
-                else:
-                    commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                    commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                    response.process_events()
+                    if response.is_success:
+                        commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                        commune.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
+                        return True
+                    else:
+                        commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                        commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                        return False
 
-        except Exception as e:
-            commune.log(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-            commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
-            return False
+            except Exception as e:
+                commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+                commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
+                return False
 
         if response.is_success:
-            commune.log("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
+            commune.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
             message = '<green>Success: </green>' + f'Set {len(uids)} weights, top 5 weights' + str(list(zip(uids.tolist()[:5], [round (w,4) for w in weights.tolist()[:5]] )))
             logger.debug('Set weights:'.ljust(20) +  message)
             return True
         
         return False
+
+    @classmethod
+    def name2subnet(cls, name:str) -> int:
+        name2subnet = {
+            'commune': 0,
+            'text': 1,
+            # 'image': 2,
+            # 'audio': 3,
+            # 'image2text': 3,
+            # 'text2image': 4,
+            # 'speech2text': 5,
+            # 'text2speech': 6,
+            # 'video': 7,
+            # 'video2text': 7,
+            # 'text2video': 8,
+            # 'video2image': 9,
+        }
+        subnet = name2subnet.get(name, None)
+        
+        assert subnet != None, f'Invalid name: {name}, your name must be one of {name2subnet.keys()}'
+        
+        return subnet
+    ######################
+    #### Registration ####
+    ######################
+
+    def resolve_key(self, key: 'commune.Key') -> 'commune.Key':
+        if key == None:
+            if not hasattr(self, 'key'):
+                self.key = commune.key()
+            key = self.key
+        
+        return key
+    
+    @classmethod
+    def subnets(cls) -> List[int]:
+        return self.name2subnet.keys()
+    
+    
+    def resolve_net(self, net: Union[str, int]) -> int:
+        if isinstance(net, str):
+            net = self.name2subnet(net)
+        assert isinstance(net, int), f'Invalid net: {net}, your net must be one of {self.name2subnet.keys()}'
+        return net
+    
+    def register (
+        self
+        net :int = 0 ,
+        key: 'commune.Key' = None,
+        wait_for_inclusion: bool = False,
+        wait_for_finalization: bool = True,
+        prompt: bool = False,
+        max_allowed_attempts: int = 3,
+        update_interval: Optional[int] = None,
+        log_verbose: bool = False,
+
+    ) -> bool:
+
+        r""" Registers the wallet to chain.
+        Args:
+            netuid (int):
+                The netuid of the subnet to register on.
+            wait_for_inclusion (bool):
+                If set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                If set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+            max_allowed_attempts (int):
+                Maximum number of attempts to register the wallet.
+            cuda (bool):
+                If true, the wallet should be registered using CUDA device(s).
+            dev_id (Union[List[int], int]):
+                The CUDA device id to use, or a list of device ids.
+            TPB (int):
+                The number of threads per block (CUDA).
+            num_processes (int):
+                The number of processes to use to register.
+            update_interval (int):
+                The number of nonces to solve between updates.
+            log_verbose (bool):
+                If true, the registration process will log more information.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
+        """
+        
+        
+        key = self.resolve_key(key)
+        netuid = self.resolve_net(net)
+
+        
+        if not self.subnet_exists( netuid ):
+            commune.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
+            return False
+
+        with commune.status(f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."):
+            neuron = self.get_neuron_for_pubkey_and_subnet( key.ss58_address, netuid = netuid )
+            if not neuron.is_null:
+                commune.print(
+                ':white_heavy_check_mark: [green]Already Registered[/green]:\n'\
+                'uid: [bold white]{}[/bold white]\n' \
+                'netuid: [bold white]{}[/bold white]\n' \
+                'hotkey: [bold white]{}[/bold white]\n' \
+                'coldkey: [bold white]{}[/bold white]' 
+                .format(neuron.uid, neuron.netuid, neuron.hotkey, neuron.coldkey))
+                return True
+
+
+        # Attempt rolling registration.
+        attempts = 1
+        while True:
+            commune.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
+
+            # pow failed
+            # might be registered already on this subnet
+            if (self.is_key_registered(key=key, , netuid = netuid)):
+                commune.print(f":white_heavy_check_mark: [green]Already registered on netuid:{netuid}[/green]")
+                return True
+
+                with self.substrate as substrate:
+                    # create extrinsic call
+                    call = substrate.compose_call( 
+                        call_module='SubspaceModule',  
+                        call_function='register', 
+                        call_params={ 
+                            'netuid': netuid,
+                        } 
+                    )
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
+                    
+                    # We only wait here if we expect finalization.
+                    if not wait_for_finalization and not wait_for_inclusion:
+                        commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                        return True
+                    
+                    # process if registration successful, try again if pow is still valid
+                    response.process_events()
+                    if not response.is_success:
+                        if 'key is already registered' in response.error_message:
+                            # Error meant that the key is already registered.
+                            commune.print(f":white_heavy_check_mark: [green]Already Registered on [bold]subnet:{netuid}[/bold][/green]")
+                            return True
+
+                        commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                        time.sleep(0.5)
+                    
+                    # Successful registration, final check for neuron and pubkey
+                    else:
+                        commune.print(":satellite: Checking Balance...")
+                        is_registered = self.is_key_registered( key=key,netuid = netuid )
+                        if is_registered:
+                            commune.print(":white_heavy_check_mark: [green]Registered[/green]")
+                            return True
+                        else:
+                            # neuron not found, try again
+                            commune.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
+                            continue
+            
+                    
+            if attempts < max_allowed_attempts:
+                #Failed registration, retry pow
+                attempts += 1
+                commune.print( ":satellite: Failed registration, retrying pow ...({}/{})".format(attempts, max_allowed_attempts))
+            else:
+                # Failed to register after max attempts.
+                commune.print( "[red]No more attempts.[/red]" )
+                return False 
+
+    ##################
+    #### Transfer ####
+    ##################
+    def transfer(
+        self,
+        dest: str, 
+        amount: Union[Balance, float], 
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
+        key: 'commune.Key' =  None,
+    ) -> bool:
+        key = self.resolve_key(key)
+
+
+        # Validate destination address.
+        if not is_valid_address_or_public_key( dest ):
+            commune.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
+            return False
+
+        if isinstance( dest, bytes):
+            # Convert bytes to hex string.
+            dest = "0x" + dest.hex()
+            
+        # Convert to Balance
+        if not isinstance(amount, Balance ):
+            transfer_balance = Balance.from_tao( amount )
+        else:
+            transfer_balance = amount
+
+        # Check balance.
+        with commune.status(":satellite: Checking Balance..."):
+            account_balance = self.get_balance( key.ss58_address )
+            # check existential deposit.
+            existential_deposit = self.get_existential_deposit()
+
+        with commune.status(":satellite: Transferring..."):
+            with self.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='Balances',
+                    call_function='transfer',
+                    call_params={
+                        'dest': dest, 
+                        'value': transfer_balance.rao
+                    }
+                )
+
+                try:
+                    payment_info = substrate.get_payment_info( call = call, keypair = key )
+                except Exception as e:
+                    commune.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
+                    payment_info = {
+                        'partialFee': 2e7, # assume  0.02 Tao 
+                    }
+
+                fee = Balance.from_rao( payment_info['partialFee'] )
+        
+        if not keep_alive:
+            # Check if the transfer should keep_alive the account
+            existential_deposit = Balance(0)
+
+        # Check if we have enough balance.
+        if account_balance < (transfer_balance + fee + existential_deposit):
+            commune.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
+            return False
+
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}:{}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, wallet.name, key.ss58_address, dest, fee )):
+                return False
+
+        with commune.status(":satellite: Transferring..."):
+            with self.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='Balances',
+                    call_function='transfer',
+                    call_params={
+                        'dest': dest, 
+                        'value': transfer_balance.rao
+                    }
+                )
+
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+
+                # Otherwise continue with finalization.
+                response.process_events()
+                if response.is_success:
+                    commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    block_hash = response.block_hash
+                    commune.print("[green]Block Hash: {}[/green]".format( block_hash ))
+                else:
+                    commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+
+        if response.is_success:
+            with .status(":satellite: Checking Balance..."):
+                new_balance = self.get_balance( key.ss58_address )
+                commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+                return True
+        
+        return False
+
+    def get_existential_deposit(
+        self,
+        block: Optional[int] = None,
+    ) -> Optional[Balance]:
+        """ Returns the existential deposit for the chain. """
+        result = self.query_constant(
+            module_name='Balances',
+            constant_name='ExistentialDeposit',
+            block = block,
+        )
+        
+        if result is None:
+            return None
+        
+        return Balance.from_rao(result.value)
+
+    #################
+    #### Serving ####
+    #################
+    def serve (
+        self,
+        ip: str, 
+        port: int, 
+        netuid: int = 0,
+        key: 'commune.Key' =  None,
+        wait_for_inclusion: bool = False,
+        wait_for_finalization = True,
+        prompt: bool = False,
+    ) -> bool:
+        r""" Subscribes an bittensor endpoint to the substensor chain.
+        Args:
+            wallet (bittensor.wallet):
+                bittensor wallet object.
+            ip (str):
+                endpoint host port i.e. 192.122.31.4
+            port (int):
+                endpoint port number i.e. 9221
+            protocol (int):
+                int representation of the protocol 
+            netuid (int):
+                network uid to serve on.
+            placeholder1 (int):
+                placeholder for future use.
+            placeholder2 (int):
+                placeholder for future use.
+            wait_for_inclusion (bool):
+                if set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                if set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
+        """
+        params = {
+            'ip': net.ip_to_int(ip),
+            'port': port,
+            'netuid': netuid,
+            'key': wallet.coldkeypub.ss58_address,
+        }
+
+        with commune.status(":satellite: Checking Axon..."):
+            neuron = self.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
+            neuron_up_to_date = not neuron.is_null and params == {
+                'ip': net.ip_to_int(neuron.axon_info.ip),
+                'port': neuron.axon_info.port,
+                'netuid': neuron.netuid,
+                'key': neuron.coldkey,
+            }
+
+        output = params.copy()
+        output['key'] = key.ss58_address
+
+        if neuron_up_to_date:
+            commune.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
+                                        f"[green not bold]- coldkey: [/green not bold][white not bold]{output['key']}[/white not bold] \n"
+                                        f"[green not bold]- Status: [/green not bold] |"
+                                        f"[green not bold] ip: [/green not bold][white not bold]{net.int_to_ip(output['ip'])}[/white not bold] |"
+                                        f"[green not bold] port: [/green not bold][white not bold]{output['port']}[/white not bold] | "
+                                        f"[green not bold] netuid: [/green not bold][white not bold]{output['netuid']}[/white not bold] |"
+            )
+
+
+            return True
+
+        if prompt:
+            output = params.copy()
+            output['key'] = key.ss58_address
+            if not Confirm.ask("Do you want to serve axon:\n  [bold white]{}[/bold white]".format(
+                json.dumps(output, indent=4, sort_keys=True)
+            )):
+                return False
+
+        with commune.status(":satellite: Serving axon on: [white]{}:{}[/white] ...".format(self.network, netuid)):
+            with self.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='SubspaceModule',
+                    call_function='serve_axon',
+                    call_params=params
+                )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
+                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                if wait_for_inclusion or wait_for_finalization:
+                    response.process_events()
+                    if response.is_success:
+                        commune.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]{}[/bold white]'.format(
+                            json.dumps(params, indent=4, sort_keys=True)
+                        ))
+                        return True
+                    else:
+                        commune.print(':cross_mark: [green]Failed to Serve axon[/green] error: {}'.format(response.error_message))
+                        return False
+                else:
+                    return True
+
+
+    def add_stake(
+            key_ss58: Optional[str] = None,
+            amount: Union[Balance, float] = None, 
+            key: 'commune.Key' = None,
+            wait_for_inclusion: bool = True,
+            wait_for_finalization: bool = False,
+            prompt: bool = False,
+        ) -> bool:
+        r""" Adds the specified amount of stake to passed hotkey uid.
+        Args:
+            wallet (commune.wallet):
+                Bittensor wallet object.
+            hotkey_ss58 (Optional[str]):
+                ss58 address of the hotkey account to stake to
+                defaults to the wallet's hotkey.
+            amount (Union[Balance, float]):
+                Amount to stake as commune balance, or float interpreted as Tao.
+            wait_for_inclusion (bool):
+                If set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                If set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
+
+        Raises:
+            NotRegisteredError:
+                If the wallet is not registered on the chain.
+            NotDelegateError:
+                If the hotkey is not a delegate on the chain.
+        """
+
+
+        # Flag to indicate if we are using the wallet's own hotkey.
+        old_balance = self.get_balance( key.ss58_address )
+        # Get current stake
+        old_stake = self.get_stake_for_key( key_ss58=key.ss58_address )
+
+        # Convert to commune.Balance
+        if amount == None:
+            # Stake it all.
+            staking_balance = Balance.from_tao( old_balance.tao )
+        elif not isinstance(amount, Balance ):
+            staking_balance = Balance.from_tao( amount )
+        else:
+            staking_balance = amount
+
+        # Remove existential balance to keep key alive.
+        if staking_balance > Balance.from_rao( 1000 ):
+            staking_balance = staking_balance - Balance.from_rao( 1000 )
+        else:
+            staking_balance = staking_balance
+
+        # Check enough to stake.
+        if staking_balance > old_balance:
+            commune.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, wallet.name))
+            return False
+                
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to stake:[bold white]\n  amount: {}\n  to: {}[/bold white]".format( staking_balance, key.ss58_address) ):
+                return False
+
+        try:
+            with commune.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+
+                with self.substrate as substrate:
+                    call = substrate.compose_call(
+                    call_module='SubspaceModule', 
+                    call_function='add_stake',
+                    call_params={
+                        'key': key.ss58_address,
+                        'amount_staked': amount.rao
+                        }
+                    )
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+
+
+            if response: # If we successfully staked.
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+
+                commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
+                    new_balance = self.get_balance( address = key.ss58_address )
+                    block = self.get_current_block()
+                    new_stake = self.get_stake_for_key(key_ss58=key.ss58_address,block=block) # Get current stake
+
+                    commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                    commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                    return True
+            else:
+                commune.print(":cross_mark: [red]Failed[/red]: Error unknown.")
+                return False
+
+        except NotRegisteredError as e:
+            commune.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
+            return False
+        except StakeError as e:
+            commune.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
+            return False
+
+
+
+
+
+    def unstake (
+            self,
+            amount: Union[Balance, float] = None, 
+            key: 'commune.Key' = None,
+            wait_for_inclusion:bool = True, 
+            wait_for_finalization:bool = False,
+            prompt: bool = False,
+        ) -> bool:
+        r""" Removes stake into the wallet coldkey from the specified hotkey uid.
+        Args:
+            wallet (commune.wallet):
+                commune wallet object.
+            key_ss58 (Optional[str]):
+                ss58 address of the hotkey to unstake from.
+                by default, the wallet hotkey is used.
+            amount (Union[Balance, float]):
+                Amount to stake as commune balance, or float interpreted as tao.
+            wait_for_inclusion (bool):
+                if set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                if set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
+        """
+        with commune.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
+            old_balance = self.get_balance( key.ss58_address )        
+            old_stake = self.get_stake_for_key( key_ss58 = key.ss58_address)
+
+        # Convert to commune.Balance
+        if amount == None:
+            # Unstake it all.
+            unstaking_balance = old_stake
+        elif not isinstance(amount, Balance ):
+            unstaking_balance = Balance.from_tao( amount )
+        else:
+            unstaking_balance = amount
+
+        # Check enough to unstake.
+        stake_on_uid = old_stake
+        if unstaking_balance > stake_on_uid:
+            commune.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from key: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.ss58_address))
+            return False
+        
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to unstake:\n[bold white]  amount: {} key: [white]{}[/bold white ]\n?".format( unstaking_balance, key.ss58_address) ):
+                return False
+
+        
+        try:
+            with commune.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
+
+
+                with self.substrate as substrate:
+                    call = substrate.compose_call(
+                    call_module='SubspaceModule', 
+                    call_function='remove_stake',
+                    call_params={
+                        'hotkey': key.ss58_address,
+                        'amount_unstaked': amount.rao
+                        }
+                    )
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                    # We only wait here if we expect finalization.
+                    if not wait_for_finalization and not wait_for_inclusion:
+                        return True
+
+                    response.process_events()
+
+
+            if response: # If we successfully unstaked.
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+
+                commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
+                    new_balance = self.get_balance( address = key.ss58_address )
+                    new_stake = self.get_stake_for_key( key_ss58 = key.ss58_address ) # Get stake on hotkey.
+                    commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                    commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                    return True
+            else:
+                commune.print(":cross_mark: [red]Failed[/red]: Error unknown.")
+                return False
+
+        except NotRegisteredError as e:
+            commune.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
+            return False
+        except StakeError as e:
+            commune.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
+            return False
+
+    ########################
+    #### Standard Calls ####
+    ########################
+
+    """ Queries subspace named storage with params and block. """
+    def query_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [] ) -> Optional[object]:
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                return substrate.query(
+                    module='SubspaceModule',
+                    storage_function = name,
+                    params = params,
+                    block_hash = None if block == None else substrate.get_block_hash(block)
+                )
+        return make_substrate_call_with_retry()
+
+    """ Queries subspace map storage with params and block. """
+    def query_map_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [] ) -> Optional[object]:
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                return substrate.query_map(
+                    module='SubspaceModule',
+                    storage_function = name,
+                    params = params,
+                    block_hash = None if block == None else substrate.get_block_hash(block)
+                )
+        return make_substrate_call_with_retry()
+    
+    """ Gets a constant from subspace with module_name, constant_name, and block. """
+    def query_constant( self, module_name: str, constant_name: str, block: Optional[int] = None ) -> Optional[object]:
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                return substrate.get_constant(
+                    module_name=module_name,
+                    constant_name=constant_name,
+                    block_hash = None if block == None else substrate.get_block_hash(block)
+                )
+        return make_substrate_call_with_retry()
+      
+    #####################################
+    #### Hyper parameter calls. ####
+    #####################################
+
+    """ Returns network Rho hyper parameter """
+    def rho (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace( "Rho", block, [netuid] ).value
+
+    """ Returns network Kappa hyper parameter """
+    def kappa (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        if not self.subnet_exists( netuid ): return None
+        return U16_NORMALIZED_FLOAT( self.query_subspace( "Kappa", block, [netuid] ).value )
+
+    """ Returns network Difficulty hyper parameter """
+    def difficulty (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace( "Difficulty", block, [netuid] ).value
+    
+    """ Returns network Burn hyper parameter """
+    def burn (self, netuid: int, block: Optional[int] = None ) -> Optional[Balance]:
+        if not self.subnet_exists( netuid ): return None
+        return Balance.from_rao( self.query_subspace( "Burn", block, [netuid] ).value )
+
+    """ Returns network ImmunityPeriod hyper parameter """
+    def immunity_period (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("ImmunityPeriod", block, [netuid] ).value
+
+    """ Returns network ValidatorBatchSize hyper parameter """
+    def validator_batch_size (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("ValidatorBatchSize", block, [netuid] ).value
+
+    """ Returns network ValidatorPruneLen hyper parameter """
+    def validator_prune_len (self, netuid: int, block: Optional[int] = None ) -> int:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("ValidatorPruneLen", block, [netuid] ).value
+
+    """ Returns network ValidatorLogitsDivergence hyper parameter """
+    def validator_logits_divergence (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        if not self.subnet_exists( netuid ): return None
+        return U16_NORMALIZED_FLOAT(self.query_subspace("ValidatorLogitsDivergence", block, [netuid]).value)
+
+    """ Returns network ValidatorSequenceLength hyper parameter """
+    def validator_sequence_length (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("ValidatorSequenceLength", block, [netuid] ).value
+
+    """ Returns network ValidatorEpochsPerReset hyper parameter """
+    def validator_epochs_per_reset (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("ValidatorEpochsPerReset", block, [netuid] ).value
+
+    """ Returns network ValidatorEpochLen hyper parameter """
+    def validator_epoch_length (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("ValidatorEpochLen", block, [netuid] ).value
+
+    """ Returns network ValidatorEpochLen hyper parameter """
+    def validator_exclude_quantile (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        if not self.subnet_exists( netuid ): return None
+        return U16_NORMALIZED_FLOAT( self.query_subspace("ValidatorExcludeQuantile", block, [netuid] ).value )
+
+    """ Returns network MaxAllowedValidators hyper parameter """
+    def max_allowed_validators(self, netuid: int, block: Optional[int] = None) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace( 'MaxAllowedValidators', block, [netuid] ).value
+        
+    """ Returns network MinAllowedWeights hyper parameter """
+    def min_allowed_weights (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace("MinAllowedWeights", block, [netuid] ).value
+
+    """ Returns network MaxWeightsLimit hyper parameter """
+    def max_weight_limit (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        if not self.subnet_exists( netuid ): return None
+        return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
+
+    """ Returns network ScalingLawPower hyper parameter """
+    def scaling_law_power (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace('ScalingLawPower', block, [netuid] ).value / 100.
+
+    """ Returns network SynergyScalingLawPower hyper parameter """
+    def synergy_scaling_law_power (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace('SynergyScalingLawPower', block, [netuid] ).value / 100.
+
+    """ Returns network SubnetworkN hyper parameter """
+    def subnetwork_n (self, netuid: int, block: Optional[int] = None ) -> int:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace('SubnetworkN', block, [netuid] ).value
+
+    """ Returns network MaxAllowedUids hyper parameter """
+    def max_n (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace('MaxAllowedUids', block, [netuid] ).value
+
+    """ Returns network BlocksSinceLastStep hyper parameter """
+    def blocks_since_epoch (self, netuid: int, block: Optional[int] = None) -> int:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace('BlocksSinceLastStep', block, [netuid] ).value
+
+    """ Returns network Tempo hyper parameter """
+    def tempo (self, netuid: int, block: Optional[int] = None) -> int:
+        if not self.subnet_exists( netuid ): return None
+        return self.query_subspace('Tempo', block, [netuid] ).value
+
+    ##########################
+    #### Account functions ###
+    ##########################
+
+    """ Returns the total stake held on a coldkey across all hotkeys including delegates"""
+    def get_total_stake_for_key( self, ss58_address: str, block: Optional[int] = None ) -> Optional['Balance']:
+        return Balance.from_rao( self.query_subspace( 'TotalKeyStake', block, [ss58_address] ).value )
+
+    """ Returns the stake under a coldkey - hotkey pairing """
+    def get_stake_for_key( self, key_ss58: str, block: Optional[int] = None ) -> Optional['Balance']:
+        return Balance.from_rao( self.query_subspace( 'Stake', block, [key_ss58] ).value )
+
+    """ Returns a list of stake tuples (coldkey, balance) for each delegating coldkey including the owner"""
+    def get_stake( self,  key_ss58: str, block: Optional[int] = None ) -> List[Tuple[str,'Balance']]:
+        return [ (r[0].value, Balance.from_rao( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
+
+    """ Returns the axon information for this key account """
+    def get_axon_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
+        result = self.query_subspace( 'Axons', block, [key_ss58 ] )        
+        if result != None:
+            return AxonInfo(
+                ip = commune.utils.networking.ip_from_int( result.value.ip ),
+                port = result.value.port,
+            )
+        else:
+            return None
+
+
+    ###########################
+    #### Global Parameters ####
+    ###########################
+
+    @property
+    def block (self) -> int:
+        r""" Returns current chain block.
+        Returns:
+            block (int):
+                Current chain block.
+        """
+        return self.get_current_block()
+
+    def total_issuance (self, block: Optional[int] = None ) -> 'Balance':
+        return Balance.from_rao( self.query_subspace( 'TotalIssuance', block ).value )
+
+    def total_stake (self,block: Optional[int] = None ) -> 'Balance':
+        return Balance.from_rao( self.query_subspace( "TotalStake", block ).value )
+
+    def serving_rate_limit (self, block: Optional[int] = None ) -> Optional[int]:
+        return self.query_subspace( "ServingRateLimit", block ).value
+
+    #####################################
+    #### Network Parameters ####
+    #####################################
+
+    def subnet_exists( self, netuid: int, block: Optional[int] = None ) -> bool:
+        return self.query_subspace( 'NetworksAdded', block, [netuid] ).value  
+
+    def get_all_subnet_netuids( self, block: Optional[int] = None ) -> List[int]:
+        subnet_netuids = []
+        result = self.query_map_subspace( 'NetworksAdded', block )
+        if result.records:
+            for netuid, exists in result:  
+                if exists:
+                    subnet_netuids.append( netuid.value )
+            
+        return subnet_netuids
+
+    def get_total_subnets( self, block: Optional[int] = None ) -> int:
+        return self.query_subspace( 'TotalNetworks', block ).value      
+
+    def get_subnet_modality( self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        return self.query_subspace( 'NetworkModality', block, [netuid] ).value   
+
+    def get_subnet_connection_requirement( self, netuid_0: int, netuid_1: int, block: Optional[int] = None) -> Optional[int]:
+        return self.query_subspace( 'NetworkConnect', block, [netuid_0, netuid_1] ).value
+
+    def get_emission_value_by_subnet( self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+        return Balance.from_rao( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
+
+    def get_subnet_connection_requirements( self, netuid: int, block: Optional[int] = None) -> Dict[str, int]:
+        result = self.query_map_subspace( 'NetworkConnect', block, [netuid] )
+        if result.records:
+            requirements = {}
+            for tuple in result.records:
+                requirements[str(tuple[0].value)] = tuple[1].value
+        else:
+            return {}
+
+    def get_subnets( self, block: Optional[int] = None ) -> List[int]:
+        subnets = []
+        result = self.query_map_subspace( 'NetworksAdded', block )
+        if result.records:
+            for network in result.records:
+                subnets.append( network[0].value )
+            return subnets
+        else:
+            return []
+
+    def get_all_subnets_info( self, block: Optional[int] = None ) -> List[SubnetInfo]:
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                block_hash = None if block == None else substrate.get_block_hash( block )
+                params = []
+                if block_hash:
+                    params = params + [block_hash]
+                return substrate.rpc_request(
+                    method="subnetInfo_getSubnetsInfo", # custom rpc method
+                    params=params
+                )
+        
+        json_body = make_substrate_call_with_retry()
+        result = json_body['result']
+
+        if result in (None, []):
+            return []
+        
+        return SubnetInfo.list_from_vec_u8( result )
+
+    def get_subnet_info( self, netuid: int, block: Optional[int] = None ) -> Optional[SubnetInfo]:
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                block_hash = None if block == None else substrate.get_block_hash( block )
+                params = [netuid]
+                if block_hash:
+                    params = params + [block_hash]
+                return substrate.rpc_request(
+                    method="subnetInfo_getSubnetInfo", # custom rpc method
+                    params=params
+                )
+        
+        json_body = make_substrate_call_with_retry()
+        result = json_body['result']
+
+        if result in (None, []):
+            return None
+        
+        return SubnetInfo.from_vec_u8( result )
+
+
+    ########################################
+    #### Neuron information per subnet ####
+    ########################################
+
+    def is_key_registered_any( self, key: str = None, block: Optional[int] = None) -> bool:
+        key = self.resolve_key( key )
+        return len( self.get_netuids_for_key( key.ss58_address, block) ) > 0
+    
+    def is_key_registered_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> bool:
+        return self.get_uid_for_key_on_subnet( key_ss58, netuid, block ) != None
+
+    def is_key_registered( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> bool:
+        return self.get_uid_for_key_on_subnet( key_ss58, netuid, block ) != None
+
+    def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
+        return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
+
+    def get_all_uids_for_key( self, key_ss58: str, block: Optional[int] = None) -> List[int]:
+        return [ self.get_uid_for_key_on_subnet( key_ss58, netuid, block) for netuid in self.get_netuids_for_key( key_ss58, block)]
+
+    def get_netuids_for_key( self, key_ss58: str, block: Optional[int] = None) -> List[int]:
+        result = self.query_map_subspace( 'IsNetworkMember', block, [ key_ss58 ] )   
+        netuids = []
+        for netuid, is_member in result.records:
+            if is_member:
+                netuids.append( netuid.value )
+        return netuids
+
+    def get_neuron_for_pubkey_and_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None ) -> Optional[NeuronInfo]:
+        return self.neuron_for_uid( self.get_uid_for_key_on_subnet(key_ss58, netuid, block=block), netuid, block = block)
+
+    def get_all_neurons_for_key( self, key_ss58: str, block: Optional[int] = None ) -> List[NeuronInfo]:
+        netuids = self.get_netuids_for_key( key_ss58, block) 
+        uids = [self.get_uid_for_key_on_subnet(key_ss58, net) for net in netuids] 
+        return [self.neuron_for_uid( uid, net ) for uid, net in list(zip(uids, netuids))]
+
+    def neuron_has_validator_permit( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[bool]:
+        return self.query_subspace( 'ValidatorPermit', block, [ netuid, uid ] ).value
+
+    def neuron_for_wallet( self, key: 'commune.Key', netuid = int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
+        return self.get_neuron_for_pubkey_and_subnet ( key.ss58_address, netuid = netuid, block = block )
+
+    def neuron_for_uid( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
+        r""" Returns a list of neuron from the chain. 
+        Args:
+            uid ( int ):
+                The uid of the neuron to query for.
+            netuid ( int ):
+                The uid of the network to query for.
+            block ( int ):
+                The neuron at a particular block
+        Returns:
+            neuron (Optional[NeuronInfo]):
+                neuron metadata associated with uid or None if it does not exist.
+        """
+        if uid == None: return NeuronInfo._null_neuron()
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                block_hash = None if block == None else substrate.get_block_hash( block )
+                params = [netuid, uid]
+                if block_hash:
+                    params = params + [block_hash]
+                return substrate.rpc_request(
+                    method="neuronInfo_getNeuron", # custom rpc method
+                    params=params
+                )
+        json_body = make_substrate_call_with_retry()
+        result = json_body['result']
+
+        if result in (None, []):
+            return NeuronInfo._null_neuron()
+        
+        return NeuronInfo.from_vec_u8( result ) 
+
+    def neurons(self, netuid: int =0 , block: Optional[int] = None ) -> List[NeuronInfo]: 
+        r""" Returns a list of neuron from the chain. 
+        Args:
+            netuid ( int ):
+                The netuid of the subnet to pull neurons from.
+            block ( Optional[int] ):
+                block to sync from.
+        Returns:
+            neuron (List[NeuronInfo]):
+                List of neuron metadata objects.
+        """
+        @retry(delay=2, tries=3, backoff=2, max_delay=4)
+        def make_substrate_call_with_retry():
+            with self.substrate as substrate:
+                block_hash = None if block == None else substrate.get_block_hash( block )
+                params = [netuid]
+                if block_hash:
+                    params = params + [block_hash]
+                return substrate.rpc_request(
+                    method="neuronInfo_getNeurons", # custom rpc method
+                    params=params
+                )
+        
+        json_body = make_substrate_call_with_retry()
+        result = json_body['result']
+
+        if result in (None, []):
+            return []
+        
+        return NeuronInfo.list_from_vec_u8( result )
+
+
+    
+
+    ################
+    #### Legacy ####
+    ################
 
     def get_balance(self, address: str, block: int = None) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
@@ -939,7 +1269,7 @@ class Subspace(commune.Module):
             address (Substrate address format, default = 42):
                 ss58 chain address.
         Return:
-            balance (commune.utils.balance.Balance):
+            balance (bittensor.utils.balance.Balance):
                 account balance
         """
         try:
@@ -986,216 +1316,21 @@ class Subspace(commune.Module):
             return_dict[r[0].value] = bal
         return return_dict
 
-    def modules(self, block: int = None ) -> List[SimpleNamespace]: 
-        r""" Returns a list of module from the chain. 
-        Args:
-            block (int):
-                block to sync from.
-        Returns:
-            module (List[SimpleNamespace]):
-                List of module objects.
-        """
-        modules = []
-        for id in tqdm(range(self.get_n( block ))): 
-            try:
-                module = self.module_for_uid(id, block)
-                modules.append( module )
-            except Exception as e:
-                logger.error('Exception encountered when pulling module {}: {}'.format(id, e))
-                break
-        return modules
-
     @staticmethod
-    def _null_module() -> SimpleNamespace:
-        module = SimpleNamespace()
-        module.active = 0   
-        module.stake = 0
-        module.incentive = 0
-        module.dividends = 0
-        module.emission = 0
-        module.weights = []
-        module.bonds = []
-        module.uid = 0
-        module.last_update = 0
-        module.ip = 0
-        module.port = 0
-        module.key = "000000000000000000000000000000000000000000000000"
-        return module
-
-    @staticmethod
-    def _module_dict_to_namespace(module_dict) -> SimpleNamespace:
-
-        U64MAX = 18446744073709551615
-        module = SimpleNamespace( **module_dict )
-        module.rank = module.rank / U64MAX
-        module.incentive = module.incentive / U64MAX
-        module.dividends = module.dividends / U64MAX
-        module.is_null = False
-        return module
-
-    def module_for_uid( self, uid: int, block: int = None ) -> Union[ dict, None ]: 
-        r""" Returns a list of module from the chain. 
-        Args:
-            uid ( int ):
-                The uid of the module to query for.
-            block ( int ):
-                The module at a particular block
-        Returns:
-            module (dict(moduleMetadata)):
-                module object associated with uid or None if it does not exist.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                result = dict( substrate.query( 
-                    module='SubspaceModule',  
-                    storage_function='Modules', 
-                    params = [ uid ], 
-                    block_hash = None if block == None else substrate.get_block_hash( block )
-                ).value )
-            return result
-        result = make_substrate_call_with_retry()
-        module = Subspace._module_dict_to_namespace( result )
-        return module
-
-    def get_uid_for_key( self, ss58_key: str, block: int = None) -> int:
-        r""" Returns true if the passed is registered on the chain.
-        Args:
-            ss58_hotkey ( str ):
-                The hotkey to query for a module.
-        Returns:
-            uid ( int ):
-                UID of passed hotkey or -1 if it is non-existent.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query (
-                    module='SubspaceModule',
-                    storage_function='Keys',
-                    params = [ ss58_key ],
-                    block_hash = None if block == None else substrate.get_block_hash( block )
-                )
-        result = make_substrate_call_with_retry()
-        # Process the result.
-        uid = int(result.value)
-        
-        module = self.module_for_uid( uid, block )
-        if module.key != ss58_key:
-            return -1
-        else:
-            return uid
-
-
-    def is_key_registered( self, ss58_key: str, block: int = None) -> bool:
-        r""" Returns true if the passed hotkey is registered on the chain.
-        Args:
-            ss58_hotkey ( str ):
-                The hotkey to query for a module.
-        Returns:
-            is_registered ( bool):
-                True if the passed hotkey is registered on the chain.
-        """
-        uid = self.get_uid_for_key( ss58_key = ss58_key, block = block)
-        if uid == -1:
-            return False
-        else:
-            return True
-
-    def module_for_pubkey( self, ss58_key: str, block: int = None ) -> SimpleNamespace: 
-        r""" Returns a list of module from the chain. 
-        Args:
-            ss58_hotkey ( str ):
-                The hotkey to query for a module.
-
-        Returns:
-            module ( dict(moduleMetadata) ):
-                module object associated with uid or None if it does not exist.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query (
-                    module='SubspaceModule',
-                    storage_function='Keys',
-                    params = [ ss58_key ],
-                    block_hash = None if block == None else substrate.get_block_hash( block )
-                )
-        result = make_substrate_call_with_retry()
-        # Get response uid. This will be zero if it doesn't exist.
-        uid = int(result.value)
-
-        st.write(uid)
-        module = self.module_for_uid( uid, block )
-        if module.key != ss58_key:
-            return Subspace._null_module()
-        else:
-            return module
-
-    def get_n( self, block: int = None ) -> int: 
-        r""" Returns the number of modules on the chain at block.
-        Args:
-            block ( int ):
-                The block number to get the module count from.
-
-        Returns:
-            n ( int ):
-                the number of modules subscribed to the chain.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return int(substrate.query(  module='SubspaceModule', storage_function = 'N', block_hash = None if block == None else substrate.get_block_hash( block ) ).value)
-        return make_substrate_call_with_retry()
-
-    def module_for_key( self, key: 'commune.Wallet', block: int = None ) -> SimpleNamespace: 
-        r""" Returns a list of module from the chain. 
-        Args:
-            key ( `commune.Wallet` ):
-                Checks to ensure that the passed key is subscribed.
-        Returns:
-            module ( dict(moduleMetadata) ):
-                module object associated with uid or None if it does not exist.
-        """
-        return self.module_for_pubkey ( key.ss58_address, block = block )
-
-
-    @classmethod
-    def get_test_keys(cls, uri_list = ['Alice', 'Bob', 'Chris']):
-        test_keys = {}
-        for uri in uri_list:
-            key = Keypair.create_from_uri('/'+uri)
-            test_keys[uri.lower()] = key
-            
-            
-        return test_keys
-        
-
-    @classmethod
-    def test_transfer(cls):
-        self = cls()
-        from substrateinterface import Keypair
-        keys = cls.get_test_keys()
-        
-        commune.log(self.get_balance(keys['alice'].ss58_address))
-        commune.log(keys['bob'].ss58_address)
-        commune.log(self.transfer(key=keys['alice'],  dest=keys['bob'], amount=10000))
-            
-    @classmethod
-    def sandbox(cls):
-        import streamlit as st
-        self = Subspace()
-        from substrateinterface import Keypair
-        keys = cls.get_test_keys()
-        
-        st.write(self.get_balance(keys['alice'].ss58_address))
-
-        st.write(keys['bob'].ss58_address)
-        st.write(self.transfer(key=keys['alice'],  dest=keys['bob'], amount=10000))
-            
-
-
-if __name__ == "__main__":
-    
-    Subspace.sandbox()
-    
+    def _null_neuron() -> NeuronInfo:
+        neuron = NeuronInfo(
+            uid = 0,
+            netuid = 0,
+            active =  0,
+            stake = '0',
+            rank = 0,
+            emission = 0,
+            incentive = 0,
+            dividends = 0,
+            last_update = 0,
+            weights = [],
+            bonds = [],
+            is_null = True,
+            key = "000000000000000000000000000000000000000000000000",
+        )
+        return neuron
