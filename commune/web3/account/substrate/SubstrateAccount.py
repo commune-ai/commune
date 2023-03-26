@@ -530,8 +530,8 @@ class SubstrateAccount(commune.Module):
         return json_data
 
     def sign(self, data: Union[ScaleBytes, bytes, str],
-             return_dict:bool = True, 
-             return_string: bool = True) -> bytes:
+             return_dict:bool = False, 
+             return_string: bool = False) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -741,7 +741,10 @@ class SubstrateAccount(commune.Module):
 
     def set_password(self, password: str = None) -> 'AESKey':
         if password == None:
-            if  self.private_key != None:
+            if hasattr(self, 'password'):
+                password = self.password
+            
+            elif  self.private_key != None:
                 if type(self.private_key) is str:
                     self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
                 password = self.private_key.hex()
@@ -753,7 +756,7 @@ class SubstrateAccount(commune.Module):
                 raise ValueError("No password or private/public key provided")
             
         self.password = password
-        aes_seed = self.hash(self.password)
+        self.aes_seed = self.hash(self.password)
         
         # get the AES key module and create an instance for encryption
         aes_key = commune.get_module('crypto.key.aes')

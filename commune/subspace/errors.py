@@ -73,3 +73,8 @@ class NotDelegateError(StakeError):
     r""" Error raised when a hotkey you are trying to stake to is not a delegate.
     """
     pass
+
+class SubspaceError(BaseException):
+    r""" Base error for any subspace related errors.
+    """
+    pass

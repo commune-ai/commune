@@ -7,10 +7,11 @@ import requests
 import torch
 from substrateinterface import Keypair
 from substrateinterface.utils import ss58
+from typing import List, Dict, Union, Optional, Tuple
 
 U16_MAX = 65535 # 2**16 - 1
 U64_MAX = 18446744073709551615 # 2**64 - 1
-
+NANOPERTOKEN = 1e9
 
 def strtobool(val: str) -> bool:
     """
