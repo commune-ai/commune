@@ -78,10 +78,10 @@ class ChainDataType(Enum):
     NeuronInfo = 1
     SubnetInfo = 2
 # Constants
-RAOPERTAO = 1e9
+NANOPERTOKEN = 1e9
 U16_MAX = 65535
 U64_MAX = 18446744073709551615
-
+U128_MAX = 340282366920938463463374607431768211455
 def from_scale_encoding( vec_u8: List[int], type_name: ChainDataType, is_vec: bool = False, is_option: bool = False ) -> Optional[Dict]:
     as_bytes = bytes(vec_u8)
     as_scale_bytes = ScaleBytes(as_bytes)
@@ -90,9 +90,7 @@ def from_scale_encoding( vec_u8: List[int], type_name: ChainDataType, is_vec: bo
     rpc_runtime_config.update_type_registry(custom_rpc_type_registry)
 
     type_string = type_name.name
-    if type_name == ChainDataType.DelegatedInfo:
-        # DelegatedInfo is a tuple of (DelegateInfo, Compact<u64>)
-        type_string = f'({ChainDataType.DelegateInfo.name}, Compact<u64>)'
+
     if is_option:
         type_string = f'Option<{type_string}>'
     if is_vec:
@@ -132,14 +130,14 @@ class NeuronInfo:
     def fix_decoded_values(cls, neuron_info_decoded: Any) -> 'NeuronInfo':
         r""" Fixes the values of the NeuronInfo object.
         """
-        neuron_info_decoded['key'] = ss58_encode(neuron_info_decoded['hotkey'], bittensor.__ss58_format__)
-        neuron_info_decoded['stake'] = { ss58_encode( coldkey, commune.__ss58_format__): commune.subspace.Balance.from_rao(int(stake)) for coldkey, stake in neuron_info_decoded['stake'] }
+        neuron_info_decoded['key'] = ss58_encode(neuron_info_decoded['hotkey'], commune.subspace.__ss58_format__)
+        neuron_info_decoded['stake'] = { ss58_encode( coldkey, commune.__ss58_format__): commune.subspace.Balance.from_nano(int(stake)) for coldkey, stake in neuron_info_decoded['stake'] }
         neuron_info_decoded['total_stake'] = sum(neuron_info_decoded['stake'].values())
         neuron_info_decoded['weights'] = [[int(weight[0]), int(weight[1])] for weight in neuron_info_decoded['weights']]
         neuron_info_decoded['bonds'] = [[int(bond[0]), int(bond[1])] for bond in neuron_info_decoded['bonds']]
         neuron_info_decoded['rank'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['rank'])
-        neuron_info_decoded['emission'] = neuron_info_decoded['emission'] / RAOPERTAO
-        neuron_info_decoded['incentive'] = commune.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['incentive'])
+        neuron_info_decoded['emission'] = neuron_info_decoded['emission'] / NANOPERTOKEN
+        neuron_info_decoded['incentive'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['incentive'])
         neuron_info_decoded['dividends'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['dividends'])
         neuron_info_decoded['axon_info'] = AxonInfo.fix_decoded_values(neuron_info_decoded['axon_info'])
 
@@ -180,19 +178,14 @@ class NeuronInfo:
             netuid = 0,
             active =  0,
             stake = {},
-            total_stake = Balance.from_rao(0),
+            total_stake = Balance.from_nano(0),
             rank = 0,
             emission = 0,
             incentive = 0,
-            consensus = 0,
-            trust = 0,
-            validator_trust = 0,
             dividends = 0,
             last_update = 0,
-            validator_permit = False,
             weights = [],
             bonds = [],
-            prometheus_info = None,
             axon_info = None,
             is_null = True,
             key = "000000000000000000000000000000000000000000000000",
@@ -203,12 +196,12 @@ class NeuronInfo:
     @staticmethod
     def _neuron_dict_to_namespace(neuron_dict) -> 'NeuronInfo':
         neuron = NeuronInfo( **neuron_dict )
-        neuron.stake = { k: Balance.from_rao(stake) for k, stake in neuron.stake.items() }
-        neuron.total_stake = Balance.from_rao(neuron.total_stake)
+        neuron.stake = { k: Balance.from_nano(stake) for k, stake in neuron.stake.items() }
+        neuron.total_stake = Balance.from_nano(neuron.total_stake)
         neuron.rank = neuron.rank / U16_MAX
         neuron.incentive = neuron.incentive / U16_MAX
         neuron.dividends = neuron.dividends / U16_MAX
-        neuron.emission = neuron.emission / RAOPERTAO   
+        neuron.emission = neuron.emission / NANOPERTOKEN   
         return neuron
         
 @dataclass

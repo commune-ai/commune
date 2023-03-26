@@ -43,7 +43,6 @@ class Server(ServerServicer, Serializer):
             replace_port: bool = False,
             max_workers: Optional[int] = None, 
             maximum_concurrent_rpcs: Optional[int] = None,
-            blacklist: Optional['Callable'] = None,
             thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
             compression:Optional[str] = None,
@@ -51,6 +50,8 @@ class Server(ServerServicer, Serializer):
             config: Optional['commune.config'] = None,
             verbose: bool = True,
             whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map', 'getattr', 'servers', 'external_ip', 'pm2_status', 'peer_registry'],
+            blacklist_functions: Optional['Callable'] = [],
+
 
         ) -> 'Server':
         r""" Creates a new commune.Server object from passed arguments.
@@ -109,6 +110,7 @@ class Server(ServerServicer, Serializer):
         
         # set the whitelist functions
         self.whitelist_functions = whitelist_functions + self.module.functions()
+        self.blacklist_functions = blacklist_functions
     def add_whitelist_functions(self, functions: List[str]):
         self.whitelist_functions += functions
     def add_blacklist_functions(self, functions: List[str]):
@@ -205,31 +207,39 @@ class Server(ServerServicer, Serializer):
             total_bytes = 0,
             time = {}
         )
+        
+    def resolve_authentication(self, data: dict = None, metadata: dict = None):
+        if 'auth' in data:
+            if hasattr(self.module, 'authenticate'):
+                # authenticate the user
+                self.module.authenticate(auth=data['auth'])
+            else:
+                pass
          
-    def __call__(self, data:dict = None, metadata:dict = None):
+    def __call__(self,
+                 data:dict = None, 
+                 metadata:dict = None,
+                 verbose: bool = True,):
         data = data if data else {}
         metadata = metadata if metadata else {}
         output_data = {}
-
+        
+        self.resolve_authentication(data=data, metadata=metadata)
+        
+        t = commune.timer()
+        
         try:
-            if 'fn' in data:
-                fn_kwargs = data.get('kwargs', {})
-                fn_args = data.get('args', [])
-                
-                
-                
-                assert data['fn'] in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
-                
-                commune.print('Calling Function: '+data['fn'], color='cyan')
+            fn = data['fn']
+            fn_kwargs = data.get('kwargs', {})
+            fn_args = data.get('args', [])
             
-                output_data = getattr(self.module, data['fn'])(*fn_args,**fn_kwargs)
-            else:
-                if hasattr(self.module, 'forward'):
-                    data = self.module.forward(**data)
-                elif hasattr(self.module, '__call__'):
-                    data = self.module.__call__(**data)
-                else:
-                    raise Exception('module should have forward or __call__ for its default response')
+            assert fn in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
+            assert fn not in self.blacklist_functions, f'Function {data["fn"]} in blacklist'
+            
+            if verbose:
+                commune.print('Calling Function: '+fn, color='cyan')
+            output_data = getattr(self.module, fn)(*fn_args,**fn_kwargs)
+
         except RuntimeError as ex:
             commune.print(f'Exception in server: {ex}', 'red')
             if "There is no current event loop in thread" in str(ex):
@@ -241,16 +251,35 @@ class Server(ServerServicer, Serializer):
         except Exception as ex:
             commune.print(f'Exception in server: {ex}', 'red')
         
-        # calculate states
-        self.stats['call_count'] += 1
-        # self.stats['in_bytes'] += sys.getsizeof(data)
-        # self.stats['out_bytes'] += sys.getsizeof(output_data)
-        # self.stats['in_bytes_per_call'] = self.stats['in_bytes']/(self.stats['call_count'] + 1e-10)
-        # self.stats['out_bytes_per_call'] = self.stats['out_bytes']/(self.stats['call_count']+ 1e-10)
+        sample_info ={
+            'seconds': t.seconds,
+            'in_bytes': sys.getsizeof(data),
+            'out_bytes': sys.getsizeof(output_data),
+            'auth': data.get('auth', None),
+            'fn': fn,
+            'timestamp': commune.time()
+            }
         
         
-        return {'data': {'result': output_data}, 'metadata': metadata}
+
+        return {'data': {'result': output_data, 'info': sample_info }, 'metadata': metadata}
     
+
+    def log_sample(sample_info: dict, max_history: int = None) -> None:
+        
+            max_history = max_history if max_history else 100
+            if not hasattr(self, 'sample_info_history'):
+                self.sample_info_history = []
+            
+            self.sample_info_history.append(sample_info)
+            if len(sample_info_history) > max_history:
+                self.sample_info_history.pop(0)
+            # calculate states
+            self.stats['count'] += 1
+            for k,v in sample_info.items():
+                if type(v) in [int, float]:
+                    prev_v = self.stats.get(k, 0)
+                    self.stats[k] = (v + prev_v*(self.stats['count'] - 1)) / self.stats['call_count']
 
     def Forward(self, request: DataBlock, context: grpc.ServicerContext) -> DataBlock:
         r""" The function called by remote GRPC Forward requests. The Datablock is a generic formatter.
