@@ -33,7 +33,6 @@ from commune.subspace.errors import ChainConnectionError, ChainTransactionError,
 # Logging
 from loguru import logger
 logger = logger.opt(colors=True)
-import commune
 class Subspace(commune.Module):
     """
     Handles interactions with the subspace chain.
@@ -485,7 +484,7 @@ class Subspace(commune.Module):
 
         # Ask before moving on.
         if prompt:
-            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}:{}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, wallet.name, key.ss58_address, dest, fee )):
+            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, key.ss58_address, dest, fee )):
                 return False
 
         with commune.status(":satellite: Transferring..."):
@@ -516,7 +515,7 @@ class Subspace(commune.Module):
                     commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
         if response.is_success:
-            with .status(":satellite: Checking Balance..."):
+            with commune.status(":satellite: Checking Balance..."):
                 new_balance = self.get_balance( key.ss58_address )
                 commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
                 return True
