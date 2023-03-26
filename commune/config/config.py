@@ -15,7 +15,16 @@ class Config ( Munch ):
     """
     root = '/'.join(__file__.split('/')[:-2]) # get root from __file__ == {root}/config/config_module.py
 
-    def __init__(self, config: Union[str, Dict, Munch]={}, *args, **kwargs,   ):
+    def __init__(self, config: Union[str, Dict, Munch]=None, *args, **kwargs,   ):
+        """
+        Args:
+            config (Union[str, Dict, Munch]):
+                - str: path to config file or directory of config files
+        
+        """
+
+            
+        config = config if config else {}
 
         if isinstance(config, str) :
             
@@ -306,19 +315,3 @@ class Config ( Munch ):
         return config
     
 
-
-
-if __name__== "__main__":
-    pass
-
-
-if __name__== "__main__":
-    pass
-
-    # def get_base_config(self, config,  key_path, local_key_path=[]):
-    #     if isinstance(config, str):
-    #         config_path = re.compile('^(get_base_config)\((.+)\)').search(input)
-
-    #         # if there are any matches ()
-    #         if config_path:
-    #             config_path = config_path.group(2)

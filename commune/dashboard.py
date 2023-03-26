@@ -123,13 +123,21 @@ class Dashboard:
                 peer = peer_info[i]
                 with st.expander(f'{peer_name}', False):
                     st.write(peer)
-
-                    kill_button = st.button(f'Kill {peer_name}')
-                    if kill_button:
-                        commune.kill_server(peer_name, mode='pm2')
-                        st.experimental_rerun()
-                        self.load_state()
-    
+                    cols = st.columns([4,3])
+                    
+                    with cols[0]:
+                        kill_button = st.button(f'Kill {peer_name}')
+                        if kill_button:
+                            commune.kill_server(peer_name, mode='pm2')
+                            st.experimental_rerun()
+                            self.load_state()
+                    with cols[1]:
+                        refresh_button = st.button(f'Refresh {peer_name}')
+                        if refresh_button:
+                            commune.restart(peer_name, mode='pm2')
+                            st.experimental_rerun()
+                            self.load_state()
+        
                 
 
         peer_info_map = {}
@@ -219,25 +227,15 @@ class Dashboard:
             commune.launch(**launch_kwargs)
         
     def streamlit_playground(self):
-        
-        # st.write('fam')
-        
-        # dataset = commune.connect('dataset')
-        
-        # model = commune.connect('model')
-        # sample = dataset.sample(sequence_length=10, tokenize=True)
-        # st.write(sample['input_ids'].shape)
-        # # model.set_device('cpu')
-        # st.write(model.forward(**sample, return_keys=['topk']))
-        
+        class bro:
+            def __init__(self, a, b):
+                self.a = a
+                self.b = b
+                
+        st.write(commune.is_module(bro))
+        st.write(str(type(commune)) == "<class 'module'>")
+        st.write()
         pass
-        # dataset = commune.connect('HFDataset')
-        
-        # st.write('## Get Example')
-        
-        # model = commune.connect('model::gpt125m')
-        # st.write(model.forward(**dataset.sample()))
-        
   
             
     @classmethod

@@ -863,7 +863,9 @@ class Module:
   
     @classmethod
     def is_module(cls, obj=None) -> bool:
-        return hasattr(cls, 'module_name')
+        if obj == None:
+            obj = cls
+        return hasattr(obj, 'module_name')
 
     @classmethod
     def new_event_loop(cls) -> 'asyncio.AbstractEventLoop':
@@ -973,18 +975,14 @@ class Module:
         server = Server(ip=ip, port=port, module = self )
         
         self.server_stats = dict(ip=server.ip, port=server.port, external_ip = server.external_ip)
-        
-        
         cls.register_server(name=module_id, server=server)
-    
-        
         server.serve(wait_for_termination=wait_for_termination)
         
-        
-    def functions(self, include_module=False):
-        if isinstance(self, Module):
+    @classmethod
+    def functions(cls, include_module=False):
+        if isinstance(cls, Module) or str(type(cls)) == "<class 'module'>" :
             include_module = True
-        functions = self.get_functions(obj=self,include_module=include_module)  
+        functions = cls.get_functions(cls,include_module=include_module)  
         return functions
 
         
@@ -2436,7 +2434,7 @@ class Module:
         return None
     
     
-    
+    # KEY LAND
 
     # MODULE IDENTITY LAND
     
@@ -2447,9 +2445,8 @@ class Module:
             key = args[0]
             if isinstance(key, dict):
                 kwargs = key
-            
         if mode == 'substrate':
-            return cls.get_module('web3.account.substrate')(*args, **kwargs)
+            return cls.get_module(f'web3.account.substrate')(*args, **kwargs)
         elif mode == 'evm':
             return cls.get_module('web3.account.evm')(*args, **kwargs)
         elif  mode == 'aes':
@@ -2459,10 +2456,10 @@ class Module:
         
         
     @classmethod
-    def hash(cls, data: Union[str, bytes]) -> bytes:
+    def hash(cls, data: Union[str, bytes], **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
             cls.hash_module = commune.get_module('crypto.hash')()
-        return cls.hash_module(data)
+        return cls.hash_module(data, **kwargs)
     
     @classmethod
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
