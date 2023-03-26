@@ -8,8 +8,8 @@ import torch
 from substrateinterface import Keypair
 from substrateinterface.utils import ss58
 
-U16_MAX = 65535
-U64_MAX = 18446744073709551615
+U16_MAX = 65535 # 2**16 - 1
+U64_MAX = 18446744073709551615 # 2**64 - 1
 
 
 def strtobool(val: str) -> bool:
