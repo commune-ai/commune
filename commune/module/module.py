@@ -973,8 +973,7 @@ class Module:
     
         Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, port=port, module = self )
-        
-        self.server_stats = dict(ip=server.ip, port=server.port, external_ip = server.external_ip)
+        self.server_stats = server.info
         cls.register_server(name=module_id, server=server)
         server.serve(wait_for_termination=wait_for_termination)
         
@@ -2257,9 +2256,12 @@ class Module:
             peer = cls.connect(p)
             peer_stats = peer.server_stats
             peer_info = {}
-            peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
-            peer_info['is_local'] = external_ip == peer_stats['external_ip']
-            peer_map[p] = peer_info
+            try:
+                peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
+                peer_info['is_local'] = external_ip == peer_stats['external_ip']
+                peer_map[p] = peer_info
+            except:
+                cls.log(f'Could not connect to {p}')
         peer_registry[external_ip] = peer_map
         
         cls.put_json('peer_registry', peer_registry)

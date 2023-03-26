@@ -2,8 +2,5 @@ import commune
 import streamlit as st
 import torch
 
-
-
-module = commune.get_module('model.transformer')
-
-module.test_
+st.write(commune.connect('openai').forward(prompt='How do yo'))
+# module = commune.connect('openai')
