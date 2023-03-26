@@ -91,6 +91,9 @@ dashboard:
 sand:
 	python3 commune/sandbox.py
 
+sand:
+	python3 commune/sandbox.py
+
 python_pm2:
 	pm2 start {file} --name {name} --interpreter python3
 
@@ -103,7 +106,7 @@ register_loop:
 st_ensemble:
 	streamlit run commune/model/ensemble/model.py
 st:
-	pm2 start commune/${arg}.py --name ${arg} --interpreter python3 -- -m streamlit run  
+	pm2 start commune/${arg}.py --name st_${arg} --interpreter python3 -- -m streamlit run  
 
 enver_env:
 	source env/bin/activate

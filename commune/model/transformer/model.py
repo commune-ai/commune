@@ -51,6 +51,7 @@ class TransformerModel( Model):
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
         'gptj': 'EleutherAI/gpt-j-6B',
+        'pyg6b': 'PygmalionAI/pygmalion-6b',
         
         # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
@@ -136,6 +137,8 @@ class TransformerModel( Model):
         
         if train:
             self.optimizer.zero_grad()
+            
+        sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
             
         model_output = self.model(input_ids=sample['input_ids'],
                                   output_hidden_states=True)
@@ -524,7 +527,19 @@ class TransformerModel( Model):
 
         return output['stats']
     
-    
+    @classmethod
+    def monitor_models(cls):
+        dataset = commune.connect('dataset')
+        st.write(commune.servers())
+
+        for server in commune.servers():
+            if server.startswith('model::'):
+                model = commune.connect(server)
+                input_ids = dataset.sample(tokenize=True)['input_ids']
+                st.write(model.config)
+                input_ids = torch.clip(input_ids, max=model.config['model']['vocab_size']-1)
+                st.write(model.forward(input_ids=input_ids))
+            
     @classmethod
     def sandbox(cls):
         datasets = [ 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'OpenSubtitles']
