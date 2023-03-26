@@ -37,6 +37,7 @@ class Server(ServerServicer, Serializer):
     def __init__(
             self,
             module: Union['Module', object]= None,
+            authenticate: bool = False,
             ip: Optional[str] = None,
             port: Optional[int] = None,
             find_port: bool = True, # find an existing port
@@ -72,6 +73,8 @@ class Server(ServerServicer, Serializer):
                     Maximum allowed concurrently processed RPCs.
                 timeout (:type:`Optional[int]`, `optional`):
                     timeout on the forward requests. 
+                authenticate (:type:`Optional[bool]`, `optional`):
+                    Whether or not to authenticate the server.
           
         """ 
         try:
@@ -111,6 +114,10 @@ class Server(ServerServicer, Serializer):
         # set the whitelist functions
         self.whitelist_functions = whitelist_functions + self.module.functions()
         self.blacklist_functions = blacklist_functions
+        self.authenticate = authenticate
+        
+        
+    
     def add_whitelist_functions(self, functions: List[str]):
         self.whitelist_functions += functions
     def add_blacklist_functions(self, functions: List[str]):
@@ -209,13 +216,14 @@ class Server(ServerServicer, Serializer):
         )
         
     def resolve_authentication(self, data: dict = None, metadata: dict = None):
-        if 'auth' in data:
-            if hasattr(self.module, 'authenticate'):
-                # authenticate the user
-                self.module.authenticate(auth=data['auth'])
-            else:
-                pass
-         
+        
+        if self.authenticate:
+            auth = data.pop('auth', None)
+            assert isinstance(auth, dict), 'Please provide authentication Old Chap' 
+            assert hasattr(self.module, 'authenticate')
+            assert self.module.authenticate(auth=auth)
+        
+        return data, metadata
     def __call__(self,
                  data:dict = None, 
                  metadata:dict = None,
@@ -224,11 +232,13 @@ class Server(ServerServicer, Serializer):
         metadata = metadata if metadata else {}
         output_data = {}
         
-        self.resolve_authentication(data=data, metadata=metadata)
         
         t = commune.timer()
         
         try:
+            
+            data, metadata = self.resolve_authentication(data=data, metadata=metadata)
+
             fn = data['fn']
             fn_kwargs = data.get('kwargs', {})
             fn_args = data.get('args', [])

@@ -582,7 +582,12 @@ class SubstrateAccount(commune.Module):
         
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str] = None, public_key: str = None) -> bool:
+    def verify(self, 
+               data: Union[ScaleBytes, bytes, str],
+               signature: Union[bytes, str] = None, 
+               public_key: str = None,
+               mode: str = 'default',
+               return_public_key: bool = True) -> bool:
         """
         Verifies data with specified signature
         Parameters
@@ -602,6 +607,8 @@ class SubstrateAccount(commune.Module):
 
         if type(public_key) is str:
             public_key = bytes.fromhex(public_key.replace('0x', ''))
+        
+        
         if not isinstance(data, str):
             data = self.python2str(data)
 
@@ -635,7 +642,15 @@ class SubstrateAccount(commune.Module):
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
             
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
-
+        if return_public_key:
+            if verified:
+                if isinstance(public_key, bytes):
+                    return public_key.hex()
+                elif isinstance(public_key, str):
+                    return public_key
+            else:
+                return None
+            
         return verified
 
     def encrypt_message(
