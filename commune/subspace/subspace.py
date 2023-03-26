@@ -1,5 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
+# Copyright © 2021 Yuma Nano
 # Copyright © 2023 Opentensor Foundation
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
@@ -25,7 +25,7 @@ from substrateinterface import SubstrateInterface
 from commune.subspace import Balance
 
 from rich.prompt import Confirm
-from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, RAOPERTAO, U16_MAX
+from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, NANOPERTOKEN, U16_MAX
 from commune.subspace.utils import is_valid_address_or_public_key
 from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo
 from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
@@ -459,7 +459,7 @@ class Subspace(commune.Module):
                     call_function='transfer',
                     call_params={
                         'dest': dest, 
-                        'value': transfer_balance.rao
+                        'value': transfer_balance.nano
                     }
                 )
 
@@ -471,7 +471,7 @@ class Subspace(commune.Module):
                         'partialFee': 2e7, # assume  0.02 Tao 
                     }
 
-                fee = Balance.from_rao( payment_info['partialFee'] )
+                fee = Balance.from_nano( payment_info['partialFee'] )
         
         if not keep_alive:
             # Check if the transfer should keep_alive the account
@@ -494,7 +494,7 @@ class Subspace(commune.Module):
                     call_function='transfer',
                     call_params={
                         'dest': dest, 
-                        'value': transfer_balance.rao
+                        'value': transfer_balance.nano
                     }
                 )
 
@@ -536,7 +536,7 @@ class Subspace(commune.Module):
         if result is None:
             return None
         
-        return Balance.from_rao(result.value)
+        return Balance.from_nano(result.value)
 
     #################
     #### Serving ####
@@ -695,8 +695,8 @@ class Subspace(commune.Module):
             staking_balance = amount
 
         # Remove existential balance to keep key alive.
-        if staking_balance > Balance.from_rao( 1000 ):
-            staking_balance = staking_balance - Balance.from_rao( 1000 )
+        if staking_balance > Balance.from_nano( 1000 ):
+            staking_balance = staking_balance - Balance.from_nano( 1000 )
         else:
             staking_balance = staking_balance
 
@@ -719,7 +719,7 @@ class Subspace(commune.Module):
                     call_function='add_stake',
                     call_params={
                         'key': key.ss58_address,
-                        'amount_staked': amount.rao
+                        'amount_staked': amount.nano
                         }
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
@@ -821,7 +821,7 @@ class Subspace(commune.Module):
                     call_function='remove_stake',
                     call_params={
                         'hotkey': key.ss58_address,
-                        'amount_unstaked': amount.rao
+                        'amount_unstaked': amount.nano
                         }
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
@@ -921,7 +921,7 @@ class Subspace(commune.Module):
     """ Returns network Burn hyper parameter """
     def burn (self, netuid: int, block: Optional[int] = None ) -> Optional[Balance]:
         if not self.subnet_exists( netuid ): return None
-        return Balance.from_rao( self.query_subspace( "Burn", block, [netuid] ).value )
+        return Balance.from_nano( self.query_subspace( "Burn", block, [netuid] ).value )
 
     """ Returns network ImmunityPeriod hyper parameter """
     def immunity_period (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
@@ -1014,15 +1014,15 @@ class Subspace(commune.Module):
 
     """ Returns the total stake held on a coldkey across all hotkeys including delegates"""
     def get_total_stake_for_key( self, ss58_address: str, block: Optional[int] = None ) -> Optional['Balance']:
-        return Balance.from_rao( self.query_subspace( 'TotalKeyStake', block, [ss58_address] ).value )
+        return Balance.from_nano( self.query_subspace( 'TotalKeyStake', block, [ss58_address] ).value )
 
     """ Returns the stake under a coldkey - hotkey pairing """
     def get_stake_for_key( self, key_ss58: str, block: Optional[int] = None ) -> Optional['Balance']:
-        return Balance.from_rao( self.query_subspace( 'Stake', block, [key_ss58] ).value )
+        return Balance.from_nano( self.query_subspace( 'Stake', block, [key_ss58] ).value )
 
     """ Returns a list of stake tuples (coldkey, balance) for each delegating coldkey including the owner"""
     def get_stake( self,  key_ss58: str, block: Optional[int] = None ) -> List[Tuple[str,'Balance']]:
-        return [ (r[0].value, Balance.from_rao( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
+        return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
 
     """ Returns the axon information for this key account """
     def get_axon_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
@@ -1050,10 +1050,10 @@ class Subspace(commune.Module):
         return self.get_current_block()
 
     def total_issuance (self, block: Optional[int] = None ) -> 'Balance':
-        return Balance.from_rao( self.query_subspace( 'TotalIssuance', block ).value )
+        return Balance.from_nano( self.query_subspace( 'TotalIssuance', block ).value )
 
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
-        return Balance.from_rao( self.query_subspace( "TotalStake", block ).value )
+        return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
     def serving_rate_limit (self, block: Optional[int] = None ) -> Optional[int]:
         return self.query_subspace( "ServingRateLimit", block ).value
@@ -1085,7 +1085,7 @@ class Subspace(commune.Module):
         return self.query_subspace( 'NetworkConnect', block, [netuid_0, netuid_1] ).value
 
     def get_emission_value_by_subnet( self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
-        return Balance.from_rao( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
+        return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
 
     def get_subnet_connection_requirements( self, netuid: int, block: Optional[int] = None) -> Dict[str, int]:
         result = self.query_map_subspace( 'NetworkConnect', block, [netuid] )

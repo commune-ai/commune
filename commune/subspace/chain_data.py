@@ -79,7 +79,9 @@ class ChainDataType(Enum):
     SubnetInfo = 2
 # Constants
 NANOPERTOKEN = 1e9
+U8_MAX = 255
 U16_MAX = 65535
+U32_MAX = 4294967295
 U64_MAX = 18446744073709551615
 U128_MAX = 340282366920938463463374607431768211455
 def from_scale_encoding( vec_u8: List[int], type_name: ChainDataType, is_vec: bool = False, is_option: bool = False ) -> Optional[Dict]:
