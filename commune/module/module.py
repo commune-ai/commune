@@ -2483,14 +2483,14 @@ class Module:
 
     # MODULE IDENTITY LAND
     @classmethod
-    def get_key(cls, seed_hex = None, *args,mode='substrate', **kwargs) -> None:
+    def get_key(cls, uri = None, *args,mode='subspace', **kwargs) -> None:
         
-        if seed_hex is not None:
-            kwargs['seed_hex'] = seed_hex
-        if len(args) == 1:
-            key = args[0]
-            if isinstance(key, dict):
-                kwargs = key
+        if mode == 'subspace':
+            if isinstance(uri, str):
+                if not uri.startswith('//'):
+                    uri = '//' + uri
+                return cls.get_module('subspace.key').create_from_uri(uri)
+            return cls.get_module('subspace.key')(*args, **kwargs)
         if mode == 'substrate':
             return cls.get_module(f'web3.account.substrate')(*args, **kwargs)
         elif mode == 'evm':
@@ -2507,6 +2507,12 @@ class Module:
             cls.hash_module = commune.get_module('crypto.hash')()
         return cls.hash_module(data, **kwargs)
     
+    @classmethod
+    def decrypt(cls, enc: str, password= None) -> Any:
+        key = self.key('aes', password=password)
+        dec = key.decrypt(enc)
+        return self.str2python(dec)
+
     @classmethod
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
         data = self.python2str(data)

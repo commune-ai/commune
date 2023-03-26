@@ -735,7 +735,7 @@ class Subspace(commune.Module):
                 with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
                     new_balance = self.get_balance( address = key.ss58_address )
                     block = self.get_current_block()
-                    new_stake = self.get_stake_for_key(key_ss58=key.ss58_address,block=block) # Get current stake
+                    new_stake = self.get_stake_for_key(key.ss58_address,block=block) # Get current stake
 
                     commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
                     commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
@@ -1278,14 +1278,24 @@ class Subspace(commune.Module):
     @classmethod
     def test(cls):
         subspace = cls()
-        keys = [commune.key(str(i)) for i in range(2)]
+        
+        from substrateinterface import Keypair
+        
+        key = commune.get_module('subspace.key').create_from_uri('//Alice')
+        st.write(subspace.get_balance(key.public_key))
+        
+        keys = [commune.key(str(i)) for i in range(3)]
         
         subnets = subspace.get_subnets()
    
         for key in keys:
             subspace.register(key=key, netuid=subnets[0])
             
-
+    @classmethod
+    def sandbox(cls):
+        self = cls()
+        key_class = commune.get_module('subspace.key')
+        st.write(self.get_balance(key_class.create_from_seed('Alice').public_key))
 if __name__ == "__main__":
     Subspace.test()
 
