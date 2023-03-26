@@ -46,13 +46,14 @@ class TransformerModel( Model):
         # 3ish B models
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-        
         # 6B models
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
         'gptj': 'EleutherAI/gpt-j-6B',
-        'pyg6b': 'PygmalionAI/pygmalion-6b',
-        
+        'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+        'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+        'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
         # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
@@ -60,13 +61,14 @@ class TransformerModel( Model):
         
 
          }
+    
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model: str="gpt125m",
                 tag :str = None,
-                tokenizer:Union[str, 'tokenizer'] = None,
-                device: str = 'cpu',
+                tokenizer:str = 'gpt2',
+                device: str = 'cuda',
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
                 load: bool = False,
@@ -199,7 +201,7 @@ class TransformerModel( Model):
                    **kwargs) -> None:        
         if model!= None:
             self.set_model(model)
-        if tokenizer != None:
+        if tokenizer != None or model != None:
             self.set_tokenizer(tokenizer)
         if optimizer!= None:
             self.set_optimizer(optimizer)
@@ -246,8 +248,6 @@ class TransformerModel( Model):
             # yo 
         if state_dict:
             self.model.load_state_dict(state_dict)
-
-        self.set_tokenizer(tokenizer=self.model_path)
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
@@ -539,6 +539,30 @@ class TransformerModel( Model):
                 st.write(model.config)
                 input_ids = torch.clip(input_ids, max=model.config['model']['vocab_size']-1)
                 st.write(model.forward(input_ids=input_ids))
+         
+         
+    @classmethod
+    def deploy_fleet(cls, models: List[str] = None) -> None:
+
+        models = [
+        "gpt2.7b",
+        "gpt3b",
+        "gptjt",
+        "gptjt_mod",
+        "gptj",
+        "gptj.pyg6b",
+        "gptj.instruct",
+        "gptj.codegen",
+        "gptj.hivemind",
+        ]
+
+        for model in models:
+            model_kwargs =  {'model': model}
+            if 'gptj' in model:
+                model_kwargs['tokenizer'] = 'gptj'
+            module.launch(name=f'model.{model}',kwargs=model_kwargs, mode='pm2')
+            
+
             
     @classmethod
     def sandbox(cls):
