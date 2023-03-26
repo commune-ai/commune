@@ -56,30 +56,10 @@ custom_rpc_type_registry = {
                 ["rank", "Compact<u16>"],
                 ["emission", "Compact<u64>"],
                 ["incentive", "Compact<u16>"],
-                ["validator_trust", "Compact<u16>"],
                 ["dividends", "Compact<u16>"],
                 ["last_update", "Compact<u64>"],
-                ["validator_permit", "bool"],
                 ["weights", "Vec<(Compact<u16>, Compact<u16>)>"],
                 ["bonds", "Vec<(Compact<u16>, Compact<u16>)>"],
-                ["pruning_score", "Compact<u16>"]
-            ],
-        },
-        "NeuronInfoLite": {
-            "type": "struct",
-            "type_mapping": [
-                ["key", "AccountId"],
-                ["uid", "Compact<u16>"],
-                ["netuid", "Compact<u16>"],
-                ["active", "bool"],
-                ["axon_info", "AxonInfo"],
-                ["stake", "Vec<(AccountId, Compact<u64>)>"],
-                ["rank", "Compact<u16>"],
-                ["emission", "Compact<u64>"],
-                ["incentive", "Compact<u16>"],
-                ["dividends", "Compact<u16>"],
-                ["last_update", "Compact<u64>"],
-                ["validator_permit", "bool"],
                 ["pruning_score", "Compact<u16>"]
             ],
         },
@@ -97,8 +77,6 @@ custom_rpc_type_registry = {
 class ChainDataType(Enum):
     NeuronInfo = 1
     SubnetInfo = 2
-    NeuronInfoLite = 4
-
 # Constants
 RAOPERTAO = 1e9
 U16_MAX = 65535
@@ -137,6 +115,7 @@ class NeuronInfo:
     uid: int
     netuid: int
     active: int    
+    total_stake: int
     # mapping of coldkey to amount staked to this Neuron
     stake: Dict[str, Balance]
     rank: float
@@ -144,7 +123,6 @@ class NeuronInfo:
     incentive: float
     dividends: float
     last_update: int
-    validator_permit: bool
     weights: List[List[int]]
     bonds: List[List[int]]
     axon_info: 'AxonInfo'
@@ -155,9 +133,8 @@ class NeuronInfo:
         r""" Fixes the values of the NeuronInfo object.
         """
         neuron_info_decoded['key'] = ss58_encode(neuron_info_decoded['hotkey'], bittensor.__ss58_format__)
-        stake_dict =  { ss58_encode( coldkey, commune.__ss58_format__): commune.subspace.Balance.from_rao(int(stake)) for coldkey, stake in neuron_info_decoded['stake'] }
-        neuron_info_decoded['stake_dict'] = stake_dict
-        neuron_info_decoded['stake'] = sum(stake_dict.values())
+        neuron_info_decoded['stake'] = { ss58_encode( coldkey, commune.__ss58_format__): commune.subspace.Balance.from_rao(int(stake)) for coldkey, stake in neuron_info_decoded['stake'] }
+        neuron_info_decoded['total_stake'] = sum(neuron_info_decoded['stake'].values())
         neuron_info_decoded['weights'] = [[int(weight[0]), int(weight[1])] for weight in neuron_info_decoded['weights']]
         neuron_info_decoded['bonds'] = [[int(bond[0]), int(bond[1])] for bond in neuron_info_decoded['bonds']]
         neuron_info_decoded['rank'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['rank'])

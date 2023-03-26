@@ -8,6 +8,52 @@ import torch
 from substrateinterface import Keypair
 from substrateinterface.utils import ss58
 
+U16_MAX = 65535
+U64_MAX = 18446744073709551615
+
+
+def strtobool(val: str) -> bool:
+    """
+    Converts a string to a boolean value.
+
+    truth-y values are 'y', 'yes', 't', 'true', 'on', and '1';
+    false-y values are 'n', 'no', 'f', 'false', 'off', and '0'.
+
+    Raises ValueError if 'val' is anything else.
+    """
+    val = val.lower()
+    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+        return True
+    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
+        return False
+    else:
+        raise ValueError("invalid truth value %r" % (val,))
+
+def ss58_address_to_bytes(ss58_address: str) -> bytes:
+
+    """Converts a ss58 address to a bytes object."""
+    import scalecodec
+    account_id_hex: str = scalecodec.ss58_decode(ss58_address, bittensor.__ss58_format__)
+    return bytes.fromhex(account_id_hex)
+
+def u8_key_to_ss58(u8_key: List[int]) -> str:
+    
+    r"""
+    Converts a u8-encoded account key to an ss58 address.
+
+    Args:
+        u8_key (List[int]): The u8-encoded account key.
+    """
+    import scalecodec
+    # First byte is length, then 32 bytes of key.
+    return scalecodec.ss58_encode( bytes(u8_key).hex(), bittensor.__ss58_format__)
+
+def U16_NORMALIZED_FLOAT( x: int ) -> float:
+    return float( x ) / float( U16_MAX ) 
+
+def U64_NORMALIZED_FLOAT( x: int ) -> float:
+    return float( x ) / float( U64_MAX )
+
 
 def indexed_values_to_dataframe ( 
         prefix: Union[str, int],
@@ -160,3 +206,20 @@ def strtobool(val: str) -> bool:
     else:
         raise ValueError("invalid truth value %r" % (val,))
 
+
+
+def get_ss58_format( ss58_address: str ) -> int:
+    """Returns the ss58 format of the given ss58 address."""
+    return ss58.get_ss58_format( ss58_address )
+
+def strtobool_with_default( default: bool ) -> Callable[[str], bool]:
+    """
+    Creates a strtobool function with a default value.
+
+    Args:
+        default(bool): The default value to return if the string is empty.
+
+    Returns:
+        The strtobool function with the default value.
+    """
+    return lambda x: strtobool(x) if x != "" else default

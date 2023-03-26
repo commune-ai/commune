@@ -18,24 +18,17 @@
 
 # Imports
 import torch
-import bittensor
 import scalecodec
 from retry import retry
 from typing import List, Dict, Union, Optional, Tuple
 from substrateinterface import SubstrateInterface
 from bittensor.utils.balance import Balance
-from bittensor.utils import U16_NORMALIZED_FLOAT, U64_MAX, RAOPERTAO, U16_MAX
 
-# Local imports.
-from .chain_data import NeuronInfo, AxonInfo, DelegateInfo, PrometheusInfo, SubnetInfo, NeuronInfoLite
-from .errors import *
-from .extrinsics.staking import add_stake_extrinsic, add_stake_multiple_extrinsic
-from .extrinsics.unstaking import unstake_extrinsic, unstake_multiple_extrinsic
-from .extrinsics.serving import serve_extrinsic, serve_axon_extrinsic
-from .extrinsics.registration import register_extrinsic, burned_register_extrinsic
-from .extrinsics.transfer import transfer_extrinsic
-from .extrinsics.set_weights import set_weights_extrinsic
-from .extrinsics.prometheus import prometheus_extrinsic
+from rich.prompt import Confirm
+from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, RAOPERTAO, U16_MAX
+from commune.subspace.utils import is_valid_address_or_public_key
+from commune.subspace.chain_data import NeuronInfo, AxonInfo, DelegateInfo, PrometheusInfo, SubnetInfo, NeuronInfoLite
+from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
 
 # Logging
 from loguru import logger
@@ -160,26 +153,96 @@ class Subspace:
     #####################
     def set_weights(
         self,
-        wallet: 'bittensor.wallet',
         netuid: int,
-        uids: Union[torch.LongTensor, list],
+        uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
-        version_key: int = bittensor.__version_as_int__,
+        key: 'commune.key' = None,
         wait_for_inclusion:bool = False,
         wait_for_finalization:bool = False,
         prompt:bool = False
     ) -> bool:
-        return set_weights_extrinsic( 
-            subspace=self,
-            wallet=wallet,
-            netuid=netuid,
-            uids=uids,
-            weights=weights,
-            wait_for_inclusion=wait_for_inclusion,
-            wait_for_finalization=wait_for_finalization,
-            prompt=prompt,
-        )
+        r""" Sets the given weights and values on chain for wallet hotkey account.
+        Args:
+            wallet (bittensor.wallet):
+                bittensor wallet object.
+            netuid (int):
+                netuid of the subent to set weights for.
+            uids (Union[torch.LongTensor, list]):
+                uint64 uids of destination neurons.
+            weights ( Union[torch.FloatTensor, list]):
+                weights to set which must floats and correspond to the passed uids.
+            version_key (int):
+                version key of the validator.
+            wait_for_inclusion (bool):
+                if set, waits for the extrinsic to enter a block before returning true,
+                or returns false if the extrinsic fails to enter the block within the timeout.
+            wait_for_finalization (bool):
+                if set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block.
+                If we did not wait for finalization / inclusion, the response is true.
+        """
+        # First convert types.
+        if isinstance( uids, list ):
+            uids = torch.tensor( uids, dtype = torch.int64 )
+        if isinstance( weights, list ):
+            weights = torch.tensor( weights, dtype = torch.float32 )
 
+        # Reformat and normalize.
+        weight_uids, weight_vals = weight_utils.convert_weights_and_uids_for_emit( uids, weights )
+
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/65535) for v in weight_vals], weight_uids) ):
+                return False
+
+        with commune.status(":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)):
+            try:
+                with subtensor.substrate as substrate:
+                    call = substrate.compose_call(
+                        call_module='SubtensorModule',
+                        call_function='set_weights',
+                        call_params = {
+                            'dests': weight_uids,
+                            'weights': weight_vals,
+                            'netuid': netuid,
+                            'version_key': version_key,
+                        }
+                    )
+                    # Period dictates how long the extrinsic will stay as part of waiting pool
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = wallet.hotkey, era={'period':100})
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                    # We only wait here if we expect finalization.
+                    if not wait_for_finalization and not wait_for_inclusion:
+                        commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                        return True
+
+                    response.process_events()
+                    if response.is_success:
+                        commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                        bittensor.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
+                        return True
+                    else:
+                        commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                        bittensor.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                        return False
+
+            except Exception as e:
+                commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+                bittensor.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
+                return False
+
+        if response.is_success:
+            commune.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
+            message = '<green>Success: </green>' + f'Set {len(uids)} weights, top 5 weights' + str(list(zip(uids.tolist()[:5], [round (w,4) for w in weights.tolist()[:5]] )))
+            logger.debug('Set weights:'.ljust(20) +  message)
+            return True
+        
+        return False
 
     @classmethod
     def name2subnet(cls, name:str) -> int:
@@ -219,9 +282,15 @@ class Subspace:
         return self.name2subnet.keys()
     
     
+    def resolve_net(self, net: Union[str, int]) -> int:
+        if isinstance(net, str):
+            net = self.name2subnet(net)
+        assert isinstance(net, int), f'Invalid net: {net}, your net must be one of {self.name2subnet.keys()}'
+        return net
+    
     def register (
         self
-        name: str = 'commune',
+        netid :int = 0 ,
         key: 'commune.Key' = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
@@ -234,8 +303,6 @@ class Subspace:
 
         r""" Registers the wallet to chain.
         Args:
-            wallet (bittensor.wallet):
-                bittensor wallet object.
             netuid (int):
                 The netuid of the subnet to register on.
             wait_for_inclusion (bool):
@@ -268,7 +335,7 @@ class Subspace:
         
         
         key = self.resolve_key(key)
-        neduid = self.name2subnet(name)
+        netuid = self.resolve_net(net)
 
         
         if not subspace.subnet_exists( netuid ):
@@ -349,49 +416,112 @@ class Subspace:
                 commune.print( "[red]No more attempts.[/red]" )
                 return False 
 
-            
-        
-    def burned_register (
-        self,
-        wallet: 'bittensor.Wallet',
-        netuid: int,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
-        prompt: bool = False
-    ) -> bool:
-        """ Registers the wallet to chain by recycling TAO."""
-        return burned_register_extrinsic( 
-            subspace = self, 
-            wallet = wallet, 
-            netuid = netuid, 
-            wait_for_inclusion = wait_for_inclusion, 
-            wait_for_finalization = wait_for_finalization, 
-            prompt = prompt
-        )
-
     ##################
     #### Transfer ####
     ##################
     def transfer(
         self,
-        wallet: 'bittensor.wallet',
         dest: str, 
         amount: Union[Balance, float], 
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         prompt: bool = False,
+        key: 'commune.Key' =  None,
     ) -> bool:
-        """ Transfers funds from this wallet to the destination public key address"""
-        return transfer_extrinsic(
-            subspace = self,
-            wallet = wallet,
-            dest = dest,
-            amount = amount,
-            wait_for_inclusion = wait_for_inclusion,
-            wait_for_finalization = wait_for_finalization,
-            prompt = prompt
-        )
-    
+
+
+        # Validate destination address.
+        if not is_valid_address_or_public_key( dest ):
+            commune.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
+            return False
+
+        if isinstance( dest, bytes):
+            # Convert bytes to hex string.
+            dest = "0x" + dest.hex()
+
+
+        # Convert to bittensor.Balance
+        if not isinstance(amount, Balance ):
+            transfer_balance = Balance.from_tao( amount )
+        else:
+            transfer_balance = amount
+
+        # Check balance.
+        with commune.status(":satellite: Checking Balance..."):
+            account_balance = subspace.get_balance( key.ss58_address )
+            # check existential deposit.
+            existential_deposit = subspace.get_existential_deposit()
+
+        with commune.status(":satellite: Transferring..."):
+            with subspace.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='Balances',
+                    call_function='transfer',
+                    call_params={
+                        'dest': dest, 
+                        'value': transfer_balance.rao
+                    }
+                )
+
+                try:
+                    payment_info = substrate.get_payment_info( call = call, keypair = key )
+                except Exception as e:
+                    commune.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
+                    payment_info = {
+                        'partialFee': 2e7, # assume  0.02 Tao 
+                    }
+
+                fee = bittensor.Balance.from_rao( payment_info['partialFee'] )
+        
+        if not keep_alive:
+            # Check if the transfer should keep_alive the account
+            existential_deposit = Balance(0)
+
+        # Check if we have enough balance.
+        if account_balance < (transfer_balance + fee + existential_deposit):
+            commune.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
+            return False
+
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}:{}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, wallet.name, key.ss58_address, dest, fee )):
+                return False
+
+        with commune.status(":satellite: Transferring..."):
+            with subspace.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='Balances',
+                    call_function='transfer',
+                    call_params={
+                        'dest': dest, 
+                        'value': transfer_balance.rao
+                    }
+                )
+
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+
+                # Otherwise continue with finalization.
+                response.process_events()
+                if response.is_success:
+                    commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    block_hash = response.block_hash
+                    commune.print("[green]Block Hash: {}[/green]".format( block_hash ))
+                else:
+                    commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+
+        if response.is_success:
+            with .status(":satellite: Checking Balance..."):
+                new_balance = subspace.get_balance( key.ss58_address )
+                commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+                return True
+        
+        return False
+
     def get_existential_deposit(
         self,
         block: Optional[int] = None,
@@ -413,102 +543,321 @@ class Subspace:
     #################
     def serve (
         self,
-        wallet: 'bittensor.wallet',
         ip: str, 
         port: int, 
-        protocol: int, 
-        netuid: int,
-        placeholder1: int = 0,
-        placeholder2: int = 0,
+        netuid: int = 0,
+        key: 'commune.Key' =  None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
     ) -> bool:
-        return serve_extrinsic( self, wallet, ip, port, protocol, netuid , placeholder1, placeholder2, wait_for_inclusion, wait_for_finalization)
+        r""" Subscribes an bittensor endpoint to the substensor chain.
+        Args:
+            wallet (bittensor.wallet):
+                bittensor wallet object.
+            ip (str):
+                endpoint host port i.e. 192.122.31.4
+            port (int):
+                endpoint port number i.e. 9221
+            protocol (int):
+                int representation of the protocol 
+            netuid (int):
+                network uid to serve on.
+            placeholder1 (int):
+                placeholder for future use.
+            placeholder2 (int):
+                placeholder for future use.
+            wait_for_inclusion (bool):
+                if set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                if set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
+        """
+        params = {
+            'ip': net.ip_to_int(ip),
+            'port': port,
+            'netuid': netuid,
+            'key': wallet.coldkeypub.ss58_address,
+        }
 
-    def serve_axon (
-        self,
-        axon: 'bittensor.Axon',
-        use_upnpc: bool = False,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
-        prompt: bool = False,
-    ) -> bool:
-        return serve_axon_extrinsic( self, axon, use_upnpc, wait_for_inclusion, wait_for_finalization)
+        with commune.status(":satellite: Checking Axon..."):
+            neuron = subspace.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
+            neuron_up_to_date = not neuron.is_null and params == {
+                'ip': net.ip_to_int(neuron.axon_info.ip),
+                'port': neuron.axon_info.port,
+                'netuid': neuron.netuid,
+                'key': neuron.coldkey,
+            }
 
-    def serve_prometheus (
-        self,
-        wallet: 'bittensor.wallet',
-        port: int,
-        netuid: int,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
-    ) -> bool:
-        return prometheus_extrinsic( self, wallet = wallet, port = port, netuid = netuid, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization)
-    #################
-    #### Staking ####
-    #################
+        output = params.copy()
+        output['key'] = key.ss58_address
+
+        if neuron_up_to_date:
+            commune.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
+                                        f"[green not bold]- coldkey: [/green not bold][white not bold]{output['key']}[/white not bold] \n"
+                                        f"[green not bold]- Status: [/green not bold] |"
+                                        f"[green not bold] ip: [/green not bold][white not bold]{net.int_to_ip(output['ip'])}[/white not bold] |"
+                                        f"[green not bold] port: [/green not bold][white not bold]{output['port']}[/white not bold] | "
+                                        f"[green not bold] netuid: [/green not bold][white not bold]{output['netuid']}[/white not bold] |"
+            )
+
+
+            return True
+
+        if prompt:
+            output = params.copy()
+            output['key'] = key.ss58_address
+            if not Confirm.ask("Do you want to serve axon:\n  [bold white]{}[/bold white]".format(
+                json.dumps(output, indent=4, sort_keys=True)
+            )):
+                return False
+
+        with commune.status(":satellite: Serving axon on: [white]{}:{}[/white] ...".format(subspace.network, netuid)):
+            with subspace.substrate as substrate:
+                call = substrate.compose_call(
+                    call_module='SubspaceModule',
+                    call_function='serve_axon',
+                    call_params=params
+                )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
+                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                if wait_for_inclusion or wait_for_finalization:
+                    response.process_events()
+                    if response.is_success:
+                        commune.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]{}[/bold white]'.format(
+                            json.dumps(params, indent=4, sort_keys=True)
+                        ))
+                        return True
+                    else:
+                        commune.print(':cross_mark: [green]Failed to Serve axon[/green] error: {}'.format(response.error_message))
+                        return False
+                else:
+                    return True
+
+
     def add_stake(
-        self, 
-        wallet: 'bittensor.wallet',
-        hotkey_ss58: Optional[str] = None,
-        amount: Union[Balance, float] = None, 
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
-        prompt: bool = False,
-    ) -> bool:
-        """ Adds the specified amount of stake to passed hotkey uid. """
-        return add_stake_extrinsic( 
-            subspace = self, 
-            wallet = wallet,
-            hotkey_ss58 = hotkey_ss58, 
-            amount = amount, 
-            wait_for_inclusion = wait_for_inclusion,
-            wait_for_finalization = wait_for_finalization, 
-            prompt = prompt
-        )
+            key_ss58: Optional[str] = None,
+            amount: Union[Balance, float] = None, 
+            subspace: 'bittensor.Subspace' = None, 
+            key: 'commune.Key' = None,
+            wait_for_inclusion: bool = True,
+            wait_for_finalization: bool = False,
+            prompt: bool = False,
+        ) -> bool:
+        r""" Adds the specified amount of stake to passed hotkey uid.
+        Args:
+            wallet (bittensor.wallet):
+                Bittensor wallet object.
+            hotkey_ss58 (Optional[str]):
+                ss58 address of the hotkey account to stake to
+                defaults to the wallet's hotkey.
+            amount (Union[Balance, float]):
+                Amount to stake as bittensor balance, or float interpreted as Tao.
+            wait_for_inclusion (bool):
+                If set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                If set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
 
-    def add_stake_multiple (
-        self, 
-        wallet: 'bittensor.wallet',
-        hotkey_ss58s: List[str],
-        amounts: List[Union[Balance, float]] = None, 
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
-        prompt: bool = False,
-    ) -> bool:
-        """ Adds stake to each hotkey_ss58 in the list, using each amount, from a common coldkey."""
-        return add_stake_multiple_extrinsic( self, wallet, hotkey_ss58s, amounts, wait_for_inclusion, wait_for_finalization, prompt)
+        Raises:
+            NotRegisteredError:
+                If the wallet is not registered on the chain.
+            NotDelegateError:
+                If the hotkey is not a delegate on the chain.
+        """
 
-    ###################
-    #### Unstaking ####
-    ###################
-    def unstake_multiple (
-        self,
-        wallet: 'bittensor.wallet',
-        hotkey_ss58s: List[str],
-        amounts: List[Union[Balance, float]] = None, 
-        wait_for_inclusion: bool = True, 
-        wait_for_finalization: bool = False,
-        prompt: bool = False,
-    ) -> bool:
-        """ Removes stake from each hotkey_ss58 in the list, using each amount, to a common coldkey. """
-        return unstake_multiple_extrinsic( self, wallet, hotkey_ss58s, amounts, wait_for_inclusion, wait_for_finalization, prompt)
 
-   
+        # Flag to indicate if we are using the wallet's own hotkey.
+        old_balance = subspace.get_balance( key.ss58_address )
+        # Get current stake
+        old_stake = subspace.get_stake_for_key( key_ss58=key.ss58_address )
+
+        # Convert to bittensor.Balance
+        if amount == None:
+            # Stake it all.
+            staking_balance = Balance.from_tao( old_balance.tao )
+        elif not isinstance(amount, bittensor.Balance ):
+            staking_balance = Balance.from_tao( amount )
+        else:
+            staking_balance = amount
+
+        # Remove existential balance to keep key alive.
+        if staking_balance > Balance.from_rao( 1000 ):
+            staking_balance = staking_balance - Balance.from_rao( 1000 )
+        else:
+            staking_balance = staking_balance
+
+        # Check enough to stake.
+        if staking_balance > old_balance:
+            commune.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, wallet.name))
+            return False
+                
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to stake:[bold white]\n  amount: {}\n  to: {}[/bold white]".format( staking_balance, key.ss58_address) ):
+                return False
+
+        try:
+            with commune.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(subspace.network)):
+
+                with subspace.substrate as substrate:
+                    call = substrate.compose_call(
+                    call_module='SubspaceModule', 
+                    call_function='add_stake',
+                    call_params={
+                        'key': key.ss58_address,
+                        'amount_staked': amount.rao
+                        }
+                    )
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+
+
+            if response: # If we successfully staked.
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+
+                commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(subspace.network)):
+                    new_balance = subspace.get_balance( address = key.ss58_address )
+                    block = subspace.get_current_block()
+                    new_stake = subspace.get_stake_for_key(key_ss58=key.ss58_address,block=block) # Get current stake
+
+                    commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                    commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                    return True
+            else:
+                commune.print(":cross_mark: [red]Failed[/red]: Error unknown.")
+                return False
+
+        except NotRegisteredError as e:
+            commune.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
+            return False
+        except StakeError as e:
+            commune.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
+            return False
+
+
+
+
 
     def unstake (
-        self,
-        wallet: 'bittensor.wallet',
-        hotkey_ss58: Optional[str] = None,
-        amount: Union[Balance, float] = None, 
-        wait_for_inclusion:bool = True, 
-        wait_for_finalization:bool = False,
-        prompt: bool = False,
-    ) -> bool:
-        """ Removes stake into the wallet coldkey from the specified hotkey uid."""
-        return unstake_extrinsic( self, wallet, hotkey_ss58, amount, wait_for_inclusion, wait_for_finalization, prompt )
+            self,
+            amount: Union[Balance, float] = None, 
+            key: 'commune.Key' = None,
+            subspace: 'commune.Subspace' = None,
+            wait_for_inclusion:bool = True, 
+            wait_for_finalization:bool = False,
+            prompt: bool = False,
+        ) -> bool:
+        r""" Removes stake into the wallet coldkey from the specified hotkey uid.
+        Args:
+            wallet (bittensor.wallet):
+                bittensor wallet object.
+            key_ss58 (Optional[str]):
+                ss58 address of the hotkey to unstake from.
+                by default, the wallet hotkey is used.
+            amount (Union[Balance, float]):
+                Amount to stake as bittensor balance, or float interpreted as tao.
+            wait_for_inclusion (bool):
+                if set, waits for the extrinsic to enter a block before returning true, 
+                or returns false if the extrinsic fails to enter the block within the timeout.   
+            wait_for_finalization (bool):
+                if set, waits for the extrinsic to be finalized on the chain before returning true,
+                or returns false if the extrinsic fails to be finalized within the timeout.
+            prompt (bool):
+                If true, the call waits for confirmation from the user before proceeding.
+        Returns:
+            success (bool):
+                flag is true if extrinsic was finalized or uncluded in the block. 
+                If we did not wait for finalization / inclusion, the response is true.
+        """
+        with commune.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(subspace.network)):
+            old_balance = subspace.get_balance( key.ss58_address )        
+            old_stake = subspace.get_stake_for_key( key_ss58 = key.ss58_address)
 
+        # Convert to bittensor.Balance
+        if amount == None:
+            # Unstake it all.
+            unstaking_balance = old_stake
+        elif not isinstance(amount, Balance ):
+            unstaking_balance = Balance.from_tao( amount )
+        else:
+            unstaking_balance = amount
+
+        # Check enough to unstake.
+        stake_on_uid = old_stake
+        if unstaking_balance > stake_on_uid:
+            commune.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from key: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.ss58_address))
+            return False
+        
+        # Ask before moving on.
+        if prompt:
+            if not Confirm.ask("Do you want to unstake:\n[bold white]  amount: {} key: [white]{}[/bold white ]\n?".format( unstaking_balance, key.ss58_address) ):
+                return False
+
+        
+        try:
+            with commune.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(subspace.network)):
+
+
+                with subspace.substrate as substrate:
+                    call = substrate.compose_call(
+                    call_module='SubspaceModule', 
+                    call_function='remove_stake',
+                    call_params={
+                        'hotkey': key.ss58_address,
+                        'amount_unstaked': amount.rao
+                        }
+                    )
+                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                    # We only wait here if we expect finalization.
+                    if not wait_for_finalization and not wait_for_inclusion:
+                        return True
+
+                    response.process_events()
+
+
+            if response: # If we successfully unstaked.
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+
+                commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(subspace.network)):
+                    new_balance = subspace.get_balance( address = key.ss58_address )
+                    new_stake = subspace.get_stake_for_key( key_ss58 = key.ss58_address ) # Get stake on hotkey.
+                    commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                    commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                    return True
+            else:
+                commune.print(":cross_mark: [red]Failed[/red]: Error unknown.")
+                return False
+
+        except NotRegisteredError as e:
+            commune.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
+            return False
+        except StakeError as e:
+            commune.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
+            return False
 
     ########################
     #### Standard Calls ####
@@ -907,72 +1256,8 @@ class Subspace:
             return []
         
         return NeuronInfo.list_from_vec_u8( result )
-    
-    def neuron_for_uid_lite( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[NeuronInfoLite]: 
-        r""" Returns a list of neuron lite from the chain. 
-        Args:
-            uid ( int ):
-                The uid of the neuron to query for.
-            netuid ( int ):
-                The uid of the network to query for.
-            block ( int ):
-                The neuron at a particular block
-        Returns:
-            neuron (Optional[NeuronInfoLite]):
-                neuron metadata associated with uid or None if it does not exist.
-        """
-        if uid == None: return NeuronInfoLite._null_neuron()
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                block_hash = None if block == None else substrate.get_block_hash( block )
-                params = [netuid, uid]
-                if block_hash:
-                    params = params + [block_hash] 
-                return substrate.rpc_request(
-                    method="neuronInfo_getNeuronLite", # custom rpc method
-                    params=params
-                )
-        json_body = make_substrate_call_with_retry()
-        result = json_body['result']
 
-        if result in (None, []):
-            return NeuronInfoLite._null_neuron()
-        
-        return NeuronInfoLite.from_vec_u8( result ) 
-
-    def neurons_lite(self, netuid: int, block: Optional[int] = None ) -> List[NeuronInfoLite]: 
-        r""" Returns a list of neuron lite from the chain. 
-        Args:
-            netuid ( int ):
-                The netuid of the subnet to pull neurons from.
-            block ( Optional[int] ):
-                block to sync from.
-        Returns:
-            neuron (List[NeuronInfoLite]):
-                List of neuron lite metadata objects.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                block_hash = None if block == None else substrate.get_block_hash( block )
-                params = [netuid]
-                if block_hash:
-                    params = params + [block_hash]
-                return substrate.rpc_request(
-                    method="neuronInfo_getNeuronsLite", # custom rpc method
-                    params=params
-                )
-        
-        json_body = make_substrate_call_with_retry()
-        result = json_body['result']
-
-        if result in (None, []):
-            return []
-        
-        return NeuronInfoLite.list_from_vec_u8( result )
-
-    def metagraph( self, netuid: int, block: Optional[int] = None, lite: bool = True ) -> 'bittensor.Metagraph':
+    def metagraph( self, netuid: int, block: Optional[int] = None ) -> 'bittensor.Metagraph':
         r""" Returns the metagraph for the subnet.
         Args:
             netuid ( int ):
@@ -980,8 +1265,6 @@ class Subspace:
             block (Optional[int]):
                 The block to create the metagraph for.
                 Defaults to latest.
-            lite (bool, default=True):
-                If true, returns a metagraph using the lite sync (no weights, no bonds)
         Returns:
             metagraph ( `bittensor.Metagraph` ):
                 The metagraph for the subnet at the block.
@@ -991,11 +1274,8 @@ class Subspace:
             status = commune.status("Synchronizing Metagraph...", spinner="earth")
             status.start()
         
-        # Get neurons.
-        if lite:
-            neurons = self.neurons_lite( netuid = netuid, block = block )
-        else:
-            neurons = self.neurons( netuid = netuid, block = block )
+
+        neurons = self.neurons( netuid = netuid, block = block )
         
         # Get subnet info.
         subnet_info: Optional[bittensor.SubnetInfo] = self.get_subnet_info( netuid = netuid, block = block )
@@ -1096,262 +1376,3 @@ class Subspace:
             key = "000000000000000000000000000000000000000000000000",
         )
         return neuron
-
-
-
-
-# Substrate ss58_format
-__ss58_format__ = 42
-
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
-# Copyright © 2023 Opentensor Foundation
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
-# DEALINGS IN THE SOFTWARE.
-
-import argparse
-import copy
-import os
-
-import bittensor
-from loguru import logger
-from substrateinterface import SubstrateInterface
-from torch.cuda import is_available as is_cuda_available
-
-from bittensor.utils import strtobool_with_default
-from .naka_subspace_impl import Subspace as Nakamoto_subspace
-from . import subspace_impl, subspace_mock
-
-logger = logger.opt(colors=True)
-
-GLOBAL_SUBTENSOR_MOCK_PROCESS_NAME = 'node-subspace'
-
-class subspace:
-    """Factory Class for both bittensor.Subspace and Mock_Subspace Classes
-
-    The Subspace class handles interactions with the substrate subspace chain.
-    By default, the Subspace class connects to the Nakamoto which serves as the main bittensor network.
-    
-    """
-    
-    def __new__(
-            cls, 
-            config: 'bittensor.config' = None,
-            network: str = None,
-            chain_endpoint: str = None,
-            _mock: bool = None,
-        ) -> 'bittensor.Subspace':
-        r""" Initializes a subspace chain interface.
-            Args:
-                config (:obj:`bittensor.Config`, `optional`): 
-                    bittensor.subspace.config()
-                network (default='local', type=str)
-                    The subspace network flag. The likely choices are:
-                            -- local (local running network)
-                            -- finney (main network)
-                            -- mock (mock network for testing.)
-                    If this option is set it overloads subspace.chain_endpoint with 
-                    an entry point node from that network.
-                chain_endpoint (default=None, type=str)
-                    The subspace endpoint flag. If set, overrides the network argument.
-                _mock (bool, `optional`):
-                    Returned object is mocks the underlying chain connection.
-        """
-        if config == None: config = subspace.config()
-        config = copy.deepcopy( config )
-
-        # Returns a mocked connection with a background chain connection.
-        config.subspace._mock = _mock if _mock != None else config.subspace._mock
-        if config.subspace._mock == True or network == 'mock' or config.subspace.get('network', bittensor.defaults.subspace.network) == 'mock':
-            config.subspace._mock = True
-            return subspace_mock.mock_subspace.mock()
-        
-        # Determine config.subspace.chain_endpoint and config.subspace.network config.
-        # If chain_endpoint is set, we override the network flag, otherwise, the chain_endpoint is assigned by the network.
-        # Argument importance: chain_endpoint > network > config.subspace.chain_endpoint > config.subspace.network
-       
-        # Select using chain_endpoint arg.
-        if chain_endpoint != None:
-            config.subspace.chain_endpoint = chain_endpoint
-            if network != None:
-                config.subspace.network = network
-            else:
-                config.subspace.network = config.subspace.get('network', bittensor.defaults.subspace.network)
-            
-        # Select using network arg.
-        elif network != None:
-            config.subspace.chain_endpoint = subspace.determine_chain_endpoint( network )
-            config.subspace.network = network
-            
-        # Select using config.subspace.chain_endpoint
-        elif config.subspace.chain_endpoint != None:
-            config.subspace.chain_endpoint = config.subspace.chain_endpoint
-            config.subspace.network = config.subspace.get('network', bittensor.defaults.subspace.network)
-         
-        # Select using config.subspace.network
-        elif config.subspace.get('network', bittensor.defaults.subspace.network) != None:
-            config.subspace.chain_endpoint = subspace.determine_chain_endpoint( config.subspace.get('network', bittensor.defaults.subspace.network) )
-            config.subspace.network = config.subspace.get('network', bittensor.defaults.subspace.network)
-            
-        # Fallback to defaults.
-        else:
-            config.subspace.chain_endpoint = subspace.determine_chain_endpoint( bittensor.defaults.subspace.network )
-            config.subspace.network = bittensor.defaults.subspace.network
-        
-        # make sure it's wss:// or ws://
-        # If it's bellagene (parachain testnet) then it has to be wss
-        endpoint_url: str = config.subspace.chain_endpoint
-        
-        # make sure formatting is good
-        endpoint_url = bittensor.utils.networking.get_formatted_ws_endpoint_url(endpoint_url)
-        
-        
-
-        subspace.check_config( config )
-        network = config.subspace.get('network', bittensor.defaults.subspace.network)
-        if network == 'nakamoto':
-            substrate = SubstrateInterface(
-                ss58_format = bittensor.__ss58_format__,
-                use_remote_preset=True,
-                url = endpoint_url,
-            )
-            # Use nakamoto-specific subspace.
-            return Nakamoto_subspace( 
-                substrate = substrate,
-                network = config.subspace.get('network', bittensor.defaults.subspace.network),
-                chain_endpoint = config.subspace.chain_endpoint,
-            )
-        else:
-            substrate = SubstrateInterface(
-                ss58_format = bittensor.__ss58_format__,
-                use_remote_preset=True,
-                url = endpoint_url,
-                type_registry=bittensor.__type_registry__
-            )
-            return subspace_impl.Subspace( 
-                substrate = substrate,
-                network = config.subspace.get('network', bittensor.defaults.subspace.network),
-                chain_endpoint = config.subspace.chain_endpoint,
-            )
-
-    @staticmethod   
-    def config() -> 'bittensor.Config':
-        parser = argparse.ArgumentParser()
-        subspace.add_args( parser )
-        return bittensor.config( parser )
-
-    @classmethod   
-    def help(cls):
-        """ Print help to stdout
-        """
-        parser = argparse.ArgumentParser()
-        cls.add_args( parser )
-        print (cls.__new__.__doc__)
-        parser.print_help()
-
-    @classmethod
-    def add_args(cls, parser: argparse.ArgumentParser, prefix: str = None ):
-        prefix_str = '' if prefix == None else prefix + '.'
-        try:
-            parser.add_argument('--' + prefix_str + 'subspace.network', default = bittensor.defaults.subspace.network, type=str,
-                                help='''The subspace network flag. The likely choices are:
-                                        -- finney (main network)
-                                        -- local (local running network)
-                                        -- mock (creates a mock connection (for testing))
-                                    If this option is set it overloads subspace.chain_endpoint with 
-                                    an entry point node from that network.
-                                    ''')
-            parser.add_argument('--' + prefix_str + 'subspace.chain_endpoint', default = bittensor.defaults.subspace.chain_endpoint, type=str, 
-                                help='''The subspace endpoint flag. If set, overrides the --network flag.
-                                    ''')       
-            parser.add_argument('--' + prefix_str + 'subspace._mock', action='store_true', help='To turn on subspace mocking for testing purposes.', default=bittensor.defaults.subspace._mock)
-            # registration args. Used for register and re-register and anything that calls register.
-            parser.add_argument('--' + prefix_str + 'subspace.register.num_processes', '-n', dest=prefix_str + 'subspace.register.num_processes', help="Number of processors to use for registration", type=int, default=bittensor.defaults.subspace.register.num_processes)
-            parser.add_argument('--' + prefix_str + 'subspace.register.update_interval', '--' + prefix_str + 'subspace.register.cuda.update_interval', '--' + prefix_str + 'cuda.update_interval', '-u', help="The number of nonces to process before checking for next block during registration", type=int, default=bittensor.defaults.subspace.register.update_interval)
-            parser.add_argument('--' + prefix_str + 'subspace.register.no_output_in_place', '--' + prefix_str + 'no_output_in_place', dest="subspace.register.output_in_place", help="Whether to not ouput the registration statistics in-place. Set flag to disable output in-place.", action='store_false', required=False, default=bittensor.defaults.subspace.register.output_in_place)
-            parser.add_argument('--' + prefix_str + 'subspace.register.verbose', help="Whether to ouput the registration statistics verbosely.", action='store_true', required=False, default=bittensor.defaults.subspace.register.verbose)
-            
-            ## Registration args for CUDA registration.
-            parser.add_argument( '--' + prefix_str + 'subspace.register.cuda.use_cuda', '--' + prefix_str + 'cuda', '--' + prefix_str + 'cuda.use_cuda', default=argparse.SUPPRESS, help='''Set flag to use CUDA to register.''', action="store_true", required=False )
-            parser.add_argument( '--' + prefix_str + 'subspace.register.cuda.no_cuda', '--' + prefix_str + 'no_cuda', '--' + prefix_str + 'cuda.no_cuda', dest=prefix_str + 'subspace.register.cuda.use_cuda', default=argparse.SUPPRESS, help='''Set flag to not use CUDA for registration''', action="store_false", required=False )
-
-            parser.add_argument( '--' + prefix_str + 'subspace.register.cuda.dev_id', '--' + prefix_str + 'cuda.dev_id',  type=int, nargs='+', default=argparse.SUPPRESS, help='''Set the CUDA device id(s). Goes by the order of speed. (i.e. 0 is the fastest).''', required=False )
-            parser.add_argument( '--' + prefix_str + 'subspace.register.cuda.TPB', '--' + prefix_str + 'cuda.TPB', type=int, default=bittensor.defaults.subspace.register.cuda.TPB, help='''Set the number of Threads Per Block for CUDA.''', required=False )
-
-            parser.add_argument('--netuid', type=int, help='netuid for subnet to serve this neuron on', default=argparse.SUPPRESS)        
-        except argparse.ArgumentError:
-            # re-parsing arguments.
-            pass
-
-    @classmethod
-    def add_defaults(cls, defaults ):
-        """ Adds parser defaults to object from enviroment variables.
-        """
-        defaults.subspace = bittensor.Config()
-        defaults.subspace.network = os.getenv('BT_SUBTENSOR_NETWORK') if os.getenv('BT_SUBTENSOR_NETWORK') != None else 'finney'
-        defaults.subspace.chain_endpoint = os.getenv('BT_SUBTENSOR_CHAIN_ENDPOINT') if os.getenv('BT_SUBTENSOR_CHAIN_ENDPOINT') != None else None
-        defaults.subspace._mock = os.getenv('BT_SUBTENSOR_MOCK') if os.getenv('BT_SUBTENSOR_MOCK') != None else False
-
-        defaults.subspace.register = bittensor.Config()
-        defaults.subspace.register.num_processes = os.getenv('BT_SUBTENSOR_REGISTER_NUM_PROCESSES') if os.getenv('BT_SUBTENSOR_REGISTER_NUM_PROCESSES') != None else None # uses processor count by default within the function
-        defaults.subspace.register.update_interval = os.getenv('BT_SUBTENSOR_REGISTER_UPDATE_INTERVAL') if os.getenv('BT_SUBTENSOR_REGISTER_UPDATE_INTERVAL') != None else 50_000
-        defaults.subspace.register.output_in_place = True
-        defaults.subspace.register.verbose = False
-
-        defaults.subspace.register.cuda = bittensor.Config()
-        defaults.subspace.register.cuda.dev_id = [0]
-        defaults.subspace.register.cuda.use_cuda = False
-        defaults.subspace.register.cuda.TPB = 256
-
-        
-
-    @staticmethod   
-    def check_config( config: 'bittensor.Config' ):
-        assert config.subspace
-        #assert config.subspace.network != None
-        if config.subspace.get('register') and config.subspace.register.get('cuda'):
-            assert all((isinstance(x, int) or isinstance(x, str) and x.isnumeric() ) for x in config.subspace.register.cuda.get('dev_id', []))
-
-            if config.subspace.register.cuda.get('use_cuda', bittensor.defaults.subspace.register.cuda.use_cuda):
-                try:
-                    import cubit
-                except ImportError:
-                    raise ImportError('CUDA registration is enabled but cubit is not installed. Please install cubit.')
-
-                if not is_cuda_available():
-                    raise RuntimeError('CUDA registration is enabled but no CUDA devices are detected.')
-
-
-    @staticmethod
-    def determine_chain_endpoint(network: str):
-        if network == "nakamoto":
-            # Main network.
-            return bittensor.__nakamoto_entrypoint__
-        elif network == "finney": 
-            # Kiru Finney stagin network.
-            return bittensor.__finney_entrypoint__
-        elif network == "nobunaga": 
-            # Staging network.
-            return bittensor.__nobunaga_entrypoint__
-        elif network == "bellagene":
-            # Parachain test net
-            return bittensor.__bellagene_entrypoint__
-        elif network == "local":
-            # Local chain.
-            return bittensor.__local_entrypoint__
-        elif network == 'mock':
-            return bittensor.__mock_entrypoint__
-        else:
-            return bittensor.__local_entrypoint__

@@ -67,7 +67,7 @@ class TransformerModel( Model):
                 # model_name: str="EleutherAI/gpt-j-6B",
                 model: str="gpt125m",
                 tag :str = None,
-                tokenizer:str = 'gpt2',
+                tokenizer:str = None,
                 device: str = 'cuda',
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
