@@ -27,10 +27,18 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     
-    def __init__(self, config:Dict=None, save_config_if_not_exists:bool=False, *args,  **kwargs):
+    def __init__(self, 
+                 config:Dict=None, 
+                 save_if_not_exists:bool=False, 
+                 key: str = None,
+                 *args, 
+                 **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, save_if_not_exists=save_config_if_not_exists)        
-
+        self.set_config(config=config, save_if_not_exists=save_if_not_exists)  
+        
+        # do you want a key fam
+        if key is not None:
+            self.set_key(key)
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     
@@ -211,8 +219,12 @@ class Module:
         if save_if_not_exists:    
             if not os.path.exists(__config_file__):
                 cls.save_config(config=cls.minimal_config(), path=__config_file__)
-                
-        config = cls.load_yaml(path)
+               
+        try:
+            
+            config = cls.load_yaml(path)
+        except FileNotFoundError as e:
+            config = cls.minimal_config()
         
         if to_munch:
             config =  cls.dict2munch(config)
@@ -2314,11 +2326,45 @@ class Module:
         specific_logger = getattr(cls.logger, mode)
         return specific_logger(text)
 
+
+    @classmethod
+    def resolve_logger(cls, logger = None):
+        if not hasattr(cls,'logger'):
+            from loguru import logger
+            cls.logger = logger.opt(colors=True)
+        if logger is not None:
+            cls.logger = logger
+        return logger
+
+    @classmethod
+    def resolve_console(cls, console = None):
+        if not hasattr(cls,'console'):
+            from rich.console import Console
+            cls.console = Console()
+        if console is not None:
+            cls.console = console
+        return logger
+    
+    @classmethod
+    def critical(cls, *args, **kwargs):
+        console = cls.resolve_console()
+        return cls.console.critical(*args, **kwargs)
+    
+    @classmethod
+    def debug(cls, *args, **kwargs):
+        console = cls.resolve_console()
+        return console.debug(*args, **kwargs)
+
     @classmethod
     def from_json(cls, json_str:str) -> 'Module':
         import json
         return cls.from_dict(json.loads(json_str))
-        
+     
+    @classmethod
+    def status(cls, *args, **kwargs):
+        console = cls.resolve_console()
+        return self.console.status(*args, **kwargs)
+       
     @classmethod
     def test(cls):
         # test all the functions that start with test_
@@ -2439,10 +2485,11 @@ class Module:
     # KEY LAND
 
     # MODULE IDENTITY LAND
-    
     @classmethod
-    def key(cls,  *args,mode='substrate', **kwargs) -> None:
+    def get_key(cls, seed_hex = None, *args,mode='substrate', **kwargs) -> None:
         
+        if seed_hex is not None:
+            kwargs['seed_hex'] = seed_hex
         if len(args) == 1:
             key = args[0]
             if isinstance(key, dict):
@@ -2476,14 +2523,15 @@ class Module:
         
     def resolve_key(self, key: str) -> str:
         if key == None:
-            if hasattr(self, 'key'):
-                key = self.key
-            else:
-                self.key = self.key()
+            if not hasattr(self, 'key'):
+                self.set_key()
+            key = self.key
+            
+        return key  
                 
                 
-    def set_key(self, **kwargs) -> None:
-        key = self.key(**kwargs)
+    def set_key(self, *args, **kwargs) -> None:
+        key = self.get_key(*args, **kwargs)
         self.key = key
         self.public_key = self.key.public_key
       
@@ -2493,7 +2541,83 @@ class Module:
     def verify(self, *args,  **kwargs) -> bool:
         return self.key.verify(*args, **kwargs)
         
+      
+ 
+    def get_auth(self, data:dict  = None, key: str = None) -> dict:
+        
+        key = self.resolve_key(key)
+        if data == None:
+            # default data  
+            data = {'utc_timestamp': self.time()}
+        sig_dict = key.sign(data)
+        return sig_dict
     
+      
+    def authenticate(self, auth: dict , staleness: int = 60, ) -> bool:
+        
+        '''
+        Args:
+            auth {
+                'signature': str,
+                'data': str (json) with ['timestamp'],
+                'public_key': str
+            }
+            
+            statleness: int (seconds) - how old the request can be
+        return bool
+        '''
+        
+        # check if user is in the list of users
+        is_user = self.is_user(auth)
+        
+        # check the data
+        data = auth['data']
+        
+        if data['timestamp'] < self.time() - staleness:
+            is_user = False
+            
+        return is_user
+        
+        
+        
+    def is_user(self, auth: dict = None) -> bool:
+        assert isinstance(auth, dict), 'Auth must be provided'
+        for k in ['signature', 'data', 'public_key']:
+            assert k in auth, f'Auth must have key {k}'
+            
+        user_address = self.verify(user, auth)
+        if not hasattr(self, 'users'):
+            self.users = {}
+        return bool(user_address in self.users)
+        
+        
+    
+    def add_user(self, user: str = None, info: dict = None):
+        if not hasattr(self, 'users'):
+            self.users = {}
+        if info == None:
+            info = {}
+        info.update({'timestamp': self.time()})
+        self.users[user] = info
+        
+        
+        
+    @property
+    def users(self):
+        if not hasattr(self, '_users'):
+            self._users = {}
+        return self._users
+    
+    @users.setter
+    def users(self, value: dict):
+        self._users = value
+        
+    def remove_user(self, key: str) -> None:
+        if not hasattr(self, 'users'):
+            self.users = []
+        self.users.pop(key, None)
+
+
     
     # # ARRAY2BYTES
     # @classmethod
