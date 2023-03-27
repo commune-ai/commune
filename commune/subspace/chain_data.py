@@ -33,14 +33,12 @@ custom_rpc_type_registry = {
             "type_mapping": [
                 ["netuid", "Compact<u16>"],
                 ["immunity_period", "Compact<u16>"],
-                ["max_allowed_validators", "Compact<u16>"],
                 ["min_allowed_weights", "Compact<u16>"],
                 ["max_weights_limit", "Compact<u16>"],
                 ["subnetwork_n", "Compact<u16>"],
                 ["max_allowed_uids", "Compact<u16>"],
                 ["blocks_since_last_step", "Compact<u64>"],
                 ["tempo", "Compact<u16>"],
-                ["network_connect", "Vec<[u16; 2]>"],
                 ["emission_values", "Compact<u64>"],
             ]
         },
@@ -229,9 +227,6 @@ class SubnetInfo:
     """
     netuid: int
     immunity_period: int
-    validator_epochs_per_reset: int
-    validator_epoch_length: int
-    max_allowed_validators: int
     min_allowed_weights: int
     max_weight_limit: float
     subnetwork_n: int
@@ -239,7 +234,6 @@ class SubnetInfo:
     blocks_since_epoch: int
     tempo: int
     # netuid -> topk percentile prunning score requirement (u16:MAX normalized.)
-    connection_requirements: Dict[str, float]
     emission_value: float
 
     @classmethod
@@ -276,18 +270,12 @@ class SubnetInfo:
         return SubnetInfo(
             netuid = decoded['netuid'],
             immunity_period = decoded['immunity_period'],
-            validator_epochs_per_reset = decoded['validator_epochs_per_reset'],
-            validator_epoch_length = decoded['validator_epoch_length'],
-            max_allowed_validators = decoded['max_allowed_validators'],
             min_allowed_weights = decoded['min_allowed_weights'],
             max_weight_limit = decoded['max_weights_limit'],
             subnetwork_n = decoded['subnetwork_n'],
             max_n = decoded['max_allowed_uids'],
             blocks_since_epoch = decoded['blocks_since_last_step'],
             tempo = decoded['tempo'],
-            connection_requirements = {
-                str(int(netuid)): commune.subspace.utils.U16_NORMALIZED_FLOAT(int(req)) for netuid, req in decoded['network_connect']
-            },
             emission_value= decoded['emission_values'],
         )
     

@@ -2331,7 +2331,7 @@ class Module:
             cls.logger = logger.opt(colors=True)
         if logger is not None:
             cls.logger = logger
-        return logger
+        return cls.logger
 
     @classmethod
     def resolve_console(cls, console = None):
@@ -2346,6 +2346,21 @@ class Module:
     def critical(cls, *args, **kwargs):
         console = cls.resolve_console()
         return cls.console.critical(*args, **kwargs)
+    
+    @classmethod
+    def success(cls, *args, **kwargs):
+        logger = cls.resolve_logger()
+        return logger.success(*args, **kwargs)
+
+    @classmethod
+    def warning(cls, *args, **kwargs):
+        logger = cls.resolve_logger()
+        return logger.warning(*args, **kwargs)
+
+    @classmethod
+    def error(cls, *args, **kwargs):
+        logger = cls.resolve_logger()
+        return logger.error(*args, **kwargs)
     
     @classmethod
     def debug(cls, *args, **kwargs):
@@ -2484,8 +2499,10 @@ class Module:
     # MODULE IDENTITY LAND
     @classmethod
     def get_key(cls, uri = None, *args,mode='subspace', **kwargs) -> None:
-        
+
         if mode == 'subspace':
+            if uri == None:
+                uri = 'Alice'
             if isinstance(uri, str):
                 if not uri.startswith('//'):
                     uri = '//' + uri

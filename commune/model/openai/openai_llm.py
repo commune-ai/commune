@@ -1,10 +1,10 @@
 
 import openai
-import commune
+# import commune
 import os
 
-
-class OpenAILLM(commune.Module):
+# class OpenAILLM(commune.Moudle):
+class OpenAILLM:
     def __init__(self,
                  model: str = "text-davinci-003",
                 temperature: float=0.9,
@@ -37,9 +37,9 @@ class OpenAILLM(commune.Module):
         assert openai.api_key is not None, "OpenAI API key not found."
             
         
-    @classmethod
-    def install_env(cls):
-        cls.cmd("pip install openai")
+    # @classmethod
+    # def install_env(cls):
+    #     cls.cmd("pip install openai")
 
     def forward(self,prompt="Who is Alan Turing? what is the point of life?",
             params: dict = None,
@@ -48,10 +48,10 @@ class OpenAILLM(commune.Module):
         
         params = params if params != None else self.params
 
-        commune.print(f"Running OpenAI LLM with params: {params}", 'blue')
+        print(f"Running OpenAI LLM with params: {params}", 'blue')
 
         
-        commune.print(f"Running OpenAI LLM with prompt: {prompt}", 'yellow')
+        print(f"Running OpenAI LLM with prompt: {prompt}", 'yellow')
 
         response = openai.Completion.create(
             prompt=prompt, 
@@ -71,6 +71,6 @@ class OpenAILLM(commune.Module):
         print(model.run(prompt="Who is Alan Turing?"))        
 
 if __name__ == "__main__":
-    OpenAILLM.run()
+    OpenAILLM.test(key='INSERT YOUR KEY HERE')
 
 
