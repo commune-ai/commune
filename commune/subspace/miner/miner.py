@@ -9,7 +9,7 @@ from commune import subspace
 class Miner(commune.Module):
     
     def __init__(self, 
-                 model: Any= 'model',
+                 model: Any= None,
                  subspace: 'Subspace' = None,
                  key: Union[Dict, str] = None,
                  stats: Union[Dict, str] = None,
@@ -21,7 +21,9 @@ class Miner(commune.Module):
         self.set_stats(stats)
 
 
-    def set_model(self, model) -> None:
+    def set_model(self, model: Any = None) -> None:
+        if model is None:
+            model = self.random_model()
         if isinstance(model, str):
             model = commune.connect(model)
         elif isinstance(model, dict):
@@ -103,6 +105,8 @@ class Miner(commune.Module):
         model = commune.launch(module)
         model.deploy(**kwargs)
         
+    def forward(self, *args, **kwargs):
+        return self.model.forward(*args, **kwargs)
 
     def set_stat(self, key: str, stat: Dict[str, Any]) -> None:
         
@@ -112,9 +116,32 @@ class Miner(commune.Module):
         
         self.stats[key] = stat
       
-
-if __name__ == '__main__':
-
-    self = Miner(model='model::a')
-    st.write(self.key)
     
+    @classmethod
+    def available_models(cls, prefix:str='model') -> List[str]:
+        return [x for x in commune.servers() if x.startswith(prefix)]
+    
+    @classmethod
+    def random_model(cls) -> str:
+        import random
+        return random.choice(cls.available_models())
+    
+    @classmethod
+    def default_miner(cls) -> str:
+        return cls(model=self.random_model())
+
+    def default_dataset(self) -> str:
+        return commune.connect('dataset')
+    def test(self):
+        dataset = commune.connect('dataset')
+        sample = dataset.sample(tokenize=True)
+        st.write(self.model.model_name)
+        pred = self.forward(**sample, return_keys=['topk'])
+        assert pred['topk'] is not None
+        st.write(pred)
+        commune.log('Test passed')
+        
+if __name__ == '__main__':
+    for m in Miner.available_models():
+        self = Miner(model=m)
+        st.write(self.key)
