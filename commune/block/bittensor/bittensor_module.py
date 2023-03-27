@@ -320,8 +320,9 @@ class BittensorModule(commune.Module):
                                                             hotkey_use_password=hotkey_use_password)         
     @classmethod  
     def sandbox(cls):
-        self = cls()
-        st.write(dir(self.subtensor))
+        self = cls(wallet='ensemble_0.0')
+        self.create_wallets()
+        # st.write(dir(self.subtensor))
         st.write(self.register())
 if __name__ == "__main__":
     BittensorModule.sandbox()

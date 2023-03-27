@@ -11,7 +11,7 @@ export PATH="/root/.nvm/versions/node/v${NODE_VERSION}/bin/:${PATH}"
 
 # Install node packages
 npm i -g pm2
-npm install --save-dev hardhat
-npm install --save-dev @nomicfoundation/hardhat-toolbox
-npx hardhat
-npm install @openzeppelin/contracts
+# npm install --save-dev hardhat
+# npm install --save-dev @nomicfoundation/hardhat-toolbox
+# npx hardhat
+# npm install @openzeppelin/contracts
