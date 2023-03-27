@@ -25,9 +25,11 @@ from substrateinterface import SubstrateInterface
 from commune.subspace import Balance
 import commune
 from typing import List, Dict, Union, Optional, Tuple
+from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
 from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, NANOPERTOKEN, U16_MAX
 from commune.subspace.utils import is_valid_address_or_public_key
+from commune.subspace.utils import weight_utils
 from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo, custom_rpc_type_registry
 from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
 import streamlit as st
@@ -157,8 +159,8 @@ class Subspace(commune.Module):
         uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
         key: 'commune.key' = None,
-        wait_for_inclusion:bool = False,
-        wait_for_finalization:bool = False,
+        wait_for_inclusion:bool = True,
+        wait_for_finalization:bool = True,
         prompt:bool = False,
     ) -> bool:
         r""" Sets the given weights and values on chain for key hotkey account.
@@ -199,16 +201,17 @@ class Subspace(commune.Module):
             if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/65535) for v in weight_vals], weight_uids) ):
                 return False
 
-        with commune.status(":satellite: Setting weights on [white]{}[/white] ...".format(subtensor.network)):
+        with commune.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
             try:
                 with self.substrate as substrate:
                     call = substrate.compose_call(
-                        call_module='SubtensorModule',
+                        call_module='SubspaceModule',
                         call_function='set_weights',
                         call_params = {
                             'dests': weight_uids,
                             'weights': weight_vals,
                             'netuid': netuid,
+                            'version_key': 1
                         }
                     )
                     # Period dictates how long the extrinsic will stay as part of waiting pool
@@ -222,22 +225,22 @@ class Subspace(commune.Module):
                     response.process_events()
                     if response.is_success:
                         commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                        commune.logging.success(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
+                        logger.print(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
                         return True
                     else:
                         commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                        commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                        commune.print(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
                         return False
 
             except Exception as e:
                 commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-                commune.logging.warning(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(e) )
+                commune.status(  'Set weights <red>Failed: </red>' + str(e) )
                 return False
 
         if response.is_success:
             commune.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
             message = '<green>Success: </green>' + f'Set {len(uids)} weights, top 5 weights' + str(list(zip(uids.tolist()[:5], [round (w,4) for w in weights.tolist()[:5]] )))
-            logger.debug('Set weights:'.ljust(20) +  message)
+            commune.debug('Set weights:'.ljust(20) +  message)
             return True
         
         return False
@@ -275,19 +278,29 @@ class Subspace(commune.Module):
         
         return key
     
-    @classmethod
-    def subnets(cls) -> List[int]:
-        return self.name2subnet.keys()
-    
-    
+
     def resolve_netuid(self, netuid: Union[str, int]) -> int:
+        if netuid == None:
+            netuid = self.default_subnet_uid
         if isinstance(netuid, str):
-            netuid = self.name2subnet(netuid)
+            netuid = self.subnet2uid(netuid)
         assert isinstance(netuid, int), f'Invalid net: {netuid}, your net must be one of {self.name2subnet.keys()}'
         return netuid
     
+    def valid_subnet(self, netuid: Union[int, str]) -> bool:
+        
+        if isinstance(netuid, str):
+            return bool(netuid in self.subnets)
+        elif isinstance(netuid, int):
+            return bool(netuid in self.subnet_uids)
+        else:
+            return False
+    
     def register (
         self,
+        name: str = None,
+        ip: str = None,
+        port: int = None,
         netuid :int = 0 ,
         key: 'commune.Key' = None,
         wait_for_inclusion: bool = False,
@@ -335,7 +348,16 @@ class Subspace(commune.Module):
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
         
-    
+
+        if isinstance(ip, str):
+            ip = ip_to_int(ip)
+            
+        assert isinstance(ip, int), f'Invalid ip: {ip}, your ip must be a string or int'
+        assert isinstance(port, int), f'Invalid port: {port}, your port must be an int'
+        assert isinstance(name, str), f'Invalid name: {name}, your name must be a string'
+        
+        # convert name to bytes
+        name = name.encode('utf-8')
         
         if not self.subnet_exists( netuid ):
             commune.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
@@ -372,6 +394,9 @@ class Subspace(commune.Module):
                         call_function='register', 
                         call_params={ 
                             'netuid': netuid,
+                            'ip': ip,
+                            'port': port,
+                            'name': name
                         } 
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
@@ -425,6 +450,7 @@ class Subspace(commune.Module):
         wait_for_finalization: bool = False,
         prompt: bool = False,
         key: 'commune.Key' =  None,
+        keep_alive: bool = True
     ) -> bool:
         key = self.resolve_key(key)
 
@@ -440,7 +466,7 @@ class Subspace(commune.Module):
             
         # Convert to Balance
         if not isinstance(amount, Balance ):
-            transfer_balance = Balance.from_tao( amount )
+            transfer_balance = Balance.from_token( amount )
         else:
             transfer_balance = amount
 
@@ -579,7 +605,7 @@ class Subspace(commune.Module):
                 If we did not wait for finalization / inclusion, the response is true.
         """
         params = {
-            'ip': net.ip_to_int(ip),
+            'ip': ip_to_int(ip),
             'port': port,
             'netuid': netuid,
             'key': wallet.coldkeypub.ss58_address,
@@ -588,7 +614,7 @@ class Subspace(commune.Module):
         with commune.info(":satellite: Checking Axon..."):
             neuron = self.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
             neuron_up_to_date = not neuron.is_null and params == {
-                'ip': net.ip_to_int(neuron.axon_info.ip),
+                'ip': ip_to_int(neuron.axon_info.ip),
                 'port': neuron.axon_info.port,
                 'netuid': neuron.netuid,
                 'key': neuron.coldkey,
@@ -601,7 +627,7 @@ class Subspace(commune.Module):
             commune.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
                                         f"[green not bold]- coldkey: [/green not bold][white not bold]{output['key']}[/white not bold] \n"
                                         f"[green not bold]- Status: [/green not bold] |"
-                                        f"[green not bold] ip: [/green not bold][white not bold]{net.int_to_ip(output['ip'])}[/white not bold] |"
+                                        f"[green not bold] ip: [/green not bold][white not bold]{int_to_ip(output['ip'])}[/white not bold] |"
                                         f"[green not bold] port: [/green not bold][white not bold]{output['port']}[/white not bold] | "
                                         f"[green not bold] netuid: [/green not bold][white not bold]{output['netuid']}[/white not bold] |"
             )
@@ -687,9 +713,9 @@ class Subspace(commune.Module):
         # Convert to commune.Balance
         if amount == None:
             # Stake it all.
-            staking_balance = Balance.from_tao( old_balance.tao )
+            staking_balance = Balance.from_token( old_balance.tao )
         elif not isinstance(amount, Balance ):
-            staking_balance = Balance.from_tao( amount )
+            staking_balance = Balance.from_token( amount )
         else:
             staking_balance = amount
 
@@ -794,7 +820,7 @@ class Subspace(commune.Module):
             # Unstake it all.
             unstaking_balance = old_stake
         elif not isinstance(amount, Balance ):
-            unstaking_balance = Balance.from_tao( amount )
+            unstaking_balance = Balance.from_token( amount )
         else:
             unstaking_balance = amount
 
@@ -907,26 +933,7 @@ class Subspace(commune.Module):
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ImmunityPeriod", block, [netuid] ).value
 
-    """ Returns network ValidatorPruneLen hyper parameter """
-    def validator_prune_len (self, netuid: int, block: Optional[int] = None ) -> int:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace("ValidatorPruneLen", block, [netuid] ).value
 
-    """ Returns network ValidatorEpochsPerReset hyper parameter """
-    def validator_epochs_per_reset (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace("ValidatorEpochsPerReset", block, [netuid] ).value
-
-    """ Returns network ValidatorEpochLen hyper parameter """
-    def validator_epoch_length (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace("ValidatorEpochLen", block, [netuid] ).value
-
-    """ Returns network MaxAllowedValidators hyper parameter """
-    def max_allowed_validators(self, netuid: int, block: Optional[int] = None) -> Optional[int]:
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace( 'MaxAllowedValidators', block, [netuid] ).value
-        
     """ Returns network MinAllowedWeights hyper parameter """
     def min_allowed_weights (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
         if not self.subnet_exists( netuid ): return None
@@ -1126,8 +1133,6 @@ class Subspace(commune.Module):
         uids = [self.get_uid_for_key_on_subnet(key_ss58, netuid) for netuid in netuids] 
         return [self.neuron_for_uid( uid, netuid ) for uid, netuid in list(zip(uids, netuids))]
 
-    def neuron_has_validator_permit( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[bool]:
-        return self.query_subspace( 'ValidatorPermit', block, [ netuid, uid ] ).value
 
     def neuron_for_wallet( self, key: 'commune.Key', netuid = int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
         return self.get_neuron_for_pubkey_and_subnet ( key.ss58_address, netuid = netuid, block = block )
@@ -1223,7 +1228,7 @@ class Subspace(commune.Module):
                     )
             result = make_substrate_call_with_retry()
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
-            logger.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+            commune.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
             return Balance(1000)
         return Balance( result.value['data']['free'] )
 
@@ -1254,6 +1259,11 @@ class Subspace(commune.Module):
             bal = Balance( int( r[1]['data']['free'].value ) )
             return_dict[r[0].value] = bal
         return return_dict
+    
+    def get_namespace(self, netuid = 3,  ):
+        self.get_storage_map(module='SubspaceModule', storage_map='AxonNamespace')
+        return {self.substrate.ss58_encode(k[len(map_prefix):]): v for k, v in result}
+
 
     @staticmethod
     def _null_neuron() -> NeuronInfo:
@@ -1275,27 +1285,94 @@ class Subspace(commune.Module):
         return neuron
 
 
+
+
+    @classmethod
+    def test_keys(cls, 
+                     keys: List[str]=['Alice', 'Bob', 'Chris', 'Sal', 'Billy', 'Jerome']):
+        key_map = {}
+        for k in keys:
+            key_map[k] = commune.key(k)
+            
+        return key_map
+    @property
+    def default_subnet(self) -> str:
+        for k, v in self.subnet2uid.items():
+            if v == 1:
+                return k
+        raise Exception("No default subnet found.")
+    @classmethod
+    def default_subnet_uid(self) -> int:
+        return self.subnet2uid[self.default_subnet]
+    
+    @property
+    def subnet2uid(self) -> Dict[str, str]:
+        
+        # Get the namespace for the netuid.
+        records = self.query_map_subspace('SubnetNamespace', params=[]).records
+        
+        subnet2uid = {}
+        for r in records:
+            name = r[1].value
+            uid = int(r[0].value)
+            subnet2uid[name] = int(uid)
+        
+        return subnet2uid
+    
+    def subnets(self) -> List[str]:
+        return list(self.subnet2uid.keys())
+        
+    def subnet_uids(self) -> List[int]:
+        return list(self.subnet2uid.values())
+
+    
+    def namespace(self, netuid: int = None) -> Dict[str, str]:
+        netuid = self.resolve_netuid(netuid)
+        
+        # Get the namespace for the netuid.
+        records = self.query_map_subspace('AxonNamespace', params=[netuid]).records
+        
+        namespace = {}
+        for r in records:
+            key = r[0].value
+            value = r[1].value
+            value['ip'] = int_to_ip(value['ip'])
+            namespace[key] = value
+        
+        return namespace
+
     @classmethod
     def test(cls):
         subspace = cls()
         
-        from substrateinterface import Keypair
+        keys = cls.test_keys(['Alice', 'Billy', 'Bob'])
+        for name, key in keys.items():
+            subspace.register(key=key, netuid=1, ip=commune.external_ip(), port=8000, name=name)
+            
+        neurons = subspace.neurons(netuid=1)
+        for key in keys.values():
+            subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in neurons], uids=[n.uid for n in neurons])
         
-        key = commune.get_module('subspace.key').create_from_uri('//Alice')
-        st.write(subspace.get_balance(key.public_key))
+        # from substrateinterface import Keypair
+
+        # key = commune.key('Alice')
+        # st.write(subspace.get_balance(commune.key('Sal').public_key))
+        # subspace.transfer(key=key, dest=commune.key('Sal').public_key, amount=10000000)
         
-        keys = [commune.key(str(i)) for i in range(3)]
+        # keys = [commune.key(str(i)) for i in ['Sal', 'Billy', 'Alice', 'Bob', 'Jerome']]
         
-        subnets = subspace.get_subnets()
+        # subnets = subspace.get_subnets()
    
-        for key in keys:
-            subspace.register(key=key, netuid=subnets[0])
+        # for key in keys:
+        #     subspace.register(key=key, netuid=subnets[0])
             
     @classmethod
     def sandbox(cls):
         self = cls()
         key_class = commune.get_module('subspace.key')
         st.write(self.get_balance(key_class.create_from_seed('Alice').public_key))
+        
+
 if __name__ == "__main__":
     Subspace.test()
 
