@@ -4,7 +4,7 @@ start_env:
 # ANSIBLE CHADGPT PLAYS
 
 play:
-	sudo ansible-playbook -i inventory.yaml playbooks/${arg}.yaml
+	ansible-playbook -i inventory.yaml playbooks/${arg}.yaml
 
 gen_keys:
 	make play arg=gen_keys
