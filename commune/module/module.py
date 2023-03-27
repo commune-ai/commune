@@ -2632,6 +2632,13 @@ class Module:
     def users(self, value: dict):
         self._users = value
         
+    @classmethod
+    def network(cls,  *args, mode='subspace', **kwargs) -> str:
+        if mode == 'subspace':
+            return self.get_module('subspace')(*args, **kwargs)
+        else:
+            raise ValueError('Invalid mode for network')
+        
     def remove_user(self, key: str) -> None:
         if not hasattr(self, 'users'):
             self.users = []

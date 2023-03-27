@@ -93,7 +93,7 @@ class Validator(commune.Module):
     
     
     
-    def get_sample(self, **kwargs):
+    def sample(self, **kwargs):
         kwargs.update(dict(
             tokenize=True, sequence_length=10, batch_size=2
         ))
@@ -136,7 +136,7 @@ class Validator(commune.Module):
     def validate_model(self, model_key: str = None, **kwargs):
         model_key = model_key if model_key else self.random_model_key()
         model = self.models[model_key]
-        sample = self.get_sample()
+        sample = self.sample()
         
         
         t= commune.timer()
@@ -214,22 +214,8 @@ class Validator(commune.Module):
         assert vals[0].key.verify(hash, signature = sig, public_key = vals[0].key.public_key )
         
         
-    def sign(self, message: Dict[str, Any]) -> Dict[str, Any]:
-        hash = self.key.hash(message)
-        signature = self.key.sign(hash)
-        return signature
-    
-    
-    def verify(self, message: Dict[str, Any],
-               signature: Dict[str, Any],
-               public_key : str = None, 
-               use_hash: bool = True) -> bool:
-        if use_hash:
-            message = self.key.hash(message)
-            
-        public_key = public_key if public_key else self.key.public_key
-        
-        return self.key.verify(message, signature)
+
+
         
 if __name__ == '__main__':
 

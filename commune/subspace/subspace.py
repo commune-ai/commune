@@ -1374,7 +1374,7 @@ class Subspace(commune.Module):
         
 
 if __name__ == "__main__":
-    Subspace.test()
+    Subspace.run()
 
     
     # st.write(key.sign('data'))
