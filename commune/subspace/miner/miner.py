@@ -39,33 +39,22 @@ class Miner(commune.Module):
         if isinstance(subspace, str):
             subspace = module_class(subspace)
         elif subspace is None:
-            subspace = module_class()
+            kwargs = {}
         elif isinstance(subspace, dict):
-            subspace = module_class(**subspace)
+            kwargs = subspace
         else: 
             raise ValueError(f'Invalid subspace type: {type(subspace)}')
         
-        self.subspace = subspace
+        self.subspace  = module_class(**kwargs)
 
-    def verify_signature(self, signature: Dict) -> bool:
-        # verify everything as default
-        return True
 
-        
 
-    def get_sample(self, **kwargs):
-        kwargs.update(dict(
-            tokenize=True, sequence_length=10, batch_size=2
-        ))
-        return self.dataset.sample(**kwargs)
-    
 
     def set_stats(self, stats: Dict[str, Any]) -> None:
         if stats is None:
             stats = {}
         self.stats = stats
          
-            
     
     def validate_model(self, model_key: str = None, **kwargs):
         model_key = model_key if model_key else self.random_model_key()
@@ -127,6 +116,15 @@ class Miner(commune.Module):
         return random.choice(cls.available_models())
     
     @classmethod
+    def fleet(cls) -> List['Miner']:
+        miner_fleet = []
+        for m in cls.available_models():
+            miner = Miner(model=m)
+            miner_fleet.append(miner)
+            
+        return miner_fleet
+    
+    @classmethod
     def default_miner(cls) -> str:
         return cls(model=self.random_model())
 
@@ -141,7 +139,11 @@ class Miner(commune.Module):
         st.write(pred)
         commune.log('Test passed')
         
+    @classmethod
+    def miner_fleet(cls):
+        for m in Miner.available_models():
+            self = Miner(model=m)
+            st.write(self.key)
+        
 if __name__ == '__main__':
-    for m in Miner.available_models():
-        self = Miner(model=m)
-        st.write(self.key)
+    Miner.fleet()

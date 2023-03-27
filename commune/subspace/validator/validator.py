@@ -9,7 +9,7 @@ class Validator(commune.Module):
     
     def __init__(self, 
                  dataset: str = 'dataset',
-                 models: List[str]= ['model::a', 'model::b'],
+                 miners: List[str]= None,
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
@@ -17,7 +17,7 @@ class Validator(commune.Module):
                  ):
         
         self.set_dataset(dataset)
-        self.set_models(models)
+        self.set_miners(miners)
         self.set_key(key)
         self.set_metric(metric)
         self.set_stats(stats)
@@ -36,21 +36,7 @@ class Validator(commune.Module):
     def set_models(self, models: List[str]) -> None:
         for model in models:
             self.add_model(model)
-        
-
-    def set_key(self, key) -> None:
-        key_class = commune.get_module('web3.account.substrate')
-        if isinstance(key, dict):
-            key = key_class(**key)
-        elif isinstance(key, str):
-            key = key_class(key)
-        elif key is None:
-            key = key_class()
-        self.key = key
-        
-    def verify_signature(self, signature: Dict) -> bool:
-        # verify everything as default
-        return True
+    
 
         
     def set_dataset(self, dataset: str) -> None:
@@ -61,9 +47,7 @@ class Validator(commune.Module):
         
         self.dataset = dataset
         
-    def validate(self, value):
-        return value
-    
+
     def set_metric(self, metric = None) -> None:
         if metric is None:
             metric = torch.nn.CrossEntropyLoss()
@@ -91,8 +75,7 @@ class Validator(commune.Module):
         return metric.item()
     
     
-    
-    
+
     def sample(self, **kwargs):
         kwargs.update(dict(
             tokenize=True, sequence_length=10, batch_size=2
@@ -140,7 +123,7 @@ class Validator(commune.Module):
         
         
         t= commune.timer()
-        output = model.forward(**sample,return_keys=['logits'])
+        output = model.forward(**sample,return_keys=['topk'])
         elapsed_time =  t.seconds
         output['input_ids'] = sample['input_ids']
         
@@ -221,5 +204,4 @@ if __name__ == '__main__':
 
     # self = Validator()
     model = commune.connect('model::a') 
-    st.write(model.set_finetune())
     # st.write(self.test())

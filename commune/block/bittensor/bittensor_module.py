@@ -4,6 +4,7 @@ import os,sys
 import asyncio
 from transformers import AutoConfig
 asyncio.set_event_loop(asyncio.new_event_loop())
+
 import bittensor
 import commune
 from typing import List, Union, Optional, Dict
@@ -14,7 +15,7 @@ class BittensorModule(commune.Module):
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                subtensor: Union[bittensor.subtensor, str] = 'nakamoto',
+                subtensor: Union[bittensor.subtensor, str] = 'finney',
                 ):
         
         self.set_subtensor(subtensor=subtensor)
@@ -22,7 +23,7 @@ class BittensorModule(commune.Module):
         
     @property
     def network_options(self):
-        network_options = ['local','nakamoto', 'nobunaga', '0.0.0.0:9944'] 
+        network_options = ['finney','nakamoto', 'nobunaga', '0.0.0.0:9944'] 
         if os.getenv('SUBTENSOR', None) is not None:
             network_options.append(os.getenv('SUBTENSOR'))
             
@@ -93,15 +94,22 @@ class BittensorModule(commune.Module):
         if output_wallet:
             wallets = [self.get_wallet(w) for w in wallets]
         return wallets
+    
+    @property
+    def default_network(self):
+        return self.network_options[0]
+    
+    @property
+    def default_wallet(self):
+        return self.list_wallets()[0]
             
     selected_wallets = []
     def streamlit_sidebar(self):
-        wallets_list = self.list_wallets()
-        wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
+        wallet = st.selectbox(f'Select Wallets ({self.default_wallet})', wallets_list, 0)
         self.set_wallet(wallet)
         
         network_options = self.network_options
-        network = st.selectbox(f'Select Network ({network_options[0]})', self.network_options, 0)
+        network = st.selectbox(f'Select Network ({self.default_network})', self.network_options, 0)
         self.set_subtensor(subtensor=network)
         
         sync_network = st.button('Sync the Network')
@@ -187,17 +195,40 @@ class BittensorModule(commune.Module):
           
           
           
+    
+    def ensure_env(self):
+
+        try:
+            import bittensor
+        except ImportError:
+            commune.run_command('pip install bittensor')
+            
+        return cubit
+    
+    
+        try:
+            import cubit
+        except ImportError:
+            commune.run_command('pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl')
+            
+    
+
+    @property
+    def default_subnet(self):
+        return 3
+        
 
     def register ( 
             self, 
             wallet = None,
+            netuid = None,
             subtensor: 'bittensor.Subtensor' = None, 
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             prompt: bool = False,
             max_allowed_attempts: int = 3,
             cuda: bool = True,
-            dev_id: int = 0,
+            dev_id: Union[int, List[int]] = None,
             TPB: int = 256,
             num_processes: Optional[int] = None,
             update_interval: Optional[int] = 50_000,
@@ -240,10 +271,14 @@ class BittensorModule(commune.Module):
         # Get chain connection.
         if subtensor == None: subtensor = self.subtensor
         
+        netuid = netuid if netuid is not None else self.default_subnet
+        
+        dev_id = dev_id if dev_id is not None else self.gpus()
         wallet = wallet if wallet is not None else self.wallet
         
         subtensor.register(
             wallet = wallet,
+            netuid = netuid,
             wait_for_inclusion = wait_for_inclusion,
             wait_for_finalization = wait_for_finalization,
             prompt=prompt, max_allowed_attempts=max_allowed_attempts,
@@ -269,9 +304,27 @@ class BittensorModule(commune.Module):
             # print(wallet)
             self.set_wallet(wallet)
             self.register(dev_id=commune.gpus())
-
+            
+    @classmethod
+    def create_wallets(cls, 
+                       coldkeys: List[str] = [f'ensemble_{i}' for i in range(3)],
+                       hotkeys : List[str] = [f'{i}' for i in range(10)],
+                       coldkey_use_password:bool = False, 
+                       hotkey_use_password:bool = False
+                       ):
+        
+        
+        for ck in coldkeys:
+            for hk in hotkeys:
+                bittensor.wallet(name=ck, hotkey=hk).create(coldkey_use_password=coldkey_use_password, 
+                                                            hotkey_use_password=hotkey_use_password)         
+    @classmethod  
+    def sandbox(cls):
+        self = cls()
+        st.write(dir(self.subtensor))
+        st.write(self.register())
 if __name__ == "__main__":
-    BittensorModule.run()
+    BittensorModule.sandbox()
 
 
     
