@@ -1,4 +1,4 @@
-module: Validator
+module: Miner
 dataset: dataset
 tokenizer: gpt2
 network:  local

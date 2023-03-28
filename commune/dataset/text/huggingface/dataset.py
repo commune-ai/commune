@@ -205,12 +205,15 @@ class HFDataset(commune.Module):
         return default_datasets 
         
     @classmethod
-    def launch_datasets(cls, datasets:List[str] = None, refresh: bool = True, **kwargs):
+    def deploy_fleet(cls, datasets:List[str] = None, refresh: bool = True, **kwargs):
         datasets = datasets if datasets else cls.list_datasets()
         for dataset in datasets:
             commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
             cls.launch(kwargs={'path':dataset}, name=f'dataset.text.{dataset}', refresh=refresh, **kwargs)
             commune.print(f'LAUNCHED {dataset} dataset', 'yellow')
+            
+            
+            
     def resolve_split(self, split:Optional[str]) -> str:
         if split == None:
             split = self.split
@@ -420,6 +423,22 @@ class HFDataset(commune.Module):
         
         return self.tokenizer
 
+
+
+
+    @classmethod
+    def available_datasets(cls, prefix:str='dataset') -> List[str]:
+        return [x for x in commune.servers() if x.startswith(prefix)]
+    
+    @classmethod
+    def default_dataset(cls) -> str:
+        available_datasets = cls.available_datasets()
+        if len(available_datasets) == 0:
+            return cls.launch(name='dataset.text.glue', kwargs=dict(path='glue'))
+        return commune.connect(dataset_name)
+    
+    
+
     @classmethod
     def test(cls):
         for path in cls.list_datasets():
@@ -436,6 +455,7 @@ class HFDataset(commune.Module):
         import streamlit as st
         st.write(cls.connect('dataset.text.super_glue').sample())
         
+
 
 if __name__ == '__main__':
     HFDataset.run()

@@ -560,7 +560,7 @@ class TransformerModel( Model):
             model_kwargs =  {'model': model}
             if 'gptj' in model:
                 model_kwargs['tokenizer'] = 'gptj'
-            module.launch(name=f'model.{model}',kwargs=model_kwargs, mode='pm2')
+            cls.launch(name=f'model.{model}',kwargs=model_kwargs, mode='pm2')
             
 
             

@@ -110,10 +110,12 @@ class Miner(commune.Module):
     def available_models(cls, prefix:str='model') -> List[str]:
         return [x for x in commune.servers() if x.startswith(prefix)]
     
+
     @classmethod
     def random_model(cls) -> str:
         import random
         return random.choice(cls.available_models())
+    
     
     @classmethod
     def fleet(cls) -> List['Miner']:
@@ -124,26 +126,24 @@ class Miner(commune.Module):
             
         return miner_fleet
     
+    
     @classmethod
     def default_miner(cls) -> str:
         return cls(model=self.random_model())
 
-    def default_dataset(self) -> str:
-        return commune.connect('dataset')
     def test(self):
-        dataset = commune.connect('dataset')
+        dataset = self.default_dataset()
         sample = dataset.sample(tokenize=True)
         st.write(self.model.model_name)
         pred = self.forward(**sample, return_keys=['topk'])
         assert pred['topk'] is not None
         st.write(pred)
-        commune.log('Test passed')
+        commune.log('[/green]Test passed[/green]')
         
     @classmethod
-    def miner_fleet(cls):
-        for m in Miner.available_models():
-            self = Miner(model=m)
-            st.write(self.key)
+    def deploy_fleet(cls):
+        for i,m in enumerate(Miner.available_models()):
+            Miner.launch(name=f'miner.{i}', kwargs={'model':m})
         
 if __name__ == '__main__':
-    Miner.fleet()
+    Miner.run()

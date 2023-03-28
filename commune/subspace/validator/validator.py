@@ -9,7 +9,7 @@ class Validator(commune.Module):
     
     def __init__(self, 
                  dataset: str = 'dataset',
-                 miners: List[str]= None,
+                 models: List[str]= None,
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
@@ -17,7 +17,7 @@ class Validator(commune.Module):
                  ):
         
         self.set_dataset(dataset)
-        self.set_miners(miners)
+        self.set_models(models)
         self.set_key(key)
         self.set_metric(metric)
         self.set_stats(stats)
@@ -27,6 +27,8 @@ class Validator(commune.Module):
         # set alpha for exponential moving average
         self.alpha = alpha
         
+    def verify_signature(self, signature: Dict) -> bool:
+        return True
     def add_model(self, model: str, signature: Dict = None) -> None:
         if not hasattr(self, 'models'):
             self.models = {}
@@ -197,11 +199,15 @@ class Validator(commune.Module):
         assert vals[0].key.verify(hash, signature = sig, public_key = vals[0].key.public_key )
         
         
-
-
+    @classmethod 
+    def miners(cls):
+        return [commune.connect(m) for m in commune.servers() if m.startswith('miner')]
         
 if __name__ == '__main__':
 
-    # self = Validator()
-    model = commune.connect('model::a') 
+    # self = Validator(
+        
+    validator =  Validator(models=Validator.miners(), dataset='dataset.text.glue')
+    validator    
+    
     # st.write(self.test())

@@ -922,6 +922,20 @@ class Module:
     def server_exists(cls, name:str) -> bool:
         server_registry = cls.servers()
         return bool(name in cls.servers())
+    
+    @classmethod
+    def wait_until_server(cls,
+                          name: str ,
+                          timeout:int = 30,
+                          sleep_interval: int = 5):
+        
+        start_time = cls.time()
+        while not cls.server_exists(name):
+            cls.sleep(interval_check)
+            current_time = cls.time()
+            if current_time - start_time > timeout:
+                raise TimeoutError(f'Timeout waiting for server to start')
+    
     def server_running(self):
         return hasattr(self, 'server_stats')
     def serve(self, name=None , *args, **kwargs):
@@ -949,6 +963,9 @@ class Module:
               tag:str=None, 
               replace:bool = True, 
               wait_for_termination:bool = True,
+              wait_for_server:bool = False,
+              wait_for_server_timeout:int = 30,
+              wait_for_server_sleep_interval: int = 5,
               *args, 
               **kwargs ):
         '''
@@ -988,6 +1005,9 @@ class Module:
         self.server_stats = server.info
         cls.register_server(name=module_id, server=server)
         server.serve(wait_for_termination=wait_for_termination)
+        
+        if wait_for_server:
+            cls.wait_until_server(name=module_id, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
         
     @classmethod
     def functions(cls, include_module=False):
