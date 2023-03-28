@@ -40,8 +40,6 @@ class Server(ServerServicer, Serializer):
             authenticate: bool = False,
             ip: Optional[str] = None,
             port: Optional[int] = None,
-            find_port: bool = True, # find an existing port
-            replace_port: bool = False,
             max_workers: Optional[int] = None, 
             maximum_concurrent_rpcs: Optional[int] = None,
             thread_pool: Optional[futures.ThreadPoolExecutor] = None,
@@ -50,8 +48,8 @@ class Server(ServerServicer, Serializer):
             server: Optional['grpc._Server'] = None,
             config: Optional['commune.config'] = None,
             verbose: bool = True,
-            whitelist_functions: Optional[List[str]] = ['functions', 'function_schema_map', 'getattr', 'servers', 'external_ip', 'pm2_status', 'peer_registry'],
-            blacklist_functions: Optional['Callable'] = [],
+            whitelist_functions: List[str] = [],
+            blacklist_functions: List[str ] = [],
 
 
         ) -> 'Server':
@@ -100,7 +98,11 @@ class Server(ServerServicer, Serializer):
         ip = ip if ip else self.default_ip
         self.external_ip = commune.external_ip()
         
-        self.set_server( ip=ip, port=port, thread_pool=thread_pool, max_workers=max_workers, server=server) 
+        self.set_server( ip=ip, 
+                        port=port, 
+                        thread_pool=thread_pool,
+                        max_workers=max_workers, 
+                        server=server) 
 
 
         # set the module
@@ -132,8 +134,8 @@ class Server(ServerServicer, Serializer):
     
     
     def set_server(self,  ip: str=  None , port:int =  None, 
-                   thread_pool: 'ThreadPoolExecutor' = None, max_workers:int = 1, 
-                   find_port:bool = True, replace_port:bool=True, 
+                   thread_pool: 'ThreadPoolExecutor' = None,
+                   max_workers:int = 1, 
                    server:'Server' = None ) -> 'Server':
         
         port = port if port != None else self.config.port
@@ -142,10 +144,8 @@ class Server(ServerServicer, Serializer):
         is_port_available = self.port_available(ip=ip, port=port)
         
         while not is_port_available:
-            if find_port:
-                port = self.get_available_port(ip=ip)
-            if replace_port:
-                self.kill_port(port=port)
+
+            port = self.get_available_port(ip=ip)
             is_port_available =  self.port_available(ip=ip, port=port)
 
         

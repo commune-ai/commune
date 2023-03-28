@@ -440,6 +440,8 @@ class Module:
                 used_ports.append(port)
         
         return used_ports
+    
+
    
     @classmethod
     def resolve_path(cls, path:str, extension:Optional[str]= None):
@@ -786,12 +788,9 @@ class Module:
     def get_server_info(cls,name:str) -> Dict:
         return cls.server_registry().get(name, {})
     @classmethod
-    def connect(cls,name:str=None, port:int=None , ip:str=None,virtual:bool = True, **kwargs ):
-        
-        
-        
-
-        server_registry =  Module.server_registry()
+    def connect(cls, name:str=None, port:int=None , ip:str=None, virtual:bool = True, **kwargs ):
+        if name != None:
+            server_registry =  Module.server_registry()
         if isinstance(name, str) and len(name.split(':')) == 2:
             port = int(name.split(':')[1])
             ip = name.split(':')[0]
@@ -799,7 +798,8 @@ class Module:
         if ip == None and port == None:
             client_kwargs = server_registry[name]
         else:
-            client_kwargs = dict(ip=ip, port=port)
+            
+            client_kwargs = dict(ip=ip, port=int(port))
         Client = cls.import_object('commune.server.client.Client')
         client_module = Client( **kwargs,**client_kwargs)
         ip = client_kwargs['ip']
@@ -816,44 +816,60 @@ class Module:
         import nest_asyncio
         nest_asyncio.apply()
         
+        
     @classmethod
-    def peer_registry(cls) -> Dict:
+    def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
+        used_local_ports = cls.get_used_ports() 
+        if ip == None:
+            ip = cls.default_ip
+        peer_addresses = []
+        for port in used_local_ports:
+            peer_addresses.append(f'{ip}:{port}')
+            
+        return peer_addresses
+            
+    
+    @classmethod
+    def get_server_registry(cls, ip:str = None, save:bool = False) -> Dict:
         peer_registry = {}
-        for peer in cls.pm2_list():
-            peer_stub = cls.connect(peer)
-            peer_registry[peer] = peer_stub.server_stats
+        peer_addresses = cls.get_peer_addresses()
+        
+        for port in peer_addresses:
+            ip, port = port.split(':')
+            peer = cls.connect(ip=ip, port=port)
+            peer_name = peer.module_id
+            peer_registry[peer_name] = peer.server_stats
         return peer_registry
+
     @classmethod
     def server_registry(cls)-> dict:
         '''
-        
         The module port is where modules can connect with each othe.
-        
         When a module is served "module.serve())"
         it will register itself with the server_registry dictionary.
-        
-        
-        
         '''
         # from copy import deepcopy
-        
-        # get the module port if its saved.
-        # if it doesnt exist, then return default ({})
-        server_registry = Module.get_json('server_registry', handle_error=True, default={})
-        
+    
+        # try:
+        #     server_registry = Module.get_json('server_registry', handle_error=True, default={})
+        # except json.JSONDecodeError as e:
+        #     server_registry = cls.get_server_registry()
+
+        server_registry = cls.get_server_registry()
+            
         for k in deepcopy(list(server_registry.keys())):
-            if not Module.port_used(**server_registry[k]):
+            
+            if not Module.port_used(int(server_registry[k]['port'])):
                 del server_registry[k]
         Module.put_json('server_registry',server_registry)
         return server_registry
-    
-    
     
     def server_info(self): 
         self.server_registry(self.module_id)
   
     @classmethod
     def servers(cls, search:str = None, ) -> List[str]:
+        
         servers =  list(cls.server_registry().keys())
         
         # filter based on the search
@@ -948,12 +964,24 @@ class Module:
         del self.server_stats
         
         
+        
     @classmethod
     def get_streamlit(cls):
-        import streamlit
-        return streamlit 
+        import streamlit as st
+        return st 
     
     
+    
+    whitelist_functions: List[str] = ['functions',
+                                      'function_schema_map', 
+                                      'getattr', 
+                                      'servers',
+                                      'external_ip', 
+                                      'peer_registry',
+                                      'verify', 
+                                      'get_id']
+    blacklist_functions: List[str] = []
+
     @classmethod
     def serve_module(cls, 
               module:Any = None ,
@@ -962,7 +990,9 @@ class Module:
               name:str=None, 
               tag:str=None, 
               replace:bool = True, 
-              wait_for_termination:bool = True,
+              whitelist_functions:List[str] = None,
+              blacklist_functions:List[str] = None,
+              wait_for_termination:bool = False,
               wait_for_server:bool = False,
               wait_for_server_timeout:int = 30,
               wait_for_server_sleep_interval: int = 5,
@@ -976,7 +1006,9 @@ class Module:
         else:
             self = module
             
-    
+            
+        whitelist_functions = whitelist_functions if whitelist_functions else cls.whitelist_functions
+        blacklist_functions = blacklist_functions if blacklist_functions else cls.blacklist_functions
     
         # resolve the module id
         
@@ -1001,7 +1033,11 @@ class Module:
 
     
         Server = cls.import_object('commune.server.server.Server')
-        server = Server(ip=ip, port=port, module = self )
+        server = Server(ip=ip, 
+                        port=port,
+                        whitelist_functions = whitelist_functions,
+                        blacklist_functions = blacklist_functions,
+                        module = self )
         self.server_stats = server.info
         cls.register_server(name=module_id, server=server)
         server.serve(wait_for_termination=wait_for_termination)
@@ -2575,11 +2611,12 @@ class Module:
         self.key = key
         self.public_key = self.key.public_key
       
-            
     def sign(self, *args, **kwargs) -> bool:
-        return self.key.sign(*args, **kwargs)    
+        key = self.resolve_key(key)
+        return key.sign(*args, **kwargs)    
     def verify(self, *args,  **kwargs) -> bool:
-        return self.key.verify(*args, **kwargs)
+        key = self.resolve_key(key)
+        return key.verify(*args, **kwargs)
         
       
  

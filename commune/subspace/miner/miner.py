@@ -140,6 +140,19 @@ class Miner(commune.Module):
         st.write(pred)
         commune.log('[/green]Test passed[/green]')
         
+        
+    def get_auth(self, data:dict  = None, key: str = None) -> dict:
+        
+        key = self.resolve_key(key)
+        if data == None:
+            # default data  
+            data = {'utc_timestamp': self.time()}
+        sig_dict = key.sign(data)
+        return sig_dict
+    
+    def ss58_address(self) -> str:
+        return self.get_auth()['public_key']
+    
     @classmethod
     def deploy_fleet(cls):
         for i,m in enumerate(Miner.available_models()):
