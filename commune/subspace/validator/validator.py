@@ -9,7 +9,7 @@ class Validator(commune.Module):
     
     def __init__(self, 
                  dataset: str = 'dataset',
-                 models: List[str]= None,
+                 miners: List[str]= None,
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
@@ -17,7 +17,7 @@ class Validator(commune.Module):
                  ):
         
         self.set_dataset(dataset)
-        self.set_models(models)
+        self.set_miners(miners)
         self.set_key(key)
         self.set_metric(metric)
         self.set_stats(stats)
@@ -29,18 +29,22 @@ class Validator(commune.Module):
         
     def verify_signature(self, signature: Dict) -> bool:
         return True
-    def add_model(self, model: str, signature: Dict = None) -> None:
-        if not hasattr(self, 'models'):
-            self.models = {}
-        self.verify_signature(signature)
-        self.models[model] = commune.connect(model)
-            
-    def set_models(self, models: List[str]) -> None:
-        for model in models:
-            self.add_model(model)
     
+    def add_miner(self, miner: str, signature: Dict = None) -> None:
+        if not hasattr(self, 'miners'):
+            self.miners = {}
+        st.write(miner.module_id)
+        st.write(miner.key)
+        self.miners[miner] = commune.connect(miner)
 
-        
+            
+    def set_miners(self, miners: List[str] = None) -> None:
+        if miners is None:
+            miners = self.default_miners()
+            
+        for miner in miners:
+            self.add_miner(miner)
+    
     def set_dataset(self, dataset: str) -> None:
         if isinstance(dataset, str):
             dataset = commune.connect(dataset)
@@ -84,8 +88,8 @@ class Validator(commune.Module):
         ))
         return self.dataset.sample(**kwargs)
     @property
-    def model_keys(self):
-        return list(self.models.keys())
+    def miner_keys(self):
+        return list(self.miners.keys())
     
     def set_stats(self, stats: Dict[str, Any]) -> None:
         if stats is None:
@@ -118,14 +122,14 @@ class Validator(commune.Module):
                 
             
     
-    def validate_model(self, model_key: str = None, **kwargs):
-        model_key = model_key if model_key else self.random_model_key()
-        model = self.models[model_key]
+    def validate_miner(self, miner_key: str = None, **kwargs):
+        miner_key = miner_key if miner_key else self.random_miner_key()
+        miner = self.miners[miner_key]
         sample = self.sample()
         
         
         t= commune.timer()
-        output = model.forward(**sample,return_keys=['topk'])
+        output = miner.forward(**sample,return_keys=['topk'])
         elapsed_time =  t.seconds
         output['input_ids'] = sample['input_ids']
         
@@ -134,7 +138,7 @@ class Validator(commune.Module):
         
         
 
-        model_stat={ 
+        miner_stat={ 
                         'metric': metric,
                         'timestamp': commune.time(),
                         'elapsed_time': elapsed_time,
@@ -142,7 +146,7 @@ class Validator(commune.Module):
                              }
         
         
-        self.set_stat(key=model_key, stat = model_stat)
+        self.set_stat(key=miner_key, stat = miner_stat)
         
         
         return metric
@@ -170,21 +174,21 @@ class Validator(commune.Module):
             weight_map[k] = weight_map[k] / total_weights
             self.stats[k]['weight'] = weight_map[k]
             
-    def random_model_key(self):
-        random_model_key = random.choice(self.model_keys)
-        return random_model_key
+    def random_miner_key(self):
+        random_miner_key = random.choice(self.miner_keys)
+        return random_miner_key
 
-    def random_model(self):
-        random_model_key = self.random_model_key()
-        return self.models[random_model_key]
+    def random_miner(self):
+        random_miner_key = self.random_miner_key()
+        return self.miners[random_miner_key]
     
     
     @classmethod
     def test(cls):
-        models = [m for m in commune.servers() if m.startswith('model')]
-        self = Validator(models=models)
+        miners = [m for m in commune.servers() if m.startswith('miner')]
+        self = Validator(miners=miners)
         for _ in range(10):
-            st.write(self.validate_model())
+            st.write(self.validate_miner())
         self.calculate_weights()
         st.write(self.stats)
       
@@ -200,14 +204,13 @@ class Validator(commune.Module):
         
         
     @classmethod 
-    def miners(cls):
+    def default_miners(cls):
         return [commune.connect(m) for m in commune.servers() if m.startswith('miner')]
         
 if __name__ == '__main__':
 
     # self = Validator(
         
-    validator =  Validator(models=Validator.miners(), dataset='dataset.text.glue')
-    validator    
+    validator =  Validator(miners=None, dataset='dataset.text.glue')
     
     # st.write(self.test())
