@@ -392,9 +392,13 @@ class Module:
         '''
         from importlib import import_module
 
-        module = '.'.join(key.split('.')[:-1])
-        object_name = key.split('.')[-1]
-        obj =  getattr(import_module(module), object_name)
+        if len(key.split('.'))==1:
+            obj = import_module(module)
+        elif len(key.split('.')) > 1:
+            module = '.'.join(key.split('.')[:-1])
+            object_name = key.split('.')[-1]
+            obj =  getattr(import_module(module), object_name)
+
         return obj
     
     get_object = import_object
@@ -841,6 +845,8 @@ class Module:
             peer_registry[peer_name] = peer.server_stats
         return peer_registry
 
+
+
     @classmethod
     def server_registry(cls)-> dict:
         '''
@@ -1038,7 +1044,7 @@ class Module:
                         whitelist_functions = whitelist_functions,
                         blacklist_functions = blacklist_functions,
                         module = self )
-        self.server_stats = server.info
+        self.server_info = server.info
         cls.register_server(name=module_id, server=server)
         server.serve(wait_for_termination=wait_for_termination)
         
@@ -1154,36 +1160,33 @@ class Module:
         return function_info_map    
     
     @classmethod
-    def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
+    def get_peer_info(cls, peer: Union[str, 'Module'] , detailed: bool=  True) -> Dict[str, Any]:
         if isinstance(peer, str):
             peer = cls.connect(peer)
         
         function_schema_map = peer.function_schema_map()
-        server_stats = peer.server_stats
-        info  = dict(
-            module_id = peer.module_id,
-            server_stats = peer.server_stats,
-            function_schema = function_schema_map,
-            intro =function_schema_map.get('__init__', 'No Intro Available'),
-            examples =function_schema_map.get('examples', 'No Examples Available'),
-            public_ip =  server_stats if not isinstance(server_stats, dict) else server_stats['external_ip'] + ':' + str(server_stats['port']) ,
+        server_info = peer.server_info
 
-        )
+        peer_info = {}
+        server_external_ip = server_info.pop('external_ip', None)
+        if server_external_ip != cls.external_ip():
+            server_info['ip'] = server_external_ip
+            
+        if detailed:
+            peer_info.update(
+                id = peer.module_id,
+                function_schema = function_schema_map,
+                intro =function_schema_map.get('__init__', 'No Intro Available'),
+                examples =function_schema_map.get('examples', 'No Examples Available'),
+                timestamp = cls.time()
+            )
+            
         
-        return info
+        return peer_info
     
     def peer_info(self) -> Dict[str, Any]:
-        function_schema_map = self.function_schema_map()
-        info  = dict(
-            module_id = self.module_id,
-            server_stats = self.server_stats,
-            function_schema = function_schema_map,
-            intro =function_schema_map.get('__init__', 'No Intro Available'),
-            examples =function_schema_map.get('examples', 'No Examples Available'),
-
-
-        )
-        return info
+        peer_info =  self.get_peer_info(module=self)
+        return peer_info
 
 
     @classmethod
@@ -1255,16 +1258,6 @@ class Module:
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
     
-    def module_schema(self, 
-                      
-                      include_hidden:bool = False, 
-                      include_module:bool = False):
-        module_schema = {
-            'module_id':self.module_id,
-            'server':self.server_stats,
-            'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
-        }
-        return module_schema
     
     def function_schema(self, fn:str)->dict:
         '''
@@ -1278,35 +1271,14 @@ class Module:
     def get_annotations(fn:callable) -> dict:
         return fn.__annotations__
 
-    @classmethod
-    def start_server(cls,
-                module:str = None,  
-                name:Optional[str]=None, 
-                tag:str=None, 
-                device:str='0', 
-                interpreter:str='python3', 
-                refresh:bool=True, 
-                args = None, 
-                kwargs = None ):
-        
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
-        kwargs['tag'] = tag
-        return cls.launch( 
-                   module = module,  
-                   fn = 'serve_module',
-                   name=name, 
-                   tag=tag, 
-                   args = args,
-                   kwargs = kwargs,
-                   device=device, 
-                   interpreter=interpreter, 
-                   refresh=refresh )
-      
+
       
     @classmethod
-    def stop(cls, path, mode:str = 'pm2'):
-        cls.pm2_stop(path)
+    def stop(cls, path, mode:str = 'pm2', **kwargs):
+        if mode == 'pm2':
+            cls.pm2_stop(path)
+        elif mode == 'ray':
+            cls.kill_actor(path, **kwargs)
         
         return path
         
@@ -1331,6 +1303,7 @@ class Module:
 
         kwargs = kwargs if kwargs else {}
         args = args if args else []
+        
         if module == None:
             module = cls  
             
@@ -1983,7 +1956,10 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False):
+    def module(cls,
+               module: Any ,
+               init_module:bool=False ,
+               serve:bool=False):
         '''
         Wraps a python class as a module
         '''
@@ -2030,8 +2006,11 @@ class Module:
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
-    def setattr(self, k, v):
-        setattr(self, k, v)
+    def setattr(self, k:str, v:Any) -> str:
+        setattr(self, str(k), v)
+        return k
+    
+    
         
     @classmethod
     def default_module_id(cls):
@@ -2043,6 +2022,8 @@ class Module:
         '''
         self.module_id = module_id
         return module_id
+    
+    
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
         Set a dictionary to the slf attributes 
@@ -2080,7 +2061,7 @@ class Module:
             self.__dict__[k] = v
       
               
-    def merge(self, *args, include_hidden:bool = False) -> 'self':
+    def merge(self, *args, include_hidden:bool = False) -> Any:
         '''
         Merge the attributes of a python object into the current object
         '''
@@ -2577,14 +2558,14 @@ class Module:
     @classmethod
     def hash(cls, data: Union[str, bytes], **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
-            cls.hash_module = commune.get_module('crypto.hash')()
+            cls.hash_module = cls.get_module('crypto.hash')()
         return cls.hash_module(data, **kwargs)
     
     @classmethod
     def decrypt(cls, enc: str, password= None) -> Any:
-        key = self.key('aes', password=password)
+        key = cls.key('aes', password=password)
         dec = key.decrypt(enc)
-        return self.str2python(dec)
+        return cls.str2python(dec)
 
     @classmethod
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
@@ -2714,4 +2695,6 @@ Block = Lego = Module
 if __name__ == "__main__":
     Module.run()
     
+
+
 
