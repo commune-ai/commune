@@ -309,22 +309,6 @@ class Model( nn.Module, commune.Module):
         self.config['stats'] = self.stats
 
 
-    @classmethod
-    def launchpad(cls, models = ['gpt3b'], tags = list(range(8))):
-        '''
-        ArXiv/            Gutenberg_PG/
-        BookCorpus2/      HackerNews/
-        Books3/           NIHExPorter/
-        DMMathematics/    OpenSubtitles/
-        '''
-        model_module = commune.get_module('model.transformer')
-        datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'DMMathematics', 'OpenSubtitles']
-        import time
-        for model in models:
-            for tag in tags:
-                device = f'cuda:{tag}'
-                model_module.launch(name=f'model::{model}', tag=str(tag), kwargs={'model': model, 'tag': str(tag), 'device': device})
-
 if __name__ == "__main__":
     
     Model.run()

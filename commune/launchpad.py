@@ -11,23 +11,33 @@ class Launchpad(commune.Module):
         for model in models:
             for dataset in datasets:
                 model_module.launch(fn='remote_train',name=f'train::{model}', kwargs={'model': model, 'dataset': dataset, 'save': True}, serve=False)
+    
+    
     @classmethod
-    def models(cls, models = ['gptj', 'gpt3b']):
+    def deploy_fleet(module='model.transformer'):
+        module_class = commune.get_module(mode)
+        module_class.deploy_fleet()
+    
+    @classmethod
+    def deploy_models(cls):
         '''
         ArXiv/            Gutenberg_PG/
         BookCorpus2/      HackerNews/
         Books3/           NIHExPorter/
         DMMathematics/    OpenSubtitles/
         '''
-        model_module = commune.get_module('model.transformer')
-        model_module.launch(name=f'model::{model}', kwargs={'model': model, 'tag':str(i)})
-        # datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'DMMathematics', 'OpenSubtitles']
-        # import time
-        # for model in models:
-        #     for i in range(4):
-        #         # model_module.pm2_kill(name=f'model::{model}')
-        #         model_module.launch(name=f'model::{model}', tag=str(i), kwargs={'model': model})
+        cls.deploy_fleet(module='model.transformer')
 
-
+    @classmethod
+    def deploy_datasets(cls):
+        '''
+        ArXiv/            Gutenberg_PG/
+        BookCorpus2/      HackerNews/
+        Books3/           NIHExPorter/
+        DMMathematics/    OpenSubtitles/
+        '''
+        dataset_module = cls.deploy_fleet('dataset.text.huggingface')
+        
+        
 if __name__ == "__main__":
     Launchpad.run()
