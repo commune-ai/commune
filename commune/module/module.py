@@ -392,13 +392,9 @@ class Module:
         '''
         from importlib import import_module
 
-        if len(key.split('.'))==1:
-            obj = import_module(module)
-        elif len(key.split('.')) > 1:
-            module = '.'.join(key.split('.')[:-1])
-            object_name = key.split('.')[-1]
-            obj =  getattr(import_module(module), object_name)
-
+        module = '.'.join(key.split('.')[:-1])
+        object_name = key.split('.')[-1]
+        obj =  getattr(import_module(module), object_name)
         return obj
     
     get_object = import_object
@@ -424,6 +420,11 @@ class Module:
         result = sock.connect_ex((ip, port))
         sock.close()
         return result == 0
+    
+    @classmethod
+    def port_available(cls, port:int, ip:str ='0.0.0.0'):
+        return not cls.port_used(port=port, ip=ip)
+        
 
     @classmethod
     def get_used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0'):
@@ -463,8 +464,23 @@ class Module:
                 path = path + '.' + extension
 
         return path
+    
+    
     @classmethod
-    def resolve_port(cls, port:int=None, find_available:bool = False):
+    def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
+        port_range = port_range if port_range else cls.port_range
+        ip = ip if ip else cls.default_ip
+        
+        available_ports = []
+        # return only when the port is available
+        for port in range(*port_range): 
+            if not cls.port_used(port=port, ip=ip):
+                available_ports.append(port)
+                
+                
+        return available_ports
+    @classmethod
+    def resolve_port(cls, port:int=None, find_available:bool = True):
         
         '''
         
@@ -478,11 +494,21 @@ class Module:
             else:
                 raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
         return port
+    
+    
     @classmethod
-    def get_available_port(cls, port_range: List[int] = None, ip:str='0.0.0.0' ) -> int:
+    def get_available_port(cls, port_range: List[int] = None , ip:str =None) -> int:
+        
+        '''
+        
+        Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
+        '''
         port_range = port_range if port_range else cls.port_range
+        ip = ip if ip else cls.default_ip
+        
+        # return only when the port is available
         for port in range(*port_range): 
-            if cls.port_used(port=port, ip=ip):
+            if cls.port_available(port=port, ip=ip):
                 return port
     
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
@@ -792,18 +818,35 @@ class Module:
     def get_server_info(cls,name:str) -> Dict:
         return cls.server_registry().get(name, {})
     @classmethod
-    def connect(cls, name:str=None, port:int=None , ip:str=None, virtual:bool = True, **kwargs ):
-        if name != None:
-            server_registry =  Module.server_registry()
+    def connect(cls, 
+                name:str=None, 
+                port:int=None , 
+                ip:str=None, 
+                virtual:bool = True, 
+                wait_for_server:bool = True,
+                **kwargs ):
+        
         if isinstance(name, str) and len(name.split(':')) == 2:
             port = int(name.split(':')[1])
             ip = name.split(':')[0]
             
         if ip == None and port == None:
-            client_kwargs = server_registry[name]
+            server_registry = cls.server_registry()
+            if wait_for_server:
+                cls.wait_for_server(name)
+            try:
+                client_kwargs = server_registry[name]
+            except KeyError:
+                server_registry = cls.server_registry(update=True)
+                print(server_registry)
+                client_kwargs = server_registry[name]
         else:
             
             client_kwargs = dict(ip=ip, port=int(port))
+            
+
+        client_kwargs['ip'] = '0.0.0.0'
+        
         Client = cls.import_object('commune.server.client.Client')
         client_module = Client( **kwargs,**client_kwargs)
         ip = client_kwargs['ip']
@@ -842,13 +885,13 @@ class Module:
             ip, port = port.split(':')
             peer = cls.connect(ip=ip, port=port)
             peer_name = peer.module_id
-            peer_registry[peer_name] = peer.server_stats
+            peer_registry[peer.module_id] = peer.server_info
+            
+            print(peer.server_info())
         return peer_registry
 
-
-
     @classmethod
-    def server_registry(cls)-> dict:
+    def server_registry(cls, update: bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -856,22 +899,30 @@ class Module:
         '''
         # from copy import deepcopy
     
-        # try:
-        #     server_registry = Module.get_json('server_registry', handle_error=True, default={})
-        # except json.JSONDecodeError as e:
-        #     server_registry = cls.get_server_registry()
-
-        server_registry = cls.get_server_registry()
+    
+        if update:
+            server_registry = cls.get_server_registry()
+            
+        try:
+            server_registry = Module.get_json('server_registry', handle_error=True, default={})
+        except json.JSONDecodeError as e:
+            server_registry = cls.get_server_registry()
             
         for k in deepcopy(list(server_registry.keys())):
             
             if not Module.port_used(int(server_registry[k]['port'])):
                 del server_registry[k]
-        Module.put_json('server_registry',server_registry)
+        # Module.put_json('server_registry',server_registry)
         return server_registry
+
+    @property
+    def server_info(self) -> dict: 
+        return self._server_info
     
-    def server_info(self): 
-        self.server_registry(self.module_id)
+    @server_info.setter
+    def server_info(self, value) -> None:
+        self._server_info = value
+    
   
     @classmethod
     def servers(cls, search:str = None, ) -> List[str]:
@@ -946,20 +997,21 @@ class Module:
         return bool(name in cls.servers())
     
     @classmethod
-    def wait_until_server(cls,
+    def wait_for_server(cls,
                           name: str ,
                           timeout:int = 30,
-                          sleep_interval: int = 5):
+                          sleep_interval: int = 1):
         
         start_time = cls.time()
         while not cls.server_exists(name):
-            cls.sleep(interval_check)
+            print('BROOO', cls.servers())
+            cls.sleep(sleep_interval)
             current_time = cls.time()
             if current_time - start_time > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
     
     def server_running(self):
-        return hasattr(self, 'server_stats')
+        return hasattr(self, 'server_info')
     def serve(self, name=None , *args, **kwargs):
         if not self.server_running():
             module_serve_output = self.serve_module( *args, module = self, name=name, **kwargs)
@@ -967,7 +1019,7 @@ class Module:
     def stop_server(self):
         self.server.stop()
         del self.server
-        del self.server_stats
+        del self.server_info
         
         
         
@@ -998,10 +1050,10 @@ class Module:
               replace:bool = True, 
               whitelist_functions:List[str] = None,
               blacklist_functions:List[str] = None,
-              wait_for_termination:bool = False,
+              wait_for_termination:bool = True,
               wait_for_server:bool = False,
               wait_for_server_timeout:int = 30,
-              wait_for_server_sleep_interval: int = 5,
+              wait_for_server_sleep_interval: int = 1,
               *args, 
               **kwargs ):
         '''
@@ -1009,6 +1061,8 @@ class Module:
         '''
         if module == None:
             self = cls(*args, **kwargs)
+        elif isinstance(module, str):
+            self = cls.get_module(module)(*args, **kwargs)
         else:
             self = module
             
@@ -1022,6 +1076,7 @@ class Module:
         # Make sure you have the module tag set
         
         name = name if name != None else self.module_name()
+        
         if hasattr(self, 'module_id'):
             module_id = self.module_id
         else:
@@ -1049,7 +1104,7 @@ class Module:
         server.serve(wait_for_termination=wait_for_termination)
         
         if wait_for_server:
-            cls.wait_until_server(name=module_id, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
+            cls.wait_for_server(name=module_id, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
         
     @classmethod
     def functions(cls, include_module=False):
@@ -1160,33 +1215,34 @@ class Module:
         return function_info_map    
     
     @classmethod
-    def get_peer_info(cls, peer: Union[str, 'Module'] , detailed: bool=  True) -> Dict[str, Any]:
+    def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
         if isinstance(peer, str):
             peer = cls.connect(peer)
         
         function_schema_map = peer.function_schema_map()
         server_info = peer.server_info
+        info  = dict(
+            module_id = peer.module_id,
+            server_info = peer.server_info,
+            function_schema = function_schema_map,
+            intro =function_schema_map.get('__init__', 'No Intro Available'),
+            examples =function_schema_map.get('examples', 'No Examples Available'),
+            public_ip =  server_info if not isinstance(server_info, dict) else server_info['external_ip'] + ':' + str(server_info['port']) ,
 
-        peer_info = {}
-        server_external_ip = server_info.pop('external_ip', None)
-        if server_external_ip != cls.external_ip():
-            server_info['ip'] = server_external_ip
-            
-        if detailed:
-            peer_info.update(
-                id = peer.module_id,
-                function_schema = function_schema_map,
-                intro =function_schema_map.get('__init__', 'No Intro Available'),
-                examples =function_schema_map.get('examples', 'No Examples Available'),
-                timestamp = cls.time()
-            )
-            
+        )
         
-        return peer_info
+        return info
     
     def peer_info(self) -> Dict[str, Any]:
-        peer_info =  self.get_peer_info(module=self)
-        return peer_info
+        function_schema_map = self.function_schema_map()
+        info  = dict(
+            module_id = self.module_id,
+            server_info = self.server_info,
+            function_schema = function_schema_map,
+            intro =function_schema_map.get('__init__', 'No Intro Available'),
+            examples =function_schema_map.get('examples', 'No Examples Available'),
+        )
+        return info
 
 
     @classmethod
@@ -1258,6 +1314,16 @@ class Module:
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
     
+    def module_schema(self, 
+                      
+                      include_hidden:bool = False, 
+                      include_module:bool = False):
+        module_schema = {
+            'module_id':self.module_id,
+            'server':self.server_info,
+            'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
+        }
+        return module_schema
     
     def function_schema(self, fn:str)->dict:
         '''
@@ -1271,14 +1337,40 @@ class Module:
     def get_annotations(fn:callable) -> dict:
         return fn.__annotations__
 
-
+    @classmethod
+    def start_server(cls,
+                module:str = None,  
+                name:Optional[str]=None, 
+                tag:str=None, 
+                device:str='0', 
+                interpreter:str='python3', 
+                refresh:bool=True, 
+                args = None, 
+                kwargs = None ):
+        
+        args = args if args else []
+        kwargs = kwargs if kwargs else {}
+        kwargs['tag'] = tag
+        return cls.launch( 
+                   module = module,  
+                   fn = 'serve_module',
+                   name=name, 
+                   tag=tag, 
+                   args = args,
+                   kwargs = kwargs,
+                   device=device, 
+                   interpreter=interpreter, 
+                   refresh=refresh )
+      
       
     @classmethod
-    def stop(cls, path, mode:str = 'pm2', **kwargs):
+    def kill(cls, path, mode:str = 'pm2'):
         if mode == 'pm2':
-            cls.pm2_stop(path)
+            cls.pm2_kill(path)
         elif mode == 'ray':
-            cls.kill_actor(path, **kwargs)
+            cls.ray_kill(path)
+            
+            
         
         return path
         
@@ -1303,7 +1395,6 @@ class Module:
 
         kwargs = kwargs if kwargs else {}
         args = args if args else []
-        
         if module == None:
             module = cls  
             
@@ -1819,6 +1910,7 @@ class Module:
         elif hasattr(actor, 'module_id'):
             return self.kill_actor(actor.module_id, verbose=verbose)
             
+    ray_kill = kill_actor
         
        
     @classmethod
@@ -1956,10 +2048,7 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(cls,
-               module: Any ,
-               init_module:bool=False ,
-               serve:bool=False):
+    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False):
         '''
         Wraps a python class as a module
         '''
@@ -2006,11 +2095,8 @@ class Module:
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
-    def setattr(self, k:str, v:Any) -> str:
-        setattr(self, str(k), v)
-        return k
-    
-    
+    def setattr(self, k, v):
+        setattr(self, k, v)
         
     @classmethod
     def default_module_id(cls):
@@ -2022,8 +2108,6 @@ class Module:
         '''
         self.module_id = module_id
         return module_id
-    
-    
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
         Set a dictionary to the slf attributes 
@@ -2061,7 +2145,7 @@ class Module:
             self.__dict__[k] = v
       
               
-    def merge(self, *args, include_hidden:bool = False) -> Any:
+    def merge(self, *args, include_hidden:bool = False) -> 'self':
         '''
         Merge the attributes of a python object into the current object
         '''
@@ -2118,7 +2202,11 @@ class Module:
 
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
-        return cls.get_external_ip(*args, **kwargs)
+        if not hasattr(cls, '__external_ip__'):
+            self.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
+            
+        return self.__external_ip__
+        
     
     @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
@@ -2266,7 +2354,7 @@ class Module:
         peer_info_list = []
         for p in peers:
             peer = cls.connect(p)
-            peer_stats = peer.server_stats
+            peer_stats = peer.server_info
             
             peer_info = {}
             peer_info['name'] = p
@@ -2276,15 +2364,6 @@ class Module:
         
         return peer_info_list
       
-
-    @property
-    def server_stats(self) -> Dict[str, Union[str, int]]:
-        return self._server_stats
-    
-    @server_stats.setter
-    def server_stats(self, server_stats:Dict[str, Union[str, int]]):
-        self._server_stats = server_stats
-
     @classmethod
     def peer_registry(cls, module = None):
         if module == None:
@@ -2303,14 +2382,11 @@ class Module:
         peer_map = {}
         for p in peers:
             peer = cls.connect(p)
-            peer_stats = peer.server_stats
-            peer_info = {}
-            try:
-                peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
-                peer_info['is_local'] = external_ip == peer_stats['external_ip']
-                peer_map[p] = peer_info
-            except:
-                cls.log(f'Could not connect to {p}')
+            server_info = peer.server_info
+            peer_map[p] = peer.server_info
+            if external_ip == server_info['ip']:
+                server_info['ip'] = cls.default_ip
+
         peer_registry[external_ip] = peer_map
         
         cls.put_json('peer_registry', peer_registry)
@@ -2558,14 +2634,14 @@ class Module:
     @classmethod
     def hash(cls, data: Union[str, bytes], **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
-            cls.hash_module = cls.get_module('crypto.hash')()
+            cls.hash_module = commune.get_module('crypto.hash')()
         return cls.hash_module(data, **kwargs)
     
     @classmethod
     def decrypt(cls, enc: str, password= None) -> Any:
-        key = cls.key('aes', password=password)
+        key = self.key('aes', password=password)
         dec = key.decrypt(enc)
-        return cls.str2python(dec)
+        return self.str2python(dec)
 
     @classmethod
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
@@ -2695,6 +2771,4 @@ Block = Lego = Module
 if __name__ == "__main__":
     Module.run()
     
-
-
 

@@ -34,22 +34,24 @@ class Server(ServerServicer, Serializer):
     port_range = [50050, 50100]
     default_ip =  '0.0.0.0'
 
+
+
     def __init__(
             self,
             module: Union['Module', object]= None,
-            authenticate: bool = False,
             ip: Optional[str] = None,
             port: Optional[int] = None,
-            max_workers: Optional[int] = None, 
-            maximum_concurrent_rpcs: Optional[int] = None,
+            max_workers: Optional[int] = 10, 
+            maximum_concurrent_rpcs: Optional[int] = 400,
+            authenticate: bool = False,
             thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
             compression:Optional[str] = None,
             server: Optional['grpc._Server'] = None,
-            config: Optional['commune.config'] = None,
             verbose: bool = True,
             whitelist_functions: List[str] = [],
             blacklist_functions: List[str ] = [],
+            loop: 'AscynioLoop' = None,
 
 
         ) -> 'Server':
@@ -75,54 +77,52 @@ class Server(ServerServicer, Serializer):
                     Whether or not to authenticate the server.
           
         """ 
-        try:
-            self.loop = asyncio.get_event_loop()
-        except RuntimeError:
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-            
-            
-        # 
-        config = copy.deepcopy(config if config else self.default_config())
-        
-        
-        self.max_workers = config.max_workers = max_workers if max_workers != None else config.max_workers
-        self.maximum_concurrent_rpcs  = config.maximum_concurrent_rpcs = maximum_concurrent_rpcs if maximum_concurrent_rpcs != None else config.maximum_concurrent_rpcs
-        self.compression = config.compression = compression if compression != None else config.compression
-        self.timeout = timeout if timeout else config.timeout
-        self.verbose = verbose
-        
-        self.check_config( config )
-        self.config = config
-        
-        ip = ip if ip else self.default_ip
-        self.external_ip = commune.external_ip()
-        
+
+
+
+        self.set_event_loop(loop=loop)
+
         self.set_server( ip=ip, 
                         port=port, 
                         thread_pool=thread_pool,
-                        max_workers=max_workers, 
-                        server=server) 
+                        max_workers=max_workers,
+                        maximum_concurrent_rpcs=maximum_concurrent_rpcs,
+                        compression=compression,) 
+        
+        
+        self.timeout = timeout
+        self.verbose = verbose
 
-
+        
+        
         # set the module
         self.module = module
         
-        # whether or not the server is running
-        self.started = False
-        
-        self.init_stats()
         
         # set the whitelist functions
-        self.whitelist_functions = whitelist_functions + self.module.functions()
-        self.blacklist_functions = blacklist_functions
+        self.add_whitelist_functions(whitelist_functions + self.module.functions())
+        self.add_blacklist_functions(blacklist_functions)
         self.authenticate = authenticate
         
         
     
+    
+    def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
+        if loop == None:
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        self.loop = loop
+    
     def add_whitelist_functions(self, functions: List[str]):
+        if not hasattr(self, 'whitelist_functions'):
+            self.whitelist_functions = []
         self.whitelist_functions += functions
     def add_blacklist_functions(self, functions: List[str]):
+        if not hasattr(self, 'blacklist_functions'):
+            self.blacklist_functions = []
         self.blacklist_functions += functions
         
     def set_thread_pool(self, thread_pool: 'ThreadPoolExecutor' = None, max_workers: int = 10) -> 'ThreadPoolExecutor':
@@ -133,44 +133,44 @@ class Server(ServerServicer, Serializer):
         return thread_pool
     
     
-    def set_server(self,  ip: str=  None , port:int =  None, 
+    def set_server(self, 
+                   ip: str=  None ,
+                   port:int =  None, 
                    thread_pool: 'ThreadPoolExecutor' = None,
-                   max_workers:int = 1, 
-                   server:'Server' = None ) -> 'Server':
+                   max_workers:int = 1 ,
+                   maximum_concurrent_rpcs: int = 400,
+                   compression: str  = '' ) -> 'Server':
         
-        port = port if port != None else self.config.port
-        ip = ip if ip != None else self.config.ip
-        
-        is_port_available = self.port_available(ip=ip, port=port)
-        
-        while not is_port_available:
-
+        ip = ip if ip != None else self.default_ip
+        port = commune.resolve_port(port)
+        while not self.port_available(ip=ip, port=port):
             port = self.get_available_port(ip=ip)
             is_port_available =  self.port_available(ip=ip, port=port)
-
-        
-
-        is_port_available =  self.port_available(ip=ip, port=port)
         
         self.thread_pool = self.set_thread_pool(thread_pool=thread_pool)
         
 
         server = grpc.server( self.thread_pool,
                             #   interceptors=(ServerInterceptor(blacklist=blacklist,receiver_hotkey=self.wallet.hotkey.ss58_address),),
-                                maximum_concurrent_rpcs = self.config.maximum_concurrent_rpcs,
+                                maximum_concurrent_rpcs = maximum_concurrent_rpcs,
                                 options = [('grpc.keepalive_time_ms', 100000),
                                             ('grpc.keepalive_timeout_ms', 500000)]
                             )
-    
-    
-        self.ip = ip
-        self.port = port
         
         # set the server compression algorithm
         self.server = server
         commune.server.grpc.add_ServerServicer_to_server( self, server )
         self.full_address = str( ip ) + ":" + str( port )
         self.server.add_insecure_port( self.full_address )
+    
+        self.ip = commune.external_ip()
+        self.port = port
+        
+        # whether or not the server is running
+        self.started = False
+        self.init_stats()
+        
+
         return self.server
     
     @classmethod   
@@ -181,23 +181,6 @@ class Server(ServerServicer, Serializer):
         cls.add_args( parser )
         print (cls.__new__.__doc__)
         parser.print_help()
-    @classmethod
-    def default_config(cls):
-        config = commune.config()
-        config.port = cls.get_available_port()
-        config.ip =  '0.0.0.0'
-        config.max_workers = 10
-        config.maximum_concurrent_rpcs =  400
-        config.compression = 'NoCompression'
-        config.timeout = 10
-        return config
-
-    @classmethod   
-    def check_config(cls, config: 'commune.config' ):
-        """ Check config for axon port and wallet
-        """
-        assert config.port > 1024 and config.port < 65535, 'port must be in range [1024, 65535]'
-        assert config.ip != None, 'ip must be set'
 
 
     def __str__(self) -> str:
@@ -355,7 +338,7 @@ class Server(ServerServicer, Serializer):
         
     @property
     def endpoint(self):
-        return f'{self.external_ip}:{self.port}'
+        return f'{self.ip}:{self.port}'
     
     
     
@@ -425,22 +408,6 @@ class Server(ServerServicer, Serializer):
                     proc.send_signal(signal.SIGKILL) # or SIGKILL
         return port
 
-    @classmethod
-    def get_available_port(cls, port_range: List[int] = None , ip:str =None) -> int:
-        
-        '''
-        
-        Get an available port within the {port_range} [start_port, end_poort] and {ip}
-        '''
-        port_range = port_range if port_range else cls.port_range
-        ip = ip if ip else cls.default_ip
-        
-        # return only when the port is available
-        for port in range(*port_range): 
-            if cls.port_available(port=port, ip=ip):
-                return port
-    
-        raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
     @classmethod
     def get_used_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
@@ -453,31 +420,15 @@ class Server(ServerServicer, Serializer):
                 used_ports.append(port)
         return used_ports
     
-    @classmethod
-    def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
-        port_range = port_range if port_range else cls.port_range
-        ip = ip if ip else cls.default_ip
-        
-        available_ports = []
-        # return only when the port is available
-        for port in range(*port_range): 
-            if cls.port_available(port=port, ip=ip):
-                available_ports.append(port)
-        return available_ports
-    
+
+
     @classmethod
     def port_available(cls,  port:int, ip:str = None):
         '''
         checks if a port is available
         '''
-        
-        import socket
-        ip = ip if ip else cls.default_ip
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex((ip, port))
-        sock.close()
-        # 0 when open, 111 otherwise
-        return result != 0
+
+        return not commune.port_used(port=port, ip=ip)
 
     @classmethod
     def test_server(cls):
@@ -496,6 +447,7 @@ class Server(ServerServicer, Serializer):
         commune.Client()
         module.stop()
 
+
     @property
     def info(self):
         '''
@@ -504,7 +456,6 @@ class Server(ServerServicer, Serializer):
         return dict(
             ip=self.ip,
             port= self.port,
-            external_ip = self.external_ip
         )
         
         
