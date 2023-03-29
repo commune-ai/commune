@@ -4,7 +4,7 @@ from pprint import pp
 from functools import partial
 import asyncio
 from copy import deepcopy
-from typing import Union, Optional
+from typing import Union, Optional, List
 from concurrent import futures
 import os, sys
 from typing import *
@@ -542,11 +542,12 @@ class TransformerModel( Model):
          
          
     @classmethod
-    def deploy_fleet(cls, models: List[str] = None) -> None:
+    def deploy_fleet(cls, models: List[str] = None) -> List[str]:
 
-        models = [
+        default_models = [
         "gpt2.7b",
         "gpt3b",
+        "gptjt",
         "gptjt",
         "gptjt_mod",
         "gptj",
@@ -555,14 +556,27 @@ class TransformerModel( Model):
         "gptj.codegen",
         "gptj.hivemind",
         ]
-
+        
+        models = models if models else default_models
+        
+        
+        deployed_model_tags = {}
+        deployed_model_names = []
         for model in models:
             model_kwargs =  {'model': model}
             if 'gptj' in model:
                 model_kwargs['tokenizer'] = 'gptj'
-            cls.launch(name=f'model.{model}',kwargs=model_kwargs, mode='pm2')
+            name = f'model.{model}'
+            server_tag = deployed_model_tags[name] = deployed_model_tags.get(name, -1)  + 1
+            if server_tag > 0:
+                name += f'.{server_tag}'
+                
+            deployed_model_names.append(name)
             
-
+            cls.launch(name=name,kwargs=model_kwargs, mode='pm2')
+            
+        commune.print(deployed_model_names, 'green')
+        return deployed_model_names
             
     @classmethod
     def sandbox(cls):

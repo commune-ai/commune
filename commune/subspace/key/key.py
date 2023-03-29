@@ -414,7 +414,7 @@ class Keypair(commune.Module):
 
         return json_data
 
-    def sign(self, data: Union[ScaleBytes, bytes, str]) -> bytes:
+    def sign(self, data: Union[ScaleBytes, bytes, str], return_dict=True) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -424,6 +424,7 @@ class Keypair(commune.Module):
         -------
         signature in bytes
         """
+        data = self.python2str(data)
         if type(data) is ScaleBytes:
             data = bytes(data.data)
         elif data[0:2] == '0x':
@@ -446,6 +447,12 @@ class Keypair(commune.Module):
         else:
             raise ConfigurationError("Crypto type not supported")
 
+        if return_dict:
+            return {
+                'data': data.decode(),
+                'signature': signature,
+                'public_key': self.public_key.hex(),
+            }
         return signature
 
     def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str]) -> bool:

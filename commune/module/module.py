@@ -1036,6 +1036,7 @@ class Module:
                                       'servers',
                                       'external_ip', 
                                       'peer_registry',
+                                      'get_auth',
                                       'verify', 
                                       'get_id']
     blacklist_functions: List[str] = []
