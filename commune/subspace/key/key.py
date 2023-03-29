@@ -450,12 +450,15 @@ class Keypair(commune.Module):
         if return_dict:
             return {
                 'data': data.decode(),
-                'signature': signature,
+                'signature': signature.hex(),
                 'public_key': self.public_key.hex(),
             }
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str]) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str],
+               signature: Union[bytes, str] = None,
+               public_key: str = None,
+               return_public_key : bool = True) -> Union[bool, str]:
         """
         Verifies data with specified signature
         Parameters
@@ -466,9 +469,30 @@ class Keypair(commune.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
-
+        
+        
+        if signature == None:
+            assert type(data) is dict, "If no signature is provided, data should be a dict"
+            assert 'data' in data, "If no signature is provided, data should be a dict with 'data' key"
+            assert 'signature' in data
+            assert 'public_key' in data
+            public_key = data['public_key']
+            signature = data['signature']
+            data = data['data']
+        if isinstance(signature, str):
+            signature = bytes.fromhex(signature)
+            
+        if not isinstance(data, str):
+            data = self.python2str(data)
+            
+            
+        
+        if public_key == None:
+            public_key = self.public_key.hex()
+            
         if type(data) is ScaleBytes:
             data = bytes(data.data)
+        
         elif data[0:2] == '0x':
             data = bytes.fromhex(data[2:])
         elif type(data) is str:
@@ -491,6 +515,8 @@ class Keypair(commune.Module):
 
         verified = crypto_verify_fn(signature, data, self.public_key)
 
+        if return_public_key:
+            public_key = self.public_key.hex()
         if not verified:
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
