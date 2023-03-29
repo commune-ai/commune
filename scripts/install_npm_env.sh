@@ -28,5 +28,6 @@ node -v
 npm -v
 
 # install pm2 
-npm install pm2 
+npm install -g pm2
+
 
