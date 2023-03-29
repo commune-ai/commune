@@ -2633,16 +2633,19 @@ class Module:
         
         
     @classmethod
-    def hash(cls, data: Union[str, bytes], **kwargs) -> bytes:
+    def hash(cls, 
+             data: Union[str, bytes], 
+             mode: str = 'keccak', 
+             **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
-            cls.hash_module = commune.get_module('crypto.hash')()
-        return cls.hash_module(data, **kwargs)
+            cls.hash_module = cls.get_module('crypto.hash')()
+        return cls.hash_module(data, mode=mode, **kwargs)
     
     @classmethod
-    def decrypt(cls, enc: str, password= None) -> Any:
+    def decrypt(cls, data: str, password= None) -> Any:
         key = self.key('aes', password=password)
-        dec = key.decrypt(enc)
-        return self.str2python(dec)
+        data = key.decrypt(data)
+        return self.str2python(data)
 
     @classmethod
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
@@ -2669,15 +2672,16 @@ class Module:
         self.key = key
         self.public_key = self.key.public_key
       
-    def sign(self, *args, **kwargs) -> bool:
+    def sign(self, data:dict  = None, key: str = None) -> bool:
+        key = self.resolve_key(kwargs.get('key', None))
+        return key.sign(data)    
+    def verify(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
-        return key.sign(*args, **kwargs)    
-    def verify(self, *args,  **kwargs) -> bool:
-        key = self.resolve_key(key)
-        return key.verify(*args, **kwargs)
+        
+        return key.verify(data)
         
       
- 
+    
     def get_auth(self, data:dict  = None, key: str = None) -> dict:
         
         key = self.resolve_key(key)
