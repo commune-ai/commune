@@ -59,7 +59,7 @@ The module.py file serves as an anchor in that it organizes future modules in wh
 
 ## Setup
 
-### From Source
+### From Source (DOCKER)
 
 1. clone from github
     ```
@@ -70,18 +70,29 @@ The module.py file serves as an anchor in that it organizes future modules in wh
     make pull
     ```
 
+
+## From Docker
+
 3. Start docker-compose. This builds and deploys all of the containers you need, which involves, commune (main enviornment), ipfs (decentralized storage), subspace (blockchain node), ganache (evm development node for local blockchain)
 
     ```
-    make up
+    (sudo) make up
     ```
     - please note that if you are not using a gpu, you will need to comment out the following docker-compose code in ./docker-compose.yml
 
 4. Enter the commune evnironment 
     ```
-    make enter
+    (sudo) make enter
     ```
 
+
+# From Local (Without Docker)
+
+
+```
+chmod +x ./scripts/*
+./scripts/install_local_setup.sh
+```
 
 ## docker-compose Environment Details
 
@@ -92,13 +103,13 @@ Available Containers In Compose
 
 Start docker-compose
 ```
-make up
+sudo make up
 ```
 
 Stop docker-compose
 
 ```
-make down
+sudo make down
 ```
 
 
@@ -107,10 +118,8 @@ Enter the Commune Docker Env
 make enter
 ```
 
-Get the logs of the container
-```
-docker logs {}
-```
+
+
 
 
 
