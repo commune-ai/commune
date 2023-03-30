@@ -299,6 +299,7 @@ class Subspace(commune.Module):
     def register (
         self,
         name: str = None,
+        context: str = b'',
         ip: str = None,
         port: int = None,
         netuid :int = 0 ,
@@ -358,6 +359,7 @@ class Subspace(commune.Module):
         
         # convert name to bytes
         name = name.encode('utf-8')
+        context = context.encode('utf-8')
         
         if not self.subnet_exists( netuid ):
             commune.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
@@ -396,7 +398,8 @@ class Subspace(commune.Module):
                             'netuid': netuid,
                             'ip': ip,
                             'port': port,
-                            'name': name
+                            'name': name,
+                            'context': context,
                         } 
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
@@ -456,6 +459,7 @@ class Subspace(commune.Module):
 
 
         # Validate destination address.
+        print(dest)
         if not is_valid_address_or_public_key( dest ):
             commune.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
             return False
@@ -1369,8 +1373,11 @@ class Subspace(commune.Module):
     @classmethod
     def sandbox(cls):
         self = cls()
-        key_class = commune.get_module('subspace.key')
-        st.write(self.get_balance(key_class.create_from_seed('Alice').public_key))
+        key = commune.key('Alice')
+        # print(self.get_balance(key.public_key))
+        self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
+        # print('K')
+        print(self.register(key=key, netuid=3, ip=commune.external_ip(), port=8000, name='Alice', context='billy'))
         
 
 if __name__ == "__main__":
