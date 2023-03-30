@@ -2673,8 +2673,9 @@ class Module:
         self.public_key = self.key.public_key
       
     def sign(self, data:dict  = None, key: str = None) -> bool:
-        key = self.resolve_key(kwargs.get('key', None))
+        key = self.resolve_key(key)
         return key.sign(data)    
+    
     def verify(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
         

@@ -418,7 +418,7 @@ class Keypair(commune.Module):
 
         return json_data
 
-    def sign(self, data: Union[ScaleBytes, bytes, str], return_dict=True) -> bytes:
+    def sign(self, data: Union[ScaleBytes, bytes, str], return_dict=False) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -453,7 +453,7 @@ class Keypair(commune.Module):
 
         if return_dict:
             return {
-                'data': data.decode(),
+                'data': data.hex(),
                 'signature': signature.hex(),
                 'public_key': self.public_key.hex(),
             }
