@@ -1399,7 +1399,7 @@ class Module:
         if module == None:
             module = cls  
             
-        if serve:
+        if serve and fn == None:
             fn = 'serve_module'
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)

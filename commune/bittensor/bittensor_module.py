@@ -16,10 +16,12 @@ class BittensorModule(commune.Module):
 
                 wallet:Union[bittensor.wallet, str] = None,
                 subtensor: Union[bittensor.subtensor, str] = 'finney',
+                register: bool = False
                 ):
         
         self.set_subtensor(subtensor=subtensor)
         self.set_wallet(wallet=wallet)
+        
         
     @property
     def network_options(self):
@@ -317,15 +319,43 @@ class BittensorModule(commune.Module):
         for ck in coldkeys:
             for hk in hotkeys:
                 bittensor.wallet(name=ck, hotkey=hk).create(coldkey_use_password=coldkey_use_password, 
-                                                            hotkey_use_password=hotkey_use_password)         
+                                                            hotkey_use_password=hotkey_use_password)     
+                
+    @classmethod
+    def create_wallet(cls, 
+                       coldkey: str = [f'ensemble_{i}' for i in range(3)],
+                       hotkey : str = [f'{i}' for i in range(10)],
+                       coldkey_use_password:bool = False, 
+                       hotkey_use_password:bool = False
+                       ) :
+        return  bittensor.wallet(name=ck, hotkey=hk).create(coldkey_use_password=coldkey_use_password, 
+                                                            hotkey_use_password=hotkey_use_password)     
+            
+            
+            
+    @classmethod
+    def register_wallet(cls, **kwargs):
+        cls(wallet='ensemble_0.0').register(**kwargs)
+    
+                        
     @classmethod  
     def sandbox(cls):
-        self = cls(wallet='ensemble_0.0')
-        self.create_wallets()
-        # st.write(dir(self.subtensor))
-        st.write(self.register())
+        
+        gpus = commune.gpus()
+        processes_per_gpus = 2
+        
+        for i in range(processes_per_gpus):
+            for dev_id in gpus:
+                cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='pm2')
+                
+        
+        # print(cls.launch(f'register_{1}'))
+        # self = cls(wallet=None)
+        # self.create_wallets()
+        # # st.write(dir(self.subtensor))
+        # st.write(self.register(dev_id=0))
 if __name__ == "__main__":
-    BittensorModule.sandbox()
+    BittensorModule.run()
 
 
     
