@@ -51,6 +51,8 @@ class CustomChatbot(commune.Module):
         
         
         return self.tokenizer
+    
+    
     def chat(self, text:str) -> str:
         return 'Im not in the mood baby, leave me alone'   
     def num_tokens(self, text:str,

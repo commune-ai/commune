@@ -31,10 +31,10 @@ for data in data_list:
     signature['public_key'] = key2.public_key
     assert key.verify(signature) == False
 
-st.write(key4.params)
-key2.set_params(**key3.params)
-st.write(key2.load_state_dict(key4.state_dict(password='password'), password='password'))
-st.write(key2.params)
+# st.write(key4.params)
+# key2.set_params(**key3.params)
+# st.write(key2.load_state_dict(key4.state_dict(password='password'), password='password'))
+# st.write(key2.params)
 
 
 

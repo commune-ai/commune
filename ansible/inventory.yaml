@@ -6,10 +6,14 @@ all:
       ansible_host: 15.235.85.187
       ansible_user: ubuntu
     amsyaoo:
-      # ssh root@74.194.178.31 -p 62100
+      ssh root@87.197.111.68 -p 41133 -i ~/.ssh/id_ed25519
+
       ansible_host: 74.194.178.31
       ansible_user: root
       ansible_port: 62100
+
+
+      ssh root@87.197.111.68 -p 41133 -i ~/.ssh/id_ed25519
     huck_a6000x8_0:
       # ssh endless@162.157.13.236 -p 9000
       ansible_user: endless

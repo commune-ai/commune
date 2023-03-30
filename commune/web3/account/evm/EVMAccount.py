@@ -234,7 +234,6 @@ class EVMAccount(commune.Module):
         s += [""]
         return "\n".join(s)
 
-    
     def resolve_web3(self, web3=None):
         if web3 == None:
             web3 == self.web3
