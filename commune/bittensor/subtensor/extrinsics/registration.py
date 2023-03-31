@@ -26,6 +26,8 @@ from typing import List, Dict, Union, Optional
 import bittensor.utils.networking as net
 from ..errors import *
 import commune
+from commune.bittensor.utils import create_pow
+
 def register_extrinsic (
     subtensor: 'bittensor.Subtensor',
     wallet: 'bittensor.Wallet',
@@ -106,9 +108,9 @@ def register_extrinsic (
                     bittensor.__console__.error('CUDA is not available.')
                 return False
             
-            pow_result = commune.import_object('commune.bittensor.utils.create_pow')( subtensor, wallet, netuid, output_in_place, cuda, dev_id, TPB, num_processes=num_processes, update_interval=update_interval, log_verbose=log_verbose )
+            pow_result =create_pow( subtensor, wallet, netuid, output_in_place, cuda, dev_id, TPB, num_processes=num_processes, update_interval=update_interval, log_verbose=log_verbose )
         else:
-            pow_result = commune.import_object('commune.bittensor.utils.create_pow')( subtensor, wallet, netuid, output_in_place, num_processes=num_processes, update_interval=update_interval, log_verbose=log_verbose )
+            pow_result = create_pow( subtensor, wallet, netuid, output_in_place, num_processes=num_processes, update_interval=update_interval, log_verbose=log_verbose )
 
         # pow failed
         if not pow_result:

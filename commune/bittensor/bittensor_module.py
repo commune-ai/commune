@@ -15,6 +15,7 @@ class BittensorModule(commune.Module):
 
                 wallet:Union[bittensor.wallet, str] = None,
                 subtensor: Union[bittensor.subtensor, str] = 'finney',
+                create: bool = True,
                 register: bool = False
                 ):
         
@@ -45,8 +46,10 @@ class BittensorModule(commune.Module):
         
         return self.subtensor
         
-    def set_wallet(self, wallet=None)-> bittensor.wallet:
+    def set_wallet(self, wallet=None)-> bittensor.Wallet:
+
         self.wallet = self.get_wallet(wallet)
+        self.wallet.create(False, False)
         return self.wallet
     
     @classmethod
@@ -59,6 +62,8 @@ class BittensorModule(commune.Module):
                 wallet = bittensor.wallet(name=wallet)
             else:
                 raise NotImplementedError(wallet)
+        elif isinstance(wallet, bittensor.Wallet):
+            wallet = wallet
         else:
             assert isinstance(wallet, bittensor.wallet)
 
