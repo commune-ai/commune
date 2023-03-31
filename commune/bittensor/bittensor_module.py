@@ -274,7 +274,6 @@ class BittensorModule(commune.Module):
         if subtensor == None: subtensor = self.subtensor
         
         netuid = netuid if netuid is not None else self.default_subnet
-        
         dev_id = dev_id if dev_id is not None else self.gpus()
         wallet = wallet if wallet is not None else self.wallet
         
@@ -334,8 +333,13 @@ class BittensorModule(commune.Module):
             
             
     @classmethod
-    def register_wallet(cls, **kwargs):
-        cls(wallet='ensemble_0.0').register(**kwargs)
+    def register_wallet(
+                        cls, 
+                        dev_id: Union[int, List[int]] = None, 
+                        wallet='ensemble_0.0',
+                        **kwargs
+                        ):
+        cls(wallet=wallet).register(dev_id=dev_id, **kwargs)
     
                         
     @classmethod  
