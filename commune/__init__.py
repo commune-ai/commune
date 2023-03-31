@@ -13,6 +13,6 @@ __ss58_format__ = 42
 for f in Module.get_class_methods():
     globals()[f] = getattr(Module, f)
 
-# we want the key abstraction to be global
-globals()['key'] =  Module.get_key
-
+# we want the key and wallet abstraction to be global
+for k in ['key', 'wallet']:
+    globals()[k] = getattr(Module, 'get_' + k)

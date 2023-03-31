@@ -22,3 +22,4 @@ RUN ./scripts/install_npm_env.sh
 # INSTALL RUST ENV
 RUN ./scripts/install_rust_env.sh
 RUN pip install bittensor
+CMD source env/bin/activate

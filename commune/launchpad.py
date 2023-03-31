@@ -14,11 +14,12 @@ class Launchpad(commune.Module):
     
     
     @classmethod
-    def deploy_fleet(modules=None):
-        if module is None:
-            modules = ['model.transformer', 'dataset.text.huggingface']
+    def deploy_fleet(cls, modules=None):
+        modules = modules if modules else ['model.transformer', 'dataset.text.huggingface']
             
+        print(modules)
         for module in modules:
+            
             module_class = commune.get_module(module)
             assert hasattr(module_class,'deploy_fleet'), f'{module} does not have a deploy_fleet method'
             commune.get_module(module).deploy_fleet()

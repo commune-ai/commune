@@ -2313,6 +2313,16 @@ class Module:
         gpu_map = cls.gpu_map()
         return gpu_map[device]
 
+    # CPU LAND
+    
+    @classmethod
+    def cpu_count(cls):
+        try:
+            return len(os.sched_getaffinity(0))
+        except AttributeError:
+            # OSX does not have sched_getaffinity
+            return os.cpu_count()
+
     def resolve_tag(self, tag:str = None) -> str:
         if tag is None:
             tag = self.tag
@@ -2611,6 +2621,17 @@ class Module:
     # KEY LAND
 
     # MODULE IDENTITY LAND
+    
+    @classmethod
+    def get_wallet(self, *args, mode = 'bittensor', **kwargs) -> 'bittensor.Wallet':
+        if mode == 'bittensor':
+            return self.get_module('bittensor').get_wallet(*args, **kwargs)
+        elif mode == 'subspace':
+            kwargs['mode'] = mode
+            raise cls.get_key(*args, **kwargs)
+            # return self.get_module('subspace').get_wallet(*args, **kwargs)  
+               
+    
     @classmethod
     def get_key(cls, uri = None, *args,mode='subspace', **kwargs) -> None:
 
@@ -2631,7 +2652,7 @@ class Module:
         else:
             raise ValueError('Invalid mode for key')
         
-        
+            
     @classmethod
     def hash(cls, 
              data: Union[str, bytes], 
@@ -2763,8 +2784,6 @@ class Module:
         if not hasattr(self, 'users'):
             self.users = []
         self.users.pop(key, None)
-
-
     
     # # ARRAY2BYTES
     # @classmethod

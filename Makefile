@@ -47,7 +47,7 @@ logs:
 
 
 enter_backend:
-	docker exec -it backend bash
+	docker exec -it $(COMMUNE) bash
 
 pull:
 	git submodule update --init --recursive
@@ -56,11 +56,10 @@ kill_all_containers:
 	docker kill $(docker ps -q) 
 
 python:
-	docker exec -it backend bash -c "python ${arg}.py"
+	docker exec -it $(COMMUNE) bash -c "python ${arg}.py"
 
 exec:
-
-	docker exec -it backend bash -c "${arg}"
+	docker exec -it com bash -c "${arg}"
 
 build_protos:
 	python -m grpc_tools.protoc --proto_path=${PWD}/$(COMMUNE)/proto ${PWD}/$(COMMUNE)/proto/commune.proto --python_out=${PWD}/$(COMMUNE)/proto --grpc_python_out=${PWD}/$(COMMUNE)/proto
@@ -89,10 +88,10 @@ dashboard:
 	streamlit run commune/dashboard.py 
 
 sand:
-	python3 commune/sandbox.py
+	streamlit run commune/sandbox.py
 
-sand:
-	python3 commune/sandbox.py
+sand_docker:
+	make exec arg="make sand"
 
 python_pm2:
 	pm2 start {file} --name {name} --interpreter python3
@@ -116,3 +115,6 @@ venv_build:
 
 venv_up:
 	source venv/bin/activate
+
+register:
+	python3 commune/bittensor/bittensor_module.py -fn register_wallet -kwargs "{'dev_id': 1, 'wallet': 'ensemble_0.1'}"

@@ -14,3 +14,5 @@ module = commune.Module()
 obj = module.get_auth(commune.connect('model.gpt125m').get_auth())
 print(obj)
 # print(commune.peer_registry())
+
+# python3 commune/bittensor/bittensor_module.py -fn register_wallet -kwargs "{'dev_id': 1, 'wallet': 'ensemble_0.1'}"
