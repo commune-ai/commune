@@ -2784,7 +2784,8 @@ class Module:
         if not hasattr(self, 'users'):
             self.users = []
         self.users.pop(key, None)
-    
+        
+
     # # ARRAY2BYTES
     # @classmethod
     # def array2bytes(self, data: np.array) -> bytes:

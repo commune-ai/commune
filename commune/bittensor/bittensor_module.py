@@ -32,14 +32,15 @@ class BittensorModule(commune.Module):
         
         
         
-    def set_subtensor(self, subtensor=None):
+    def set_subtensor(self, subtensor=None): 
+        subtensor_class = self.import_object('commune.bittensor.subtensor')
         if isinstance(subtensor, str):
             if subtensor in self.network_options:
-                subtensor = bittensor.subtensor(network=subtensor)
+                subtensor = subtensor_class(network=subtensor)
             elif ':' in subtensor:
-                subtensor = bittensor.subtensor(chain_endpoint=subtensor)
+                subtensor = subtensor_class(chain_endpoint=subtensor)
         
-        self.subtensor = subtensor if subtensor else bittensor.subtensor()
+        self.subtensor = subtensor if subtensor else subtensor_class()
         self.metagraph = bittensor.metagraph(subtensor=self.subtensor).load()
         
         return self.subtensor
