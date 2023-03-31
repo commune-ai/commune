@@ -4,14 +4,13 @@ import os,sys
 import asyncio
 from transformers import AutoConfig
 asyncio.set_event_loop(asyncio.new_event_loop())
-
 import bittensor
 import commune
 from typing import List, Union, Optional, Dict
 from munch import Munch
 
 class BittensorModule(commune.Module):
-    
+    wallet_path = os.path.expanduser('~/.bittensor/wallets')
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
@@ -49,7 +48,8 @@ class BittensorModule(commune.Module):
         self.wallet = self.get_wallet(wallet)
         return self.wallet
     
-    def get_wallet(self, wallet=None):
+    @classmethod
+    def get_wallet(cls, wallet:Union[str, bittensor.wallet]=None) -> bittensor.wallet:
         if isinstance(wallet, str):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
@@ -58,10 +58,9 @@ class BittensorModule(commune.Module):
                 wallet = bittensor.wallet(name=wallet)
             else:
                 raise NotImplementedError(wallet)
-        if not hasattr(self, 'wallet'):
-            self.wallet = bittensor.wallet()
-            
-        wallet = wallet if wallet else self.wallet
+        else:
+            assert isinstance(wallet, bittensor.wallet)
+
         return wallet 
     
     def get_neuron(self, wallet=None):
@@ -81,20 +80,19 @@ class BittensorModule(commune.Module):
         return self.wallet.get_neuron(subtensor=self.subtensor)
         
     
-    def list_wallet_paths(self, registered=False):
-        wallet_path = os.path.expanduser(self.wallet.config.wallet.path)
-        wallet_list = []
+    @classmethod
+    def list_wallet_paths(cls, registered=False):
         import glob
-        st.write(wallet_path)
-        return glob.glob(wallet_path+'/*/hotkeys/*')
+        return glob.glob(cls.wallet_path+'/*/hotkeys/*')
     
-    def list_wallets(self, registered=True, unregistered=True, output_wallet:bool = True):
-        wallet_paths = self.list_wallet_paths()
-        wallet_path = os.path.expanduser(self.wallet.config.wallet.path)
-        wallets = [p.replace(wallet_path, '').replace('/hotkeys/','.') for p in wallet_paths]
+    @classmethod
+    def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
+        wallet_paths = cls.list_wallet_paths()
+        wallets = [p.replace(cls.wallet_path, '').replace('/hotkeys/','.') for p in wallet_paths]
 
         if output_wallet:
-            wallets = [self.get_wallet(w) for w in wallets]
+            wallets = [cls.get_wallet(w) for w in wallets]
+            
         return wallets
     
     @property
@@ -322,12 +320,28 @@ class BittensorModule(commune.Module):
                 
     @classmethod
     def create_wallet(cls, 
-                       coldkey: str = [f'ensemble_{i}' for i in range(3)],
-                       hotkey : str = [f'{i}' for i in range(10)],
+                      wallet: str = 'default.default',
+                       coldkey: str = None,
+                       hotkey : str = None,
                        coldkey_use_password:bool = False, 
-                       hotkey_use_password:bool = False
+                       hotkey_use_password:bool = False,
+                       mnemonic: str= None,
+                       seed: str = None
                        ) :
-        return  bittensor.wallet(name=ck, hotkey=hk).create(coldkey_use_password=coldkey_use_password, 
+        if len(wallet.split('.')) == 2:
+           coldkey, hotkey = wallet.split('.')
+        else:
+            raise ValueError('wallet must be of the form coldkey.hotkey')
+           
+        assert isinstance(hotkey, str), 'hotkey must be a string (or None)'
+        assert isinstance(coldkey, str), 'coldkey must be a string'
+        
+        if mnemonic:
+            raise NotImplementedError
+        if seed:
+            raise NotImplementedError
+        
+        return  bittensor.wallet(name=coldkey, hotkey=hotkey).create(coldkey_use_password=coldkey_use_password, 
                                                             hotkey_use_password=hotkey_use_password)     
             
             
@@ -335,23 +349,24 @@ class BittensorModule(commune.Module):
     @classmethod
     def register_wallet(
                         cls, 
+                        wallet='default.default',
                         dev_id: Union[int, List[int]] = None, 
-                        wallet='ensemble_0.0',
+                        create: bool = True,
                         **kwargs
                         ):
         cls(wallet=wallet).register(dev_id=dev_id, **kwargs)
+
     
                         
     @classmethod  
     def sandbox(cls):
         
-        gpus = commune.gpus()
-        processes_per_gpus = 2
+        gpus = commune.gpus()[:1]
+        processes_per_gpus = 1
         
         for i in range(processes_per_gpus):
             for dev_id in gpus:
                 cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='pm2')
-                
         
         # print(cls.launch(f'register_{1}'))
         # self = cls(wallet=None)
