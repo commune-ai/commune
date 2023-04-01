@@ -453,7 +453,7 @@ class Keypair(commune.Module):
 
         if return_dict:
             return {
-                'data': data.hex(),
+                'data': data.decode(),
                 'signature': signature.hex(),
                 'public_key': self.public_key.hex(),
             }
@@ -488,8 +488,6 @@ class Keypair(commune.Module):
             
         if not isinstance(data, str):
             data = self.python2str(data)
-            
-            
         
         if public_key == None:
             public_key = self.public_key.hex()
