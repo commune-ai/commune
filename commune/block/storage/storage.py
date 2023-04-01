@@ -1,26 +1,44 @@
 
 import commune
 from typing import *
-
+import streamlit as st
 class Storage(commune.Module):
     
-    def __init__(self, store: Dict = None):
+    def __init__(self, store: Dict = None, key: 'Key' = None):
+    
         self.set_storage(store)
+        self.set_key(key)
         
+    
     def set_storage(self, storage: Dict = None):
         storage = {} if storage == None else storage
-        
         assert isinstance(storage, dict), 'storage must be a dictionary'
-        
         self.storage = storage
             
-    def put(self, key:str, value: Any, meta = None) -> str:
-        self.storage[key] = {
-            'data': value,
-            'meta': meta if meta != None else {},
-            
-        }
-        return key
+    
+    def put(self,
+            k:str, 
+            v: Any,
+            key: str = None,
+            encrypt: bool = False) -> str:
+        
+        key = self.resolve_key(key)
+   
+        data = {'data': v, 'time': int(commune.time())}
+        
+        if encrypt:
+            data = key.encrypt(data)
+
+        # start with signature, data, public_address
+        storage_item = key.sign(data, return_dict=True)
+        storage_item['encrypt'] = encrypt
+        
+        self.storage[k] = storage_item
+        
+        
+        st.write(self.storage[k])
+        
+        return k
     
     def state_dict(self):
         import json
@@ -29,7 +47,6 @@ class Storage(commune.Module):
             try:
                 state_dict[k] = json.dumps(v)
             except:
-                pass
                 commune.log(f'could not serialize {k}')
             
         
@@ -37,8 +54,6 @@ class Storage(commune.Module):
         import json
         for k, v in state_dict.items():
             self.storage[k] = json.loads(v)
-            
-            
             
     def save(self, keys=None, path=None, password=None):
         if keys == None:
@@ -59,45 +74,47 @@ class Storage(commune.Module):
         return self.put_json( path=path, data=state_dict)
     
     
-    def load(self, path=None, password=None):
-        
+    def resolve_key(self, key: str = None) -> commune.key:
+        if key == None:
+            key = self.key
+        return key
     
-    
-    def get(self, key:str, return_data: bool = True) -> Any:
-        storage_object = self.storage[key]
-        if return_data:
-            storage_object = storage_object['data']
-        return storage_object
+    def get(self,
+            k, 
+            key:str = None,
+            max_staleness: int = 1000) -> Any:
+        key = self.resolve_key(key)
 
-    def get_aes_key(self, password: str) -> 'Key':
-        if not hasattr(self, 'aes_key_class'):
-            self.aes_key_class = commune.get_module('crypto.key.aes')
-        return self.aes_key_class(password)
+        item = self.storage[k]
+        verified = key.verify(item)
+        if self.is_encrypted(item):
+            item['data'] = key.decrypt(item['data'])
+        item['data'] = self.str2python(item['data'])
+        assert verified
         
-    def set_aes_key(self, password):
-        self.aes_key = self.get_aes_key(password)
+        staleness = commune.time() - item['data']['time']
+        assert staleness < max_staleness
+
+        st.write(staleness)
+        return item['data']['data']
+
+
+    @property
+    def key2address(self) -> Dict:
+        key2address = {}
+        for k, v in self.storage.items():
+            id = v['public_key']
+            if id  in key2address:
+                key2address[v['public_key']] += [k]
+            else:
+                key2address[v['public_key']] = [k]
+
+        return key2address
         
-    def resolve_aes_key(self, password):
-        if not hasattr(self, 'aes_key'):
-            self.set_aes_key(password)
-        return self.aes_key
-        
-    def encrypt(self, key:str, password: str) -> str:
-        aes_key = self.get_aes_key(password)
-        self.storage[key] = aes_key.encrypt(self.storage[key])
-        
-    def is_encrypted(self, key:str) -> bool:
-        return isinstance(self.storage[key], bytes)
-    
-    def decrypt(self, key:str, password: str) -> str:
-        # encrypt the the content of the key
-        
-        assert self.is_encrypted(key), 'key is not encrypted'
-        
-        aes_key = self.get_aes_key(password)
-        self.storage[key] = aes_key.decrypt(self.storage[key])
-    
-    
+
+    def is_encrypted(self, item: Dict) -> bool:
+        return item.get('encrypt', False)
+ 
     @classmethod
     def test(cls):
         self = cls()
@@ -108,8 +125,16 @@ class Storage(commune.Module):
             assert self.get('test') == obj
             
         
+    @classmethod
+    def sandbox(cls):
+        
+        self = cls()
+        data = {'fam': 1, 'bro': 'fam', 'chris': {'sup': [1,'dawg']}}
+        st.write(self.put('bro', data, encrypt=False))
+        st.write(self.get('bro'))
+        st.write(self.key2address)
     
 if __name__ == "__main__":
-    Storage.test()
+    Storage.sandbox()
     
     
