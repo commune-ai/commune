@@ -907,12 +907,12 @@ class Module:
             server_registry = Module.get_json('server_registry', handle_error=True, default={})
         except json.JSONDecodeError as e:
             server_registry = cls.get_server_registry()
-            
         for k in deepcopy(list(server_registry.keys())):
             
             if not Module.port_used(int(server_registry[k]['port'])):
                 del server_registry[k]
-        # Module.put_json('server_registry',server_registry)
+            print(server_registry[k]['port'], Module.port_used(int(server_registry[k]['port'])))
+        Module.put_json('server_registry',server_registry)
         return server_registry
 
     @property

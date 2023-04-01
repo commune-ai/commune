@@ -23,3 +23,4 @@ RUN ./scripts/install_npm_env.sh
 RUN ./scripts/install_rust_env.sh
 RUN pip install bittensor
 CMD source env/bin/activate
+ENTRYPOINT ["/bin/bash", "source env/bin/activate"]

@@ -87,10 +87,10 @@ vali:
 dashboard:
 	streamlit run commune/dashboard.py 
 
-sand:
+sandbox:
 	streamlit run commune/sandbox.py
 
-sand_docker:
+sandbox_docker:
 	make exec arg="make sand"
 
 python_pm2:
