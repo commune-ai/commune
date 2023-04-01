@@ -2590,7 +2590,7 @@ class Module:
             input = str(input)
         return input
 
-    @staticmethod
+    @classmethod
     def str2python(cls, input)-> dict:
         assert isinstance(input, str)
         try:
@@ -2623,9 +2623,9 @@ class Module:
     # MODULE IDENTITY LAND
     
     @classmethod
-    def get_wallet(self, *args, mode = 'bittensor', **kwargs) -> 'bittensor.Wallet':
+    def get_wallet( cls, *args, mode = 'bittensor', **kwargs) -> 'bittensor.Wallet':
         if mode == 'bittensor':
-            return self.get_module('bittensor').get_wallet(*args, **kwargs)
+            return cls.get_module('bittensor').get_wallet(*args, **kwargs)
         elif mode == 'subspace':
             kwargs['mode'] = mode
             raise cls.get_key(*args, **kwargs)
@@ -2633,15 +2633,9 @@ class Module:
                
     
     @classmethod
-    def get_key(cls, uri = None, *args,mode='subspace', **kwargs) -> None:
+    def get_key(cls, *args,mode='subspace', **kwargs) -> None:
 
         if mode == 'subspace':
-            if uri == None:
-                uri = 'Alice'
-            if isinstance(uri, str):
-                if not uri.startswith('//'):
-                    uri = '//' + uri
-                return cls.get_module('subspace.key').create_from_uri(uri)
             return cls.get_module('subspace.key')(*args, **kwargs)
         if mode == 'substrate':
             return cls.get_module(f'web3.account.substrate')(*args, **kwargs)
@@ -2664,14 +2658,15 @@ class Module:
     
     @classmethod
     def decrypt(cls, data: str, password= None) -> Any:
-        key = self.key('aes', password=password)
+        key = cls.get_key(mode='aes', key=password)
         data = key.decrypt(data)
-        return self.str2python(data)
+        
+        return cls.str2python(data)
 
     @classmethod
-    def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        data = self.python2str(data)
-        key = self.key('aes', password=password)
+    def encrypt(cls, data: Union[str, bytes], password: str = None) -> bytes:
+        data = cls.python2str(data)
+        key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
     def call(self, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
@@ -2682,14 +2677,18 @@ class Module:
     def resolve_key(self, key: str) -> str:
         if key == None:
             if not hasattr(self, 'key'):
-                self.set_key()
+                self.set_key(key)
             key = self.key
+        elif isinstance(key, str):
+            key = self.get_key(key)
             
         return key  
                 
                 
-    def set_key(self, *args, **kwargs) -> None:
-        key = self.get_key(*args, **kwargs)
+    def set_key(self, key, *args, **kwargs) -> None:
+        if key == None:
+            key = self.get_key('Alice')
+            
         self.key = key
         self.public_key = self.key.public_key
       

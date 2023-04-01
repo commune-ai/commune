@@ -83,6 +83,7 @@ import commune
 class Keypair(commune.Module):
 
     def __init__(self, 
+                 key: str = None,
                  ss58_address: str = None,
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None,
@@ -101,6 +102,21 @@ class Keypair(commune.Module):
         seed_hex: hex string of seed
         crypto_type: Use KeypairType.SR25519 or KeypairType.ED25519 cryptography for generating the Keypair
         """
+        if key:
+            if isinstance(key, str):
+                seed_hex = self.hash(key)
+            
+        if seed_hex: 
+
+            kwargs = self.create_from_seed(seed_hex, return_dict=True)
+            public_key = kwargs['public_key']
+            ss58_address=kwargs['ss58_address']
+            private_key=kwargs['private_key']
+            ss58_format = kwargs['ss58_format']
+            crypto_type = kwargs['crypto_type']
+            
+            
+            
 
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
@@ -220,7 +236,10 @@ class Keypair(commune.Module):
 
     @classmethod
     def create_from_seed(
-            cls, seed_hex: Union[bytes, str], ss58_format: Optional[int] = 42, crypto_type=KeypairType.SR25519
+            cls, seed_hex: Union[bytes, str],
+            ss58_format: Optional[int] = 42,
+            crypto_type=KeypairType.SR25519,
+            return_dict: bool = True
     ) -> 'Keypair':
         """
         Create a Keypair for given seed
@@ -235,21 +254,28 @@ class Keypair(commune.Module):
         """
 
         if type(seed_hex) is str:
+            
             seed_hex = bytes.fromhex(seed_hex.replace('0x', ''))
 
+        
         if crypto_type == KeypairType.SR25519:
             public_key, private_key = sr25519.pair_from_seed(seed_hex)
+
         elif crypto_type == KeypairType.ED25519:
             private_key, public_key = ed25519_zebra.ed_from_seed(seed_hex)
         else:
             raise ValueError('crypto_type "{}" not supported'.format(crypto_type))
 
         ss58_address = ss58_encode(public_key, ss58_format)
-
-        return cls(
+        
+        cls_kwargs = dict(
             ss58_address=ss58_address, public_key=public_key, private_key=private_key,
             ss58_format=ss58_format, crypto_type=crypto_type, seed_hex=seed_hex
         )
+        if return_dict:
+            return cls_kwargs
+            
+        return cls(**cls_kwargs)
 
     @classmethod
     def create_from_uri(
@@ -580,12 +606,63 @@ class Keypair(commune.Module):
         else:
             return '<Keypair (public_key=0x{})>'.format(self.public_key.hex())
 
-
+ 
+    def resolve_password(self, password: str = None) -> 'AESKey':
+        if password == None:
+            if hasattr(self, 'password') and self.password != None:
+                password = self.password
+            
+            elif  hasattr(self, 'private_key') and self.private_key != None:
+                if type(self.private_key) is str:
+                    self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
+                password = self.private_key.hex()
+            else:
+                raise ValueError("No password or private/public key provided")
+            
+        password = self.hash(password)
+        return password        
+        
+    def set_password(self, password: str = None):
+        if password == None:
+            if hasattr(self, 'password') and self.password != None:
+                password = self.password
+            
+            elif  self.private_key != None:
+                if type(self.private_key) is str:
+                    self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
+                password = self.private_key.hex()
+            elif self.public_key != None:
+                if type(self.public_key) is str:
+                    self.public_key = bytes.fromhex(self.public_key.replace('0x', ''))
+                password = self.public_key.hex()
+            else:
+                raise ValueError("No password or private/public key provided")
+            
+        self.password = password
+        self.aes_seed = self.hash(self.password)
+        
+        # get the AES key module and create an instance for encryption
+        aes_key = commune.get_module('crypto.key.aes')
+        self.aes_key = aes_key(self.aes_seed)
+        
+    
+    def encrypt(self, data: Union[str, bytes], password:str = None) -> bytes:
+        self.set_password(password)
+        return self.aes_key.encrypt(data)
+    
+            
+        # return cls.create_from_uri(uri)
+    
+    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        self.set_password(password)
+        return self.aes_key.decrypt(data)
+    
+    
     def encrypt(self,data, password = None ):
-        password = password or self.password
+        password = self.resolve_password(password)
         encrypted_data = commune.encrypt(data, password=password)
         return encrypted_data
-    def decrypt(self, data, password = None ):
-        password = password or self.password
-        decrypted_data = commune.decrypt(data, password=password)
-        return decrypted_data
+    # def decrypt(self, data, password = None ):
+    #     password = self.resolve_password(password)
+    #     decrypted_data = commune.decrypt(data, password=password)
+    #     return decrypted_data
