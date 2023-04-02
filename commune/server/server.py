@@ -34,8 +34,6 @@ class Server(ServerServicer, Serializer):
     port_range = [50050, 50100]
     default_ip =  '0.0.0.0'
 
-
-
     def __init__(
             self,
             module: Union['Module', object]= None,
@@ -89,15 +87,11 @@ class Server(ServerServicer, Serializer):
                         maximum_concurrent_rpcs=maximum_concurrent_rpcs,
                         compression=compression,) 
         
-        
         self.timeout = timeout
         self.verbose = verbose
-
-        
         
         # set the module
         self.module = module
-        
         
         # set the whitelist functions
         self.add_whitelist_functions(whitelist_functions + self.module.functions())

@@ -1421,7 +1421,6 @@ class Module:
                     **extra_kwargs
             )
             assert fn != None, 'fn must be specified for pm2 launch'
-
             launch_fn = getattr(cls, f'pm2_launch')
             launch_fn(**launch_kwargs)
         elif mode == 'ray':
@@ -1435,6 +1434,7 @@ class Module:
                     serve = serve,
                     **extra_kwargs
             )
+            
             launch_fn = getattr(cls, f'{mode}_launch')
             launch_fn(**launch_kwargs)
         else: 
@@ -2343,30 +2343,7 @@ class Module:
         return device  
     
     
-    @classmethod
-    def peer_info_list(cls, module = None):
-        if module == None:
-            module = cls
-        if isinstance(module, str):
-            module = cls.connect(module)
-            return module.peer_info_list()
-                 
-        external_ip = cls.get_external_ip()
-        peers = module.servers()
 
-        peer_info_list = []
-        for p in peers:
-            peer = cls.connect(p)
-            peer_stats = peer.server_info
-            
-            peer_info = {}
-            peer_info['name'] = p
-            peer_info['endpoint'] = peer_stats['external_ip']+':' + str(peer_stats['port'])
-            peer_info['is_local'] = external_ip == peer_stats['external_ip']
-            peer_info_list.append(peer_info)
-        
-        return peer_info_list
-      
     @classmethod
     def peer_registry(cls, module = None):
         if module == None:
@@ -2376,9 +2353,7 @@ class Module:
             return module.peer_registry()
                  
         external_ip = cls.get_external_ip()
-        peers = module.servers()
-        peer_info_list = []
-         
+        peers = module.servers()         
         peer_registry = cls.get_json('peer_registry')
         peer_registry = {}
         
