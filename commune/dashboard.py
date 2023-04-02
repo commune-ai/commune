@@ -1,11 +1,6 @@
 import commune
 import streamlit as st 
-
 from typing import List, Dict, Union, Any 
-# commune.launch('dataset.text.bittensor', mode='pm2')
-
-# commune.new_event_loop()
-
 
 
 class Dashboard:
@@ -142,13 +137,100 @@ class Dashboard:
 
         peer_info_map = {}
  
+    def function_call(self, module:str, fn_name: str = '__init__' ):
         
+        module = commune.connect(module)
+        peer_info = module.peer_info()
+        
+        # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
+        # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
+        function_info_map = self.module_info['function_info_map'] = self.module_info['module'].get_function_info_map(include_module=False)
+        fn_name = fn
+        fn_info = function_info_map[fn_name]
+        
+        kwargs = {}
+        cols = st.columns([3,1,6])
+        cols[0].write(f'#### {name}.{fn_name}')
+        cols[2].write('#### Module Arguments')
+        cols = st.columns([2,1,4,4])
+        launch_col = cols[0]
+        kwargs_cols = cols[2:]
+        
+        with launch_col:
+       
+            name = st.text_input('**Name**', self.module_name) 
+            tag = None
+            # tag = st.text_input('**Tag**', 'None')
+            if tag == 'None' or tag == '' or tag == 'null':
+                tag = None
+            refresh = st.checkbox('**Refresh**', False)
+            # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
+            mode = 'pm2'
+            serve = True
+            launch_button = st.button('Launch Module')  
+            
+            
+        fn_info['default'].pop('self', None)
+        fn_info['default'].pop('cls', None)
+        
+            
+        # kwargs_cols[0].write('## Module Arguments')
+        for i, (k,v) in enumerate(fn_info['default'].items()):
+            
+            optional = fn_info['default'][k] != 'NA'
+            fn_key = k 
+            if k in fn_info['schema']:
+                k_type = fn_info['schema'][k]
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            kwargs_col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+            
+            
+            kwargs_col_idx = kwargs_col_idx % (len(kwargs_cols))
+            init_kwarg[k] = kwargs_cols[kwargs_col_idx].text_input(fn_key, v)
+            
+        init_kwarg.pop('self', None )
+        init_kwarg.pop('cls', None)
+        if launch_button:
+            kwargs = {}
+            for k,v in init_kwarg.items():
+                if v == 'None':
+                    v = None
+                elif k in fn_info['schema'] and fn_info['schema'][k] == 'str':
+                    v = v
+                elif k == 'kwargs':
+                    continue
+                elif v == 'NA':
+                    assert k != 'NA', f'Key {k} not in default'
+                else:
+                    v = eval(v) 
+                
+                kwargs[k] = v
+                
+                
+            launch_kwargs = dict(
+                module = self.selected_module,
+                name = name,
+                tag = tag,
+                mode = mode,
+                refresh = refresh,
+                serve = serve,
+                kwargs = kwargs,
+            )
+            st.write(launch_kwargs)
+            commune.launch(**launch_kwargs)
+            
+    
     def streamlit_launcher(self):
         # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
         # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
         function_info_map = self.module_info['function_info_map'] = self.module_info['module'].get_function_info_map(include_module=False)
-        init_fn_name = '__init__'
-        init_fn_info = function_info_map[init_fn_name]
+        fn_name = '__init__'
+        fn_info = function_info_map[fn_name]
         
         init_kwarg = {}
         cols = st.columns([3,1,6])
@@ -172,17 +254,17 @@ class Dashboard:
             launch_button = st.button('Launch Module')  
             
             
-        init_fn_info['default'].pop('self', None)
-        init_fn_info['default'].pop('cls', None)
+        fn_info['default'].pop('self', None)
+        fn_info['default'].pop('cls', None)
         
             
         # kwargs_cols[0].write('## Module Arguments')
-        for i, (k,v) in enumerate(init_fn_info['default'].items()):
+        for i, (k,v) in enumerate(fn_info['default'].items()):
             
-            optional = init_fn_info['default'][k] != 'NA'
+            optional = fn_info['default'][k] != 'NA'
             fn_key = k 
-            if k in init_fn_info['schema']:
-                k_type = init_fn_info['schema'][k]
+            if k in fn_info['schema']:
+                k_type = fn_info['schema'][k]
                 if k_type.startswith('typing'):
                     k_type = k_type.split('.')[-1]
                 fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
@@ -202,7 +284,7 @@ class Dashboard:
             for k,v in init_kwarg.items():
                 if v == 'None':
                     v = None
-                elif k in init_fn_info['schema'] and init_fn_info['schema'][k] == 'str':
+                elif k in fn_info['schema'] and fn_info['schema'][k] == 'str':
                     v = v
                 elif k == 'kwargs':
                     continue
