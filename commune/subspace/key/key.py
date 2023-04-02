@@ -106,7 +106,8 @@ class Keypair(commune.Module):
             if isinstance(key, str):
                 seed_hex = self.hash(key)
             
-        if seed_hex: 
+        print(seed_hex,'BRO')
+        if seed_hex != None: 
 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
             public_key = kwargs['public_key']
@@ -239,7 +240,7 @@ class Keypair(commune.Module):
             cls, seed_hex: Union[bytes, str],
             ss58_format: Optional[int] = 42,
             crypto_type=KeypairType.SR25519,
-            return_dict: bool = True
+            return_dict: bool = False
     ) -> 'Keypair':
         """
         Create a Keypair for given seed
