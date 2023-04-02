@@ -246,7 +246,7 @@ class Subspace(commune.Module):
         return False
 
     @classmethod
-    def name2subnet(cls, name:str) -> int:
+    def name2subnet(cls) -> int:
         name2subnet = {
             'commune': 0,
             'text': 1,
@@ -261,11 +261,8 @@ class Subspace(commune.Module):
             # 'text2video': 8,
             # 'video2image': 9,
         }
-        subnet = name2subnet.get(name, None)
-        
-        assert subnet != None, f'Invalid name: {name}, your name must be one of {name2subnet.keys()}'
-        
-        return subnet
+
+        return name2subnet
     ######################
     #### Registration ####
     ######################
@@ -284,7 +281,7 @@ class Subspace(commune.Module):
             netuid = self.default_subnet_uid
         if isinstance(netuid, str):
             netuid = self.subnet2uid(netuid)
-        assert isinstance(netuid, int), f'Invalid net: {netuid}, your net must be one of {self.name2subnet.keys()}'
+        assert isinstance(netuid, int), f'Invalid net: {netuid}, your net must be one of {self.name2subnet().keys()}'
         return netuid
     
     def valid_subnet(self, netuid: Union[int, str]) -> bool:
@@ -302,7 +299,7 @@ class Subspace(commune.Module):
         context: str = b'',
         ip: str = None,
         port: int = None,
-        netuid :int = 0 ,
+        netuid :int = 3 ,
         key: 'commune.Key' = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
@@ -347,7 +344,7 @@ class Subspace(commune.Module):
         
         
         key = self.resolve_key(key)
-        netuid = self.resolve_netuid(netuid)
+
         
 
         if isinstance(ip, str):
@@ -618,8 +615,8 @@ class Subspace(commune.Module):
         with commune.info(":satellite: Checking Axon..."):
             neuron = self.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
             neuron_up_to_date = not neuron.is_null and params == {
-                'ip': ip_to_int(neuron.axon_info.ip),
-                'port': neuron.axon_info.port,
+                'ip': ip_to_int(neuron.neuron_info.ip),
+                'port': neuron.neuron_info.port,
                 'netuid': neuron.netuid,
                 'key': neuron.coldkey,
             }
@@ -642,16 +639,16 @@ class Subspace(commune.Module):
         if prompt:
             output = params.copy()
             output['key'] = key.ss58_address
-            if not Confirm.ask("Do you want to serve axon:\n  [bold white]{}[/bold white]".format(
+            if not Confirm.ask("Do you want to serve neuron:\n  [bold white]{}[/bold white]".format(
                 json.dumps(output, indent=4, sort_keys=True)
             )):
                 return False
 
-        with commune.status(":satellite: Serving axon on: [white]{}:{}[/white] ...".format(self.network, netuid)):
+        with commune.status(":satellite: Serving neuron on: [white]{}:{}[/white] ...".format(self.network, netuid)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='SubspaceModule',
-                    call_function='serve_axon',
+                    call_function='serve_neuron',
                     call_params=params
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
@@ -664,7 +661,7 @@ class Subspace(commune.Module):
                         ))
                         return True
                     else:
-                        commune.print(':cross_mark: [green]Failed to Serve axon[/green] error: {}'.format(response.error_message))
+                        commune.print(':cross_mark: [green]Failed to Serve neuron[/green] error: {}'.format(response.error_message))
                         return False
                 else:
                     return True
@@ -984,8 +981,8 @@ class Subspace(commune.Module):
     def get_stake( self,  key_ss58: str, block: Optional[int] = None ) -> List[Tuple[str,'Balance']]:
         return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
 
-    """ Returns the axon information for this key account """
-    def get_axon_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
+    """ Returns the neuron information for this key account """
+    def get_neuron_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
         result = self.query_subspace( 'Axons', block, [key_ss58 ] )        
         if result != None:
             return AxonInfo(
@@ -1265,7 +1262,7 @@ class Subspace(commune.Module):
         return return_dict
     
     def get_namespace(self, netuid = 3,  ):
-        self.get_storage_map(module='SubspaceModule', storage_map='AxonNamespace')
+        self.get_storage_map(module='SubspaceModule', storage_map='NeuronNamespace')
         return {self.substrate.ss58_encode(k[len(map_prefix):]): v for k, v in result}
 
 
@@ -1331,7 +1328,7 @@ class Subspace(commune.Module):
 
     
     def namespace(self, netuid: int = None) -> Dict[str, str]:
-        netuid = self.resolve_netuid(netuid)
+        # netuid = self.resolve_netuid(netuid)
         
         # Get the namespace for the netuid.
         records = self.query_map_subspace('AxonNamespace', params=[netuid]).records
@@ -1369,19 +1366,27 @@ class Subspace(commune.Module):
    
         # for key in keys:
         #     subspace.register(key=key, netuid=subnets[0])
+         
+
             
     @classmethod
     def sandbox(cls):
         self = cls()
-        key = commune.key('Alice')
-        # print(self.get_balance(key.public_key))
-        self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
-        # print('K')
-        print(self.register(key=key, netuid=3, ip=commune.external_ip(), port=8000, name='Alice', context='billy'))
-        
+        key = commune.key('bro')
+        # # print(self.get_balance(key.public_key))
+        # # self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
+        # print(self.register(key=key, 
+        #                     netuid=3, 
+        #                     ip=commune.external_ip(), 
+        #                     port=8000, 
+        #                     name='Alice',
+        #                     context='billy'))
+        print(self.query_map_subspace('Neurons', params=[0]).records)     
 
+    
 if __name__ == "__main__":
     Subspace.run()
+    
 
     
     # st.write(key.sign('data'))
