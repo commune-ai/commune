@@ -823,7 +823,7 @@ class Module:
                 port:int=None , 
                 ip:str=None, 
                 virtual:bool = True, 
-                wait_for_server:bool = True,
+                wait_for_server:bool = False,
                 **kwargs ):
         
         if isinstance(name, str) and len(name.split(':')) == 2:
@@ -838,7 +838,6 @@ class Module:
                 client_kwargs = server_registry[name]
             except KeyError:
                 server_registry = cls.server_registry(update=True)
-                print(server_registry)
                 client_kwargs = server_registry[name]
         else:
             
@@ -887,7 +886,6 @@ class Module:
             peer_name = peer.module_id
             peer_registry[peer.module_id] = peer.server_info
             
-            print(peer.server_info())
         return peer_registry
 
     @classmethod
@@ -911,7 +909,6 @@ class Module:
             
             if not Module.port_used(int(server_registry[k]['port'])):
                 del server_registry[k]
-            print(server_registry[k]['port'], Module.port_used(int(server_registry[k]['port'])))
         Module.put_json('server_registry',server_registry)
         return server_registry
 
@@ -1004,7 +1001,6 @@ class Module:
         
         start_time = cls.time()
         while not cls.server_exists(name):
-            print('BROOO', cls.servers())
             cls.sleep(sleep_interval)
             current_time = cls.time()
             if current_time - start_time > timeout:
@@ -1137,7 +1133,6 @@ class Module:
                     new_functions.append(f)
             functions = new_functions
         
-        cls.print(functions, 'blue')
         return functions
 
     @classmethod
@@ -1252,7 +1247,6 @@ class Module:
         obj = obj if obj else cls
         
         function_schema_map = {}
-        print(cls.get_functions(obj))
         for fn in cls.get_functions(obj, include_module=include_module):
             # if not include_hidden:
             #     if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
@@ -1290,7 +1284,6 @@ class Module:
                 for fn_k, fn_v in getattr(self, fn ).__annotations__.items():
                     
                     fn_v = str(fn_v)
-                    print(fn_v, fn_v.startswith('<class'))
                     
                     if fn_v == inspect._empty:
                         fn_schema[fn_k]= 'Any'
@@ -1505,7 +1498,6 @@ class Module:
 
             
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
-        cls.print(command,'purple')
         env = {}
         if device != None:
             if isinstance(device, list):
@@ -2784,13 +2776,23 @@ class Module:
             self.users = []
         self.users.pop(key, None)
         
-
+    @classmethod
+    def deploy_fleet(cls, modules=None):
+        modules = modules if modules else ['model.transformer', 'dataset.text.huggingface']
+            
+        print(modules)
+        for module in modules:
+            
+            module_class = cls.get_module(module)
+            assert hasattr(module_class,'deploy_fleet'), f'{module} does not have a deploy_fleet method'
+            cls.get_module(module).deploy_fleet()
     # # ARRAY2BYTES
     # @classmethod
     # def array2bytes(self, data: np.array) -> bytes:
     #     if isinstance(data, np.array):
     #         data = data.astype(np.float64)
     #     return data.tobytes()
+    
     
 Block = Lego = Module
 if __name__ == "__main__":

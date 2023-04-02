@@ -60,7 +60,7 @@ class BittensorDataset(Module):
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             background_download: bool = False,
-            download: bool = False,
+            download: bool = True,
             min_hash_count : int = 850000,
             loop: Optional['asyncio.loop'] = None ,
             nest_asyncio: bool = True):

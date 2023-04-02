@@ -20,7 +20,7 @@ from .serializer import Serializer
 
 
 
-class VirtualModule:
+class VirtualModule(commune.Module):
     def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
         
         self.synced_attributes = []
@@ -75,7 +75,7 @@ class VirtualModule:
         return  self.module_client(fn='getattr', args=[key])
 
 
-class Client( Serializer):
+class Client( Serializer, commune.Module):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
     """
     default_ip = '0.0.0.0'
@@ -90,10 +90,7 @@ class Client( Serializer):
             external_ip = None,
             key = None,
         ):
-        
-        
-        self.set_key(key)
-        
+                
         self.set_client(ip =ip,
                         port = port ,
                         max_processes = max_processes,
@@ -101,10 +98,6 @@ class Client( Serializer):
                         loop = loop,
                         external_ip = external_ip)
         
-    def set_key(self, key: 'Keypair') -> None:
-        return commune.key(key)
-        
-       
     
     def set_event_loop(self, loop: 'asyncio.EventLoop') -> None:
         try:
