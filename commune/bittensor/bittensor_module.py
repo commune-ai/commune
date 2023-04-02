@@ -367,12 +367,12 @@ class BittensorModule(commune.Module):
     @classmethod  
     def sandbox(cls):
         
-        gpus = commune.gpus()[:1]
-        processes_per_gpus = 1
+        gpus = commune.gpus()
+        processes_per_gpus = 2
         
         for i in range(processes_per_gpus):
             for dev_id in gpus:
-                cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='pm2')
+                cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='ray')
         
         # print(cls.launch(f'register_{1}'))
         # self = cls(wallet=None)
