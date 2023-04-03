@@ -40,6 +40,9 @@ class Subspace(commune.Module):
     """
     Handles interactions with the subspace chain.
     """
+
+    retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
+
     
     def __init__( 
         self, 
@@ -155,9 +158,9 @@ class Subspace(commune.Module):
     #####################
     def set_weights(
         self,
-        netuid: int,
         uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
+        netuid: int = None,
         key: 'commune.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
@@ -276,7 +279,7 @@ class Subspace(commune.Module):
         return key
     
 
-    def resolve_netuid(self, netuid: Union[str, int]) -> int:
+    def resolve_netuid(self, netuid: Union[str, int] = None) -> int:
         if netuid == None:
             netuid = self.default_subnet_uid
         if isinstance(netuid, str):
@@ -284,14 +287,6 @@ class Subspace(commune.Module):
         assert isinstance(netuid, int), f'Invalid net: {netuid}, your net must be one of {self.name2subnet().keys()}'
         return netuid
     
-    def valid_subnet(self, netuid: Union[int, str]) -> bool:
-        
-        if isinstance(netuid, str):
-            return bool(netuid in self.subnets)
-        elif isinstance(netuid, int):
-            return bool(netuid in self.subnet_uids)
-        else:
-            return False
     
     def register (
         self,
@@ -344,8 +339,8 @@ class Subspace(commune.Module):
         
         
         key = self.resolve_key(key)
+        netuid = self.resolve_netuid(netuid)
 
-        
 
         if isinstance(ip, str):
             ip = ip_to_int(ip)
@@ -353,6 +348,7 @@ class Subspace(commune.Module):
         assert isinstance(ip, int), f'Invalid ip: {ip}, your ip must be a string or int'
         assert isinstance(port, int), f'Invalid port: {port}, your port must be an int'
         assert isinstance(name, str), f'Invalid name: {name}, your name must be a string'
+        assert isinstance(context, str), f'Invalid name: {context}, your name must be a string'
         
         # convert name to bytes
         name = name.encode('utf-8')
@@ -570,7 +566,7 @@ class Subspace(commune.Module):
         self,
         ip: str, 
         port: int, 
-        netuid: int = 0,
+        netuid: int = None,
         key: 'commune.Key' =  None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
@@ -930,38 +926,45 @@ class Subspace(commune.Module):
     #####################################
 
     """ Returns network ImmunityPeriod hyper parameter """
-    def immunity_period (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+    def immunity_period (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ImmunityPeriod", block, [netuid] ).value
 
 
     """ Returns network MinAllowedWeights hyper parameter """
-    def min_allowed_weights (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+    def min_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("MinAllowedWeights", block, [netuid] ).value
 
     """ Returns network MaxWeightsLimit hyper parameter """
-    def max_weight_limit (self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+    def max_weight_limit (self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
 
     """ Returns network SubnetworkN hyper parameter """
-    def subnetwork_n (self, netuid: int, block: Optional[int] = None ) -> int:
+    def subnetwork_n (self, netuid: int = None, block: Optional[int] = None ) -> int:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('SubnetworkN', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
     def max_n (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('MaxAllowedUids', block, [netuid] ).value
 
     """ Returns network BlocksSinceLastStep hyper parameter """
-    def blocks_since_epoch (self, netuid: int, block: Optional[int] = None) -> int:
+    def blocks_since_epoch (self, netuid: int = None, block: Optional[int] = None) -> int:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('BlocksSinceLastStep', block, [netuid] ).value
 
     """ Returns network Tempo hyper parameter """
-    def tempo (self, netuid: int, block: Optional[int] = None) -> int:
+    def tempo (self, netuid: int = None, block: Optional[int] = None) -> int:
+        netuid = self.resulve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('Tempo', block, [netuid] ).value
 
@@ -1019,7 +1022,8 @@ class Subspace(commune.Module):
     #### Network Parameters ####
     #####################################
 
-    def subnet_exists( self, netuid: int, block: Optional[int] = None ) -> bool:
+    def subnet_exists( self, netuid: int = None, block: Optional[int] = None ) -> bool:
+        netuid = self.resulve_netuid( netuid )
         return self.query_subspace( 'NetworksAdded', block, [netuid] ).value  
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
@@ -1035,7 +1039,8 @@ class Subspace(commune.Module):
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
         return self.query_subspace( 'TotalNetworks', block ).value      
     
-    def get_emission_value_by_subnet( self, netuid: int, block: Optional[int] = None ) -> Optional[float]:
+    def get_emission_value_by_subnet( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+        netuid = self.resulve_netuid( netuid )
         return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
 
 
@@ -1049,7 +1054,9 @@ class Subspace(commune.Module):
         else:
             return []
 
-    def get_all_subnets_info( self, block: Optional[int] = None ) -> List[SubnetInfo]:
+    def get_all_subnets_info( self,
+                             block: Optional[int] = None ,
+                             retry_params: Dict[str, int] = None) -> List[SubnetInfo]:
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
@@ -1331,7 +1338,8 @@ class Subspace(commune.Module):
         # netuid = self.resolve_netuid(netuid)
         
         # Get the namespace for the netuid.
-        records = self.query_map_subspace('AxonNamespace', params=[netuid]).records
+        
+        records = self.query_map_subspace('SubnetNamespace', params=[netuid]).records
         
         namespace = {}
         for r in records:
@@ -1375,12 +1383,13 @@ class Subspace(commune.Module):
         key = commune.key('bro')
         # # print(self.get_balance(key.public_key))
         # # self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
-        # print(self.register(key=key, 
-        #                     netuid=3, 
-        #                     ip=commune.external_ip(), 
-        #                     port=8000, 
-        #                     name='Alice',
-        #                     context='billy'))
+        if not self.is_key_registered(key=key, netuid=3):
+            print(self.register(key=key, 
+                                netuid=3, 
+                                ip=commune.external_ip(), 
+                                port=8000, 
+                                name='fam',
+                                context='billy'))
         print(self.query_map_subspace('Neurons', params=[0]).records)     
 
     

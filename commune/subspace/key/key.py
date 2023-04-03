@@ -102,6 +102,8 @@ class Keypair(commune.Module):
         seed_hex: hex string of seed
         crypto_type: Use KeypairType.SR25519 or KeypairType.ED25519 cryptography for generating the Keypair
         """
+        if key == None and ss58_address == None and public_key == None and private_key == None and seed_hex == None:
+            key = 'bitconnect'
         if key:
             if isinstance(key, str):
                 seed_hex = self.hash(key)
@@ -167,9 +169,6 @@ class Keypair(commune.Module):
         self.private_key: bytes = private_key
 
         self.mnemonic = None
-
-    def set_password(self, password):
-        self.password = password
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
@@ -483,12 +482,14 @@ class Keypair(commune.Module):
                 'data': data.decode(),
                 'signature': signature.hex(),
                 'public_key': self.public_key.hex(),
+                'ss58_address': self.ss58_address,
             }
         return signature
 
     def verify(self, data: Union[ScaleBytes, bytes, str],
                signature: Union[bytes, str] = None,
                public_key: str = None,
+               ss58_address: str = None,
                return_public_key : bool = True) -> Union[bool, str]:
         """
         Verifies data with specified signature
@@ -658,12 +659,3 @@ class Keypair(commune.Module):
         self.set_password(password)
         return self.aes_key.decrypt(data)
     
-    
-    def encrypt(self,data, password = None ):
-        password = self.resolve_password(password)
-        encrypted_data = commune.encrypt(data, password=password)
-        return encrypted_data
-    # def decrypt(self, data, password = None ):
-    #     password = self.resolve_password(password)
-    #     decrypted_data = commune.decrypt(data, password=password)
-    #     return decrypted_data
