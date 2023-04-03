@@ -30,7 +30,7 @@ class Hash(commune.Module):
                 data = cls.hash(data, mode='keccak', return_string=return_string, *args, **kwargs)
                 hash_output = hash_fn(data, ss58_format=ss58_format)
         else:
-            raise NotImplemented(hash_type)
+            raise NotImplemented(mode)
 
 
         return hash_output
