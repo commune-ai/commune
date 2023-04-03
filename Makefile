@@ -88,10 +88,10 @@ dashboard:
 	streamlit run commune/dashboard.py 
 
 sandbox:
-	streamlit run commune/sandbox.py
+	streamlit run examples/sandbox.py
 
 sandbox_docker:
-	make exec arg="make sand"
+	make exec arg="make sandbox"
 
 python_pm2:
 	pm2 start {file} --name {name} --interpreter python3

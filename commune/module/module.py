@@ -827,6 +827,9 @@ class Module:
                 wait_for_server:bool = False,
                 **kwargs ):
         
+        if isinstance(port, str):
+            port = int(port)
+        
         if isinstance(name, str):
         
             if len(name.split(':')) == 2:
@@ -845,6 +848,7 @@ class Module:
                     client_kwargs = server_registry[name]
         else:
             ip = ip if ip != None else cls.default_ip
+            
             assert isinstance(port, int) , 'Port must be specified as an int'
             assert isinstance(ip, str) , 'IP must be specified as a string'
             client_kwargs = dict(ip=ip, port=port)
@@ -885,13 +889,17 @@ class Module:
         peer_registry = {}
         peer_addresses = cls.get_peer_addresses()
         
-        for port in peer_addresses:
-            ip, port = port.split(':')
+        for address in peer_addresses:
+            ip, port = address.split(':')
             peer = cls.connect(ip=ip, port=port)
             peer_name = peer.module_id
             peer_registry[peer.module_id] = peer.server_info
             
         return peer_registry
+
+    @classmethod
+    def update_server_registry(cls) -> None:
+        server_registry = cls.server_registry(update=True)
 
     @classmethod
     def server_registry(cls, update: bool = False)-> dict:
@@ -995,7 +1003,7 @@ class Module:
     
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        server_registry = cls.servers()
+        servers = cls.servers()
         return bool(name in cls.servers())
     
     @classmethod
@@ -1010,7 +1018,7 @@ class Module:
             current_time = cls.time()
             if current_time - start_time > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
-    
+        cls.update_server_registry()
     def server_running(self):
         return hasattr(self, 'server_info')
     def serve(self, name=None , *args, **kwargs):

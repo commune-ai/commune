@@ -33,16 +33,15 @@ class Client( Serializer, commune.Module):
             max_processes: int = 1,
             timeout:int = 20,
             loop = None,
-            external_ip = None,
             key = None,
+            subspace = None,
         ):
                 
         self.set_client(ip =ip,
                         port = port ,
                         max_processes = max_processes,
                         timeout = timeout,
-                        loop = loop,
-                        external_ip = external_ip)
+                        loop = loop)
         
     
     def set_event_loop(self, loop: 'asyncio.EventLoop') -> None:
@@ -73,9 +72,10 @@ class Client( Serializer, commune.Module):
             port: int = 80 ,
             max_processes: int = 1,
             timeout:int = 20,
-            external_ip: str = None,
             loop: 'asycnio.EventLoop' = None
             ):
+        if ip == commune.external_ip():
+            ip = '0.0.0.0'
         from commune.server.proto  import ServerStub
         # hopeful the only tuple i output, tehe
         self.ip, self.port = self.resolve_ip_and_port(ip=ip, port=port)

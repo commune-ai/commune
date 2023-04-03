@@ -120,22 +120,20 @@ class Keypair(commune.Module):
         seed_hex: hex string of seed
         crypto_type: Use KeypairType.SR25519 or KeypairType.ED25519 cryptography for generating the Keypair
         """
-        if key == None and ss58_address == None and public_key == None and private_key == None and seed_hex == None:
-            key = 'bitconnect'
+        if key == None and ss58_address == None \
+            and public_key == None and private_key == None \
+            and seed_hex == None and mnemonic == None and uri == None:
+            mnemonic = self.generate_mnemonic()
         if key:
             if isinstance(key, str):
                 seed_hex = self.hash(key)
             
-        print(seed_hex,'BRO')
         if seed_hex != None: 
-
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
             self.__dict__.update(kwargs)
         elif mnemonic != None:
-            
             kwargs = self.create_from_mnemonic(mnemonic, return_dict=True)
             self.__dict__.update(kwargs)
-            
         elif uri != None:
             kwargs = self.create_from_uri(uri, return_dict=True)
             self.__dict__.update(kwargs)
@@ -222,7 +220,7 @@ class Keypair(commune.Module):
                              ss58_format=42, 
                              crypto_type=KeypairType.SR25519,
                              language_code: str = MnemonicLanguageCode.ENGLISH,
-                             return_dict : bool = True) -> 'Keypair':
+                             return_dict : bool = False) -> 'Keypair':
         """
         Create a Keypair for given memonic
         Parameters
@@ -243,21 +241,30 @@ class Keypair(commune.Module):
                 raise ValueError("ECDSA mnemonic only supports english")
 
             private_key = mnemonic_to_ecdsa_private_key(mnemonic)
-            keypair_kwargs = dict(private_key=private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+            kwargs = dict(private_key=private_key, ss58_format=ss58_format, crypto_type=crypto_type)
 
+            if return_dict:
+                kwargs['mnemonic'] = mnemonic
+                return kwargs
             keypair = cls.create_from_private_key(**kwargs)
 
         else:
             seed_array = bip39_to_mini_secret(mnemonic, "", language_code)
-            keypair_kwargs = dict(
+            kwargs = dict(
                 seed_hex=binascii.hexlify(bytearray(seed_array)).decode("ascii"),
                 ss58_format=ss58_format,
-                crypto_type=crypto_type
+                crypto_type=crypto_type,
+                return_dict = return_dict
             )
             
-            
                 
-            keypair = cls.create_from_seed(**keypair_kwargs)
+            keypair = cls.create_from_seed(**kwargs)
+            
+            if return_dict:
+                assert isinstance(keypair, dict)
+                kwargs = keypair
+                kwargs['mnemonic'] = mnemonic
+                return keypair
 
         keypair.mnemonic = mnemonic
 
@@ -298,8 +305,12 @@ class Keypair(commune.Module):
         ss58_address = ss58_encode(public_key, ss58_format)
         
         cls_kwargs = dict(
-            ss58_address=ss58_address, public_key=public_key, private_key=private_key,
-            ss58_format=ss58_format, crypto_type=crypto_type, seed_hex=seed_hex
+            ss58_address=ss58_address,
+            public_key=public_key, 
+            private_key=private_key,
+            ss58_format=ss58_format, 
+            crypto_type=crypto_type, 
+            seed_hex=seed_hex
         )
         if return_dict:
             return cls_kwargs
@@ -327,6 +338,8 @@ class Keypair(commune.Module):
         -------
         Keypair
         """
+        if not suri.startswith('/'):
+            suri = '/' + suri
 
         if suri and suri.startswith('/'):
             suri = DEV_PHRASE + suri
@@ -346,6 +359,8 @@ class Keypair(commune.Module):
             )
             kwargs = dict(private_key=private_key, ss58_format=ss58_format, crypto_type=crypto_type)
             if return_dict:
+                kwargs['mnemonic'] = suri_parts['phrase']
+                kwargs['uri'] = suri
                 return kwargs
             
             derived_keypair = cls.create_from_private_key(kwargs)
@@ -364,6 +379,7 @@ class Keypair(commune.Module):
             if return_dict:
                 assert isinstance(derived_keypair, dict)
                 kwargs = derived_keypair
+                kwargs['uri'] = suri
                 return kwargs
 
             if suri_parts['path'] != '':
@@ -393,7 +409,14 @@ class Keypair(commune.Module):
                             (junction.chain_code, child_pubkey, child_privkey),
                             b''
                         )
+
+                kwargs = dict(public_key=child_pubkey, 
+                          private_key=child_privkey,
+                          ss58_format=ss58_format,
+                          crypto_type=crypto_type)
+                
                 if return_dict:
+                    kwags['uri'] = suri
                     return kwargs
                 
                 derived_keypair = Keypair(**kwargs)
