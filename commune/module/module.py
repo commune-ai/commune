@@ -820,32 +820,37 @@ class Module:
     @classmethod
     def connect(cls, 
                 name:str=None, 
-                port:int=None , 
                 ip:str=None, 
+                port:int=None , 
+                subspace : 'Subspace' = None,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
                 **kwargs ):
         
-        if isinstance(name, str) and len(name.split(':')) == 2:
-            port = int(name.split(':')[1])
-            ip = name.split(':')[0]
-            
-        if ip == None and port == None:
-            server_registry = cls.server_registry()
-            if wait_for_server:
-                cls.wait_for_server(name)
-            try:
-                client_kwargs = server_registry[name]
-            except KeyError:
-                server_registry = cls.server_registry(update=True)
-                client_kwargs = server_registry[name]
-        else:
-            
-            client_kwargs = dict(ip=ip, port=int(port))
-            
-
-        client_kwargs['ip'] = '0.0.0.0'
+        if isinstance(name, str):
         
+            if len(name.split(':')) == 2:
+                port = int(name.split(':')[1])
+                ip = name.split(':')[0]
+                client_kwargs = dict(ip=ip, port=int(port))
+            
+            if ip == None and port == None:
+                server_registry = cls.server_registry()
+                if wait_for_server:
+                    cls.wait_for_server(name)
+                try:
+                    client_kwargs = server_registry[name]
+                except KeyError:
+                    server_registry = cls.server_registry(update=True)
+                    client_kwargs = server_registry[name]
+        else:
+            ip = ip if ip != None else cls.default_ip
+            assert isinstance(port, int) , 'Port must be specified as an int'
+            assert isinstance(ip, str) , 'IP must be specified as a string'
+            client_kwargs = dict(ip=ip, port=port)
+            
+        client_kwargs['subspace'] = subspace
+                
         Client = cls.import_object('commune.server.client.Client')
         client_module = Client( **kwargs,**client_kwargs)
         ip = client_kwargs['ip']
@@ -1105,7 +1110,8 @@ class Module:
         
     @classmethod
     def functions(cls, include_module=False):
-        if isinstance(cls, Module) or str(type(cls)) == "<class 'module'>" :
+        
+        if cls.__str__() ==  'Module':
             include_module = True
         functions = cls.get_functions(cls,include_module=include_module)  
         return functions
@@ -2041,15 +2047,18 @@ class Module:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module(cls, module: 'python::class' ,init_module:bool=False , serve:bool=False):
+    def module(cls, module: Any = None ,init_module:bool=False , serve:bool=False):
         '''
         Wraps a python class as a module
         '''
         
+        if module is None:
+            return Module
         if isinstance(module, str):
             module = cls.get_module(module)
+            return module
+    
 
-        
         # serve the module if the bool is True
         is_class = cls.is_class(module)
         module_class = module if is_class else module.__class__
@@ -2767,6 +2776,29 @@ class Module:
     #     if isinstance(data, np.array):
     #         data = data.astype(np.float64)
     #     return data.tobytes()
+    
+    
+    # SUBSPACE BABY 
+    
+    @classmethod
+    def subspace(cls, *args, **kwargs):
+        return cls.get_module('subspace')(*args, **kwargs)
+    
+    @classmethod
+    def key(cls, *args, **kwargs):
+        return cls.get_module('subspace.key')(*args, **kwargs)
+    
+    @classmethod
+    def client(cls, *args, **kwargs) -> 'Client':
+        return cls.import_object('commuen.server.Client')(*args, **kwargs)
+    
+    @classmethod
+    def server(cls, *args, **kwargs) -> 'Server':
+        return cls.import_object('commuen.server.Server')(*args, **kwargs)
+    
+    @classmethod
+    def Serializer(cls, *args, **kwargs) -> 'Serializer':
+        return cls.import_object('commuen.server.Serializer')(*args, **kwargs)
     
     
 Block = Lego = Module

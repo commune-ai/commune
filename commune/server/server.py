@@ -50,6 +50,7 @@ class Server(ServerServicer, Serializer):
             whitelist_functions: List[str] = [],
             blacklist_functions: List[str ] = [],
             loop: 'AscynioLoop' = None,
+            subspace = None,
 
 
         ) -> 'Server':
@@ -97,6 +98,7 @@ class Server(ServerServicer, Serializer):
         self.add_whitelist_functions(whitelist_functions + self.module.functions())
         self.add_blacklist_functions(blacklist_functions)
         self.authenticate = authenticate
+        self.subspace = subspace
         
         
     
