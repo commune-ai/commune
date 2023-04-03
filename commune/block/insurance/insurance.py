@@ -2,7 +2,7 @@
 import commune
 from typing import *
 import streamlit as st
-class Storage(commune.Module):
+class Insurance(commune.Module):
     
     def __init__(self, store: Dict = None, key: 'Key' = None):
     
@@ -34,22 +34,21 @@ class Storage(commune.Module):
         # start with signature, data, public_address
         storage_item = key.sign(data, return_dict=True)
         storage_item['encrypt'] = encrypt
+        address = key.ss58_address
+        if address not in self.storage:
+            self.storage[address] = {}
+        self.storage[address][k] = storage_item
         
-        self.storage[k] = storage_item
         
-        
-        st.write(self.storage[k])
         
         return k
     
     def state_dict(self):
         import json
         state_dict = {}
-        for k, v in self.storage.items():
-            try:
-                state_dict[k] = json.dumps(v)
-            except:
-                commune.log(f'could not serialize {k}')
+        for address, storage_map in self.storage.items():
+   
+            state_dict[address] = json.dumps(storage_map)
             
         return state_dict
     def from_state_dict(self, state_dict: Dict) -> None:
@@ -75,7 +74,7 @@ class Storage(commune.Module):
             max_staleness: int = 1000) -> Any:
         key = self.resolve_key(key)
 
-        item = self.storage[k]
+        item = self.storage[key.ss58_address][k]
         verified = key.verify(item)
         
         # decrypt if necessary
@@ -95,13 +94,9 @@ class Storage(commune.Module):
     @property
     def key2address(self) -> Dict:
         key2address = {}
-        for k, v in self.storage.items():
-            id = v['ss58_address']
-            if id  in key2address:
-                key2address[v['ss58_address']] += [k]
-            else:
-                key2address[v['ss58_address']] = [k]
-
+        for address, storage_map in self.storage.items():
+            for k, v in storage_map.items():
+                key2address[k] = address
         return key2address
         
 
@@ -136,6 +131,6 @@ class Storage(commune.Module):
         st.write(self.state_dict())
     
 if __name__ == "__main__":
-    Storage.sandbox()
+    Insurance.sandbox()
     
     

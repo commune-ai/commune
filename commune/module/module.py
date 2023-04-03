@@ -2670,8 +2670,15 @@ class Module:
                 
                 
     def set_key(self, *args, **kwargs) -> None:
-        self.key = self.get_key(*args, **kwargs)
-        self.public_key = self.key.public_key
+        # set the key
+        if type(args[0]) not in [str, dict, type(None)]:
+            # key is already a key object
+            self.key = args[0]
+            self.public_key = self.key.public_key
+        else:
+            # key is a string
+            self.key = self.get_key(*args, **kwargs)
+            self.public_key = self.key.public_key
       
     def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
