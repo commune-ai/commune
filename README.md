@@ -1,49 +1,71 @@
 # Commune
 
-Commune is an open-source framework for creating modular, reusable, and interoperable machine learning modules. It provides a way for developers to wrap any machine learning tool into a module, organize them into a module file system (their own module hub), and expose them as public endpoints with access control. Modules are represented as a folder with a main python script and a configuration file, making them portable across machines. The framework includes a module manager API for managing running modules, connecting modules locally or over the wire, and a queue server for managing communication between modules. Modules can interact with smart contracts and be stored on decentralized file storage systems for monetization. Modulus aims to provide full autonomy and intellectual property for developers and avoid platform lock-ins.
+Commune is a framework of tools that prevents developers from reinventing the wheel. The design of commune is intended to be maximally unoppinionated, with some minor assumptions about the class. This currently involves wrapping your python class with **commune.Module**. 
 
 
+```python
 
-### Module
-
-A module is a python class that was created to add special functions and abilities to existing python classes in order to make them more interoperable, organized and connectable. The module object is contained in the module.py. 
-
-Converting a python class into a module
-
-```
-from mypythonclass import LLMModel
 import commune
 
-# Instantiate your python class
-model = LLMModel()
+class MyModel(commune.Module):
+    def __init__(self, model):
+        model = self.model
+    def forward(input:torch.Tensor):
+        return self.model()
 
-
-# convert it into a module 
-model= commune.module(model)
-
-# list functions of this module
-model.get_functions()
-
-# turn it into a remote server (via gprpc):
-
-model.serve()
-
-
-# list to the remote servers
-
-
-
-
-````
-
-
-You can serve the model as a grpc server as folows
 
 ```
 
-model.serve()
+## Deploy Your Object From Anywhere
+
+Commune enables developers to deploy, connect and compose python objects. Our vision is to have an open ecosystem of python objects that serve as APIs for others. Commune also provides additional tools through its Module object, which was designed to seemlessly integrate with any python class. This means that you do not have to fundementally change your code when making it public.
+
+
+To deploy your model as a public server launch it:
+```python
+
+# give it a name, this will infer the ip and port
+MyModel.launch(name='my_model')
+
+# you can also give custom kwargs, args
+MyModel.launch(name='my_model::2', kwargs={}, args={})
+
+# dont like __init__? Start the module from a class method instead
+MyModel.launch(name='my_model::2', fn='load_from_name' kwargs={'name': 'model_3'})
 
 ```
+
+
+## Connecting to a Module
+
+To connect with a module, you can do it as follows. This creates a client that replicates the module as if it was running locally. This
+
+```python
+my_model = commune.connect('my_model')
+# supports both kwargs and args, though we recommend kwargs for clarity
+my_model.forward(input = '...') 
+
+```
+
+We want to know more about the module, so lets see it through info, which is a function from commune.Module that wraps over you python class.
+
+```python
+# get module info
+model_info = my_model.info()
+```
+
+We can also get the functions and the functions schema
+
+```python
+# get functions (List[str])
+my_model.functions()
+
+# get function schema
+
+my_model.function_schema()
+
+```
+
 
 
 
@@ -55,12 +77,18 @@ The module.py file serves as an anchor in that it organizes future modules in wh
 
 
 
+# Subspace
+
+Subspace is our blockchain that is used for several things:
+- **DNS for Python**: Decentralized Name Service for deployed object
+- **Evaluating Performance through Voting**: Stake weighted voting system for users to evaluate each other instead of self-reported networks. This provides users with an idea of the "best" models. 
+- **Subnets**: The ability for users to create their own subnetworks to tackle a specific problem. This is in addition to the default subnet (commune, netuid: 0)
+-**IBC for bridging with any Chain (Coming Soon)**
+- **Smart Contracts (Coming Soon)**: We intend to support
+
 
 
 ## Setup
-
-### From Source (DOCKER)
-
 1. clone from github
     ```
     git clone https://github.com/commune-ai/commune.git
@@ -70,8 +98,8 @@ The module.py file serves as an anchor in that it organizes future modules in wh
     make pull
     ```
 
+### Install as a Docker Container
 
-## From Docker
 
 3. Start docker-compose. This builds and deploys all of the containers you need, which involves, commune (main enviornment), ipfs (decentralized storage), subspace (blockchain node), ganache (evm development node for local blockchain)
 
@@ -86,42 +114,26 @@ The module.py file serves as an anchor in that it organizes future modules in wh
     ```
 
 
-# From Local (Without Docker)
+# Install Locally (No Docker)
 
+3. Turn the scripts to executables
+    
+    ```bash
+    chmod +x ./scripts/*
+    ```
 
+4. Install the python, npm and rust environment
+
+```bash
+# install python
+./scripts/install_python_env.sh
+# install npm
+./scripts/install_npm_env.sh
+# install rust (Optional)
+./scripts/install_rust_env.sh
 ```
-chmod +x ./scripts/*
+or install all of them in the following script
+```bash
 ./scripts/install_local_setup.sh
 ```
-
-## docker-compose Environment Details
-
-Available Containers In Compose
-
-
-## Make Function Helpers
-
-Start docker-compose
-```
-sudo make up
-```
-
-Stop docker-compose
-
-```
-sudo make down
-```
-
-
-Enter the Commune Docker Env
-```
-make enter
-```
-
-
-
-
-
-
-
 
