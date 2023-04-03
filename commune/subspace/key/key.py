@@ -89,6 +89,7 @@ class Keypair(commune.Module):
                  private_key: Union[bytes, str] = None,
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
+                 mnemonic: str = None,
                  crypto_type: int = KeypairType.SR25519):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -124,6 +125,7 @@ class Keypair(commune.Module):
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
         self.derive_path = None
+
 
         if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
@@ -168,7 +170,7 @@ class Keypair(commune.Module):
 
         self.private_key: bytes = private_key
 
-        self.mnemonic = None
+        self.mnemonic: str = mnemonic
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
@@ -608,23 +610,9 @@ class Keypair(commune.Module):
         else:
             return '<Keypair (public_key=0x{})>'.format(self.public_key.hex())
 
- 
-    def resolve_password(self, password: str = None) -> 'AESKey':
-        if password == None:
-            if hasattr(self, 'password') and self.password != None:
-                password = self.password
-            
-            elif  hasattr(self, 'private_key') and self.private_key != None:
-                if type(self.private_key) is str:
-                    self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
-                password = self.private_key.hex()
-            else:
-                raise ValueError("No password or private/public key provided")
-            
-        password = self.hash(password)
-        return password        
+
         
-    def set_password(self, password: str = None):
+    def set_aes_key(self, password: str = None):
         if password == None:
             if hasattr(self, 'password') and self.password != None:
                 password = self.password
@@ -649,13 +637,72 @@ class Keypair(commune.Module):
         
     
     def encrypt(self, data: Union[str, bytes], password:str = None) -> bytes:
-        self.set_password(password)
-        return self.aes_key.encrypt(data)
+        aes_key = self.resolve_aes_key(password)
+        return aes_key.encrypt(data)
     
             
         # return cls.create_from_uri(uri)
     
     def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        self.set_password(password)
-        return self.aes_key.decrypt(data)
+        aes_key = self.set_aes_key(password)
+        return aes_key.decrypt(data)
     
+    
+    def resolve_aes_key(self, password: bool = None):
+        
+        
+        if password == None:
+            if hasattr(self, 'password') and self.password != None:
+                password = self.password
+            
+            elif  hasattr(self, 'private_key') and self.private_key != None:
+                if type(self.private_key) is str:
+                    self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
+                password = self.private_key.hex()
+            else:
+                raise ValueError("No password or private/public key provided")
+            
+        password = self.hash(password)
+        assert isinstance(password, str), "Password must be a string"
+        key = commune.get_key(password, mode='aes')
+        return key
+            
+    
+    def state_dict(self, password: str = None, encrypt: bool = True) -> dict:
+        from copy import deepcopy
+        state_dict = {'data': {}, 'encrypted': encrypt}   
+        state_dict['data'] = deepcopy(self.__dict__)
+        if encrypt == True:
+            state_dict['data'] = self.encrypt(data=state_dict['data'], password=password)
+            
+        
+        return state_dict
+
+    def load_state_dict(self, state: dict, password: str = None):
+        
+        '''
+        
+        We assume that the state dict is encrypted if the key 'encrypted' is set to True.
+        We also assume that the data is encrypted as bytes
+        
+        Example of state dict:
+            state = {'data': b'encrypted_data', 'encrypted': True}
+  
+        '''
+        import streamlit as st
+        
+        encrypted = state.get('encrypted', False)
+        if encrypted == True:
+            state = self.decrypt(data=state['data'], password=password)
+        else:
+            state = state['data']
+        self.params = state
+        self.set_params(**self.params)
+           
+    def save(self, path: str,  password: str = None, encrypt: bool = True):
+        state = self.encrypt(data=state['data'], password=password, encrypt=encrypt)
+        self.put_json(path, state)
+
+    def load(self, path: str, password: str = None):
+        state = self.get_json(path)
+        self.load_state_dict(state=state, password=password)
