@@ -2661,11 +2661,8 @@ class Module:
         return key  
                 
                 
-    def set_key(self, key, *args, **kwargs) -> None:
-        if key == None:
-            key = self.get_key('Alice')
-            
-        self.key = key
+    def set_key(self, *args, **kwargs) -> None:
+        self.key = self.get_key(*args, **kwargs)
         self.public_key = self.key.public_key
       
     def sign(self, data:dict  = None, key: str = None) -> bool:

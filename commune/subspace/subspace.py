@@ -927,44 +927,44 @@ class Subspace(commune.Module):
 
     """ Returns network ImmunityPeriod hyper parameter """
     def immunity_period (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ImmunityPeriod", block, [netuid] ).value
 
 
     """ Returns network MinAllowedWeights hyper parameter """
     def min_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace("MinAllowedWeights", block, [netuid] ).value
 
     """ Returns network MaxWeightsLimit hyper parameter """
     def max_weight_limit (self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
 
     """ Returns network SubnetworkN hyper parameter """
     def subnetwork_n (self, netuid: int = None, block: Optional[int] = None ) -> int:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('SubnetworkN', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
     def max_n (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('MaxAllowedUids', block, [netuid] ).value
 
     """ Returns network BlocksSinceLastStep hyper parameter """
     def blocks_since_epoch (self, netuid: int = None, block: Optional[int] = None) -> int:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('BlocksSinceLastStep', block, [netuid] ).value
 
     """ Returns network Tempo hyper parameter """
     def tempo (self, netuid: int = None, block: Optional[int] = None) -> int:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('Tempo', block, [netuid] ).value
 
@@ -1023,7 +1023,7 @@ class Subspace(commune.Module):
     #####################################
 
     def subnet_exists( self, netuid: int = None, block: Optional[int] = None ) -> bool:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         return self.query_subspace( 'NetworksAdded', block, [netuid] ).value  
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
@@ -1040,7 +1040,7 @@ class Subspace(commune.Module):
         return self.query_subspace( 'TotalNetworks', block ).value      
     
     def get_emission_value_by_subnet( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
-        netuid = self.resulve_netuid( netuid )
+        netuid = self.resolve_netuid( netuid )
         return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
 
 
