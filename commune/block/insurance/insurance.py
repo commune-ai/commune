@@ -1,6 +1,6 @@
 
 import commune
-from typing import *
+from typing import Dict , Any, List
 import streamlit as st
 class Insurance(commune.Module):
     
@@ -131,6 +131,6 @@ class Insurance(commune.Module):
         st.write(self.state_dict())
     
 if __name__ == "__main__":
-    Insurance.sandbox()
+    Insurance.run()
     
     

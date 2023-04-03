@@ -13,7 +13,6 @@ class MyModel(commune.Module):
     def forward(input:torch.Tensor):
         return self.model()
 
-
 ```
 
 ## Deploy Your Object From Anywhere
@@ -67,11 +66,32 @@ my_model.function_schema()
 ```
 
 
-
-
 ### Module Filesystem
 
-The module.py file serves as an anchor in that it organizes future modules in what we call a module filesystem. This is essentially where users will organize their modules based on their location with respect to the module.py file. An example is storing a dataset module in {PWD}/dataset/text, which will have a path of dataset.text . This allows for developers to build whatever ontology or filesystem they want, and the module.py tracks it for you lol.
+The **module.py** file serves as an anchor in that it organizes future modules in what we call a module filesystem.  An example is storing a dataset module in {PWD}/dataset/text, which will have a path of dataset.text. The current limitation is to have a config where the name of the config is that of the python object
+
+Example: 
+```bash
+model/text/ # model folder (model.text)
+    text_model.py # python script for text model
+    text_model.yaml # config for module
+```
+
+Now we can get this using the path (model.text):
+```python
+    # get the model class
+    model_class = commune.module('model.text')
+
+    # you can use it locally obviously
+    model = model_class()
+
+    # or you can deploy it as a server
+    model_class.launch(name='model.text')
+
+
+```
+
+
 
 {image of module filesystem}
 
