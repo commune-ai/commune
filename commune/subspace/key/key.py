@@ -90,6 +90,20 @@ class Keypair(commune.Module):
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  mnemonic: str = None,
+                 derive_path : str = None,
+                 crypto_type: int = KeypairType.SR25519):
+        params = locals()
+        params.pop('self')
+        self.set_params(**params)
+    def set_params(self, 
+                 key: str = None,
+                 ss58_address: str = None,
+                 public_key: Union[bytes, str] = None,
+                 private_key: Union[bytes, str] = None,
+                 ss58_format: int = None, 
+                 seed_hex: Union[str, bytes] = None,
+                 mnemonic: str = None,
+                 derive_path : str = None,
                  crypto_type: int = KeypairType.SR25519):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -113,64 +127,62 @@ class Keypair(commune.Module):
         if seed_hex != None: 
 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
-            public_key = kwargs['public_key']
-            ss58_address=kwargs['ss58_address']
-            private_key=kwargs['private_key']
-            ss58_format = kwargs['ss58_format']
-            crypto_type = kwargs['crypto_type']
+            self.__dict__.update(kwargs)
+        elif mnemonic != None:
             
+            kwargs = self.create_from_mnemonic(mnemonic, return_dict=True)
             
+            self.__dict__.update(kwargs)
             
-
-        self.crypto_type = crypto_type
-        self.seed_hex = seed_hex
+        else:
+            self.ss58_address = ss58_address
+            self.public_key = public_key
+            self.private_key = private_key
+            self.ss58_format = ss58_format
+            self.seed_hex = seed_hex
+            self.mnemonic = mnemonic
+            self.derive_path  = derive_path
+            self.crypto_type =  crypto_type
+            
         self.derive_path = None
 
 
-        if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
-            public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
+        if self.crypto_type != KeypairType.ECDSA and self.ss58_address and not self.public_key:
+            self.public_key = ss58_decode(self.ss58_address, valid_ss58_format=self.ss58_format)
 
-        if private_key:
+        if self.private_key:
 
-            if type(private_key) is str:
-                private_key = bytes.fromhex(private_key.replace('0x', ''))
+            if type(self.private_key) is str:
+                self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
 
             if self.crypto_type == KeypairType.SR25519:
-                if len(private_key) != 64:
+                if len(self.private_key) != 64:
                     raise ValueError('Secret key should be 64 bytes long')
                 if not public_key:
-                    public_key = sr25519.public_from_secret_key(private_key)
+                    self.public_key = sr25519.public_from_secret_key(self.private_key)
 
             if self.crypto_type == KeypairType.ECDSA:
-                private_key_obj = PrivateKey(private_key)
-                public_key = private_key_obj.public_key.to_address()
-                ss58_address = private_key_obj.public_key.to_checksum_address()
+                private_key_obj = PrivateKey(self.private_key)
+                self.public_key = private_key_obj.public_key.to_address()
+                self.ss58_address = private_key_obj.public_key.to_checksum_address()
 
-        if not public_key:
+        if not self.public_key:
             raise ValueError('No SS58 formatted address or public key provided')
 
-        if type(public_key) is str:
-            public_key = bytes.fromhex(public_key.replace('0x', ''))
+        if type(self.public_key) is str:
+            self.public_key = bytes.fromhex(self.public_key.replace('0x', ''))
 
-        if crypto_type == KeypairType.ECDSA:
-            if len(public_key) != 20:
+        if self.crypto_type == KeypairType.ECDSA:
+            if len(self.public_key) != 20:
                 raise ValueError('Public key should be 20 bytes long')
         else:
-            if len(public_key) != 32:
+            if len(self.public_key) != 32:
                 raise ValueError('Public key should be 32 bytes long')
 
-            if not ss58_address:
-                ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
+            if not self.ss58_address:
+                self.ss58_address = ss58_encode(self.public_key, ss58_format=self.ss58_format)
 
-        self.ss58_format: int = ss58_format
 
-        self.public_key: bytes = public_key
-
-        self.ss58_address: str = ss58_address
-
-        self.private_key: bytes = private_key
-
-        self.mnemonic: str = mnemonic
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
@@ -201,8 +213,11 @@ class Keypair(commune.Module):
         return bip39_validate(mnemonic, language_code)
 
     @classmethod
-    def create_from_mnemonic(cls, mnemonic: str, ss58_format=42, crypto_type=KeypairType.SR25519,
-                             language_code: str = MnemonicLanguageCode.ENGLISH) -> 'Keypair':
+    def create_from_mnemonic(cls, mnemonic: str = None, 
+                             ss58_format=42, 
+                             crypto_type=KeypairType.SR25519,
+                             language_code: str = MnemonicLanguageCode.ENGLISH,
+                             return_dict : bool = True) -> 'Keypair':
         """
         Create a Keypair for given memonic
         Parameters
@@ -215,22 +230,29 @@ class Keypair(commune.Module):
         -------
         Keypair
         """
+        if mnemonic == None:
+            mnemonic = cls.generate_mnemonic(language_code=language_code)
 
         if crypto_type == KeypairType.ECDSA:
             if language_code != MnemonicLanguageCode.ENGLISH:
                 raise ValueError("ECDSA mnemonic only supports english")
 
             private_key = mnemonic_to_ecdsa_private_key(mnemonic)
-            keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+            keypair_kwargs = dict(private_key=private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+
+            keypair = cls.create_from_private_key(**kwargs)
 
         else:
             seed_array = bip39_to_mini_secret(mnemonic, "", language_code)
-
-            keypair = cls.create_from_seed(
+            keypair_kwargs = dict(
                 seed_hex=binascii.hexlify(bytearray(seed_array)).decode("ascii"),
                 ss58_format=ss58_format,
                 crypto_type=crypto_type
             )
+            
+            
+                
+            keypair = cls.create_from_seed(**keypair_kwargs)
 
         keypair.mnemonic = mnemonic
 
@@ -613,21 +635,7 @@ class Keypair(commune.Module):
 
         
     def set_aes_key(self, password: str = None):
-        if password == None:
-            if hasattr(self, 'password') and self.password != None:
-                password = self.password
-            
-            elif  self.private_key != None:
-                if type(self.private_key) is str:
-                    self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
-                password = self.private_key.hex()
-            elif self.public_key != None:
-                if type(self.public_key) is str:
-                    self.public_key = bytes.fromhex(self.public_key.replace('0x', ''))
-                password = self.public_key.hex()
-            else:
-                raise ValueError("No password or private/public key provided")
-            
+
         self.password = password
         self.aes_seed = self.hash(self.password)
         
@@ -644,34 +652,48 @@ class Keypair(commune.Module):
         # return cls.create_from_uri(uri)
     
     def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        aes_key = self.set_aes_key(password)
+        aes_key = self.resolve_aes_key(password)
         return aes_key.decrypt(data)
     
     
-    def resolve_aes_key(self, password: bool = None):
-        
+    def resolve_password(self, password: str = None) -> str:
         
         if password == None:
             if hasattr(self, 'password') and self.password != None:
                 password = self.password
             
-            elif  hasattr(self, 'private_key') and self.private_key != None:
+            elif  self.private_key != None:
                 if type(self.private_key) is str:
                     self.private_key = bytes.fromhex(self.private_key.replace('0x', ''))
                 password = self.private_key.hex()
+            elif self.public_key != None:
+                if type(self.public_key) is str:
+                    self.public_key = bytes.fromhex(self.public_key.replace('0x', ''))
+                password = self.public_key.hex()
             else:
                 raise ValueError("No password or private/public key provided")
             
-        password = self.hash(password)
         assert isinstance(password, str), "Password must be a string"
+        
+        password = self.hash(password)
+        return password
+    def resolve_aes_key(self, password: str = None) -> 'commune.crypto.key.aes':
+        
+        password = self.resolve_password(password)
         key = commune.get_key(password, mode='aes')
         return key
             
     
-    def state_dict(self, password: str = None, encrypt: bool = True) -> dict:
+    def state_dict(self, password: str = None, encrypt: bool = False ) -> dict:
         from copy import deepcopy
         state_dict = {'data': {}, 'encrypted': encrypt}   
-        state_dict['data'] = deepcopy(self.__dict__)
+        state_dict['data'] =self.__dict__ 
+
+        for k,v in state_dict['data'].items():
+            if type(v)  in [bytes]:
+                state_dict['data'][k] = v.hex()
+                
+        print(state_dict['data'])
         if encrypt == True:
             state_dict['data'] = self.encrypt(data=state_dict['data'], password=password)
             
@@ -689,15 +711,13 @@ class Keypair(commune.Module):
             state = {'data': b'encrypted_data', 'encrypted': True}
   
         '''
-        import streamlit as st
         
         encrypted = state.get('encrypted', False)
         if encrypted == True:
             state = self.decrypt(data=state['data'], password=password)
         else:
             state = state['data']
-        self.params = state
-        self.set_params(**self.params)
+        self.set_params(**state)
            
     def save(self, path: str,  password: str = None, encrypt: bool = True):
         state = self.encrypt(data=state['data'], password=password, encrypt=encrypt)
@@ -706,3 +726,7 @@ class Keypair(commune.Module):
     def load(self, path: str, password: str = None):
         state = self.get_json(path)
         self.load_state_dict(state=state, password=password)
+        
+    @classmethod
+    def load_from_dict(cls, state: dict, password: str = None):
+        return cls(**state)
