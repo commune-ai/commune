@@ -90,6 +90,7 @@ class Keypair(commune.Module):
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  mnemonic: str = None,
+                 uri: str = None,
                  derive_path : str = None,
                  crypto_type: int = KeypairType.SR25519):
         params = locals()
@@ -101,9 +102,11 @@ class Keypair(commune.Module):
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None,
                  ss58_format: int = None, 
+                 uri: str = None,
                  seed_hex: Union[str, bytes] = None,
                  mnemonic: str = None,
                  derive_path : str = None,
+                
                  crypto_type: int = KeypairType.SR25519):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -131,9 +134,11 @@ class Keypair(commune.Module):
         elif mnemonic != None:
             
             kwargs = self.create_from_mnemonic(mnemonic, return_dict=True)
-            
             self.__dict__.update(kwargs)
             
+        elif uri != None:
+            kwargs = self.create_from_uri(uri, return_dict=True)
+            self.__dict__.update(kwargs)
         else:
             self.ss58_address = ss58_address
             self.public_key = public_key
@@ -303,7 +308,12 @@ class Keypair(commune.Module):
 
     @classmethod
     def create_from_uri(
-            cls, suri: str, ss58_format: Optional[int] = 42, crypto_type=KeypairType.SR25519, language_code: str = MnemonicLanguageCode.ENGLISH
+            cls, 
+            suri: str, 
+            ss58_format: Optional[int] = 42, 
+            crypto_type=KeypairType.SR25519, 
+            language_code: str = MnemonicLanguageCode.ENGLISH,
+            return_dict: bool = False
     ) -> 'Keypair':
         """
         Creates Keypair for specified suri in following format: `[mnemonic]/[soft-path]//[hard-path]`
@@ -334,15 +344,27 @@ class Keypair(commune.Module):
                 str_derivation_path=suri_parts['path'][1:],
                 passphrase=suri_parts['password'] or ''
             )
-            derived_keypair = cls.create_from_private_key(private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+            kwargs = dict(private_key=private_key, ss58_format=ss58_format, crypto_type=crypto_type)
+            if return_dict:
+                return kwargs
+            
+            derived_keypair = cls.create_from_private_key(kwargs)
         else:
 
             if suri_parts['password']:
                 raise NotImplementedError(f"Passwords in suri not supported for crypto_type '{crypto_type}'")
 
             derived_keypair = cls.create_from_mnemonic(
-                suri_parts['phrase'], ss58_format=ss58_format, crypto_type=crypto_type, language_code=language_code
+                suri_parts['phrase'],
+                ss58_format=ss58_format, 
+                crypto_type=crypto_type, 
+                language_code=language_code,
+                return_dict=return_dict
             )
+            if return_dict:
+                assert isinstance(derived_keypair, dict)
+                kwargs = derived_keypair
+                return kwargs
 
             if suri_parts['path'] != '':
 
@@ -371,8 +393,10 @@ class Keypair(commune.Module):
                             (junction.chain_code, child_pubkey, child_privkey),
                             b''
                         )
-
-                derived_keypair = Keypair(public_key=child_pubkey, private_key=child_privkey, ss58_format=ss58_format)
+                if return_dict:
+                    return kwargs
+                
+                derived_keypair = Keypair(**kwargs)
 
         return derived_keypair
 
