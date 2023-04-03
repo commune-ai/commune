@@ -2,5 +2,6 @@ import streamlit as st
 import commune
 
 servers = commune.servers()
-print(commune.key())
+key = commune.key()
+print(commune.key().encrypt('hello'))
 # print(commune.module().__str__() == 'Module')
