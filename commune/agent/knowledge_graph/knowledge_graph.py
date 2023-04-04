@@ -1,4 +1,4 @@
-
+import commune
 
 
 
@@ -47,10 +47,8 @@ class KnowledgeGraph(commune.Module):
         self.model = commune.get_module(module_path)(**model_kwargs)
         
         
-        
-        
     def forward(self, **kwargs):
-      self.model
+      return self.model(**kwargs)
       
       
     @classmethod

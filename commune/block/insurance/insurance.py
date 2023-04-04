@@ -2,6 +2,7 @@
 import commune
 from typing import Dict , Any, List
 import streamlit as st
+import json
 class Insurance(commune.Module):
     
     def __init__(self, store: Dict = None, key: 'Key' = None):
@@ -129,8 +130,115 @@ class Insurance(commune.Module):
         # st.write(self.get('bro'))
         st.write(self.key2address)
         st.write(self.state_dict())
+
+    def streamlit_signin(self):
+        '''
+        sign in to the insurance module
+        '''
+        username = st.text_input('Username', value='Alice')
+        password = st.text_input('Password', value='Bob', type='password')
+        # expand the button to the full width of the sidebar
+        cols = st.columns(2)
+
+        self.username = username
+        self.password = password
+        seed = username+":"+ password
+        self.key = commune.key(seed)
+        
+            
+    def streamlit_sidebar(self):
+        with st.sidebar:
+            st.write('# Commune AI Insurance')
+            self.streamlit_signin()
+
+    @property
+    def default_claim_data(self):
+        import datetime
+        '''
+        Default claim data
+        '''
+        return self.dict2munch({
+            'policy_number': '123456',
+            'claimant_name': self.username,
+            'claimant_contact': 'Not Provided',
+            'incident_date': datetime.datetime.now(),
+            'incident_location': 'Toronto, Ontario, Canada',
+            'incident_description': 'Fender bender',
+            'claim_type': 'Auto',
+            'claim_status': 'Open',
+            'claim_amount': 1000,
+            'claim_document': None
+        })
+
+    def streamlit_save_claim(self):
+        '''
+        Save a claim
+        '''
+        st.write('## Save Claim')
+
+        
+        # ... (all input fields as in the previous example)
+
+        self.button['save_claim'] = st.button('Save Claim', self.streamlit_save_claim)
+        if self.button['save_claim']:
+            # Create a dictionary with the claim data
+            claim_data = self.default_claim_data
+            
+            # Convert the claim data dictionary to a JSON object
+            claim_data_json = json.dumps(claim_data)
+
+            # Save the JSON object to your preferred storage (e.g., database, file, API)
+            # For example, you can save the JSON object to a file:
+            with open('claim_data.json', 'w') as f:
+                f.write(claim_data_json)
+
+            st.write('Claim saved')
+
+    def streamlit_save_claim(self):
+        '''
+        Save a claim
+        '''
+        st.write('## Save Claim')
+        claim_data = commune.copy(self.default_claim_data)
+        
+        # have these in boxes
+        
+        with st.expander('Claim Data', True):
+            cols = st.columns(2)
+            with cols[0]:
+                claim_data.policy_number = st.text_input('Policy Number', value=claim_data.policy_number)
+                claim_data.claimant_name = st.text_input('Claimant Name', value=claim_data.claimant_name)
+                claim_data.claimant_contact = st.text_input('Claimant Contact (Phone/Email)', value=claim_data.claimant_contact)
+                claim_data.incident_date = st.date_input('Incident Date', value=claim_data.incident_date)
+                claim_data.claim_status = st.text_input('Claim Status', value=claim_data.claim_status)
+
+            with cols[1]:
+                claim_data.incident_location = st.text_input('Incident Location', value=claim_data.incident_location)
+                claim_data.incident_description = st.text_area('Incident Description', value=claim_data.incident_description)
+                claim_data.claim_type = st.text_input('Claim Type', value=claim_data.claim_type)
+                claim_data.claim_amount = st.number_input('Claim Amount (in USD)', value=claim_data.claim_amount)
+        claim_data.claim_document = st.file_uploader('Upload Claim Document (optional)', type=['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'])
+        # get contents of the file
+        if claim_data.claim_document is not None:
+            claim_data.claim_document = claim_data.claim_document.read()
+        
+        claim_data.incident_date = claim_data.incident_date.strftime('%Y-%m-%d')
+        
+
+        self.button['save_claim'] = st.button('Save Claim', self.streamlit_save_claim)
+        if self.button['save_claim']:
+            # Save the claim data to your preferred storage (e.g., database, file, API)
+            st.write('Claim saved')
+
+    @classmethod
+    def streamlit(cls):
+        self = cls()
+        self.button = {}
+        self.streamlit_sidebar()
+        st.write(f'# Hello {self.username}')
+        self.streamlit_save_claim()
     
 if __name__ == "__main__":
-    Insurance.run()
+    Insurance.streamlit()
     
     

@@ -327,30 +327,15 @@ class BittensorModule(commune.Module):
     @classmethod
     def create_wallet(cls, 
                       wallet: str = 'default.default',
-                       coldkey: str = None,
-                       hotkey : str = None,
                        coldkey_use_password:bool = False, 
                        hotkey_use_password:bool = False,
                        mnemonic: str= None,
                        seed: str = None
                        ) :
-        if len(wallet.split('.')) == 2:
-           coldkey, hotkey = wallet.split('.')
-        else:
-            raise ValueError('wallet must be of the form coldkey.hotkey')
-           
-        assert isinstance(hotkey, str), 'hotkey must be a string (or None)'
-        assert isinstance(coldkey, str), 'coldkey must be a string'
+        wallet = cls.get_wallet(wallet)
         
-        if mnemonic:
-            raise NotImplementedError
-        if seed:
-            raise NotImplementedError
-        
-        return  bittensor.wallet(name=coldkey, hotkey=hotkey).create(coldkey_use_password=coldkey_use_password, 
-                                                            hotkey_use_password=hotkey_use_password)     
-            
-            
+        return  wallet.create(coldkey_use_password=coldkey_use_password, 
+                              hotkey_use_password=hotkey_use_password)
             
     @classmethod
     def register_wallet(
@@ -362,8 +347,7 @@ class BittensorModule(commune.Module):
                         ):
         cls(wallet=wallet).register(dev_id=dev_id, **kwargs)
 
-    
-                        
+              
     @classmethod  
     def sandbox(cls):
         
