@@ -1678,6 +1678,12 @@ class Module:
                       
                       }
     
+    @classmethod
+    def namespace(cls, data: Dict=None) -> 'Munch':
+        data = data if data else {}
+        assert isinstance(data, dict), f'data must be a dict, got {type(data)}'
+        return cls.dict2munch( data)
+
     
     @classmethod
     def ray_init(cls,init_kwargs={}):
@@ -2812,6 +2818,10 @@ class Module:
     def Serializer(cls, *args, **kwargs) -> 'Serializer':
         return cls.import_object('commuen.server.Serializer')(*args, **kwargs)
     
+    @classmethod
+    def copy(cls, data: Any) -> Any:
+        import copy
+        return copy.deepcopy(data)
     
 Block = Lego = Module
 if __name__ == "__main__":
