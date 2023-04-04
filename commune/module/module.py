@@ -797,21 +797,29 @@ class Module:
         return rm_json(path )
 
     @classmethod
-    def glob(cls,  path ='**', resolve_path:bool = True, files_only:bool = True):
+    def glob(cls,  path ='', resolve_path:bool = True, files_only:bool = True):
         
         path = cls.resolve_path(path, extension=None) if resolve_path else path
         
-        # if os.path.isdir(path):
-        #     path = os.path.join(path, '**')
+        if os.path.isdir(path):
+            path = os.path.join(path, '**')
             
         paths = glob(path, recursive=True)
-        
+        if len(paths) == 0:
+            paths = glob(path+'/**', recursive=True)
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
          
     @classmethod
-    def ls(cls, path:str, recursive:bool = True):
+    def ls_json(cls, path:str, recursive:bool = True, resolve_path: bool = True):
+        return cls.ls(path, recursive=recursive, resolve_path=resolve_path)
+    
+
+    @classmethod
+    def ls(cls, path:str, recursive:bool = True, resolve_path: bool = False):
+        path = cls.resolve_path(path, extension=None) if resolve_path else path
+
         return cls.lsdir(path) if not recursive else cls.walk(path)
     
     @classmethod
