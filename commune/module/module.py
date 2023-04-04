@@ -809,7 +809,31 @@ class Module:
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
-            
+         
+    @classmethod
+    def ls(cls, path:str, recursive:bool = True):
+        return cls.lsdir(path) if not recursive else cls.walk(path)
+    
+    @classmethod
+    def lsdir(cls, path:str) -> List[str]:
+        if path.startswith('~'):
+            path = os.path.expanduser(path)
+        return os.listdir(path)
+
+    @classmethod
+    def walk(cls, path:str) -> List[str]:
+        import os
+        path_list = []
+        for root, dirs, files in os.walk(path):
+            if len(dirs) == 0 and len(files) > 0:
+                for f in files:
+                    path_list.append(os.path.join(root, f))
+        return path_list
+    
+       
+    @classmethod
+    def Bittensor(cls, *args, **kwargs):
+        return cls.get_module('bittensor')(*args, **kwargs)
     @classmethod
     def __str__(cls):
         return cls.__name__
@@ -2818,12 +2842,16 @@ class Module:
     def Serializer(cls, *args, **kwargs) -> 'Serializer':
         return cls.import_object('commuen.server.Serializer')(*args, **kwargs)
     
+<<<<<<< HEAD
     @classmethod
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
     
 Block = Lego = Module
+=======
+
+>>>>>>> 2617a1662ed3363c86e78cbd5dac293f75e6dfdf
 if __name__ == "__main__":
     Module.run()
     
