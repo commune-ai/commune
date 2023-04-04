@@ -8,7 +8,7 @@ import bittensor
 from typing import List, Union, Optional, Dict
 from munch import Munch
 
-class Dashboard:
+class Dashboard(commune.Module):
     
     def __init__(self,
 
@@ -21,7 +21,7 @@ class Dashboard:
         
     @property
     def network_options(self):
-        return ['nakamoto', 'local', 'nobunaga', '0.0.0.0:9944'] 
+        return ['finney','nakamoto', 'local', 'nobunaga', '0.0.0.0:9944'] 
     
     @property
     def chain_endpoint_options(self):
@@ -51,12 +51,6 @@ class Dashboard:
     def neuron(self):
         return self.wallet.get_neuron(subtensor=self.subtensor)
         
-    def list_wallet_paths(self, registered=False):
-        wallet_path = os.path.expanduser(self.wallet.config.wallet.path)
-        wallet_list = []
-        import glob
-        st.write(wallet_path)
-        return glob.glob(wallet_path+'/*/hotkeys/*')
     
     def list_wallets(self, registered=True, unregistered=True):
         wallet_paths = self.list_wallet_paths()
@@ -67,6 +61,23 @@ class Dashboard:
         
         return wallets
             
+
+       
+    @property
+    def network(self):
+        return self.subtensor.network
+    
+    
+    @property
+    def is_registered(self):
+        return self.wallet.is_registered(subtensor= self.subtensor)
+       
+    
+    def sync(self):
+        return self.metagraph.sync()
+    
+    
+    # Streamlit Landing Page    
     selected_wallets = []
     def streamlit_sidebar(self):
         wallets_list = self.list_wallets()
@@ -80,16 +91,7 @@ class Dashboard:
         sync_network = st.button('Sync the Network')
         if sync_network:
             self.sync()
-       
-    @property
-    def network(self):
-        return self.subtensor.network
-    
-    
-    @property
-    def is_registered(self):
-        return self.wallet.is_registered(subtensor= self.subtensor)
-        
+             
     def streamlit_neuron_metrics(self, num_columns=3):
         with st.expander('Neuron Stats', True):
             cols = st.columns(num_columns)
@@ -102,12 +104,9 @@ class Dashboard:
                 st.write(neuron.__dict__)
             else:
                 st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
-    
-    def sync(self):
-        return self.metagraph.sync()
-    
+
     @classmethod
-    def run(cls):
+    def streamlit(cls):
         st.set_page_config(layout="wide")
         self = cls(wallet='fish.1', subtensor='nobunaga')
 
@@ -122,7 +121,7 @@ class Dashboard:
         
 
 if __name__ == "__main__":
-    Dashboard.run()
+    Dashboard.streamlit()
 
 
     

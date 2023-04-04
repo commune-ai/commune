@@ -10,7 +10,7 @@ from typing import List, Union, Optional, Dict
 from munch import Munch
 
 class BittensorModule(commune.Module):
-    wallet_path = os.path.expanduser('~/.bittensor/wallets')
+    wallet_path = os.path.expanduser('~/.bittensor/wallets/')
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
@@ -53,43 +53,66 @@ class BittensorModule(commune.Module):
         return self.wallet
     
     @classmethod
+    def generate_mnemonic(cls, *args, **kwargs):
+        from substrateinterface import Keypair
+        return Keypair.generate_mnemonic()
+    @classmethod
     def get_wallet(cls, wallet:Union[str, bittensor.wallet]=None) -> bittensor.wallet:
         if isinstance(wallet, str):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
-                wallet =bittensor.wallet(name=name, hotkey=hotkey)
             elif len(wallet.split('.')) == 1:
-                wallet = bittensor.wallet(name=wallet)
+                name = bittensor.wallet(name=wallet)
+                hotkey = None
             else:
                 raise NotImplementedError(wallet)
+                
+            wallet =bittensor.wallet(name=name, hotkey=hotkey)
+        elif isinstance(wallet, type(None)):
+            wallet = bittensor.wallet()
         elif isinstance(wallet, bittensor.Wallet):
             wallet = wallet
         else:
-            assert isinstance(wallet, bittensor.wallet)
+            raise NotImplementedError(wallet)
 
         return wallet 
     
-    def get_neuron(self, wallet=None):
+    def resolve_netuid(self, netuid: int = None):
+        if netuid is None:
+            netuid = 3
+        return netuid
+    def get_neuron(self, wallet=None, netuid: int = None):
         wallet = self.get_wallet(wallet)
-        return wallet.get_neuron(subtensor=self.subtensor)
+        netuid = self.resolve_netuid(netuid)
+        return wallet.get_neuron(subtensor=self.subtensor, netuid=netuid)
     
     
-    def get_port(self, wallet=None):
-        return self.get_neuron(wallet=wallet).port
+    def get_port(self, wallet=None, netuid: int = None):
+        netuid = self.resolve_netuid(netuid)
+        return self.get_neuron(wallet=wallet, netuid=netuid ).port
 
-    def get_info(self, wallet=None, key=None):
-        return self.get_neuron(wallet=wallet).port
+    def get_info(self, wallet=None, key=None, netuid: int = None):
+        netuid = self.resolve_netuid(netuid)
+        return self.get_neuron(wallet=wallet, netuid = netuid).port
     
     
     @property
     def neuron(self):
-        return self.wallet.get_neuron(subtensor=self.subtensor)
+        return self.wallet.get_neuron(subtensor=self.subtensor, netuid=3)
         
     
     @classmethod
-    def list_wallet_paths(cls, registered=False):
-        import glob
-        return glob.glob(cls.wallet_path+'/*/hotkeys/*')
+    def walk(cls, path:str) -> List[str]:
+        import os
+        path_list = []
+        for root, dirs, files in os.walk(path):
+            if len(dirs) == 0 and len(files) > 0:
+                for f in files:
+                    path_list.append(os.path.join(root, f))
+        return path_list
+    @classmethod
+    def list_wallet_paths(cls):
+        return cls.ls(cls.wallet_path, recursive=True)
     
     @classmethod
     def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
@@ -108,42 +131,16 @@ class BittensorModule(commune.Module):
     @property
     def default_wallet(self):
         return self.list_wallets()[0]
-            
-    selected_wallets = []
-    def streamlit_sidebar(self):
-        wallet = st.selectbox(f'Select Wallets ({self.default_wallet})', wallets_list, 0)
-        self.set_wallet(wallet)
-        
-        network_options = self.network_options
-        network = st.selectbox(f'Select Network ({self.default_network})', self.network_options, 0)
-        self.set_subtensor(subtensor=network)
-        
-        sync_network = st.button('Sync the Network')
-        if sync_network:
-            self.sync()
-       
+              
     @property
     def network(self):
         return self.subtensor.network
     
     
-    @property
-    def is_registered(self):
-        return self.wallet.is_registered(subtensor= self.subtensor)
-        
-    def streamlit_neuron_metrics(self, num_columns=3):
-        with st.expander('Neuron Stats', True):
-            cols = st.columns(num_columns)
-            if self.is_registered:
-                neuron = self.neuron
-                for i, (k,v) in enumerate(neuron.__dict__.items()):
-                    
-                    if type(v) in [int, float]:
-                        cols[i % num_columns].metric(label=k, value=v)
-                st.write(neuron.__dict__)
-            else:
-                st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
-    
+    def is_registered(self, netuid: int = None):
+        netuid = self.resolve_netuid(netuid)
+        return self.wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
+
     def sync(self):
         return self.metagraph.sync()
     
@@ -310,20 +307,36 @@ class BittensorModule(commune.Module):
             self.set_wallet(wallet)
             self.register(dev_id=commune.gpus())
             
+            
+    @classmethod
+    def create_wallets_from_dict(cls, 
+                                 wallets: Dict,
+                                 overwrite: bool = True):
+        
+        '''
+        wallet_dict = {
+            'coldkey1': { 'hotkeys': {'hk1': 'mnemonic', 'hk2': 'mnemonic2'}},
+        '''
+        wallets = {}
+        for coldkey_name, hotkey_dict in wallet_dict.items():
+            bittensor.wallet(name=coldkey_name).create_from_mnemonic(coldkey, overwrite=overwrite)
+            wallets = {coldkey_name: {}}
+            for hotkey_name, mnemonic in hotkey_dict.items():
+                wallet = bittensor.wallet(name=coldkey_name, hotkey=hotkey_name).regenerate_hotkey(mnemonic=mnemonic, overwrite=overwrite)
+                wallets[coldkey_name] = wallet
     @classmethod
     def create_wallets(cls, 
-                       coldkeys: List[str] = [f'ensemble_{i}' for i in range(3)],
-                       hotkeys : List[str] = [f'{i}' for i in range(10)],
+                       wallets: Union[List[str], Dict] = [f'ensemble.{i}' for i in range(3)],
                        coldkey_use_password:bool = False, 
                        hotkey_use_password:bool = False
                        ):
         
-        
-        for ck in coldkeys:
-            for hk in hotkeys:
-                bittensor.wallet(name=ck, hotkey=hk).create(coldkey_use_password=coldkey_use_password, 
-                                                            hotkey_use_password=hotkey_use_password)     
-                
+        if isinstance(wallets, list):
+            for wallet in wallets:
+                assert (wallet, str), 'wallet must be a string'
+                cls.get_wallet(wallet)
+                cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
+                    
     @classmethod
     def create_wallet(cls, 
                       wallet: str = 'default.default',
@@ -334,8 +347,20 @@ class BittensorModule(commune.Module):
                        ) :
         wallet = cls.get_wallet(wallet)
         
+<<<<<<< HEAD
         return  wallet.create(coldkey_use_password=coldkey_use_password, 
                               hotkey_use_password=hotkey_use_password)
+=======
+        if mnemonic:
+            raise NotImplementedError
+        if seed:
+            raise NotImplementedError
+        
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        return  wallet.create(coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)     
+            
+            
+>>>>>>> 2617a1662ed3363c86e78cbd5dac293f75e6dfdf
             
     @classmethod
     def register_wallet(
@@ -347,22 +372,70 @@ class BittensorModule(commune.Module):
                         ):
         cls(wallet=wallet).register(dev_id=dev_id, **kwargs)
 
+<<<<<<< HEAD
               
+=======
+
+
+>>>>>>> 2617a1662ed3363c86e78cbd5dac293f75e6dfdf
     @classmethod  
     def sandbox(cls):
         
-        gpus = commune.gpus()
-        processes_per_gpus = 2
-        
-        for i in range(processes_per_gpus):
-            for dev_id in gpus:
-                cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='ray')
+        st.write(cls.list_wallet_paths())
+        # for i in range(processes_per_gpus):
+        #     for dev_id in gpus:
+        #         cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='ray')
         
         # print(cls.launch(f'register_{1}'))
         # self = cls(wallet=None)
         # self.create_wallets()
         # # st.write(dir(self.subtensor))
         # st.write(self.register(dev_id=0))
+        
+# Streamlit Landing Page    
+    selected_wallets = []
+    def streamlit_sidebar(self):
+        wallets_list = self.list_wallets(output_wallet=False)
+        wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
+        self.set_wallet(wallet)
+        
+        network_options = self.network_options
+        network = st.selectbox(f'Select Network ({network_options[0]})', self.network_options, 0)
+        self.set_subtensor(subtensor=network)
+        
+        sync_network = st.button('Sync the Network')
+        if sync_network:
+            self.sync()
+             
+    def streamlit_neuron_metrics(self, num_columns=3):
+        with st.expander('Neuron Stats', True):
+            cols = st.columns(num_columns)
+            if self.is_registered():
+                neuron = self.neuron
+                if neuron == None:
+                    return 
+                for i, (k,v) in enumerate(neuron.__dict__.items()):
+                    
+                    if type(v) in [int, float]:
+                        cols[i % num_columns].metric(label=k, value=v)
+                st.write(neuron.__dict__)
+            else:
+                st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
+
+    @classmethod
+    def streamlit(cls):
+        st.set_page_config(layout="wide")
+        self = cls(wallet='ensemble_0.0', subtensor='nobunaga')
+
+        with st.sidebar:
+            self.streamlit_sidebar()
+            
+            
+        st.write(f'# BITTENSOR DASHBOARD {self.network}')
+
+        self.streamlit_neuron_metrics()
+        
+        
 if __name__ == "__main__":
     BittensorModule.run()
 
