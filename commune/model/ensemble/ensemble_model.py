@@ -19,7 +19,6 @@ import streamlit as st
 # logger = logger.opt(colors=True)
 import commune
 import os
-import bittensor
 # import torch
 # commune.utils
 from torch import nn
@@ -33,14 +32,18 @@ Examples
 
 """
 
+import nest_asyncio
+nest_asyncio.apply()
+
 
 class EnsembleModel( Model):
 
     def __init__(self,
-                models: List[str] = [ f'model::gptj::{i}'  for i in [,2, 3, 4, 5, 6, 7]],
+                models: List[str] = None,
                 # models: List[str] = ['model::gpt125m'],
-                tokenizer: 'tokenizer' = 'gptj',
+                tokenizer: 'tokenizer' = 'gpt2',
                 optimizer:  'torch.optimizer' = None,
+                sample_fraction: float = 1.0,
                 metrics: Dict= None,
                 load: bool = True,
                 device: str = 'cuda',
@@ -62,7 +65,8 @@ class EnsembleModel( Model):
         
 
 
-    
+    def default_models(self):
+        return [m for m in commune.servers() if m.startswith('model')]
     @classmethod
     def test(cls, topk=512, output_length=10, num_batches = 10):
         
@@ -124,9 +128,6 @@ class EnsembleModel( Model):
         
         
         kwargs.update(dict(
-            output_hidden_states=True,
-            output_logits=False, 
-            output_topk=True, 
             return_keys=['topk'],
             output_length=output_length,
             token_remap = False , 
@@ -138,7 +139,7 @@ class EnsembleModel( Model):
         jobs = []
         import random 
         
-        selected_models = random.sample(list(self.models.keys()),  int(len(self.models)*1))
+        selected_models = random.sample(list(self.models.keys()),  int(self.sample_fraction * len(self.models)))
         
         
         for model in selected_models:
@@ -229,13 +230,16 @@ class EnsembleModel( Model):
     def device(self) -> str:
         return self._device
 
-
-    def set_models(self, models: Union[List, Dict]):
+    def set_models(self, models: Union[List, Dict]=None):
         self.model_name = 'ensemble'
         self.models = {} 
-        for model in models:
+        if models is None:
+            models = self.default_models()
+        connect_model_jobs = [self.async_connect(model, loop=self.loop) for model in models]
+        model_clients = asyncio.run(asyncio.gather(*connect_model_jobs))
+        for model, client in zip(models, model_clients):
             try:
-                self.models[model] = commune.connect(model, loop=self.loop)
+                self.models[model] = model_client
             except Exception as e:
                 continue   
         return self.models
@@ -276,7 +280,13 @@ class EnsembleModel( Model):
             return tokenizer_output.input_ids.to(self.device)
         return self.tokenizer(text, return_tensors='pt').input_ids.to(self.device)
 
-    
+    @classmethod
+    def get_dataset(cls, dataset: str = 'dataset.bittensor', device: str=None) -> torch.utils.data.Dataset:
+        """ Returns a torch dataset. """
+        if not cls.server_exists(dataset):
+            commune.launch('dataset.text.bittensor', name=dataset)
+        
+        return commune.connect(dataset, wait_for_server=True)
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         import bittensor
@@ -350,9 +360,17 @@ class EnsembleModel( Model):
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self._device = torch.device(device)
         return self.device
+    
+    @classmethod
+    def sandbox(cls):
+        
+        # self = cls()
+        # commune.launch(module = 'dataset.text.bittensor', name='dataset.bittensor')
+        
+        st.write(commune.connect('dataset.bittensor').sample())
 if __name__ == "__main__":
     
-    EnsembleModel.test()
+    EnsembleModel.sandbox()
     # EnsembleModel.run_neuron()
     # EnsembleModel.test_neuron()
     # print('FUCK')f

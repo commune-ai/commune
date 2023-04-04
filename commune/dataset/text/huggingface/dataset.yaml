@@ -1,9 +1,9 @@
 
 module: HFDataset
-path: glue
+path: pile
 name: null
 text_field: null
-split: 'train'
-tokenizer: gptj
+split: train
+tokenizer: gpt2
 
 

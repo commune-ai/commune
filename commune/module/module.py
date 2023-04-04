@@ -849,8 +849,14 @@ class Module:
     @classmethod
     def get_server_info(cls,name:str) -> Dict:
         return cls.server_registry().get(name, {})
+
     @classmethod
-    def connect(cls, 
+    def connect(cls, *args, **kwargs):
+        loop = kwargs.get('loop', cls.get_event_loop())
+        return loop.run_until_complete(cls.async_connect(*args, **kwargs))
+        
+    @classmethod
+    async def async_connect(cls, 
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 

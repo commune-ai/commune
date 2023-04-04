@@ -47,7 +47,7 @@ class BittensorDataset(Module):
             self, 
             batch_size: int = 32, 
             sequence_length: int = 256,
-            block_size_bytes: int  = 10000,
+            min_block_size_bytes: int  = 100,
             tokenizer: 'bittensor.tokenizer' = None,
             no_tokenizer: bool = False,
             max_hash_size:int = 10000000,
@@ -157,7 +157,7 @@ class BittensorDataset(Module):
         self.all_text_file_metas = []
         for dataset_name,file_meta_list in dataset_hash_map.items():
             for fm in file_meta_list:
-                if fm['Size'] >= self.block_size_bytes:
+                if fm['Size'] >= self.min_block_size_bytes:
                     self.hash_dataset_map[fm['Hash']] = dataset_name
                     self.all_text_file_metas += [fm]
             
@@ -221,9 +221,9 @@ class BittensorDataset(Module):
 
         return text_file_metas
 
-    def set_data_size(self, batch_size:Optional[int] = None, block_size:Optional[int] = None, sequence_length:Optional[int] = None,  block_size_bytes:Optional[int]= None, buffer_size:Optional[int]=None) -> None:
+    def set_data_size(self, batch_size:Optional[int] = None, block_size:Optional[int] = None, sequence_length:Optional[int] = None,  min_block_size_bytes:Optional[int]= None, buffer_size:Optional[int]=None) -> None:
         r""" 
-        Update the size of data (batch_size, sequence_length, block_size_bytes) that we need.
+        Update the size of data (batch_size, sequence_length, min_block_size_bytes) that we need.
 
         Args: 
             batch_size (int, optional):
@@ -232,8 +232,8 @@ class BittensorDataset(Module):
             sequence_length (int, optional):
                 The number of tokens for each sample.
 
-            block_size_bytes (int, optional):
-                The block_size_bytes of data in bytes that should be produced by dataloader. 
+            min_block_size_bytes (int, optional):
+                The min_block_size_bytes of data in bytes that should be produced by dataloader. 
 
             buffer_size(int, optional):
                 The size of the buffer. 
@@ -259,8 +259,8 @@ class BittensorDataset(Module):
             logger.warning('The block size represents the seqeunce length and will be depracted')
             self.sequence_length = sequence_length
     
-        if check_valid(block_size_bytes):
-            self.block_size_bytes = block_size_bytes
+        if check_valid(min_block_size_bytes):
+            self.min_block_size_bytes = min_block_size_bytes
 
         if check_valid(buffer_size):
             self.set_buffer(buffer_size= buffer_size)
@@ -314,6 +314,7 @@ class BittensorDataset(Module):
             
             # This currently synchronytes on all of the self.fetch_text_tasks, completing when they all are finished.
             finished_tasks, running_tasks  = await asyncio.wait(self.fetch_text_tasks) 
+            
             self.fetch_text_tasks = list(running_tasks)
             finished_tasks = list(finished_tasks)
 
@@ -322,23 +323,25 @@ class BittensorDataset(Module):
                 sample = finished_task.result()
                 if sample == None:
                     continue
-                self.sample_buffer += [finished_task.result()]
+                self.sample_buffer += [sample]
 
         # Randomly sample the text file from the buffer.
         random_idx = random.randint(0,len(self.sample_buffer)-1)
+
         raw_chunk = self.sample_buffer[random_idx]
+
 
         # Increment the counters.
         self.sample_count += 1
         self.batch_count += self.sample_count //  self.batch_size
 
 
-        if self.block_size_bytes < len(raw_chunk):
-            start_idx = random.randint(0, len(raw_chunk) - self.block_size_bytes)
+        if self.min_block_size_bytes < len(raw_chunk):
+            start_idx = random.randint(0, len(raw_chunk) - self.min_block_size_bytes)
         else:
             start_idx = 0
         
-        end_idx = start_idx + self.block_size_bytes
+        end_idx = start_idx + self.min_block_size_bytes
         sample = raw_chunk[start_idx:end_idx]
 
         if (self.batch_count) >= self.buffer_calls_per_update:
@@ -377,7 +380,7 @@ class BittensorDataset(Module):
     async def __async_getitem__(self, idx: Optional[int] = None, sequence_length:int=None, no_tokenizer:bool = None) -> Union[List[str], torch.tensor]:
         '''
         Sample from the sample_buffer via self.async_generate_sample. This fetches a random block of text
-        with a size of self.block_size_bytes in bytes.
+        with a size of self.min_block_size_bytes in bytes.
         Args:
             idx (int):
                 Sample index of dataset.
@@ -556,12 +559,18 @@ class BittensorDataset(Module):
             
     async def fetch_text(self, file_meta:dict, offset:int=0, length:int=None, save:bool = True, load:bool = True ):
         
+        
         if isinstance(file_meta, str):
             file_meta = {'Hash': file_meta}
         
         length = length if length else self.max_hash_size
         cid = file_meta['Hash']
-        dataset = self.hash_dataset_map[cid]
+        cid = cid.split('.')[0]
+        try:
+            dataset = self.hash_dataset_map[cid]
+        except KeyError:
+            return None
+        
         path=f'saved_file_metas/{dataset}/{cid}'
         
         try:
@@ -860,17 +869,21 @@ class BittensorDataset(Module):
     def test_swarm(cls):
         dataset_module = commune.get_module('dataset.text.bittensor')
         datasets = ['ArXiv', 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'OpenSubtitles', 'DMMathematics']
-
+    
         for dataset in datasets:
             module_id = f'dataset:{dataset.lower()}'
             print(commune.connect(module_id).sample())
             
     
     @classmethod
-    def streamlit(cls):
+    def sandbox(cls):
         import streamlit as st
-        self = cls(datasets=['Books3'], batch_size=32, sequence_length=256, max_datasets=10, download=False)
-        print(self.sample())
+        self = cls(batch_size=32, sequence_length=256, max_datasets=10, download=True)
+        t = commune.timer()
+        for i in range(100):
+            
+            print(self.sample()['input_ids'].shape,  int(i/t.seconds))
+        
 
         # files = self.glob('saved_file_metas/*')
         # for i, h_url in enumerate(files):

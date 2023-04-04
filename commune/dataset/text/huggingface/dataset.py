@@ -19,12 +19,14 @@ import commune
 
 class HFDataset(commune.Module):
     def __init__(self,
-                path: str = 'glue',
-                name:str = None,
+                path: str = 'pile',
+                name:str = 'free_law',
                 text_field:str = None,
                 split: str = 'train',
-                tokenizer: str =  'gptj',
-                dataset: str = None,
+                sample_index = [0,1000],
+                streaming: bool = False,
+                tokenizer: str =  'gpt2',
+                device: str = 'cpu',
                 config: dict=None
                 ):
         params = locals()
@@ -38,41 +40,29 @@ class HFDataset(commune.Module):
                 return k
         assert False, 'No text feature found'
 
-    @classmethod
-    def templates(cls):
-        templates = {}
         
-        templates['glue'] = dict(
-                path = 'glue',
-                name = 'cola',
-                text_field = 'sentence',
-                split = 'train',
-                tokenizer =  'gptj',
-        )
-        
-        
-        templates['wikitext'] = dict(
-                path = 'wikitext',
-                split = 'train',
-                tokenizer =  'gptj',
-        )
-        
-        return templates
-        
+ 
     def set_params(self, **kwargs) -> None:
-        config = kwargs.get('config')
         path = kwargs.get('path')
-        kwargs_templates = self.templates()
-        kwargs = kwargs_templates.get(path, kwargs)
+        name = kwargs.get('name')
+        split = kwargs.get('split')
+        streaming = kwargs.get('streaming')
+        sample_index = kwargs.get('sample_index')
+        device = kwargs.get('device')
+        tokenizer = kwargs.get('tokenizer')
+
+        self.config = self.set_config(kwargs)
+    
+        # self.__dict__.update(self.config)
         
-        if hasattr(self, 'config'):
-            config = config if config else {}
-            config = {**self.config, **config}
-        self.config = self.set_config(config)
-        self.config.update(kwargs)
+        self.set_tokenizer(tokenizer=tokenizer)
+        self.set_dataset(path=path, 
+                         name=name, 
+                         split=split, 
+                         streaming=streaming, 
+                         sample_index = sample_index)
         
-        self.set_tokenizer(tokenizer=self.tokenizer)
-        self.set_dataset(path=self.path, name=self.name, split=self.split)
+        
         if self.text_field == None:
             self.text_field = self.default_text_feature
 
@@ -91,15 +81,36 @@ class HFDataset(commune.Module):
             self.replicate(tag=str(tag))
         else:
             raise ValueError(f'Invalid tag type: {type(tag)}')
-    def set_dataset(self, path:str=None, name:str=None, split:str=None):
+    def set_dataset(self, path:str,
+                    name:str=None, 
+                    split:str=None,
+                    streaming: bool = False,
+                    sample_index : List[int] = None):
         kwargs = {}
-        kwargs['path'] = path if path  else self.path
-        kwargs['name'] = name if name  else self.name
-        kwargs['split'] = split if split  else self.split
+        path = self.shortcuts.get(path, path)
+        self.path = path
+        if name == None:
+            name = self.available_names[0]
+        
+        kwargs['name'] = name
+        kwargs['path'] = path
+        kwargs['split'] = split
+        kwargs['streaming'] = streaming
+        
+        for k,v in kwargs.items():
+            if v != None:
+                self.__dict__[k] = self.config[k] = v
+
+        if sample_index:
+            assert isinstance(sample_index, list)
+            assert isinstance(sample_index[0], int)
+            assert isinstance(sample_index[1], int)
+            kwargs['split'] = f'{split}[:{10}%]'    
+        kwargs['split'] = f'{split}[:{10}%]'    
+        print('Loading dataset: ', kwargs)
         if not hasattr(self, 'load_dataset'):
-            
             self.load_dataset = self.import_object('datasets.load_dataset')
-            
+
         self.dataset = self.load_dataset(**kwargs)
         return self.dataset
 
@@ -111,20 +122,6 @@ class HFDataset(commune.Module):
     def features(self):
         return self.dataset._info.__dict__['features']
 
-
-    @property
-    def device(self):
-        device = self.config.get('device', 'cpu')
-        if 'cuda' in device:
-            assert torch.cuda.is_available()
-        return device
-
-    @device.setter
-    def device(self, device):
-        if 'cuda' in device:
-            assert torch.cuda.is_available()
-        self.config['device'] = device
-        return device
 
     def to(self, device):
         self.device = device
@@ -187,7 +184,11 @@ class HFDataset(commune.Module):
         self.set_dataset(split=split)
 
     def __len__(self):
-        return len(self.dataset)
+        if not self.streaming:
+            return len(self.dataset)
+        else:
+            return 1000
+
 
     def split_size_map(self):
         info_dict = self.info
@@ -236,7 +237,10 @@ class HFDataset(commune.Module):
 
         final_sample  = ''
         while len(final_sample.split()) < sequence_length:
-            sample = self.dataset[idx].get(self.text_field)
+            if self.streaming:
+                sample = next(iter(self.dataset)).get(self.text_field)
+            else:
+                sample = self.dataset[idx].get(self.text_field)
             if sample == None:
                 raise Exception(f'Please specify a valid text_field {list(self.dataset[idx].keys())} {self.text_field}')
 
@@ -318,38 +322,11 @@ class HFDataset(commune.Module):
     def dataset_builder(self):
         placeholder_name = '_dataset_builder'
         if not hasattr(self, placeholder_name):
+        
             setattr(self, placeholder_name,self.set_dataset_builder(self.path))
         return getattr(self, placeholder_name)
 
-    @property
-    def path(self):
-        return self.config['path']
-    
-    @path.setter
-    def path(self, value):
-        self.config['path'] = value
 
-    @property
-    def text_field(self):
-        if  self.config.get('text_field', None) == None:
-            self.config['text_field'] = self.default_text_feature
-        return self.config['text_field']
-
-    @text_field.setter
-    def text_field(self, value):
-        self.config['text_field'] = value
-
-    @property
-    def name(self):
-        name =  self.config.get('name', None)
-        if name == None:
-            self.config['name'] = self.available_names[0]
-        return name
-
-    @name.setter
-    def name(self, name):
-        self.config['name'] = name
-        self.set_dataset(name=name)
 
     def list_configs(self):
         return self.config_map
@@ -393,6 +370,10 @@ class HFDataset(commune.Module):
         print(x)
 
     shortcuts =  {
+        'pile': 'EleutherAI/the_pile',
+    }
+    
+    tokenizer_shortcuts =  {
         'gptj': 'EleutherAI/gpt-j-6B',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
          'gpt3b': 'EleutherAI/gpt-neo-2.7B',
@@ -401,15 +382,14 @@ class HFDataset(commune.Module):
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
         'opt13b': 'facebook/opt-13b',
-        'gpt2': 'gpt2'
-
+        'gpt2': 'gpt2',
          }
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         tokenizer = tokenizer if tokenizer else 'gpt2'
         from transformers import AutoTokenizer
         
         if isinstance(tokenizer, str):
-            tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+            tokenizer = self.tokenizer_shortcuts.get(tokenizer, tokenizer)
             self.config['tokenizer'] = tokenizer
 
             try:
@@ -453,7 +433,10 @@ class HFDataset(commune.Module):
     @classmethod
     def sandbox(cls):
         import streamlit as st
-        st.write(cls.connect('dataset.text.super_glue').sample())
+        self = cls()
+        for i in range(1000):
+            self.sample()
+            print(i)
         
 
 
