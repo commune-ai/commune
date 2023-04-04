@@ -2842,16 +2842,13 @@ class Module:
     def Serializer(cls, *args, **kwargs) -> 'Serializer':
         return cls.import_object('commuen.server.Serializer')(*args, **kwargs)
     
-<<<<<<< HEAD
     @classmethod
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
     
 Block = Lego = Module
-=======
 
->>>>>>> 2617a1662ed3363c86e78cbd5dac293f75e6dfdf
 if __name__ == "__main__":
     Module.run()
     
