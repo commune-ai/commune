@@ -347,10 +347,6 @@ class BittensorModule(commune.Module):
                        ) :
         wallet = cls.get_wallet(wallet)
         
-<<<<<<< HEAD
-        return  wallet.create(coldkey_use_password=coldkey_use_password, 
-                              hotkey_use_password=hotkey_use_password)
-=======
         if mnemonic:
             raise NotImplementedError
         if seed:
@@ -360,7 +356,6 @@ class BittensorModule(commune.Module):
         return  wallet.create(coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)     
             
             
->>>>>>> 2617a1662ed3363c86e78cbd5dac293f75e6dfdf
             
     @classmethod
     def register_wallet(
@@ -372,12 +367,8 @@ class BittensorModule(commune.Module):
                         ):
         cls(wallet=wallet).register(dev_id=dev_id, **kwargs)
 
-<<<<<<< HEAD
-              
-=======
 
 
->>>>>>> 2617a1662ed3363c86e78cbd5dac293f75e6dfdf
     @classmethod  
     def sandbox(cls):
         

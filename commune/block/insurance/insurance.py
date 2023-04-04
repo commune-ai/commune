@@ -235,7 +235,8 @@ class Insurance(commune.Module):
         self = cls()
         self.button = {}
         self.streamlit_sidebar()
-        st.write(f'# Hello {self.username}')
+        # rocket emoji 
+        st.write(f'# Hello {self.username} 🚀')
         self.streamlit_save_claim()
     
 if __name__ == "__main__":
