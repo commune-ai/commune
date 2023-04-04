@@ -24,7 +24,7 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 
 class ModelClient(Module, nn.Module):
     shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
@@ -283,7 +283,7 @@ class ModelClient(Module, nn.Module):
     #     import argparse
     #     parser =  argparse.ArgumentParser()
     #     parser.add_argument('--port', type=int, help=f'''Port''', default = 50050)
-    #     parser.add_argument('--model_name', type=str, help=f'''Port''', default = 'EleutherAI/gpt-j-6B')
+    #     parser.add_argument('--model_name', type=str, help=f'''Port''', default = 'EleutherAI/gpt-j-6b')
 
 
     #     args = parser.parse_args()

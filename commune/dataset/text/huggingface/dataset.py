@@ -374,7 +374,7 @@ class HFDataset(commune.Module):
     }
     
     tokenizer_shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
          'gpt3b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',

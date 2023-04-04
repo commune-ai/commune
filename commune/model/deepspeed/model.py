@@ -33,7 +33,7 @@ import commune
 
 # example models
 
-# model_name: str="EleutherAI/gpt-j-6B",
+# model_name: str="EleutherAI/gpt-j-6b",
 # model_name: str="/nvme/models/gpt-j-6B",
 # model_name: str="EleutherAI/gpt-neo-125M",
 class DeepspeedModel(commune.Module):
@@ -241,7 +241,7 @@ class DeepspeedModel(commune.Module):
         return args
     model_name_shortcuts = {
         'opt13b': 'facebook/opt-13b',
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt125m': 'EleutherAI/gpt-neo-125M'
     }
     @classmethod
@@ -262,7 +262,7 @@ if __name__ == "__main__":
 # if __name__ == "__main__":
     
 #     # DeepspeedModel = 
-#     DeepspeedModel(port=50058, serve=True, model_name='EleutherAI/gpt-j-6B')
+#     DeepspeedModel(port=50058, serve=True, model_name='EleutherAI/gpt-j-6b')
 
 
 # def set_model(self, model_name:str="bigscience/bloom-560m",

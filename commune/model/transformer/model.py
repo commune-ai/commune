@@ -49,7 +49,7 @@ class TransformerModel( Model):
         # 6B models
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
         'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
         'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
@@ -64,7 +64,7 @@ class TransformerModel( Model):
     
 
     def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6B",
+                # model_name: str="EleutherAI/gpt-j-6b",
                 model: str="gpt125m",
                 tag :str = None,
                 tokenizer:str = None,

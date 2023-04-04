@@ -41,7 +41,7 @@ class EnsembleModel( Model):
     def __init__(self,
                 models: List[str] = None,
                 # models: List[str] = ['model::gpt125m'],
-                tokenizer: 'tokenizer' = 'gpt2',
+                tokenizer: 'tokenizer' = 'gptj',
                 optimizer:  'torch.optimizer' = None,
                 sample_fraction: float = 1.0,
                 metrics: Dict= None,
@@ -66,7 +66,7 @@ class EnsembleModel( Model):
 
 
     def default_models(self):
-        return [m for m in commune.servers() if m.startswith('model')]
+        return [m for m in commune.servers() if m.startswith('model')][:100]
     @classmethod
     def test(cls, topk=512, output_length=10, num_batches = 10):
         
@@ -124,7 +124,12 @@ class EnsembleModel( Model):
     def model_names(self) -> List[str]:
         return list(self.models.keys())
 
-    def forward(self, *args, output_length=10, topk=512, return_topk_only=True,  **kwargs):
+    def forward(self, *args, 
+                output_length=10, 
+                topk=512, 
+                return_topk_only=True, 
+                sample_fraction: float = 1.0,
+                **kwargs):
         
         
         kwargs.update(dict(
@@ -139,8 +144,7 @@ class EnsembleModel( Model):
         jobs = []
         import random 
         
-        selected_models = random.sample(list(self.models.keys()),  int(self.sample_fraction * len(self.models)))
-        
+        selected_models = random.sample(list(self.models.keys()),  int(sample_fraction * len(self.models)))
         
         for model in selected_models:
             job = self.models[model].forward(*args, **kwargs, asyncio_future=True, timeout=4)
@@ -151,10 +155,11 @@ class EnsembleModel( Model):
         peer_outputs =  self.loop.run_until_complete(asyncio.gather(*jobs))
         
         peer_outputs = [peer_output for peer_output in peer_outputs if 'topk' in peer_output]
-        max_token_index = self.tokenizer.vocab_size - 1
+        max_token_index = 50400
     
         model_names = selected_models
         for model_i, peer_output in enumerate(peer_outputs):
+            print(model_i, peer_output, 'BROOO')
             if 'topk'  in peer_output:
                 peer_output['logits'] = decode_topk(peer_output['topk'], vocab_size=int(max_token_index+1), topk= kwargs['topk'])
                 peer_outputs[model_i] = peer_output
@@ -178,7 +183,7 @@ class EnsembleModel( Model):
             peer_loss_per_token = peer_loss_per_token.reshape(peer_loss_per_token.shape[0], -1)
             output_dict['stats']['peer_loss_per_token'].append(peer_loss_per_token)
             output_dict['stats']['peer_loss_per_sentence'].append(peer_loss_per_token.mean(dim=-1))
-            output_dict['stats']['peer_loss_per_token'].append(peer_loss_per_token.mean())
+            output_dict['stats']['peer_loss'].append(peer_loss_per_token.mean())
             
             
             
@@ -188,10 +193,9 @@ class EnsembleModel( Model):
         output_dict['stats']['best_peer_id'] = torch.argmin(output_dict['stats']['peer_loss'], dim=0)
         output_dict['stats']['best_peer_loss'] = torch.index_select(output_dict['stats']['peer_loss'],  index = output_dict['stats']['best_peer_id'] , dim=0)
         output_dict['stats']['best_peer_loss_per_token'] = torch.index_select(torch.stack(output_dict['stats']['peer_loss_per_token'], dim=0), index = output_dict['stats']['best_peer_id'] , dim=0)
-        output_dict['stats']['best_peer_loss_per_sentence'] = torch.index_select(torch.stack(output_dict['stats']['peer_loss_per_sentence'], dim=0), index = output_dict['stats']['best_peer_id'] , dim=0)
+        output_dict['stats']['peer_loss_per_sentence'] = torch.stack(output_dict['stats']['peer_loss_per_sentence'], dim=0)
 
-        
-        print(output_dict['stats']['peer_loss_per_sentence'].shape)
+        output_dict['stats']['best_peer_loss_per_sentence'] = torch.index_select(output_dict['stats']['peer_loss_per_sentence'], index = output_dict['stats']['best_peer_id'] , dim=0)
         prior_routing_scores = output_dict['stats']['peer_loss_per_sentence'] 
         prior_routing_scores_std = (prior_routing_scores.std(0)[None,...] + 1E-10)
         if len(peer_outputs) == 1:
@@ -238,10 +242,8 @@ class EnsembleModel( Model):
         connect_model_jobs = [self.async_connect(model, loop=self.loop) for model in models]
         model_clients = asyncio.run(asyncio.gather(*connect_model_jobs))
         for model, client in zip(models, model_clients):
-            try:
-                self.models[model] = model_client
-            except Exception as e:
-                continue   
+            self.models[model] = client
+ 
         return self.models
     
 
@@ -253,7 +255,7 @@ class EnsembleModel( Model):
         return self.tokenizer.vocab_size
 
     shortcuts = {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
     }
 
     @staticmethod
@@ -281,9 +283,9 @@ class EnsembleModel( Model):
         return self.tokenizer(text, return_tensors='pt').input_ids.to(self.device)
 
     @classmethod
-    def get_dataset(cls, dataset: str = 'dataset.bittensor', device: str=None) -> torch.utils.data.Dataset:
+    def get_dataset(cls, dataset: str = 'dataset.bittensor', device: str=None, refresh:bool = True) -> torch.utils.data.Dataset:
         """ Returns a torch dataset. """
-        if not cls.server_exists(dataset):
+        if not cls.server_exists(dataset) or refresh:
             commune.launch('dataset.text.bittensor', name=dataset)
         
         return commune.connect(dataset, wait_for_server=True)
@@ -299,6 +301,9 @@ class EnsembleModel( Model):
             try:
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
             except ValueError:
+                print('resorting ot use_fast = False')
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+            except OSError:
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         elif tokenizer == None:
@@ -364,10 +369,13 @@ class EnsembleModel( Model):
     @classmethod
     def sandbox(cls):
         
-        # self = cls()
+        self = cls()
         # commune.launch(module = 'dataset.text.bittensor', name='dataset.bittensor')
         
-        st.write(commune.connect('dataset.bittensor').sample())
+        dataset = commune.connect('dataset.bittensor')
+        sample = dataset.sample()
+        self.forward(**sample)
+        # st.write(dataset.sample())
 if __name__ == "__main__":
     
     EnsembleModel.sandbox()

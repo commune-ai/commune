@@ -38,7 +38,7 @@ Examples
 """
 class TokenizerMap( nn.Module, commune.Module):
     shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
@@ -49,7 +49,7 @@ class TokenizerMap( nn.Module, commune.Module):
          }
 
     def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6B",
+                # model_name: str="EleutherAI/gpt-j-6b",
                 tokenizer = 'gptneox',
                 std_tokenizer = None,
                 dataset = 'BittensorDataset',

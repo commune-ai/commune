@@ -7,7 +7,7 @@ import torch
 from commune.utils.tokenizer import prep_tokenizer, get_translation_map, translate_special_token_text
 class TokenizerMap(commune.Module):
     shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
@@ -368,7 +368,7 @@ class TokenizerMap(commune.Module):
 
 
     @classmethod
-    def decode_topk(cls,  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_size:int=50257) -> torch.Tensor:
+    def decode_topk(cls,  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_size:int=50400) -> torch.Tensor:
         """ Returns full logits by decoding topk-encoding input. """
         batch_size, sequence_len, _ = forward_response_tensor.shape
         encoded_probs = forward_response_tensor  # encoded probabilities: [batch_size, sequence_len, topk + topk]
