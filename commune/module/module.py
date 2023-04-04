@@ -923,16 +923,31 @@ class Module:
             
     
     @classmethod
-    def get_server_registry(cls, ip:str = None, save:bool = False) -> Dict:
+    def get_server_registry(cls, 
+                            ip:str = None, 
+                            save:bool = False,
+                            timeout:int  = 3) -> Dict:
         peer_registry = {}
         peer_addresses = cls.get_peer_addresses()
-        
+        peer = ['']
+        jobs = []
+        import asyncio
         for address in peer_addresses:
             ip, port = address.split(':')
-            peer = cls.connect(ip=ip, port=port)
-            peer_name = peer.module_id
-            peer_registry[peer.module_id] = peer.server_info
+            jobs += [cls.async_connect(ip=ip, port=port, timeout=timeout)]
+        peers = asyncio.run(asyncio.gather(*jobs))
+        
+        for peer in peers:
+            try:
+                peer_name = peer.module_id
+                server_info = peer.server_info
+            except AttributeError:
+                continue
+            if isinstance(server_info, dict):
+                peer_registry[peer_name] = server_info
             
+        if save:
+            Module.save_json('server_registry', peer_registry)
         return peer_registry
 
     @classmethod
@@ -950,17 +965,22 @@ class Module:
     
     
         if update:
-            server_registry = cls.get_server_registry()
+            server_registry = cls.get_server_registry(save=True)
+            
             
         try:
             server_registry = Module.get_json('server_registry', handle_error=True, default={})
         except json.JSONDecodeError as e:
-            server_registry = cls.get_server_registry()
+            print('Error decoding server registry, resetting to empty dict')
+            server_registry = cls.get_server_registry(save=True)
         for k in deepcopy(list(server_registry.keys())):
             
             if not Module.port_used(int(server_registry[k]['port'])):
                 del server_registry[k]
-        Module.put_json('server_registry',server_registry)
+                update = True
+                
+        if update:
+            Module.put_json('server_registry',server_registry)
         return server_registry
 
     @property
@@ -1048,7 +1068,7 @@ class Module:
     def wait_for_server(cls,
                           name: str ,
                           timeout:int = 30,
-                          sleep_interval: int = 1):
+                          sleep_interval: int = 4):
         
         start_time = cls.time()
         while not cls.server_exists(name):
@@ -1056,7 +1076,6 @@ class Module:
             current_time = cls.time()
             if current_time - start_time > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
-        cls.update_server_registry()
     def server_running(self):
         return hasattr(self, 'server_info')
     def serve(self, name=None , *args, **kwargs):

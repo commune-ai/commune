@@ -38,7 +38,7 @@ Examples
 """
 class GPTNeoX(Model):
     shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
@@ -46,7 +46,7 @@ class GPTNeoX(Model):
         'gptneox': 'EleutherAI/gpt-neox-20b'
          } 
     def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6B",
+                # model_name: str="EleutherAI/gpt-j-6b",
                 model_name: str='gptneox',
                 checkpoint_path: str = None,
                 max_memory: Union[Dict[int, str], int, float] = 100,

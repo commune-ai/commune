@@ -30,7 +30,7 @@ Examples
 """
 class OPT( nn.Module, commune.Module):
     shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt125m': 'EleutherAI/gpt-neo-125M',
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
@@ -38,7 +38,7 @@ class OPT( nn.Module, commune.Module):
         'opt': 'facebook/opt-13b',
          } 
     def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6B",
+                # model_name: str="EleutherAI/gpt-j-6b",
                 model_name: str='opt',
                 checkpoint_path: str = None,
                 max_memory: Union[Dict[int, str], int, float] = 100,
@@ -523,8 +523,8 @@ class OPT( nn.Module, commune.Module):
         return reached_last_layer, last_layer_name
 
     @classmethod
-    def experiment(cls, trial='trial_2', model_name='EleutherAI/gpt-j-6B', ):
-        model = cls( tag=trial, model_name='EleutherAI/gpt-j-6B')
+    def experiment(cls, trial='trial_2', model_name='EleutherAI/gpt-j-6b', ):
+        model = cls( tag=trial, model_name='EleutherAI/gpt-j-6b')
         # print('BROOO')
         # model = model.connect('model.transformer::EleutherAI_gpt-j-6B')
         # print(model.put_json('EleutherAI_gpt-neo-125M_bro', ))
