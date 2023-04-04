@@ -17,79 +17,75 @@ class Insurance(commune.Module):
         self.storage = storage
             
     
-    def put(self,
-            k:str, 
-            v: Any,
+    def save_claim(self,
+            policy_id:str, 
+            claim_data: Dict,
             key: str = None,
             encrypt: bool = False) -> str:
-        data = None
+        claim_data = self.munch2dict(claim_data)
+        claim_data['last_time_saved'] = int(commune.time())
         key = self.resolve_key(key)
-        if isinstance(v, dict):
-            if 'data' in v and 'time' in v:
-                data  = v
-        
-        if data == None:
-            data = {'data': v, 'time': int(commune.time())}
         if encrypt:
-            data = key.encrypt(data)
+            claim_data = key.encrypt(claim_data)
         # start with signature, data, public_address
-        storage_item = key.sign(data, return_dict=True)
+        storage_item = key.sign(claim_data, return_dict=True)
         storage_item['encrypt'] = encrypt
         address = key.ss58_address
         if address not in self.storage:
             self.storage[address] = {}
-        self.storage[address][k] = storage_item
         
+        path = f'claims/{address}/{policy_id}'
+        self.put_json(path, storage_item)
         
-        
-        return k
-    
-    def state_dict(self):
-        import json
-        state_dict = {}
-        for address, storage_map in self.storage.items():
-   
-            state_dict[address] = json.dumps(storage_map)
-            
-        return state_dict
-    def from_state_dict(self, state_dict: Dict) -> None:
-        import json
-        for k, v in state_dict.items():
-            self.storage[k] = json.loads(v)
-            
-    def save(self, path: str):
-        
-        state_dict = self.state_dict()
-        
-        return self.put_json( path=path, data=state_dict)
-    
+        return policy_id
+    @property
+    def claim_paths(self, key: str = None) -> List:
+        key = self.resolve_key(key)
+        return self.glob(f'claims/{key.address}/*')
+
+
     
     def resolve_key(self, key: str = None) -> commune.key:
         if key == None:
             key = self.key
         return key
     
-    def get(self,
-            k, 
+    
+    def get_claim(self,
+            policy_id: str = None, 
+            path: str = None,
             key:str = None,
+            item: Dict = None,
             max_staleness: int = 1000) -> Any:
         key = self.resolve_key(key)
+        
+        if item == None:
+            if path != None and policy_id == None: 
+                item = self.get_json(path)
+            else:
+                assert policy_id != None, 'must provide policy_id or path'
+            
+                item = self.get_json(f'claims/{key.address}/{policy_id}')
 
-        item = self.storage[key.ss58_address][k]
         verified = key.verify(item)
+        
         
         # decrypt if necessary
         if self.is_encrypted(item):
             
             item['data'] = key.decrypt(item['data'])
-        item['data'] = self.str2python(item['data'])
+        if isinstance(item['data'], str):
+            item['data'] = self.str2python(item['data'])
         assert verified, 'could not verify signature'
         
         # check staleness
-        staleness = commune.time() - item['data']['time']
-        assert staleness < max_staleness
+        staleness = commune.time() - item['data']['last_time_saved']
+        # assert staleness < max_staleness
+        
+        
 
-        return item['data']['data']
+
+        return item['data']
 
 
     @property
@@ -113,6 +109,11 @@ class Insurance(commune.Module):
             self.put('test', obj)
             assert self.get('test') == obj
             
+    def get_user_claims(self):
+        claims = []
+        for path in self.claim_paths:
+            claims.append(self.get_claim(path=path))
+        return claims
         
     @classmethod
     def sandbox(cls):
@@ -168,44 +169,45 @@ class Insurance(commune.Module):
             'claim_status': 'Open',
             'claim_amount': 1000,
             'claim_document': None
-        })
-
-    def streamlit_save_claim(self):
-        '''
-        Save a claim
-        '''
-        st.write('## Save Claim')
-
-        
-        # ... (all input fields as in the previous example)
-
-        self.button['save_claim'] = st.button('Save Claim', self.streamlit_save_claim)
-        if self.button['save_claim']:
-            # Create a dictionary with the claim data
-            claim_data = self.default_claim_data
             
-            # Convert the claim data dictionary to a JSON object
-            claim_data_json = json.dumps(claim_data)
+        })
+    @classmethod
+    def glob(cls,  path ='**', resolve_path:bool = True, files_only:bool = True):
+        import os
+        from glob import glob
+        path = cls.resolve_path(path, extension=None) if resolve_path else path
+        
+        if os.path.isdir(path):
+            path = os.path.join(path, '**')
+            
+        paths = glob(path, recursive=True)
+        if len(paths) == 0:
+            paths = glob(os.path.join(path, '**'), recursive=True)
+        if len(paths) == 0:
+            paths = glob(os.path.join(path, '*'), recursive=True)
 
-            # Save the JSON object to your preferred storage (e.g., database, file, API)
-            # For example, you can save the JSON object to a file:
-            with open('claim_data.json', 'w') as f:
-                f.write(claim_data_json)
-
-            st.write('Claim saved')
-
+        if files_only:
+            paths =  list(filter(lambda f:os.path.isfile(f), paths))
+        return paths
+         
     def streamlit_save_claim(self):
         '''
         Save a claim
         '''
-        st.write('## Save Claim')
+        
         claim_data = commune.copy(self.default_claim_data)
         
         # have these in boxes
         
-        with st.expander('Claim Data', True):
+        with st.expander('', True):
+            st.write('### Claim Details')
+            claim_data.claim_document = st.file_uploader('Upload Claim Document (optional)', type=['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'])
+
             cols = st.columns(2)
+
             with cols[0]:
+                
+                
                 claim_data.policy_number = st.text_input('Policy Number', value=claim_data.policy_number)
                 claim_data.claimant_name = st.text_input('Claimant Name', value=claim_data.claimant_name)
                 claim_data.claimant_contact = st.text_input('Claimant Contact (Phone/Email)', value=claim_data.claimant_contact)
@@ -217,7 +219,6 @@ class Insurance(commune.Module):
                 claim_data.incident_description = st.text_area('Incident Description', value=claim_data.incident_description)
                 claim_data.claim_type = st.text_input('Claim Type', value=claim_data.claim_type)
                 claim_data.claim_amount = st.number_input('Claim Amount (in USD)', value=claim_data.claim_amount)
-        claim_data.claim_document = st.file_uploader('Upload Claim Document (optional)', type=['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'])
         # get contents of the file
         if claim_data.claim_document is not None:
             claim_data.claim_document = claim_data.claim_document.read()
@@ -225,18 +226,33 @@ class Insurance(commune.Module):
         claim_data.incident_date = claim_data.incident_date.strftime('%Y-%m-%d')
         
 
-        self.button['save_claim'] = st.button('Save Claim', self.streamlit_save_claim)
-        if self.button['save_claim']:
-            # Save the claim data to your preferred storage (e.g., database, file, API)
-            st.write('Claim saved')
+        self.button['save_claim'] = cols[0].button('Save Claim')
+        
 
+        if self.button['save_claim'] :
+            # Save the claim data to your preferred storage (e.g., database, file, API)
+            self.save_claim(claim_data['policy_number'], claim_data, encrypt=True)
+            
+
+            st.write('Claim saved')
+        
+        with st.expander('', True):
+            for claim in self.my_claims:
+                title = f"Claim Type: {claim['claim_type']} | Incident Data: {claim['incident_date']}"
+                st.write("### "+title)
+                st.write(claim)
+
+    @property
+    def my_claims(self) -> List[Dict]:
+        return self.get_user_claims()
     @classmethod
     def streamlit(cls):
         self = cls()
         self.button = {}
         self.streamlit_sidebar()
+        # doctor emoji 
         # rocket emoji 
-        st.write(f'# Hello {self.username} 🚀')
+        st.write(f'# Hello {self.username}, here are your claims ')
         self.streamlit_save_claim()
     
 if __name__ == "__main__":
