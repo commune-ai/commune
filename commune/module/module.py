@@ -6,6 +6,8 @@ from munch import Munch
 import json
 from glob import glob
 import sys
+import asyncio
+
 import argparse
 
 
@@ -746,7 +748,7 @@ class Module:
    
     @classmethod
     def tmp_dir(cls):
-        return f'/tmp/{cls.__local_file__().replace(".py", "")}'
+        return f'/.{cls.__local_file__().replace(".py", "")}'
 
     ############ JSON LAND ###############
 
@@ -931,7 +933,6 @@ class Module:
         peer_addresses = cls.get_peer_addresses()
         peer = ['']
         jobs = []
-        import asyncio
         for address in peer_addresses:
             ip, port = address.split(':')
             jobs += [cls.async_connect(ip=ip, port=port, timeout=timeout)]
@@ -1546,10 +1547,7 @@ class Module:
         else:
             module = cls
             
-        
-        
-
-        name = module.module_name() if name == None else name
+        name = lower(module.module_name()) if name == None else name
             
     
         module_path = module.__module_file__()
@@ -1636,9 +1634,13 @@ class Module:
         return API(*args, **kwargs)
     @classmethod
     def sandbox(cls, **kwargs):
+        
      
         import commune
         commune = commune
+        commune.new_event_loop()
+        commune.nest_asyncio()
+
         batch_count = 100
         print(cls.server_registry())
         

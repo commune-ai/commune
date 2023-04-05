@@ -54,10 +54,16 @@ class TransformerModel( Model):
         'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
         'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
         'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+        
+        # llama
+        'llama': 'decapoda-research/llama-7b-hf',
+        
+        
         # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
         'opt13b': 'facebook/opt-13b'
+        
         
 
          }
