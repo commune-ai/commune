@@ -20,8 +20,15 @@ class CLI(commune.Module):
 
         # config = self.set_config(config)
         # self.argparse()
-        getattr(self, args[0])(*args[1:])
+        if len(args)== 0:
+            self.help()
+        else:
+            fn = args.pop(0)
+            self.print(f"fn: {fn} args: {args}", color='green')
+            getattr(self, fn)(*args)
         
+    def help(self):
+        self.print(self.__doc__)
     def modules(self, *args, **kwargs):
         commune.print(commune.modules())
     def functions(self, *args, **kwargs):
@@ -29,11 +36,11 @@ class CLI(commune.Module):
         
     def schema(self, *args, **kwargs):
         if len(args) == 0:
-            schema = commune.print(commune.get_function_schema_map())
+            schema = commune.schema()
         elif len(args) == 1:
-            schema = commune.print(commune.get_function_schema_map(args[0]))
+            schema = commune.schema(args[0])
 
-        # commune.print(schema)
+        commune.print(schema)
     def tree(self, *args, **kwargs):
         commune.print(commune.module_list())
 
@@ -41,6 +48,9 @@ class CLI(commune.Module):
         commune.print(commune.module_list())
 
     def launch(self, *args, **kwargs):
-        commune.print(commune.launch(*args))
+        return commune.launch(*args, **kwargs)
+
+    def deploy_fleet(self, *args, **kwargs):
+        return commune.deplouy_fleet(*args)
 
         
