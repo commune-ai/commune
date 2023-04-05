@@ -2914,8 +2914,6 @@ class Module:
     def deploy_fleet(cls):
         return cls.launchpad().deploy_fleet()
 
-# we call it whatever you want fam
-Block = Lego = Module
 
 if __name__ == "__main__":
     Module.run()
