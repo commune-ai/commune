@@ -211,7 +211,6 @@ class HFDataset(commune.Module):
         for dataset in datasets:
             commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
             cls.launch(kwargs={'path':dataset}, name=f'dataset.text.{dataset}', refresh=refresh, **kwargs)
-            commune.print(f'LAUNCHED {dataset} dataset', 'yellow')
             
             
             

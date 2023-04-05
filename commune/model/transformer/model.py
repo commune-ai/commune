@@ -581,7 +581,7 @@ class TransformerModel( Model):
             
             cls.launch(name=name,kwargs=model_kwargs, mode='pm2')
             
-        commune.print(deployed_model_names, 'green')
+            commune.print(f'Deploying Model {name}', 'green')
         return deployed_model_names
             
     @classmethod

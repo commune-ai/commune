@@ -321,7 +321,7 @@ class Module:
     @classmethod
     def run_command(cls, 
                     command:str,
-                    verbose:bool = True, 
+                    verbose:bool = False, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
                     **kwargs) -> 'subprocess.Popen':
@@ -1549,6 +1549,7 @@ class Module:
                    device:str=None, 
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
+                   verbose: bool = False, 
                    refresh:bool=True, ):
         
         # avoid these references fucking shit up
@@ -1586,7 +1587,7 @@ class Module:
             if isinstance(device, list):
                 device = ','.join(device)
             env['CUDA_VISIBLE_DEVICES']=device
-        return cls.run_command(command, env=env)
+        return cls.run_command(command, env=env, verbose=verbose)
 
     @classmethod
     def pm2_kill(cls, name:str):
