@@ -1317,12 +1317,16 @@ class Module:
         )
         return info
 
-
     @classmethod
     def schema(cls, *args, **kwargs): 
-        return cls.get_function_schema_map(*args, **kwargs)
+        function_schema_map = cls.get_function_schema_map(*args, **kwargs)
+        return {k:v['schema'] for k,v in function_schema_map.items()}
     @classmethod
-    def get_function_schema_map(cls, obj = None, include_hidden:bool = False, include_module:bool = False):
+    def get_function_schema_map(cls,
+                                obj = None,
+                                include_hidden:bool = False, 
+                                include_module:bool = False,
+                                include_docs: bool = True):
         
         obj = obj if obj else cls
         if isinstance(obj, str):
@@ -2903,7 +2907,14 @@ class Module:
         import copy
         return copy.deepcopy(data)
     
+    @classmethod
+    def launchpad(cls):
+        return cls.import_object('commune.launchpad.Launchpad')()
+    @classmethod
+    def deploy_fleet(cls):
+        return cls.launchpad().deploy_fleet()
 
+# we call it whatever you want fam
 Block = Lego = Module
 
 if __name__ == "__main__":
