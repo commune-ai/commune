@@ -51,6 +51,6 @@ class CLI(commune.Module):
         return commune.launch(*args, **kwargs)
 
     def deploy_fleet(self, *args, **kwargs):
-        return commune.deplouy_fleet(*args)
+        return commune.deploy_fleet(*args)
 
         
