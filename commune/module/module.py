@@ -3,6 +3,7 @@ import os
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
+from rich.console import Console
 import json
 from glob import glob
 import sys
@@ -26,6 +27,7 @@ class Module:
     # get the root directory (default commune)
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
+    console = Console()
     
     def __init__(self, 
                  config:Dict=None, 
@@ -664,7 +666,11 @@ class Module:
             return {cls.path2object(f):f for f in cls.get_module_python_paths()}
     @classmethod
     def list_modules(cls):
-        return cls.module_tree()
+        return list(cls.module_tree().keys())
+    @classmethod
+    def modules(cls, *args, **kwargs):
+        return cls.list_modules(*args, **kwargs)
+    
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
@@ -1177,9 +1183,6 @@ class Module:
         
     @classmethod
     def functions(cls, include_module=False):
-        
-        if cls.__str__() ==  'Module':
-            include_module = True
         functions = cls.get_functions(cls,include_module=include_module)  
         return functions
 
@@ -1190,10 +1193,12 @@ class Module:
         List of functions
         '''
         from commune.utils.function import get_functions
-        
         obj = obj if obj != None else cls
-        
 
+        if obj.__str__() ==  'Module':
+            include_module = True
+            
+    
         functions = get_functions(obj=obj)
         
         if not include_module:
@@ -1205,7 +1210,6 @@ class Module:
                 if f not in module_functions:
                     new_functions.append(f)
             functions = new_functions
-        
         return functions
 
     @classmethod
@@ -1315,10 +1319,15 @@ class Module:
 
 
     @classmethod
+    def schema(cls, *args, **kwargs): 
+        return cls.get_function_schema_map(*args, **kwargs)
+    @classmethod
     def get_function_schema_map(cls, obj = None, include_hidden:bool = False, include_module:bool = False):
         
         obj = obj if obj else cls
-        
+        if isinstance(obj, str):
+            obj = cls.module(obj)
+        cls.print(obj)
         function_schema_map = {}
         for fn in cls.get_functions(obj, include_module=include_module):
             # if not include_hidden:
@@ -1345,16 +1354,16 @@ class Module:
                 }
         return function_schema_map
     
-    def function_schema_map(self, include_hidden:bool = False, include_module:bool = False):
+    def function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
         function_schema_map = {}
-        for fn in self.functions(include_module=include_module):
+        for fn in cls.functions(include_module=include_module):
             if not include_hidden:
                 if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
                     continue
-            if callable(getattr(self, fn )):
+            if callable(getattr(cls, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
-                for fn_k, fn_v in getattr(self, fn ).__annotations__.items():
+                for fn_k, fn_v in getattr(cls, fn ).__annotations__.items():
                     
                     fn_v = str(fn_v)
                     
@@ -1367,7 +1376,7 @@ class Module:
                                         
                 function_schema_map[fn] = {
                     'schema': fn_schema,
-                    'docs': getattr(self, fn ).__doc__
+                    'docs': getattr(cls, fn ).__doc__
                 }
         return function_schema_map
     
@@ -2240,11 +2249,6 @@ class Module:
 
         return module
         
-    @classmethod
-    def print(cls, text:str, color:str='white', return_text:bool=False, verbose:bool = True):
-        if verbose:
-            logger = cls.import_object('commune.logger.Logger')
-            return logger.print(text=text, color=color, return_text=return_text)
 
     @classmethod
     def nest_asyncio(cls):
@@ -2491,12 +2495,6 @@ class Module:
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
         return json.dumps(state_dict)
     
-    @classmethod
-    def log(cls, text, mode='info'):
-        logger = cls.resolve_logger()
-        specific_logger = getattr(logger, mode)
-        return specific_logger(text)
-
 
     @classmethod
     def resolve_logger(cls, logger = None):
@@ -2514,13 +2512,30 @@ class Module:
             cls.console = Console()
         if console is not None:
             cls.console = console
-        return console
+        return cls.console
     
     @classmethod
     def critical(cls, *args, **kwargs):
         console = cls.resolve_console()
         return console.critical(*args, **kwargs)
     
+    @classmethod
+    def log(cls, *args, **kwargs):
+        console = cls.resolve_console()
+        return console.log(*args, **kwargs)
+
+    @classmethod
+    def print(cls, text:str, 
+              color:str=None, 
+              return_text:bool=False, 
+              verbose:bool = True,
+              console: Console = None,
+              **kwargs):
+        if verbose:
+            if color:
+                kwargs['style'] = color
+            console = cls.resolve_console(console)
+            return console.print(text, **kwargs)
 
     @classmethod
     def success(cls, *args, **kwargs):
@@ -2551,6 +2566,10 @@ class Module:
     def status(cls, *args, **kwargs):
         console = cls.resolve_console()
         return cls.console.status(*args, **kwargs)
+    @classmethod
+    def log(cls, *args, **kwargs):
+        console = cls.resolve_console()
+        return cls.console.log(*args, **kwargs)
        
     @classmethod
     def test(cls):
@@ -2876,9 +2895,9 @@ class Module:
         return cls.import_object('commuen.server.Server')(*args, **kwargs)
     
     @classmethod
-    def Serializer(cls, *args, **kwargs) -> 'Serializer':
+    def serializer(cls, *args, **kwargs) -> 'Serializer':
         return cls.import_object('commune.server.Serializer')(*args, **kwargs)
-    
+
     @classmethod
     def copy(cls, data: Any) -> Any:
         import copy

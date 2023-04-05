@@ -5,7 +5,13 @@ import torch
 from typing import Union, List, Any, Dict
 import commune
 # class OpenAILLM(commune.Module):
-class OpenAILLM:
+prompt = """
+Predict the topk percent for the next token 
+params:(tokenizer={tokenizer}, k={k}, text: {text}) 
+Output a dict of (token:str, score:int) and do it for 100 tokens.
+"""
+
+class OpenAILLM(commune.Module):
     def __init__(self,
                  model: str = "text-davinci-003",
                 temperature: float=0.9,
@@ -158,37 +164,21 @@ class OpenAILLM:
                          padding=padding, 
                          truncation=truncation, 
                          max_length=max_length)
-    
+    @classmethod
+    def example(cls):
+        model = cls()
+        input_ids = model.encode_tokens('Hellow how is it going')['input_ids']
+        print(model.forward(input_ids=input_ids[0], tokenizer='gpt2', k=10))
+            
 
 
-prompt = """
-Predict the topk percent for the next token 
-params:(tokenizer={tokenizer}, k={k}, text: {text}) 
-Output a dict of (token:str, score:int) and do it for 100 tokens.
-"""
+        return cls.test(cls.example_params())
 
 
 
 
 
-
-key = "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"
-
-kwargs = {'temperature': 0.9,
-          'max_tokens': 1000,
-          'top_p': 1.0, 
-          'frequency_penalty': 0.0, 
-          'presence_penalty': 0.0,
-          'prompt':prompt,
-          'key':key
-          }
-
-
-model = OpenAILLM(**kwargs)
-import json
-
-input_ids = model.encode_tokens('Hellow how is it going')['input_ids']
-print(model.forward(input_ids=input_ids[0], tokenizer='gpt2', k=10))
-    
+if __name__ == '__main__':
+    OpenAILLM.run()
 
 
