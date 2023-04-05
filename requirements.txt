@@ -1,27 +1,33 @@
 
-
-
+#api
+uvicorn
+fastapi
+# web3
+substrate-interface
+web3
+# ml
+torch
 datasets
 transformers
+diffusers
+#visual tools
+streamlit
+plotly
+# ray
+ray[default]
+ray[tune]
+#logging
+loguru
+rich
+#asyncio
 aiofiles
 aiohttp
 nest_asyncio
-plotly
-web3
-loguru
-psutil
-munch
-streamlit
-langchain
-ray[default]
-ray[tune]
-torch
-substrate-interface
-uvicorn
-fastapi
+#misc
 msgpack_numpy
 ansible
-diffusers
 retry
+psutil
+munch
 
 

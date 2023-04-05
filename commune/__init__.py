@@ -1,7 +1,9 @@
 
 
 from .module import Module
-from .config import Config as config
+from .config import Config
+from .cli import cli
+config = Config
 
 
 from rich.console import Console
@@ -11,6 +13,7 @@ console = Console()
 __ss58_format__ = 42
 # set the module functions as globals
 for f in Module.get_class_methods():
+    print(f)
     globals()[f] = getattr(Module, f)
 
 # # we want the key and wallet abstraction to be global

@@ -17,7 +17,7 @@ with open('requirements.txt') as requirements_file:
 
 setup(
     name='commune',
-    version='0.0.0',
+    version='4.20.69',
     description='commune',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -28,14 +28,15 @@ setup(
     author_email='',
     license='MIT',
     install_requires=install_requires,
-    scripts=[],
+    scripts=['commune/cli/bin'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Topic :: Software Development :: Build Tools',
 
         # Pick your license as you wish
-        'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3.7',
+        'License :: IDGAF License, Do What You Want',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.8',
     ], python_requires='>=3.7')
