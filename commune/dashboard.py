@@ -322,6 +322,9 @@ class Dashboard:
             
     @classmethod
     def streamlit(cls):
+        commune.new_event_loop()
+
+        commune.nest_asyncio()
         self = cls()
         st.set_page_config(layout="wide")
         
