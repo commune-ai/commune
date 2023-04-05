@@ -2078,7 +2078,7 @@ class Module:
             actor_map[actor_name] = actor
         return actor_map
     actor_map = ray_actor_map
-  
+    
     @classmethod
     def ray_tasks(cls, running=False, name=None, *args, **kwargs):
         ray = cls.ray_env()
@@ -2519,8 +2519,9 @@ class Module:
     @classmethod
     def critical(cls, *args, **kwargs):
         console = cls.resolve_console()
-        return cls.console.critical(*args, **kwargs)
+        return console.critical(*args, **kwargs)
     
+
     @classmethod
     def success(cls, *args, **kwargs):
         logger = cls.resolve_logger()
@@ -2876,13 +2877,14 @@ class Module:
     
     @classmethod
     def Serializer(cls, *args, **kwargs) -> 'Serializer':
-        return cls.import_object('commuen.server.Serializer')(*args, **kwargs)
+        return cls.import_object('commune.server.Serializer')(*args, **kwargs)
     
     @classmethod
     def copy(cls, data: Any) -> Any:
         import copy
         return copy.deepcopy(data)
     
+
 Block = Lego = Module
 
 if __name__ == "__main__":
