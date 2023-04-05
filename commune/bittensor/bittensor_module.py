@@ -21,6 +21,8 @@ class BittensorModule(commune.Module):
         
         self.set_subtensor(subtensor=subtensor)
         self.set_wallet(wallet=wallet)
+        if create:
+            self.create_wallet(wallet)
         
     @property
     def network_options(self):
@@ -50,14 +52,7 @@ class BittensorModule(commune.Module):
         return self.wallet
     
     @classmethod
-    def generate_mnemonic(cls, *args, **kwargs):
-        '''
-        Generate Mnemonic 
-        '''
-        from substrateinterface import Keypair
-        return Keypair.generate_mnemonic(*args, **kwargs)
-    @classmethod
-    def get_wallet(cls, wallet:Union[str, bittensor.wallet]=None) -> bittensor.wallet:
+    def get_wallet(cls, wallet:Union[str, bittensor.wallet]='ensemble.1') -> bittensor.wallet:
         if isinstance(wallet, str):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
@@ -401,10 +396,10 @@ class BittensorModule(commune.Module):
     @classmethod  
     def sandbox(cls):
         
-        st.write(cls.list_wallet_paths())
-        # for i in range(processes_per_gpus):
-        #     for dev_id in gpus:
-        #         cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='ray')
+        processes_per_gpus = 2
+        for i in range(processes_per_gpus):
+            for dev_id in commune.gpus():
+                cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='pm2')
         
         # print(cls.launch(f'register_{1}'))
         # self = cls(wallet=None)

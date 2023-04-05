@@ -364,7 +364,7 @@ class RegistrationStatisticsLogger:
             f"Time Spent Average: {timedelta(seconds=stats.time_average)}\n" if verbose else ""
         ) + \
         f"Registration Difficulty: [bold white]{millify(stats.difficulty)}[/bold white]\n" + \
-        f"Iters (Bro/Perp): [bold white]{get_human_readable(stats.hash_rate, 'H')}/s / " + \
+        f"Iters (Its/Perp): [bold white]{get_human_readable(stats.hash_rate, 'H')}/s / " + \
             f"{get_human_readable(stats.hash_rate_perpetual, 'H')}/s[/bold white]\n" + \
         f"Block Number: [bold white]{stats.block_number}[/bold white]\n" + \
         f"Block Hash: [bold white]{stats.block_hash.encode('utf-8')}[/bold white]\n"
