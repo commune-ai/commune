@@ -161,7 +161,6 @@ class DendriteModel(torch.nn.Module, commune.Module):
             logits = self.mix_response(response_tensors)
             output_dict['logits'] = logits
         
-        
         commune.print(len(response_tensors), 'green')
         if topk:   
             if len(response_tensors) > 1:
