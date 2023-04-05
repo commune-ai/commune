@@ -6,10 +6,8 @@ from munch import Munch
 import json
 from glob import glob
 import sys
-import asyncio
-
 import argparse
-
+import asyncio
 
 class Module:
     
@@ -748,7 +746,7 @@ class Module:
    
     @classmethod
     def tmp_dir(cls):
-        return f'/.{cls.__local_file__().replace(".py", "")}'
+        return f'/tmp/{cls.__local_file__().replace(".py", "")}'
 
     ############ JSON LAND ###############
 
@@ -1022,12 +1020,15 @@ class Module:
         return hasattr(obj, 'module_name')
 
     @classmethod
-    def new_event_loop(cls) -> 'asyncio.AbstractEventLoop':
+    def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
         
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        
+        if nest_asyncio:
+            cls.nest_asyncio()
         return loop
   
     @classmethod
