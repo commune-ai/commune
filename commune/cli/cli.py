@@ -49,6 +49,12 @@ class CLI(commune.Module):
 
     def list(self, *args, **kwargs):
         commune.print(commune.module_list())
+        
+    def servers(self, *args, **kwargs):
+        commune.print(commune.servers())
+
+    def pm2_list(self, *args, **kwargs):
+        commune.print(commune.pm2_list())
 
     def launch(self, *args, **kwargs):
         return commune.launch(*args, **kwargs)
