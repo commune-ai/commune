@@ -2,13 +2,13 @@ import commune
 import streamlit as st
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+# commune.print(commune.connect(**{'ip': '162.157.13.236', 'port': 9203}).server_registry())
+commune.print(commune.server_registry())
 
+# import transformers
+# device = "cpu"
 
-import transformers
-
-device = "cpu"
-
-tokenizer = transformers.LLaMATokenizer.from_pretrained("decapoda-research/llama-7b-hf")
+# tokenizer = transformers.LLaMATokenizer.from_pretrained("decapoda-research/llama-7b-hf")
 # model = AutoModelForCausalLM.from_pretrained("decapoda-research/llama-7b-hf").to(device)
 
 # batch = tokenizer(
