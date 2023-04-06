@@ -118,3 +118,43 @@ venv_up:
 
 register:
 	python3 commune/bittensor/bittensor_module.py -fn register_wallet -kwargs "{'dev_id': 1, 'wallet': 'ensemble_0.1'}"
+
+start_env:
+	chmod +x ./scripts && ./scripts/start_python_env.sh
+
+# ANSIBLE CHADGPT PLAYS
+
+play:
+	ansible-playbook -i ./ansible/inventory.yaml ./ansible/playbooks/${arg}.yaml
+
+gen_keys:
+	make play arg=gen_keys
+
+update:
+	make play arg=update
+
+sync:
+	make play arg=sync
+register:
+	make play arg=register
+
+ping:
+	ansible all -m ping -i ./ansible/inventory.yaml
+
+docker_build:
+	make play arg=docker_build
+
+chad:
+	make play arg=chad
+
+docker_ps:
+	make play arg=docker_ps
+
+list_keys:
+	make play arg=list_keys
+
+cmd:
+	ansible all -i ansible/inventory.yaml -m shell -a "${arg}"
+
+ssh:
+	ssh -i ~/.ssh/id_rsa paperspace@${arg}

@@ -69,7 +69,20 @@ class Module:
         if simple:
             return cls.path2simple(path=module_path)
         return module_path
-
+    @classmethod
+    def filepath(cls) -> str:
+        '''
+        removes the PWD with respect to where module.py is located
+        '''
+        return cls.get_module_path(simple=False)
+    
+    @classmethod
+    def dirpath(cls) -> str:
+        '''
+        removes the PWD with respect to where module.py is located
+        '''
+        return os.path.dirname(cls.filepath())
+    
     
     @classmethod
     def __local_file__(cls) -> str:
@@ -903,7 +916,7 @@ class Module:
         client_module = Client( **kwargs,**client_kwargs)
         ip = client_kwargs['ip']
         port = client_kwargs['port']
-        cls.print(f'Connecting to {name} on {ip}:{port}', 'yellow')
+        cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
 
         if virtual:
             return client_module.virtual()
@@ -1597,7 +1610,7 @@ class Module:
         return cls.run_command(f"pm2 restart {name}")
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.print(stdout, 'orange')
+            cls.print(stdout, color='orange')
             
     @classmethod
     def restart(cls, name:str, mode:str='pm2'):
@@ -1613,7 +1626,7 @@ class Module:
     def pm2_status(cls, verbose=True):
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.print(stdout, 'green')
+            cls.print(stdout,color='green')
         return stdout
 
 
@@ -1630,7 +1643,7 @@ class Module:
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
-        cls.print(args, 'cyan')
+        cls.print(args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
         return args
@@ -2431,7 +2444,7 @@ class Module:
         
             if verbose:
                 device_info = cls.gpu_info(gpu_id)
-                cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', 'yellow')
+                cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
     
     
@@ -2615,12 +2628,42 @@ class Module:
     def dict_get(cls, *args, **kwargs):
         dict_get = cls.import_object('commune.utils.dict.dict_get')
         return dict_get(*args, **kwargs)
-    
+    @classmethod
+    def dict_delete(cls, *args, **kwargs):
+        dict_delete = cls.import_object('commune.utils.dict.dict_delete')
+        return dict_delete(*args, **kwargs)
     @classmethod
     def dict_has(cls, *args, **kwargs):
         dict_has = cls.import_object('commune.utils.dict.dict_has')
         return dict_has(*args, **kwargs)
     
+    @classmethod
+    def argv(cls, include_script:bool = False):
+        import sys
+        args = sys.argv
+        if include_script:
+            return args
+        else:
+            return args[1:]
+
+    @classmethod
+    def parse_args(cls, argv = None):
+        if argv is None:
+            argv = cls.argv()
+        args = []
+        kwargs = {}
+        parsing_kwargs = False
+        for arg in argv:
+            if '=' in arg:
+                parsing_kwargs = True
+                key, value = arg.split('=', 1)
+                # use determine_type to convert the value to its actual type
+                kwargs[key] = cls.determine_type(value)
+            else:
+                assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+                args.append(arg)
+        return args, kwargs
+
     # BYTES LAND
     
     # STRING2BYTES
@@ -2914,6 +2957,40 @@ class Module:
     @classmethod
     def deploy_fleet(cls):
         return cls.launchpad().deploy_fleet()
+
+    @classmethod
+    def determine_type(cls, x):
+        if x.lower() == 'null':
+            return None
+        elif x.lower() in ['true', 'false']:
+            return bool(x.lower() == 'true')
+        elif x.startswith('[') and x.endswith(']'):
+            # this is a list
+            try:
+                list_items = x[1:-1].split(',')
+                # try to convert each item to its actual type
+                return [cls.determine_type(item.strip()) for item in list_items]
+            except:
+                # if conversion fails, return as string
+                return x
+        elif x.startswith('{') and x.endswith('}'):
+            # this is a dictionary
+            try:
+                dict_items = x[1:-1].split(',')
+                # try to convert each item to a key-value pair
+                return {key.strip(): cls.determine_type(value.strip()) for key, value in [item.split(':', 1) for item in dict_items]}
+            except:
+                # if conversion fails, return as string
+                return x
+        else:
+            # try to convert to int or float, otherwise return as string
+            try:
+                return int(x)
+            except ValueError:
+                try:
+                    return float(x)
+                except ValueError:
+                    return x
 
 
 if __name__ == "__main__":

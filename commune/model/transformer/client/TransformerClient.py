@@ -329,7 +329,7 @@ class TransformerClient(Module, nn.Module):
     @classmethod
     def test_neurons(cls, models=['model::gpt2.7b', 'model::gptjt', 'model::opt13b'], *args,**kwargs):
         for model in models:
-            cls.print(f'Testing {model}', 'purple')
+            cls.print(f'Testing {model}', color='purple')
             cls.test_neuron(model=model, tokenizer='bittensor', *args,**kwargs)
     @classmethod
     def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
