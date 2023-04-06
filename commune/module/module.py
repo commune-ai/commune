@@ -216,10 +216,11 @@ class Module:
         Loads a yaml file
         '''
         from commune.utils.dict import save_yaml
-        if isinstance(config, Munch):
-            config = munch2dict(deepcopy(config))
-        config = save_yaml(data=config , path=path)
-        return save_yaml(path)
+        if isinstance(data, Munch):
+            data = cls.munch2dict(deepcopy(data))
+            
+        print('saving yaml', path, data)
+        return save_yaml(data=data , path=path)
 
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = True, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
@@ -1517,7 +1518,7 @@ class Module:
                     refresh=refresh,
                     **extra_kwargs
             )
-            cls.print(launch_kwargs, 'yellow')
+
             assert fn != None, 'fn must be specified for pm2 launch'
             launch_fn = getattr(cls, f'pm2_launch')
             launch_fn(**launch_kwargs)
