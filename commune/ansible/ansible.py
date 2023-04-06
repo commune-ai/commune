@@ -79,13 +79,16 @@ class Ansible(commune.Module):
     @classmethod
     def sandbox(cls):
         self = cls()
-        print(self.ping())
+        self.print(self.shell('cd commune && make pull'), color='green')
         # cls.print(self.inventory)
         # self.mv_node('all2', 'all')
         # self.save()
         
     def ping(self):
         return self.cmd(f"ansible all -m ping -i {self.inventory_path}")
+    
+    def shell(self, args:str ):
+        return self.cmd(f'ansible all -i {self.inventory_path} -m shell -a "{args}"')
         
 if __name__ == '__main__':
     Ansible.run()
