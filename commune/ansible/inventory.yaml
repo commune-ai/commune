@@ -1,48 +1,25 @@
-
 all:
   hosts:
-    luckee:
-      # ssh ubuntu@15.235.85.187
-      ansible_host: 15.235.85.187
-      ansible_user: ubuntu
     amsyaoo:
-      #ssh root@87.197.111.68 -p 41133 -i ~/.ssh/id_ed25519
-
       ansible_host: 87.197.111.68
-      ansible_user: root
       ansible_port: 41133
-
-
-      #ssh root@87.197.111.68 -p 41133 -i ~/.ssh/id_ed25519
-    huck_a6000x8_0:
-      # ssh endless@162.157.13.236 -p 9000
-      ansible_user: endless
-      ansible_host: 162.157.13.236
-      ansible_port: 9000
-    
-    huck_a6000x8_1:
-      # ssh endless@162.157.13.236 -p 9201
-      ansible_user: endless
-      ansible_host: 162.157.13.236
-      ansible_port: 9201
-
-      
-    huck_a6000x8_2:
-      # ssh endless@162.157.13.236 -p 9202
-      ansible_user: endless
-      ansible_host: 162.157.13.236
-      ansible_port: 9401
-
+      ansible_user: root
     huck_a4000x6_0:
-      # ssh endless@162.157.13.236 -p 9999
-      ansible_user: endless
       ansible_host: 162.157.13.236
       ansible_port: 9999
-
-
-    # huck_3070x8_0:
-    #   # ssh endless@162.157.13.236 -p 7401
-    #   ansible_user: endless
-    #   ansible_host: 162.157.13.236
-    #   ansible_port: 7401
-    
+      ansible_user: endless
+    huck_a6000x8_0:
+      ansible_host: 162.157.13.236
+      ansible_port: 9000
+      ansible_user: endless
+    huck_a6000x8_1:
+      ansible_host: 162.157.13.236
+      ansible_port: 9201
+      ansible_user: endless
+    huck_a6000x8_2:
+      ansible_host: 162.157.13.236
+      ansible_port: 9401
+      ansible_user: endless
+    luckee:
+      ansible_host: 15.235.85.187
+      ansible_user: ubuntu

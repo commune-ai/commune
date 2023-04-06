@@ -7,16 +7,9 @@ class Ansible(commune.Module):
                  playbook_path: str=None, 
                  ):
         self.set_config()
-        self.print(self.config)
-        self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
-        self.playbook_path = self.dirpath()+'/playbook'
-        self.play_paths = self.glob(self.playbook_path+'/**')
-        self.play2path = {os.path.basename(play_path).split('.')[0]: play_path for play_path in self.play_paths}
-        self.plays = list(self.play2path.keys())
-        self.inventory = self.load_yaml(self.inventory_path)
-        self.print(self.inventory)
-        self.mv_node('all', 'all2')
-        self.print(self.inventory)
+        self.set_inventory(inventory_path)
+        self.set_playbook(playbook_path)
+        
 
         
         
@@ -37,6 +30,10 @@ class Ansible(commune.Module):
         return self.print(self.flatten_inventory(self.inventory))
         
     def cp_node(self, from_node: str, to_node: str):
+        '''
+        Copy Node
+        
+        '''
         assert self.dict_has(self.inventory, from_node), f"from_node: {from_node} not in inventory"
         assert not self.dict_has(self.inventory, to_node), f"to_node: {to_node} already in inventory"
         self.print(f"mv_node: from_node: {from_node} to_node: {to_node}")
@@ -44,12 +41,53 @@ class Ansible(commune.Module):
         to_node_data = self.copy(self.dict_get(self.inventory, to_node))
         self.dict_put(self.inventory, to_node, from_node_data)
         self.dict_delete(self.inventory, from_node)
+        
     def mv_node(self, from_node: str, to_node: str):
+        '''
+        
+        Move Node
+        '''
         self.cp_node(from_node, to_node)
         self.dict_delete(self.inventory, from_node)
 
+    def save(self):
+        self.save_yaml(path=self.inventory_path, data=self.inventory)
+        self.save_yaml(path=self.playbook_path, data=self.plays)
+    def set_inventory(self, inventory_path: str=None):
+        self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
+        self.load_yaml(path=self.inventory_path)
+        
+    def set_playbook(self, playbook_path: str=None):
+        self.playbook_path = playbook_path if playbook_path else self.dirpath()+'/playbook'
+        
+        self.play_paths = self.glob(self.playbook_path+'/**')
+        
+        self.play_paths = self.glob(self.playbook_path+'/**')
+ 
+        self.playbook = {}
+        for play_path in self.play_paths:
+            play_name = os.path.basename(play_path).split('.')[0]
+            try:
+                self.playbook[play_name] = self.load_yaml(play_path)
+            except Exception as e:
+                self.print(play_name)
+                continue
+                
+        
+        self.plays = list(self.playbook.keys())
 
-
+    @classmethod
+    def sandbox(cls):
+        self = cls()
+        print(self.ping())
+        # cls.print(self.inventory)
+        # self.mv_node('all2', 'all')
+        # self.save()
+        
+    def ping(self):
+        return self.cmd(f"ansible all -m ping -i {self.inventory_path}")
+        
 if __name__ == '__main__':
-    commune.print(commune.parse_args())
-    # Ansible.run()
+    Ansible.run()
+    
+    

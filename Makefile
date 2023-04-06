@@ -136,7 +136,8 @@ update:
 sync:
 	make play arg=sync
 register:
-	make play arg=register
+	make ConfigMixinplay arg=register
+
 
 ping:
 	ansible all -m ping -i ./ansible/inventory.yaml

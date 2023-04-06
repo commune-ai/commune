@@ -18,7 +18,7 @@ class CLI(commune.Module):
 
         ) :
         args, kwargs = self.parse_args()
-                    
+        self.print(f'{args} {kwargs}')
         if len(args)> 0:
             fn = args.pop(0)
             self.print(getattr(commune, fn)(*args, **kwargs))
