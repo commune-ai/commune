@@ -47,11 +47,9 @@ class Launchpad(commune.Module):
         
 
 
-    @property
-    def servers(self):
-        return commune.servers()
     
     def streamlit_sidebar(self):
+        import streamlit as st
         server = st.sidebar.selectbox("Select a server", self.servers)
         self.module = commune.connect(server)
         self.function_schema_map = self.module.function_schema_map()
@@ -79,6 +77,7 @@ class Launchpad(commune.Module):
             
     @classmethod
     def streamlit_markdown(cls):
+        import streamlit as st
         st.markdown(
         """
         <style>

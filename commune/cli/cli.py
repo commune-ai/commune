@@ -3,6 +3,7 @@ import argparse
 import commune
 from typing import List, Optional
 import json
+
 # Turn off rich console locals trace.
 from rich.traceback import install
 install(show_locals=False)
@@ -17,15 +18,17 @@ class CLI(commune.Module):
             config: commune.Config = None,
 
         ) :
-
-        # config = self.set_config(config)
-        # self.argparse()
-        if len(args)== 0:
-            self.help()
-        else:
-            fn = args.pop(0)
-            self.print(f"fn: {fn} args: {args}", color='green')
-            getattr(self, fn)(*args)
+        if args == None:
+            import sys
+            sys.argv[1:]
+        self.print('Fam', color='green')
+            
+        #ßå if len(args)== 0:
+        #     self.help()
+        # else:
+        #     fn = args.pop(0)
+        #     self.print(f"fn: {fn} args: {args}", color='green')
+        #     getattr(self, fn)(*args)
         
     def help(self):
         self.print(self.__doc__)

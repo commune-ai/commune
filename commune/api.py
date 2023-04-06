@@ -32,11 +32,11 @@ class API(commune.Module):
                 time.sleep(1)
                 time_elapsed += 1
                 server_running = module.server_running()
-                commune.print(f'Is Server Running {server_running} Time Elapsed: {time_elapsed}', 'yellow')
+                commune.print(f'Is Server Running {server_running} Time Elapsed: {time_elapsed}', color='yellow')
                 if server_running:
                     break
             
-            commune.print(f'COMMUNE IS SERVED {server_running}', 'green')
+            commune.print(f'COMMUNE IS SERVED {server_running}', color='green')
 
         
     

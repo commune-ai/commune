@@ -22,14 +22,12 @@ class Dashboard:
         self.peer_registry = commune.peer_registry()
         
     
-
-    
     @property
     def module_categories(self):
         return list(set([m.split('.')[0] for m in self.module_list]))
         
         
-    def set_peer(ip:str = None, port:int = None):
+    def set_peer(self, ip:str = None, port:int = None):
         if ip is None:
             ip = self.public_ip
         if port is None:

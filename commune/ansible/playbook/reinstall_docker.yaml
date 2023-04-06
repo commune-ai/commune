@@ -1,0 +1,12 @@
+    
+
+- name: Transfer and execute a script.
+  hosts: all 
+  - name: reinstall docker
+    ansible.builtin.shell: bash -c "sudo apt-get install --reinstall docker-ce"
+    args:
+      chdir: commune/
+    register: shell
+      
+  - debug: msg="{{ shell.stdout }}"
+  - debug: msg="{{ shell.stderr }}"
