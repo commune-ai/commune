@@ -14,7 +14,7 @@ import asyncio
 class Module:
     
     # port range for servers
-    port_range = [50050, 50150] 
+    default_port_range = [50050, 50150] 
     
     # default ip
     default_ip = '0.0.0.0'
@@ -444,7 +444,7 @@ class Module:
         
 
     @classmethod
-    def get_used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0'):
+    def get_used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
         '''
         Get availabel ports out of port range
         
@@ -453,8 +453,9 @@ class Module:
             ip: ip address
         
         '''
+        port_range = cls.resolve_port_range(port_range=port_range)
         if ports == None:
-            ports = list(range(*cls.port_range))
+            ports = list(range(*port_range))
         
         used_ports = []
         for port in ports: 
@@ -485,7 +486,7 @@ class Module:
     
     @classmethod
     def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
-        port_range = port_range if port_range else cls.port_range
+        port_range = cls.resolve_port_range(port_range)
         ip = ip if ip else cls.default_ip
         
         available_ports = []
@@ -520,7 +521,7 @@ class Module:
         
         Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
         '''
-        port_range = port_range if port_range else cls.port_range
+        port_range = cls.resolve_port_range(port_range)
         ip = ip if ip else cls.default_ip
         
         # return only when the port is available
@@ -570,6 +571,16 @@ class Module:
             return cls.pm2_kill(module)
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
+
+    @classmethod
+    def kill_all_servers(cls, verbose: bool = True):
+        '''
+        Kill all of the servers
+        '''
+        for module in cls.servers():
+            if verbose:
+                cls.print(f'Killing {module}', color='red')
+            cls.kill_server(module)
 
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
@@ -790,7 +801,11 @@ class Module:
     load_json = get_json
 
     @classmethod
-    def put_json(cls, path:str, data:Dict, resolve_path:bool = True, **kwargs) -> str:
+    def put_json(cls, path:str, 
+                 data:Dict, 
+                 resolve_path:bool = True,
+                  
+                 **kwargs) -> str:
         
         from commune.utils.dict import put_json
         path = cls.resolve_path(path=path, extension='json') if resolve_path else path
@@ -1047,13 +1062,12 @@ class Module:
     @classmethod
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
-        
-        
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+  
         
-        if nest_asyncio:
-            cls.nest_asyncio()
+
         return loop
   
     @classmethod
@@ -1072,12 +1086,13 @@ class Module:
     @classmethod
     def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
-        if nest_asyncio:
-            cls.nest_asyncio()
+
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = cls.new_event_loop()
+        if nest_asyncio:
+            cls.nest_asyncio()
         return loop
 
     @classmethod
@@ -1546,7 +1561,13 @@ class Module:
             launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
-         
+    @classmethod
+    def pm2_kill_all(cls, verbose:bool = True):
+        for module in cls.pm2_list():
+            
+            cls.pm2_kill(module)
+            if verbose:
+                cls.print(f'[red] Killed {module}[/red]')
     @classmethod
     def pm2_list(cls, verbose:bool = False) -> List[str]:
         output_string = cls.run_command('pm2 status', verbose=False)
@@ -2674,7 +2695,7 @@ class Module:
                 kwargs[key] = cls.determine_type(value)
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
-                args.append(arg)
+                args.append(cls.determine_type(arg))
         return args, kwargs
 
     # BYTES LAND
@@ -2982,6 +3003,7 @@ class Module:
         elif x.startswith('[') and x.endswith(']'):
             # this is a list
             try:
+                
                 list_items = x[1:-1].split(',')
                 # try to convert each item to its actual type
                 return [cls.determine_type(item.strip()) for item in list_items]
@@ -3006,8 +3028,39 @@ class Module:
                     return float(x)
                 except ValueError:
                     return x
+    default_port_range = [50050, 50150]
+    @classmethod
+    def set_port_range(cls, port_range: list = None):
+        if port_range == None:
+            port_range = cls.default_port_range
+        
+        data = dict(port_range =port_range)
+        Module.put_json('port_range', data)
+        cls.port_range = data['port_range']
+        return data['port_range']
+    
+    @classmethod
+    def get_port_range(cls, port_range: list = None) -> list:
 
-
+        if not Module.exists('port_range'):
+            cls.set_port_range(port_range)
+            
+        if port_range == None:
+            port_range = Module.get_json('port_range')['port_range']
+            
+        if len(port_range) == 0:
+            port_range = cls.default_port_range
+            
+        assert isinstance(port_range, list), 'Port range must be a list'
+        assert isinstance(port_range[0], int), 'Port range must be a list of integers'
+        assert isinstance(port_range[1], int), 'Port range must be a list of integers'
+        return port_range
+    
+    @classmethod
+    def resolve_port_range(cls, port_range: list = None) -> list:
+        return cls.get_port_range(port_range)
+        return port_range
+        
 if __name__ == "__main__":
     Module.run()
     

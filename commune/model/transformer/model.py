@@ -561,14 +561,14 @@ class TransformerModel( Model):
         default_models = [
         "gpt2.7b",
         "gpt3b",
-        "gptjt",
-        "gptjt",
+        "gptj.alpaca",
+        "gptj.nerybus",
         "gptjt_mod",
         "gptj",
         "gptj.pyg6b",
         "gptj.instruct",
         "gptj.codegen",
-        "gptj.hivemind",
+        "gptj.adventure",
         ]
         
         models = models if models else default_models
