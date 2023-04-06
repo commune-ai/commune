@@ -20,7 +20,7 @@ import commune
 class HFDataset(commune.Module):
     def __init__(self,
                 path: str = 'pile',
-                name:str = 'free_law',
+                name:str = None,
                 text_field:str = None,
                 split: str = 'train',
                 sample_index = [0,1000],

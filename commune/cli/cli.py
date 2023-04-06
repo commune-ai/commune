@@ -18,13 +18,11 @@ class CLI(commune.Module):
 
         ) :
         args, kwargs = self.parse_args()
-        
-        self.print(f'{args} {kwargs}', color='green')
-            
-        if len(args)== 0:
-            self.help()
-        else:
+                    
+        if len(args)> 0:
             fn = args.pop(0)
-            self.print(f"fn: {fn} args: {args}", color='green')
             self.print(getattr(commune, fn)(*args, **kwargs))
         
+        else:
+            self.print("No command given", color='red')
+            
