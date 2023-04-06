@@ -10,6 +10,7 @@ import sys
 import argparse
 import asyncio
 
+
 class Module:
     
     # port range for servers
@@ -872,6 +873,7 @@ class Module:
 
     @classmethod
     def connect(cls, *args, **kwargs):
+        
         loop = kwargs.get('loop', cls.get_event_loop())
         return loop.run_until_complete(cls.async_connect(*args, **kwargs))
         
@@ -924,10 +926,13 @@ class Module:
         
         return client_module
    
+    nest_asyncio_enabled : bool = False
     @classmethod
     def nest_asyncio(cls):
+        assert not cls.nest_asyncio_enabled, 'Nest Asyncio already enabled'
         import nest_asyncio
         nest_asyncio.apply()
+        nest_asyncio_enabled = True
         
         
     @classmethod
@@ -1065,8 +1070,10 @@ class Module:
         return loop
 
     @classmethod
-    def get_event_loop(cls) -> 'asyncio.AbstractEventLoop':
+    def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
+        if nest_asyncio:
+            cls.nest_asyncio()
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
