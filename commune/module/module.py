@@ -1205,6 +1205,8 @@ class Module:
         '''
         List of functions
         '''
+        if isinstance(obj, str):
+            obj = cls.get_module(obj)
         from commune.utils.function import get_functions
         obj = obj if obj != None else cls
 
@@ -1489,7 +1491,9 @@ class Module:
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         if module == None:
-            module = cls  
+            module = cls 
+        elif isinstance(module, str):
+            module = cls.get_module(module) 
             
         if serve and fn == None:
             fn = 'serve_module'
@@ -1498,14 +1502,8 @@ class Module:
   
         if mode == 'local':
 
-            if isinstance(module, str):
-                module_class = cls.get_module(module)
-            else:
-                module_class = cls
-            if fn == None:
-                return module_class(*args, **kwargs)
-            else:
-                return getattr(module_class, fn)(*args, **kwargs)
+
+            return getattr(module, fn)(*args, **kwargs)
 
         elif mode == 'pm2':
             
@@ -1519,6 +1517,7 @@ class Module:
                     refresh=refresh,
                     **extra_kwargs
             )
+            cls.print(launch_kwargs, 'yellow')
             assert fn != None, 'fn must be specified for pm2 launch'
             launch_fn = getattr(cls, f'pm2_launch')
             launch_fn(**launch_kwargs)
@@ -1574,16 +1573,16 @@ class Module:
             module = cls.get_module(module)
         else:
             module = cls
+        cls.print(name, 'purple')
+        name =module.module_name().lower() if name == None else name
             
-        name = lower(module.module_name()) if name == None else name
-            
-    
+        
         module_path = module.__module_file__()
         module_id = cls.get_module_id(name=name, tag=tag) 
         
         # build command to run pm2
         command = f" pm2 start {module_path} --name {module_id} --interpreter {interpreter}"
-        
+        cls.print(command,color='purple')
         # convert args and kwargs to json strings
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         args_str = json.dumps(args).replace('"', "'")
@@ -1600,7 +1599,8 @@ class Module:
             if isinstance(device, list):
                 device = ','.join(device)
             env['CUDA_VISIBLE_DEVICES']=device
-        return cls.run_command(command, env=env, verbose=verbose)
+        cls.run_command(command, env=env, verbose=verbose)
+        return name
 
     @classmethod
     def pm2_kill(cls, name:str):
