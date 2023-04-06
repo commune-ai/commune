@@ -1503,13 +1503,13 @@ class Module:
         elif isinstance(module, str):
             module = cls.get_module(module) 
             
+            
         if serve and fn == None:
             fn = 'serve_module'
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)
   
         if mode == 'local':
-
 
             return getattr(module, fn)(*args, **kwargs)
 
@@ -1529,6 +1529,7 @@ class Module:
             assert fn != None, 'fn must be specified for pm2 launch'
             launch_fn = getattr(cls, f'pm2_launch')
             launch_fn(**launch_kwargs)
+            
         elif mode == 'ray':
             launch_kwargs = dict(
                     module=module, 
@@ -1570,7 +1571,8 @@ class Module:
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
                    verbose: bool = False, 
-                   refresh:bool=True, ):
+                   refresh:bool=True ):
+        
         
         # avoid these references fucking shit up
         args = args if args else []
@@ -1579,8 +1581,9 @@ class Module:
         if isinstance(module, str):
             assert isinstance(module, str), f'module must be a string, not {type(module)}'
             module = cls.get_module(module)
-        else:
+        elif module == None:
             module = cls
+            
         cls.print(name, 'purple')
         name =module.module_name().lower() if name == None else name
             
@@ -1590,6 +1593,8 @@ class Module:
         
         # build command to run pm2
         command = f" pm2 start {module_path} --name {module_id} --interpreter {interpreter}"
+        if no_autorestart:
+            command = command + ' ' + '--no-autorestart'
         cls.print(command,color='purple')
         # convert args and kwargs to json strings
         kwargs_str = json.dumps(kwargs).replace('"', "'")
@@ -2551,7 +2556,7 @@ class Module:
         return console.log(*args, **kwargs)
 
     @classmethod
-    def print(cls, text:str, 
+    def print(cls, *text:str, 
               color:str=None, 
               return_text:bool=False, 
               verbose:bool = True,
@@ -2561,7 +2566,7 @@ class Module:
             if color:
                 kwargs['style'] = color
             console = cls.resolve_console(console)
-            return console.print(text, **kwargs)
+            return console.print(*text, **kwargs)
 
     @classmethod
     def success(cls, *args, **kwargs):
@@ -2794,11 +2799,13 @@ class Module:
         data = cls.python2str(data)
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
-    def call(self, module:str, fn: str ,  *args, **kwargs) -> None:
+    @classmethod
+    def call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
-        module = self.get_module(module)
+        module = cls.connect(module)
+        cls.print(module)
         module_fn = getattr(module, fn)
-        return module_fn(*args, **kwargs)
+        return module.remote_call(remote_fn=fn, *args, **kwargs)
         
     def resolve_key(self, key: str) -> str:
         if key == None:
