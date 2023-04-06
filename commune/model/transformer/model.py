@@ -51,27 +51,27 @@ class TransformerModel( Model):
         'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
         'gptj': 'EleutherAI/gpt-j-6b',
         'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+        # 'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
         'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
         'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-        
+        'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+        'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+
         # llama
         'llama': 'decapoda-research/llama-7b-hf',
-        
-        
+    
         # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
         'opt13b': 'facebook/opt-13b'
-        
-        
 
          }
     
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6b",
-                model: str="gpt125m",
+                model: str="gptj.adventure",
                 tag :str = None,
                 tokenizer:str = None,
                 device: str = 'cuda',
@@ -236,6 +236,7 @@ class TransformerModel( Model):
         else:
             raise ValueError(f'invalid model type: {type(model)}')
         
+        
         if hasattr(self, 'model_name') and self.model_name == model_name:
             pass
 
@@ -243,6 +244,8 @@ class TransformerModel( Model):
             self.model_name =  model_name
             self.model_path = self.shortcuts.get(model_name, model_name)
             # config = AutoConfig.from_pretrained(self.model_name)
+            
+            print(f'loading model from {self.model_path}...')
             
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path)        
             
@@ -261,14 +264,19 @@ class TransformerModel( Model):
         from transformers import AutoTokenizer
         
         if isinstance(tokenizer, str):
+
             tokenizer = self.shortcuts.get(tokenizer, tokenizer)
             self.config['tokenizer'] = tokenizer
-
+            
             try:
+                # HACK TO INCLUDE LLAMA TOKENIZER
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
             except ValueError:
+                
                 print('resorting ot use_fast = False')
                 tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+   
         
         self.tokenizer = tokenizer
         

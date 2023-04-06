@@ -353,7 +353,7 @@ class Server(ServerServicer, Serializer):
         
         def print_serve_status():
             text = f'Serving {str(self.module.module_id)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}'
-            commune.print(text=text, color='green')
+            commune.print(text, color='green')
 
 
         while True:

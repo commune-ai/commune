@@ -23,7 +23,7 @@ import os
 # commune.utils
 from torch import nn
 from torch import Tensor
-from ensemble_blocks import AdapterModel
+from commune.model.ensemble.ensemble_blocks import AdapterModel
 from commune.model import Model
 """
 Examples 
@@ -159,7 +159,7 @@ class EnsembleModel( Model):
     
         model_names = selected_models
         for model_i, peer_output in enumerate(peer_outputs):
-            print(model_i, peer_output, 'BROOO')
+            print(model_i, peer_output['topk'].shape, 'BROOO')
             if 'topk'  in peer_output:
                 peer_output['logits'] = decode_topk(peer_output['topk'], vocab_size=int(max_token_index+1), topk= kwargs['topk'])
                 peer_outputs[model_i] = peer_output
@@ -211,7 +211,7 @@ class EnsembleModel( Model):
         for model_i, peer_output in enumerate(peer_outputs):
             pred = peer_output['logits']
             peer_score = prior_routing_scores[model_i, ...][:].to(self.device) #+ peer_output['routing_score'][model_i])/2
-            
+            self.print(pred.shape, prior_routing_scores[model_i].shape, 'BROOO')
             output_dict['peer_logits'] += [torch.einsum('ijk,i -> ijk', pred , prior_routing_scores[model_i])]
         
         
@@ -283,7 +283,7 @@ class EnsembleModel( Model):
         return self.tokenizer(text, return_tensors='pt').input_ids.to(self.device)
 
     @classmethod
-    def get_dataset(cls, dataset: str = 'dataset.bittensor', device: str=None, refresh:bool = True) -> torch.utils.data.Dataset:
+    def get_dataset(cls, dataset: str = 'dataset.text.bittensor', device: str=None, refresh:bool = True) -> torch.utils.data.Dataset:
         """ Returns a torch dataset. """
         if not cls.server_exists(dataset) or refresh:
             commune.launch('dataset.text.bittensor', name=dataset)
@@ -370,9 +370,9 @@ class EnsembleModel( Model):
     def sandbox(cls):
         
         self = cls()
-        # commune.launch(module = 'dataset.text.bittensor', name='dataset.bittensor')
+        # commune.launch(module = 'dataset.text.bittensor', name='dataset.text.bittensor')
         
-        dataset = commune.connect('dataset.bittensor')
+        dataset = commune.connect('dataset.text.bittensor')
         sample = dataset.sample()
         self.forward(**sample)
         # st.write(dataset.sample())

@@ -12,7 +12,7 @@ class Validator(commune.Module):
                  batch_size: int = 10,
                  sequence_length: int = 128,
                  dataset: str = 'dataset',
-                 miners: List[str]= None,
+                 models: List[str]= None,
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
@@ -24,7 +24,7 @@ class Validator(commune.Module):
         self.set_sequence_length(sequence_length)
                 
         self.set_dataset(dataset)
-        self.set_miners(miners)
+        self.set_models(models)
         self.set_key(key)
         self.set_metric(metric)
         self.set_stats(stats)
@@ -43,18 +43,18 @@ class Validator(commune.Module):
     def verify_signature(self, signature: Dict) -> bool:
         return True
     
-    def add_miner(self, miner: str, signature: Dict = None) -> None:
-        if not hasattr(self, 'miners'):
-            self.miners = {}
-        self.miners[miner] = commune.connect(miner)
+    def add_model(self, model: str, signature: Dict = None) -> None:
+        if not hasattr(self, 'models'):
+            self.models = {}
+        self.models[model] = commune.connect(model)
 
             
-    def set_miners(self, miners: List[str] = None) -> None:
-        if miners == None:
-            miners = self.default_miners()
+    def set_models(self, models: List[str] = None) -> None:
+        if models == None:
+            models = self.default_models()
             
-        for miner in miners:
-            self.add_miner(miner)
+        for model in models:
+            self.add_model(model)
     
     def set_dataset(self, dataset: str) -> None:
         if isinstance(dataset, str):
@@ -101,8 +101,8 @@ class Validator(commune.Module):
         ))
         return self.dataset.sample(**kwargs)
     @property
-    def miner_keys(self):
-        return list(self.miners.keys())
+    def model_keys(self):
+        return list(self.models.keys())
     
     def set_stats(self, stats: Dict[str, Any]) -> None:
         if stats is None:
@@ -132,32 +132,35 @@ class Validator(commune.Module):
 
         return sample_metadata
             
-             
-            
+    @property
+    def default_loss(self) -> float:
+        return 10.0
     
-    async def validate_miner(self, miner_key: str = None, **kwargs):
-        miner_key = miner_key if miner_key else self.random_miner_key()
-        miner = self.miners[miner_key]
+    async def validate_model(self, model_key: str = None, **kwargs):
+        model_key = model_key if model_key else self.random_model_key()
+        model = self.models[model_key]
         sample = self.sample()
         
         
         t= commune.timer()
-        print('sample', sample.keys())
-        output = miner.forward(**sample, topk=4096)
-        
-        output['logits'] = self.decode_topk(output['topk'], topk=4096, vocab_size=50500)
-        print('sample', output.keys())
+        output = model.forward(**sample, topk=4096)
+        if 'topk' in output:
+            output['logits'] = self.decode_topk(output['topk'], topk=4096, vocab_size=50500)
+                
+            output['input_ids'] = sample['input_ids']
+            # calculate metric
+            metric = self.calculate_metric(output)
+        else:
+            metric = self.default_loss
+            
         elapsed_time =  t.seconds
-        output['input_ids'] = sample['input_ids']
-        print(sample['input_ids'].max())
-        
-        # calculate metric
-        metric = self.calculate_metric(output)
-        print(metric)
-        
+        # is the metric nan?
+        if metric != metric:
+            print(f'nan metric for model: {model_key}')
+        print(model_key,metric)
         
 
-        miner_stat={ 
+        model_stat={ 
                         'metric': metric,
                         'timestamp': commune.time(),
                         'elapsed_time': elapsed_time,
@@ -165,7 +168,7 @@ class Validator(commune.Module):
                              }
         
         
-        self.set_stat(key=miner_key, stat = miner_stat)
+        self.set_stat(key=model_key, stat = model_stat)
         
         
         return metric
@@ -193,21 +196,21 @@ class Validator(commune.Module):
             weight_map[k] = weight_map[k] / total_weights
             self.stats[k]['weight'] = weight_map[k]
             
-    def random_miner_key(self):
-        random_miner_key = random.choice(self.miner_keys)
-        return random_miner_key
+    def random_model_key(self):
+        random_model_key = random.choice(self.model_keys)
+        return random_model_key
 
-    def random_miner(self):
-        random_miner_key = self.random_miner_key()
-        return self.miners[random_miner_key]
+    def random_model(self):
+        random_model_key = self.random_model_key()
+        return self.models[random_model_key]
     
     
     @classmethod
     def test(cls):
-        miners = [m for m in commune.servers() if m.startswith('miner')]
-        self = Validator(miners=miners)
+        models = [m for m in commune.servers() if m.startswith('model')]
+        self = Validator(models=models)
         for _ in range(10):
-            st.write(self.validate_miner())
+            st.write(self.validate_model())
         self.calculate_weights()
         st.write(self.stats)
       
@@ -223,8 +226,8 @@ class Validator(commune.Module):
         
         
     @classmethod 
-    def default_miners(cls):
-        return [m for m in commune.servers() if m.startswith('miner')]
+    def default_models(cls):
+        return [m for m in commune.servers() if m.startswith('model')]
     
     
     @classmethod
@@ -252,8 +255,8 @@ if __name__ == '__main__':
 
     # self = Validator(
         
-    validator =  Validator(miners=None, dataset='dataset.text.wikitext')
+    validator =  Validator(models=None, dataset='dataset.text.wikitext')
     t = commune.timer()
-    # asyncio.run(asyncio.gather(*[validator.validate_miner(miner) for miner in validator.miners]))
-    [asyncio.run(validator.validate_miner(miner)) for miner in validator.miners]
+    # asyncio.run(asyncio.gather(*[validator.validate_model(model) for model in validator.models]))
+    [asyncio.run(validator.validate_model(model)) for model in validator.models]
     # print(validator.dataset.sample(batch_size=32, sequence_length=256, tokenize=True))
