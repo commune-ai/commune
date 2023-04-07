@@ -3063,6 +3063,11 @@ class Module:
     def resolve_port_range(cls, port_range: list = None) -> list:
         return cls.get_port_range(port_range)
         return port_range
+    
+    @classmethod 
+    def ansible(cls, *args, fn='shell', **kwargs):
+        ansible_module = cls.get_module('ansible')()
+        return getattr(ansible_module, fn)(*args, **kwargs)
         
 if __name__ == "__main__":
     Module.run()
