@@ -19,8 +19,10 @@ class Module:
     # default ip
     default_ip = '0.0.0.0'
     
+    
     # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
+    repo_path  = os.path.dirname(root_path)
     
     # get the current working directory  (doesnt have /)
     pwd = os.getenv('PWD')
@@ -44,8 +46,9 @@ class Module:
             self.set_key(key)
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
-    
-    
+    @classmethod
+    def getclassattr(cls, k:str)-> Any:
+        return getattr(cls,  k)
     
     
     
@@ -90,7 +93,7 @@ class Module:
         '''
         removes the PWD with respect to where module.py is located
         '''
-        return cls.get_module_path(simple=False).replace(cls.pwd+'/', '')
+        return cls.get_module_path(simple=False).replace(cls.repo_path+'/', '')
     
     @classmethod
     def __simple_file__(cls) -> str:
@@ -617,7 +620,7 @@ class Module:
         return simple_path
     @classmethod
     def path2localpath(cls, path:str) -> str:
-        local_path = path.replace(cls.pwd, cls.root_dir)
+        local_path = path.replace(cls.repo_path, cls.root_dir)
         return local_path
     @classmethod
     def path2config(cls, path:str, to_munch=False)-> dict:
@@ -650,7 +653,7 @@ class Module:
         else:
             config = cls.path2config(path=path, to_munch=False)
             object_name = config.get('module', config.get('name')) 
-        path = path.replace(cls.pwd+'/', '').replace('.py','.').replace('/', '.') 
+        path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         if path[-1] != '.':
             path = path + '.'
         path = path + object_name
@@ -1033,7 +1036,7 @@ class Module:
   
     @classmethod
     def servers(cls, search:str = None, ) -> List[str]:
-        
+
         servers =  list(cls.server_registry().keys())
         
         # filter based on the search
