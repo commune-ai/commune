@@ -554,11 +554,8 @@ class TransformerModel( Model):
                 input_ids = torch.clip(input_ids, max=model.config['model']['vocab_size']-1)
                 st.write(model.forward(input_ids=input_ids))
          
-         
-    @classmethod
-    def deploy_fleet(cls, models: List[str] = None) -> List[str]:
-
-        default_models = [
+       
+    default_models = [
         "gpt2.7b",
         "gpt3b",
         "gptj.alpaca",
@@ -570,7 +567,14 @@ class TransformerModel( Model):
         "gptj.codegen",
         "gptj.adventure",
         ]
-        
+          
+    @classmethod
+    def deploy_fleet(cls, 
+                     models: List[str] = None,
+                     mode: str = 'cpu',
+                     ) -> List[str]:
+
+
         models = models if models else default_models
         
         
