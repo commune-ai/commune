@@ -99,12 +99,35 @@ class Ansible(commune.Module):
             inventory_group = self.inventory_groups[0]
         return inventory_group
     
-    def shell(self, args:str , inventory_group  : str = None) -> str:
+    def shell(self, args:str ,
+              inventory_group  : str = None, 
+              chdir:str="commune", 
+              verbose:bool = True,
+              return_output:bool = False) -> dict:
         inventory_group = self.resolve_inventory(inventory_group)
-        return self.cmd(f'ansible {inventory_group} -i {self.inventory_path} -m shell -a "{args}"')
+        command = f'ansible {inventory_group} -i {self.inventory_path} -m shell -a "cd {chdir}; {args}"'
+        output_text = self.cmd(command, output_text=True)
+        node_chunks = output_text.split('>>')
+        self.print(node_chunks)
+        node2stdout = {}
+        for i, node_chunk in enumerate(node_chunks):
+            if i == 0:
+                node_name = node_chunk.split('|')[0].strip()
+            else:
+                node_name = node_chunks[i-1].split('\n')[-1].split('|')[0].strip()
+            if i < len(node_chunks)-1:
+                node_chunk = '\n'.join(node_chunk.split('\n')[:-1])
+            node2stdout[node_name] = node_chunk
+        if verbose:
+            for node_name, stdout in node2stdout.items():
+                self.print(f"\n\n[purple bold]NODE[/purple bold]: [cyan bold]{node_name} [/cyan bold]\n")
+                self.print(stdout, color='green')
+        if return_output: 
+    
+            return node2stdout
         
     @classmethod
-    def sandbox(cls):
+    def sandbox(cls, ):
         self = cls()
         cls.print(self.shell('ls'))
 if __name__ == '__main__':
