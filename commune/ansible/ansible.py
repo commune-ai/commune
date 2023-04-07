@@ -55,7 +55,7 @@ class Ansible(commune.Module):
         self.save_yaml(path=self.playbook_path, data=self.plays)
     def set_inventory(self, inventory_path: str=None):
         self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
-        self.load_yaml(path=self.inventory_path)
+        self.inventory = self.load_yaml(path=self.inventory_path)
         
     def set_playbook(self, playbook_path: str=None):
         self.playbook_path = playbook_path if playbook_path else self.dirpath()+'/playbook'
@@ -84,12 +84,29 @@ class Ansible(commune.Module):
         # self.mv_node('all2', 'all')
         # self.save()
         
+        
+        
+    def play(self, play_name: str):
+        return self.cmd(f"ansible-playbook {self.playbook_path}/{play_name}.yaml -i {self.inventory_path}")
     def ping(self):
         return self.cmd(f"ansible all -m ping -i {self.inventory_path}")
     
-    def shell(self, args:str ):
-        return self.cmd(f'ansible all -i {self.inventory_path} -m shell -a "{args}"')
+    @property
+    def inventory_groups(self) -> list:
+        return list(self.inventory.keys())
+    def resolve_inventory(self, inventory_group: str) -> str:
+        if inventory_group == None:
+            inventory_group = self.inventory_groups[0]
+        return inventory_group
+    
+    def shell(self, args:str , inventory_group  : str = None) -> str:
+        inventory_group = self.resolve_inventory(inventory_group)
+        return self.cmd(f'ansible {inventory_group} -i {self.inventory_path} -m shell -a "{args}"')
         
+    @classmethod
+    def sandbox(cls):
+        self = cls()
+        cls.print(self.shell('ls'))
 if __name__ == '__main__':
     Ansible.run()
     
