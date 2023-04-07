@@ -69,7 +69,7 @@ class Subspace(commune.Module):
 
     network2url_map = {
         'local': 'ws://127.0.0.1:9944',
-        'testnet': 'ws://162.157.13.236:9944'
+        'testnet': 'ws://162.157.13.236:9500'
         }
     @classmethod
     def network2url(cls, network:str) -> str:
@@ -143,6 +143,7 @@ class Subspace(commune.Module):
         url = self.resolve_network_url(network)
         self.url = self.chain_endpoint = url
         
+        self.print(url, 'broooo red')
         self.substrate= SubstrateInterface(
                                     url=url, 
                                     websocket=websocket, 
