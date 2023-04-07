@@ -69,7 +69,7 @@ class Subspace(commune.Module):
 
     network2url_map = {
         'local': 'ws://127.0.0.1:9944',
-        'testnet': 'ws://162.157.13.236:9500'
+        'testnet': 'ws://162.157.13.236:9944'
         }
     @classmethod
     def network2url(cls, network:str) -> str:
@@ -1392,7 +1392,7 @@ class Subspace(commune.Module):
     @classmethod
     def sandbox(cls):
         self = cls()
-        key = commune.key('bro')
+        key = commune.key('bob')
         # # print(self.get_balance(key.public_key))
         # # self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
         if not self.is_key_registered(key=key, netuid=3):
@@ -1400,9 +1400,9 @@ class Subspace(commune.Module):
                                 netuid=3, 
                                 ip=commune.external_ip(), 
                                 port=8000, 
-                                name='fam',
+                                name='bob',
                                 context='billy'))
-        print(self.query_map_subspace('Neurons', params=[0]).records)     
+        print(self.query_map_subspace('Neurons', params=[3]).records)     
 
     
 if __name__ == "__main__":
