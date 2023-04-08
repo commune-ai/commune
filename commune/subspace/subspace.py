@@ -426,7 +426,6 @@ class Subspace(commune.Module):
                             return True
 
                         commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                        time.sleep(0.5)
                     
                     # Successful registration, final check for neuron and pubkey
                     else:
@@ -1392,21 +1391,27 @@ class Subspace(commune.Module):
          
 
             
+    def neurons(self, netuid:int = None):
+        netuid = self.resolve_netuid(netuid)
+        return self.query_map_subspace('Neurons', params=[netuid]).records
     @classmethod
     def sandbox(cls):
         self = cls()
-        key = commune.key('fam')
+        key = commune.key('fam5')
         # # print(self.get_balance(key.public_key))
         # # self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
-        cls.print(self.subnet2uid)
-        self.register(key=key, 
-                        ip=commune.external_ip(), 
-                        port=8000, 
-                        name='bro',
-                        context='whadup')
-        print(self.query_map_subspace('Neurons', params=[0]).records)     
 
-    
+        # self.register(key=key, 
+        #                 ip=commune.external_ip(), 
+        #                 port=8000, 
+        #                 name='fam5',
+        #                 netuid=0,
+        #                 context='whadup')
+
+        # cls.print(self.subnet2uid)
+        
+        cls.print(self.query_map_subspace('Neurons', params=[0]).records)
+  
 if __name__ == "__main__":
     Subspace.run()
     # st.write(key.sign('data'))

@@ -207,18 +207,24 @@ class Module:
         return munch2dict(x)
     
     @classmethod
-    def load_yaml(cls, path:str=None) -> Dict:
+    def load_yaml(cls, path:str=None, resolve_path:bool = False) -> Dict:
         '''
         Loads a yaml file
         '''
+        if resolve_path:
+            path = cls.resolve_path(path)
+        
         from commune.utils.dict import load_yaml
         return load_yaml(path)
 
     @classmethod
-    def save_yaml(cls, path:str,  data:Union[Dict, Munch]) -> Dict:
+    def save_yaml(cls, path:str,  data:Union[Dict, Munch], resolve_path: bool = False) -> Dict:
         '''
         Loads a yaml file
         '''
+        if resolve_path:
+            path = cls.resolve_path(path)
+            
         from commune.utils.dict import save_yaml
         if isinstance(data, Munch):
             data = cls.munch2dict(deepcopy(data))
@@ -1694,37 +1700,13 @@ class Module:
         else:
             return getattr(cls, args.function)(*args.args, **args.kwargs)     
        
+    
     @classmethod
     def api(cls, *args, **kwargs):
         from commune.api import API
         return API(*args, **kwargs)
-    @classmethod
-    def sandbox(cls, **kwargs):
-        
-     
-        import commune
-        commune = commune
-        commune.new_event_loop()
-        commune.nest_asyncio()
-
-        batch_count = 100
-        print(cls.server_registry())
-        
-        # t = commune.timer()
-        dataset =  cls.connect('dataset.bittensor')
-        model =  cls.connect('model.transformer::gptj')
-        t = commune.timer()
-
-        sample = dataset(fn='sample', kwargs=dict(batch_size=32, sequence_length=256))
-        sample['output_hidden_states'] =  False
-        sample['output_logits'] =  False
-        sample['topk'] =  10
-        sample['output_length'] = 10
-        # sample['topk'] = True
-        print(model(fn='forward', kwargs=sample)['hidden_states'].shape)
-        print(t.seconds)
-        
     
+
     
     @classmethod
     def get_methods(cls, obj:type= None, modes:Union[str, List[str]] = 'all',  ) -> List[str]:
