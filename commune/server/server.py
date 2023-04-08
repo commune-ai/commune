@@ -115,8 +115,7 @@ class Server(ServerServicer, Serializer):
     def add_whitelist_functions(self, functions: List[str]):
         if not hasattr(self, 'whitelist_functions'):
             self.whitelist_functions = []
-            
-        commune.print(f'Adding whitelist functions: {functions}','purple')
+        commune.print(f'Adding whitelist functions: {functions}',color='purple')
         self.whitelist_functions += functions
     def add_blacklist_functions(self, functions: List[str]):
         if not hasattr(self, 'blacklist_functions'):

@@ -206,7 +206,7 @@ if __name__ == "__main__":
     #                 )
     # AdapterModel.run()
     # EnsembleModel.run_neuron()
-    # AdapterModel.serve_module(wait_for_termination=False)
+    # AdapterModel.serve(wait_for_termination=False)
     # AdapterModel.run()
     # print('FUCK')
     # TransformerModel('gptj', tag='demo', load=True).save_pretrained()
