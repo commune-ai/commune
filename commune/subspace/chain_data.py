@@ -48,6 +48,9 @@ custom_rpc_type_registry = {
                 ["key", "AccountId"],
                 ["uid", "Compact<u16>"],
                 ["netuid", "Compact<u16>"],
+                ["name", "Vec<u8>"],
+                ["context", "Vec<u8>"],
+
                 ["active", "bool"],
                 ["stake", "Vec<(AccountId, Compact<u64>)>"],
                 ["rank", "Compact<u16>"],

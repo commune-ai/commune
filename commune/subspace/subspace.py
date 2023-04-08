@@ -352,8 +352,8 @@ class Subspace(commune.Module):
         
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
-        if  self.is_key_registered(key=key, netuid=netuid):
-            self.print(":cross_mark: [red]Failed[/red]: error: [bold white]key:[/bold white]{} is already registered on [bold white]subnet:{}[/bold white]".format(key, netuid))
+        # if  self.is_key_registered(key=key, netuid=netuid):
+        #     self.print(":cross_mark: [red]Failed[/red]: error: [bold white]key:[/bold white]{} is already registered on [bold white]subnet:{}[/bold white]".format(key, netuid))
 
 
 
@@ -373,17 +373,6 @@ class Subspace(commune.Module):
             commune.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
             return False
 
-        
-        with commune.status(f":satellite: Checking Account on [bold]subnet:{netuid}[/bold]..."):
-            if self.is_key_registered(key=key, netuid = netuid):
-                neuron = self.get_neuron_for_pubkey_and_subnet( key.ss58_address, netuid = netuid )
-                commune.status(
-                ':white_heavy_check_mark: [green]Already Registered[/green]:\n'\
-                'uid: [bold white]{}[/bold white]\n' \
-                'netuid: [bold white]{}[/bold white]\n' \
-                'key: [bold white]{}[/bold white]\n' \
-                .format(neuron.uid, neuron.netuid, neuron.key))
-                return True
 
 
         # Attempt rolling registration.
@@ -391,55 +380,50 @@ class Subspace(commune.Module):
         while True:
             commune.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
 
-            # pow failed
-            # might be registered already on this subnet
-            if  self.is_key_registered(key=key, netuid = netuid):
-                commune.print(f":white_heavy_check_mark: [green]Already registered on netuid:{netuid}[/green]")
-                return True
-            else:
-                with self.substrate as substrate:
-                    # create extrinsic call
-                    call = substrate.compose_call( 
-                        call_module='SubspaceModule',  
-                        call_function='register', 
-                        call_params={ 
-                            'netuid': netuid,
-                            'ip': ip,
-                            'port': port,
-                            'name': name,
-                            'context': context,
-                        } 
-                    )
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
-                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
-                    # We only wait here if we expect finalization.
-                    if not wait_for_finalization and not wait_for_inclusion:
-                        commune.print(":white_heavy_check_mark: [green]Sent[/green]")
-                        return True
-                    
-                    # process if registration successful, try again if pow is still valid
-                    response.process_events()
-                    if not response.is_success:
-                        if 'key is already registered' in response.error_message:
-                            # Error meant that the key is already registered.
-                            commune.print(f":white_heavy_check_mark: [green]Already Registered on [bold]subnet:{netuid}[/bold][/green]")
-                            return True
 
-                        commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                    
-                    # Successful registration, final check for neuron and pubkey
+            with self.substrate as substrate:
+                # create extrinsic call
+                call = substrate.compose_call( 
+                    call_module='SubspaceModule',  
+                    call_function='register', 
+                    call_params={ 
+                        'netuid': netuid,
+                        'ip': ip,
+                        'port': port,
+                        'name': name,
+                        'context': context,
+                    } 
+                )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
+                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
+                # We only wait here if we expect finalization.
+                if not wait_for_finalization and not wait_for_inclusion:
+                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    return True
+                
+                # process if registration successful, try again if pow is still valid
+                response.process_events()
+                if not response.is_success:
+                    if 'key is already registered' in response.error_message:
+                        # Error meant that the key is already registered.
+                        commune.print(f":white_heavy_check_mark: [green]Already Registered on [bold]subnet:{netuid}[/bold][/green]")
+                        return True
+
+                    commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                
+                # Successful registration, final check for neuron and pubkey
+                else:
+                    commune.print(":satellite: Checking Balance...")
+                    is_registered = self.is_key_registered( key=key,netuid = netuid )
+                    if is_registered:
+                        commune.print(":white_heavy_check_mark: [green]Registered[/green]")
+                        return True
                     else:
-                        commune.print(":satellite: Checking Balance...")
-                        is_registered = self.is_key_registered( key=key,netuid = netuid )
-                        if is_registered:
-                            commune.print(":white_heavy_check_mark: [green]Registered[/green]")
-                            return True
-                        else:
-                            # neuron not found, try again
-                            commune.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
-                            continue
-            
-                    
+                        # neuron not found, try again
+                        commune.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
+                        continue
+        
+                
             if attempts < max_allowed_attempts:
                 #Failed registration, retry pow
                 attempts += 1
@@ -1186,7 +1170,7 @@ class Subspace(commune.Module):
                 )
         json_body = make_substrate_call_with_retry()
         result = json_body['result']
-
+        self.print(result, 'RESULT')
         if result in (None, []):
             return NeuronInfo._null_neuron()
         return NeuronInfo.from_vec_u8( result ) 
