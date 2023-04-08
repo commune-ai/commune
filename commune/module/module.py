@@ -856,7 +856,7 @@ class Module:
     
 
     @classmethod
-    def ls(cls, path:str, recursive:bool = True, resolve_path: bool = False):
+    def ls(cls, path:str = '', recursive:bool = True, resolve_path: bool = False):
         path = cls.resolve_path(path, extension=None) if resolve_path else path
 
         return cls.lsdir(path) if not recursive else cls.walk(path)
@@ -1362,6 +1362,7 @@ class Module:
     def schema(cls, *args, **kwargs): 
         function_schema_map = cls.get_function_schema_map(*args, **kwargs)
         return {k:v['schema'] for k,v in function_schema_map.items()}
+    
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,

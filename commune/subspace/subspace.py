@@ -294,7 +294,7 @@ class Subspace(commune.Module):
         context: str = b'',
         ip: str = None,
         port: int = None,
-        netuid :int = 3 ,
+        netuid :int = None ,
         key: 'commune.Key' = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
@@ -340,6 +340,9 @@ class Subspace(commune.Module):
         
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
+        if  self.is_key_registered(key=key, netuid=netuid):
+            self.print(":cross_mark: [red]Failed[/red]: error: [bold white]key:[/bold white]{} is already registered on [bold white]subnet:{}[/bold white]".format(key, netuid))
+
 
 
         if isinstance(ip, str):
@@ -1306,10 +1309,10 @@ class Subspace(commune.Module):
     @property
     def default_subnet(self) -> str:
         for k, v in self.subnet2uid.items():
-            if v == 1:
+            if v == 0:
                 return k
         raise Exception("No default subnet found.")
-    @classmethod
+    @property
     def default_subnet_uid(self) -> int:
         return self.subnet2uid[self.default_subnet]
     
@@ -1321,8 +1324,8 @@ class Subspace(commune.Module):
         
         subnet2uid = {}
         for r in records:
-            name = r[1].value
-            uid = int(r[0].value)
+            name = r[0].value
+            uid = int(r[1].value)
             subnet2uid[name] = int(uid)
         
         return subnet2uid
@@ -1380,24 +1383,20 @@ class Subspace(commune.Module):
     @classmethod
     def sandbox(cls):
         self = cls()
-        key = commune.key('bro')
+        key = commune.key('fam')
         # # print(self.get_balance(key.public_key))
         # # self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
-        if not self.is_key_registered(key=key, netuid=3):
-            print(self.register(key=key, 
-                                netuid=3, 
-                                ip=commune.external_ip(), 
-                                port=8000, 
-                                name='fam',
-                                context='billy'))
+        cls.print(self.subnet2uid)
+        self.register(key=key, 
+                        ip=commune.external_ip(), 
+                        port=8000, 
+                        name='bro',
+                        context='whadup')
         print(self.query_map_subspace('Neurons', params=[0]).records)     
 
     
 if __name__ == "__main__":
     Subspace.run()
-    
-
-    
     # st.write(key.sign('data'))
     
     # st.write(subspace.register(key=key, net=3))
