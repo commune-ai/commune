@@ -351,7 +351,7 @@ class Server(ServerServicer, Serializer):
         lifetime_seconds:int = 0
         
         def print_serve_status():
-            text = f'Serving {str(self.module.module_id)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}'
+            text = f'Serving {str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}'
             commune.print(text, color='green')
 
 

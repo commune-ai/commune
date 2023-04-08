@@ -127,13 +127,7 @@ class Module:
 
         
     @classmethod
-    def module_name(cls) -> str:
-        '''
-        Another name for the module path
-        '''
-        if hasattr(cls, 'module_name_class'):
-            return cls.module_name_class
-        
+    def module_class(cls) -> str:
         return cls.__name__
 
     
@@ -997,7 +991,7 @@ class Module:
         
         for peer in peers:
             try:
-                peer_name = peer.module_id
+                peer_name = peer.module_name
                 server_info = peer.server_info
             except AttributeError:
                 continue
@@ -1117,14 +1111,6 @@ class Module:
         return loop
 
     @classmethod
-    def get_module_id(cls, name:str=None, tag:str=None) -> str:
-        module_id = name if name else cls.module_name()
-            
-        if tag:
-            module_id = f'{module_id}::{tag}'
-        return module_id
-    
-    @classmethod
     def server_exists(cls, name:str) -> bool:
         servers = cls.servers()
         return bool(name in cls.servers())
@@ -1179,9 +1165,15 @@ class Module:
     @classmethod
     def serve(cls, 
               module:Any = None ,
-              port:int=None ,
-              ip:str=None, 
               name:str=None, 
+              ip:str=None, 
+              port:int=None ,
+              network: 'Network' = None,
+              netuid= None,
+              context= '',
+              password: str = None,
+              combine_password: bool = False,
+              key = None,
               tag:str=None, 
               replace:bool = True, 
               whitelist_functions:List[str] = None,
@@ -1190,11 +1182,6 @@ class Module:
               wait_for_server:bool = False,
               wait_for_server_timeout:int = 30,
               wait_for_server_sleep_interval: int = 1,
-              subspace: 'Subspace' = None,
-              password: str = None,
-              netuid= None,
-              context= '',
-              key = None,
               
               *args, 
               **kwargs ):
@@ -1217,21 +1204,16 @@ class Module:
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
         
-        name = name if name != None else self.module_name()
-        
-        if hasattr(self, 'module_id'):
-            module_id = self.module_id
-        else:
-            module_id = self.get_module_id(name=name, tag=tag)
-           
+        module_name = name if name != None else self.default_module_name()
+
         '''check if the server exists'''
-        if self.server_exists(module_id): 
+        if self.server_exists(module_name): 
             if replace:
-                self.kill_server(module_id)
+                self.kill_server(module_name)
             else: 
-                raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
-    
-        self.module_id = module_id
+                raise Exception(f'The server {module_name} already exists on port {existing_server_port}')
+
+        self.module_name = module_name
 
         Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, 
@@ -1244,39 +1226,44 @@ class Module:
         self.server_info = server.info
         
         # register the server
-        server_info = cls.register_server(name=module_id, server=server)
+        server_info = cls.register_server(name=module_name, server=server)
         ip=server.ip
         port=server.port
         
         # only serve module if you have a network
         if password != None or key != None:
-            # if the key is None, we want to generate a key based on the module_id and password
+            # if the key is None, we want to generate a key based on the module_name and password
             if key == None:
-                key = module_id
                 # if the password is not None, we want to add the password to the key
                 if password:
-                    key = key + '::' + password
+                    assert isinstance(password, str), 'password must be a string'
+                    if combine_password:
+                        key = module_name + '::' + password
+                    else:
+                        key = password
             # if the key is not None, we want to add the password to the key
             key = cls.get_key(key)
             
             # if the key is not None, we want to add the password to the key
-            subspace = cls.resolve_subspace(subspace)
+            network = cls.resolve_network(network)
             
             register_kwargs = dict(
                 key=key,
                 netuid=netuid,
-                name=name,
+                name=module_name,
                 context = context,
                 ip = ip,
                 port = port  
             )
-            subspace.register(**register_kwargs)
+            network.register(**register_kwargs)
+            
+        self.set_key(key)
             
         # serve the server
         server.serve(wait_for_termination=wait_for_termination)
         
         if wait_for_server:
-            cls.wait_for_server(name=module_id, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
+            cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
         
     @classmethod
     def functions(cls, include_module=False):
@@ -1394,7 +1381,7 @@ class Module:
         function_schema_map = peer.function_schema_map()
         server_info = peer.server_info
         info  = dict(
-            module_id = peer.module_id,
+            module_name = peer.module_name,
             server_info = peer.server_info,
             function_schema = function_schema_map,
             intro =function_schema_map.get('__init__', 'No Intro Available'),
@@ -1408,7 +1395,7 @@ class Module:
     def peer_info(self) -> Dict[str, Any]:
         function_schema_map = self.function_schema_map()
         info  = dict(
-            module_id = self.module_id,
+            module_name = self.module_name,
             server_info = self.server_info,
             function_schema = function_schema_map,
             intro =function_schema_map.get('__init__', 'No Intro Available'),
@@ -1499,7 +1486,7 @@ class Module:
                       include_hidden:bool = False, 
                       include_module:bool = False):
         module_schema = {
-            'module_id':self.module_id,
+            'module_name':self.module_name,
             'server':self.server_info,
             'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
         }
@@ -1566,6 +1553,7 @@ class Module:
                mode:str = 'pm2',
                name:Optional[str]=None, 
                tag:str=None, 
+               password: str = None,
                serve: bool = True,
                **extra_kwargs):
         '''
@@ -1580,6 +1568,8 @@ class Module:
         elif isinstance(module, str):
             module = cls.get_module(module) 
             
+        if password:
+            kwargs['password'] = password
             
         if serve and fn == None:
             fn = 'serve'
@@ -1668,14 +1658,13 @@ class Module:
             module = cls
             
         cls.print(name, 'purple')
-        name =module.module_name().lower() if name == None else name
+        module_name =module.module_name().lower() if name == None else name
             
         
         module_path = module.__module_file__()
-        module_id = cls.get_module_id(name=name, tag=tag) 
         
         # build command to run pm2
-        command = f" pm2 start {module_path} --name {module_id} --interpreter {interpreter}"
+        command = f" pm2 start {module_path} --name {module_name} --interpreter {interpreter}"
         if no_autorestart:
             command = command + ' ' + '--no-autorestart'
         cls.print(command,color='purple')
@@ -1685,7 +1674,7 @@ class Module:
 
 
         if refresh:
-            cls.pm2_kill(module_id)   
+            cls.pm2_kill(module_name)   
             
 
             
@@ -1696,7 +1685,7 @@ class Module:
                 device = ','.join(device)
             env['CUDA_VISIBLE_DEVICES']=device
         cls.run_command(command, env=env, verbose=verbose)
-        return name
+        return module_name
 
     @classmethod
     def pm2_kill(cls, name:str):
@@ -1942,7 +1931,7 @@ class Module:
             
         assert isinstance(name, str)
         
-        name = cls.get_module_id(name=name, tag=tag) 
+        name = cls.get_module_name(name=name, tag=tag) 
         
         actor_kwargs['name'] = name
         actor_kwargs['refresh'] = refresh
@@ -2021,18 +2010,7 @@ class Module:
         # if the actor is refreshed, it should not exist lol (TODO: add a check)
         
 
-        if not hasattr(module, 'set_module_id'):
-            def set_module_id(self, name):
-                self.module_id = name
-                return True
-            
-            module.set_module_id = set_module_id
-        
-        if not cls.actor_exists(name):
-            
-            actor_class = ray.remote(module)
-            actor_handle = actor_class.options(**options_kwargs).remote(*cls_args, **cls_kwargs)
-            ray.get(actor_handle.set_module_id.remote(name))
+
         actor = cls.get_actor(name, virtual=virtual)
 
         
@@ -2062,26 +2040,16 @@ class Module:
     @classmethod
     def kill_actor(cls, actor, verbose=True):
         import ray
-        killed_actors = None
-        if isinstance(actor, list):
-            killed_actors = []
-            for a in actor:
-                killed_actors.append(cls.kill_actor(a))
-                
-        elif isinstance(actor, str):
-            if cls.actor_exists(actor):
-                actor = ray.get_actor(actor)
-            else:
-                if verbose:
-                    print(f'{actor} does not exist for it to be removed')
-                return None
-            ray.kill(actor)
-            killed_actors = actor
-        
-            return killed_actors
-        elif hasattr(actor, 'module_id'):
-            return self.kill_actor(actor.module_id, verbose=verbose)
-            
+
+        if cls.actor_exists(actor):
+            actor = ray.get_actor(actor)
+        else:
+            if verbose:
+                print(f'{actor} does not exist for it to be removed')
+            return None
+        ray.kill(actor)
+    
+        return True
     ray_kill = kill_actor
         
        
@@ -2274,15 +2242,9 @@ class Module:
         setattr(self, k, v)
         
     @classmethod
-    def default_module_id(cls):
-        return cls.module_name()
-    
-    def set_module_id(self, module_id:str) -> str:
-        '''
-        Sets the module_id when a module is deployed 
-        '''
-        self.module_id = module_id
-        return module_id
+    def default_module_name(cls) -> str:
+        return cls.module_class().lower()
+
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
         Set a dictionary to the slf attributes 
@@ -2879,10 +2841,11 @@ class Module:
                 
     def set_key(self, *args, **kwargs) -> None:
         # set the key
-        if type(args[0]) not in [str, dict, type(None)]:
+        if hasattr(args[0], 'public_key') and hasattr(args[0], 'address'):
             # key is already a key object
             self.key = args[0]
             self.public_key = self.key.public_key
+            self.address = self.key.address
         else:
             # key is a string
             self.key = self.get_key(*args, **kwargs)
@@ -3006,7 +2969,7 @@ class Module:
         return subspace
 
     @classmethod
-    def resolve_subspace(cls, subspace: str) -> str:
+    def resolve_network(cls, subspace: str) -> str:
         if subspace == None:
             subspace = cls.subspace()
             

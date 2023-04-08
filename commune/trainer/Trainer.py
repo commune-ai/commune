@@ -194,7 +194,7 @@ if __name__ == "__main__":
     Trainer.test()
     # dataset = commune.connect('dataset::bittensor')
     
-    # print(dataset.module_id)
+    # print(dataset.module_name)
     # for i in range(10):
     #     print('Alo')
     #     AdapterModel.train(num_batches=1, dataset=dataset)
