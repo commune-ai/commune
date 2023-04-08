@@ -46,8 +46,7 @@ class Subspace(commune.Module):
     
     def __init__( 
         self, 
-        network: str = 'local',
-        url: str = '127.0.0.1:9944',
+        network: str = 'testnet',
         **kwargs,
     ):
         r""" Initializes a subspace chain interface.
@@ -64,22 +63,41 @@ class Subspace(commune.Module):
                 chain_endpoint (default=None, type=str)
                     The subspace endpoint flag. If set, overrides the network argument.
         """
-        self.set_substrate( network=network, url=url)
+
+        self.set_network( network=network)
 
 
     network2url_map = {
-        'local': 'ws://127.0.0.1:9944'
+        'local': 'ws://127.0.0.1:9944',
+        'testnet': 'ws://162.157.13.236:9944'
         }
     @classmethod
     def network2url(cls, network:str) -> str:
-        return cls.network2url_map.get(network, None)
+        assert isinstance(network, str), f'network must be a string, not {type(network)}'
+        return cls.network2url_map.get(network, 'local')
     @classmethod
     def url2network(cls, url:str) -> str:
         return {v: k for k, v in cls.network2url_map.items()}.get(url, None)
     
-    def set_substrate(self, 
-                url:str="ws://127.0.0.1:9944", 
-                network:str = None,
+    @classmethod
+    def resolve_network_url(cls, network:str ):  
+        external_ip = cls.external_ip()      
+        url = cls.network2url(network)
+        # resolve url ip if it is its own ip
+        ip = url.split('/')[-1].split(':')[0]
+        port = url.split(':')[-1]
+        if ip.strip() == external_ip.strip():
+            ip = '0.0.0.0'
+            url = f'{ip}:{port}'
+            
+
+        # if not url.startswith('wss://') and not url.startswith('ws://'):
+        if not url.startswith('ws://'):
+            url = f'ws://{url}'
+        
+        return url
+    def set_network(self, 
+                network:str,
                 websocket:str=None, 
                 ss58_format:int=42, 
                 type_registry:dict=custom_rpc_type_registry, 
@@ -117,21 +135,15 @@ class Subspace(commune.Module):
         : dict of options to pass to the websocket-client create_connection function
                 
         '''
-        from substrateinterface import SubstrateInterface
 
-        if url == None:
-            assert network != None, "network or url must be set"
-            url = self.network2url(network)
-        if not url.startswith('ws://'):
-            url = f'ws://{url}'
+        from substrateinterface import SubstrateInterface
         
-        if network == None:
-            network = self.url2network(url)
-        self.network = network 
+        self.print(f'Connecting to [cyan bold]{network.upper()}[/ cyan bold] ')
+
+        url = self.resolve_network_url(network)
         self.url = self.chain_endpoint = url
         
-        
-        
+        self.print(url, 'broooo red')
         self.substrate= SubstrateInterface(
                                     url=url, 
                                     websocket=websocket, 
