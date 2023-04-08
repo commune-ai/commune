@@ -28,7 +28,7 @@ import binascii
 import re
 import secrets
 from base64 import b64encode
-
+import os
 import nacl.bindings
 import nacl.public
 from eth_keys.datatypes import PrivateKey
@@ -90,6 +90,7 @@ class Keypair(commune.Module):
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
                  mnemonic: str = None,
+                 password: str = None,
                  uri: str = None,
                  derive_path : str = None,
                  crypto_type: int = KeypairType.SR25519):
@@ -105,8 +106,8 @@ class Keypair(commune.Module):
                  uri: str = None,
                  seed_hex: Union[str, bytes] = None,
                  mnemonic: str = None,
-                 derive_path : str = None,
-                
+                 password : str = None,
+                 derive_path : str = None,                
                  crypto_type: int = KeypairType.SR25519):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -124,9 +125,13 @@ class Keypair(commune.Module):
             and public_key == None and private_key == None \
             and seed_hex == None and mnemonic == None and uri == None:
             mnemonic = self.generate_mnemonic()
+            
         if key:
             if isinstance(key, str):
                 seed_hex = self.hash(key)
+            password = seed_hex
+        if password:
+            self.password = password
             
         if seed_hex != None: 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
@@ -700,15 +705,18 @@ class Keypair(commune.Module):
         # return cls.create_from_uri(uri)
     
     def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        aes_key = self.resolve_aes_key(password)
-        return aes_key.decrypt(data)
+        try:
+            aes_key = self.resolve_aes_key(password)
+            return aes_key.decrypt(data)
+        except UnicodeDecodeError:
+            raise Exception("Incorrect password, try again")
     
     
     def resolve_password(self, password: str = None) -> str:
         
         if password == None:
             if hasattr(self, 'password') and self.password != None:
-                password = self.password
+                return self.password
             
             elif  self.private_key != None:
                 if type(self.private_key) is str:
@@ -725,6 +733,7 @@ class Keypair(commune.Module):
         
         password = self.hash(password)
         return password
+    
     def resolve_aes_key(self, password: str = None) -> 'commune.crypto.key.aes':
         
         password = self.resolve_password(password)
@@ -740,12 +749,11 @@ class Keypair(commune.Module):
         for k,v in state_dict['data'].items():
             if type(v)  in [bytes]:
                 state_dict['data'][k] = v.hex()
-                
-        print(state_dict['data'])
-        if encrypt == True:
-            state_dict['data'] = self.encrypt(data=state_dict['data'], password=password)
+
+        if encrypt:
+            state_dict['data'] = self.encrypt(data=json.dumps(state_dict['data']), password=password)
             
-        
+
         return state_dict
 
     def load_state_dict(self, state: dict, password: str = None):
@@ -767,14 +775,45 @@ class Keypair(commune.Module):
             state = state['data']
         self.set_params(**state)
            
-    def save(self, path: str,  password: str = None, encrypt: bool = True):
-        state = self.encrypt(data=state['data'], password=password, encrypt=encrypt)
+    default_path = 'default'
+    def save(self, path: str = None,  password: str = None, encrypt: bool = True):
+        if path == None:
+            oath = self.default_path
+        state = self.state_dict(password=password, encrypt=encrypt)
         self.put_json(path, state)
 
-    def load(self, path: str, password: str = None):
+    def delete(self, path: str ):
+        return self.rn_json(path)
+    def load(self, path: str = None, password: str = None):
         state = self.get_json(path)
         self.load_state_dict(state=state, password=password)
         
+    def ls_keys(self):
+
+        return [os.path.basename(path).replace('.json', '') for path in self.ls( resolve_path=True)]
+        
+    def load_from_dict(self, state: dict, password: str = None):
+        encrypted = state.get('encrypted', False)
+        if 'data' in state:
+            state = state['data']
+        if encrypted:
+            state = self.decrypt(data=state, password=password)
+        if type(state) in [str]:
+            state = json.loads(state)
+        self.set_params(**state)
+
     @classmethod
-    def load_from_dict(cls, state: dict, password: str = None):
-        return cls(**state)
+    def sandbox(cls):
+        self =  cls('bro')
+        self2 = cls('bro23')
+        import json
+        print(self.address)
+        state= self2.state_dict(encrypt=True)
+        self.rm_json('test.bro')
+        # self.load('test.bro')
+        print(self.ls_keys())
+        print(self.address)
+        
+
+if __name__ == '__main__':
+    Keypair.run()
