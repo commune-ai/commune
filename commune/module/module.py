@@ -898,6 +898,7 @@ class Module:
     @classmethod
     def connect(cls, *args, **kwargs):
         
+        
         loop = kwargs.get('loop', cls.get_event_loop())
         return loop.run_until_complete(cls.async_connect(*args, **kwargs))
         
@@ -911,6 +912,8 @@ class Module:
                 wait_for_server:bool = False,
                 **kwargs ):
         
+
+        
         if isinstance(port, str):
             port = int(port)
         
@@ -920,6 +923,13 @@ class Module:
                 port = int(name.split(':')[1])
                 ip = name.split(':')[0]
                 client_kwargs = dict(ip=ip, port=int(port))
+            elif name == cls.namespace(): 
+                namespace = cls.namespace()
+                server_info = namespace[name]
+                ip = server_info['ip']
+                port = server_info['port']
+                client_kwargs = {'ip':ip, 
+                                 'port':port}
             
             if ip == None and port == None:
                 server_registry = cls.server_registry()
@@ -1053,6 +1063,7 @@ class Module:
     list_servers = servers
     
     
+
     
     @classmethod
     def register_server(cls, name: str, server: 'commune.Server')-> dict:
@@ -1061,6 +1072,7 @@ class Module:
         Module.put_json(path='server_registry', data=server_registry) 
         
         return server_registry
+  
   
     @classmethod
     def is_module(cls, obj=None) -> bool:
@@ -1131,10 +1143,7 @@ class Module:
                 raise TimeoutError(f'Timeout waiting for server to start')
     def server_running(self):
         return hasattr(self, 'server_info')
-    def serve(self, name=None , *args, **kwargs):
-        if not self.server_running():
-            module_serve_output = self.serve_module( *args, module = self, name=name, **kwargs)
-        
+
     def stop_server(self):
         self.server.stop()
         del self.server
@@ -1161,7 +1170,14 @@ class Module:
     blacklist_functions: List[str] = []
 
     @classmethod
-    def serve_module(cls, 
+    def namespace(cls, *kwargs):
+        if not hasattr(cls, 'subspace_namespace'):
+            subspace = cls.subspace()
+            cls.subspace_namespace = subspace.namespace(*kwargs)
+        return cls.subspace_namespace
+
+    @classmethod
+    def serve(cls, 
               module:Any = None ,
               port:int=None ,
               ip:str=None, 
@@ -1174,19 +1190,25 @@ class Module:
               wait_for_server:bool = False,
               wait_for_server_timeout:int = 30,
               wait_for_server_sleep_interval: int = 1,
+              subspace: 'Subspace' = None,
+              password: str = None,
+              netuid= None,
+              context= '',
+              key = None,
+              
               *args, 
               **kwargs ):
         '''
         Servers the module on a specified port
         '''
+
         if module == None:
             self = cls(*args, **kwargs)
         elif isinstance(module, str):
             self = cls.get_module(module)(*args, **kwargs)
         else:
             self = module
-            
-            
+             
         whitelist_functions = whitelist_functions if whitelist_functions else cls.whitelist_functions
         blacklist_functions = blacklist_functions if blacklist_functions else cls.blacklist_functions
     
@@ -1209,18 +1231,48 @@ class Module:
             else: 
                 raise Exception(f'The server {module_id} already exists on port {existing_server_port}')
     
-        
         self.module_id = module_id
 
-    
         Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, 
                         port=port,
                         whitelist_functions = whitelist_functions,
                         blacklist_functions = blacklist_functions,
                         module = self )
+        
+        # register the server
         self.server_info = server.info
-        cls.register_server(name=module_id, server=server)
+        
+        # register the server
+        server_info = cls.register_server(name=module_id, server=server)
+        ip=server.ip
+        port=server.port
+        
+        # only serve module if you have a network
+        if password != None or key != None:
+            # if the key is None, we want to generate a key based on the module_id and password
+            if key == None:
+                key = module_id
+                # if the password is not None, we want to add the password to the key
+                if password:
+                    key = key + '::' + password
+            # if the key is not None, we want to add the password to the key
+            key = cls.get_key(key)
+            
+            # if the key is not None, we want to add the password to the key
+            subspace = cls.resolve_subspace(subspace)
+            
+            register_kwargs = dict(
+                key=key,
+                netuid=netuid,
+                name=name,
+                context = context,
+                ip = ip,
+                port = port  
+            )
+            subspace.register(**register_kwargs)
+            
+        # serve the server
         server.serve(wait_for_termination=wait_for_termination)
         
         if wait_for_server:
@@ -1481,7 +1533,7 @@ class Module:
         kwargs['tag'] = tag
         return cls.launch( 
                    module = module,  
-                   fn = 'serve_module',
+                   fn = 'serve',
                    name=name, 
                    tag=tag, 
                    args = args,
@@ -1530,7 +1582,7 @@ class Module:
             
             
         if serve and fn == None:
-            fn = 'serve_module'
+            fn = 'serve'
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)
   
@@ -1593,7 +1645,7 @@ class Module:
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
-                   fn: str = 'serve_module',
+                   fn: str = 'serve',
                    name:Optional[str]=None, 
                    tag:str=None, 
                    args : list = None,
@@ -1785,11 +1837,11 @@ class Module:
                       
                       }
     
-    @classmethod
-    def namespace(cls, data: Dict=None) -> 'Munch':
-        data = data if data else {}
-        assert isinstance(data, dict), f'data must be a dict, got {type(data)}'
-        return cls.dict2munch( data)
+    # @classmethod
+    # def namespace(cls, data: Dict=None) -> 'Munch':
+    #     data = data if data else {}
+    #     assert isinstance(data, dict), f'data must be a dict, got {type(data)}'
+    #     return cls.dict2munch( data)
 
     
     @classmethod
@@ -2950,7 +3002,15 @@ class Module:
     
     @classmethod
     def subspace(cls, *args, **kwargs):
-        return cls.get_module('subspace')(*args, **kwargs)
+        subspace = cls.get_module('subspace')(*args, **kwargs)
+        return subspace
+
+    @classmethod
+    def resolve_subspace(cls, subspace: str) -> str:
+        if subspace == None:
+            subspace = cls.subspace()
+            
+        return subspace
     
     @classmethod
     def key(cls, *args, **kwargs):

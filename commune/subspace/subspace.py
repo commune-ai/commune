@@ -1352,15 +1352,15 @@ class Subspace(commune.Module):
         # netuid = self.resolve_netuid(netuid)
         
         # Get the namespace for the netuid.
-        
-        records = self.query_map_subspace('SubnetNamespace', params=[netuid]).records
-        
+        netuid = self.resolve_netuid(netuid)
+        records = self.query_map_subspace('Neurons', params=[netuid]).records
         namespace = {}
         for r in records:
-            key = r[0].value
-            value = r[1].value
-            value['ip'] = int_to_ip(value['ip'])
-            namespace[key] = value
+            moduke_info = r[1].value
+            moduke_info['key'] = r[0].value
+            module_name = moduke_info['name']
+            moduke_info['ip'] = int_to_ip(moduke_info['ip'])
+            namespace[module_name] = moduke_info
         
         return namespace
 

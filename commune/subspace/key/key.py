@@ -191,7 +191,7 @@ class Keypair(commune.Module):
                 self.ss58_address = ss58_encode(self.public_key, ss58_format=self.ss58_format)
 
     @property
-    def address(self):
+    def address(self) -> str:
         return self.ss58_address
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
