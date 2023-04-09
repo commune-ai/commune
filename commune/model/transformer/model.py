@@ -575,7 +575,7 @@ class TransformerModel( Model):
                      ) -> List[str]:
 
 
-        models = models if models else default_models
+        models = models if models else cls.default_models
         
         
         deployed_model_tags = {}
