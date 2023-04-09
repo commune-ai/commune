@@ -106,7 +106,7 @@ class EnsembleModel( Model):
 
     
     async def async_model_forward(self, model, *args, **kwargs):
-        return self.models[model].forward(*args, **kwargs, asyncio_future=True, timeout=5)
+        return self.models[model].forward(*args, **kwargs, return_future=True, timeout=5)
         
     def aggregate(self, 
                   x: List[torch.Tensor], 
@@ -147,7 +147,7 @@ class EnsembleModel( Model):
         selected_models = random.sample(list(self.models.keys()),  int(sample_fraction * len(self.models)))
         
         for model in selected_models:
-            job = self.models[model].forward(*args, **kwargs, asyncio_future=True, timeout=4)
+            job = self.models[model].forward(*args, **kwargs, return_future=True, timeout=4)
             jobs.append(job) 
             
 

@@ -987,7 +987,8 @@ class Module:
         for address in peer_addresses:
             ip, port = address.split(':')
             jobs += [cls.async_connect(ip=ip, port=port, timeout=timeout)]
-        peers = asyncio.run(asyncio.gather(*jobs))
+        loop = cls.get_event_loop()
+        peers = loop.run_until_complete(asyncio.gather(*jobs))
         
         for peer in peers:
             try:
@@ -1026,8 +1027,10 @@ class Module:
             print('Error decoding server registry, resetting to empty dict')
             server_registry = cls.get_server_registry(save=True)
         for k in deepcopy(list(server_registry.keys())):
-            
+            if server_registry[k]['port'] == None or server_registry[k]['ip'] == None:
+                return cls.server_registry(update=True)
             if not Module.port_used(int(server_registry[k]['port'])):
+                
                 del server_registry[k]
                 update = True
                 
@@ -1060,10 +1063,39 @@ class Module:
 
     
     @classmethod
-    def register_server(cls, name: str, server: 'commune.Server')-> dict:
+    def register_server(cls, name: str, 
+                        ip: str,
+                        port: int,
+                        netuid: Union[str, int],
+                        context: str,
+                        password: str = None, 
+                        network: str = None,
+                        key: 'Key' = None)-> dict:
         server_registry = cls.server_registry()
-        server_registry[name] = dict(ip=server.ip, port=server.port)
+        server_registry[name] = dict(ip=ip, port=port)
         Module.put_json(path='server_registry', data=server_registry) 
+        
+        
+        # only serve module if you have a network
+        if password != None or key != None:
+            if password:
+                assert isinstance(password, str), 'password must be a string'
+                key = password
+            # if the key is not None, we want to add the password to the key
+            key = cls.get_key(key)
+            # if the key is not None, we want to add the password to the key
+            network = cls.resolve_network(network)
+            
+            register_kwargs = dict(
+                key=key,
+                netuid=netuid,
+                name=module_name,
+                context = context,
+                ip = ip,
+                port = port  
+            )
+            network.register(**register_kwargs)
+           
         
         return server_registry
   
@@ -1150,6 +1182,7 @@ class Module:
                                       'servers',
                                       'external_ip', 
                                       'peer_registry',
+                                      'server_registry',
                                       'get_auth',
                                       'verify', 
                                       'get_id']
@@ -1224,39 +1257,19 @@ class Module:
         
         # register the server
         self.server_info = server.info
+        ip = server.ip
+        port = server.port
         
         # register the server
-        server_info = cls.register_server(name=module_name, server=server)
-        ip=server.ip
-        port=server.port
-        
-        # only serve module if you have a network
-        if password != None or key != None:
-            # if the key is None, we want to generate a key based on the module_name and password
-            if key == None:
-                # if the password is not None, we want to add the password to the key
-                if password:
-                    assert isinstance(password, str), 'password must be a string'
-                    if combine_password:
-                        key = module_name + '::' + password
-                    else:
-                        key = password
-            # if the key is not None, we want to add the password to the key
-            key = cls.get_key(key)
-            
-            # if the key is not None, we want to add the password to the key
-            network = cls.resolve_network(network)
-            
-            register_kwargs = dict(
-                key=key,
-                netuid=netuid,
-                name=module_name,
-                context = context,
-                ip = ip,
-                port = port  
-            )
-            network.register(**register_kwargs)
-            
+        server_info = cls.register_server(name=module_name, 
+                                          context=context,
+                                          ip=ip,
+                                          port=port,
+                                          network=network,
+                                          password=password, 
+                                          netuid=netuid)
+
+ 
         self.set_key(key)
             
         # serve the server

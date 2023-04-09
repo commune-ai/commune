@@ -47,7 +47,7 @@ class BittensorDataset(Module):
             self, 
             batch_size: int = 32, 
             sequence_length: int = 256,
-            min_block_size_bytes: int  = 100,
+            min_block_size_bytes: int  = 10000,
             tokenizer: 'bittensor.tokenizer' = None,
             no_tokenizer: bool = False,
             max_hash_size:int = 10000000,

@@ -9,8 +9,8 @@ import asyncio
 class Validator(commune.Module):
     
     def __init__(self, 
-                 batch_size: int = 10,
-                 sequence_length: int = 128,
+                 batch_size: int = 32,
+                 sequence_length: int = 256,
                  dataset: str = 'dataset',
                  models: List[str]= None,
                  key: Union[Dict, str] = None,
@@ -27,7 +27,7 @@ class Validator(commune.Module):
         self.set_models(models)
         self.set_key(key)
         self.set_metric(metric)
-        self.set_stats(stats)
+        self.set_stats(stats=stats)
         self.set_alpha(alpha)
         
         
@@ -78,6 +78,8 @@ class Validator(commune.Module):
             gt = input_ids[:, -(pred.shape[1]-1):].flatten()
             pred = pred[:, :-1]
             
+            
+            
         assert isinstance(gt, torch.Tensor), f'gt is not a torch.Tensor. gt: {gt}'
         assert isinstance(pred, torch.Tensor), f'gt is not a torch.Tensor. gt: {gt}'
             
@@ -95,11 +97,15 @@ class Validator(commune.Module):
 
     def sample(self, **kwargs):
         kwargs.update(dict(
-            tokenize=True, 
+            # tokenize=True, 
             sequence_length=self.sequence_length,
             batch_size=self.batch_size
         ))
-        return self.dataset.sample(**kwargs)
+        sample = self.dataset.sample(**kwargs)
+        if 'input_ids' not in sample:
+            sample = self.sample()
+            
+        return sample
     @property
     def model_keys(self):
         return list(self.models.keys())
@@ -111,6 +117,7 @@ class Validator(commune.Module):
         
 
     def get_sample_metatdata(self, sample: Dict[str, Any]) -> Dict[str, Any]:
+        
         sample_metadata = {}
         for k, v in sample.items():
             metadata_k = {'type': type(v)}
@@ -135,17 +142,31 @@ class Validator(commune.Module):
     @property
     def default_loss(self) -> float:
         return 10.0
-    
-    async def validate_model(self, model_key: str = None, **kwargs):
-        model_key = model_key if model_key else self.random_model_key()
+
+    def resolve_model(self, model: str = None) -> Any:
+        if model is None:
+            model = self.random_model()
+        elif isinstance(model, str):
+            model = self.models[model]
+        return model
+    async def async_forward(self, 
+                            sample: dict,
+                            model:str=None,
+                            topk: int = 512, 
+                            **kwargs ):
+        model_key = model
+        model = self.resolve_model(model)
         model = self.models[model_key]
-        sample = self.sample()
         
+        # we want the client to return the future
+        kwargs['return_future'] = True
+        timer = commune.timer()
+        output = await model.forward(**sample,**kwargs)
+        elapsed_time = timer.seconds
         
-        t= commune.timer()
-        output = model.forward(**sample, topk=4096)
+    
         if 'topk' in output:
-            output['logits'] = self.decode_topk(output['topk'], topk=4096, vocab_size=50500)
+            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=50400)
                 
             output['input_ids'] = sample['input_ids']
             # calculate metric
@@ -153,34 +174,67 @@ class Validator(commune.Module):
         else:
             metric = self.default_loss
             
-        elapsed_time =  t.seconds
-        # is the metric nan?
-        if metric != metric:
-            print(f'nan metric for model: {model_key}')
-        print(model_key,metric)
+        output['stats'] = {
+            'metric': metric,
+            # 'timestamp': commune.time(),
+            'elapsed_time': elapsed_time
+        }
+        return output
+            
         
+    
+    def forward(self, 
+                sample: dict,
+                models:str=None, 
+                topk: int = 4096,
+                aggregate:bool = False,
+                set_stats: bool = True,
+                **kwargs ):
+        model_keys = list(self.models.keys())
+        if models == None:
+            jobs = [self.async_forward(sample, model=model_key, topk=topk, **kwargs) for model_key in model_keys]
+            
+        loop = self.get_event_loop()
+        model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
+        model_output_dict = {}
+        for model_output, model_key in zip(model_outputs, model_keys):
+            model_output_dict[model_key] = model_output
+            
+        if aggregate:
+            raise NotImplementedError('aggregate not implemented')
+        
+        # calculate metric
+        if set_stats:
+            for model_key, output_dict in model_output_dict.items():
+                self.set_stats(key=model_key, stats = output_dict['stats'])
+                
+            
+        return model_output_dict
+    
+    def validate(self, sample=None, models: str = None, topk:int=512, **kwargs):
+        sample = self.sample() if sample == None else sample
+        output = self.forward(sample=sample, models=models, topk=topk, **kwargs)
+        
+        return output
 
-        model_stat={ 
-                        'metric': metric,
-                        'timestamp': commune.time(),
-                        'elapsed_time': elapsed_time,
-                        'sample_metadata': self.get_sample_metatdata(sample),
-                             }
-        
-        
-        self.set_stat(key=model_key, stat = model_stat)
-        
-        
-        return metric
 
+    def set_stats(self, key: str = None, stats: Dict[str, Any] = None) -> None:
+        if stats is None:
+            stats = {}
+        assert isinstance(stats, dict), f'stats must be a dict. stats: {stats}'
 
-    def set_stat(self, key: str, stat: Dict[str, Any]) -> None:
+        if key is None:
+            self.stats = stats
+            return self.stats
+            
+        assert isinstance(key, str), f'key must be a str. key: {key}'
         
         prev_stat = deepcopy(self.stats.pop(key, {}))
         if 'metric' in prev_stat:
-            stat['metric'] =  self.alpha*prev_stat['metric'] + (1-self.alpha)*stat['metric']
+            stats['metric'] =  self.alpha*prev_stat['metric'] + (1-self.alpha)*stats['metric']
         
-        self.stats[key] = stat
+        self.stats[key] = stats
+        return self.stats
         
     def calculate_weights(self):
         
@@ -255,8 +309,10 @@ if __name__ == '__main__':
 
     # self = Validator(
         
-    validator =  Validator(models=None, dataset='dataset.text.wikitext')
-    t = commune.timer()
-    # asyncio.run(asyncio.gather(*[validator.validate_model(model) for model in validator.models]))
-    [asyncio.run(validator.validate_model(model)) for model in validator.models]
-    # print(validator.dataset.sample(batch_size=32, sequence_length=256, tokenize=True))
+    validator =  Validator(models=None, dataset='dataset.text.bittensor')
+
+    timer = commune.timer()
+    for i in range(100):
+        sample = validator.sample()
+        validator.validate(sample=sample, topk=4096, models=None)
+        commune.print(validator.stats)
