@@ -161,7 +161,7 @@ class Validator(commune.Module):
         kwargs['return_future'] = True
         timer = commune.timer()
         output = await model.forward(**sample,**kwargs)
-        elapsed_time = timer.seconds
+        inference_time = timer.seconds
         
     
         if 'topk' in output:
@@ -176,8 +176,8 @@ class Validator(commune.Module):
             
         output['stats'] = {
             'metric': metric,
-            # 'timestamp': commune.time(),
-            'elapsed_time': elapsed_time
+            'timestamp': commune.time(),
+            'inference_time': inference_time
         }
         return output
             
@@ -213,7 +213,7 @@ class Validator(commune.Module):
                 stats = sample_stats
                 stats['count'] = 1
             
-            for k in ['elapsed_time', 'metric']:
+            for k in ['inference_time', 'metric']:
                 stats[k] = ((stats[k]*(stats['count']-1)) + sample_stats[k])/stats['count']
             stats['history'] = stats.get('history', []) + [sample_stats]
             stats['history'] = stats['history'][-self.max_stats_history:]
