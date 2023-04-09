@@ -68,8 +68,8 @@ class Subspace(commune.Module):
 
 
     network2url_map = {
-        'local': 'ws://127.0.0.1:9944',
-        'testnet': 'ws://162.157.13.236:9944'
+        'local': '127.0.0.1:9944',
+        'testnet': '162.157.13.236:9944'
         }
     @classmethod
     def network2url(cls, network:str) -> str:
@@ -92,8 +92,8 @@ class Subspace(commune.Module):
             
 
         # if not url.startswith('wss://') and not url.startswith('ws://'):
-        if not url.startswith('ws://'):
-            url = f'ws://{url}'
+        if not url.startswith('http://'):
+            url = f'http://{url}'
         
         return url
     def set_network(self, 
