@@ -23,7 +23,6 @@ from commune.utils.tokenizer import prep_tokenizer, get_translation_map, transla
 
 
 import commune
-commune.new_event_loop()
 import bittensor
 # import torch
 
