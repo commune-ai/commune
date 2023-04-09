@@ -4,3 +4,12 @@
 [submodule "subtensor"]
 	path = subtensor
 	url = https://github.com/commune-ai/subtensorv3.git
+[submodule "commune/repos/transformers"]
+	path = commune/repos/transformers
+	url = https://github.com/commune-ai/transformers.git
+[submodule "commune/repos/diffusers"]
+	path = commune/repos/diffusers
+	url = https://github.com/commune-ai/diffusers.git
+[submodule "commune/repos/trl"]
+	path = commune/repos/trl
+	url = https://github.com/commune-ai/trl.git
