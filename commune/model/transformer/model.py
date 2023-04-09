@@ -618,6 +618,4 @@ if __name__ == "__main__":
     
     TransformerModel.run()
 
-    # TransformerModel.test()
-
 

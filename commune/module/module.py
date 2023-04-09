@@ -2658,6 +2658,9 @@ class Module:
         import time
         return time.time()
     @classmethod
+    def timestamp(cls) -> float:
+        return int(cls.time())
+    @classmethod
     def sleep(cls, seconds:float) -> None:
         import time
         time.sleep(seconds)
