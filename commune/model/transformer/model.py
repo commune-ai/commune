@@ -64,8 +64,12 @@ class TransformerModel( Model):
         # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b'
+        'opt13b': 'facebook/opt-13b',
 
+        # opt
+        'opt7b': 'facebook/opt-6.7b',
+        'gpt13b': 'cerebras/Cerebras-GPT-13B'
+        
          }
     
 
