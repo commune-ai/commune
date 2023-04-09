@@ -16,10 +16,12 @@ class Validator(commune.Module):
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
+                 max_stats_history: int = 100,
                  alpha: float = 0.5,
                  ):
         commune.nest_asyncio()
-        
+
+        self.set_max_stats_history(max_stats_history)
         self.set_batch_size(batch_size)
         self.set_sequence_length(sequence_length)
                 
@@ -31,6 +33,8 @@ class Validator(commune.Module):
         self.set_alpha(alpha)
         
         
+    def set_max_stats_history(self, max_stats_history: int) -> None:
+        self.max_stats_history = max_stats_history
     def set_batch_size(self, batch_size: int) -> None:
         self.batch_size = batch_size
     def set_sequence_length(self, sequence_length: int) -> None:
@@ -109,11 +113,6 @@ class Validator(commune.Module):
     @property
     def model_keys(self):
         return list(self.models.keys())
-    
-    def set_stats(self, stats: Dict[str, Any]) -> None:
-        if stats is None:
-            stats = {}
-        self.stats = stats
         
 
     def get_sample_metatdata(self, sample: Dict[str, Any]) -> Dict[str, Any]:
@@ -174,6 +173,7 @@ class Validator(commune.Module):
         else:
             metric = self.default_loss
             
+            
         output['stats'] = {
             'metric': metric,
             # 'timestamp': commune.time(),
@@ -203,11 +203,22 @@ class Validator(commune.Module):
         if aggregate:
             raise NotImplementedError('aggregate not implemented')
         
-        # calculate metric
-        if set_stats:
-            for model_key, output_dict in model_output_dict.items():
-                self.set_stats(key=model_key, stats = output_dict['stats'])
-                
+
+        for model_key, output_dict in model_output_dict.items():
+            sample_stats = output_dict['stats']
+            if model_key in self.stats:
+                stats = self.stats[model_key]
+                stats['count'] += 1
+            else:
+                stats = sample_stats
+                stats['count'] = 1
+            
+            for k in ['elapsed_time', 'metric']:
+                stats[k] = ((stats[k]*(stats['count']-1)) + sample_stats[k])/stats['count']
+            stats['history'] = stats.get('history', []) + [sample_stats]
+            stats['history'] = stats['history'][-self.max_stats_history:]
+            self.set_stats(key=model_key, stats = stats)
+            
             
         return model_output_dict
     
@@ -225,16 +236,12 @@ class Validator(commune.Module):
 
         if key is None:
             self.stats = stats
-            return self.stats
+            return key
             
         assert isinstance(key, str), f'key must be a str. key: {key}'
         
-        prev_stat = deepcopy(self.stats.pop(key, {}))
-        if 'metric' in prev_stat:
-            stats['metric'] =  self.alpha*prev_stat['metric'] + (1-self.alpha)*stats['metric']
-        
         self.stats[key] = stats
-        return self.stats
+        return key
         
     def calculate_weights(self):
         
