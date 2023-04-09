@@ -36,10 +36,10 @@ class VirtualModule(commune.Module):
             self.module_client = module
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
-    def remote_call(self, remote_fn: str, *args, asyncio_future= False, timeout=20, **kwargs):
+    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=20, **kwargs):
         
     
-        if asyncio_future:
+        if return_future:
             return self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
         else:
             return self.module_client(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
