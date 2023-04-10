@@ -1034,8 +1034,12 @@ class Module:
                 del server_registry[k]
                 update = True
                 
+   
         if update:
             Module.put_json('server_registry',server_registry)
+        if address_only:
+            return {k:server_registry[k]['address'] for k in server_registry}
+             
         return server_registry
 
     @property
@@ -1189,11 +1193,15 @@ class Module:
     blacklist_functions: List[str] = []
 
     @classmethod
-    def namespace(cls, *kwargs):
-        if not hasattr(cls, 'subspace_namespace'):
-            subspace = cls.subspace()
-            cls.subspace_namespace = subspace.namespace(*kwargs)
-        return cls.subspace_namespace
+    def namespace(cls, network:str='local', **kwargs):
+        if network == 'subspace':
+            subspace = cls.subspace(**kwargs)
+            namespace = subspace.namespace()
+        elif network == 'local':
+            namespace = cls.server_registry(address_only=True)
+        else:
+            raise ValueError(f'network must be either "subspace" or "local"')
+        return namespace
 
     @classmethod
     def serve(cls, 
