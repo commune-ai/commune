@@ -2898,15 +2898,29 @@ class Module:
         
         return key.verify(data)
         
-      
     
-    def get_auth(self, data:dict  = None, key: str = None) -> dict:
+    def get_auth(self, 
+                 data:dict  = None, 
+                 key: str = None,
+                 return_dict:bool = True,
+                 encrypt: bool = False,
+                 password: str = None
+                 ) -> dict:
         
         key = self.resolve_key(key)
         if data == None:
             # default data  
             data = {'utc_timestamp': self.time()}
-        sig_dict = key.sign(data)
+
+        sig_dict = key.sign(data, return_dict=return_dict)
+
+        if encrypt:
+            sig_dict['data'] = key.encrypt(sig_dict['data'], password=password)
+
+        sig_dict['encrypted'] = encrypt
+            
+        
+        
         return sig_dict
     
       

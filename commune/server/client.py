@@ -76,8 +76,8 @@ class Client( Serializer, commune.Module):
             timeout:int = 20,
             loop: 'asycnio.EventLoop' = None
             ):
-        if ip == commune.external_ip():
-            ip = '0.0.0.0'
+        # if ip == commune.external_ip():
+        #     ip = '0.0.0.0'
         from commune.server.proto  import ServerStub
         # hopeful the only tuple i output, tehe
         self.ip, self.port = self.resolve_ip_and_port(ip=ip, port=port)
