@@ -3104,6 +3104,35 @@ class Module:
         ansible_module = cls.get_module('ansible')()
         return getattr(ansible_module, fn)(*args, **kwargs)
         
+        
+        
+    @classmethod
+    def add_peer(cls, peer_address):
+        peer_registry = cls.get_json('peer_registry', default={})
+        peer=commune.connect(peer_address)
+        
+        peer_server_registry = peer_module.server_registry()
+        peer_registry[peer_address] = peer_server_registry
+        
+        cls.put_json('peer_registry', peer_registry)
+    
+    @classmethod
+    def remove_peer(cls, peer_address: str):
+        peer_registry = cls.get_json('peer_registry', default={})
+        peer_registry.pop(peer_address, None)
+        
+        
+        peer = cls.connect(peer_address)
+        peer_server_registry = peer_module.server_registry()
+        peer_registry[peer_address] = peer_server_registry
+        
+        cls.put_json('peer_registry', peer_registry)
+       
+    @classmethod
+    def ls_peers(cls):
+        peer_registry = cls.get_json('peer_registry', default={})
+        return list(peer_registry.keys())
+       
 if __name__ == "__main__":
     Module.run()
     
