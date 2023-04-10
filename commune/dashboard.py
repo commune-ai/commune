@@ -26,9 +26,10 @@ class Dashboard(commune.Module):
     @classmethod
     def add_peer(cls, peer_address:str):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer=commune.connect(peer_address)
+        peer=commune.connect(peer_address, timeout=1)
         
         peer_server_registry = peer.server_registry()
+        st.write(peer_server_registry)
         peer_registry[peer_address] = peer_server_registry
         
         cls.put_json('peer_registry', peer_registry)

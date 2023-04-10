@@ -1005,7 +1005,7 @@ class Module:
         server_registry = cls.server_registry(update=True)
 
     @classmethod
-    def server_registry(cls, update: bool = False)-> dict:
+    def server_registry(cls, update: bool = False, address_only: bool  = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1026,6 +1026,9 @@ class Module:
         for k in deepcopy(list(server_registry.keys())):
             if server_registry[k]['port'] == None or server_registry[k]['ip'] == None:
                 return cls.server_registry(update=True)
+            if 'address' not in server_registry[k]:
+                server_registry[k]['address'] = f"{server_registry[k]['ip']}:{server_registry[k]['port']}"
+                update = True
             if not Module.port_used(int(server_registry[k]['port'])):
                 
                 del server_registry[k]
