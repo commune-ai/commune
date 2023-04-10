@@ -30,6 +30,7 @@ class Client( Serializer, commune.Module):
             self,
             ip: str ='0.0.0.0',
             port: int = 80 ,
+            address: str = None,
             max_processes: int = 1,
             timeout:int = 20,
             loop: 'Loop' = None,

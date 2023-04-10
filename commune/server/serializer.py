@@ -79,6 +79,13 @@ class Serializer:
         data = self.bytes2dict(data=data)
         return data
 
+    def serialize_bytes(self, data: dict, metadata:dict) -> DataBlock:
+        return  data,  metadata
+    
+    def deserialize_bytes(self, data: bytes, metadata:dict) -> DataBlock:
+        return data
+
+
     def dict2munch(self,x:dict, recursive:bool=True)-> Munch:
         '''
         Turn dictionary into Munch

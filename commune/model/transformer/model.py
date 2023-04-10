@@ -568,21 +568,28 @@ class TransformerModel( Model):
        
     default_models = list(shortcuts.keys())
           
+          
+    fleet_group = {
+        
+        '1': ['opt7b', 'oa.galactia.7b', 'gptjt_mod', 'gptjt', 'model.gptj', 'model.gptj.instruct', 'model.gptj.alpaca']
+    }
     @classmethod
     def deploy_fleet(cls, 
-                     models: List[str] = None,
+                     models: List[str] = '1',
                      ) -> List[str]:
 
 
-        models = models if models else cls.default_models
+        if models in cls.fleet_group:
+            models = cls.fleet_group[models]
+        elif models == 'all':
+            models = models if models else cls.default_models
         
         
         deployed_model_tags = {}
         deployed_model_names = []
         for model in models:
             model_kwargs =  {'model': model}
-            if 'gptj' in model:
-                model_kwargs['tokenizer'] = 'gptj'
+            model_kwargs['tokenizer'] = 'gpt2'
             name = f'model.{model}'
             server_tag = deployed_model_tags[name] = deployed_model_tags.get(name, -1)  + 1
             if server_tag > 0:
