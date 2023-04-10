@@ -312,14 +312,16 @@ class Validator(commune.Module):
         return logits  # [batch_size, sequence_len, vocab_size]
 
         
+    @classmethod
+    def streamlit(cls):
+        self = cls()
+        validator =  Validator(models=None, dataset='dataset.text.bittensor')
+        timer = commune.timer()
+        for i in range(100):
+            sample = validator.sample()
+            validator.validate(sample=sample, topk=4096, models=None)
+            commune.print(validator.stats)
+
 if __name__ == '__main__':
-
-    # self = Validator(
+    Validator.streamlit()
         
-    validator =  Validator(models=None, dataset='dataset.text.bittensor')
-
-    timer = commune.timer()
-    for i in range(100):
-        sample = validator.sample()
-        validator.validate(sample=sample, topk=4096, models=None)
-        commune.print(validator.stats)

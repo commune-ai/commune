@@ -43,15 +43,19 @@ class TransformerModel( Model):
 
         'gpt125m': 'EleutherAI/gpt-neo-125M',
 
-        # 3ish B models
+        # 0-3ish B models
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-        # 6B models
+        
+        # 0-7B models
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
         'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
         'gptj': 'EleutherAI/gpt-j-6b',
         'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-        # 'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+        'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+        
+        # gptj
+        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
         'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
         'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
         'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',

@@ -901,52 +901,49 @@ class Module:
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 
-                subspace : 'Subspace' = None,
+                network : str = 'local',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
                 **kwargs ):
         
 
+
+        if wait_for_server:
+            cls.wait_for_server(name)
+
+        # subspce namespce
+        if network == 'subspace': 
+            network = self.resolve_network(network)
+            namespace = network.namespace()
+            server_info = namespace[name]
+            ip = server_info['ip']
+            port = server_info['port']
+            client_kwargs = {'ip':ip, 
+                                'port':port}
+                        
+            client_kwargs['network'] = network
         
-        if isinstance(port, str):
-            port = int(port)
-        
-        if isinstance(name, str):
-        
+        # local namespace    
+        if network == 'local':
+            
             if len(name.split(':')) == 2:
                 port = int(name.split(':')[1])
                 ip = name.split(':')[0]
                 client_kwargs = dict(ip=ip, port=int(port))
-            elif name == cls.namespace(): 
-                namespace = cls.namespace()
-                server_info = namespace[name]
-                ip = server_info['ip']
-                port = server_info['port']
-                client_kwargs = {'ip':ip, 
-                                 'port':port}
-            
-            if ip == None and port == None:
-                server_registry = cls.server_registry()
-                if wait_for_server:
-                    cls.wait_for_server(name)
-                try:
-                    client_kwargs = server_registry[name]
-                except KeyError:
-                    server_registry = cls.server_registry(update=True)
-                    client_kwargs = server_registry[name]
-        else:
-            ip = ip if ip != None else cls.default_ip
-            
-            assert isinstance(port, int) , 'Port must be specified as an int'
-            assert isinstance(ip, str) , 'IP must be specified as a string'
-            client_kwargs = dict(ip=ip, port=port)
-            
-        client_kwargs['subspace'] = subspace
                 
-        Client = cls.import_object('commune.server.client.Client')
-        client_module = Client( **kwargs,**client_kwargs)
+            else:
+                server_registry = cls.server_registry()
+                client_kwargs = server_registry[name]
+
         ip = client_kwargs['ip']
         port = client_kwargs['port']
+        assert isinstance(port, int) , 'Port must be specified as an int'
+        assert isinstance(ip, str) , 'IP must be specified as a string'
+    
+
+        Client = cls.import_object('commune.server.client.Client')
+        client_module = Client( **kwargs,**client_kwargs)
+
         cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
 
         if virtual:
@@ -1671,7 +1668,7 @@ class Module:
             module = cls
             
         cls.print(name, 'purple')
-        module_name =module.module_name().lower() if name == None else name
+        module_name =module.default_module_name() if name == None else name
             
         
         module_path = module.__module_file__()
@@ -1938,7 +1935,7 @@ class Module:
             
         if name == None:
             if cls.is_module(module_class):
-                name = module_class.module_name()
+                name = module_class.default_module_name()
             else:
                 name = module_class.__name__
             
@@ -2227,9 +2224,6 @@ class Module:
                 
                 # merge the inner module into the wrappers
                 self.merge(self.module)
-            @classmethod
-            def module_name(cls): 
-                return module_class.__name__
             @classmethod
             def __module_file__(cls): 
                 return cls.get_module_path(simple=False)
@@ -2867,6 +2861,10 @@ class Module:
             self.key = self.get_key(*args, **kwargs)
             self.public_key = self.key.public_key
       
+    def set_network(self, network: str) -> None:
+        self.network = network
+        
+        
     def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
         return key.sign(data)    
@@ -2978,16 +2976,31 @@ class Module:
     
     
     # SUBSPACE BABY 
+    @classmethod
+    def subtensor(self, *args, **kwargs):
+        import bittensor
+        return bittensor.subtensor(*args, **kwargs)
     
     @classmethod
     def subspace(cls, *args, **kwargs):
         subspace = cls.get_module('subspace')(*args, **kwargs)
         return subspace
+    @classmethod
+    def network(cls, network='subtensor', *args, **kwargs) -> str:
+        if network == 'subspace':
+            return cls.subspace(*args, **kwargs)
+        elif network == 'subtensor':
+            return cls.subtensor(*args, **kwargs)
+        else:
+            raise ValueError('Invalid mode for network')
+    
 
     @classmethod
     def resolve_network(cls, subspace: str) -> str:
         if subspace == None:
             subspace = cls.subspace()
+        elif isinstance(subspace, str):
+            subspace = cls.subspace(subspace)
             
         return subspace
     

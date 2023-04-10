@@ -3,7 +3,7 @@ import streamlit as st
 from typing import List, Dict, Union, Any 
 
 
-class Dashboard:
+class Dashboard(commune.Module):
 
     def __init__(self):
         self.public_ip = commune.external_ip()
@@ -12,45 +12,40 @@ class Dashboard:
     
     def load_state(self):
         self.server_registry = commune.server_registry()
-        self.live_peers = list(self.server_registry.keys())
-        for peer in self.live_peers:
+        self.servers = list(self.server_registry.keys())
+        for peer in self.servers:
             if peer not in self.server_registry:
                 self.server_registry[peer] = commune.connect(peer).server_stats
         
         self.module_tree = commune.module_tree()
-        self.module_list = list(self.module_tree.keys()) + ['module']
-        self.peer_registry = commune.peer_registry()
+        self.module_list = ['module'] + list(self.module_tree.keys())
+        sorted(self.module_list)
         
     
-    @property
-    def module_categories(self):
-        return list(set([m.split('.')[0] for m in self.module_list]))
+    @classmethod
+    def add_peer(cls, peer_module):
+        peer_registry = cls.get_json('peer_registry', default={})
+        peer_module=commune.connect(peer_module)
+        peer_server_registry = peer_module.server_registry()
+        peer_registry[peer_module] = peer_server_registry
         
+        cls.put_json('peer_registry', peer_registry)
+    
+    @classmethod
+    def remove_peer(cls, peer_module):
+        peer_registry = cls.get_json('peer_registry', default={})
+        peeer_registry.pop(peer_module, None)
         
-    def set_peer(self, ip:str = None, port:int = None):
-        if ip is None:
-            ip = self.public_ip
-        if port is None:
-            port = commune.port()
-        commune.set_peer(ip, port)
-        st.write(f'Peer set to {ip}:{port}')
-
-    @staticmethod
-    def filter_modules_by_category(module_list:List[str], categories: List[str]):
-        filtered_module_list = []
-        for m in module_list:
-            if any([m.startswith(c) for c in categories]):
-                filtered_module_list.append(m)
-        return['module'] +  filtered_module_list 
-
-    @property
-    def default_categories(self) -> List[str]:
-        default_categories = ['web3', 'model', 'dataset', 'agent']
-        return default_categories
+        peer_server_registry = peer_module.server_registry()
+        peer_registry[peer_module] = peer_server_registry
+        
+        cls.put_json('peer_registry', peer_registry)
+        
+    def peers(self):
+        return list(self.get_json('peer_registry', default={}).keys())
 
     def streamlit_module_browser(self):
 
-        module_categories = self.module_categories
         module_list =  self.module_list
         
    
@@ -80,58 +75,49 @@ class Dashboard:
 
     
     def streamlit_sidebar(self):
-        with st.sidebar:
-            st.sidebar.write('# Module Land')
-            self.selected_categories = st.multiselect('Categories', self.module_categories, self.default_categories )
-            self.filtered_module_list = self.filter_modules_by_category(self.module_list, self.selected_categories)
-            
-            self.selected_module = st.selectbox('Module List',self.filtered_module_list, 0)   
+        with st.sidebar:  
+                      
+            self.selected_module = st.selectbox('Module List',self.module_list, 0)   
         
+
+                                
+            st.metric('Number of Module Serving', len(self.servers))
+
+            with st.expander('Module Tree'):
+                st.write(self.module_list)
+            with st.expander('Servers'):
+                st.write(self.servers)
             self.update_button = st.button('Update', False)
+
             if self.update_button:
                 self.load_state()
                 
-            st.write(self.live_peers)
                 
-            st.metric('Number of Module Serving', len(self.live_peers))
-
-
+            self.streamlit_peers()
+            
+    def streamlit_peers(self):
+        st.write('## Peers')
+        st.write(self.peers())
+        
+        peer = st.text_input('Add Peer', '')
+        connect_button = st.button('Connect')
+        if connect_button:
+            peer = commune.connect(peer)
+            st.write(peer.server_info)
  
-    def streamlit_peer_info(self):
+    def streamlit_server_info(self):
         
         
-        
-
-        for ip in self.peer_registry:
-            num_peers = len(self.peer_registry[ip])
-            cols = st.columns(3)
-            num_columns = 4 
-            num_rows = num_peers // num_columns + 1
-            peer_registry = self.peer_registry
-            is_local =  bool(ip == self.public_ip)
-            peer_names = list(self.peer_registry[ip].keys())
-            peer_info = list(self.peer_registry[ip].values())
-
-            for i, peer_name in enumerate(peer_names):
-                peer = peer_info[i]
-                with st.expander(f'{peer_name}', False):
-                    st.write(peer)
-                    cols = st.columns([4,3])
-                    
-                    with cols[0]:
-                        kill_button = st.button(f'Kill {peer_name}')
-                        if kill_button:
-                            commune.kill_server(peer_name, mode='pm2')
-                            st.experimental_rerun()
-                            self.load_state()
-                    with cols[1]:
-                        refresh_button = st.button(f'Refresh {peer_name}')
-                        if refresh_button:
-                            commune.restart(peer_name, mode='pm2')
-                            st.experimental_rerun()
-                            self.load_state()
-        
+        for peer_name, peer_info in self.server_registry.items():
+            with st.expander(peer_name, True):
+                peer_info['address']=  f'{peer_info["ip"]}:{peer_info["port"]}'
+                st.write(peer_info)
                 
+            
+            
+        
+        
+     
 
         peer_info_map = {}
  
@@ -318,6 +304,125 @@ class Dashboard:
         pass
   
             
+    def streamlit_resource_browser(self):
+
+        import streamlit as st
+        import plotly.graph_objects as go
+
+        gpu_info = {
+        "0": {
+            "name": "NVIDIA RTX A6000",
+            "free": 23.122280448,
+            "total": 51.041271808,
+            "used": 27.91899136
+        },
+        "1": {
+            "name": "NVIDIA RTX A6000",
+            "free": 7.370571776,
+            "total": 51.041271808,
+            "used": 43.670700032
+        },
+        "2": {
+            "name": "NVIDIA RTX A6000",
+            "free": 7.6054528,
+            "total": 51.041271808,
+            "used": 43.435819008
+        },
+        "3": {
+            "name": "NVIDIA RTX A6000",
+            "free": 7.6054528,
+            "total": 51.041271808,
+            "used": 43.435819008
+        },
+        "4": {
+            "name": "NVIDIA RTX A6000",
+            "free": 7.6054528,
+            "total": 51.041271808,
+            "used": 43.435819008
+        },
+        "5": {
+            "name": "NVIDIA RTX A6000",
+            "free": 7.6054528,
+            "total": 51.041271808,
+            "used": 43.435819008
+        },
+        "6": {
+            "name": "NVIDIA RTX A6000",
+            "free": 7.6054528,
+            "total": 51.041271808,
+            "used": 43.435819008
+        },
+        "7": {
+            "name": "NVIDIA RTX A6000",
+            "free": 21.129986048,
+            "total": 51.041271808,
+            "used": 29.91128576
+        }
+        }
+
+        # Initialize empty lists for the data
+        gpu_names = []
+        free_memory = []
+        used_memory = []
+
+        # Loop through the GPU data and append the values to the lists
+        for gpu_id, gpu_data in gpu_info.items():
+            gpu_names.append(f"GPU {gpu_id}: {gpu_data['name']}")
+            free_memory.append(gpu_data['free'])
+            used_memory.append(gpu_data['used'])
+
+        # Create the Plotly figure with multiple bar charts
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=gpu_names, y=free_memory, name="Free Memory", marker_color="green"))
+        fig.add_trace(go.Bar(x=gpu_names, y=used_memory, name="Used Memory", marker_color="red"))
+
+        # Set the chart title and axis labels
+        fig.update_layout(title="GPU Memory Usage", xaxis_title="GPU", yaxis_title="Memory (GB)")
+
+        # Display the chart in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+
+        # with st.expander('GPUs'):
+        #     gpu_info = commune.gpu_map()
+            
+        #     import plotly.graph_objects as go
+        #     #culate the percentage of used and free memory for each GPU
+        #     for gpu_id, gpu_data in gpu_info.items():
+        #         gpu_data["used_pct"] = gpu_data["used"] / gpu_data["total"] * 100
+        #         gpu_data["free_pct"] = gpu_data["free"] / gpu_data["total"] * 100
+
+        #     # Calculate the number of rows and columns needed to tile the pie charts
+        #     num_gpus = len(gpu_info)
+        #     num_cols = min(num_gpus, 1)
+        #     num_rows = (num_gpus - 1) // num_cols + 1
+
+        #     # Create a grid of pie charts
+        #     grid = []
+
+        #     for i in range(num_rows):
+        #         row = []
+        #         cols = st.columns(num_cols)
+
+        #         for j in range(num_cols):
+        #             gpu_index = i * num_cols + j
+        #             if gpu_index < num_gpus:
+        #                 gpu_id = list(gpu_info.keys())[gpu_index]
+        #                 gpu_data = gpu_info[gpu_id]
+
+        #                 # Create a Plotly pie chart for the current GPU
+        #                 fig = go.Figure(go.Pie(
+        #                     values=[gpu_data["free_pct"], gpu_data["used_pct"]],
+        #                     labels=["Free", "Used"],
+        #                     marker_colors=["green", "red"],
+        #                     textinfo="label+percent",
+        #                 ))
+
+        #                 # Set the chart title
+        #                 # make it compact
+        #                 fig.update_layout(showlegend=False)
+        #                 cols[j].plotly_chart(fig)     
+        #                 # Add the chart to
+        
     @classmethod
     def streamlit(cls):
         commune.new_event_loop()
@@ -327,13 +432,15 @@ class Dashboard:
         st.set_page_config(layout="wide")
         
         self.streamlit_sidebar()
-        tabs = st.tabs(['Module Launcher', 'Peers', 'Playground'])
+        tabs = st.tabs(['Module Launcher', 'Peers', 'Playground', 'Resources'])
         with tabs[2]:
             self.streamlit_playground()
         with tabs[1]:
-            self.streamlit_peer_info()
+            self.streamlit_server_info()
         with tabs[0]:
             self.streamlit_module_browser()
+        with tabs[3]:
+            self.streamlit_resource_browser()
 
         
 
