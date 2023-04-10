@@ -60,10 +60,13 @@ class TransformerModel( Model):
         'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
         'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
         'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+        'oa.galactia.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
         'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+        
 
         # llama
-        'llama': 'decapoda-research/llama-7b-hf',
+        # 'llama': 'decapoda-research/llama-7b-hf',
     
         # > 10B models
         'gptneox': 'EleutherAI/gpt-neox-20b',
@@ -563,23 +566,11 @@ class TransformerModel( Model):
                 st.write(model.forward(input_ids=input_ids))
          
        
-    default_models = [
-        "gpt2.7b",
-        "gpt3b",
-        "gptj.alpaca",
-        "gptj.nerybus",
-        "gptjt_mod",
-        "gptj",
-        "gptj.pyg6b",
-        "gptj.instruct",
-        "gptj.codegen",
-        "gptj.adventure",
-        ]
+    default_models = list(shortcuts.keys())
           
     @classmethod
     def deploy_fleet(cls, 
                      models: List[str] = None,
-                     mode: str = 'cpu',
                      ) -> List[str]:
 
 

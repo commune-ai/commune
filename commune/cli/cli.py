@@ -30,6 +30,7 @@ class CLI(commune.Module):
                 result = module.remote_call(fn, *args,**kwargs)
             else:
                 fn = args.pop(0)
+                self.print(args, fn)
                 result = getattr(commune, fn)(*args, **kwargs)
             self.print(result) 
         

@@ -2962,9 +2962,11 @@ class Module:
         
     @classmethod
     def deploy_fleet(cls, modules=None):
+        if isinstance(modules, str):
+            modules = [modules]
         modules = modules if modules else ['model.transformer', 'dataset.text.huggingface']
             
-        print(modules)
+ 
         for module in modules:
             
             module_class = cls.get_module(module)
@@ -3107,34 +3109,51 @@ class Module:
         ansible_module = cls.get_module('ansible')()
         return getattr(ansible_module, fn)(*args, **kwargs)
         
-       
     @classmethod
-    def add_peer(cls, peer_address):
+    def add_peer(cls, peer_address:str):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer=commune.connect(peer_address)
-        
-        peer_server_registry = peer_module.server_registry()
+        peer=cls.connect(peer_address, timeout=1)
+        cls.print('Adding peer: {}'.format(peer_address))
+        peer_server_registry = peer.server_registry()
         peer_registry[peer_address] = peer_server_registry
         
         cls.put_json('peer_registry', peer_registry)
     
     @classmethod
-    def remove_peer(cls, peer_address: str):
+    def add_peers(cls, peer_addresses: list):
+        for peer_address in peer_addresses:
+            
+            cls.add_peer(peer_address)
+    
+    @classmethod
+    def rm_peer(cls, peer_address: str):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer_registry.pop(peer_address, None)
-        
-        
-        peer = cls.connect(peer_address)
-        peer_server_registry = peer_module.server_registry()
-        peer_registry[peer] = peer_server_registry
-        
+        peer_registry.pop(peer_address, None)        
         cls.put_json('peer_registry', peer_registry)
        
+    @classmethod
+    def rm_peers(cls, peer_addresses: list):
+        for peer_address in peer_addresses:
+            cls.rm_peer(peer_address)
+       
+    @classmethod
+    def peer_registry(cls, update: bool = False):
+        peer_registry =  cls.get_json('peer_registry', default={})
+        if update:
+            for peer_address in peer_registry.keys():
+                cls.add_peer(peer_address)
+        
+        peer_registry =  cls.get_json('peer_registry', default={})
+    
+        return peer_registry
     @classmethod
     def ls_peers(cls):
         peer_registry = cls.get_json('peer_registry', default={})
         return list(peer_registry.keys())
-       
+      
+    @classmethod
+    def peers(cls):
+        return list(cls.get_json('peer_registry', default={}).keys())
 if __name__ == "__main__":
     Module.run()
     
