@@ -9,8 +9,6 @@ from glob import glob
 import sys
 import argparse
 import asyncio
-
-
 class Module:
     
     # port range for servers
@@ -906,6 +904,15 @@ class Module:
                 wait_for_server:bool = False,
                 **kwargs ):
         
+        if name == None:
+            name = 'module'
+            if not cls.server_exists(name):
+                cls.launch(name=name, **kwargs)
+            while not cls.server_exists(name):
+                commune.sleep(1)
+            
+            return cls.connect(name=name, **kwargs)
+        
 
 
         if wait_for_server:
@@ -1005,7 +1012,10 @@ class Module:
         server_registry = cls.server_registry(update=True)
 
     @classmethod
-    def server_registry(cls, update: bool = False, address_only: bool  = False)-> dict:
+    def server_registry(cls, 
+                        update: bool = False,
+                        address_only: bool  = False,
+                        include_peers: bool = True)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1037,9 +1047,20 @@ class Module:
    
         if update:
             Module.put_json('server_registry',server_registry)
+
+        peer_registry = cls.peer_registry() 
+        if len(peer_registry) > 0 and include_peers:
+            for peer_address, peer_namespace in peer_registry.items():
+                for peer_server_name, peer_server_info in peer_namespace.items():
+                    if peer_server_name in server_registry:
+                        peer_server_name = peer_server_name + '::' + peer_address
+                    
+                    assert peer_server_name not in server_registry, 'Peer server name already in server registry'
+                    server_registry[peer_server_name] = peer_server_info
+                    
         if address_only:
             return {k:server_registry[k]['address'] for k in server_registry}
-             
+           
         return server_registry
 
     @property
@@ -1559,7 +1580,7 @@ class Module:
             cls.ray_kill(path)
             
             
-        
+         
         return path
         
     
@@ -2507,51 +2528,7 @@ class Module:
                 cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
     
-    
 
-    @classmethod
-    def peer_registry(cls, module = None):
-        if module == None:
-            module = cls
-        if isinstance(module, str):
-            module = cls.connect(module)
-            return module.peer_registry()
-                 
-        external_ip = cls.get_external_ip()
-        peers = module.servers()         
-        peer_registry = cls.get_json('peer_registry')
-        peer_registry = {}
-        
-        peer_map = {}
-        for p in peers:
-            peer = cls.connect(p)
-            server_info = peer.server_info
-            peer_map[p] = peer.server_info
-            if external_ip == server_info['ip']:
-                server_info['ip'] = cls.default_ip
-
-        peer_registry[external_ip] = peer_map
-        
-        cls.put_json('peer_registry', peer_registry)
-        
-        return peer_registry
-
-    @classmethod
-    def add_peer_registry(cls, endpoint:str):
-        peer_registry = cls.get_json('peer_registry')
-        peer_registry = {}
-        peer_list = peer_registry.get(endpoint, [])
-        remote_peer_list = cls.peer_registry(module=endpoint)
-        
-        peer_list = remote_peer_list + peer_list
-        
-        peer_registry[endpoint] = remote_peer_list
-        
-        cls.put_json('peer_registry', peer_registry)
-        
-        return peer_registry
-        
-  
     
     def num_params(self, model:'nn.Module')->int:
         import np
