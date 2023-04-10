@@ -22,25 +22,28 @@ class Dashboard(commune.Module):
         sorted(self.module_list)
         
     
+       
     @classmethod
-    def add_peer(cls, peer_module):
+    def add_peer(cls, peer_address:str):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer_module=commune.connect(peer_module)
-        peer_server_registry = peer_module.server_registry()
-        peer_registry[peer_module] = peer_server_registry
+        peer=commune.connect(peer_address)
+        
+        peer_server_registry = peer.server_registry()
+        peer_registry[peer_address] = peer_server_registry
         
         cls.put_json('peer_registry', peer_registry)
     
     @classmethod
-    def remove_peer(cls, peer_module):
+    def rm_peer(cls, peer_address: str):
         peer_registry = cls.get_json('peer_registry', default={})
-        peeer_registry.pop(peer_module, None)
-        
-        peer_server_registry = peer_module.server_registry()
-        peer_registry[peer_module] = peer_server_registry
-        
+        peer_registry.pop(peer_address, None)        
         cls.put_json('peer_registry', peer_registry)
-        
+       
+    @classmethod
+    def ls_peers(cls):
+        peer_registry = cls.get_json('peer_registry', default={})
+        return list(peer_registry.keys())
+      
     def peers(self):
         return list(self.get_json('peer_registry', default={}).keys())
 
@@ -79,31 +82,39 @@ class Dashboard(commune.Module):
                       
             self.selected_module = st.selectbox('Module List',self.module_list, 0)   
         
-
-                                
-            st.metric('Number of Module Serving', len(self.servers))
+                
+            self.streamlit_peers()
 
             with st.expander('Module Tree'):
                 st.write(self.module_list)
             with st.expander('Servers'):
                 st.write(self.servers)
+            with st.expander('Peers'):
+                st.write(self.peers())
+            
             self.update_button = st.button('Update', False)
 
             if self.update_button:
                 self.load_state()
                 
-                
-            self.streamlit_peers()
             
     def streamlit_peers(self):
-        st.write('## Peers')
-        st.write(self.peers())
+
         
-        peer = st.text_input('Add Peer', '')
-        connect_button = st.button('Connect')
-        if connect_button:
-            peer = commune.connect(peer)
-            st.write(peer.server_info)
+
+        peer = st.text_input('Add a Peer', '0.0.0.0:9401')
+        cols = st.columns(3)
+        add_peer_button = cols[0].button('add Peer')
+        rm_peer_button = cols[2].button('rm peer')
+        if add_peer_button :
+            self.add_peer(peer)
+        if rm_peer_button :
+            self.rm_peer(peer)
+            
+            
+        
+
+        
  
     def streamlit_server_info(self):
         
