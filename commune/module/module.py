@@ -950,7 +950,7 @@ class Module:
                 client_kwargs = dict(ip=ip, port=int(port))
                 
             else:
-                server_registry = cls.server_registry()
+                server_registry = cls.server_registry(include_peers=False)
                 client_kwargs = server_registry[name]
 
         ip = client_kwargs['ip']
@@ -1065,8 +1065,11 @@ class Module:
             for peer_address, peer_namespace in peer_registry.items():
                 print('peer_address', peer_address)
                 for peer_server_name, peer_server_info in peer_namespace.items():
-                    if peer_server_name in server_registry:
-                        peer_server_name = peer_server_name + '::' + peer_server_info['address']
+                    tag = 0
+                    while peer_server_name in server_registry: 
+                        new_peer_server_name = f'{peer_server_name}:{tag}'
+                        if new_peer_server_name not in server_registry:
+                            peer_server_name = new_peer_server_name
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
 
