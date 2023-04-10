@@ -230,7 +230,10 @@ class Client( Serializer, commune.Module):
 
 
     def virtual(self):
-        return VirtualModule(module = self)        
+        module = VirtualModule(module = self)    
+        module.key = self.key
+        module.subspce = self.subspace   
+        return module
 
 
 if __name__ == "__main__":
