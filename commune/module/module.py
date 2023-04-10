@@ -2208,8 +2208,13 @@ class Module:
         import ray
         return ray.runtime_context.get_runtime_context()
     
+    
     @classmethod
-    def module(cls, module: Any = None ,init_module:bool=False , serve:bool=False):
+    def module(cls,
+               module: Any = None ,
+               init_module:bool=False , 
+               serve:bool=False, 
+               **kwargs):
         '''
         Wraps a python class as a module
         '''
@@ -2217,8 +2222,11 @@ class Module:
         if module is None:
             return Module
         if isinstance(module, str):
-            module = cls.get_module(module)
-            return module
+            modules = cls.module_list()
+            if module in modules:
+                return cls.get_module(module,**kwargs)
+            elif module in self.servers():
+                return self.connect(module,**kwargs)
     
 
         # serve the module if the bool is True
@@ -2844,8 +2852,13 @@ class Module:
     @classmethod
     def call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
-        module = cls.connect(module)
-        cls.print(module)
+        module_list = cls.module_list()
+        
+        if module in module_list:
+            module = cls.get_module(module)
+        else:
+            module = cls.connect(module)
+
         module_fn = getattr(module, fn)
         return module.remote_call(remote_fn=fn, *args, **kwargs)
         
@@ -3042,10 +3055,6 @@ class Module:
     def launchpad(cls):
         return cls.import_object('commune.launchpad.Launchpad')()
     @classmethod
-    def deploy_fleet(cls):
-        return cls.launchpad().deploy_fleet()
-
-    @classmethod
     def determine_type(cls, x):
         if x.lower() == 'null':
             return None
@@ -3106,6 +3115,10 @@ class Module:
         assert isinstance(port_range[0], int), 'Port range must be a list of integers'
         assert isinstance(port_range[1], int), 'Port range must be a list of integers'
         return port_range
+    
+    @classmethod
+    def port_range(cls):
+        return cls.get_port_range()
     
     @classmethod
     def resolve_port_range(cls, port_range: list = None) -> list:
