@@ -3104,8 +3104,7 @@ class Module:
         ansible_module = cls.get_module('ansible')()
         return getattr(ansible_module, fn)(*args, **kwargs)
         
-        
-        
+       
     @classmethod
     def add_peer(cls, peer_address):
         peer_registry = cls.get_json('peer_registry', default={})
@@ -3124,7 +3123,7 @@ class Module:
         
         peer = cls.connect(peer_address)
         peer_server_registry = peer_module.server_registry()
-        peer_registry[peer_address] = peer_server_registry
+        peer_registry[peer] = peer_server_registry
         
         cls.put_json('peer_registry', peer_registry)
        
