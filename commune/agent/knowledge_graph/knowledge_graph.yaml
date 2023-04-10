@@ -1,7 +1,7 @@
 module: KnowledgeGraph
 
 llm:
-  model:  "text-davinci-003",
+  model:  "text-davinci-003"
   temperature: float=0.9,
   max_tokens: 10,
   top_p: 1.0,

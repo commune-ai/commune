@@ -32,9 +32,9 @@ class Client( Serializer, commune.Module):
             port: int = 80 ,
             max_processes: int = 1,
             timeout:int = 20,
-            loop = None,
-            key = None,
-            subspace = None,
+            loop:  = None,
+            key: 'Key' = None,
+            network : 'Network' = None,
         ):
                 
         self.set_client(ip =ip,
