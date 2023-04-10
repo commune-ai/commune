@@ -21,7 +21,7 @@ class CLI(commune.Module):
             config: commune.Config = None,
 
         ) :
-        args, kwargs = self.parse_args()        
+        args, kwargs = self.parse_args() 
         if len(args)> 0:
     
             if len(args[0].split(':')) == 2:

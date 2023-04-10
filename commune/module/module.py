@@ -348,6 +348,13 @@ class Module:
         import subprocess
         import shlex
         import time
+        import signal
+        
+        def kill_process(process):
+            import signal
+            process.send_signal(signal.SIGINT)
+            process.wait()
+            # sys.exit(0)
             
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
@@ -373,20 +380,14 @@ class Module:
                     continue
                 
                 new_line += c
-
+  
         except KeyboardInterrupt:
-            import signal
-            process.send_signal(signal.SIGINT)
-            process.wait()
-
+            kill_process(process)
             
-        process.stdout = stdout_text
+        process.stdout.close()     
+        kill_process(process)
+        return stdout_text
 
-        if output_text:
-            return process.stdout
-
-            
-        return process
 
     shell = cmd = run_command
     @classmethod
@@ -1066,7 +1067,8 @@ class Module:
                 for peer_server_name, peer_server_info in peer_namespace.items():
                     if peer_server_name in server_registry:
                         peer_server_name = peer_server_name + '::' + peer_server_info['address']
-                    
+                    if 'address' not in peer_server_info:
+                        peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
 
                     server_registry[peer_server_name] = peer_server_info
         # sort dict by keys
@@ -1627,6 +1629,7 @@ class Module:
         if module == None:
             module = cls 
         elif isinstance(module, str):
+            name = cls.copy(module)
             module = cls.get_module(module) 
             
         if password:
@@ -1636,6 +1639,8 @@ class Module:
             fn = 'serve'
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)
+  
+  
   
         if mode == 'local':
 
@@ -1656,7 +1661,7 @@ class Module:
 
             assert fn != None, 'fn must be specified for pm2 launch'
             launch_fn = getattr(cls, f'pm2_launch')
-            launch_fn(**launch_kwargs)
+            return launch_fn(**launch_kwargs)
             
         elif mode == 'ray':
             launch_kwargs = dict(
@@ -1671,9 +1676,10 @@ class Module:
             )
             
             launch_fn = getattr(cls, f'{mode}_launch')
-            launch_fn(**launch_kwargs)
+            return launch_fn(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
+
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
         for module in cls.pm2_list():
@@ -1718,7 +1724,6 @@ class Module:
         elif module == None:
             module = cls
             
-        cls.print(name, 'purple')
         module_name =module.default_module_name() if name == None else name
             
         
@@ -1728,26 +1733,27 @@ class Module:
         command = f" pm2 start {module_path} --name {module_name} --interpreter {interpreter}"
         if no_autorestart:
             command = command + ' ' + '--no-autorestart'
-        cls.print(command,color='purple')
+
         # convert args and kwargs to json strings
         kwargs_str = json.dumps(kwargs).replace('"', "'")
         args_str = json.dumps(args).replace('"', "'")
 
-
         if refresh:
             cls.pm2_kill(module_name)   
-            
-
-            
+        
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
         env = {}
         if device != None:
             if isinstance(device, list):
                 device = ','.join(device)
             env['CUDA_VISIBLE_DEVICES']=device
-        cls.run_command(command, env=env, verbose=verbose)
-        return module_name
+            
+        cls.print(f'RUNNING: {command}')
 
+        stdout = cls.run_command(command, env=env, verbose=True)
+        # cls.print(f'STDOUT: \n {stdout}', color='green')
+        return stdout
+    
     @classmethod
     def pm2_kill(cls, name:str):
         output_str = cls.run_command(f"pm2 delete {name}")
@@ -3173,7 +3179,7 @@ class Module:
             cls.rm_peer(peer_address)
        
     @classmethod
-    def peer_registry(cls, update: bool = False):
+    def peer_registry(cls, update: bool = True):
         peer_registry =  cls.get_json('peer_registry', default={})
         if update:
             for peer_address in peer_registry.keys():
