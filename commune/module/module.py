@@ -903,7 +903,8 @@ class Module:
     def root_module(cls, name:str='module',
                     timeout:int = 100, 
                     sleep_interval:int = 1,
-                    return_info = True,):
+                    return_info = True,
+                    **kwargs):
         if not cls.server_exists(name):
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
@@ -923,9 +924,9 @@ class Module:
                 wait_for_server:bool = False,
                 **kwargs ):
         
-        if name == None and ip == None and port == None:
-            name = 'module'
+        if (name == None and ip == None and port == None):
             return cls.root_module()
+            
             
         if wait_for_server:
             cls.wait_for_server(name)
@@ -1033,7 +1034,7 @@ class Module:
     def server_registry(cls, 
                         update: bool = False,
                         address_only: bool  = False,
-                        include_peers: bool = True)-> dict:
+                        include_peers: bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1248,12 +1249,15 @@ class Module:
     blacklist_functions: List[str] = []
 
     @classmethod
-    def namespace(cls, network:str='local', **kwargs):
+    def namespace(cls,
+                  network:str='local',
+                  include_peers:bool = True, 
+                  **kwargs):
         if network == 'subspace':
             subspace = cls.subspace(**kwargs)
             namespace = subspace.namespace()
         elif network == 'local':
-            namespace = cls.server_registry(address_only=True)
+            namespace = cls.server_registry(address_only=True, include_peers=include_peers)
         else:
             raise ValueError(f'network must be either "subspace" or "local"')
         return namespace
