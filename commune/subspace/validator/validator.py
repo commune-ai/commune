@@ -11,7 +11,7 @@ class Validator(commune.Module):
     def __init__(self, 
                  batch_size: int = 32,
                  sequence_length: int = 256,
-                 dataset: str = 'dataset',
+                 dataset: str = 'dataset.text.bittensor',
                  models: List[str]= None,
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
@@ -20,7 +20,6 @@ class Validator(commune.Module):
                  alpha: float = 0.5,
                  load: bool = False
                  ):
-        commune.nest_asyncio()
 
         self.set_max_stats_history(max_stats_history)
         self.set_batch_size(batch_size)
@@ -236,13 +235,13 @@ class Validator(commune.Module):
                  models: str = None,
                  topk:int=512, 
                  num_batches: int = 1,
-                 model_fraction: float = 1.0,
-                 save_frequency = 10,
+                 num_models: int = 10,
                  **kwargs,
                  
                  ):
         for i in range(num_batches):
             sample = self.sample() if sample == None else sample
+            models = self.random_models(num_models)
             output = self.forward(sample=sample, models=models, topk=topk, **kwargs)
             if i % save_frequency == 0:
                 self.save()
@@ -297,6 +296,14 @@ class Validator(commune.Module):
         return self.models[random_model_key]
     
     
+    def random_models(self, num_models: int = 1):
+        num_models = min(num_models, len(self.model_keys))
+        random_model_keys = random.choices(self.model_keys, k=num_models)
+        return [self.models[k] for k in random_model_keys]
+    
+    
+    
+    
     @classmethod
     def test(cls):
         models = [m for m in commune.servers() if m.startswith('model')]
@@ -343,17 +350,47 @@ class Validator(commune.Module):
         return logits  # [batch_size, sequence_len, vocab_size]
 
         
+    # @classmethod
+    # def streamlit(cls):
+    #     self =  cls(models=None, dataset='dataset.text.bittensor', load=True)
+    #     timer = self.timer()
+    #     for i in range(100):
+    #         sample = self.sample()
+    #         self.validate(sample=sample, max_models = 5 ,topk=4096, models=None)
+    #         self.print(self.stats)
+    #         samples_per_second = i/timer.seconds
+    #         cls.print(f'samples_per_second: {samples_per_second}')
+    
+    @property
+    def stats_table(self): 
+        df_rows = []
+        for k in self.stats.keys():
+            self.stats[k]['model'] = k
+            df_rows.append(self.stats[k])
+            
+        import pandas as pd
+        df = pd.DataFrame(df_rows)
+        
+        return df
+
     @classmethod
     def streamlit(cls):
-        self =  cls(models=None, dataset='dataset.text.bittensor', load=True)
-        timer = self.timer()
-        for i in range(100):
-            sample = self.sample()
-            self.validate(sample=sample, topk=4096, models=None)
-            self.print(self.stats)
-            samples_per_second = i/timer.seconds
-            cls.print(f'samples_per_second: {samples_per_second}')
-
+        
+        import streamlit as st
+        commune.new_event_loop(nest_asyncio=False)
+        # commune.nest_asyncio()
+        self = cls(models=None, dataset='dataset.text.bittensor', load=True)
+        
+        df = self.stats_table
+        # print a scatter plot of the data
+        import plotly.express as px
+        fig = px.bar(df, x="model", y="metric", color="model")
+        
+        # make it vertical
+        fig.update_layout(
+            xaxis={'categoryorder':'total ascending'}
+        )
+        st.plotly_chart(fig)
 if __name__ == '__main__':
     Validator.run()
 

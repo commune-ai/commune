@@ -1153,7 +1153,8 @@ class Module:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
   
-        
+        if nest_asyncio:
+            cls.nest_asyncio()
 
         return loop
   
