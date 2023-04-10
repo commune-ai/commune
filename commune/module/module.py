@@ -923,7 +923,8 @@ class Module:
                 wait_for_server:bool = False,
                 **kwargs ):
         
-        if name == None:
+        if name == None and ip == None and port == None:
+            name = 'module'
             return cls.root_module()
             
         if wait_for_server:
@@ -944,14 +945,19 @@ class Module:
         # local namespace    
         if network == 'local':
             
-            if len(name.split(':')) == 2:
-                port = int(name.split(':')[1])
-                ip = name.split(':')[0]
-                client_kwargs = dict(ip=ip, port=int(port))
-                
-            else:
-                server_registry = cls.server_registry(include_peers=False)
-                client_kwargs = server_registry[name]
+            if isinstance(name, str):
+                if len(name.split(':')) == 2:
+                    port = int(name.split(':')[1])
+                    ip = name.split(':')[0]
+                else:
+                    server_registry = cls.server_registry(include_peers=False)
+                    client_kwargs = server_registry[name]
+                    ip = client_kwargs['ip']
+                    port = client_kwargs['port']
+            if ip == None:
+                ip = cls.default_ip()
+            client_kwargs = dict(ip=ip, port=int(port))
+
 
         ip = client_kwargs['ip']
         port = client_kwargs['port']
@@ -1000,6 +1006,7 @@ class Module:
         peer = ['']
         jobs = []
         for address in peer_addresses:
+            cls.print(f'Connecting to {address}', color='yellow')
             ip, port = address.split(':')
             jobs += [cls.async_connect(ip=ip, port=port, timeout=timeout)]
         loop = cls.get_event_loop()
@@ -1024,7 +1031,7 @@ class Module:
 
     @classmethod
     def server_registry(cls, 
-                        update: bool = False,
+                        update: bool = True,
                         address_only: bool  = False,
                         include_peers: bool = True)-> dict:
         '''
@@ -1060,6 +1067,7 @@ class Module:
             Module.put_json('server_registry',server_registry)
 
         peer_registry = cls.peer_registry() 
+        cls.print(peer_registry)
         if len(peer_registry) > 0 and include_peers:
             
             for peer_address, peer_namespace in peer_registry.items():
@@ -1067,9 +1075,11 @@ class Module:
                 for peer_server_name, peer_server_info in peer_namespace.items():
                     tag = 0
                     while peer_server_name in server_registry: 
+                        
                         new_peer_server_name = f'{peer_server_name}:{tag}'
                         if new_peer_server_name not in server_registry:
                             peer_server_name = new_peer_server_name
+                        tag+= 1
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
 
