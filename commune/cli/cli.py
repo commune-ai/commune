@@ -1,12 +1,16 @@
 
+import warnings
+
+# Ignore all warnings
+warnings.filterwarnings("ignore")
+# Reset warning filters to their default state (optional)
+warnings.resetwarnings()
+
 import argparse
 import commune
 from typing import List, Optional
 import json
 
-# Turn off rich console locals trace.
-from rich.traceback import install
-install(show_locals=False)
 
 class CLI(commune.Module):
     """

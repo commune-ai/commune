@@ -1,5 +1,3 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
-
-tokenizer = AutoTokenizer.from_pretrained("decapoda-research/llama-7b-hf")
-
-model = AutoModelForCausalLM.from_pretrained("decapoda-research/llama-7b-hf")
+import commune
+module = commune.connect('162.157.13.236:9251')
+print(module.key)

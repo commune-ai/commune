@@ -788,9 +788,12 @@ class Module:
         
     @classmethod
     def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
-        from commune.utils.dict import load_json
+        from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json') if resolve_path else path
-        data = load_json(path, **kwargs)
+        
+        
+        loop = cls.get_event_loop()
+        data = loop.run_until_complete(async_get_json(path, **kwargs))
         
         if data == None:
             data = {}
@@ -808,10 +811,11 @@ class Module:
                   
                  **kwargs) -> str:
         
-        from commune.utils.dict import put_json
+        from commune.utils.dict import async_put_json
         path = cls.resolve_path(path=path, extension='json') if resolve_path else path
         
-        put_json(path=path, data=data, **kwargs)
+        loop = cls.get_event_loop()
+        loop.run_until_complete(async_put_json(path=path, data=data, **kwargs))
         return path
     
     save_json = put_json
@@ -895,6 +899,20 @@ class Module:
         return loop.run_until_complete(cls.async_connect(*args, **kwargs))
         
     @classmethod
+    def root_module(cls, name:str='module',
+                    timeout:int = 100, 
+                    sleep_interval:int = 1,
+                    return_info = True,):
+        if not cls.server_exists(name):
+            cls.launch(name=name, **kwargs)
+            cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
+        module = cls.connect(name)
+        if return_info:
+            return module.server_info
+        return module
+    
+        
+    @classmethod
     async def async_connect(cls, 
                 name:str=None, 
                 ip:str=None, 
@@ -905,16 +923,8 @@ class Module:
                 **kwargs ):
         
         if name == None:
-            name = 'module'
-            if not cls.server_exists(name):
-                cls.launch(name=name, **kwargs)
-            while not cls.server_exists(name):
-                commune.sleep(1)
+            return cls.root_module()
             
-            return cls.connect(name=name, **kwargs)
-        
-
-
         if wait_for_server:
             cls.wait_for_server(name)
 
@@ -1050,14 +1060,17 @@ class Module:
 
         peer_registry = cls.peer_registry() 
         if len(peer_registry) > 0 and include_peers:
+            
             for peer_address, peer_namespace in peer_registry.items():
+                print('peer_address', peer_address)
                 for peer_server_name, peer_server_info in peer_namespace.items():
                     if peer_server_name in server_registry:
-                        peer_server_name = peer_server_name + '::' + peer_address
+                        peer_server_name = peer_server_name + '::' + peer_server_info['address']
                     
-                    assert peer_server_name not in server_registry, 'Peer server name already in server registry'
+
                     server_registry[peer_server_name] = peer_server_info
-                    
+        # sort dict by keys
+        # server_registry = {k:server_registry[k] for k in sorted(server_registry.keys())}
         if address_only:
             return {k:server_registry[k]['address'] for k in server_registry}
            
@@ -1065,6 +1078,8 @@ class Module:
 
     @property
     def server_info(self) -> dict: 
+        if 'address' not in self._server_info:
+            self._server_info['address'] = f"{self._server_info['ip']}:{self._server_info['port']}"          
         return self._server_info
     
     @server_info.setter
@@ -1176,14 +1191,17 @@ class Module:
     def wait_for_server(cls,
                           name: str ,
                           timeout:int = 30,
-                          sleep_interval: int = 4):
+                          sleep_interval: int = 4) -> bool :
         
         start_time = cls.time()
+        time_waiting = 0
         while not cls.server_exists(name):
             cls.sleep(sleep_interval)
-            current_time = cls.time()
-            if current_time - start_time > timeout:
+            time_waiting += sleep_interval
+
+            if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
+        return True
     def server_running(self):
         return hasattr(self, 'server_info')
 
@@ -2241,7 +2259,7 @@ class Module:
         '''
         
         if module is None:
-            return Module
+            return cls.root_module()
         if isinstance(module, str):
             modules = cls.module_list()
             if module in modules:
@@ -2947,6 +2965,11 @@ class Module:
             info = {}
         info.update({'timestamp': self.time()})
         self.users[user] = info
+    
+    def rm_user(user: str = None):
+        if not hasattr(self, 'users'):
+            self.users = {}
+        self.users.pop(user, None)
         
         
         

@@ -12,7 +12,8 @@ async def async_write(path, data,  mode ='w'):
 def sync_wrapper(fn):
     
     def wrapper_fn(*args, **kwargs):
-        return asyncio.run(fn(*args, **kwargs))
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(fn(*args, **kwargs))
     return  wrapper_fn
 
 def get_event_loop():

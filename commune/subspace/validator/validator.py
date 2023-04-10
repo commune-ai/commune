@@ -18,6 +18,7 @@ class Validator(commune.Module):
                  stats: Union[Dict, None] = None,
                  max_stats_history: int = 100,
                  alpha: float = 0.5,
+                 load: bool = False
                  ):
         commune.nest_asyncio()
 
@@ -31,6 +32,8 @@ class Validator(commune.Module):
         self.set_metric(metric)
         self.set_stats(stats=stats)
         self.set_alpha(alpha)
+        if load:
+            self.load()
         
         
     def set_max_stats_history(self, max_stats_history: int) -> None:
@@ -50,15 +53,22 @@ class Validator(commune.Module):
     def add_model(self, model: str, signature: Dict = None) -> None:
         if not hasattr(self, 'models'):
             self.models = {}
-        self.models[model] = commune.connect(model)
-
+        loop = self.get_event_loop()
+        job = connect.async_connect(model)
+        self.models[model] =  loop.run_until_complete(job)
             
     def set_models(self, models: List[str] = None) -> None:
         if models == None:
             models = self.default_models()
             
         for model in models:
-            self.add_model(model)
+            jobs = [commune.async_connect(model) for model in models]
+        
+        loop = self.get_event_loop()
+        model_objs = loop.run_until_complete(asyncio.gather(*jobs))
+        self.models = {}
+        for model, model_obj in zip(models, model_objs):
+            self.models[model] = model_obj
     
     def set_dataset(self, dataset: str) -> None:
         if isinstance(dataset, str):
@@ -215,19 +225,40 @@ class Validator(commune.Module):
             
             for k in ['inference_time', 'metric']:
                 stats[k] = ((stats[k]*(stats['count']-1)) + sample_stats[k])/stats['count']
-            stats['history'] = stats.get('history', []) + [sample_stats]
-            stats['history'] = stats['history'][-self.max_stats_history:]
+            # stats['history'] = stats.get('history', []) + [sample_stats]
+            # stats['history'] = self.copy(stats['history'][-self.max_stats_history:])
             self.set_stats(key=model_key, stats = stats)
             
             
         return model_output_dict
     
-    def validate(self, sample=None, models: str = None, topk:int=512, **kwargs):
-        sample = self.sample() if sample == None else sample
-        output = self.forward(sample=sample, models=models, topk=topk, **kwargs)
+    def validate(self, sample=None, 
+                 models: str = None,
+                 topk:int=512, 
+                 num_batches: int = 1,
+                 model_fraction: float = 1.0,
+                 save_frequency = 10,
+                 **kwargs,
+                 
+                 ):
+        for i in range(num_batches):
+            sample = self.sample() if sample == None else sample
+            output = self.forward(sample=sample, models=models, topk=topk, **kwargs)
+            if i % save_frequency == 0:
+                self.save()
         
         return output
 
+    def save(self, path: str = 'stats') -> Dict[str, Any]:
+        
+        self.put_json(path, self.stats)
+            
+    def load(self, path: str = 'stats') -> Dict[str, Any]:
+
+        stats = self.get_json(path, default={})
+           
+        self.stats = stats
+            
 
     def set_stats(self, key: str = None, stats: Dict[str, Any] = None) -> None:
         if stats is None:
@@ -314,14 +345,16 @@ class Validator(commune.Module):
         
     @classmethod
     def streamlit(cls):
-        self = cls()
-        validator =  Validator(models=None, dataset='dataset.text.bittensor')
-        timer = commune.timer()
+        self =  cls(models=None, dataset='dataset.text.bittensor', load=True)
+        timer = self.timer()
         for i in range(100):
-            sample = validator.sample()
-            validator.validate(sample=sample, topk=4096, models=None)
-            commune.print(validator.stats)
+            sample = self.sample()
+            self.validate(sample=sample, topk=4096, models=None)
+            self.print(self.stats)
+            samples_per_second = i/timer.seconds
+            cls.print(f'samples_per_second: {samples_per_second}')
 
 if __name__ == '__main__':
-    Validator.streamlit()
+    Validator.run()
+
         
