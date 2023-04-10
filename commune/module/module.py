@@ -955,7 +955,7 @@ class Module:
                     ip = client_kwargs['ip']
                     port = client_kwargs['port']
             if ip == None:
-                ip = cls.default_ip()
+                ip = cls.default_ip
             client_kwargs = dict(ip=ip, port=int(port))
 
 
@@ -1031,7 +1031,7 @@ class Module:
 
     @classmethod
     def server_registry(cls, 
-                        update: bool = True,
+                        update: bool = False,
                         address_only: bool  = False,
                         include_peers: bool = True)-> dict:
         '''
