@@ -233,13 +233,16 @@ class Server(ServerServicer, Serializer):
         except RuntimeError as ex:
             commune.print(f'Exception in server: {ex}', 'red')
             if "There is no current event loop in thread" in str(ex):
-                commune.print(f'Setting new loop', 'yellow')
+                if verbose:
+                    commune.print(f'SETTING NEW ANSYNCIO LOOP', color='yellow')
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
                 return self.__call__(data=data, metadata=metadata)
             
         except Exception as ex:
-            commune.print(f'Exception in server: {ex}', 'red')
+            output_data = str(ex)
+            if verbose:
+                commune.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')
         
         sample_info ={
             'seconds': t.seconds,
@@ -351,9 +354,8 @@ class Server(ServerServicer, Serializer):
         lifetime_seconds:int = 0
         
         def print_serve_status():
-            text = f'Serving {str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s STATE: {dict(self.stats)}'
-            commune.print(text, color='green')
-
+            text = f'{str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
+            commune.print(text, f'STATS:{self.stats}', color='green')
 
         while True:
             if not wait_for_termination:
