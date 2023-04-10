@@ -17,9 +17,7 @@ class CLI(commune.Module):
             config: commune.Config = None,
 
         ) :
-        args, kwargs = self.parse_args()
-        self.print(f'{args} {kwargs}')
-        
+        args, kwargs = self.parse_args()        
         if len(args)> 0:
     
             if len(args[0].split(':')) == 2:
@@ -30,7 +28,6 @@ class CLI(commune.Module):
                 result = module.remote_call(fn, *args,**kwargs)
             else:
                 fn = args.pop(0)
-                self.print(args, fn)
                 result = getattr(commune, fn)(*args, **kwargs)
             self.print(result) 
         
