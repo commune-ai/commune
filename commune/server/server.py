@@ -339,6 +339,10 @@ class Server(ServerServicer, Serializer):
     @property
     def endpoint(self):
         return f'{self.ip}:{self.port}'
+
+    @property
+    def address(self):
+        return f'{self.ip}:{self.port}'
     
     
     
@@ -455,6 +459,7 @@ class Server(ServerServicer, Serializer):
         return dict(
             ip=self.ip,
             port= self.port,
+            address = self.endpoint,
         )
         
         
