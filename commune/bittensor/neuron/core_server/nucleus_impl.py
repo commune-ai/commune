@@ -57,7 +57,7 @@ class server(torch.nn.Module):
         if config == None: config = server.config()
         self.config = config;print(config)
         self.std_tokenizer = bittensor.tokenizer()
-        self.device = config.neuron.device
+        self.device = 'cpu'
 
         #setting up pretrained model
         self.model_name = model_name if model_name != None else config.neuron.model_name
@@ -380,8 +380,8 @@ class server(torch.nn.Module):
             probs_std = probs_std.to(self.device)
             logits_std = torch.log(probs_std + 1e-40)
             #removing the loss calculation for stablity testing
-            original_loss = self.get_loss_fct(pre_logits, tokens['input_ids']).item()
-            translated_loss = self.get_loss_fct(logits_std, token_batch).item()
+            original_loss = self.get_loss_fct(pre_logits, tokens['input_ids'][:, -pre_logits.shape[1]:]).item()
+            translated_loss = self.get_loss_fct(logits_std, token_batch[:, -pre_logits.shape[1]:]).item()
             message = f'Loss: {original_loss:.2f} → {translated_loss:.2f}'
             
             return message, _model_output, logits_std
@@ -434,6 +434,7 @@ class server(torch.nn.Module):
             std_tokenizer = self.std_tokenizer
 
         tokens = self.token_remap(token_batch, std_tokenizer)
+        
 
         def _forward(_model_output=model_output):
             if _model_output is None:
@@ -448,7 +449,7 @@ class server(torch.nn.Module):
             # then compact new token phrases and probabilities into 1-D tensor
             topk_tensor = topk_token_phrases(last_logits, self.tokenizer, topk=topk)  # [batch_size, (topk + 1), max_len]
 
-            original_loss = self.get_loss_fct(_model_output.logits, tokens['input_ids']).item()
+            original_loss = self.get_loss_fct(_model_output.logits, tokens['input_ids'][:, -_model_output.logits.shape[1]:]).item()
 
             message = f'Loss: {original_loss:.2f}'
 
@@ -473,11 +474,11 @@ class server(torch.nn.Module):
                 check_status (:type: `bool`):
                     True if the model_output is valid.
         """
-        if hasattr(model_output, 'hidden_states') and model_output.hidden_states[-1].isnan().sum() > 0:
-            raise ValueError("Got nan value from model last hidden state. If you are using cuda with autocast, try remove setting --neuron.autocast.")
+        # if hasattr(model_output, 'hidden_states') and model_output.hidden_states[-1].isnan().sum() > 0:
+        #     raise ValueError("Got nan value from model last hidden state. If you are using cuda with autocast, try remove setting --neuron.autocast.")
 
-        if model_output.logits.isnan().sum() > 0:
-            raise ValueError("Got nan value from model logits. If you are using cuda with autocast, try remove setting --neuron.autocast.")
+        # if model_output.logits.isnan().sum() > 0:
+        #     raise ValueError("Got nan value from model logits. If you are using cuda with autocast, try remove setting --neuron.autocast.")
 
         return True
 

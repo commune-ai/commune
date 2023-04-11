@@ -86,10 +86,10 @@ class neuron:
         axon: 'bittensor.axon' = None,
         metagraph: 'bittensor.metagraph' = None,
         model: 'bittensor.neurons.text.core_server.server' = None, 
-        lasthidden = False,
-        causallm = False,
-        causallmnext = True,
-        seq2seq = False,
+        lasthidden = None,
+        causallm = None,
+        causallmnext = None,
+        seq2seq = None,
         synapse_list = None,
         netuid = None,
         blacklist_hotkeys = None,
@@ -148,7 +148,7 @@ class neuron:
 
         self.config.neuron.max_batch_size = self.subtensor.validator_batch_size(netuid=self.config.netuid) if self.config.neuron.max_batch_size == -1 else self.config.neuron.max_batch_size
         self.config.neuron.max_sequence_len = self.subtensor.validator_sequence_length(netuid=self.config.netuid) if self.config.neuron.max_sequence_len == -1 else self.config.neuron.max_sequence_len
-
+        
         if axon == None:
             axon = bittensor.axon(
                 config = config,
