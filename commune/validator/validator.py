@@ -5,14 +5,19 @@ from typing import Dict, List, Union, Any
 import random
 from copy import deepcopy
 import asyncio
-        
-class Validator(commune.Module):
+from munch import Munch
+from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
+    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
+
+from torch import nn
+class Validator(commune.Module, nn.Module):
     
     def __init__(self, 
                  batch_size: int = 32,
                  sequence_length: int = 256,
                  dataset: str = 'dataset.text.bittensor',
                  models: List[str]= None,
+                 tokenizer: str = 'bittensor',
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
@@ -20,6 +25,8 @@ class Validator(commune.Module):
                  alpha: float = 0.5,
                  load: bool = False
                  ):
+        
+        nn.Module.__init__(self)
 
         self.set_max_stats_history(max_stats_history)
         self.set_batch_size(batch_size)
@@ -31,10 +38,12 @@ class Validator(commune.Module):
         self.set_metric(metric)
         self.set_stats(stats=stats)
         self.set_alpha(alpha)
+        self.set_tokenizer(tokenizer)
         if load:
             self.load()
+
         
-        
+    
     def set_max_stats_history(self, max_stats_history: int) -> None:
         self.max_stats_history = max_stats_history
     def set_batch_size(self, batch_size: int) -> None:
@@ -59,16 +68,54 @@ class Validator(commune.Module):
     def set_models(self, models: List[str] = None) -> None:
         if models == None:
             models = self.default_models()
-            
-        for model in models:
-            jobs = [commune.async_connect(model) for model in models]
+        jobs = [commune.async_connect(model) for model in models]
         
         loop = self.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
         self.models = {}
         for model, model_obj in zip(models, model_objs):
             self.models[model] = model_obj
+            
+        # print(self.model.getattr('model_config'))
+        self.config = Munch(model_obj.getattr('config')['model'])
+        self.config.hidden_size = self.config.get('hidden_size')
     
+
+    def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None] = 'bittensor'):
+        
+        if tokenizer == None:
+            tokenizer = 'bittensor'
+            
+        import bittensor
+        
+        if isinstance(tokenizer, str):
+            if tokenizer == 'bittensor':
+                import bittensor
+                tokenizer = bittensor.tokenizer()
+            else:
+                tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+                try:
+                    tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+                except ValueError:
+                    print('resorting ot use_fast = False')
+                    tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+        # print(tokenizer)
+        self.tokenizer = tokenizer     
+        self.vocab_size = self.tokenizer.vocab_size
+        if  self.tokenizer.pad_token == None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+        
+        
+        self.std_tokenizer = bittensor.tokenizer()
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
+        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
+        
+        self.config['pad_token_id'] = self.tokenizer.pad_token_id
+
+        return self.tokenizer
+
     def set_dataset(self, dataset: str) -> None:
         if isinstance(dataset, str):
             dataset = commune.connect(dataset)
@@ -158,25 +205,29 @@ class Validator(commune.Module):
             model = self.models[model]
         return model
     async def async_forward(self, 
-                            sample: dict,
-                            model:str=None,
-                            topk: int = 512, 
-                            **kwargs ):
-        model_key = model
+                input_ids: torch.Tensor,
+                attention_mask: torch.Tensor = None,
+                output_hidden_states: bool = False,
+                model:str=None, 
+                topk: int = 4096,
+                **kwargs ):
+        
+        kwargs.update(dict(topk=topk, input_ids=input_ids))
         model = self.resolve_model(model)
-        model = self.models[model_key]
         
         # we want the client to return the future
         kwargs['return_future'] = True
         timer = commune.timer()
-        output = await model.forward(**sample,**kwargs)
+        output = await model.forward(**kwargs)
+        
+        self.print(output.keys())
         inference_time = timer.seconds
         
     
         if 'topk' in output:
             output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=50400)
                 
-            output['input_ids'] = sample['input_ids']
+            output['input_ids'] = input_ids 
             # calculate metric
             metric = self.calculate_metric(output)
         else:
@@ -198,68 +249,73 @@ class Validator(commune.Module):
                 output_hidden_states: bool = False,
                 models:str=None, 
                 threshold: float = 3.0,
-                topk: int = 4096,
+                topk: int = 256,
                 aggregate:bool = False,
                 set_stats: bool = True,
+                return_output_only = False, 
                 **kwargs ):
-        model_keys = list(self.models.keys())
         if models == None:
-            jobs = [self.async_forward(sample, model=model_key, topk=topk, **kwargs) for model_key in model_keys]
+            models = self.copy(list(self.models.keys()))
+
+        jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, **kwargs) for model_key in models]
             
         loop = self.get_event_loop()
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         model_output_dict = {}
-        for model_output, model_key in zip(model_outputs, model_keys):
+        for model_output, model_key in zip(model_outputs, models):
             model_output_dict[model_key] = model_output
             
         if aggregate:
             raise NotImplementedError('aggregate not implemented')
         
-
+        ensemble_logits = []
         for model_key, output_dict in model_output_dict.items():
             sample_stats = output_dict['stats']
-            
-            logits = output_dict['logits']
-            if model_key in self.stats:
-                stats = self.stats[model_key]
-                stats['count'] += 1
-            else:
-                stats = sample_stats
-                stats['count'] = 1
-            
-            for k in ['inference_time', 'metric']:
+            if 'logits' not in output_dict:
+                continue
+
+            stats = self.stats.get(model_key, {'count': 0, **sample_stats})
+            stats['count'] += 1
+            for k in [ 'metric']:
                 stats[k] = ((stats[k]*(stats['count']-1)) + sample_stats[k])/stats['count']
-            # stats['history'] = stats.get('history', []) + [sample_stats]
-            # stats['history'] = self.copy(stats['history'][-self.max_stats_history:])
+            if stats['metric'] < threshold:
+                ensemble_logits.append(output_dict['logits'])
+            logits = output_dict['logits']
             self.set_stats(key=model_key, stats = stats)
             
-        logits = torch.stack(v['logits'] for k,v in model_output_dict.items()])
-        probs = torch.softmax(logits, dim=-1)
-        probs = probs.sum(0)/prob.sum(-1).unsqueeze(-1)
-        logits = torch.log(probs + 1e-8)
+        ensemble_logits = torch.stack(ensemble_logits)
+        ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
+        ensemble_probs_unormalized = ensemble_probs.sum(0)
+        ensemble_probs = ensemble_probs_unormalized / ensemble_probs_unormalized.sum(-1, keepdim=True)
+        ensemble_logits = torch.log(ensemble_probs + 1e-8)
+        
         
         output_dict = {
-            'logits': logits,
+            'logits': ensemble_logits,
             'hidden_states': None,
+            # 'stats': stats
         }
-        return model_output_dict
+        output_dict['input_ids'] = input_ids
+        output_dict['metric'] = self.calculate_metric(output_dict)
+        return output_dict
     
     def validate(self, sample=None, 
                  models: str = None,
                  topk:int=512, 
                  num_batches: int = 1,
                  num_models: int = 10,
+                 save: bool = True,
                  **kwargs,
                  
                  ):
         for i in range(num_batches):
             sample = self.sample() if sample == None else sample
-            sample['models'] =  self.random_models(num_models)
+            sample['models'] =  self.random_model_keys(num_models)
             sample['topk'] = topk
             kwargs.update(sample)
-            output = self.forward(**sample, models=models, topk=topk, **kwargs)
-            if i % save_frequency == 0:
-                self.save()
+            output = self.forward(**kwargs)
+        if save:
+            self.save()
         
         return output
 
@@ -310,6 +366,10 @@ class Validator(commune.Module):
         random_model_key = self.random_model_key()
         return self.models[random_model_key]
     
+    def random_model_keys(self, num_models: int = 1):
+        num_models = min(num_models, len(self.model_keys))
+        random_model_keys = random.choices(self.model_keys, k=num_models)
+        return [k for k in random_model_keys]    
     
     def random_models(self, num_models: int = 1):
         num_models = min(num_models, len(self.model_keys))
@@ -324,7 +384,8 @@ class Validator(commune.Module):
         models = [m for m in commune.servers() if m.startswith('model')]
         self = Validator(models=models)
         for _ in range(10):
-            st.write(self.validate_model())
+            sample = self.sample()
+            cls.print(self.forward(**sample)['metric'])
         self.calculate_weights()
         st.write(self.stats)
       

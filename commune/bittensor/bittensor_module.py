@@ -15,7 +15,7 @@ class BittensorModule(commune.Module):
 
                 wallet:Union[bittensor.wallet, str] = None,
                 subtensor: Union[bittensor.subtensor, str] = 'finney',
-                create: bool = True,
+                create: bool = False,
                 register: bool = False
                 ):
         
@@ -429,7 +429,9 @@ class BittensorModule(commune.Module):
     def streamlit_neuron_metrics(self, num_columns=3):
         with st.expander('Neuron Stats', True):
             cols = st.columns(num_columns)
-            if self.is_registered():
+            is_registered = self.is_registered()
+            st.write(is_registered)
+            if is_registered:
                 neuron = self.neuron
                 if neuron == None:
                     return 
@@ -454,13 +456,21 @@ class BittensorModule(commune.Module):
             
             
         st.write(f'# BITTENSOR DASHBOARD {self.network}')
-
+        
         self.streamlit_neuron_metrics()
         
         
+        
 if __name__ == "__main__":
-    BittensorModule.run()
-
+    self = BittensorModule()
+    model = commune.get_module('validator')()
+    model.config['neuron'] = {
+        
+    }
+    server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
+    
+    neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron')
+    neuron(model=server, wallet=self.wallet, subtensor=self.subtensor)
 
     
 
