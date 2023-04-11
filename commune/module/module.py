@@ -1173,8 +1173,8 @@ class Module:
 
         return loop
   
-    @classmethod
-    def set_event_loop(cls, loop=None, new_loop:bool = False) -> 'asyncio.AbstractEventLoop':
+
+    def set_event_loop(self, loop=None, new_loop:bool = False) -> 'asyncio.AbstractEventLoop':
         import asyncio
         try:
             if new_loop:
@@ -1183,19 +1183,21 @@ class Module:
             else:
                 loop = loop if loop else asyncio.get_event_loop()
         except RuntimeError as e:
-            cls.new_event_loop()
-        return loop
+            self.new_event_loop()
+            
+        self.loop = loop
+        return self.loop
 
     @classmethod
-    def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
+    def get_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
         import asyncio
-
+        if nest_asyncio:
+            cls.nest_asyncio()
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = cls.new_event_loop()
-        if nest_asyncio:
-            cls.nest_asyncio()
+
         return loop
 
     @classmethod
@@ -1644,7 +1646,6 @@ class Module:
         if module == None:
             module = cls 
         elif isinstance(module, str):
-            name = cls.copy(module)
             module = cls.get_module(module) 
             
         if password:

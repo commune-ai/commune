@@ -1,4 +1,8 @@
+# import nest_asyncio
+# nest_asyncio.apply()
 import commune
+commune.new_event_loop()
+import bittensor
 import streamlit as st
 import torch
 from typing import Dict, List, Union, Any
@@ -23,11 +27,13 @@ class Validator(commune.Module, nn.Module):
                  stats: Union[Dict, None] = None,
                  max_stats_history: int = 100,
                  alpha: float = 0.5,
+                 loop = None,
                  load: bool = False
                  ):
         
         nn.Module.__init__(self)
-
+        
+        self.set_event_loop(loop)
         self.set_max_stats_history(max_stats_history)
         self.set_batch_size(batch_size)
         self.set_sequence_length(sequence_length)
@@ -61,16 +67,15 @@ class Validator(commune.Module, nn.Module):
     def add_model(self, model: str, signature: Dict = None) -> None:
         if not hasattr(self, 'models'):
             self.models = {}
-        loop = self.get_event_loop()
-        job = connect.async_connect(model)
-        self.models[model] =  loop.run_until_complete(job)
+        job = connect.async_connect(model, loop = self.loop)
+        self.models[model] =  self.loop.run_until_complete(job)
             
     def set_models(self, models: List[str] = None) -> None:
         if models == None:
             models = self.default_models()
         jobs = [commune.async_connect(model) for model in models]
         
-        loop = self.get_event_loop()
+        loop = commune.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
         self.models = {}
         for model, model_obj in zip(models, model_objs):
@@ -86,11 +91,9 @@ class Validator(commune.Module, nn.Module):
         if tokenizer == None:
             tokenizer = 'bittensor'
             
-        import bittensor
         
         if isinstance(tokenizer, str):
             if tokenizer == 'bittensor':
-                import bittensor
                 tokenizer = bittensor.tokenizer()
             else:
                 tokenizer = self.shortcuts.get(tokenizer, tokenizer)
@@ -131,14 +134,11 @@ class Validator(commune.Module, nn.Module):
         self.metric = metric
     def calculate_metric(self, x):
         
-        import torch
-        input_ids = x.get('input_ids', None)
-        pred = x.get('logits', None)
+        input_ids = x.get('input_ids', None).clone()
+        pred = x.get('logits', None).clone()
         if input_ids != None:
             gt = input_ids[:, -(pred.shape[1]-1):].flatten()
             pred = pred[:, :-1]
-            
-            
             
         assert isinstance(gt, torch.Tensor), f'gt is not a torch.Tensor. gt: {gt}'
         assert isinstance(pred, torch.Tensor), f'gt is not a torch.Tensor. gt: {gt}'
@@ -220,19 +220,17 @@ class Validator(commune.Module, nn.Module):
         timer = commune.timer()
         output = await model.forward(**kwargs)
         
-        self.print(output.keys())
         inference_time = timer.seconds
         
     
         if 'topk' in output:
-            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=50400)
+            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
                 
             output['input_ids'] = input_ids 
             # calculate metric
-            metric = self.calculate_metric(output)
+            metric = self.calculate_metric(self.copy(output))
         else:
             metric = self.default_loss
-            
             
         output['stats'] = {
             'metric': metric,
@@ -256,10 +254,10 @@ class Validator(commune.Module, nn.Module):
                 **kwargs ):
         if models == None:
             models = self.copy(list(self.models.keys()))
-
+        self.set_models(models)
         jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, **kwargs) for model_key in models]
-            
-        loop = self.get_event_loop()
+        
+        loop =commune.get_event_loop()
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         model_output_dict = {}
         for model_output, model_key in zip(model_outputs, models):
@@ -297,7 +295,8 @@ class Validator(commune.Module, nn.Module):
         }
         output_dict['input_ids'] = input_ids
         output_dict['metric'] = self.calculate_metric(output_dict)
-        return output_dict
+        self.print(output_dict['logits'].shape, color='purple')
+        return Munch(output_dict)
     
     def validate(self, sample=None, 
                  models: str = None,
@@ -421,6 +420,10 @@ class Validator(commune.Module, nn.Module):
         logits = torch.ones((batch_size, sequence_len, vocab_size), dtype=topk_values.dtype).to(topk_values.device)
         logits *= torch.log(remainder_floor)[:, :, None]  # set probability floor: [batch_size, sequence_len, vocab_size]
 
+        max_index = torch.max(topk_indices).item()  # max indices: [batch_size, sequence_len]
+        
+        # clamp max indices to topk
+        topk_indices = torch.clamp(topk_indices, 0, max_index)  # [batch_size, sequence_len]
         logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
 
         return logits  # [batch_size, sequence_len, vocab_size]
@@ -453,7 +456,7 @@ class Validator(commune.Module, nn.Module):
     def streamlit(cls):
         
         import streamlit as st
-        commune.new_event_loop(nest_asyncio=False)
+        commune.new_event_loop(nest_asyncio=True)
         # commune.nest_asyncio()
         self = cls(models=None, dataset='dataset.text.bittensor', load=True)
         
@@ -472,24 +475,24 @@ class Validator(commune.Module, nn.Module):
     def neuron(cls, 
                wallet='ensemble.Hot1',
                netuid=3):
-        
+                
         model = cls()
         bittensor_module = commune.get_module('bittensor')(wallet=wallet)
         server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
         
         free_ports = commune.get_available_ports()
         server.config.axon.port = free_ports[0]
+        server.config.axon.external_port = free_ports[0]
         server.config.prometheus.port = free_ports[1]
         
-        cls.print(server.config, color='green')
-        cls.print(server.config, color='green')
         neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron') 
         wallet = bittensor_module.wallet
         wallet.config.subtensor = server.config.subtensor
+        
         neuron(model=server, wallet=wallet, netuid=3).run()
 
         
 if __name__ == '__main__':
-    Validator.run()
+    Validator.neuron()
 
         
