@@ -124,5 +124,57 @@ class Huggingface(commune.Module):
     def filter_df(df, fn):
         indices =  df.apply(fn, axis=1)
         return df[indices]
+    
+    cache_path = '~/.cache/huggingface'
+    @classmethod
+    def cached_models(cls, limit=10, return_paths: bool = False , **kwargs):
+        paths = [p for p in cls.cached_model_paths()]
+        
+        if return_paths:
+            return paths
+        else:
+            return [os.path.basename(p).split('--')[-1] for p in paths]
+    
+    @classmethod
+    def cached_model_paths(cls, limit=10, **kwargs):
+        dirpath = f'{cls.cache_path}/hub'
+        return [p for p in commune.ls(dirpath) if os.path.basename(p).startswith('models')]
+    
+    @classmethod
+    def cached_model2path(cls, limit=10, **kwargs):
+        paths = [p for p in cls.cached_model_paths()]
+        model2path = {}
+        for path in paths:
+            model_name = os.path.basename(path).split('--')[-1]
+            model2path[model_name] = path
+        cls.print(model2path)
+        return model2path
+    
+    @classmethod
+    def get_model_snapshots(cls, model_name):
+        root_path = cls.cached_model2path().get(model_name) + '/snapshots'
+        snapshots = commune.ls(root_path)
+        return [ snapshot  for snapshot in snapshots]
+    
+    @classmethod
+    def get_model_snapshot(cls, model_name):
+        snapshots = cls.get_model_snapshots(model_name) 
+        return snapshots[0]
+    
+    @classmethod
+    def get_model_assets(cls, model_name):
+        snapshots = cls.get_model_snapshots(model_name) 
+        return cls.ls(snapshots[0])
+        
+    @classmethod
+    def get_model_weights(cls, model_name):
+        snapshots = cls.get_model_snapshots(model_name) 
+        return cls.ls(snapshots[0])
+        
+    @classmethod
+    def test(cls): 
+        self = cls()
+        cls.print(self.get_model_wegiths('gpt-neox-20b'))
+    
 if __name__ == '__main__':
-    HubModule.run()
+    Huggingface.test()

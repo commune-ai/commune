@@ -1,3 +1,2 @@
-module: HubModule
+module: Huggingface
 
-clients: [local]

@@ -18,8 +18,7 @@ class GPTNeox(commune.Module):
 
         self.gradient_checkpointing = False
 
-        # Initialize weights and apply final processing
-        self.post_init()
+        # Initialize weights and appdefly final processing
 
     def get_input_embeddings(self):
         return self.embed_in
@@ -157,7 +156,6 @@ class GPTNeox(commune.Module):
             hidden_states=all_hidden_states,
             attentions=all_attentions,
         )
-
-
-model = GPTNeox()
-model 
+        
+commune.print(commune.module('huggingface').cached_model_paths())
+# print(models)

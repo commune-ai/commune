@@ -859,10 +859,17 @@ class Module:
     
 
     @classmethod
-    def ls(cls, path:str = '', recursive:bool = True, resolve_path: bool = False):
+    def ls(cls, path:str = '', 
+           recursive:bool = False, 
+           resolve_path: bool = False,
+           return_absolute = True):
         path = cls.resolve_path(path, extension=None) if resolve_path else path
 
-        return cls.lsdir(path) if not recursive else cls.walk(path)
+        ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
+        if return_absolute:
+            ls_files = [os.path.join(path, f) for f in ls_files]
+            
+        return ls_files
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:
