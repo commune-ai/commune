@@ -467,6 +467,28 @@ class Validator(commune.Module, nn.Module):
             xaxis={'categoryorder':'total ascending'}
         )
         st.plotly_chart(fig)
+        
+    @classmethod
+    def neuron(cls, 
+               wallet='ensemble.Hot1',
+               netuid=3):
+        
+        model = cls()
+        bittensor_module = commune.get_module('bittensor')(wallet=wallet)
+        server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
+        
+        free_ports = commune.get_available_ports()
+        server.config.axon.port = free_ports[0]
+        server.config.prometheus.port = free_ports[1]
+        
+        cls.print(server.config, color='green')
+        cls.print(server.config, color='green')
+        neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron') 
+        wallet = bittensor_module.wallet
+        wallet.config.subtensor = server.config.subtensor
+        neuron(model=server, wallet=wallet, netuid=3).run()
+
+        
 if __name__ == '__main__':
     Validator.run()
 
