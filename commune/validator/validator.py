@@ -420,10 +420,9 @@ class Validator(commune.Module, nn.Module):
         logits = torch.ones((batch_size, sequence_len, vocab_size), dtype=topk_values.dtype).to(topk_values.device)
         logits *= torch.log(remainder_floor)[:, :, None]  # set probability floor: [batch_size, sequence_len, vocab_size]
 
-        max_index = torch.max(topk_indices).item()  # max indices: [batch_size, sequence_len]
         
         # clamp max indices to topk
-        topk_indices = torch.clamp(topk_indices, 0, max_index)  # [batch_size, sequence_len]
+        topk_indices = torch.clamp(topk_indices, 0, vocab_size-1)  # [batch_size, sequence_len]
         logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
 
         return logits  # [batch_size, sequence_len, vocab_size]
