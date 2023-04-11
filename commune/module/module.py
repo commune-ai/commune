@@ -922,6 +922,7 @@ class Module:
                 network : str = 'local',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
+                include_peers: bool = True,
                 **kwargs ):
         
         if (name == None and ip == None and port == None):
@@ -951,7 +952,7 @@ class Module:
                     port = int(name.split(':')[1])
                     ip = name.split(':')[0]
                 else:
-                    server_registry = cls.server_registry(include_peers=False)
+                    server_registry = cls.server_registry(include_peers=include_peers)
                     client_kwargs = server_registry[name]
                     ip = client_kwargs['ip']
                     port = client_kwargs['port']
@@ -1034,7 +1035,7 @@ class Module:
     def server_registry(cls, 
                         update: bool = False,
                         address_only: bool  = False,
-                        include_peers: bool = False)-> dict:
+                        include_peers: bool = True)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1068,16 +1069,14 @@ class Module:
             Module.put_json('server_registry',server_registry)
 
         peer_registry = cls.peer_registry() 
-        cls.print(peer_registry)
         if len(peer_registry) > 0 and include_peers:
             
             for peer_address, peer_namespace in peer_registry.items():
-                print('peer_address', peer_address)
                 for peer_server_name, peer_server_info in peer_namespace.items():
                     tag = 0
                     while peer_server_name in server_registry: 
                         
-                        new_peer_server_name = f'{peer_server_name}:{tag}'
+                        new_peer_server_name = f'{peer_server_name}.{tag}'
                         if new_peer_server_name not in server_registry:
                             peer_server_name = new_peer_server_name
                         tag+= 1
@@ -1498,7 +1497,6 @@ class Module:
         obj = obj if obj else cls
         if isinstance(obj, str):
             obj = cls.module(obj)
-        cls.print(obj)
         function_schema_map = {}
         for fn in cls.get_functions(obj, include_module=include_module):
             # if not include_hidden:
@@ -3173,7 +3171,7 @@ class Module:
         peer_registry = cls.get_json('peer_registry', default={})
         peer=cls.connect(peer_address, timeout=1)
         cls.print('Adding peer: {}'.format(peer_address))
-        peer_server_registry = peer.server_registry()
+        peer_server_registry = peer.server_registry(include_peers = False)
         peer_registry[peer_address] = peer_server_registry
         
         cls.put_json('peer_registry', peer_registry)
@@ -3196,7 +3194,7 @@ class Module:
             cls.rm_peer(peer_address)
        
     @classmethod
-    def peer_registry(cls, update: bool = True):
+    def peer_registry(cls, update: bool = False):
         peer_registry =  cls.get_json('peer_registry', default={})
         if update:
             for peer_address in peer_registry.keys():
