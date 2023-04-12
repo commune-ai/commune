@@ -9,7 +9,11 @@ class TokenMapper(commune.Module):
         
         self.from_tokenizer  = self.get_tokenizer(from_tokenizer)
         self.to_tokenizer  = self.get_tokenizer(to_tokenizer)
-        self.translation_map = self.get_translation_map(self.from_tokenizer, self.to_tokenizer)
+        self.translation_map= {
+            'to':    self.get_translation_map(self.from_tokenizer, self.to_tokenizer),
+            'from':    self.get_translation_map(self.to_tokenizer, self.from_tokenizer)
+        }
+     
         
         
     def forward(self, logits, from_tokenizer, to_tokenizer):
@@ -192,5 +196,5 @@ class TokenMapper(commune.Module):
                 tokenizer.vocab_len = tokenizer.vocab_size
 
 if __name__ == "__main__":
-    
-    commune.print(TokenMapper().__dict__)
+    import streamlit as st
+    st.write(TokenMapper().__dict__)
