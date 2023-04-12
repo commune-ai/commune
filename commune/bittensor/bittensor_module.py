@@ -475,12 +475,12 @@ class BittensorModule(commune.Module):
         
         
 if __name__ == "__main__":
-    bittensor_module = commune.get_module('bittensor')()
-    server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
-    neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron')
-    neuron(model=server, wallet=bittensor_module.wallet, subtensor=bittensor_module.subtensor)
+    # bittensor_module = commune.get_module('bittensor')()
+    # server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
+    # neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron')
+    # neuron(model=server, wallet=bittensor_module.wallet, subtensor=bittensor_module.subtensor)
 
-    
+    BittensorModule.run()
 
 
 
