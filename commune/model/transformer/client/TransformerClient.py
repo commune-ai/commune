@@ -9,13 +9,8 @@ from typing import Union, Optional, Dict
 from munch import Munch
 import os,sys
 import commune
-from commune import Module
+import bittensor
 
-try:
-    import bittensor
-except RuntimeError:
-    commune.new_event_loop()
-    import bittensor
 # import streamlit as st
 # from commune.model.utils import encode_topk, decode_topk
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \

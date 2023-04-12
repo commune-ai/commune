@@ -593,6 +593,10 @@ class Module:
             if verbose:
                 cls.print(f'Killing {module}', color='red')
             cls.kill_server(module)
+            
+    @classmethod
+    def kill_all(cls):
+        cls.kill_all_servers()
 
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
@@ -1237,6 +1241,7 @@ class Module:
         while not cls.server_exists(name):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
+            cls.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
 
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
@@ -1721,6 +1726,7 @@ class Module:
         else: 
             raise Exception(f'launch mode {mode} not supported')
 
+    deploy = launch
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
         for module in cls.pm2_list():
@@ -1806,7 +1812,9 @@ class Module:
             cls.print(stdout, color='orange')
             
     @classmethod
-    def restart(cls, name:str, mode:str='pm2'):
+    def restart(cls, name:str = None, mode:str='pm2'):
+        if name == None:
+            name = 'module'
         if mode == 'pm2':
             return cls.pm2_restart(name)
         elif mode == 'ray':
@@ -2596,7 +2604,7 @@ class Module:
 
     
     def num_params(self, model:'nn.Module')->int:
-        import np
+        import numpy as np
         from torch import nn
         model_parameters = filter(lambda p: p.requires_grad, model.parameters())
         num_params = sum([np.prod(p.size()) for p in model_parameters])
