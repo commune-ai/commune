@@ -16,12 +16,16 @@ class CLI(commune.Module):
 
         ) :
         commune.new_event_loop(True)
+        module = commune.Module()
         args, kwargs = self.parse_args() 
         if len(args)> 0:
     
+
+            # fn_obj = getattr(module, fn)
+            if args[0] in commune.module_list():
+                module = commune.get_module(args.pop(0))
             fn = args.pop(0)
-            fn_obj = getattr(commune, fn)
-            result = fn_obj(*args, **kwargs)
+            result = getattr(module, fn)(*args, **kwargs)
             # else:
             #     result = fn_obj
             self.print(result) 

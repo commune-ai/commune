@@ -46,6 +46,8 @@ class TransformerModel( Model):
         # 1-3B models
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+        'opt1.3b': 'facebook/opt-1.3b',
+        'opt2.7b': 'facebook/opt-2.7b',
 
         # 0-7B models
         'gptjt': 'togethercomputer/GPT-JT-6B-v1',
@@ -62,6 +64,8 @@ class TransformerModel( Model):
         'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
         'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
         'opt6.7b': 'facebook/opt-6.7b',
+
+
         # 'llama': 'decapoda-research/llama-7b-hf',
 
         # # > 7B models
@@ -77,7 +81,7 @@ class TransformerModel( Model):
 
     def __init__(self,
                 # model_name: str="EleutherAI/gpt-j-6b",
-                model: str="gptj.adventure",
+                model: str="gpt125m",
                 tag :str = None,
                 tokenizer:str = None,
                 device: str = 'cuda',
@@ -213,6 +217,7 @@ class TransformerModel( Model):
                    **kwargs) -> None:        
         if model!= None:
             self.set_model(model)
+            print(self.num_params(self.model))
         if tokenizer != None or model != None:
             self.set_tokenizer(tokenizer)
         if optimizer!= None:
@@ -566,44 +571,52 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '1': ['opt7b', 'oa.galactia.7b', 'gptjt_mod', 'gptjt', 'model.gptj', 'model.gptj.instruct', 'model.gptj.alpaca']
+        '1': ['opt7b', 'oa.galactia.7b', 'gptjt_mod', 'gptjt', 'model.gptj', 'model.gptj.instruct', 'model.gptj.alpaca'],
+        'all': default_models,
+        'default': default_models,
     }
     @classmethod
     def deploy_fleet(cls, 
                      models: List[str] = 'all',
                      replace: bool = False,
-                     max_servers: int = 8,
+                     max_models: int = 8,
+                     wait_for_server = True
                      ) -> List[str]:
 
 
-        if models in cls.fleet_group:
-            models = cls.fleet_group[models]
-        elif models == 'all' or models == 'default':
-            models = cls.default_models
         
-        
+        models = cls.fleet_group.get(models, models)
+    
+    
         deployed_model_tags = {}
-        deployed_model_names = []
-        count = 0
+        models = models[:max_models]
+        deployed_models = []
         for model in models:
-            model_kwargs =  {'model': model}
-            model_kwargs['tokenizer'] = 'gpt2'
-            name = f'model.{model}'
-            if cls.server_exists(name) and replace == False:
-                continue
-            server_tag = deployed_model_tags[name] = deployed_model_tags.get(name, -1)  + 1
-            if server_tag > 0:
-                name += f'.{server_tag}'
-                
-            deployed_model_names.append(name)
+            commune.print(f'Deploying Model {model}', 'green')
+            cls.deploy(model=model, wait_for_server=wait_for_server)
+            deployed_models.append(model)
+            commune.print(f'Deployed Model {model} ({len(deployed_models)}/{len(models)})', 'green')
             
-            cls.launch(name=name,kwargs=model_kwargs, mode='pm2')
-            count+= 1
-            if count >= max_servers:
-                break
             
-            commune.print(f'Deploying Model {name}', 'green')
         return deployed_model_names
+        
+        
+    @classmethod
+    def deploy(cls,
+               model: str ='gptj',
+               tokenizer: str='gpt2', 
+               name: str =None, 
+               wait_for_server: bool = True):
+
+        model_kwargs =  {'model': model, 'tokenizer': tokenizer}
+        
+        if name == None:
+            name = f'model.{model}'
+                        
+        cls.launch(name=name,kwargs=model_kwargs, mode='pm2')
+        if wait_for_server:
+            cls.wait_for_server(name=name, sleep_interval=20, timeout=1000)
+        return name
             
     @classmethod
     def sandbox(cls):
