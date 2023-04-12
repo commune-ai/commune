@@ -26,8 +26,8 @@ class BittensorModule(commune.Module):
         
     @property
     def network_options(self):
-        network_options = ['finney','nakamoto', 'nobunaga'] 
-        if os.getenv('SUBTENSOR', None) is not None:
+        network_options = ['finney', 'bellagene'] 
+        if os.getenv('SUBTENSOR', None) != None:
             network_options.append(os.getenv('SUBTENSOR'))
             
         return network_options
@@ -475,11 +475,6 @@ class BittensorModule(commune.Module):
         
         
 if __name__ == "__main__":
-    # bittensor_module = commune.get_module('bittensor')()
-    # server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
-    # neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron')
-    # neuron(model=server, wallet=bittensor_module.wallet, subtensor=bittensor_module.subtensor)
-
     BittensorModule.run()
 
 
