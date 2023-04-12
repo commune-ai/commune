@@ -6,11 +6,14 @@ from commune.model.transformer.gpt_neox.gpt_neox_blocks import GPTNeoXLayer
 import streamlit as st
 class GPTNeox(commune.Module, nn.Module):
     def __init__(self, config = None, 
-                 blocks = None):
+                 blocks = None,
+                 init_weights: bool = False):
         
         nn.Module.__init__(self)
         self.set_config(config)
         self.set_blocks(blocks)
+        if init_weights:
+            self.init_weights()
         
 
 
@@ -21,7 +24,8 @@ class GPTNeox(commune.Module, nn.Module):
         for _ in range(self.config.num_hidden_layers):
             st.write(_)
             blocks.append(GPTNeoXLayer(self.config))
-            st.write(blocks[-1].__dict__)
+            st.write(blocks[-1].state_dict())
+        st.write()
         return 
     
     base = GPTNeoXLayer
@@ -194,10 +198,25 @@ class GPTNeox(commune.Module, nn.Module):
         self = cls()
         st.write(self)
         
+    def init_weights(self):
+        self.apply(self._init_weights)
+    def _init_weights(self, module):
+        """Initialize the weights"""
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
+
+
 
 if __name__ == "__main__":
-    # model_assets = commune.module('huggingface')().get_model_assets("gpt-neox-20b")
-    st.write(GPTNeox.get_file_contents().split('(commune.Module')[0].split('class')[-1])
-    # GPTNeox.test()
-    # GPTNeox.test()
+    st.write(GPTNeox())
+
 # print(models)

@@ -3242,6 +3242,45 @@ class Module:
 
         return file_contents
 
+    @classmethod
+    def put_text(cls, path:str, text:str) -> None:
+        # Get the absolute path of the file
+        path = os.path.abspath(path)
+
+        # Write the text to the file
+        with open(path, 'w') as file:
+            file.write(text)
+
+    @classmethod
+    def get_text(cls, path:str) -> None:
+        # Get the absolute path of the file
+        path = os.path.abspath(path)
+
+        # Read the contents of the file
+        with open(path, 'r') as file:
+            return file.read()
+
+    @classmethod
+    def get_file_class(cls, path=None, ignore_error:bool = False):
+        if cls == Module:
+            return 'Module'
+        # Get the file path of the module
+        module_file_path = os.path.abspath(module.__file__)
+
+        # Read the contents of the file
+        with open(module_file_path, 'r') as file:
+            file_contents = file.read()
+            
+        file_content = cls.get_file_contents(obj)
+        for k in ['(commune.Module)']:
+            if k in file_content:
+                return file_content.split(k)[0].split('class')[-1]
+        if ignore_error:
+            return None
+        else: 
+            raise ValueError('Could not find class name in file')
+        
+    
 if __name__ == "__main__":
     Module.run()
     
