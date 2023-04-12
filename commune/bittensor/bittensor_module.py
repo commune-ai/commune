@@ -155,7 +155,7 @@ class BittensorModule(commune.Module):
             self.print(f'Waiting for registering {seconds_waited} seconds', color='purple')
             self.sleep(interval)
             seconds_waited += interval
-            # self.sync(netuid=netuid)
+            self.sync(netuid=netuid)
 
             
     @classmethod
