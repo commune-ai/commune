@@ -9,6 +9,8 @@ from glob import glob
 import sys
 import argparse
 import asyncio
+
+
 class Module:
     
     # port range for servers
@@ -71,6 +73,7 @@ class Module:
         if simple:
             return cls.path2simple(path=module_path)
         return module_path
+    
     @classmethod
     def filepath(cls) -> str:
         '''
@@ -1033,7 +1036,7 @@ class Module:
     def server_registry(cls, 
                         update: bool = False,
                         address_only: bool  = False,
-                        include_peers: bool = True)-> dict:
+                        include_peers: bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -3192,7 +3195,7 @@ class Module:
             cls.rm_peer(peer_address)
        
     @classmethod
-    def peer_registry(cls, update: bool = True):
+    def peer_registry(cls, update: bool = False):
         peer_registry =  cls.get_json('peer_registry', default={})
         if update:
             for peer_address in peer_registry.keys():
