@@ -202,6 +202,13 @@ class Module:
         return munch2dict(x)
     
     @classmethod
+    def munch(cls, x:Dict) -> Munch:
+        '''
+        Converts a dict to a munch
+        '''
+        return self.dict2munch(x)
+    
+    @classmethod
     def load_yaml(cls, path:str=None, resolve_path:bool = False) -> Dict:
         '''
         Loads a yaml file
@@ -276,7 +283,7 @@ class Module:
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict={},
                    save_if_not_exists:bool = False,
-                   add_attributes: bool = True):
+                   add_attributes: bool = True) -> Munch:
         '''
         Set the config as well as its local params
         '''
@@ -1662,6 +1669,8 @@ class Module:
         if module == None:
             module = cls 
         elif isinstance(module, str):
+            if name == None:
+                name = module 
             module = cls.get_module(module) 
             
         if password:
@@ -1993,6 +2002,12 @@ class Module:
             cls.ray_init()
         return ray
     
+    @classmethod
+    def get_module_name(cls, name:str=None, tag:str=None, seperator:str='.'):
+        name = name if name else cls.__name__.lower()
+        if tag != None:
+            name = tag + seperator + name
+        return name
     @classmethod 
     def ray_launch(cls, 
                    module= None, 
@@ -2022,15 +2037,8 @@ class Module:
         else:
             module_class = cls.module(module)
             
-        if name == None:
-            if cls.is_module(module_class):
-                name = module_class.default_module_name()
-            else:
-                name = module_class.__name__
-            
+        name = self.get_module_name(name=name, tag=tag) 
         assert isinstance(name, str)
-        
-        name = cls.get_module_name(name=name, tag=tag) 
         
         actor_kwargs['name'] = name
         actor_kwargs['refresh'] = refresh
@@ -2887,13 +2895,14 @@ class Module:
     def call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
         module_list = cls.module_list()
-        
-        if module in module_list:
+        namespace  = cls.namespace()
+        if module in namespace:
+            module = cls.connect(namespace)
+        elif module in module_list:
             module = cls.get_module(module)
         else:
             module = cls.connect(module)
 
-        module_fn = getattr(module, fn)
         return module.remote_call(remote_fn=fn, *args, **kwargs)
         
     def resolve_key(self, key: str) -> str:
