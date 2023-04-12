@@ -59,8 +59,7 @@ class BittensorDataset(Module):
             load_dataset : bool = True,
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
-            background_download: bool = False,
-            download: bool = True,
+            download: bool = False,
             min_hash_count : int = 850000,
             loop: Optional['asyncio.loop'] = None ,
             nest_asyncio: bool = True):
@@ -464,11 +463,11 @@ class BittensorDataset(Module):
     
     
     
-    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = False, verbose_rate = 1):
+    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = True, verbose_rate = 1):
         
         if background:
             thread_fn_kwargs = dict(locals())
-            thread_fn_kwasrgs['background'] = False
+            thread_fn_kwargs['background'] = False
             from threading import Thread
             self.download_thread = Thread(target=self.download, kwargs= thread_fn_kwargs, daemon=True, name='IPFS Download')
             self.download_thread.start()   
