@@ -791,14 +791,14 @@ class Module:
 
         
     @classmethod
-    def get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
+    def get_json(cls, *args, **kwargs):
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_get_json(*args, **kwargs))
+    @classmethod
+    async def async_get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json') if resolve_path else path
-        
-        
-        loop = cls.get_event_loop()
-        data = loop.run_until_complete(async_get_json(path, **kwargs))
-        
+        data = await async_get_json(path, **kwargs)
         if data == None:
             data = {}
         if 'data' in data and 'timestamp' in data:
@@ -809,17 +809,18 @@ class Module:
     load_json = get_json
 
     @classmethod
-    def put_json(cls, path:str, 
+    def put_json(cls,*args,**kwargs) -> str:
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
+    @classmethod
+    async def async_put_json(cls, path:str, 
                  data:Dict, 
-                 resolve_path:bool = True,
-                  
+                 resolve_path:bool = True, 
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json
         path = cls.resolve_path(path=path, extension='json') if resolve_path else path
-        
-        loop = cls.get_event_loop()
-        loop.run_until_complete(async_put_json(path=path, data=data, **kwargs))
+        await async_put_json(path=path, data=data, **kwargs)
         return path
     
     save_json = put_json
@@ -1082,6 +1083,9 @@ class Module:
         if len(peer_registry) > 0 and include_peers:
             
             for peer_address, peer_namespace in peer_registry.items():
+                if isinstance(peer_namespace, str):
+                    cls.print(f'Error getting peer namespace from {peer_address}', color='red')
+                    continue
                 for peer_server_name, peer_server_info in peer_namespace.items():
                     tag = 0
                     while peer_server_name in server_registry: 
@@ -1357,8 +1361,10 @@ class Module:
             cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
         
     @classmethod
-    def functions(cls, include_module=False):
-        functions = cls.get_functions(cls,include_module=include_module)  
+    def functions(cls, search = None, include_module=False):
+        functions = cls.get_functions(include_module=include_module)  
+        if isinstance(search, str):
+            functions = [f for f in functions if search in f]
         return functions
 
         
@@ -3178,20 +3184,36 @@ class Module:
         return getattr(ansible_module, fn)(*args, **kwargs)
         
     @classmethod
-    def add_peer(cls, peer_address:str):
+    def add_peer(cls, *args, **kwargs):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
+        
+    @classmethod
+    async def async_add_peer(cls, peer_address:str, name:str=None):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer=cls.connect(peer_address, timeout=1)
+        peer= await cls.async_connect(peer_address, timeout=1)
         cls.print('Adding peer: {}'.format(peer_address))
         peer_server_registry = peer.server_registry(include_peers = False)
         peer_registry[peer_address] = peer_server_registry
-        
-        cls.put_json('peer_registry', peer_registry)
+
+        if name != None:
+            assert isinstance(name, str), 'Name must be a string'
+            
+            name2peer = await cls.async_get_json('name2peer', default={})
+            assert name not in name2peer, 'Name already exists'
+            name2peeer[name] = peer_address
+            await cls.async_put_json('name2peer', name2peer)
+        await cls.async_put_json('peer_registry', peer_registry)
     
     @classmethod
-    def add_peers(cls, peer_addresses: list):
-        for peer_address in peer_addresses:
+    def add_peers(cls, peers: list):
+        jobs = []
+        for peer in peers:
+            jobs.append(cls.async_add_peer(peer))
             
-            cls.add_peer(peer_address)
+        loop = asyncio.get_event_loop()
+        results = loop.run_until_complete(asyncio.gather(*jobs))
+        return results
     
     @classmethod
     def rm_peer(cls, peer_address: str):
@@ -3203,25 +3225,37 @@ class Module:
     def rm_peers(cls, peer_addresses: list):
         for peer_address in peer_addresses:
             cls.rm_peer(peer_address)
-       
+      
+    @classmethod
+    def update_peers(cls, peers: list = None):
+        if peer_addresses == None:
+            peers = cls.peers()
+        self.add_peers(peers)
     @classmethod
     def peer_registry(cls, update: bool = False):
-        peer_registry =  cls.get_json('peer_registry', default={})
         if update:
-            for peer_address in peer_registry.keys():
-                cls.add_peer(peer_address)
-        
-        peer_registry =  cls.get_json('peer_registry', default={})
-    
-        return peer_registry
+            self.update_peers()
+        return cls.get_json('peer_registry', default={})
+
     @classmethod
-    def ls_peers(cls):
+    def run_jobs(cls, jobs: List, mode ='asyncio',**kwargs):
+        if mode == 'asyncio':
+            loop = asyncio.get_event_loop()
+            results = loop.run_until_complete(asyncio.gather(*jobs))
+            return results
+        else:
+            raise ValueError(f"Invalid mode: {mode}")
+        
+    
+    @classmethod
+    def ls_peers(cls, update=False):
         peer_registry = cls.get_json('peer_registry', default={})
         return list(peer_registry.keys())
       
     @classmethod
-    def peers(cls):
-        return list(cls.get_json('peer_registry', default={}).keys())
+    def peers(cls, update=False):
+        peer_registry = cls.peer_registry(update=update)
+        return list(peer_registry.keys())
 
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:

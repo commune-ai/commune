@@ -9,17 +9,31 @@ async def async_write(path, data,  mode ='w'):
     async with aiofiles.open(path, mode=mode) as f:
         await f.write(data)
 
-def get_event_loop():
+def new_event_loop(nest_asyncio:bool = False):
+    if nest_asyncio:
+        import nest_asyncio
+        nest_asyncio.apply()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop
+def get_event_loop(new_event_loop:bool = False, nest_asyncio:bool = False):
+    if nest_asyncio:
+        import nest_asyncio
+        nest_asyncio.apply()
+    if new_event_loop:
+        return new_event_loop()
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        loop = new_event_loop()
     return loop
 def sync_wrapper(fn):
     
     def wrapper_fn(*args, **kwargs):
-        loop = get_event_loop()
+        if 'loop'  in kwargs:
+            loop = kwargs['loop']
+        else:
+            loop = get_event_loop()
         return loop.run_until_complete(fn(*args, **kwargs))
     return  wrapper_fn
 

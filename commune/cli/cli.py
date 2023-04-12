@@ -1,10 +1,4 @@
 
-import warnings
-
-# Ignore all warnings
-warnings.filterwarnings("ignore")
-# Reset warning filters to their default state (optional)
-warnings.resetwarnings()
 
 import argparse
 import commune
@@ -21,15 +15,15 @@ class CLI(commune.Module):
             config: commune.Config = None,
 
         ) :
+        commune.new_event_loop(True)
         args, kwargs = self.parse_args() 
         if len(args)> 0:
     
             fn = args.pop(0)
             fn_obj = getattr(commune, fn)
-            if callable(fn_obj):
-                result = fn_obj(*args, **kwargs)
-            else:
-                result = fn_obj
+            result = fn_obj(*args, **kwargs)
+            # else:
+            #     result = fn_obj
             self.print(result) 
         
         else:
