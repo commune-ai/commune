@@ -24,21 +24,26 @@ class CLI(commune.Module):
         args, kwargs = self.parse_args() 
         if len(args)> 0:
     
-            if len(args[0].split(':')) == 2:
-                # commune module:fn args kwargs 
-                module_fn = args.pop(0)
-                module, fn = module_fn.split(':')
-                module = commune.connect(module)
-                result = module.remote_call(fn, *args,**kwargs)
+            fn = args.pop(0)
+            fn_obj = getattr(commune, fn)
+            if callable(fn_obj):
+                result = fn_obj(*args, **kwargs)
             else:
-                fn = args.pop(0)
-                result = getattr(commune, fn)(*args, **kwargs)
+                result = fn_obj
             self.print(result) 
         
         else:
             self.print("No command given", color='red')
             
-            
     
+    def catch_ip(self):
+        result = None
+        if len(args[0].split(':')) == 2:
+            # commune module:fn args kwargs 
+            module_fn = args.pop(0)
+            module, fn = module_fn.split(':')
+            module = commune.connect(module)
+            result = module.remote_call(fn, *args,**kwargs)
             
             
+        return result
