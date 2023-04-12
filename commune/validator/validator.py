@@ -486,6 +486,7 @@ class Validator(commune.Module, nn.Module):
         
         neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron') 
         wallet = bittensor_module.wallet
+        bittensor_module.wait_until_registered()
         wallet.config.subtensor = server.config.subtensor
         
         neuron(model=server, wallet=wallet, netuid=3).run()

@@ -3219,6 +3219,29 @@ class Module:
     @classmethod
     def peers(cls):
         return list(cls.get_json('peer_registry', default={}).keys())
+
+    @classmethod
+    def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
+        return [text for text in text_list if filter_text in text]
+
+    @classmethod
+    def get_file_contents(cls, class_name = None):
+        if class_name is None:
+            class_name = cls
+        # Get the module that contains the class
+        module = inspect.getmodule(class_name)
+        if module is None:
+            raise ValueError(f"Could not find module for class {class_name}")
+
+        # Get the file path of the module
+        module_file_path = os.path.abspath(module.__file__)
+
+        # Read the contents of the file
+        with open(module_file_path, 'r') as file:
+            file_contents = file.read()
+
+        return file_contents
+
 if __name__ == "__main__":
     Module.run()
     

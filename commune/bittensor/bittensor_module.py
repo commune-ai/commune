@@ -138,13 +138,26 @@ class BittensorModule(commune.Module):
         return self.subtensor.network
     
     
-    def is_registered(self, netuid: int = None):
+    def is_registered(self, netuid: int = None, wallet = None):
         netuid = self.resolve_netuid(netuid)
-        return self.wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
+        wallet = self.resolve_wallet(wallet)
+        return wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
 
-    def sync(self):
-        return self.metagraph.sync()
+    def sync(self, netuid=None):
+        netuid = self.resolve_netuid(netuid)
+        return self.metagraph.sync(netuid=netuid)
     
+    def wait_until_registered(self, netuid: int = None, wallet: 'Wallet'=None, interval:int=60):
+        seconds_waited = 0
+        # loop until registered.
+        while not self.is_registered( netuid=netuid, wallet=wallet):
+            # sleep then sync
+            self.print(f'Waiting for registering {seconds_waited} seconds', color='purple')
+            self.sleep(interval)
+            seconds_waited += interval
+            # self.sync(netuid=netuid)
+
+            
     @classmethod
     def dashboard(cls):
         st.set_page_config(layout="wide")
@@ -230,7 +243,7 @@ class BittensorModule(commune.Module):
     
     def resolve_wallet(self, wallet=None):
         if wallet is None:
-            wallet = self.default_wallet
+            wallet = self.wallet
         return wallet
 
     def register ( 

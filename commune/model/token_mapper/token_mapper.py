@@ -1,7 +1,9 @@
 import commune
+import torch
+from typing import Dict, Any, List, Tuple
 class TokenMapper(commune.Module):
     def __init__(self, from_tokenizer='gpt2', to_tokenizer='facebook/opt-6.7b'):
-        self.set_tokenizer_pair(tokenizer1, tokenizer2)
+        self.set_tokenizer_pair(from_tokenizer, to_tokenizer)
 
     def set_tokenizer_pair(self, from_tokenizer, to_tokenizer):
         
@@ -14,7 +16,7 @@ class TokenMapper(commune.Module):
         logits = self.map_logits_between_tokenizers(logits, self.tokenizers[from_tokenizer], self.tokenizers[to_tokenizer])
         return logits
     
-    
+    tokenizer_cache = {}
     def get_tokenizer(cls, tokenizer_name: str, cache:bool = True) -> 'PreTrainedTokenizerBase':
         from transformers import AutoTokenizer
         r"""
@@ -26,11 +28,13 @@ class TokenMapper(commune.Module):
                 tokenizer (:obj:`PreTrainedTokenizerBase`):
                     A tokenizer instance.
         """
-
+        tokenizer = None
         if cache:
             if tokenizer_name in cls.tokenizer_cache:
+                tokenizer = cls.tokenizer_cache[tokenizer_name]
+            else:
                 tokenizer =  AutoTokenizer.from_pretrained(tokenizer_name)
-                cls.tokenizer_cache[tokenizer_name] = tokenizer
+
         else:
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         
@@ -59,8 +63,8 @@ class TokenMapper(commune.Module):
 
 
     @classmethod
-    def get_translation_map(cls, from_tokenizer: PreTrainedTokenizerBase,
-                            to_tokenizer: PreTrainedTokenizerBase) -> Dict[str, Any]:
+    def get_translation_map(cls, from_tokenizer: 'PreTrainedTokenizerBase',
+                            to_tokenizer: 'PreTrainedTokenizerBase') -> Dict[str, Any]:
         r"""
         Map individual token phrases from a tokenizer to another tokenizer.
             Args:
@@ -168,82 +172,7 @@ class TokenMapper(commune.Module):
             server_seq_tokens = probs_from_copy.gather(1, to_idx)  # [map_len, subset_size_std] gather sequences
             probs_to[from_idx] = server_seq_tokens.sum(dim=0) / map_len  # [subset_size_std] in-place average approx.
 
-    @classmethod
-    def translate_tokenizer_probs(cls, probs: torch.FloatTensor, probs_std: torch.FloatTensor,
-                                offset_mapping: List[tuple], offset_mapping_std: List[tuple],
-                                tokenizer: PreTrainedTokenizerBase, std_tokenizer: PreTrainedTokenizerBase,
-                                split_map_cache: Dict[tuple, List[Dict[str, torch.Tensor]]],
-                                to_translation_map: Dict[str, Any], from_translation_map: Dict[str, Any],
-                                tokens: torch.LongTensor, tokens_std: torch.LongTensor) -> None:
-        r"""
-        Translates source token probability distributions to target probability distributions, by
-        aligning segments through source token splits, then greedily performing one-to-one,
-        one-to-many, many-to-one distribution mappings.
-            Args:
-                probs (:obj:`torch.FloatTensor`, `required`):
-                    [sequence_len, vocab_size] Input probability distribution over a source tokenizer vocabulary.
-                probs_std (:obj:`torch.FloatTensor`, `required`):
-                    [std_sequence_len, std_vocab_size] Output probability distribution over a target tokenizer vocabulary.
-                    Reference that will be written in-place.
-                offset_mapping (:obj:`List[tuple]`, `required`):
-                    Tokenizer offset mappings for a specific sequence [(left_0, right_0), (left_1, right_1), ...].
-                offset_mapping_std (:obj:`List[tuple]`, `required`):
-                    Standard tokenizer offset mappings for a specific sequence [(left_0, right_0), (left_1, right_1), ...]
-                tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
-                    Source tokenizer.
-                std_tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
-                    Standard/target tokenizer.
-                split_map_cache (:obj:`Dict[tuple, List[Dict[str, torch.Tensor]]]`, `required`):
-                    A dictionary of depths keying split_maps of mappings from original tokens to
-                    target tokens at each depth of the split. Adds split_maps to cache for faster future recall.
-                tokens (:obj:`torch.LongTensor`, `required`):
-                    [sequence_len] A sequence of tokens produced by the source tokenizer.
-                tokens_std (:obj:`torch.LongTensor`, `required`):
-                    [std_sequence_len] A sequence of tokens produced by the standard tokenizer.
-                to_translation_map (:obj:`Dict[str, Any]`, `required`):
-                    Maps for each observed length, a source token to a token sequence of that length,
-                    with source index to target indices.
-                from_translation_map (:obj:`Dict[str, Any]`, `required`):
-                    Maps for each observed length, a source token to a token sequence of that length,
-                    from target index to source indices.
-
-            Returns:
-
-        """
-        # === Align tokenized sequences via source token splitting ===
-        result = align_tokenizer_sequences(probs, offset_mapping, offset_mapping_std,
-                                        tokenizer, split_map_cache, tokens.cpu(), tokens_std.cpu())
-        aligned_probs, aligned_offset_mapping, aligned_tokens = result
-
-        # === Get one-to-many / many-to-one mappings ===
-        mappings = get_tokenizer_sequence_mappings(aligned_offset_mapping, offset_mapping_std)
-
-        # === Perform probability mappings ===
-        for (right_idx, right_idx_std, segment_count_base, segment_count_std_base,
-            segment_count_overlap, segment_count_std_overlap) in mappings[1:]:  # don't map start token
-
-            segment_count = segment_count_base + segment_count_overlap  # calculate effective segments length
-            segment_count_std = segment_count_std_base + segment_count_std_overlap  # calculate effective segments length
-
-            # === One-to-many / one-to-one mapping ===
-            if segment_count_base == 1:
-                start_idx_std = right_idx_std - segment_count_std  # calculate starting index
-
-                translate_one_to_many(aligned_probs[right_idx-1],
-                                    probs_std[start_idx_std:start_idx_std+segment_count_std],
-                                    to_translation_map)
-
-            # === Many-to-one mapping ===
-            elif segment_count_std_base == 1:  # many-to-one
-                start_idx = right_idx - segment_count  # calculate starting index
-
-                translate_many_to_one(aligned_probs[start_idx:right_idx],
-                                    probs_std[right_idx_std-1],
-                                    from_translation_map)
-
-            else:
-                print('Undefined mapping.')
-
+    
     @classmethod
     def set_vocab_len(cls, tokenizer: 'PreTrainedTokenizerBase'):
         r"""
@@ -261,3 +190,7 @@ class TokenMapper(commune.Module):
                 tokenizer.vocab_len = len(tokenizer.encoder)
             else:  # revert to vocab_size
                 tokenizer.vocab_len = tokenizer.vocab_size
+
+if __name__ == "__main__":
+    
+    commune.print(TokenMapper().__dict__)

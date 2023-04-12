@@ -3,23 +3,55 @@ from typing import Optional, Tuple, Dict
 import torch
 from torch import nn
 from commune.model.transformer.gpt_neox.gpt_neox_blocks import GPTNeoXLayer
-
-class GPTNeox(commune.Module):
-    def __init__(self, config = None):
+import streamlit as st
+class GPTNeox(commune.Module, nn.Module):
+    def __init__(self, config = None, 
+                 blocks = None):
+        
+        nn.Module.__init__(self)
         self.set_config(config)
-        config = self.config
-        self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
-        layers = []
-        for _ in range(config.num_hidden_layers):
-            print(_)
-            layers.append(GPTNeoXLayer(config))
-        self.layers = nn.ModuleList(layers)
-        self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.set_blocks(blocks)
+        
 
-        self.gradient_checkpointing = False
 
         # Initialize weights and appdefly final processing
 
+    def default_blocks(self):
+        blocks = []
+        for _ in range(self.config.num_hidden_layers):
+            st.write(_)
+            blocks.append(GPTNeoXLayer(self.config))
+            st.write(blocks[-1].__dict__)
+        return 
+    
+    base = GPTNeoXLayer
+    def resolve_block(self, block:str):
+        if isinstance(block, str):
+            block = commune.connect(block)
+        elif isinstance(block, self.base ):
+            block = block
+        else:
+            raise ValueError(f"block must be a string or a {self.base} object")
+        return self.blocks[index]
+    
+    def replace_block(self, index, block):
+        self.blocks[index] = block
+        
+        
+        self.layers[index] = block
+    def set_blocks(self, 
+                   blocks
+                   ):
+        layers = []
+        if blocks == None:
+            blocks = self.default_blocks()
+        
+        self.blocks = blocks
+        self.layers = nn.ModuleList(blocks)
+        
+        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+        self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
+        self.gradient_checkpointing = False
     def get_input_embeddings(self):
         return self.embed_in
 
@@ -157,5 +189,15 @@ class GPTNeox(commune.Module):
             attentions=all_attentions,
         )
         
-commune.print(commune.module('huggingface').cached_model_paths())
+    @classmethod
+    def test(cls):
+        self = cls()
+        st.write(self)
+        
+
+if __name__ == "__main__":
+    # model_assets = commune.module('huggingface')().get_model_assets("gpt-neox-20b")
+    st.write(GPTNeox.get_file_contents().split('(commune.Module')[0].split('class')[-1])
+    # GPTNeox.test()
+    # GPTNeox.test()
 # print(models)
