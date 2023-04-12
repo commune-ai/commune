@@ -239,8 +239,8 @@ class EnsembleModel( Model):
         self.models = {} 
         if models is None:
             models = self.default_models()
-        connect_model_jobs = [self.async_connect(model, loop=self.loop) for model in models]
-        model_clients = asyncio.run(asyncio.gather(*connect_model_jobs))
+        connect_model_jobs = [self.loop.run_until_complete(self.async_connect(model)) for model in models]
+        model_clients = loop.run_until_complete(asyncio.gather(*connect_model_jobs))
         for model, client in zip(models, model_clients):
             self.models[model] = client
  

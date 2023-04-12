@@ -15,7 +15,7 @@ class BittensorModule(commune.Module):
 
                 wallet:Union[bittensor.wallet, str] = None,
                 subtensor: Union[bittensor.subtensor, str] = 'finney',
-                create: bool = True,
+                create: bool = False,
                 register: bool = False
                 ):
         
@@ -138,13 +138,26 @@ class BittensorModule(commune.Module):
         return self.subtensor.network
     
     
-    def is_registered(self, netuid: int = None):
+    def is_registered(self, netuid: int = None, wallet = None):
         netuid = self.resolve_netuid(netuid)
-        return self.wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
+        wallet = self.resolve_wallet(wallet)
+        return wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
 
-    def sync(self):
-        return self.metagraph.sync()
+    def sync(self, netuid=None):
+        netuid = self.resolve_netuid(netuid)
+        return self.metagraph.sync(netuid=netuid)
     
+    def wait_until_registered(self, netuid: int = None, wallet: 'Wallet'=None, interval:int=60):
+        seconds_waited = 0
+        # loop until registered.
+        while not self.is_registered( netuid=netuid, wallet=wallet):
+            # sleep then sync
+            self.print(f'Waiting for registering {seconds_waited} seconds', color='purple')
+            self.sleep(interval)
+            seconds_waited += interval
+            self.sync(netuid=netuid)
+
+            
     @classmethod
     def dashboard(cls):
         st.set_page_config(layout="wide")
@@ -230,7 +243,7 @@ class BittensorModule(commune.Module):
     
     def resolve_wallet(self, wallet=None):
         if wallet is None:
-            wallet = self.default_wallet
+            wallet = self.wallet
         return wallet
 
     def register ( 
@@ -429,7 +442,9 @@ class BittensorModule(commune.Module):
     def streamlit_neuron_metrics(self, num_columns=3):
         with st.expander('Neuron Stats', True):
             cols = st.columns(num_columns)
-            if self.is_registered():
+            is_registered = self.is_registered()
+            st.write(is_registered)
+            if is_registered:
                 neuron = self.neuron
                 if neuron == None:
                     return 
@@ -454,13 +469,16 @@ class BittensorModule(commune.Module):
             
             
         st.write(f'# BITTENSOR DASHBOARD {self.network}')
-
+        
         self.streamlit_neuron_metrics()
         
         
+        
 if __name__ == "__main__":
-    BittensorModule.run()
-
+    bittensor_module = commune.get_module('bittensor')()
+    server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
+    neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron')
+    neuron(model=server, wallet=bittensor_module.wallet, subtensor=bittensor_module.subtensor)
 
     
 

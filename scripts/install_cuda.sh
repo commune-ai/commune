@@ -22,3 +22,5 @@ sudo apt-get -y install nvidia-cuda-toolkit
 
 # Install the latest CUDA toolkit
 sudo apt-get -y install cuda-toolkit
+# rm cuda
+rm cuda-*

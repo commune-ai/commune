@@ -862,10 +862,17 @@ class Module:
     
 
     @classmethod
-    def ls(cls, path:str = '', recursive:bool = True, resolve_path: bool = False):
+    def ls(cls, path:str = '', 
+           recursive:bool = False, 
+           resolve_path: bool = False,
+           return_absolute = True):
         path = cls.resolve_path(path, extension=None) if resolve_path else path
 
-        return cls.lsdir(path) if not recursive else cls.walk(path)
+        ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
+        if return_absolute:
+            ls_files = [os.path.join(path, f) for f in ls_files]
+            
+        return ls_files
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:
@@ -876,12 +883,12 @@ class Module:
     @classmethod
     def walk(cls, path:str) -> List[str]:
         import os
-        path_list = []
+        path_map = {}
         for root, dirs, files in os.walk(path):
-            if len(dirs) == 0 and len(files) > 0:
-                for f in files:
-                    path_list.append(os.path.join(root, f))
-        return path_list
+            for f in files:
+                path = os.path.join(root, f)
+                path_map[path] = f
+        return list(path_map.keys())
     
        
     @classmethod
@@ -906,7 +913,8 @@ class Module:
     def root_module(cls, name:str='module',
                     timeout:int = 100, 
                     sleep_interval:int = 1,
-                    return_info = True,):
+                    return_info = True,
+                    **kwargs):
         if not cls.server_exists(name):
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
@@ -924,11 +932,12 @@ class Module:
                 network : str = 'local',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
+                include_peers: bool = True,
                 **kwargs ):
         
-        if name == None and ip == None and port == None:
-            name = 'module'
+        if (name == None and ip == None and port == None):
             return cls.root_module()
+            
             
         if wait_for_server:
             cls.wait_for_server(name)
@@ -953,7 +962,7 @@ class Module:
                     port = int(name.split(':')[1])
                     ip = name.split(':')[0]
                 else:
-                    server_registry = cls.server_registry(include_peers=False)
+                    server_registry = cls.server_registry(include_peers=include_peers)
                     client_kwargs = server_registry[name]
                     ip = client_kwargs['ip']
                     port = client_kwargs['port']
@@ -1070,16 +1079,14 @@ class Module:
             Module.put_json('server_registry',server_registry)
 
         peer_registry = cls.peer_registry() 
-        cls.print(peer_registry)
         if len(peer_registry) > 0 and include_peers:
             
             for peer_address, peer_namespace in peer_registry.items():
-                print('peer_address', peer_address)
                 for peer_server_name, peer_server_info in peer_namespace.items():
                     tag = 0
                     while peer_server_name in server_registry: 
                         
-                        new_peer_server_name = f'{peer_server_name}:{tag}'
+                        new_peer_server_name = f'{peer_server_name}.{tag}'
                         if new_peer_server_name not in server_registry:
                             peer_server_name = new_peer_server_name
                         tag+= 1
@@ -1176,8 +1183,8 @@ class Module:
 
         return loop
   
-    @classmethod
-    def set_event_loop(cls, loop=None, new_loop:bool = False) -> 'asyncio.AbstractEventLoop':
+
+    def set_event_loop(self, loop=None, new_loop:bool = False) -> 'asyncio.AbstractEventLoop':
         import asyncio
         try:
             if new_loop:
@@ -1186,19 +1193,21 @@ class Module:
             else:
                 loop = loop if loop else asyncio.get_event_loop()
         except RuntimeError as e:
-            cls.new_event_loop()
-        return loop
+            self.new_event_loop()
+            
+        self.loop = loop
+        return self.loop
 
     @classmethod
-    def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
+    def get_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
         import asyncio
-
+        if nest_asyncio:
+            cls.nest_asyncio()
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
             loop = cls.new_event_loop()
-        if nest_asyncio:
-            cls.nest_asyncio()
+
         return loop
 
     @classmethod
@@ -1251,12 +1260,15 @@ class Module:
     blacklist_functions: List[str] = []
 
     @classmethod
-    def namespace(cls, network:str='local', **kwargs):
+    def namespace(cls,
+                  network:str='local',
+                  include_peers:bool = True, 
+                  **kwargs):
         if network == 'subspace':
             subspace = cls.subspace(**kwargs)
             namespace = subspace.namespace()
         elif network == 'local':
-            namespace = cls.server_registry(address_only=True)
+            namespace = cls.server_registry(address_only=True, include_peers=include_peers)
         else:
             raise ValueError(f'network must be either "subspace" or "local"')
         return namespace
@@ -1497,7 +1509,6 @@ class Module:
         obj = obj if obj else cls
         if isinstance(obj, str):
             obj = cls.module(obj)
-        cls.print(obj)
         function_schema_map = {}
         for fn in cls.get_functions(obj, include_module=include_module):
             # if not include_hidden:
@@ -1645,7 +1656,6 @@ class Module:
         if module == None:
             module = cls 
         elif isinstance(module, str):
-            name = cls.copy(module)
             module = cls.get_module(module) 
             
         if password:
@@ -3172,7 +3182,7 @@ class Module:
         peer_registry = cls.get_json('peer_registry', default={})
         peer=cls.connect(peer_address, timeout=1)
         cls.print('Adding peer: {}'.format(peer_address))
-        peer_server_registry = peer.server_registry()
+        peer_server_registry = peer.server_registry(include_peers = False)
         peer_registry[peer_address] = peer_server_registry
         
         cls.put_json('peer_registry', peer_registry)
@@ -3212,6 +3222,68 @@ class Module:
     @classmethod
     def peers(cls):
         return list(cls.get_json('peer_registry', default={}).keys())
+
+    @classmethod
+    def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
+        return [text for text in text_list if filter_text in text]
+
+    @classmethod
+    def get_file_contents(cls, class_name = None):
+        if class_name is None:
+            class_name = cls
+        # Get the module that contains the class
+        module = inspect.getmodule(class_name)
+        if module is None:
+            raise ValueError(f"Could not find module for class {class_name}")
+
+        # Get the file path of the module
+        module_file_path = os.path.abspath(module.__file__)
+
+        # Read the contents of the file
+        with open(module_file_path, 'r') as file:
+            file_contents = file.read()
+
+        return file_contents
+
+    @classmethod
+    def put_text(cls, path:str, text:str) -> None:
+        # Get the absolute path of the file
+        path = os.path.abspath(path)
+
+        # Write the text to the file
+        with open(path, 'w') as file:
+            file.write(text)
+
+    @classmethod
+    def get_text(cls, path:str) -> None:
+        # Get the absolute path of the file
+        path = os.path.abspath(path)
+
+        # Read the contents of the file
+        with open(path, 'r') as file:
+            return file.read()
+
+    @classmethod
+    def get_file_class(cls, path=None, ignore_error:bool = False):
+        if cls == Module:
+            return 'Module'
+        # Get the file path of the module
+        module_file_path = os.path.abspath(module.__file__)
+
+        # Read the contents of the file
+        with open(module_file_path, 'r') as file:
+            file_contents = file.read()
+            
+        file_content = cls.get_file_contents(obj)
+        for k in ['(commune.Module)']:
+            if k in file_content:
+                return file_content.split(k)[0].split('class')[-1]
+        if ignore_error:
+            return None
+        else: 
+            raise ValueError('Could not find class name in file')
+        
+    
 if __name__ == "__main__":
     Module.run()
     
