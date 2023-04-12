@@ -1,26 +1,71 @@
 import commune
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
 import torch
 from torch import nn
 from commune.model.transformer.gpt_neox.gpt_neox_blocks import GPTNeoXLayer
+import streamlit as st
+class GPTNeox(commune.Module, nn.Module):
+    def __init__(self, config = None, 
+                 blocks: List = None,
+                 init_weights: bool = False):
+        
+        nn.Module.__init__(self)
+        self.set_model(blocks=blocks, config=config, init_weights=init_weights)
 
-class GPTNeox(commune.Module):
-    def __init__(self, config = None):
+
+
+
+        # Initialize weights and appdefly final processing
+
+    def set_model(self, 
+                  blocks=None,
+                  config = None,
+                  init_weights: bool = True):
         self.set_config(config)
-        config = self.config
-        self.embed_in = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
+        self.set_blocks(blocks)
+        # if init_weights:
+        #     self.init_weights()
+        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+    def default_blocks(self):
+        blocks = []
+        for _ in range(self.config.num_hidden_layers):
+            st.write(_)
+            block = GPTNeoXLayer(self.config)
+            block = commune.module(block)
+            
+            st.write(blocks[-1].state_dict())
+        st.write()
+        return 
+    
+    base = GPTNeoXLayer
+    def resolve_block(self, block:str):
+        if isinstance(block, str):
+            block = commune.connect(block)
+        elif isinstance(block, self.base ):
+            block = block
+        else:
+            raise ValueError(f"block must be a string or a {self.base} object")
+        return self.blocks[index]
+    
+    def replace_block(self, index, layer):
+        self.layers[index] = layer
+        
+        
+        self.layers[index] = layer
+    def set_layers(self, 
+                   layers
+                   ):
         layers = []
-        for _ in range(config.num_hidden_layers):
-            print(_)
-            layers.append(GPTNeoXLayer(config))
+        if layers == None:
+            layers = self.default_layers()
+        
+        self.layers = layers
         self.layers = nn.ModuleList(layers)
-        self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-
+        
+        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+        self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
         self.gradient_checkpointing = False
-
-        # Initialize weights and apply final processing
-        self.post_init()
-
     def get_input_embeddings(self):
         return self.embed_in
 
@@ -41,7 +86,7 @@ class GPTNeox(commune.Module):
     ) -> Dict[str, torch.Tensor]:
         r"""
         past_key_values (`tuple(tuple(torch.FloatTensor))` of length `config.n_layers` with each tuple having 4 tensors of shape `(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
-            Contains precomputed key and value hidden states of the attention blocks. Can be used to speed up decoding.
+            Contains precomputed key and value hidden states of the attention layers. Can be used to speed up decoding.
             If `past_key_values` are used, the user can optionally input only the last `decoder_input_ids` (those that
             don't have their past key value states given to this model) of shape `(batch_size, 1)` instead of all
             `decoder_input_ids` of shape `(batch_size, sequence_length)`.
@@ -157,7 +202,32 @@ class GPTNeox(commune.Module):
             hidden_states=all_hidden_states,
             attentions=all_attentions,
         )
+        
+    @classmethod
+    def test(cls):
+        self = cls()
+        st.write(self)
+        
+    def init_weights(self):
+        self.apply(self._init_weights)
+        
+    def _init_weights(self, module):
+        """Initialize the weights"""
+        if isinstance(module, nn.Linear):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.bias is not None:
+                module.bias.data.zero_()
+        elif isinstance(module, nn.Embedding):
+            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
+            if module.padding_idx is not None:
+                module.weight.data[module.padding_idx].zero_()
+        elif isinstance(module, nn.LayerNorm):
+            module.bias.data.zero_()
+            module.weight.data.fill_(1.0)
 
 
-model = GPTNeox()
-model 
+
+if __name__ == "__main__":
+    st.write(GPTNeox())
+
+# print(models)
