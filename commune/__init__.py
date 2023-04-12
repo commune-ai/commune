@@ -13,3 +13,5 @@ __ss58_format__ = 42
 # set the module functions as globals
 for f in Module.get_class_methods():
     globals()[f] = getattr(Module, f)
+for k,v in Module.__dict__.items():
+    globals()[k] = v

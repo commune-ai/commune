@@ -1,29 +1,39 @@
 import commune
-from typing import Optional, Tuple, Dict
+from typing import Optional, Tuple, Dict, List
 import torch
 from torch import nn
 from commune.model.transformer.gpt_neox.gpt_neox_blocks import GPTNeoXLayer
 import streamlit as st
 class GPTNeox(commune.Module, nn.Module):
     def __init__(self, config = None, 
-                 blocks = None,
+                 blocks: List = None,
                  init_weights: bool = False):
         
         nn.Module.__init__(self)
-        self.set_config(config)
-        self.set_blocks(blocks)
-        if init_weights:
-            self.init_weights()
-        
+        self.set_model(blocks=blocks, config=config, init_weights=init_weights)
+
+
 
 
         # Initialize weights and appdefly final processing
 
+    def set_model(self, 
+                  blocks=None,
+                  config = None,
+                  init_weights: bool = True):
+        self.set_config(config)
+        self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
+        self.set_blocks(blocks)
+        # if init_weights:
+        #     self.init_weights()
+        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
     def default_blocks(self):
         blocks = []
         for _ in range(self.config.num_hidden_layers):
             st.write(_)
-            blocks.append(GPTNeoXLayer(self.config))
+            block = GPTNeoXLayer(self.config)
+            block = commune.module(block)
+            
             st.write(blocks[-1].state_dict())
         st.write()
         return 
@@ -38,20 +48,20 @@ class GPTNeox(commune.Module, nn.Module):
             raise ValueError(f"block must be a string or a {self.base} object")
         return self.blocks[index]
     
-    def replace_block(self, index, block):
-        self.blocks[index] = block
+    def replace_block(self, index, layer):
+        self.layers[index] = layer
         
         
-        self.layers[index] = block
-    def set_blocks(self, 
-                   blocks
+        self.layers[index] = layer
+    def set_layers(self, 
+                   layers
                    ):
         layers = []
-        if blocks == None:
-            blocks = self.default_blocks()
+        if layers == None:
+            layers = self.default_layers()
         
-        self.blocks = blocks
-        self.layers = nn.ModuleList(blocks)
+        self.layers = layers
+        self.layers = nn.ModuleList(layers)
         
         self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
         self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
@@ -76,7 +86,7 @@ class GPTNeox(commune.Module, nn.Module):
     ) -> Dict[str, torch.Tensor]:
         r"""
         past_key_values (`tuple(tuple(torch.FloatTensor))` of length `config.n_layers` with each tuple having 4 tensors of shape `(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
-            Contains precomputed key and value hidden states of the attention blocks. Can be used to speed up decoding.
+            Contains precomputed key and value hidden states of the attention layers. Can be used to speed up decoding.
             If `past_key_values` are used, the user can optionally input only the last `decoder_input_ids` (those that
             don't have their past key value states given to this model) of shape `(batch_size, 1)` instead of all
             `decoder_input_ids` of shape `(batch_size, sequence_length)`.
@@ -200,6 +210,7 @@ class GPTNeox(commune.Module, nn.Module):
         
     def init_weights(self):
         self.apply(self._init_weights)
+        
     def _init_weights(self, module):
         """Initialize the weights"""
         if isinstance(module, nn.Linear):

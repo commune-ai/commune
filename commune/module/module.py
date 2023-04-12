@@ -880,12 +880,12 @@ class Module:
     @classmethod
     def walk(cls, path:str) -> List[str]:
         import os
-        path_list = []
+        path_map = {}
         for root, dirs, files in os.walk(path):
-            if len(dirs) == 0 and len(files) > 0:
-                for f in files:
-                    path_list.append(os.path.join(root, f))
-        return path_list
+            for f in files:
+                path = os.path.join(root, f)
+                path_map[path] = f
+        return list(path_map.keys())
     
        
     @classmethod
