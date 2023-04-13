@@ -4,22 +4,43 @@ all:
       ansible_host: 87.197.111.68
       ansible_port: 41133
       ansible_user: root
-    huck_a4000x6_0:
+    huck_1100: &id001
       ansible_host: 162.157.13.236
-      ansible_port: 9999
+      ansible_port: 1100
       ansible_user: endless
-    huck_a6000x8_0:
+    huck_1200: &id002
+      ansible_host: 162.157.13.236
+      ansible_port: 1200
+      ansible_user: endless
+    huck_1300: &id003
+      ansible_host: 162.157.13.236
+      ansible_port: 1300
+      ansible_user: endless
+    huck_9000: &id004
       ansible_host: 162.157.13.236
       ansible_port: 9000
       ansible_user: endless
-    huck_a6000x8_1:
+    huck_9201: &id005
       ansible_host: 162.157.13.236
       ansible_port: 9201
       ansible_user: endless
-    huck_a6000x8_2:
+    huck_9401: &id006
       ansible_host: 162.157.13.236
       ansible_port: 9401
+      ansible_user: endless
+    huck_9999: &id007
+      ansible_host: 162.157.13.236
+      ansible_port: 9999
       ansible_user: endless
     luckee:
       ansible_host: 15.235.85.187
       ansible_user: ubuntu
+selected:
+  hosts:
+    huck_1100: *id001
+    huck_1200: *id002
+    huck_1300: *id003
+    huck_9000: *id004
+    huck_9201: *id005
+    huck_9401: *id006
+    huck_9999: *id007
