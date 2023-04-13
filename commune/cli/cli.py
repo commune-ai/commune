@@ -20,12 +20,19 @@ class CLI(commune.Module):
         args, kwargs = self.parse_args() 
         if len(args)> 0:
     
-
+            is_remote = False
             # fn_obj = getattr(module, fn)
             if args[0] in commune.module_list():
                 module = commune.get_module(args.pop(0))
+            elif args[0] in module.servers():
+                module = commune.connect(args.pop(0))
+                is_remote = True
             fn = args.pop(0)
-            result = getattr(module, fn)(*args, **kwargs)
+            if is_remote:
+                result = module.remote_call(fn, *args, **kwargs)
+   
+            else:
+                result = getattr(module, fn)(*args, **kwargs)
             # else:
             #     result = fn_obj
             self.print(result) 

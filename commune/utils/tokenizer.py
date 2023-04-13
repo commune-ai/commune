@@ -1441,10 +1441,13 @@ def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch
 
 
 
-def decode_topk(  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_size:int=50400) -> torch.Tensor:
+def decode_topk(  forward_response_tensor: torch.Tensor, vocab_size:int=50400) -> torch.Tensor:
     """ Returns full logits by decoding topk-encoding input. """
     batch_size, sequence_len, _ = forward_response_tensor.shape
     encoded_probs = forward_response_tensor  # encoded probabilities: [batch_size, sequence_len, topk + topk]
+    # split the tensor along the last dimension
+    assert encoded_probs.shape[-1] % 2 == 0, "encoded_probs.shape[-1] must be even"
+    topk = encoded_probs.shape[-1] // 2  # topk: [batch_size, sequence_len, topk]
     topk_values = encoded_probs[..., :topk]  # topk probs: [batch_size, sequence_len, topk]
     topk_indices = encoded_probs[..., topk:].long()  # topk probs indices: [batch_size, sequence_len, topk]
 

@@ -28,9 +28,7 @@ from torch import nn
 # commune.new_event_loop()
 from commune.metric import MetricMap
 
-from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
-    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
-        encode_topk, decode_topk
+from commune.utils.tokenizer import  decode_topk
  
 """
 Examples 
@@ -331,6 +329,7 @@ class TransformerModel( Model):
                  device:str = None, 
                  **kwargs) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
+        
         sample = self.tokenizer(text, 
                                              padding=padding, 
                                              truncation=truncation, 
@@ -409,7 +408,7 @@ class TransformerModel( Model):
         output = self.forward(**sample, train=False)
 
         print(output)
-        # output['logits'] = decode_topk(output['topk'])
+        output['logits'] = decode_topk(output['topk'], vocab_len=self.from_tokenizer.vocab_len, topk=topk)
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         
