@@ -310,6 +310,18 @@ class Model( nn.Module, commune.Module):
                 stats = {}
         self.stats = stats
         self.config['stats'] = self.stats
+        
+    def num_params(self, trainable:bool = True) -> int:
+        total_params = 0
+        
+        for name, param in self.named_parameters():
+            if trainable:
+                if param.requires_grad:
+                    total_params += param.numel()
+            else:
+                total_params += param.numel()
+                
+        return total_params
 
 
 if __name__ == "__main__":

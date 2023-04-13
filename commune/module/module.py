@@ -132,6 +132,11 @@ class Module:
         return cls.__name__
 
     
+    @classmethod
+    def class_name(cls) -> str:
+        return cls.__name__
+
+    
     @property
     def module_tag(self) -> str:
         '''
@@ -591,6 +596,19 @@ class Module:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
 
     @classmethod
+    def restart_server(cls, module:str, mode:str = 'pm2'):
+        '''
+        Kill the server by the name
+        '''
+        server_info = cls.get_server_info(module)
+        if 'external_ip' in server_info:
+            assert server_info.get('external_ip') == cls.external_ip()
+        if mode == 'pm2':
+            return cls.pm2_restart(module)
+        else:
+            raise NotImplementedError(f"Mode: {mode} is not implemented")
+
+    @classmethod
     def kill_all_servers(cls, verbose: bool = True):
         '''
         Kill all of the servers
@@ -600,9 +618,26 @@ class Module:
                 cls.print(f'Killing {module}', color='red')
             cls.kill_server(module)
             
+    
     @classmethod
     def kill_all(cls):
         cls.kill_all_servers()
+
+
+    @classmethod
+    def restart_all_servers(cls, verbose: bool = True):
+        '''
+        Kill all of the servers
+        '''
+        for module in cls.servers():
+            if verbose:
+                cls.print(f'Restarting {module}', color='red')
+            cls.restart_server(module)
+    @classmethod
+    def restart_all(cls):
+        cls.restart_all_servers()
+
+
 
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
@@ -931,9 +966,10 @@ class Module:
     def root_module(cls, name:str='module',
                     timeout:int = 100, 
                     sleep_interval:int = 1,
-                    return_info = True,
+                    return_info = False,
+                    refresh:bool = False,
                     **kwargs):
-        if not cls.server_exists(name):
+        if not cls.server_exists(name) or refresh:
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
         module = cls.connect(name)
@@ -1188,9 +1224,15 @@ class Module:
   
     @classmethod
     def is_module(cls, obj=None) -> bool:
-        if obj == None:
+        
+        if obj is None:
             obj = cls
-        return hasattr(obj, 'module_name')
+        if hasattr(obj, 'module_class'):
+            module_class = obj.module_class()
+            if module_class == 'Module':
+                return True
+            
+        return False
 
     @classmethod
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
@@ -1398,7 +1440,7 @@ class Module:
         obj = obj if obj != None else cls
 
         
-        if str(obj) ==  'Module':
+        if cls.is_module(obj):
             include_module = True
             
     
@@ -2419,21 +2461,23 @@ class Module:
                     continue
             self.__dict__[k] = v
       
-    @classmethod
-    def merge(cls, *args, include_hidden:bool = False) -> 'self':
-        '''
-        Merge the attributes of a python object into the current object
-        '''
 
-    
     @classmethod
-    def merge(cls, a: Any = None, b: Any = None, 
+    def merge(cls, *args, 
                         include_hidden:bool=False, 
                         allow_conflicts:bool=True):
         
         '''
         Merge the functions of a python object into the current object (a)
         '''
+        if len(args) == 1:
+            a = cls
+            b = args[0]
+        elif len(args) == 2:
+            a = args[0]
+            b = args[1]
+        else:
+            raise ValueError('must have 1 or 2 arguments')
         if isinstance(a, str):
             a = cls.get_module(a)
         elif isinstance(b, str):
@@ -2447,7 +2491,8 @@ class Module:
                 
             # if the function already exists in the object, raise an error
             if  allow_conflicts:
-                cls.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
+                if hasattr(a, b_fn_name):
+                    cls.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
             else:
                 assert not hasattr(a, b_fn_name), f'function {b_fn_name} already exists in {a}'
                 
@@ -2945,15 +2990,22 @@ class Module:
     def call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
         module_list = cls.module_list()
+        
         namespace  = cls.namespace()
+        is_remote = False
         if module in namespace:
+            
             module = cls.connect(namespace)
+            is_remote = True
         elif module in module_list:
             module = cls.get_module(module)
         else:
-            module = cls.connect(module)
+            module = cls.root_module()
 
-        return module.remote_call(remote_fn=fn, *args, **kwargs)
+        if is_remote:
+            return module.remote_call(remote_fn=fn, *args, **kwargs)
+        else:
+            return getattr(module, fn)(*args, **kwargs)
         
     def resolve_key(self, key: str) -> str:
         if key == None:
