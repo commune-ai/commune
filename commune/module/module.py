@@ -1375,6 +1375,7 @@ class Module:
     @classmethod
     def functions(cls, search = None, include_module=False):
         functions = cls.get_functions(include_module=include_module)  
+        
         if isinstance(search, str):
             functions = [f for f in functions if search in f]
         return functions
@@ -1390,7 +1391,8 @@ class Module:
         from commune.utils.function import get_functions
         obj = obj if obj != None else cls
 
-        if obj.__str__() ==  'Module':
+        
+        if str(obj) ==  'Module':
             include_module = True
             
     
@@ -2325,6 +2327,7 @@ class Module:
 
         # serve the module if the bool is True
         is_class = cls.is_class(module)
+        cls.print(f'is_class: {is_class}')
         module_class = module if is_class else module.__class__
         class ModuleWrapper(Module):
             def __init__(self, *args,**kwargs): 
@@ -2348,11 +2351,20 @@ class Module:
                 return self.module.__str__()
             
             def __repr__(self):
-                return self.module.__repr__()  
+                return self.module.__repr__() 
+            @classmethod
+            def default_module_name(cls) -> str:
+                return module_class.__name__.lower()
+ 
+            @classmethod
+            def functions(cls):
+                return Module.get_functions(module)
         if is_class:
             return ModuleWrapper
         else:
             return ModuleWrapper()
+        
+        
             
         # return module
 
@@ -3313,6 +3325,7 @@ class Module:
         # Read the contents of the file
         with open(path, 'r') as file:
             return file.read()
+
 
     @classmethod
     def get_file_class(cls, path=None, ignore_error:bool = False):

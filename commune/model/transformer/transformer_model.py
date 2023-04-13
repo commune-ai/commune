@@ -28,7 +28,7 @@ from torch import nn
 # commune.new_event_loop()
 from commune.metric import MetricMap
 
-from commune.utils.tokenizer import  decode_topk
+from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
  
 """
 Examples 
@@ -65,7 +65,8 @@ class TransformerModel( Model):
 
 
         # 'llama': 'decapoda-research/llama-7b-hf',
-
+        'vicuna': 'lmsys/vicuna-13b-delta-v0',
+        'llama-trl': 'trl-lib/llama-7b-se-rl-peft'
         # # > 7B models
         # 'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
         # 'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
@@ -212,12 +213,12 @@ class TransformerModel( Model):
                    stats: dict = None, 
                    device:str=None, 
                    load: bool = False,
-                   **kwargs) -> None:        
+                   **kwargs) -> None: 
+        if tokenizer != None or model != None:
+            self.set_tokenizer(tokenizer)       
         if model!= None:
             self.set_model(model)
             print(self.num_params(self.model))
-        if tokenizer != None or model != None:
-            self.set_tokenizer(tokenizer)
         if optimizer!= None:
             self.set_optimizer(optimizer)
         if finetune!= None:
@@ -255,8 +256,12 @@ class TransformerModel( Model):
             # config = AutoConfig.from_pretrained(self.model_name)
             
             print(f'loading model from {self.model_path}...')
-            
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_path)        
+
+            try:
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_path) 
+            except OSError as e: 
+                self.model = AutoModel.from_pretrained(self.model_path)
+       
             
             # convert config to config
             model_config = json.loads(self.model.config.to_json_string())         
