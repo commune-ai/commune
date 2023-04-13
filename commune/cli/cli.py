@@ -32,7 +32,10 @@ class CLI(commune.Module):
                 result = module.remote_call(fn, *args, **kwargs)
    
             else:
-                result = getattr(module, fn)(*args, **kwargs)
+                try:
+                    result = getattr(module, fn)(*args, **kwargs)
+                except TypeError:
+                    result = getattr(module, fn)
             # else:
             #     result = fn_obj
             self.print(result) 

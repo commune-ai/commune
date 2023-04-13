@@ -345,6 +345,12 @@ class Module:
         return config
 
     @classmethod
+    def st(cls, module = None):
+        module = cls.get_module(module)
+        module_filepath = module.filepath()
+        cls.run_command(f'streamlit run {module_filepath}', verbose=True)
+
+    @classmethod
     def run_command(cls, 
                     command:str,
                     verbose:bool = False, 
@@ -2413,26 +2419,50 @@ class Module:
                     continue
             self.__dict__[k] = v
       
-              
-    def merge(self, *args, include_hidden:bool = False) -> 'self':
+    @classmethod
+    def merge(cls, *args, include_hidden:bool = False) -> 'self':
         '''
         Merge the attributes of a python object into the current object
         '''
-        merge = self.import_object('commune.utils.class.merge')
-        if len(args) == 1:
-            args = [self, *args]
-            
-            
-            
-            
-        assert len(args) == 2, f'args must be a list of length 2 but is {len(args)}'
-    
-    
-        module = merge(*args, include_hidden=include_hidden)
-        
 
-        return module
+    
+    @classmethod
+    def merge(cls, a: Any = None, b: Any = None, 
+                        include_hidden:bool=False, 
+                        allow_conflicts:bool=True):
         
+        '''
+        Merge the functions of a python object into the current object (a)
+        '''
+        if isinstance(a, str):
+            a = cls.get_module(a)
+        elif isinstance(b, str):
+            b = cls.get_module(b)
+        
+        for b_fn_name in dir(b):
+            if include_hidden == False:
+                #i`f the function name starts with __ then it is hidden
+                if b_fn_name.startswith('__'):
+                    continue
+                
+            # if the function already exists in the object, raise an error
+            if  allow_conflicts:
+                cls.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
+            else:
+                assert not hasattr(a, b_fn_name), f'function {b_fn_name} already exists in {a}'
+                
+            # get the function from the python object
+            try: 
+                b_fn = getattr(b, b_fn_name)
+            except NotImplementedError as e:
+                print(e)
+            if callable(b_fn):
+                setattr(a, b_fn_name, b_fn)  
+                
+        return a
+   
+
+
 
     @classmethod
     def nest_asyncio(cls):
