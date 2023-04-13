@@ -1,5 +1,6 @@
 import commune
 import os
+import streamlit as st
 
 class Ansible(commune.Module): 
     def __init__(self,  
@@ -57,6 +58,10 @@ class Ansible(commune.Module):
         self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
         self.inventory = self.load_yaml(path=self.inventory_path)
         
+    def save_inventory(self, inventory_path: str=None):
+        self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
+        return self.save_yaml(self.inventory_path, self.inventory)
+        
     def set_playbook(self, playbook_path: str=None):
         self.playbook_path = playbook_path if playbook_path else self.dirpath()+'/playbook'
         
@@ -102,8 +107,10 @@ class Ansible(commune.Module):
     def shell(self, args:str ,
               inventory_group  : str = None, 
               chdir:str="commune", 
-              verbose:bool = True,
-              return_output:bool = False) -> dict:
+              verbose:bool = True) -> dict:
+        
+        if args.startswith('commune '):
+            args = 'python3 bin/commune' + args[len('commune'):]
         inventory_group = self.resolve_inventory(inventory_group)
         command = f'ansible {inventory_group} -i {self.inventory_path} -m shell -a "cd {chdir}; {args}"'
         output_text = self.cmd(command, output_text=True)
@@ -122,15 +129,68 @@ class Ansible(commune.Module):
             for node_name, stdout in node2stdout.items():
                 self.print(f"\n\n[purple bold]NODE[/purple bold]: [cyan bold]{node_name} [/cyan bold]\n")
                 self.print(stdout, color='green')
-        if return_output: 
+
+        return node2stdout
     
-            return node2stdout
+    @property
+    def host_map(self):
+        host_map = {}
+        for group_key, group_hosts in self.inventory.items():
+            for host, host_info in group_hosts['hosts'].items():
+                host_map[host] = host_info
+                
+        return host_map
+    
+    @property
+    def hosts(self):
+        return list(self.host_map.keys())
+                
         
+    
+    def streamlit_sidebar(self):
+        self.selected_hosts = st.multiselect('Selected Hosts', self.hosts, self.hosts)
+        hosts = {k:self.host_map[k] for k in self.selected_hosts}
+        self.inventory['selected'] = {'hosts': hosts}
+        self.streamlit_peer_management()
+        
+    def get_group_hosts(self, group):
+        group_hosts = self.inventory[group]['hosts']
+        return list(group_hosts.keys())
+        
+    def streamlit_peer_management(self):
+        with st.expander('Add Peer', True):
+            peer_info = {}
+            group = st.text_input('Group', self.inventory_groups[0])
+            name = st.text_input('Name','host')
+            peer_info['ansible_ip'] = st.text_input('IP address','0.0.0.0')
+            peer_info['ansible_port'] = st.number_input('Port', value=1000)
+            peer_info['ansible_user'] = st.text_input('User', value=1000)
+            
+            add_peer = st.button('Add Peer')
+            
+            if add_peer:
+                if group not in self.inventory:
+                    self.inventory_group[group] = {'hosts':{}}
+      
+                    
+                    
+                self.inventory[group]['hosts'][name] = peer_info
+              
+     
     @classmethod
-    def sandbox(cls, ):
+    def streamlit(cls, ):
+        
         self = cls()
-        cls.print(self.shell('ls'))
+        
+        with st.sidebar:
+            self.streamlit_sidebar()
+        command_text = st.text_area(label='Enter Command',value='ls')
+        run_command_button = st.button('Run Command')
+
+        if run_command_button:
+            self.save_inventory()
+            st.write(self.shell(command_text, inventory_group='selected'))
 if __name__ == '__main__':
-    Ansible.run()
+    Ansible.streamlit()
     
     
