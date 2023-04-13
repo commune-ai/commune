@@ -126,6 +126,7 @@ class TokenizerTranslator(commune.Module):
             else:  # revert to vocab_size
                 tokenizer.vocab_len = tokenizer.vocab_size
 
+<<<<<<< HEAD
     @classmethod
     def prep_tokenizer(cls, tokenizer, std_tokenizer=None):
         tokenizer.padding_side = "left"  # Generative default expects most recent token on right-hand side with padding on left. https://github.com/huggingface/transformers/pull/10552
