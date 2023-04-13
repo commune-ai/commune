@@ -776,9 +776,14 @@ class Keypair(commune.Module):
         self.set_params(**state)
            
     default_path = 'default'
-    def save(self, path: str = None,  password: str = None, encrypt: bool = True):
+    def save(self, path: str = None,  
+             password: str = None,
+             encrypt: bool = True,
+             override: bool = False):
         if path == None:
             oath = self.default_path
+        if override == False:
+            assert self.exists(path) == False, "Path already exists, set override=True to override"
         state = self.state_dict(password=password, encrypt=encrypt)
         self.put_json(path, state)
 
@@ -790,7 +795,7 @@ class Keypair(commune.Module):
         
     def ls_keys(self):
 
-        return [os.path.basename(path).replace('.json', '') for path in self.ls( resolve_path=True)]
+        return [os.path.basename(path).replace('.json', '') for path in self.ls('keys')]
         
     def load_from_dict(self, state: dict, password: str = None):
         encrypted = state.get('encrypted', False)
