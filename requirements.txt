@@ -30,5 +30,6 @@ retry
 psutil
 munch
 ansible
+safetensors
 
 
