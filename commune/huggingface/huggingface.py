@@ -142,13 +142,12 @@ class Huggingface(commune.Module):
         return [p for p in commune.ls(dirpath) if os.path.basename(p).startswith('models')]
     
     @classmethod
-    def cached_model2path(cls, limit=10, **kwargs):
+    def cached_model2path(cls,  **kwargs):
         paths = [p for p in cls.cached_model_paths()]
         model2path = {}
         for path in paths:
-            model_name = os.path.basename(path).split('--')[-1]
+            model_name = '/'.join(os.path.basename(path).split('--')[-1:])
             model2path[model_name] = path
-        cls.print(model2path)
         return model2path
     
     @classmethod
@@ -169,8 +168,14 @@ class Huggingface(commune.Module):
         
     @classmethod
     def get_model_weights(cls, model_name):
-        snapshots = cls.get_model_snapshots(model_name) 
-        return cls.ls(snapshots[0])
+        asset_paths = cls.get_model_assets(model_name) 
+        model_weight_paths = []
+        for asset_path in asset_paths:
+            for k in ['bin','pt','pth','safetensors']:
+                if os.path.splitext(asset_path)[-1] == '.'+k:
+                    model_weight_paths.append(asset_path)
+                    break
+        return model_weight_paths
         
     @classmethod
     def test(cls): 
@@ -187,4 +192,4 @@ class Huggingface(commune.Module):
     
 Huggingface.class_init()
 if __name__ == '__main__':
-    Huggingface.snapshot_download
+    Huggingface.run()
