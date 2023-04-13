@@ -214,23 +214,21 @@ class Module:
         return self.dict2munch(x)
     
     @classmethod
-    def load_yaml(cls, path:str=None, resolve_path:bool = False) -> Dict:
+    def load_yaml(cls, path:str=None) -> Dict:
         '''
         Loads a yaml file
         '''
-        if resolve_path:
-            path = cls.resolve_path(path)
+        path = cls.resolve_path(path)
         
         from commune.utils.dict import load_yaml
         return load_yaml(path)
 
     @classmethod
-    def save_yaml(cls, path:str,  data:Union[Dict, Munch], resolve_path: bool = False) -> Dict:
+    def save_yaml(cls, path:str,  data:Union[Dict, Munch]) -> Dict:
         '''
         Loads a yaml file
         '''
-        if resolve_path:
-            path = cls.resolve_path(path)
+        path = cls.resolve_path(path)
             
         from commune.utils.dict import save_yaml
         if isinstance(data, Munch):
@@ -497,6 +495,13 @@ class Module:
         The path is determined by the module path 
         
         '''
+        if path.startswith('/'):
+            return path
+        elif path.startswith('~/'):
+            return os.path.expanduser(path)
+        elif path.startswith('./'):
+            return path.replace('./', cls.pwd + '/')
+        
         tmp_dir = cls.tmp_dir()
         if tmp_dir not in path:
             path = os.path.join(tmp_dir, path)
@@ -847,9 +852,9 @@ class Module:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_get_json(*args, **kwargs))
     @classmethod
-    async def async_get_json(cls,path:str, default=None, resolve_path: bool = True, **kwargs):
+    async def async_get_json(cls,path:str, default=None, **kwargs):
         from commune.utils.dict import async_get_json
-        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
+        path = cls.resolve_path(path=path, extension='json')
         data = await async_get_json(path, **kwargs)
         if data == None:
             data = {}
@@ -867,37 +872,35 @@ class Module:
     @classmethod
     async def async_put_json(cls, path:str, 
                  data:Dict, 
-                 resolve_path:bool = True, 
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json
-        path = cls.resolve_path(path=path, extension='json') if resolve_path else path
+        path = cls.resolve_path(path=path, extension='json')
         await async_put_json(path=path, data=data, **kwargs)
         return path
     
     save_json = put_json
     
     @classmethod
-    def exists(cls, path:str, resolve_path:bool = True, extension = 'json')-> bool:
-        path = cls.resolve_path(path=path, extension=extension) if resolve_path else path
+    def exists(cls, path:str, extension = 'json')-> bool:
+        path = cls.resolve_path(path=path, extension=extension)
         return os.path.exists(path)
 
     @classmethod
-    def rm_json(cls, path=None, resolve_path:bool = True):
+    def rm_json(cls, path=None):
         from commune.utils.dict import rm_json
 
         if path in ['all', '**']:
             return [cls.rm_json(f) for f in cls.glob(files_only=False)]
         
-        if resolve_path:
-            path = cls.resolve_path(path=path, extension='json')
+        path = cls.resolve_path(path=path, extension='json')
 
         return rm_json(path )
 
     @classmethod
-    def glob(cls,  path ='', resolve_path:bool = True, files_only:bool = True):
+    def glob(cls,  path ='~/', files_only:bool = True):
         
-        path = cls.resolve_path(path, extension=None) if resolve_path else path
+        path = cls.resolve_path(path, extension=None)
         
         if os.path.isdir(path):
             path = os.path.join(path, '**')
@@ -910,22 +913,17 @@ class Module:
         return paths
          
     @classmethod
-    def ls_json(cls, path:str, recursive:bool = True, resolve_path: bool = True):
-        return cls.ls(path, recursive=recursive, resolve_path=resolve_path)
+    def ls_json(cls, path:str, recursive:bool = True):
+        return cls.ls(path, recursive=recursive)
     
 
     @classmethod
-    def ls(cls, path:str = '', 
-           recursive:bool = False, 
-           resolve_path: bool = False,
-           return_absolute = True):
-        path = cls.resolve_path(path, extension=None) if resolve_path else path
+    def ls(cls, path:str = './', 
+           recursive:bool = False):
+        path = cls.resolve_path(path, extension=None)
 
         ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
-        if return_absolute:
-            ls_files = [os.path.join(path, f) for f in ls_files]
-            
-        return ls_files
+        return [os.path.expanduser(f) for f in ls_files]
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:
@@ -985,7 +983,7 @@ class Module:
                 port:int=None , 
                 network : str = 'local',
                 virtual:bool = True, 
-                wait_for_server:bool = False,
+                wait_for_server:bool = True,
                 include_peers: bool = True,
                 **kwargs ):
         

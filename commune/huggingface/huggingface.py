@@ -165,6 +165,17 @@ class Huggingface(commune.Module):
     def get_model_assets(cls, model_name):
         snapshots = cls.get_model_snapshots(model_name) 
         return cls.ls(snapshots[0])
+    
+    @classmethod
+    def get_model_config(cls, model_name):
+        snapshots = cls.get_model_assets(model_name) 
+        config_path = []
+        for asset_path in snapshots:
+            if asset_path.endswith('config.json'):
+                config_path.append(asset_path)
+                break
+            
+        return config_path
         
     @classmethod
     def get_model_weights(cls, model_name):

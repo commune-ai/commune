@@ -165,10 +165,10 @@ class Model( nn.Module, commune.Module):
 
         return path
     
-    def load(self, tag=None, keys:List[str] = None, map_location: str = None, resolve_path:bool = True):
+    def load(self, tag=None, keys:List[str] = None, map_location: str = None):
         map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
-        path = self.resolve_path(tag) if resolve_path else tag
+        path = self.resolve_path(tag)
         import glob
         if not os.path.exists(path):
             return 

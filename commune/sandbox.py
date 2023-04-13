@@ -1,3 +1,10 @@
+from safetensors.numpy import save_file, load_file
+import numpy as np
 import commune
 import streamlit as st
-st.write(commune.import_object('commune.trl.PPOTrainer'))
+
+
+hf = commune.get_module('huggingface')()
+config = hf.get_model_config('vicuna-13b-GPTQ-4bit-128g')
+import os
+commune.print(config)
