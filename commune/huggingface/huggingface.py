@@ -3,11 +3,12 @@ import os, sys
 import pandas as pd
 from typing import Union, List
 import plotly.express as px
-from huggingface_hub import HfApi
+from huggingface_hub import HfApi, hf_hub_download
 import transformers
 from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset, load_dataset_builder
 import commune
+import streamlit as st
 
 class Huggingface(commune.Module):
     
@@ -174,7 +175,16 @@ class Huggingface(commune.Module):
     @classmethod
     def test(cls): 
         self = cls()
-        cls.print(self.get_model_wegiths('gpt-neox-20b'))
+        st.write(self.get_model_weights('gpt-neox-20b'))
+        self.download('lmsys/vicuna-13b-delta-v0')
+
+    @classmethod
+    def class_init(cls):
+        global Huggingface
+        import huggingface_hub
+        Huggingface = cls.merge(huggingface_hub)
+        return Huggingface
     
+Huggingface.class_init()
 if __name__ == '__main__':
-    Huggingface.test()
+    Huggingface.snapshot_download

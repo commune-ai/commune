@@ -63,9 +63,9 @@ class TransformerModel( Model):
         'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
         'opt6.7b': 'facebook/opt-6.7b',
 
-
         # 'llama': 'decapoda-research/llama-7b-hf',
-        'vicuna': 'lmsys/vicuna-13b-delta-v0',
+        'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
         'llama-trl': 'trl-lib/llama-7b-se-rl-peft'
         # # > 7B models
         # 'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
@@ -89,6 +89,8 @@ class TransformerModel( Model):
                 load: bool = False,
                 **kwargs
                 ):
+        if tokenizer == None:
+            tokenizer = model
         Model.__init__(self, config =locals())
         self.set_params(**self.config)
 
@@ -123,31 +125,19 @@ class TransformerModel( Model):
     def local_forward(self,  
                 input_ids: torch.Tensor = None, 
                 topk:int=4096,
-                token_remap:bool = False,
-                logit_remap:bool = False,
                 output_length:int = 10,
-                output_logits:bool = False,
-                output_topk:bool = True,
-                output_hidden_states:bool=True,
+                output_hidden_states : bool = True,
                 hidden_state_index: int = -1,
                 hidden_dim_bounds: List =  [0, -1],
-                verbose:bool = False,
-                return_keys:List[str] = None,
+                return_keys:List[str] = ['topk'],
                 train: bool = False,                
-                save: bool=  False,
-                load: bool = False,
-                return_offsets_mapping: bool = True,
                 **kwargs):
 
-        if token_remap:
-            sample = self.token_remap(input_ids=input_ids, 
-                                      std_tokenizer=self.tokenizer, 
-                                      return_offsets_mapping=return_offsets_mapping)  # remap to server tokenizer
-    
-        else:
-            sample = {
-            'input_ids': input_ids,
-            }
+        sample = {
+        'input_ids': input_ids,
+        }
+        
+        
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
                 sample[k] = sample[k].to(self.device)
@@ -155,35 +145,29 @@ class TransformerModel( Model):
         if train:
             self.optimizer.zero_grad()
             
+        # clip the input ids to the vocab size
         sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
             
         model_output = self.model(input_ids=sample['input_ids'],
-                                  output_hidden_states=True)
+                                  output_hidden_states=output_hidden_states)
         
     
-        print(model_output.logits.device)
     
         # sometime we dont care about the begginning of the sequence
         
         output_length = output_length if output_length else model_output.logits.size(1)
-        model_output.logits = model_output.logits[:,-output_length:,:]
         
         output_dict = {}
-        
-        output_dict['topk']=self.encode_topk(model_output.logits, topk=topk)
-        output_dict['logits']=model_output.logits
+        output_dict['logits']= model_output.logits[:,-output_length:,:]
+        output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
         output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index]
         output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
         output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
-        hidden_dim = output_dict['hidden_states'].size(-1)
         
         
              
         if train:
-            for key in sample:
-                if key not in output_dict:
-                    output_dict[key] = sample[key]
-            
+            output_dict.update(sample)
             loss = self.calculate_loss(**output_dict)  
             loss.backward()
             self.optimizer.step()
@@ -191,14 +175,6 @@ class TransformerModel( Model):
             self.stats['loss'] =loss.item()
             self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
             output_dict['stats'] = deepcopy(self.stats)
-        
-            
-        # remap back to original tokens if token_remap is True
-        if logit_remap:
-            output_dict['logits'] = self.logit_remap(logits = output_dict['logits'], input_ids=input_ids)
-
-    
-        hidden_dim_bounds = hidden_dim_bounds if hidden_dim_bounds else [0, hidden_dim+1]
         
         return_keys = return_keys if return_keys else ['topk']
         return {key:output_dict[key] for key in return_keys}
@@ -213,19 +189,13 @@ class TransformerModel( Model):
                    stats: dict = None, 
                    device:str=None, 
                    load: bool = False,
-                   **kwargs) -> None: 
-        if tokenizer != None or model != None:
-            self.set_tokenizer(tokenizer)       
-        if model!= None:
-            self.set_model(model)
-            print(self.num_params(self.model))
-        if optimizer!= None:
-            self.set_optimizer(optimizer)
-        if finetune!= None:
-            self.set_finetune(finetune)
-        if device!= None:
-            self.set_device(device)
+                   **kwargs) -> None:   
         
+        self.set_model(model)
+        self.set_tokenizer(tokenizer)     
+        self.set_optimizer(optimizer)
+        self.set_finetune(finetune)
+        self.set_device(device)
         self.set_stats(stats)    
         self.set_tag(tag)
         
@@ -274,8 +244,7 @@ class TransformerModel( Model):
 
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
-        tokenizer = tokenizer if tokenizer else self.model_path
-        from transformers import AutoTokenizer
+        from transformers import AutoTokenizer, AutoModel
         
         if isinstance(tokenizer, str):
 
@@ -353,56 +322,16 @@ class TransformerModel( Model):
         return sample
 
 
-    def save_pretrained(self, path:str = None, tag:str = None,  *args, **kwargs):
-        # Save the model and tokenizer
-        module_tag = self.resolve_module_tag(tag)
-        path = self.resolve_path('pretrained/'+module_tag)
-        self.model.save_pretrained(path, *args, **kwargs)
-        self.tokenizer.save_pretrained(path, *args, **kwargs)
 
-    def logit_remap(self, logits:torch.Tensor, input_ids:torch.Tensor):
-        raise NotImplementedError('Can you give me a sec fam')
-        # pre_logits = model_output.logits.to(self.device)
-                    
-        # probs_std = translate_logits_to_probs_std(pre_logits,
-        #                                             tokens['offset_mapping'], tokens['offset_mapping_std'],
-        #                                             self.tokenizer, self.std_tokenizer,
-        #                                             self.split_map_cache,
-        #                                             self.to_translation_map, 
-        #                                             self.from_translation_map,
-        #                                             tokens['input_ids'], input_ids)
-        # logits_std = torch.log(probs_std + 1e-40)            
+    def detokenize(self, input_ids: torch.Tensor, **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
         
-        return logits_std
-    def token_remap(self, token_batch, std_tokenizer=None, return_offsets_mapping=False):
-        r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
-            Args:
-                token_batch ( :obj:`torch.LongTensor`, `required`):
-                    token_batch to be retokenized, [batch_size, sequence_len]
-                std_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
-                    The standard tokenizer which was used to tokenize the input.
-                return_offsets_mapping ( :obj:`bool`, `required`):
-                    Return offsets_mapping in tokenization to delineate token segment positions.
-        """
-        if std_tokenizer is None:
-            std_tokenizer = self.std_tokenizer
+        text = self.tokenizer.batch_decode(input_ids,**kwargs)  # assume tokenizer.padding_side = 'left'
 
-        text_batch = std_tokenizer.batch_decode(token_batch)  # decode tokens to original text
-        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
-        to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
+        return text
 
-        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
-                                add_special_tokens=False).to(self.device)  # assume tokenizer.padding_side = 'left'
 
-        if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
-            server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
-            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
 
-            # pad offsets so that special token offset widths match for continued correct alignment
-            tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
-            tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
-                                                       pad_offsets_batch)
-        return tokens
     @classmethod
     def test(cls, topk=4096, output_length=20):
         self = cls(model_name='gpt125m', load=True)
@@ -556,20 +485,7 @@ class TransformerModel( Model):
 
         return output['stats']
     
-    @classmethod
-    def monitor_models(cls):
-        dataset = commune.connect('dataset')
-        st.write(commune.servers())
 
-        for server in commune.servers():
-            if server.startswith('model::'):
-                model = commune.connect(server)
-                input_ids = dataset.sample(tokenize=True)['input_ids']
-                st.write(model.config)
-                input_ids = torch.clip(input_ids, max=model.config['model']['vocab_size']-1)
-                st.write(model.forward(input_ids=input_ids))
-         
-       
     default_models = list(shortcuts.keys())
           
           
@@ -608,11 +524,11 @@ class TransformerModel( Model):
     @classmethod
     def deploy(cls,
                model: str ='gptj',
-               tokenizer: str='gpt2', 
+               tokenizer: str=None, 
                name: str =None, 
-               wait_for_server: bool = True):
+               wait_for_server: bool = False, **kwargs):
 
-        model_kwargs =  {'model': model, 'tokenizer': tokenizer}
+        model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
         
         if name == None:
             name = f'model.{model}'
