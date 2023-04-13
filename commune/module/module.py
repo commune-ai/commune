@@ -923,7 +923,7 @@ class Module:
         path = cls.resolve_path(path, extension=None)
 
         ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
-        return [os.path.expanduser(f) for f in ls_files]
+        return [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:

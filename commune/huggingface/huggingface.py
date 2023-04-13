@@ -9,6 +9,7 @@ from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset, load_dataset_builder
 import commune
 import streamlit as st
+from safetensors.torch import save_file, load_file
 
 class Huggingface(commune.Module):
     
@@ -139,6 +140,7 @@ class Huggingface(commune.Module):
     @classmethod
     def cached_model_paths(cls, limit=10, **kwargs):
         dirpath = f'{cls.cache_path}/hub'
+        
         return [p for p in commune.ls(dirpath) if os.path.basename(p).startswith('models')]
     
     @classmethod
@@ -153,6 +155,7 @@ class Huggingface(commune.Module):
     @classmethod
     def get_model_snapshots(cls, model_name):
         root_path = cls.cached_model2path().get(model_name) + '/snapshots'
+        cls.print(root_path)
         snapshots = commune.ls(root_path)
         return [ snapshot  for snapshot in snapshots]
     
@@ -169,23 +172,38 @@ class Huggingface(commune.Module):
     @classmethod
     def get_model_config(cls, model_name):
         snapshots = cls.get_model_assets(model_name) 
-        config_path = []
+        config_path = None
         for asset_path in snapshots:
             if asset_path.endswith('config.json'):
-                config_path.append(asset_path)
+                config_path = asset_path
                 break
+        assert config_path != None
+        config = cls.load_json(config_path)
             
-        return config_path
+        return config
         
     @classmethod
-    def get_model_weights(cls, model_name):
+    def get_model_weights(cls, model_name, load:bool = True):
         asset_paths = cls.get_model_assets(model_name) 
         model_weight_paths = []
+        model_weights = {}
         for asset_path in asset_paths:
             for k in ['bin','pt','pth','safetensors']:
                 if os.path.splitext(asset_path)[-1] == '.'+k:
                     model_weight_paths.append(asset_path)
-                    break
+                    if load:
+                        if k in ['safetensors']:
+                            
+                            model_weights_chunk = load_file(asset_path)
+                        else:
+                            model_weights_chunk = torch.load(asset_path)
+                        assert isinstance(model_weights_chunk, dict)
+                        model_weights.update(model_weights_chunk)
+                            
+                    
+                    
+        if load:
+            return model_weights
         return model_weight_paths
         
     @classmethod
