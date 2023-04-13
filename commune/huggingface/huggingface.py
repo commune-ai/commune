@@ -9,6 +9,7 @@ from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset, load_dataset_builder
 import commune
 import streamlit as st
+import torch
 from safetensors.torch import save_file, load_file
 
 class Huggingface(commune.Module):

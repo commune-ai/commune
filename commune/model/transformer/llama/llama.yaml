@@ -1,7 +1,7 @@
-vocab_size: 32000
+vocab_size: 32001
 hidden_size: 4096
 intermediate_size: 11008
-num_hidden_layers: 32
+num_hidden_layers: 1
 num_attention_heads: 32
 hidden_act: "silu"
 max_position_embeddings: 2048

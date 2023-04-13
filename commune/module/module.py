@@ -983,7 +983,7 @@ class Module:
                 port:int=None , 
                 network : str = 'local',
                 virtual:bool = True, 
-                wait_for_server:bool = True,
+                wait_for_server:bool = False,
                 include_peers: bool = True,
                 **kwargs ):
         
@@ -2687,13 +2687,15 @@ class Module:
         return device  
     
 
-    
-    def num_params(self, model:'nn.Module')->int:
+    @classmethod
+    def get_num_params(cls, model:'nn.Module' = None)->int:
         import numpy as np
         from torch import nn
         model_parameters = filter(lambda p: p.requires_grad, model.parameters())
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
+    def num_params(self)->int:
+        return self.get_num_params(self)
 
     def to_dict(self)-> Dict:
         return self.__dict__
@@ -3337,13 +3339,13 @@ class Module:
       
     @classmethod
     def update_peers(cls, peers: list = None):
-        if peer_addresses == None:
+        if peers == None:
             peers = cls.peers()
-        self.add_peers(peers)
+        cls.add_peers(peers)
     @classmethod
     def peer_registry(cls, update: bool = False):
         if update:
-            self.update_peers()
+            cls.update_peers()
         return cls.get_json('peer_registry', default={})
 
     @classmethod
