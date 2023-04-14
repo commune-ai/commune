@@ -211,7 +211,7 @@ class Module:
         '''
         Converts a dict to a munch
         '''
-        return self.dict2munch(x)
+        return cls.dict2munch(x)
     
     @classmethod
     def load_yaml(cls, path:str=None) -> Dict:
@@ -2587,7 +2587,7 @@ class Module:
     @classmethod
     def gpus(cls) -> List[int]:
         import torch
-        available_gpus = [i for i in range(torch.cuda.device_count())]
+        available_gpus = [int(i) for i in range(torch.cuda.device_count())]
         return available_gpus
     
     @classmethod
@@ -2596,20 +2596,21 @@ class Module:
         gpu_info = {}
         for gpu_id in cls.gpus():
             mem_info = torch.cuda.mem_get_info(gpu_id)
-            gpu_info[gpu_id] = {
+            gpu_info[int(gpu_id)] = {
                 'name': torch.cuda.get_device_name(gpu_id),
-                'free': mem_info[0]/1e9,
-                'total': mem_info[1]/1e9,
-                'used': (mem_info[1]- mem_info[0])/1e9,
+                'free': mem_info[0],
+                'used': (mem_info[1]- mem_info[0]),
+                'total': mem_info[1]
             }
         return gpu_info
+    
     
     @classmethod
     def free_gpu_memory(cls) -> int:
         free_gpu_memory = 0
         for gpu_id, gpu_info in cls.gpu_map().items():
             free_gpu_memory += gpu_info['free']
-        return free_gpu_memory
+        return free_gpu_memory  
     
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -3428,6 +3429,7 @@ class Module:
             return None
         else: 
             raise ValueError('Could not find class name in file')
+        
         
     
 if __name__ == "__main__":

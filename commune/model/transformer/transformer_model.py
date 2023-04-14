@@ -62,7 +62,6 @@ class TransformerModel( Model):
         'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
         'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
         'opt6.7b': 'facebook/opt-6.7b',
-
         # 'llama': 'decapoda-research/llama-7b-hf',
         'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
         'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
@@ -245,6 +244,8 @@ class TransformerModel( Model):
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer, AutoModel
+        from commune.utils.tokenizer import prep_tokenizer
+
         
         if isinstance(tokenizer, str):
 
@@ -265,7 +266,6 @@ class TransformerModel( Model):
         
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
-        from commune.utils.tokenizer import prep_tokenizer
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         
         self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
@@ -293,6 +293,9 @@ class TransformerModel( Model):
         return encoded_probs  # [batch_size, sequence_len, topk + topk]
 
 
+    @classmethod
+    def tokenizer_name(self):
+        return self.config['tokenizer']
 
     def tokenize(self, text: str = 'Whadup',
                  padding=True, 
@@ -492,12 +495,14 @@ class TransformerModel( Model):
     fleet_group = {
         
         '1': ['opt7b', 'oa.galactia.7b', 'gptjt_mod', 'gptjt', 'model.gptj', 'model.gptj.instruct', 'model.gptj.alpaca'],
+        '0': ['vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+
         'all': default_models,
         'default': default_models,
     }
     @classmethod
     def deploy_fleet(cls, 
-                     models: List[str] = 'all',
+                     models: List[str] = '0',
                      replace: bool = False,
                      max_models: int = 8,
                      wait_for_server = True
