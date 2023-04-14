@@ -19,7 +19,7 @@
 # limitations under the License.
 """ PyTorch LLaMA model."""
 import math
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union, Dict
 import commune
 import torch
 import torch.utils.checkpoint
@@ -35,6 +35,37 @@ from transformers.utils import add_start_docstrings, add_start_docstrings_to_mod
 logger = logging.get_logger(__name__)
 
 import streamlit as st
+
+# Copied from transformers.models.bart.modeling_bart._make_causal_mask
+def _make_causal_mask(
+    input_ids_shape: torch.Size, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0
+):
+    """
+    Make causal mask used for bi-directional self-attention.
+    """
+    bsz, tgt_len = input_ids_shape
+    mask = torch.full((tgt_len, tgt_len), torch.tensor(torch.finfo(dtype).min, device=device), device=device)
+    mask_cond = torch.arange(mask.size(-1), device=device)
+    mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
+    mask = mask.to(dtype)
+
+    if past_key_values_length > 0:
+        mask = torch.cat([torch.zeros(tgt_len, past_key_values_length, dtype=dtype, device=device), mask], dim=-1)
+    return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
+
+# Copied from transformers.models.bart.modeling_bart._expand_mask
+def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
+    """
+    Expands attention_mask from `[bsz, seq_len]` to `[bsz, 1, tgt_seq_len, src_seq_len]`.
+    """
+    bsz, src_len = mask.size()
+    tgt_len = tgt_len if tgt_len is not None else src_len
+
+    expanded_mask = mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(dtype)
+
+    inverted_mask = 1.0 - expanded_mask
+
+    return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
 
 
 class LlamaRMSNorm(nn.Module):
@@ -298,6 +329,8 @@ class LlamaModel(nn.Module, commune.Module):
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList()
+        
+        self.set_tokenizer()
         for i in range(config.num_hidden_layers):
             st.write(i)
             self.layers.append(LlamaDecoderLayer(config))
@@ -327,7 +360,7 @@ class LlamaModel(nn.Module, commune.Module):
         # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
         combined_attention_mask = None
         if input_shape[-1] > 1:
-            combined_attention_mask = self._make_causal_mask(
+            combined_attention_mask = _make_causal_mask(
                 input_shape,
                 inputs_embeds.dtype,
                 device=inputs_embeds.device,
@@ -336,7 +369,7 @@ class LlamaModel(nn.Module, commune.Module):
 
         if attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
-            expanded_attn_mask = self._expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
+            expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
                 inputs_embeds.device
             )
             combined_attention_mask = (
@@ -352,19 +385,11 @@ class LlamaModel(nn.Module, commune.Module):
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
-        use_cache: Optional[bool] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
+        use_cache: Optional[bool] = False,
+        output_attentions: Optional[bool] = False,
+        output_hidden_states: Optional[bool] = False,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
-            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
-        )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
-
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
         # retrieve input_ids and inputs_embeds
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both decoder_input_ids and decoder_inputs_embeds at the same time")
@@ -404,12 +429,6 @@ class LlamaModel(nn.Module, commune.Module):
 
         hidden_states = inputs_embeds
 
-        if self.gradient_checkpointing and self.training:
-            if use_cache:
-                logger.warning_once(
-                    "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
-                )
-                use_cache = False
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -422,31 +441,20 @@ class LlamaModel(nn.Module, commune.Module):
 
             past_key_value = past_key_values[idx] if past_key_values is not None else None
 
-            if self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        # None for past_key_value
-                        return module(*inputs, output_attentions, None)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(decoder_layer),
-                    hidden_states,
-                    attention_mask,
-                    position_ids,
-                    None,
-                )
-            else:
-                layer_outputs = decoder_layer(
-                    hidden_states,
-                    attention_mask=attention_mask,
-                    position_ids=position_ids,
-                    past_key_value=past_key_value,
-                    output_attentions=output_attentions,
-                    use_cache=use_cache,
-                )
+            layer_device = self.layer_devices[idx] 
+            layer_kwargs = dict(
+                hidden_states=hidden_states,
+                attention_mask=attention_mask,
+                position_ids=position_ids,
+                past_key_value=past_key_value,
+                output_attentions=output_attentions,
+                use_cache=use_cache,
+            )
+            for k, v in layer_kwargs.items():
+                if isinstance(v, torch.Tensor):
+                    layer_kwargs[k] = v.to(layer_device)
+            
+            layer_outputs = decoder_layer(**layer_kwargs)
 
             hidden_states = layer_outputs[0]
 
@@ -456,24 +464,14 @@ class LlamaModel(nn.Module, commune.Module):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
+        hidden_states = hidden_states.to(self.device)
         hidden_states = self.norm(hidden_states)
-
-        # add hidden states from the last decoder layer
-        if output_hidden_states:
-            all_hidden_states += (hidden_states,)
-
-        next_cache = next_decoder_cache if use_cache else None
-        if not return_dict:
-            return tuple(v for v in [hidden_states, next_cache, all_hidden_states, all_self_attns] if v is not None)
-        
-        hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
 
         return commune.munch(
-            last_hidden_state=hidden_states,
-            past_key_values=next_cache,
-            hidden_states=all_hidden_states,
-            attentions=all_self_attns,
+            dict(logits=logits,
+            hidden_state=hidden_states,
+            attentions=all_self_attns)
         )
         
     @classmethod
@@ -497,9 +495,221 @@ class LlamaModel(nn.Module, commune.Module):
         return nn.Module.load_state_dict(self, current_state_dict)
 
 
+    def params(self, search:str = None) -> dict:
+
+        params =  {k:v for k, v in self.named_parameters()}
+        if search != None:
+            params = {k:v for k,v in params.items() if search in k}
+            
+        return params
+
+
+    @classmethod
+    def get_tensor_size(cls, tensor:torch.Tensor):
+        return tensor.nelement() * tensor.element_size()
+    def model_size(self, keys = None):
+        return self.get_model_size( self, keys)
+    
+    @classmethod
+    def get_model_size(cls, model, keys = None):
+        params = {}
+        size_in_bytes = 0 
+        for name, param in model.named_parameters():
+            if keys != None and name not in keys:
+                continue
+            
+            size_in_bytes += cls.get_tensor_size(param)
+          
+        return size_in_bytes
+    
+    def params_size_map(self, cumulative = True):
+        size_map = {k: self.get_tensor_size(v) for k,v in self.named_parameters()}
+        if cumulative:
+            current_size = 0 
+            for k,v in size_map.items():
+                current_size += v 
+                size_map[k] = current_size
+                
+        return size_map
+
+    def allocte_gpus(self, gpus = [0,1]):
+        self.gpus = gpus
+        self.device = f'cuda:{gpus[0]}'
+        self.to(self.device)
+        self.parallelize(gpus)
+        
+    @classmethod
+    def free_gpu_map(cls, 
+                     gpus:List[int] = None,
+                     max_allocation_ratio: float = 1.0) -> Dict[int, float]:
+        free_gpu_map = {}
+        if gpus == None :
+            gpus = cls.gpus()
+            gpus = [int(gpu) for gpu in gpus] 
+    
+        for gpu_id, gpu_info in cls.gpu_map().items():
+            if int(gpu_id) in gpus:
+                free_gpu_map[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )
+        
+        return free_gpu_map
+    
+    def set_device(self,
+                   device = None,
+                   layer_name = 'layer',
+
+                   max_allocation_ratio = 0.9,
+                   mode = 'even'
+                   ):
+        if device == None:
+            devices = [0]
+        elif type(device) == int:
+            devices = [device]
+        elif type(device) == list:
+            devices = device
+        else:
+            raise Exception('device must be int or list')
+        self.device = devices[0]
+        self.layer_devices = []
+
+        assert type(devices) == list, 'device must be a list'
+        free_gpu_memory = self.free_gpu_map(devices, max_allocation_ratio=max_allocation_ratio)
+        total_free_memory = sum(free_gpu_memory.values())
+        assert total_free_memory > self.model_size(), 'not enough memory'
+        
+        for param_name, param in self.named_parameters():
+            if f'{layer_name}.' not in param_name:
+                param.data = param.data.to(self.device)
+        
+        new_params = {}
+
+        for layer_i,layer in enumerate(self.layers):
+            
+            
+            if mode == 'auto':
+                layer_size = self.get_model_size(layer)
+                
+                
+                free_gpus = self.copy(list(free_gpu_memory.keys()))
+                selected_gpu_idx = None
+                for gpu_id in free_gpus:
+                    free_memory = free_gpu_memory[gpu_id]
+                    if free_memory > layer_size:
+                        free_gpu_memory[gpu_id] -= layer_size
+                        selected_gpu_idx = gpu_id
+                        break
+                    else:
+                        free_gpu_memory.pop(gpu_id) 
+                        continue
+            elif mode == 'even':
+                selected_gpu_idx = devices[layer_i // (len(self.layers) // len(devices))]
+            
+            assert selected_gpu_idx != None, 'could not allocate param to any device'
+            self.layers[layer_i] = layer.to(f'cuda:{selected_gpu_idx}')
+            self.layer_devices.append(f'cuda:{selected_gpu_idx}')
+
+            # set param to device with most free memory
+
+    def  getattr(self, key):
+        keys = key.split('.')
+        x_list = []
+        for key in keys:
+            if len(x_list) == 0:
+                x = self
+            else:
+                x = x_list[-1]
+                
+            if key.isdigit():
+                x_list.append(x[int(key)])
+            else:
+                x_list.append(getattr(x, key))
+                
+                
+        return x_list[-1]
+
+    
+    @classmethod
+    def get_module_device(self, module):
+        return next(module.parameters()).device
+
+    def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]= 'lmsys/vicuna-7b-delta-v0'):
+        from transformers import AutoTokenizer, AutoModel
+        from commune.utils.tokenizer import prep_tokenizer
+
+        
+        if isinstance(tokenizer, str):
+
+            # tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+            self.config['tokenizer'] = tokenizer
+            
+            try:
+                # HACK TO INCLUDE LLAMA TOKENIZER
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
+            except ValueError:
+                
+                print('resorting ot use_fast = False')
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+   
+        
+        self.tokenizer = tokenizer
+        
+    
+        self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        
+
+        return self.tokenizer
+
+    def tokenize(self, text: str = 'Whadup',
+                 padding=True, 
+                 truncation=True, 
+                 max_length=64,
+                 return_tensors='pt',
+                 add_special_tokens=False,
+                 device:str = None, 
+                 **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        
+        sample = self.tokenizer(text, 
+                                             padding=padding, 
+                                             truncation=truncation, 
+                                             max_length=max_length, 
+                                             return_tensors=return_tensors,
+                                             add_special_tokens=add_special_tokens, 
+                                             **kwargs)  # assume tokenizer.padding_side = 'left'
+
+        device = device if device != None else self.device
+        
+        sample = dict(
+            input_ids= sample['input_ids'].to(device),
+            attention_mask= sample['attention_mask'].to(device)
+        )
+        
+        return sample
+
+
+
+    def detokenize(self, input_ids: torch.Tensor, **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        
+        text = self.tokenizer.batch_decode(input_ids,**kwargs)  # assume tokenizer.padding_side = 'left'
+
+        return text
 
 if __name__ == "__main__":
 
-    self = LlamaModel.load_from_hf()
-    st.write(self.num_params())
+    self = LlamaModel()
+    
+    # devices = ['cuda:0', 'cuda:1']
+    # st.write(self.params('layers.'))
+    # gpu_map = commune.gpu_map()
+    commune.new_event_loop()
+    dataset = commune.connect('dataset.text.bittensor')
+    sample = dataset.sample(no_tokenizer=True)
+    
+    st.write( self.set_device([2,3],max_allocation_ratio=0.07))
+    sample = self.tokenize(sample['text'])
+    self.forward(**sample)
+    st.write(list(self.params('layers.').keys()))
+    st.write(self.params())
     
