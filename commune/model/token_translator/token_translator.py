@@ -262,7 +262,7 @@ class TokenTranslator(commune.Module):
         #                             add_special_tokens=False,
         #                             padding=True)
 
-        output = model['to'].forward(**sample)
+        output = model['from'].forward(**sample)
         
         cls.print(output)
         

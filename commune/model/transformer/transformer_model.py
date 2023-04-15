@@ -131,7 +131,7 @@ class TransformerModel( Model):
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
                 map_tokens: bool = True,
-                map_logits: bool = True,
+                map_logits: bool = False,
                              
                 **kwargs):
 
@@ -167,7 +167,7 @@ class TransformerModel( Model):
         output_dict['logits']= model_output.logits[:,-output_length:,:]
         
         if map_logits:
-            output_dict['logits'] = self.token_translator.tranlate_logits(output_dict['logits'])
+            output_dict['logits'] = self.token_translator.translate_logits(output_dict['logits'])
         # topk
         output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
         
@@ -516,7 +516,7 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '1': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','model.gptj', 'vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+        '1': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','gptj', 'vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
         # '0': ['vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
 
         'all': default_models,
