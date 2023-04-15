@@ -80,12 +80,12 @@ class Model( nn.Module, commune.Module):
         # import ipdb; ipdb.set_trace()
         no_grad = kwargs.pop('no_grad', True)
         autocast = kwargs.pop('autocast', True)
-        empty_cache = kwargs.pop('empty_cache', True)
+        empty_cache = kwargs.pop('empty_cache', False)
         #should the model learn from the input in this forward pass
         train = kwargs['train'] = kwargs.get('train', False)
 
         # set the model to train mode
-        if train == True:
+        if train:
             no_grad = False
         else:
             no_grad = True

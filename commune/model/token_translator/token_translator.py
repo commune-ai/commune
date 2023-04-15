@@ -7,7 +7,7 @@ from commune.utils.tokenizer import get_translation_map, translate_logits_to_pro
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
         encode_topk, decode_topk
 
-class TokenizerTranslator(commune.Module):
+class TokenTranslator(commune.Module):
     def __init__(self, from_tokenizer='facebook/opt-6.7b', to_tokenizer='gpt2'):
         
         self.set_translator(from_tokenizer=from_tokenizer, 
@@ -30,8 +30,8 @@ class TokenizerTranslator(commune.Module):
                             return_tensors='pt',
                             padding = True,
                             **kwargs):
-        text = self.from_tokenizer.batch_decode(input_ids)
-        input_ids = self.to_tokenizer(text, return_tensors=return_tensors, padding=padding  )['input_ids']
+        text = self.detokenize(input_ids, tokenizer='from')
+        input_ids = self.tokenize(text=text, tokenizer='to' )['input_ids']
         return input_ids
     tokenizer_cache = {}
     def get_tokenizer(cls, tokenizer_name: str, cache:bool = True) -> 'PreTrainedTokenizerBase':
@@ -171,19 +171,52 @@ class TokenizerTranslator(commune.Module):
 
         return tokenizer
     
-    
-    @classmethod
-    def test(cls):
+
+    def tokenize(self, 
+                 text: str = 'Whadup',
+                 padding=True, 
+                 truncation=True, 
+                 max_length=256,
+                 return_tensors='pt',
+                 add_special_tokens=False,
+                 device:str = None, 
+                tokenizer = 'from',
+                 **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        if tokenizer is None:
+            tokenizer = 'from'
+        tokenizer = getattr(self, f'{tokenizer}_tokenizer')
+        sample = tokenizer(text, 
+                                             padding=padding, 
+                                             truncation=truncation, 
+                                             max_length=max_length, 
+                                             return_tensors=return_tensors,
+                                             add_special_tokens=add_special_tokens, 
+                                             **kwargs)  # assume tokenizer.padding_side = 'left'
+
         
-        self = cls()
-        dataset = self.connect('dataset.text.bittensor')
-        sample = dataset.sample(no_tokenizer=True)
-        og_text = sample['text'][:1] 
-        sample = self.from_tokenizer(og_text) 
-        sample = self.translate_tokens(**sample)
-        translated_text = self.to_tokenizer.batch_decode(sample)
-        cls.print('Translated Text', translated_text[0])
-        cls.print('OG TEXT: ',og_text[0])
+        sample = dict(
+            input_ids= sample['input_ids'],
+            attention_mask= sample['attention_mask']
+        )
+        
+        return sample
+
+
+
+    def detokenize(self,input_ids: torch.Tensor,
+                   tokenizer= 'from', 
+                   **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        if tokenizer is None:
+            tokenizer = 'from'
+        tokenizer = getattr(self, f'{tokenizer}_tokenizer')
+        text = tokenizer.batch_decode(input_ids,**kwargs)  # assume tokenizer.padding_side = 'left'
+
+        return text
+
+
+
     @staticmethod
     def set_whitespace_preserving(tokenizer: 'PreTrainedTokenizerBase'):
         r"""
@@ -203,35 +236,40 @@ class TokenizerTranslator(commune.Module):
             else:
                 tokenizer.whitespace_preserving = False
 
+    @classmethod
+    def test(cls):
+        commune.nest_asyncio()
+        cls.print('test')
+        
+        dataset = commune.connect('dataset.text.bittensor')
+        st.write(commune.servers())
+        model  = commune.munch({
+            'from': commune.connect('model.gpt125m'),
+            'to': commune.connect('model.opt6.7b')
+            
+        })
+        
+        model_config = { k: m.config for k,m in model.items()}
+        tokenizer = { k: m.config['tokenizer'] for k,m in model.items()}
 
+        self = cls(from_tokenizer=tokenizer['from'], to_tokenizer=tokenizer['to'])  
+
+        sample = dataset.sample(no_tokenizer=False)
+        # sample = self.from_tokenizer(sample['text'], 
+        #                             truncation=True, 
+        #                             max_length=64,
+        #                             return_tensors='pt',
+        #                             add_special_tokens=False,
+        #                             padding=True)
+
+        output = model['to'].forward(**sample)
+        
+        cls.print(output)
+        
+        output['logits'] = decode_topk(output['topk'], vocab_size=self.from_tokenizer.vocab_len)
+        loss_fn = commune.get_module('model.transformer').calculate_loss
+        output.update(og_sample)
+        loss_fn(**output)
 if __name__ == "__main__":
-    commune.nest_asyncio()
-     
-    dataset = commune.connect('dataset.text.bittensor')
-    st.write(commune.servers())
-    model  = commune.munch({
-        'from': commune.connect('model.gpt125m'),
-        'to': commune.connect('model.gptj')
-        
-    })
+    TokenTranslator.run()
     
-    model_config = { k: m.config for k,m in model.items()}
-    tokenizer = { k: m.config['tokenizer'] for k,m in model.items()}
-
-    self = TokenizerTranslator(from_tokenizer=tokenizer['from'], to_tokenizer=tokenizer['to'])  
-
-    for i in range(1):
-        sample = dataset.sample(no_tokenizer=True)
-
-
-        sample = self.to_tokenizer(sample['text'], return_tensors='pt', padding=True)
-
-        
-        output2 = model['to'].forward(**sample)
-        
-
-        st.write(output2)
-        
-        
-        logits = decode_topk(output2['topk'], vocab_size=self.from_tokenizer.vocab_len)
-        st.write(logits.shape)

@@ -39,7 +39,7 @@ Examples
 class TransformerModel( Model):
     shortcuts =  {
         # 0-1B models
-        'gpt125m': 'EleutherAI/gpt-neo-125M',
+        'gpt125m': 'EleutherAI/gpt-neo-125m',
 
         # 1-3B models
         'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
@@ -62,9 +62,9 @@ class TransformerModel( Model):
         'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
         'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
         'opt6.7b': 'facebook/opt-6.7b',
-        # 'llama': 'decapoda-research/llama-7b-hf',
+        'llama': 'decapoda-research/llama-7b-hf',
         'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+        'vicuna.7b': 'lmsys/vicuna-7b-delta-v1.1',
         'llama-trl': 'trl-lib/llama-7b-se-rl-peft'
         # # > 7B models
         # 'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
@@ -130,12 +130,16 @@ class TransformerModel( Model):
                 hidden_dim_bounds: List =  [0, -1],
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
+                map_tokens: bool = True,
+                map_logits: bool = True,
                              
                 **kwargs):
 
         sample = {
         'input_ids': input_ids,
         }
+        if map_tokens:
+            sample['input_ids'] = self.token_translator.translate_tokens(sample['input_ids'])
         
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
@@ -162,6 +166,8 @@ class TransformerModel( Model):
         # logits
         output_dict['logits']= model_output.logits[:,-output_length:,:]
         
+        if map_logits:
+            output_dict['logits'] = self.token_translator.tranlate_logits(output_dict['logits'])
         # topk
         output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
         
@@ -277,10 +283,7 @@ class TransformerModel( Model):
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        
-        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
-        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
-        self.split_map_cache = {}
+        self.token_translator = self.get_module('model.token_translator')(from_tokenizer=self.config['tokenizer'],to_tokenizer='gpt2')
 
         return self.tokenizer
 

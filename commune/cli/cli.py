@@ -36,13 +36,11 @@ class CLI(commune.Module):
    
             else:
 
-                try:
-                    if fn == None:
-                        result = module(*args, **kwargs)
-                    else:
-                        result = getattr(module, fn)(*args, **kwargs)
-                except TypeError:
-                    result = getattr(module, fn)
+                if fn == None:
+                    result = module(*args, **kwargs)
+                else:
+                    result = getattr(module, fn)(*args, **kwargs)
+
             # else:
             #     result = fn_obj
             self.print(result) 
