@@ -124,7 +124,7 @@ class TransformerModel( Model):
     def _forward(self,  
                 input_ids: torch.Tensor = None, 
                 topk:int=32,
-                output_length:int = 4,
+                output_length:int = 10,
                 output_hidden_states : bool = True,
                 hidden_state_index: int = -1,
                 hidden_dim_bounds: List =  [0, -1],
@@ -346,18 +346,20 @@ class TransformerModel( Model):
 
 
     @classmethod
-    def test(cls, model = 'gpt125m', topk:int=4096 ,
+    def test(cls, model = 'opt1.3b', topk:int=4096 ,
              dataset:str = 'dataset.text.bittensor',
              ):
         
         self = cls(model= model)
 
         dataset = commune.connect(dataset)
-        sample = dataset.sample(batch_size=2, no_tokenizer=True)
-        sample = self.tokenize(sample['text'])  # assume tokenizer.padding_side = 'left'
-        output = self.forward(**sample, train=False)
-        cls.print(output)
-        output['logits'] = decode_topk(output['topk'], vocab_len=self.tokenizer.vocab_len, topk=topk)
+
+        for i in range(10):
+            sample = dataset.sample(batch_size=32, no_tokenizer=True)
+            sample = self.tokenize(sample['text'])  # assume tokenizer.padding_side = 'left'
+            sample['topk'] = topk
+            output = self.forward(**sample, train=False)
+            cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         
@@ -567,22 +569,9 @@ class TransformerModel( Model):
             
     @classmethod
     def sandbox(cls):
-        datasets = [ 'Gutenberg_PG', 'BookCorpus2', 'HackerNews', 'Books3', 'NIHExPorter', 'OpenSubtitles']
-
-        models = [ 'gptj', 'gpt3b']
-
-        for model in models:
-            for i in range(len(datasets)):
-                dataset = datasets[i].lower()
-                dataset_id = f'dataset:{dataset}'
-                
-                model_idx = i % 4
-                model_id = f'model::{model}::{model_idx}'
-                kwargs = dict(model=model_id, dataset=dataset_id, num_batches=300, num_epochs=100, save=True, load=False, refresh=False)
-                
-                train_id = f'train::{model_id}::{dataset}'.lower()
-                cls.pm2_kill(train_id)
-                cls.pm2_launch(name = train_id, fn='train_remote', kwargs=kwargs)
+        self = cls(model='opt2.7b')
+        
+        
 if __name__ == "__main__":
     
     TransformerModel.run()

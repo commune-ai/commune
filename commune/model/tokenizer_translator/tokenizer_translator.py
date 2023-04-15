@@ -211,22 +211,24 @@ if __name__ == "__main__":
     st.write(commune.servers())
     model  = commune.munch({
         'from': commune.connect('model.gpt125m'),
-        'to': commune.connect('model.opt6.7b')
+        'to': commune.connect('model.gptj')
+        
     })
-    st.write(model.to.config)
     
     model_config = { k: m.config for k,m in model.items()}
     tokenizer = { k: m.config['tokenizer'] for k,m in model.items()}
 
     self = TokenizerTranslator(from_tokenizer=tokenizer['from'], to_tokenizer=tokenizer['to'])  
-    self.print(model['from'].config )
 
     for i in range(1):
         sample = dataset.sample(no_tokenizer=True)
 
-        sample = self.from_tokenizer(sample['text'], return_tensors='pt', padding=True)
-        # sample['topk'] = 512
-        output2 = model['from'].forward(**sample)
+
+        sample = self.to_tokenizer(sample['text'], return_tensors='pt', padding=True)
+
+        
+        output2 = model['to'].forward(**sample)
+        
 
         st.write(output2)
         

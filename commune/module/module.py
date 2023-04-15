@@ -11,6 +11,7 @@ import argparse
 import asyncio
 
 
+
 class Module:
     
     # port range for servers
@@ -1724,7 +1725,7 @@ class Module:
     ## PM2 LAND
     @classmethod
     def launch(cls, 
-               module:str = 'module', 
+               module:str = None, 
                fn: str = 'serve',
                args : list = None,
                kwargs: dict = None,
@@ -1775,6 +1776,9 @@ class Module:
             if name == None:
                 name = module 
             module = cls.get_module(module) 
+            
+            
+        cls.print(f'Launching {module} with {fn} as {mode}')
             
         if password:
             kwargs['password'] = password
@@ -1895,7 +1899,7 @@ class Module:
             
         cls.print(f'RUNNING: {command}')
 
-        stdout = cls.run_command(command, env=env, verbose=True)
+        stdout = cls.run_command(command, env=env, verbose=verbose)
         # cls.print(f'STDOUT: \n {stdout}', color='green')
         return stdout
     
@@ -2655,13 +2659,7 @@ class Module:
         return gpu_info
     
     
-    @classmethod
-    def free_gpu_memory(cls) -> int:
-        free_gpu_memory = 0
-        for gpu_id, gpu_info in cls.gpu_map().items():
-            free_gpu_memory += gpu_info['free']
-        return free_gpu_memory  
-    
+ 
     @classmethod
     def total_gpu_memory(cls) -> int:
         total_gpu_memory = 0
@@ -2745,8 +2743,34 @@ class Module:
         model_parameters = filter(lambda p: p.requires_grad, model.parameters())
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
-    
-    
+
+    @classmethod
+    def get_tensor_size(cls, tensor:'torch.Tensor'):
+        import torch
+        return tensor.nelement() * tensor.element_size()
+    @classmethod 
+    def get_model_device(cls, model, fast_and_lazy:bool = True) -> 'torch.device':
+        if fast_and_lazy:
+            return next(model.parameters()).device
+        else:
+            unique_devices = set()
+            for p in model.parameters():
+                unique_devices.add(p.device)
+            return list(unique_devices)[0]
+        return next(model.parameters()).device
+    @classmethod
+    def get_model_size(cls, model, keys = None):
+        params = {}
+        size_in_bytes = 0 
+        for name, param in model.named_parameters():
+            if keys != None and name not in keys:
+                continue
+            
+            size_in_bytes += cls.get_tensor_size(param)
+          
+        return size_in_bytes
+
+
     def num_params(self)->int:
         return self.get_num_params(self)
 
@@ -3486,11 +3510,22 @@ class Module:
     @classmethod
     def free_gpu_memory(cls, 
                      gpus:List[int] = None,
-                     max_allocation_ratio: float = 1.0) -> Dict[int, float]:
-        
+                     max_allocation_ratio: float = 1.0,
+                     fmt = 'b') -> Dict[int, float]:
+        import torch
         assert max_allocation_ratio <= 1.0 and max_allocation_ratio > 0, 'max_allocation_ratio must be less than 1.0 and greter than 0'
         free_gpu_memory = {}
         
+        if fmt == 'gb':
+            scale = 1e9
+        elif fmt == 'mb':
+            scale = 1e6
+        elif fmt == 'kb':
+            scale = 1e3
+        elif fmt == 'b':
+            scale = 1
+        else:
+            raise ValueError(f'Invalid format: {fmt}, options are gb, mb, kb, b')
         if gpus == None :
             gpus = cls.gpus()
         
@@ -3498,15 +3533,18 @@ class Module:
     
         for gpu_id, gpu_info in cls.gpu_map().items():
             if int(gpu_id) in gpus:
-                free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )
+                free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )/scale
         
         return free_gpu_memory
     
+    @classmethod
+    def free_gpus(cls, *args, **kwargs):
+        return cls.free_gpu_memory(*args, **kwargs)
     
-    
-    def total_free_gpu_memory(self, deivice = None):
-        free_gpu_memory = self.free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
-        total_free_memory = self.total_free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
+    @classmethod
+    def total_free_gpu_memory(cls, gpus = None, max_allocation_ratio=1.0, fmt='b'):
+        free_gpu_memory = cls.free_gpu_memory(gpus=gpus, max_allocation_ratio=max_allocation_ratio, fmt=fmt)
+        total_free_memory = sum(free_gpu_memory.values())
         return total_free_memory
     
     

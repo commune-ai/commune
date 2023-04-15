@@ -533,33 +533,8 @@ class LlamaModel(nn.Module, commune.Module):
             return loss.item()
         return loss
 
-
-    @classmethod
-    def get_tensor_size(cls, tensor:torch.Tensor):
-        return tensor.nelement() * tensor.element_size()
     def model_size(self, keys = None):
         return self.get_model_size( self, keys)
-    @classmethod 
-    def get_model_device(cls, model, fast_and_lazy:bool = True) -> torch.device:
-        if fast_and_lazy:
-            return next(model.parameters()).device
-        else:
-            unique_devices = set()
-            for p in model.parameters():
-                unique_devices.add(p.device)
-            return list(unique_devices)[0]
-        return next(model.parameters()).device
-    @classmethod
-    def get_model_size(cls, model, keys = None):
-        params = {}
-        size_in_bytes = 0 
-        for name, param in model.named_parameters():
-            if keys != None and name not in keys:
-                continue
-            
-            size_in_bytes += cls.get_tensor_size(param)
-          
-        return size_in_bytes
     
     def params_size_map(self, cumulative = True):
         size_map = {k: self.get_tensor_size(v) for k,v in self.named_parameters()}
@@ -577,31 +552,7 @@ class LlamaModel(nn.Module, commune.Module):
         self.to(self.device)
         self.parallelize(gpus)
         
-    @classmethod
-    def free_gpu_memory(cls, 
-                     gpus:List[int] = None,
-                     max_allocation_ratio: float = 1.0) -> Dict[int, float]:
-        
-        assert max_allocation_ratio <= 1.0 and max_allocation_ratio > 0, 'max_allocation_ratio must be less than 1.0 and greter than 0'
-        free_gpu_memory = {}
-        
-        if gpus == None :
-            gpus = cls.gpus()
-        
-        gpus = [int(gpu) for gpu in gpus] 
-    
-        for gpu_id, gpu_info in cls.gpu_map().items():
-            if int(gpu_id) in gpus:
-                free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )
-        
-        return free_gpu_memory
-    
-    
-    
-    def total_free_gpu_memory(self, deivice = None):
-        free_gpu_memory = self.free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
-        total_free_memory = self.total_free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
-        return total_free_memory
+
     def set_device(self,
                    device = None,
                    layer_name = 'layers',
@@ -668,26 +619,13 @@ class LlamaModel(nn.Module, commune.Module):
                 # set param to device with most free memory
         else: 
             raise Exception('device must be int or list')
-    def  getattr(self, key):
-        keys = key.split('.')
-        x_list = []
-        for key in keys:
-            if len(x_list) == 0:
-                x = self
-            else:
-                x = x_list[-1]
-                
-            if key.isdigit():
-                x_list.append(x[int(key)])
-            else:
-                x_list.append(getattr(x, key))
-                
-                
-        return x_list[-1]
 
-    
     @classmethod
-    def get_module_device(self, module):
+    def get_module_device(self, module, halfass = True):
+        if halfass:
+            return next(module.parameters()).device
+        else:
+            raise Exception('full ass not implemented')
         return next(module.parameters()).device
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]= 'lmsys/vicuna-7b-delta-v0'):
