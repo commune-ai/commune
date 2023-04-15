@@ -516,7 +516,11 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '1': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','gptj', 'vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+        '0': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','gptj', 'vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+        '1': [ 'gptj.alpaca', 'gptj.pygppo', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
+        '2': [ 'gptj.instruct', 'gpt6b', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
+
+
         # '0': ['vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
 
         'all': default_models,
@@ -524,10 +528,10 @@ class TransformerModel( Model):
     }
     @classmethod
     def deploy_fleet(cls, 
-                     models: List[str] = '0',
+                     models: List[str] = '1',
                      replace: bool = False,
                      max_models: int = 8,
-                     wait_for_server = True
+                     wait_for_server = False
                      ) -> List[str]:
 
 
@@ -540,12 +544,12 @@ class TransformerModel( Model):
         deployed_models = []
         for model in models:
             commune.print(f'Deploying Model {model}', 'green')
-            cls.deploy(model=model, wait_for_server=wait_for_server)
+            cls.deploy(model, wait_for_server=wait_for_server)
             deployed_models.append(model)
             commune.print(f'Deployed Model {model} ({len(deployed_models)}/{len(models)})', 'green')
             
             
-        return deployed_model_names
+        return deployed_models
         
         
     @classmethod
