@@ -60,6 +60,7 @@ class BittensorDataset(Module):
             buffer_size:int = 1,
             buffer_calls_per_update: int = 1,
             download: bool = False,
+            background: bool = True,
             min_hash_count : int = 850000,
             loop: Optional['asyncio.loop'] = None ,
             nest_asyncio: bool = True):
@@ -101,8 +102,9 @@ class BittensorDataset(Module):
         # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
         self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
         
+        
         if download:
-            self.download(background=self.background_download, min_hash_count=self.min_hash_count)
+            self.download(background=self.background, min_hash_count=self.min_hash_count)
       
       
     def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
@@ -184,7 +186,7 @@ class BittensorDataset(Module):
         if load:
             try:
                 loaded_file_metas =  self.load_json(path=f'{dataset}/file_metas', default=[])
-            except FileNotFoundError as e:
+            except Exception as e:
                 loaded_file_metas = []
                 
             for file_meta in loaded_file_metas:
@@ -467,17 +469,14 @@ class BittensorDataset(Module):
         
         if background:
             thread_fn_kwargs = dict(locals())
+            thread_fn_kwargs.pop('self', None)
             thread_fn_kwargs['background'] = False
             from threading import Thread
             self.download_thread = Thread(target=self.download, kwargs= thread_fn_kwargs, daemon=True, name='IPFS Download')
             self.download_thread.start()   
             
     
-        if background_thread: 
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        else:
-            loop = asyncio.get_event_loop()
+        loop = self.get_event_loop()
         
         file_meta_chunks = chunk(self.unsaved_hashes, chunk_size=chunk_size)
         
@@ -494,7 +493,8 @@ class BittensorDataset(Module):
                 num_saved_hashes = len(self.get_saved_hashes())
                 if num_saved_hashes > min_hash_count: 
                     break
-                print(f'{i} hashes downloaded -> Total Saved Hashes {num_saved_hashes}/{total_hash_count} fails: {fail_count}')
+                
+                self.print(f'{i} hashes downloaded -> Total Saved Hashes {num_saved_hashes}/{total_hash_count} fails: {fail_count}')
             # Build the asyncio jobs.
             try:
                 loop.run_until_complete(asyncio.gather(*[self.fetch_text(file_meta=file_meta, offset=0, length=self.max_hash_size, load=False) for file_meta in file_meta_chunk ]))
@@ -900,6 +900,10 @@ class BittensorDataset(Module):
             
         # st.write(len(dataset))
         
+    @classmethod
+    def test(cls, *args,**kwargs):
+        self = cls( *args,**kwargs)
+
         
         
 if __name__ == "__main__":
