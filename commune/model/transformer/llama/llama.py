@@ -539,7 +539,6 @@ class LlamaModel(nn.Module, commune.Module):
         return tensor.nelement() * tensor.element_size()
     def model_size(self, keys = None):
         return self.get_model_size( self, keys)
-    
     @classmethod 
     def get_model_device(cls, model, fast_and_lazy:bool = True) -> torch.device:
         if fast_and_lazy:

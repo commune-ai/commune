@@ -146,17 +146,20 @@ class TransformerModel( Model):
         # clip the input ids to the vocab size
         sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
         if train:
-            self.optimizer.zero_grad()         
+            self.optimizer.zero_grad()
+            
+        self.stats['inference_start_time'] =  self.time() 
         model_output = self.model(input_ids=sample['input_ids'],
                                   output_hidden_states=output_hidden_states)
-        
-    
-    
+        self.stats['inference_end_time'] = self.time() 
+        self.stats['inference_time'] = self.stats['inference_end_time'] - self.stats['inference_start_time']
+        self.stats['inference_steps'] = self.stats.get('inference_steps', 0) + 1
         # sometime we dont care about the begginning of the sequence
         
         output_length = output_length if output_length else model_output.logits.size(1)
         
         output_dict = {}
+        # logits
         output_dict['logits']= model_output.logits[:,-output_length:,:]
         
         # topk
@@ -169,19 +172,20 @@ class TransformerModel( Model):
         
         output_dict.update(sample)
         loss = self.calculate_loss(**output_dict) 
-        self.stats['inference_steps'] = self.stats.get('inference_steps', 0) + 1
-        output_dict['stats'] = deepcopy(self.stats)         
 
-             
         if train:
             loss.backward()
             self.optimizer.step()
+            self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
+        # if 'loss_history' not in  self.stats:
+        #     self.stats['loss_history'] = []
+        # self.stats['loss_history'] += [append(loss.item()]
+        # self.stats['mean_loss'] =loss.item()
         
         
-        self.stats['loss'] =loss.item()
-        self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
+        self.stats['loss'] = loss.item()
+        output_dict['stats'] = deepcopy(self.stats)         
 
-        
         return {key:output_dict[key] for key in return_keys}
 
         
@@ -342,15 +346,17 @@ class TransformerModel( Model):
 
 
     @classmethod
-    def test(cls, topk=4096, output_length=20):
-        self = cls(model_name='gpt125m', load=True)
-        dataset = commune.connect('dataset')
-        sample = dataset.sample(batch_size=2)
+    def test(cls, model = 'gpt125m', topk:int=4096 ,
+             dataset:str = 'dataset.text.bittensor',
+             ):
+        
+        self = cls(model= model)
+
+        dataset = commune.connect(dataset)
+        sample = dataset.sample(batch_size=2, no_tokenizer=True)
         sample = self.tokenize(sample['text'])  # assume tokenizer.padding_side = 'left'
-
         output = self.forward(**sample, train=False)
-
-        print(output)
+        cls.print(output)
         output['logits'] = decode_topk(output['topk'], vocab_len=self.tokenizer.vocab_len, topk=topk)
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
@@ -436,6 +442,11 @@ class TransformerModel( Model):
             
         return output['stats']
     
+    @classmethod
+    def models(cls):
+        return st.write(cls.shortcuts.keys())
+    
+    
     
     @classmethod
     def remote_train(cls,
@@ -500,8 +511,8 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '1': ['opt7b', 'oa.galactia.7b', 'gptjt_mod', 'gptjt', 'model.gptj', 'model.gptj.instruct', 'model.gptj.alpaca'],
-        '0': ['vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+        '1': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','model.gptj', 'vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+        # '0': ['vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
 
         'all': default_models,
         'default': default_models,
@@ -534,20 +545,25 @@ class TransformerModel( Model):
         
     @classmethod
     def deploy(cls,
-               model: str ='gptj',
+               *models: str,
                tokenizer: str=None, 
                name: str =None, 
-               wait_for_server: bool = False, **kwargs):
+               wait_for_server: bool = False, 
+               mode = 'pm2',
+               **kwargs):
 
-        model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
-        
-        if name == None:
-            name = f'model.{model}'
-                        
-        cls.launch(name=name,kwargs=model_kwargs, mode='pm2')
-        if wait_for_server:
-            cls.wait_for_server(name=name, sleep_interval=20, timeout=1000)
-        return name
+
+        assert len(models) > 0
+        model_names = []
+        print(models)
+        for model in models:
+            model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
+            name = f'model.{model}'     
+            cls.launch(name=name,kwargs=model_kwargs, mode=mode)
+            if wait_for_server:
+                cls.wait_for_server(name=name, sleep_interval=20, timeout=1000)
+            model_names.append(name) 
+        return model_names
             
     @classmethod
     def sandbox(cls):

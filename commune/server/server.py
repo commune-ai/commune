@@ -95,7 +95,7 @@ class Server(ServerServicer, Serializer):
         self.module = module
         
         # set the whitelist functions
-        self.add_whitelist_functions(whitelist_functions + self.module.functions())
+        self.add_whitelist_functions(whitelist_functions + self.module.functions() + self.module.attributes())
         self.add_blacklist_functions(blacklist_functions)
         self.authenticate = authenticate
         self.subspace = subspace
@@ -223,8 +223,8 @@ class Server(ServerServicer, Serializer):
             fn_kwargs = data.get('kwargs', {})
             fn_args = data.get('args', [])
             
-            assert fn in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
-            assert fn not in self.blacklist_functions, f'Function {data["fn"]} in blacklist'
+            # assert fn in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
+            # assert fn not in self.blacklist_functions, f'Function {data["fn"]} in blacklist'
             
             if verbose:
                 commune.print('Calling Function: '+fn, color='cyan')

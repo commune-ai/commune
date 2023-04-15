@@ -26,14 +26,21 @@ class CLI(commune.Module):
                 module = commune.get_module(args.pop(0))
             elif args[0] in module.servers():
                 module = commune.connect(args.pop(0))
+                module_info = module.info()
                 is_remote = True
-            fn = args.pop(0)
+                
+            fn = args.pop(0) if len(args) > 0 else None
             if is_remote:
+                fn = fn if fn != None else 'help'
                 result = module.remote_call(fn, *args, **kwargs)
    
             else:
+
                 try:
-                    result = getattr(module, fn)(*args, **kwargs)
+                    if fn == None:
+                        result = module(*args, **kwargs)
+                    else:
+                        result = getattr(module, fn)(*args, **kwargs)
                 except TypeError:
                     result = getattr(module, fn)
             # else:
