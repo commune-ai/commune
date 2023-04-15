@@ -2,9 +2,11 @@ import commune
 import torch
 from typing import Dict, Any, List, Tuple
 import streamlit as st
+commune.new_event_loop()
 from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
         encode_topk, decode_topk
+
 class TokenizerTranslator(commune.Module):
     def __init__(self, from_tokenizer='facebook/opt-6.7b', to_tokenizer='gpt2'):
         
@@ -203,17 +205,31 @@ class TokenizerTranslator(commune.Module):
 
 
 if __name__ == "__main__":
-    self = TokenizerTranslator()   
-    dataset = self.connect('dataset.text.bittensor')
-    sample = dataset.sample(no_tokenizer=True)
+    commune.nest_asyncio()
+     
+    dataset = commune.connect('dataset.text.bittensor')
+    st.write(commune.servers())
+    model  = commune.munch({
+        'from': commune.connect('model.gpt125m'),
+        'to': commune.connect('model.opt6.7b')
+    })
+    st.write(model.to.config)
     
-    model  = {
-        'from': self.connect('gpt125m'),
-        'to': self.connect('opt3b')
-    }
-    
-    sample = self.from_tokenizer(sample['text'], return_tensors='pt', padding=True)
-    output2 = model['from'].forward(**sample)
-    st.write(output2)
-    logits = decode_topk(output2['topk'], vocab_size=self.from_tokenizer.vocab_len)
-    st.write(logits.shape)
+    model_config = { k: m.config for k,m in model.items()}
+    tokenizer = { k: m.config['tokenizer'] for k,m in model.items()}
+
+    self = TokenizerTranslator(from_tokenizer=tokenizer['from'], to_tokenizer=tokenizer['to'])  
+    self.print(model['from'].config )
+
+    for i in range(1):
+        sample = dataset.sample(no_tokenizer=True)
+
+        sample = self.from_tokenizer(sample['text'], return_tensors='pt', padding=True)
+        # sample['topk'] = 512
+        output2 = model['from'].forward(**sample)
+
+        st.write(output2)
+        
+        
+        logits = decode_topk(output2['topk'], vocab_size=self.from_tokenizer.vocab_len)
+        st.write(logits.shape)

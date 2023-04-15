@@ -323,6 +323,9 @@ class Model( nn.Module, commune.Module):
                 
         return total_params
 
+    @classmethod
+    def deploy(cls, *args, **kwargs):
+        return cls.get_module('model.transformer').deploy(*args, **kwargs)
 
 if __name__ == "__main__":
     

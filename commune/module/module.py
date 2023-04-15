@@ -501,15 +501,15 @@ class Module:
             return os.path.expanduser(path)
         elif path.startswith('./'):
             return path.replace('./', cls.pwd + '/')
-        
-        tmp_dir = cls.tmp_dir()
-        if tmp_dir not in path:
-            path = os.path.join(tmp_dir, path)
-        if not os.path.isdir(path):
-            if extension and extension != path.split('.')[-1]:
-                path = path + '.' + extension
+        else:
+            tmp_dir = cls.tmp_dir()
+            if tmp_dir not in path:
+                path = os.path.join(tmp_dir, path)
+            if not os.path.isdir(path):
+                if extension and extension != path.split('.')[-1]:
+                    path = path + '.' + extension
 
-        return path
+            return path
     
     
     @classmethod
@@ -592,13 +592,15 @@ class Module:
         '''
         server_info = cls.get_server_info(module)
         if 'external_ip' in server_info:
-            assert server_info.get('external_ip') == cls.external_ip()
+            server_info.get('external_ip') == cls.external_ip()
         if isinstance(module, int) or mode == 'local':
-            return cls.kill_port(server_info['port'])
+            cls.kill_port(server_info['port'])
         if mode == 'pm2':
-            return cls.pm2_kill(module)
+            cls.pm2_kill(module)
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
+        
+        cls.update_server_registry()
 
     @classmethod
     def restart_server(cls, module:str, mode:str = 'pm2'):
@@ -943,7 +945,7 @@ class Module:
     
        
     @classmethod
-    def Bittensor(cls, *args, **kwargs):
+    def bittensor(cls, *args, **kwargs):
         return cls.get_module('bittensor')(*args, **kwargs)
     @classmethod
     def __str__(cls):
@@ -1156,15 +1158,6 @@ class Module:
            
         return server_registry
 
-    @property
-    def server_info(self) -> dict: 
-        if 'address' not in self._server_info:
-            self._server_info['address'] = f"{self._server_info['ip']}:{self._server_info['port']}"          
-        return self._server_info
-    
-    @server_info.setter
-    def server_info(self, value) -> None:
-        self._server_info = value
     
   
     @classmethod
@@ -1309,18 +1302,11 @@ class Module:
     
     
     
-    whitelist_functions: List[str] = ['functions',
-                                      'function_schema_map', 
-                                      'getattr', 
-                                      'servers',
-                                      'external_ip', 
-                                      'peer_registry',
-                                      'server_registry',
-                                      'get_auth',
-                                      'verify', 
-                                      'get_id']
+    whitelist_functions: List[str] = []
     blacklist_functions: List[str] = []
 
+    def attributes(self):
+        return list(self.__dict__.keys())
     @classmethod
     def namespace(cls,
                   network:str='local',
@@ -1397,14 +1383,15 @@ class Module:
         
         # register the server
         self.server_info = server.info
-        ip = server.ip
-        port = server.port
+        self.ip = server.ip
+        self.port = server.port
+        self.address = server.address
         
         # register the server
         server_info = cls.register_server(name=module_name, 
                                           context=context,
-                                          ip=ip,
-                                          port=port,
+                                          ip=self.ip,
+                                          port=self.port,
                                           network=network,
                                           password=password, 
                                           netuid=netuid)
@@ -1549,17 +1536,24 @@ class Module:
         
         return info
     
-    def peer_info(self) -> Dict[str, Any]:
+    def info(self, include_schema: bool ) -> Dict[str, Any]:
         function_schema_map = self.function_schema_map()
         info  = dict(
-            module_name = self.module_name,
-            server_info = self.server_info,
+            name = self.module_name,
+            ip = self.ip,
+            port = self.port,
+            address = self.address,
             function_schema = function_schema_map,
+            functions =  list(function_schema_map.keys()),
             intro =function_schema_map.get('__init__', 'No Intro Available'),
             examples =function_schema_map.get('examples', 'No Examples Available'),
         )
         return info
 
+
+
+    def peer_info(self) -> Dict[str, Any]:
+        self.info()
     @classmethod
     def schema(cls, *args, **kwargs): 
         function_schema_map = cls.get_function_schema_map(*args, **kwargs)
@@ -1697,24 +1691,80 @@ class Module:
          
         return path
         
+    @classmethod
+    def set_shortcut(cls, shortcut: str, kwargs: dict) -> dict:
+        self.shortcuts = self.get_shortcuts()
+        # remove shortcut if it exists
+        kwargs.pop('shortcut', None)
+        cls.shortcuts[shortcut] = kwargs
+        self.put_json('shortcuts', cls.shortcuts)
+        
+        return kwargs
     
+    @classmethod
+    def get_shortcut(cls, shortcut:str) -> dict:
+        self.shortcuts = cls.get_shortcuts()
+        kwargs =  cls.shortcuts.get(shortcut, None)
+        return kwargs
+    
+    def get_shortcuts(cls) -> dict:
+        return cls.get_json('shortcuts')
+
+    @classmethod
+    def has_shortcut(cls, shortcut:str):
+        return cls.get_shortcut(shortcut) != None
+    
+    @classmethod
+    def rm_shortcut(cls, shortcut) -> str:
+        shortcuts = cls.get_shortcuts()
+        if shortcut in shortcuts:
+            cls.shortcuts.pop(shortcut)
+            cls.put_json('shortcuts', cls.shortcuts)
+        return shortcut
     ## PM2 LAND
     @classmethod
     def launch(cls, 
-               module:str = None, 
-               fn: str = None,
+               module:str = 'module', 
+               fn: str = 'serve',
                args : list = None,
                kwargs: dict = None,
                refresh:bool=True,
                mode:str = 'pm2',
                name:Optional[str]=None, 
                tag:str=None, 
+               user: str = None,
+               key : str = None,
                password: str = None,
-               serve: bool = True,
+               shortcut = None,
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
         '''
+        locals_dict = dict(locals())
+        locals_dict.pop('cls')
+        # if cls.has_shortcut(name):
+        #     shortcut = name
+        # if shortcut != None:
+        #     shortcut_kwargs = cls.get_shortcut(shortcut)
+        #     if shortcut_kwargs == None:
+        #         shortcut_kwargs = locals_dict
+        #         shortcut_kwargs.pop('shortcut', None)
+        #         cls.print(shortcut_kwargs, shortcut)
+        #         cls.set_shortcut(shortcut, shortcut_kwargs)
+            
+        #     self.launch(**shortcut_kwargs)
+        
+        # if shortcut != None: 
+        #     return shortcut
+        
+        if isinstance(shortcut, str):
+            shortcut = cls.get_shortcut(shortcut)
+            
+            if shortcut == None:
+                
+                return cls.launch_shortcut(shortcut)
+            else:
+                raise Exception(f'Shortcut {shortcut} not found')
             
 
         kwargs = kwargs if kwargs else {}
@@ -1729,8 +1779,7 @@ class Module:
         if password:
             kwargs['password'] = password
             
-        if serve and fn == None:
-            fn = 'serve'
+        if fn == 'serve':
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)
   
@@ -1752,6 +1801,7 @@ class Module:
                     refresh=refresh,
                     **extra_kwargs
             )
+            
 
             assert fn != None, 'fn must be specified for pm2 launch'
             launch_fn = getattr(cls, f'pm2_launch')
@@ -2695,6 +2745,8 @@ class Module:
         model_parameters = filter(lambda p: p.requires_grad, model.parameters())
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
+    
+    
     def num_params(self)->int:
         return self.get_num_params(self)
 
@@ -2996,7 +3048,7 @@ class Module:
         is_remote = False
         if module in namespace:
             
-            module = cls.connect(namespace)
+            module = cls.connect(module)
             is_remote = True
         elif module in module_list:
             module = cls.get_module(module)
@@ -3430,6 +3482,36 @@ class Module:
         else: 
             raise ValueError('Could not find class name in file')
         
+ 
+    @classmethod
+    def free_gpu_memory(cls, 
+                     gpus:List[int] = None,
+                     max_allocation_ratio: float = 1.0) -> Dict[int, float]:
+        
+        assert max_allocation_ratio <= 1.0 and max_allocation_ratio > 0, 'max_allocation_ratio must be less than 1.0 and greter than 0'
+        free_gpu_memory = {}
+        
+        if gpus == None :
+            gpus = cls.gpus()
+        
+        gpus = [int(gpu) for gpu in gpus] 
+    
+        for gpu_id, gpu_info in cls.gpu_map().items():
+            if int(gpu_id) in gpus:
+                free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )
+        
+        return free_gpu_memory
+    
+    
+    
+    def total_free_gpu_memory(self, deivice = None):
+        free_gpu_memory = self.free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
+        total_free_memory = self.total_free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
+        return total_free_memory
+    
+    
+    # @classmethod
+    
         
     
 if __name__ == "__main__":
