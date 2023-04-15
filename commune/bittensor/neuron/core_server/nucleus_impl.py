@@ -237,14 +237,14 @@ class server(torch.nn.Module):
                     Decoded predictions of the next token in the sentence.
 
         """
-        message, model_output, decoded_targets = self.local_forward(inputs, tokenizer)
+        message, model_output, decoded_targets = self._forward(inputs, tokenizer)
         shift_logits = decoded_targets[..., :-1, :].contiguous()
         shift_labels = inputs[..., 1:].contiguous()
         loss = self.loss_fct( shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1) )
 
         return loss, decoded_targets
 
-    def local_forward(self, token_batch, tokenizer=None, encode_len=bittensor.__network_dim__, model_output = None):
+    def _forward(self, token_batch, tokenizer=None, encode_len=bittensor.__network_dim__, model_output = None):
         r""" Forward pass through the pretrained model and possible mappings between hidden units.
              The response tensor should be the hidden units computed using the local context and
              with shape: [batch_size, sequence_len, __vocab_size__].

@@ -121,32 +121,32 @@ class TransformerModel( Model):
             return loss.item()
         return loss
 
-    def local_forward(self,  
+    def _forward(self,  
                 input_ids: torch.Tensor = None, 
-                topk:int=4096,
-                output_length:int = 10,
+                topk:int=32,
+                output_length:int = 4,
                 output_hidden_states : bool = True,
                 hidden_state_index: int = -1,
                 hidden_dim_bounds: List =  [0, -1],
-                return_keys:List[str] = ['topk'],
-                train: bool = False,                
+                return_keys:List[str] = ['topk', 'stats'],
+                train: bool = False,   
+                             
                 **kwargs):
 
         sample = {
         'input_ids': input_ids,
         }
         
-        
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
                 sample[k] = sample[k].to(self.device)
         
-        if train:
-            self.optimizer.zero_grad()
+
             
         # clip the input ids to the vocab size
         sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
-            
+        if train:
+            self.optimizer.zero_grad()         
         model_output = self.model(input_ids=sample['input_ids'],
                                   output_hidden_states=output_hidden_states)
         
@@ -158,24 +158,30 @@ class TransformerModel( Model):
         
         output_dict = {}
         output_dict['logits']= model_output.logits[:,-output_length:,:]
+        
+        # topk
         output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
+        
+        # hidden state
         output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index]
         output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
         output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
         
-        
+        output_dict.update(sample)
+        loss = self.calculate_loss(**output_dict) 
+        self.stats['inference_steps'] = self.stats.get('inference_steps', 0) + 1
+        output_dict['stats'] = deepcopy(self.stats)         
+
              
         if train:
-            output_dict.update(sample)
-            loss = self.calculate_loss(**output_dict)  
             loss.backward()
             self.optimizer.step()
-            
-            self.stats['loss'] =loss.item()
-            self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
-            output_dict['stats'] = deepcopy(self.stats)
         
-        return_keys = return_keys if return_keys else ['topk']
+        
+        self.stats['loss'] =loss.item()
+        self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
+
+        
         return {key:output_dict[key] for key in return_keys}
 
         
@@ -345,7 +351,7 @@ class TransformerModel( Model):
         output = self.forward(**sample, train=False)
 
         print(output)
-        output['logits'] = decode_topk(output['topk'], vocab_len=self.from_tokenizer.vocab_len, topk=topk)
+        output['logits'] = decode_topk(output['topk'], vocab_len=self.tokenizer.vocab_len, topk=topk)
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         

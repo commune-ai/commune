@@ -137,14 +137,14 @@ class OPT( nn.Module, commune.Module):
         # import ipdb; ipdb.set_trace()
         if no_grad:
             with torch.no_grad():
-                result = self.local_forward(*args,**kwargs)
+                result = self._forward(*args,**kwargs)
         else:
-            result = self.local_forward(*args,**kwargs)
+            result = self._forward(*args,**kwargs)
         # import ipdb; ipdb.set_trace()
         return result
 
 
-    def local_forward(self,  
+    def _forward(self,  
                 input_ids: torch.Tensor = None, 
                 attention_mask: torch.Tensor= None, 
                 topk:int=None, 
