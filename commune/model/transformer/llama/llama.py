@@ -323,6 +323,7 @@ class LlamaModel(nn.Module, commune.Module):
 
     def __init__(self, config = None):
         nn.Module.__init__(self)
+        
         config = self.set_config(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
@@ -339,6 +340,9 @@ class LlamaModel(nn.Module, commune.Module):
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         self.init_weights()
+        
+        self.set_device(config.device)
+
 
     def set_model(self, config):
         self.model = model
@@ -388,6 +392,7 @@ class LlamaModel(nn.Module, commune.Module):
         use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = False,
         output_hidden_states: Optional[bool] = False,
+        output_loss: bool = True,
         return_dict: Optional[bool] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         # retrieve input_ids and inputs_embeds
@@ -441,7 +446,6 @@ class LlamaModel(nn.Module, commune.Module):
 
             past_key_value = past_key_values[idx] if past_key_values is not None else None
 
-            layer_device = self.layer_devices[idx] 
             layer_kwargs = dict(
                 hidden_states=hidden_states,
                 attention_mask=attention_mask,
@@ -450,6 +454,10 @@ class LlamaModel(nn.Module, commune.Module):
                 output_attentions=output_attentions,
                 use_cache=use_cache,
             )
+            
+            layer_device = self.layer_devices[idx]
+            
+            
             for k, v in layer_kwargs.items():
                 if isinstance(v, torch.Tensor):
                     layer_kwargs[k] = v.to(layer_device)
@@ -468,12 +476,14 @@ class LlamaModel(nn.Module, commune.Module):
         hidden_states = self.norm(hidden_states)
         logits = self.lm_head(hidden_states)
 
-        return commune.munch(
-            dict(logits=logits,
+        output= dict(
+            logits=logits,
             hidden_state=hidden_states,
-            attentions=all_self_attns)
-        )
-        
+            attentions=all_self_attns
+            )
+        if output_loss:
+            output['loss'] = self.calculate_loss(input_ids=input_ids, **output)
+        return output
     @classmethod
     def load_from_hf(cls, model = 'vicuna-7b-delta-v0'):
         hf = commune.get_module('huggingface')
@@ -503,6 +513,26 @@ class LlamaModel(nn.Module, commune.Module):
             
         return params
 
+    def calculate_loss( cls,  **kwargs) -> torch.Tensor:
+        '''
+        Calculate the loss for the model.
+        '''
+        pred = kwargs['logits']
+        gt = kwargs['input_ids'][:, -(pred.shape[1]-1):].flatten()
+        return_value = kwargs.get('return_value', False)
+        pred = pred[:, :pred.shape[1]-1]
+            
+        if len(pred.shape) == 3:
+            pred = pred.reshape(-1, pred.shape[-1])
+        
+        assert gt.shape == pred.shape[:1], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
+
+        loss_fn = torch.nn.CrossEntropyLoss()
+        loss =  loss_fn(pred, gt.to(pred.device))
+        if return_value:
+            return loss.item()
+        return loss
+
 
     @classmethod
     def get_tensor_size(cls, tensor:torch.Tensor):
@@ -510,6 +540,16 @@ class LlamaModel(nn.Module, commune.Module):
     def model_size(self, keys = None):
         return self.get_model_size( self, keys)
     
+    @classmethod 
+    def get_model_device(cls, model, fast_and_lazy:bool = True) -> torch.device:
+        if fast_and_lazy:
+            return next(model.parameters()).device
+        else:
+            unique_devices = set()
+            for p in model.parameters():
+                unique_devices.add(p.device)
+            return list(unique_devices)[0]
+        return next(model.parameters()).device
     @classmethod
     def get_model_size(cls, model, keys = None):
         params = {}
@@ -539,24 +579,33 @@ class LlamaModel(nn.Module, commune.Module):
         self.parallelize(gpus)
         
     @classmethod
-    def free_gpu_map(cls, 
+    def free_gpu_memory(cls, 
                      gpus:List[int] = None,
                      max_allocation_ratio: float = 1.0) -> Dict[int, float]:
-        free_gpu_map = {}
+        
+        assert max_allocation_ratio <= 1.0 and max_allocation_ratio > 0, 'max_allocation_ratio must be less than 1.0 and greter than 0'
+        free_gpu_memory = {}
+        
         if gpus == None :
             gpus = cls.gpus()
-            gpus = [int(gpu) for gpu in gpus] 
+        
+        gpus = [int(gpu) for gpu in gpus] 
     
         for gpu_id, gpu_info in cls.gpu_map().items():
             if int(gpu_id) in gpus:
-                free_gpu_map[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )
+                free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )
         
-        return free_gpu_map
+        return free_gpu_memory
     
+    
+    
+    def total_free_gpu_memory(self, deivice = None):
+        free_gpu_memory = self.free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
+        total_free_memory = self.total_free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
+        return total_free_memory
     def set_device(self,
                    device = None,
-                   layer_name = 'layer',
-
+                   layer_name = 'layers',
                    max_allocation_ratio = 0.9,
                    mode = 'even'
                    ):
@@ -572,43 +621,54 @@ class LlamaModel(nn.Module, commune.Module):
         self.layer_devices = []
 
         assert type(devices) == list, 'device must be a list'
-        free_gpu_memory = self.free_gpu_map(devices, max_allocation_ratio=max_allocation_ratio)
-        total_free_memory = sum(free_gpu_memory.values())
+        free_gpu_memory = self.free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
+        total_free_memory = self.total_gpu_memory()
         assert total_free_memory > self.model_size(), 'not enough memory'
         
-        for param_name, param in self.named_parameters():
-            if f'{layer_name}.' not in param_name:
-                param.data = param.data.to(self.device)
         
-        new_params = {}
 
-        for layer_i,layer in enumerate(self.layers):
-            
-            
-            if mode == 'auto':
-                layer_size = self.get_model_size(layer)
+        if len(devices) == 1:
+            self.to(self.device)
+            for i in range(len(self.layers)):
+                self.layer_devices.append(self.device)
+        elif len(devices) > 1:
+            for param_name, param in self.named_parameters():
+                if f'{layer_name}.' not in param_name:
+                    param.data = param.data.to(self.device)
+                    
+
+            new_params = {}
+            assert hasattr(self, layer_name), 'model must have a layers attribute'
+            layers = getattr(self, layer_name)
+            st.write('dfhew9ufheougerpuhgver9ugvher9uh', layers)
+            for layer_i,layer in enumerate(self.layers):
+                st.write(devices)
                 
+                if mode == 'auto':
+                    layer_size = self.get_model_size(layer)
+                    free_gpus = selfzcopy(list(free_gpu_memory.keys()))
+                    selected_gpu_idx = None
+                    for gpu_id in free_gpus:
+                        free_memory = free_gpu_memory[gpu_id]
+                        if free_memory > layer_size:
+                            free_gpu_memory[gpu_id] -= layer_size
+                            selected_gpu_idx = gpu_id
+                            break
+                        else:
+                            free_gpu_memory.pop(gpu_id) 
+                            continue
+                elif mode == 'even':
+                    selected_gpu_idx = devices[layer_i // (len(self.layers) // len(devices))]
+                else:
+                    raise Exception('mode must be auto or even')
                 
-                free_gpus = self.copy(list(free_gpu_memory.keys()))
-                selected_gpu_idx = None
-                for gpu_id in free_gpus:
-                    free_memory = free_gpu_memory[gpu_id]
-                    if free_memory > layer_size:
-                        free_gpu_memory[gpu_id] -= layer_size
-                        selected_gpu_idx = gpu_id
-                        break
-                    else:
-                        free_gpu_memory.pop(gpu_id) 
-                        continue
-            elif mode == 'even':
-                selected_gpu_idx = devices[layer_i // (len(self.layers) // len(devices))]
-            
-            assert selected_gpu_idx != None, 'could not allocate param to any device'
-            self.layers[layer_i] = layer.to(f'cuda:{selected_gpu_idx}')
-            self.layer_devices.append(f'cuda:{selected_gpu_idx}')
+                assert selected_gpu_idx != None, 'could not allocate param to any device'
+                self.layers[layer_i] = layer.to(f'cuda:{selected_gpu_idx}')
+                self.layer_devices.append(f'cuda:{selected_gpu_idx}')
 
-            # set param to device with most free memory
-
+                # set param to device with most free memory
+        else: 
+            raise Exception('device must be int or list')
     def  getattr(self, key):
         keys = key.split('.')
         x_list = []
@@ -695,21 +755,25 @@ class LlamaModel(nn.Module, commune.Module):
         text = self.tokenizer.batch_decode(input_ids,**kwargs)  # assume tokenizer.padding_side = 'left'
 
         return text
+    
+    
+    @classmethod
+    def test(cls, dataset='dataset.text.bittensor'):
+        model = cls()
+
+        dataset = commune.connect(dataset)
+        sample = dataset.sample(no_tokenizer=True)
+
+        sample = model.tokenize(sample['text'])
+        output = model.forward(**sample)
+        
+        st.write(output)
+        return model
 
 if __name__ == "__main__":
 
-    self = LlamaModel()
     
-    # devices = ['cuda:0', 'cuda:1']
-    # st.write(self.params('layers.'))
-    # gpu_map = commune.gpu_map()
-    commune.new_event_loop()
-    dataset = commune.connect('dataset.text.bittensor')
-    sample = dataset.sample(no_tokenizer=True)
-    
-    st.write( self.set_device([2,3],max_allocation_ratio=0.07))
-    sample = self.tokenize(sample['text'])
-    self.forward(**sample)
-    st.write(list(self.params('layers.').keys()))
-    st.write(self.params())
+    LlamaModel.test()
+    # st.write(list(self.params('layers.').keys()))
+    # st.write(self.params())
     
