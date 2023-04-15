@@ -126,7 +126,6 @@ class TokenizerTranslator(commune.Module):
             else:  # revert to vocab_size
                 tokenizer.vocab_len = tokenizer.vocab_size
 
-<<<<<<< HEAD
     @classmethod
     def prep_tokenizer(cls, tokenizer, std_tokenizer=None):
         tokenizer.padding_side = "left"  # Generative default expects most recent token on right-hand side with padding on left. https://github.com/huggingface/transformers/pull/10552
@@ -209,13 +208,12 @@ if __name__ == "__main__":
     sample = dataset.sample(no_tokenizer=True)
     
     model  = {
-        'from': self.connect('opt3b'),
+        'from': self.connect('gpt125m'),
         'to': self.connect('opt3b')
     }
     
     sample = self.from_tokenizer(sample['text'], return_tensors='pt', padding=True)
-    
-    
     output2 = model['from'].forward(**sample)
+    st.write(output2)
     logits = decode_topk(output2['topk'], vocab_size=self.from_tokenizer.vocab_len)
     st.write(logits.shape)

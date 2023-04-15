@@ -118,20 +118,20 @@ class TokenizerMap( nn.Module, commune.Module):
             with torch.no_grad():
                 if autocast: 
                     with torch.cuda.amp.autocast():
-                        result = self.local_forward(*args,**kwargs)
+                        result = self._forward(*args,**kwargs)
                 else:
-                    result = self.local_forward(*args,**kwargs)
+                    result = self._forward(*args,**kwargs)
         else:
             if autocast:
                 with torch.cuda.amp.autocast():
-                    result = self.local_forward(*args,**kwargs)
+                    result = self._forward(*args,**kwargs)
             else:
-                result = self.local_forward(*args,**kwargs)
+                result = self._forward(*args,**kwargs)
         # import ipdb; ipdb.set_trace()
         return result
 
 
-    def local_forward(self,  
+    def _forward(self,  
                 input_ids: torch.Tensor = None, 
                 topk:int=None, 
                 hidden_state_index: int = -1,

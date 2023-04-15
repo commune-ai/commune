@@ -93,22 +93,22 @@ class Model( nn.Module, commune.Module):
             with torch.no_grad():
                 if autocast: 
                     with torch.cuda.amp.autocast():
-                        result = self.local_forward(**kwargs)
+                        result = self._forward(**kwargs)
                 else:
-                    result = self.local_forward(**kwargs)
+                    result = self._forward(**kwargs)
         else:
             if autocast:
                 with torch.cuda.amp.autocast():
-                    result = self.local_forward(**kwargs)
+                    result = self._forward(**kwargs)
             else:
-                result = self.local_forward(**kwargs)
+                result = self._forward(**kwargs)
         
         
         if empty_cache:
             torch.cuda.empty_cache()
         return result
 
-    def local_forward(self, **kwargs):
+    def _forward(self, **kwargs):
         raise NotImplementedError
     @property
     def device(self):
