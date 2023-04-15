@@ -87,6 +87,8 @@ class Model( nn.Module, commune.Module):
         # set the model to train mode
         if train == True:
             no_grad = False
+        else:
+            no_grad = True
             
             
         if no_grad:
