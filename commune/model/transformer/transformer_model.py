@@ -537,7 +537,7 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '0': [ 'gpt125m', 'gpt2.7b', 'opt2.7b','gptj', 'gptj.pygppo', 'vicuna.7b', 'opt6.7b', 'gpt20b'],
+        '0': [ 'gpt125m', 'gpt2.7b', 'opt2.7b','gptj'],
         '1': [ 'gptj.alpaca', 'gptj.pygppo', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
         '2': [ 'gptj.instruct', 'gpt6b', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
 
@@ -572,6 +572,14 @@ class TransformerModel( Model):
             
         return deployed_models
         
+    @classmethod
+    def undeployed_models(cls, models: List[str] = 'all'):
+        models = cls.fleet_group.get(models, models)
+        undeployed_models = []
+        for model in models:
+            if cls.module_exists(f'model.{model}') == False:
+                undeployed_models.append(model)
+        return undeployed_models
         
     @classmethod
     def deploy(cls,
@@ -590,7 +598,7 @@ class TransformerModel( Model):
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
             module_exists = cls.module_exists(name)     
-            if replace == False:
+            if replace == False and module_exists:
                 cls.print(f'Model {name} already exists', color='yellow')
                 continue
             cls.launch(name=name,kwargs=model_kwargs, mode=mode)

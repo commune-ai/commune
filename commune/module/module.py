@@ -1223,6 +1223,8 @@ class Module:
         if search: 
             servers = [s for s in servers if search in s]
         return servers
+
+
     list_servers = servers
     
     
@@ -1432,7 +1434,7 @@ class Module:
         module_name = name if name != None else self.default_module_name()
 
         '''check if the server exists'''
-        if self.server_exists(module_name): 
+        if self.module_exists(module_name): 
             if replace:
                 self.kill_server(module_name)
             else: 
@@ -3495,6 +3497,11 @@ class Module:
         if peers == None:
             peers = cls.peers()
         cls.add_peers(peers)
+        
+    @classmethod
+    def update(cls):
+        cls.update_peers()
+        cls.update_server_registry()
     @classmethod
     def peer_registry(cls, update: bool = False):
         if update:
