@@ -209,8 +209,11 @@ class Validator(commune.Module, nn.Module):
                 attention_mask: torch.Tensor = None,
                 output_hidden_states: bool = False,
                 model:str=None, 
-                topk: int = 4096,
+                topk: int = 256,
                 **kwargs ):
+        
+        
+        model_name = self.copy(model)
         
         kwargs.update(dict(topk=topk, input_ids=input_ids))
         model = self.resolve_model(model)
@@ -218,7 +221,14 @@ class Validator(commune.Module, nn.Module):
         # we want the client to return the future
         kwargs['return_future'] = True
         timer = commune.timer()
+        
         output = await model.forward(**kwargs)
+        if isinstance(output, dict):
+            self.print(model_name,output.get('stats', None), color='yellow')
+        
+        if isinstance(output, str):
+            self.print(f'{model_name}: {output}', color='red')
+            return None
         
         inference_time = timer.seconds
         
@@ -231,7 +241,8 @@ class Validator(commune.Module, nn.Module):
             metric = self.calculate_metric(self.copy(output))
         else:
             metric = self.default_loss
-            
+        
+  
         output['stats'] = {
             'metric': metric,
             'timestamp': commune.time(),
@@ -253,15 +264,19 @@ class Validator(commune.Module, nn.Module):
                 return_output_only = False, 
                 **kwargs ):
         if models == None:
-            models = self.copy(list(self.models.keys()))
-        self.set_models(models)
+            models = list(self.models.keys())
+                    
         jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, **kwargs) for model_key in models]
         
         loop =commune.get_event_loop()
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
+        
         model_output_dict = {}
         for model_output, model_key in zip(model_outputs, models):
+            if model_output is None:
+                continue
             model_output_dict[model_key] = model_output
+            
             
         if aggregate:
             raise NotImplementedError('aggregate not implemented')
@@ -269,6 +284,7 @@ class Validator(commune.Module, nn.Module):
         ensemble_logits = []
         for model_key, output_dict in model_output_dict.items():
             sample_stats = output_dict['stats']
+            self.print( f'{model_key}: {sample_stats["metric"]:.2f}', color='yellow')
             if 'logits' not in output_dict:
                 continue
 
@@ -281,6 +297,9 @@ class Validator(commune.Module, nn.Module):
             logits = output_dict['logits']
             self.set_stats(key=model_key, stats = stats)
             
+            
+            
+        self.print(stats)
         ensemble_logits = torch.stack(ensemble_logits)
         ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
         ensemble_probs_unormalized = ensemble_probs.sum(0)
@@ -380,7 +399,8 @@ class Validator(commune.Module, nn.Module):
     
     @classmethod
     def test(cls):
-        models = [m for m in commune.servers() if m.startswith('model')]
+        models = [m for m in commune.namespace() if m.startswith('model')]
+        cls.print(models)
         self = Validator(models=models)
         for _ in range(10):
             sample = self.sample()

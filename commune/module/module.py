@@ -130,6 +130,9 @@ class Module:
             cls._module_path = cls.get_module_path(simple=True)
         return cls._module_path
 
+
+
+    
         
     @classmethod
     def module_class(cls) -> str:
@@ -1924,6 +1927,10 @@ class Module:
         if verbose:
             cls.print(stdout, color='orange')
             
+            
+    def restart_self(self, mode:str='pm2'):
+        assert hasattr(self, 'module_name'), 'self.module_name must be defined to restart'
+        return self.restart(self.module_name)
     @classmethod
     def restart(cls, name:str = None, mode:str='pm2'):
         if name == None:
@@ -2769,6 +2776,15 @@ class Module:
                 unique_devices.add(p.device)
             return list(unique_devices)[0]
         return next(model.parameters()).device
+    
+    
+    @classmethod
+    def models(cls):
+        return cls.get_module('model.transformer').models()
+    
+    def model_size(self, keys = None):
+        return self.get_model_size( self, keys)
+    
     @classmethod
     def get_model_size(cls, model, keys = None):
         params = {}
@@ -2798,7 +2814,6 @@ class Module:
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
         return json.dumps(state_dict)
     
-
     @classmethod
     def resolve_logger(cls, logger = None):
         if not hasattr(cls,'logger'):
@@ -3067,6 +3082,8 @@ class Module:
         data = key.decrypt(data)
         
         return cls.str2python(data)
+
+
 
     @classmethod
     def encrypt(cls, data: Union[str, bytes], password: str = None) -> bytes:

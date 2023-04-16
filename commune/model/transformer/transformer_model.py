@@ -461,7 +461,7 @@ class TransformerModel( Model):
     
     @classmethod
     def models(cls):
-        return st.write(cls.shortcuts.keys())
+        return list(cls.shortcuts.keys())
     
     
     
