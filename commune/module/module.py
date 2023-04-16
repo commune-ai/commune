@@ -3568,6 +3568,17 @@ class Module:
         
         return free_gpu_memory
     
+    
+    
+    @classmethod
+    def max_memory_mapping(cls, gpus = None, max_allocation_ratio=0.9):
+        free_gpu_memory = cls.free_gpu_memory(gpus=gpus, 
+                                              max_allocation_ratio=max_allocation_ratio,
+                                              fmt='gb')
+        
+        max_memory_mapping = {k:f'{int(v)}GB' for k,v in free_gpu_memory.items()}
+        return max_memory_mapping
+        
     @classmethod
     def free_gpus(cls, *args, **kwargs):
         return cls.free_gpu_memory(*args, **kwargs)
