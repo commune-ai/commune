@@ -85,6 +85,7 @@ class TransformerModel( Model):
                 device: str = 'cuda',
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
+                device_map: Union[dict, str]="auto", 
                 load: bool = False,
                 test: bool = True,
                 **kwargs
@@ -230,6 +231,7 @@ class TransformerModel( Model):
         
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
 
+
         if isinstance(model, str):
             model_name = model
         elif isinstance(model, dict):
@@ -249,10 +251,13 @@ class TransformerModel( Model):
             
             print(f'loading model from {self.model_path}...')
 
+            model_kwargs = self.config.get('model_kwargs', {})
+            model_kwargs['device_map'] = self.config.get('device_map')
+            model_kwargs['load_in_8bit']=self.config.get('load_in_8bit', False)
             try:
-                self.model = AutoModelForCausalLM.from_pretrained(self.model_path) 
+                self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **kwargs) 
             except OSError as e: 
-                self.model = AutoModel.from_pretrained(self.model_path)
+                self.model = AutoModel.from_pretrained(self.model_path, **kwargs)
        
             
             # convert config to config
@@ -458,11 +463,12 @@ class TransformerModel( Model):
             self.save(tag=tag)
             
         return output['stats']
+
     
     @classmethod
     def models(cls):
         return list(cls.shortcuts.keys())
-    
+    comm
     
     
     @classmethod
