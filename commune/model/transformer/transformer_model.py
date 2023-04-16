@@ -57,14 +57,14 @@ class TransformerModel( Model):
         'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
         'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
         'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-        'gptj.pygppo': 'ehVenom/GPT-J-Pyg_PPO-6B', 
+        'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
         'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
         'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
         'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
         'opt6.7b': 'facebook/opt-6.7b',
         'llama': 'decapoda-research/llama-7b-hf',
         'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-        'vicuna.7b': 'lmsys/vicuna-7b-delta-v1.1',
+        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
         'llama-trl': 'trl-lib/llama-7b-se-rl-peft'
         # # > 7B models
         # 'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
@@ -181,18 +181,22 @@ class TransformerModel( Model):
         
         output_dict.update(sample)
         loss = self.calculate_loss(**output_dict) 
-
+        
         if train:
             loss.backward()
             self.optimizer.step()
             self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
+        
+        if isinstance(loss, torch.Tensor):
+            loss = loss.item()
+        output_dict['loss'] = loss
         # if 'loss_history' not in  self.stats:
         #     self.stats['loss_history'] = []
         # self.stats['loss_history'] += [append(loss.item()]
         # self.stats['mean_loss'] =loss.item()
         
-        
-        self.stats['loss'] = loss.item()
+
+        self.stats['loss'] = (self.stats.get('loss',0)*(self.stats['inference_steps']-1) + loss ) / self.stats['inference_steps']
         output_dict['stats'] = deepcopy(self.stats)         
 
         return {key:output_dict[key] for key in return_keys}
@@ -351,12 +355,16 @@ class TransformerModel( Model):
 
 
     @classmethod
-    def test(self, model = 'opt1.3b', topk:int=4096 ,
+    def test(cls, model = 'opt1.3b', topk:int=4096 ,
              dataset:str = 'dataset.text.bittensor',
+             num_batches = 10,
+             minimum_loss = 4, 
              ):
         
         if isinstance(model, str):
             self = cls(model= model)
+        else:
+            self = model
             
 
         dataset = commune.connect(dataset)
@@ -568,7 +576,6 @@ class TransformerModel( Model):
 
         assert len(models) > 0
         model_names = []
-        print(models)
         for model in models:
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'     

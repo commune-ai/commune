@@ -416,7 +416,7 @@ class Module:
                     stdout_text += (new_line+c).decode()
                     if verbose:
                         log_color = verbose if isinstance(verbose, str) else 'green'
-                        cls.log(new_line.decode())
+                        cls.print(new_line.decode())
                     new_line = b''
                     continue
                 
@@ -1571,7 +1571,7 @@ class Module:
         
         return info
     
-    def info(self, include_schema: bool ) -> Dict[str, Any]:
+    def info(self, include_schema: bool = False ) -> Dict[str, Any]:
         function_schema_map = self.function_schema_map()
         info  = dict(
             name = self.module_name,
@@ -1777,32 +1777,6 @@ class Module:
         '''
         Launch a module as pm2 or ray 
         '''
-        locals_dict = dict(locals())
-        locals_dict.pop('cls')
-        # if cls.has_shortcut(name):
-        #     shortcut = name
-        # if shortcut != None:
-        #     shortcut_kwargs = cls.get_shortcut(shortcut)
-        #     if shortcut_kwargs == None:
-        #         shortcut_kwargs = locals_dict
-        #         shortcut_kwargs.pop('shortcut', None)
-        #         cls.print(shortcut_kwargs, shortcut)
-        #         cls.set_shortcut(shortcut, shortcut_kwargs)
-            
-        #     self.launch(**shortcut_kwargs)
-        
-        # if shortcut != None: 
-        #     return shortcut
-        
-        if isinstance(shortcut, str):
-            shortcut = cls.get_shortcut(shortcut)
-            
-            if shortcut == None:
-                
-                return cls.launch_shortcut(shortcut)
-            else:
-                raise Exception(f'Shortcut {shortcut} not found')
-            
 
         kwargs = kwargs if kwargs else {}
         args = args if args else []
@@ -1814,7 +1788,7 @@ class Module:
             module = cls.get_module(module) 
             
             
-        cls.print(f'Launching {module} with {fn} as {mode}')
+        cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
             
         if password:
             kwargs['password'] = password
@@ -1933,7 +1907,8 @@ class Module:
                 device = ','.join(device)
             env['CUDA_VISIBLE_DEVICES']=device
             
-        cls.print(f'RUNNING: {command}')
+        if verbose:
+            cls.print(f'RUNNING: {command}')
 
         stdout = cls.run_command(command, env=env, verbose=verbose)
         # cls.print(f'STDOUT: \n {stdout}', color='green')
@@ -1952,7 +1927,7 @@ class Module:
     @classmethod
     def restart(cls, name:str = None, mode:str='pm2'):
         if name == None:
-            name = 'module'
+            name = cls.default_module_name()
         if mode == 'pm2':
             return cls.pm2_restart(name)
         elif mode == 'ray':
@@ -3261,7 +3236,7 @@ class Module:
     def deploy_fleet(cls, modules=None):
         if isinstance(modules, str):
             modules = [modules]
-        modules = modules if modules else ['model.transformer', 'dataset.text.huggingface']
+        modules = modules if modules else ['model.transformer', 'dataset.text.huggingface', 'dataset.text.bittensor']
             
  
         for module in modules:
@@ -3588,7 +3563,14 @@ class Module:
     
     @classmethod
     def help(cls):
-        return self.info()
+        return cls.get_function_schema_map()
+    
+    @classmethod
+    def git_pull(cls, stash: bool = True):
+        cmd = 'git pull'
+        if stash:
+            cmd = 'git stash; '+ cmd
+        return cls.run_command(cmd)
     
     # @classmethod
     
