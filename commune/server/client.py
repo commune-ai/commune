@@ -203,7 +203,7 @@ class Client( Serializer, commune.Module):
         self, 
         data: object = None, 
         metadata: dict = None,
-        timeout: int = 20,
+        timeout: int = 4,
         results_only = True,
         verbose=True,
         **kwargs

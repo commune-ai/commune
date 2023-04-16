@@ -32,7 +32,8 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     console = Console()
-    boot_peers = ['162.157.13.236:9250', '162.157.13.236:9450', '162.157.13.236:9451']
+    boot_peers = ['162.157.13.236:9250', '162.157.13.236:9450', '162.157.123.236:9050']
+    
     
     def __init__(self, 
                  config:Dict=None, 
