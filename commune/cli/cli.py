@@ -33,6 +33,7 @@ class CLI(commune.Module):
             if is_remote:
                 fn = fn if fn != None else 'help'
                 result = module.remote_call(fn, *args, **kwargs)
+                
             else:
                 if fn == None:
                     result = module(*args, **kwargs)

@@ -63,8 +63,7 @@ class HFDataset(commune.Module):
                          sample_index = sample_index)
         
         
-        if self.text_field == None:
-            self.text_field = self.default_text_feature
+        self.text_field = self.config.get('text_field', self.default_text_feature)
 
     def replicate(self, tag = None, **kwargs) -> None:
         '''

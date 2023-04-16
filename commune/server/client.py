@@ -37,7 +37,7 @@ class VirtualModule(commune.Module):
             self.module_client = module
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
-    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=20, **kwargs):
+    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=5, **kwargs):
         
     
         if return_future:
@@ -70,6 +70,8 @@ class VirtualModule(commune.Module):
     def __getattr__(self, key):
         if key in ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes'] :
             return getattr(self, key)
+        
+        
         
         return  self.module_client(fn='getattr', args=[key])
 
