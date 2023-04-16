@@ -537,7 +537,7 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '0': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','gptj', 'vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+        '0': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','gptj', 'vicuna.7b', 'opt6.7b'],
         '1': [ 'gptj.alpaca', 'gptj.pygppo', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
         '2': [ 'gptj.instruct', 'gpt6b', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
 
@@ -565,7 +565,7 @@ class TransformerModel( Model):
         deployed_models = []
         for model in models:
             commune.print(f'Deploying Model {model}', 'green')
-            cls.deploy(model, wait_for_server=wait_for_server)
+            cls.deploy(model, wait_for_server=wait_for_server, replace=replace)
             deployed_models.append(model)
             commune.print(f'Deployed Model {model} ({len(deployed_models)}/{len(models)})', 'green')
             
@@ -579,7 +579,8 @@ class TransformerModel( Model):
                tokenizer: str=None, 
                name: str =None, 
                wait_for_server: bool = False, 
-               mode = 'pm2',
+               mode:str = 'pm2',
+               replace:bool = False,
                **kwargs):
 
 
@@ -587,7 +588,11 @@ class TransformerModel( Model):
         model_names = []
         for model in models:
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
-            name = f'model.{model}'     
+            name = f'model.{model}'
+            module_exists = cls.module_exists(name)     
+            if replace == False:
+                cls.print(f'Model {name} already exists', color='yellow')
+                continue
             cls.launch(name=name,kwargs=model_kwargs, mode=mode)
             if wait_for_server:
                 cls.wait_for_server(name=name, sleep_interval=20, timeout=1000)
