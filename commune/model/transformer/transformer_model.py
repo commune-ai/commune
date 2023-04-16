@@ -86,12 +86,15 @@ class TransformerModel( Model):
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
                 load: bool = False,
+                test: bool = True,
                 **kwargs
                 ):
         if tokenizer == None:
             tokenizer = model
         Model.__init__(self, config =locals())
         self.set_params(**self.config)
+        if test:
+            self.test(self)
 
     def set_tag(self,tag:str):
         if tag == None:
@@ -347,13 +350,14 @@ class TransformerModel( Model):
         return text
 
 
-
     @classmethod
-    def test(cls, model = 'opt1.3b', topk:int=4096 ,
+    def test(self, model = 'opt1.3b', topk:int=4096 ,
              dataset:str = 'dataset.text.bittensor',
              ):
         
-        self = cls(model= model)
+        if isinstance(model, str):
+            self = cls(model= model)
+            
 
         dataset = commune.connect(dataset)
 
