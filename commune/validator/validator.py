@@ -42,7 +42,7 @@ class Validator(commune.Module, nn.Module):
         self.set_models(models)
         self.set_key(key)
         self.set_metric(metric)
-        self.set_stats(stats=stats)
+        self.set_stats(stats)
         self.set_alpha(alpha)
         self.set_tokenizer(tokenizer)
         if load:
@@ -195,7 +195,7 @@ class Validator(commune.Module, nn.Module):
         return sample_metadata
             
     @property
-    def default_loss(self) -> float:
+    def default_metric(self) -> float:
         return 10.0
 
     def resolve_model(self, model: str = None) -> Any:
@@ -207,47 +207,42 @@ class Validator(commune.Module, nn.Module):
     async def async_forward(self, 
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
-                output_hidden_states: bool = False,
                 model:str=None, 
                 topk: int = 256,
                 **kwargs ):
         
-        
+
+        kwargs.update(dict(topk=topk, input_ids=input_ids, attention_mask=attention_mask))
+        sample = kwargs 
         model_name = self.copy(model)
-        
-        kwargs.update(dict(topk=topk, input_ids=input_ids))
         model = self.resolve_model(model)
         
         # we want the client to return the future
-        kwargs['return_future'] = True
+        sample['return_future'] = True
         timer = commune.timer()
+        output = await model.forward(**sample)
         
-        output = await model.forward(**kwargs)
-        if isinstance(output, dict):
-            self.print(model_name,output.get('stats', None), color='yellow')
         
-        if isinstance(output, str):
-            self.print(f'{model_name}: {output}', color='red')
-            return None
+        success = False
         
-        inference_time = timer.seconds
         
-    
-        if 'topk' in output:
+        if (isinstance(output, dict) and 'topk' in output):
             output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
-                
-            output['input_ids'] = input_ids 
-            # calculate metric
-            metric = self.calculate_metric(self.copy(output))
+            metric = self.calculate_metric(dict(input_ids=sample['input_ids'], **output))
+            success = True
+    
         else:
-            metric = self.default_loss
-        
-  
-        output['stats'] = {
+            metric = self.default_metric
+            success = False
+            output = {'error': output}
+    
+        output['stats'] =  {
+            'inference_time': timer.seconds,
             'metric': metric,
-            'timestamp': commune.time(),
-            'inference_time': inference_time
+            'timestamp': self.time(),
+            'success': success
         }
+            
         return output
             
         
@@ -257,14 +252,19 @@ class Validator(commune.Module, nn.Module):
                 attention_mask: torch.Tensor = None,
                 output_hidden_states: bool = False,
                 models:str=None, 
-                threshold: float = 3.0,
+                threshold: float = 4.0,
                 topk: int = 256,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
+
                 **kwargs ):
+        
+        timer = self.timer()
         if models == None:
             models = list(self.models.keys())
+            
+        
                     
         jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, **kwargs) for model_key in models]
         
@@ -282,39 +282,47 @@ class Validator(commune.Module, nn.Module):
             raise NotImplementedError('aggregate not implemented')
         
         ensemble_logits = []
+        
+        stats = self.stats
+        ensemble_stats = {  'passed': 0,'successes': 0, 'failures': 0, 'inference_time': 0.0, 'metric': 0.0, 'timestamp': self.time(), 'models': []}
+        
+        
         for model_key, output_dict in model_output_dict.items():
-            sample_stats = output_dict['stats']
-            self.print( f'{model_key}: {sample_stats["metric"]:.2f}', color='yellow')
-            if 'logits' not in output_dict:
+            if output_dict['stats']['success'] == False:
+                ensemble_stats['failures'] += 1
                 continue
-
-            stats = self.stats.get(model_key, {'count': 0, **sample_stats})
-            stats['count'] += 1
-            for k in [ 'metric']:
-                stats[k] = ((stats[k]*(stats['count']-1)) + sample_stats[k])/stats['count']
-            if stats['metric'] < threshold:
+            ensemble_stats['successes'] += 1
+            model_stats= output_dict['stats']
+            if model_stats['metric'] < threshold:
+                
                 ensemble_logits.append(output_dict['logits'])
+                ensemble_stats['passed'] += 1
+                ensemble_stats['models'] += [model_key]
+            else:
+                model_stats['included'] = False
+                
+            stats[model_key] = model_stats
+            
             logits = output_dict['logits']
-            self.set_stats(key=model_key, stats = stats)
-            
-            
-            
-        self.print(stats)
+                        
         ensemble_logits = torch.stack(ensemble_logits)
         ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
         ensemble_probs_unormalized = ensemble_probs.sum(0)
         ensemble_probs = ensemble_probs_unormalized / ensemble_probs_unormalized.sum(-1, keepdim=True)
         ensemble_logits = torch.log(ensemble_probs + 1e-8)
         
-        
         output_dict = {
             'logits': ensemble_logits,
             'hidden_states': None,
-            # 'stats': stats
         }
         output_dict['input_ids'] = input_ids
-        output_dict['metric'] = self.calculate_metric(output_dict)
-        self.print(output_dict['logits'].shape, color='purple')
+        
+        ensemble_stats['metric'] = self.calculate_metric(output_dict)
+        ensemble_stats['inference_time'] = timer.seconds
+        stats['ensemble'] = ensemble_stats
+        output_dict['stats'] = stats
+        self.set_stats(stats)
+        
         return Munch(output_dict)
     
     def validate(self, sample=None, 
@@ -348,19 +356,9 @@ class Validator(commune.Module, nn.Module):
         self.stats = stats
             
 
-    def set_stats(self, key: str = None, stats: Dict[str, Any] = None) -> None:
-        if stats is None:
-            stats = {}
-        assert isinstance(stats, dict), f'stats must be a dict. stats: {stats}'
-
-        if key is None:
-            self.stats = stats
-            return key
-            
-        assert isinstance(key, str), f'key must be a str. key: {key}'
-        
-        self.stats[key] = stats
-        return key
+    def set_stats(self, stats: Dict[str, Any] = None) -> None:
+        self.stats = stats if stats is not None else {}
+        assert isinstance(self.stats, dict)
         
     def calculate_weights(self):
         
@@ -404,7 +402,7 @@ class Validator(commune.Module, nn.Module):
         self = Validator(models=models)
         for _ in range(10):
             sample = self.sample()
-            cls.print(self.forward(**sample)['metric'])
+            cls.print(self.forward(**sample)['stats'])
         self.calculate_weights()
         st.write(self.stats)
       
