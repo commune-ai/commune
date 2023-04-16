@@ -645,8 +645,6 @@ class Module:
     def restart_all(cls):
         cls.restart_all_servers()
 
-
-
     @classmethod
     def get_module_python_paths(cls) -> List[str]:
         
@@ -3547,6 +3545,9 @@ class Module:
         total_free_memory = sum(free_gpu_memory.values())
         return total_free_memory
     
+    @classmethod
+    def help(cls):
+        return self.info()
     
     # @classmethod
     
