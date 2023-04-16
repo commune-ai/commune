@@ -1031,7 +1031,7 @@ class Module:
         return module.address
     
     anchor = root_module
-    anchor = root_address
+    anchor_address = root_address
 
         
     @classmethod
@@ -1322,8 +1322,13 @@ class Module:
 
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        servers = cls.servers()
+        servers = cls.namespce()
         return bool(name in cls.servers())
+    
+    @classmethod
+    def module_exists(cls, name:str, **kwargs) -> bool:
+        namespace = cls.namespace(**kwargs)
+        return bool(name in namespace)
     
     @classmethod
     def wait_for_server(cls,
@@ -1365,6 +1370,7 @@ class Module:
         return list(self.__dict__.keys())
     @classmethod
     def namespace(cls,
+                  search = None, 
                   network:str='local',
                   include_peers:bool = True, 
                   **kwargs):
@@ -1375,15 +1381,20 @@ class Module:
             namespace = cls.server_registry(address_only=True, include_peers=include_peers)
         else:
             raise ValueError(f'network must be either "subspace" or "local"')
+        if search:
+            namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
+    
+    
 
-    def namespace_options(self,
-                          *args, 
-                          **kwargs) -> List[str]:
-        namespace  = cls.namespace( *args, **kwargs)
+    @classmethod
+    def namespace_options(cls,search=None) -> List[str]:
+        namespace  = cls.namespace()
         namespace_names = list(namespace.keys())
-        namespce_addresses = list(namespace.values())
+        namespace_addresses = list(namespace.values())
         namespace_options =  namespace_names + namespace_addresses
+        if search:
+            namespace_options = [o for o in namespace_options if search in o]
         return namespace_options
     @classmethod
     def serve(cls, 
@@ -1745,13 +1756,18 @@ class Module:
       
       
     @classmethod
-    def kill(cls, path, mode:str = 'pm2'):
-        if mode == 'pm2':
-            cls.pm2_kill(path)
-        elif mode == 'ray':
-            cls.ray_kill(path)
+    def kill(cls, *modules, mode:str = 'pm2'):
+        servers = cls.servers()
+        for module in modules:
+            delete_modules = [server for server in servers if  module in server]
+            for d_m in delete_modules:
+                cls.print(f'Killing {d_m}...')
+                if mode == 'pm2':
+                    cls.pm2_kill(d_m)
+                elif mode == 'ray':
+                    cls.ray_kill(d_m)
 
-        return path
+        return modules
 
     def destroy(self):
         self.kill(self.module_name)
@@ -3121,7 +3137,8 @@ class Module:
         # call a module
         module_list = cls.module_list()
         
-        namespace_options = cls.namespace_options()
+        namespace_options = cls.namespace_options(module)
+        cls.print(namespace_options)
         is_remote = False
         if module in namespace_options:
             module = cls.connect(module)
@@ -3132,9 +3149,14 @@ class Module:
             module = cls.root_module()
 
         if is_remote:
-            return module.remote_call(remote_fn=fn, *args, **kwargs)
+            return module.remote_call(fn, *args, **kwargs)
         else:
-            return getattr(module, fn)(*args, **kwargs)
+            
+            result = getattr(module, fn)
+            if callable(result):
+                result = result(*args, **kwargs)
+            else: 
+                return result
         
     def resolve_key(self, key: str) -> str:
         if key == None:
