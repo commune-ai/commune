@@ -1217,14 +1217,11 @@ class Module:
     
   
     @classmethod
-    def servers(cls, search:str = None, ) -> List[str]:
+    def servers(cls, search:str = None, include_peers=False) -> List[str]:
 
-        servers =  list(cls.server_registry().keys())
-        
-        # filter based on the search
-        if search:
+        servers = list(cls.server_registry(include_peers=include_peers).keys())
+        if search: 
             servers = [s for s in servers if search in s]
-            
         return servers
     list_servers = servers
     
@@ -1235,37 +1232,33 @@ class Module:
     def register_server(cls, name: str, 
                         ip: str,
                         port: int,
-                        netuid: Union[str, int],
-                        context: str,
-                        password: str = None, 
+                        netuid: Union[str, int] = None,
+                        context: str =  None,
                         network: str = None,
                         key: 'Key' = None)-> dict:
-        server_registry = cls.server_registry()
-        server_registry[name] = dict(ip=ip, port=port)
+        server_registry = cls.server_registry()    
+        
+        server_info = dict(
+                key=key,
+                name=name,
+                context = context,
+                ip = ip,
+                port = port  
+            )    
+        
+        server_registry[name] = server_info
         Module.put_json(path='server_registry', data=server_registry) 
-        
-        
+
         # only serve module if you have a network
-        if password != None or key != None:
-            if password:
-                assert isinstance(password, str), 'password must be a string'
-                key = password
+        if key != None:
             # if the key is not None, we want to add the password to the key
             key = cls.get_key(key)
             # if the key is not None, we want to add the password to the key
             network = cls.resolve_network(network)
-            
-            register_kwargs = dict(
-                key=key,
-                netuid=netuid,
-                name=module_name,
-                context = context,
-                ip = ip,
-                port = port  
-            )
+            server_info['netuid'] = netuid
+
             network.register(**register_kwargs)
-           
-        
+            
         return server_registry
   
   
@@ -1322,7 +1315,7 @@ class Module:
 
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        servers = cls.namespce()
+        servers = cls.namespace()
         return bool(name in cls.servers())
     
     @classmethod
@@ -1405,8 +1398,6 @@ class Module:
               network: 'Network' = None,
               netuid= None,
               context= '',
-              password: str = None,
-              combine_password: bool = False,
               key = None,
               tag:str=None, 
               replace:bool = True, 
@@ -1468,7 +1459,6 @@ class Module:
                                           ip=self.ip,
                                           port=self.port,
                                           network=network,
-                                          password=password, 
                                           netuid=netuid)
 
  
@@ -1816,7 +1806,6 @@ class Module:
                tag:str=None, 
                user: str = None,
                key : str = None,
-               password: str = None,
                shortcut = None,
                **extra_kwargs):
         '''
@@ -1834,9 +1823,6 @@ class Module:
             
             
         cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
-            
-        if password:
-            kwargs['password'] = password
             
         if fn == 'serve':
             kwargs['tag'] = kwargs.get('tag', tag)
@@ -3133,31 +3119,46 @@ class Module:
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
     @classmethod
-    def call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
+    async def async_call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
         module_list = cls.module_list()
         
         namespace_options = cls.namespace_options(module)
-        cls.print(namespace_options)
         is_remote = False
         if module in namespace_options:
-            module = cls.connect(module)
+            module = await cls.async_connect(module)
             is_remote = True
-        elif module in module_list:
-            module = cls.get_module(module)
         else:
-            module = cls.root_module()
-
-        if is_remote:
-            return module.remote_call(fn, *args, **kwargs)
-        else:
+            assert module in module_list, f'Invalid module {module} not in {module_list}'
             
-            result = getattr(module, fn)
-            if callable(result):
-                result = result(*args, **kwargs)
-            else: 
-                return result
+
+        return await module.remote_call(fn, *args, return_future=True, **kwargs)
+
+
+    @classmethod
+    def call(cls,  *args, **kwargs) -> None:
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_call(*args, **kwargs))
+    
         
+    @classmethod
+    def call_pool(cls, module:str, fn: str ,  *args, **kwargs) -> None:
+        # call a module
+        
+        module_pool = list(cls.namespace(module).keys())
+        jobs = []
+        for module in module_pool:
+            jobs += [cls.async_call(module, fn, *args, **kwargs)]
+        
+        loop = cls.get_event_loop()
+        module_results = loop.run_until_complete(asyncio.gather(*jobs))
+        
+        results_map = {}
+        for module_name, module_result in zip(module_pool, module_results):
+            results_map[module_name] = module_result
+            
+        return results_map
+            
     def resolve_key(self, key: str) -> str:
         if key == None:
             if not hasattr(self, 'key'):
@@ -3200,7 +3201,6 @@ class Module:
                  key: str = None,
                  return_dict:bool = True,
                  encrypt: bool = False,
-                 password: str = None
                  ) -> dict:
         
         key = self.resolve_key(key)
@@ -3211,7 +3211,7 @@ class Module:
         sig_dict = key.sign(data, return_dict=return_dict)
 
         if encrypt:
-            sig_dict['data'] = key.encrypt(sig_dict['data'], password=password)
+            sig_dict['data'] = key.encrypt(sig_dict['data'])
 
         sig_dict['encrypted'] = encrypt
             
@@ -3459,16 +3459,14 @@ class Module:
         peer_registry[peer_address] = peer_server_registry
 
         if name != None:
-            assert isinstance(name, str), 'Name must be a string'
-            
-            name2peer = await cls.async_get_json('name2peer', default={})
-            assert name not in name2peer, 'Name already exists'
-            name2peeer[name] = peer_address
-            await cls.async_put_json('name2peer', name2peer)
+            peer_registry            
+
         peers = list(peer_registry.keys())
         # config = cls.get_config().set('peers', peers)
         await cls.async_put_json('peer_registry', peer_registry)
     
+
+        
     @classmethod
     def add_peers(cls, peers: list = None):
         jobs = []

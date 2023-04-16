@@ -537,7 +537,7 @@ class TransformerModel( Model):
           
     fleet_group = {
         
-        '0': [ 'gpt125m', 'gpt2.7b','opt1.3b', 'opt2.7b','gptj', 'vicuna.7b', 'opt6.7b'],
+        '0': [ 'gpt125m', 'gpt2.7b', 'opt2.7b','gptj', 'gptj.pygppo', 'vicuna.7b', 'opt6.7b', 'gpt20b'],
         '1': [ 'gptj.alpaca', 'gptj.pygppo', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
         '2': [ 'gptj.instruct', 'gpt6b', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
 
@@ -549,9 +549,9 @@ class TransformerModel( Model):
     }
     @classmethod
     def deploy_fleet(cls, 
-                     models: List[str] = '1',
+                     models: List[str] = '0',
                      replace: bool = False,
-                     max_models: int = 8,
+                     max_models: int = -1,
                      wait_for_server = False
                      ) -> List[str]:
 
@@ -561,7 +561,7 @@ class TransformerModel( Model):
     
     
         deployed_model_tags = {}
-        models = models[:max_models]
+        models = models
         deployed_models = []
         for model in models:
             commune.print(f'Deploying Model {model}', 'green')
