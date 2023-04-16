@@ -32,16 +32,19 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     console = Console()
+    boot_peers = ['162.157.13.236:9250', '162.157.13.236:9450', '162.157.13.236:9451']
     
     def __init__(self, 
                  config:Dict=None, 
                  save_if_not_exists:bool=False, 
+                 add_attributes: bool = False,
                  key: str = None,
+                 boot_peers = None,
                  *args, 
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, save_if_not_exists=save_if_not_exists)  
-        
+        self.new_event_loop(nest_asyncio=True)
+        self.set_config(config=config, save_if_not_exists=save_if_not_exists, add_attributes=add_attributes)  
         # do you want a key fam
         if key is not None:
             self.set_key(key)
@@ -239,12 +242,13 @@ class Module:
         return save_yaml(data=data , path=path)
 
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = True, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None,  to_munch:bool = True, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
+
         
         path = path if path else cls.__config_file__()
             
@@ -263,23 +267,40 @@ class Module:
             
         
         return config
+    
+    get_config = load_config
 
+    @classmethod
+    def put_config(cls, key, value) -> Munch:
+        '''
+        Saves the config to a yaml file
+        '''
+        config = self.get_config()
+        cls.dict_put(config, key, value)
+        self.set_config(config=config, key=key, value=value)
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
 
         '''
         Saves the config to a yaml file
         '''
-        from commune.utils.dict import save_yaml,munch2dict
-        
+        if config == None:
+            cls = cls.get_config()
         
         path = path if path else cls.__config_file__()
         
         if isinstance(config, Munch):
-            config = munch2dict(deepcopy(config))
+            config = cls.munch2dict(deepcopy(config))
+        elif isinstance(config, dict):
+            config = deepcopy(config)
+        else:
+            raise ValueError(f'config must be a dict or munch, not {type(config)}')
+        
         config = save_yaml(data=config , path=path)
 
         return config
+    
+    put_config = save_config
     
 
 
@@ -287,7 +308,7 @@ class Module:
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict={},
                    save_if_not_exists:bool = False,
-                   add_attributes: bool = True) -> Munch:
+                   add_attributes: bool = False) -> Munch:
         '''
         Set the config as well as its local params
         '''
@@ -867,9 +888,24 @@ class Module:
     load_json = get_json
 
     @classmethod
+    def put_torch(path:str, data:Dict, **kwargs):
+        import torch
+        path = cls.resolve_path(path=path, extension='pt')
+        torch.save(data, path)
+        return path
+    @classmethod
+    def get_torch(cls,path:str,**kwargs):
+        import torch
+        path = cls.resolve_path(path=path, extension='pt')
+        return torch.load(path)
+    
+    @classmethod
     def put_json(cls,*args,**kwargs) -> str:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
+    
+    
+    
     @classmethod
     async def async_put_json(cls, path:str, 
                  data:Dict, 
@@ -1252,7 +1288,7 @@ class Module:
         return self.loop
 
     @classmethod
-    def get_event_loop(cls, nest_asyncio:bool = False) -> 'asyncio.AbstractEventLoop':
+    def get_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
         if nest_asyncio:
             cls.nest_asyncio()
@@ -1685,9 +1721,11 @@ class Module:
             cls.pm2_kill(path)
         elif mode == 'ray':
             cls.ray_kill(path)
-            
-            
-         
+
+        return path
+
+    def destroy(self):
+        self.kill(self.module_name)
         return path
         
     @classmethod
@@ -2863,10 +2901,9 @@ class Module:
        
     @classmethod
     def test(cls):
-        # test all the functions that start with test_
-        for f in dir(cls):
-            if f.startswith('test_'):
-                getattr(cls, f)()
+        self = cls()
+        self.print(self.config)
+        print(self.is_module())
                
                
     @classmethod
@@ -3389,11 +3426,15 @@ class Module:
             assert name not in name2peer, 'Name already exists'
             name2peeer[name] = peer_address
             await cls.async_put_json('name2peer', name2peer)
+        peers = list(peer_registry.keys())
+        # config = cls.get_config().set('peers', peers)
         await cls.async_put_json('peer_registry', peer_registry)
     
     @classmethod
-    def add_peers(cls, peers: list):
+    def add_peers(cls, peers: list = None):
         jobs = []
+        if peers == None:
+            peers = cls.boot_peers
         for peer in peers:
             jobs.append(cls.async_add_peer(peer))
             
