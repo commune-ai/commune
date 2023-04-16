@@ -1016,6 +1016,23 @@ class Module:
             return module.server_info
         return module
     
+
+    @classmethod
+    def root_address(cls, name:str='module',
+                    timeout:int = 100, 
+                    sleep_interval:int = 1,
+                    return_info = False,
+                    refresh:bool = False,
+                    **kwargs):
+        if not cls.server_exists(name) or refresh:
+            cls.launch(name=name, **kwargs)
+            cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
+        module = cls.connect(name)
+        return module.address
+    
+    anchor = root_module
+    anchor = root_address
+
         
     @classmethod
     async def async_connect(cls, 
@@ -1360,6 +1377,14 @@ class Module:
             raise ValueError(f'network must be either "subspace" or "local"')
         return namespace
 
+    def namespace_options(self,
+                          *args, 
+                          **kwargs) -> List[str]:
+        namespace  = cls.namespace( *args, **kwargs)
+        namespace_names = list(namespace.keys())
+        namespce_addresses = list(namespace.values())
+        namespace_options =  namespace_names + namespace_addresses
+        return namespace_options
     @classmethod
     def serve(cls, 
               module:Any = None ,
@@ -3096,10 +3121,9 @@ class Module:
         # call a module
         module_list = cls.module_list()
         
-        namespace  = cls.namespace()
+        namespace_options = cls.namespace_options()
         is_remote = False
-        if module in namespace:
-            
+        if module in namespace_options:
             module = cls.connect(module)
             is_remote = True
         elif module in module_list:
@@ -3548,7 +3572,7 @@ class Module:
         assert max_allocation_ratio <= 1.0 and max_allocation_ratio > 0, 'max_allocation_ratio must be less than 1.0 and greter than 0'
         free_gpu_memory = {}
         
-        if fmt == 'gb':
+        if fmt == 'gb' or fmt == 'GB':
             scale = 1e9
         elif fmt == 'mb':
             scale = 1e6
@@ -3565,24 +3589,20 @@ class Module:
     
         for gpu_id, gpu_info in cls.gpu_map().items():
             if int(gpu_id) in gpus:
+                
                 free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )/scale
+                
+        if fmt == 'GB':
+            free_gpu_memory = {k:f'{int(v)}GB' for k,v in free_gpu_memory.items()}
+
+                
         
         return free_gpu_memory
     
-    
-    
-    @classmethod
-    def max_memory_mapping(cls, gpus = None, max_allocation_ratio=0.9):
-        free_gpu_memory = cls.free_gpu_memory(gpus=gpus, 
-                                              max_allocation_ratio=max_allocation_ratio,
-                                              fmt='gb')
-        
-        max_memory_mapping = {k:f'{int(v)}GB' for k,v in free_gpu_memory.items()}
-        return max_memory_mapping
-        
     @classmethod
     def free_gpus(cls, *args, **kwargs):
         return cls.free_gpu_memory(*args, **kwargs)
+    
     
     @classmethod
     def total_free_gpu_memory(cls, gpus = None, max_allocation_ratio=1.0, fmt='b'):

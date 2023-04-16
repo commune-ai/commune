@@ -65,14 +65,15 @@ class TransformerModel( Model):
         'llama': 'decapoda-research/llama-7b-hf',
         'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
         'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-        'llama-trl': 'trl-lib/llama-7b-se-rl-peft'
+        'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+
         # # > 7B models
-        # 'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-        # 'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-        # 'gptneox': 'EleutherAI/gpt-neox-20b',
-        # 'gpt20b': 'EleutherAI/gpt-neox-20b',
-        # 'opt13b': 'facebook/opt-13b',
-        # 'gpt13b': 'cerebras/Cerebras-GPT-13B'
+        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+        'gptneox': 'EleutherAI/gpt-neox-20b',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt13b': 'facebook/opt-13b',
+        'gpt13b': 'cerebras/Cerebras-GPT-13B'
         
          }
     
@@ -134,7 +135,7 @@ class TransformerModel( Model):
                 hidden_dim_bounds: List =  [0, -1],
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
-                map_tokens: bool = True,
+                map_tokens: bool = False,
                 map_logits: bool = False,
                              
                 **kwargs):
@@ -156,8 +157,11 @@ class TransformerModel( Model):
         if train:
             self.optimizer.zero_grad()
             
+        device = self.get_model_device(self.model)
+            
         self.stats['inference_start_time'] =  self.time() 
-        model_output = self.model(input_ids=sample['input_ids'],
+        sample['input_ids'] = sample['input_ids'].to(device)
+        model_output = self.model(input_ids=sample['input_ids'].to(device),
                                   output_hidden_states=output_hidden_states)
         self.stats['inference_end_time'] = self.time() 
         self.stats['inference_time'] = self.stats['inference_end_time'] - self.stats['inference_start_time']
@@ -218,7 +222,7 @@ class TransformerModel( Model):
         self.set_tokenizer(tokenizer)     
         self.set_optimizer(optimizer)
         self.set_finetune(finetune)
-        self.set_device(device)
+        # self.set_device(device)
         self.set_stats(stats)    
         self.set_tag(tag)
         
@@ -254,10 +258,10 @@ class TransformerModel( Model):
             model_kwargs = self.config.get('model_kwargs', {})
             model_kwargs['device_map'] = self.config.get('device_map')
             model_kwargs['load_in_8bit']=self.config.get('load_in_8bit', False)
-            try:
-                self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **kwargs) 
-            except OSError as e: 
-                self.model = AutoModel.from_pretrained(self.model_path, **kwargs)
+            max_allocation_ratio = self.config.get('max_allocation_ratio', 0.6)
+            model_kwargs['max_memory'] = self.free_gpu_memory(fmt='GB', max_allocation_ratio=max_allocation_ratio)
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
+
        
             
             # convert config to config
@@ -468,7 +472,6 @@ class TransformerModel( Model):
     @classmethod
     def models(cls):
         return list(cls.shortcuts.keys())
-    comm
     
     
     @classmethod
