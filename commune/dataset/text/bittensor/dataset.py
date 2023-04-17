@@ -587,14 +587,19 @@ class BittensorDataset(Module):
         except json.decoder.JSONDecodeError:
             response = {}
             
+        assert isinstance(response, dict)
+        
         if 'text'in response:
             return response['text']
         
         else:
+            #   print(f'Fetching {cid}')
             response  = await self.cat(cid=cid, offset=offset, length=length)
             try:
+                # decode the response.
                 response = response.decode()
             except UnicodeDecodeError as e:
+                # fixes the issue with the ipfs cat endpoint returning a non utf-8 encoded string.
                 response = str(response[2:-1])
             if save:
                 file_meta['text'] = response
@@ -629,7 +634,6 @@ class BittensorDataset(Module):
         except:
             response = None
             
-            
         return response
 
     async def get_folder_text_hashes(
@@ -637,7 +641,7 @@ class BittensorDataset(Module):
                                     file_meta:dict, 
                                     dataset:str, 
                                     max_chunks:int = 1, 
-                                    chunk_size:int = 100000000) -> List[Dict[str, Union[str, int]]]:
+                                    chunk_size:int = 1e10) -> List[Dict[str, Union[str, int]]]:
         """
         Get text hashes from a folder
 
@@ -913,6 +917,7 @@ class BittensorDataset(Module):
     @classmethod
     def test(cls, *args,**kwargs):
         self = cls( *args,**kwargs)
+        
 
         
         
