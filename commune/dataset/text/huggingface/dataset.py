@@ -201,6 +201,7 @@ class HFDataset(commune.Module):
             'glue',
             'super_glue',
             'wikitext',
+        
         ]
         return default_datasets 
         
@@ -208,6 +209,14 @@ class HFDataset(commune.Module):
     def deploy_fleet(cls, datasets:List[str] = None, refresh: bool = True, **kwargs):
         datasets = datasets if datasets else cls.list_datasets()
         for dataset in datasets:
+            commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
+            cls.launch(kwargs={'path':dataset}, name=f'dataset.text.{dataset}', refresh=refresh, **kwargs)
+            
+            
+    @classmethod
+    def deploy(cls, *datasets:List[str], refresh: bool = True, **kwargs):
+        for dataset in datasets:
+            assert isinstance(dataset, str)
             commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
             cls.launch(kwargs={'path':dataset}, name=f'dataset.text.{dataset}', refresh=refresh, **kwargs)
             
@@ -361,8 +370,8 @@ class HFDataset(commune.Module):
 
 
     @classmethod
-    def test(cls):
-        self = cls()
+    def test(cls, *args, **kwargs):
+        self = cls(*args, **kwargs)
         # self.serve()
         x = self.sample()
         print(x)

@@ -92,11 +92,15 @@ class TransformerModel( Model):
                 epoch_length: int = 100,
                 **kwargs
                 ):
+        if isinstance(model, dict):
+            config = model
+            model = config['model']
+            
         if tokenizer == None:
             tokenizer = model
         Model.__init__(self, config =locals())
         self.set_params(**self.config)
-        self.save_config()
+        self.save_config(self.config)
         if test:
             self.test(self)
 
@@ -129,7 +133,7 @@ class TransformerModel( Model):
         return loss
 
     def _forward(self,  
-                input_ids: torch.Tensor = None, 
+                input_ids: torch.Tensor, 
                 topk:int=32,
                 output_length:int = 10,
                 output_hidden_states : bool = True,
@@ -138,14 +142,16 @@ class TransformerModel( Model):
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
                 map_tokens: bool = True,
-                map_logits: bool = False,
-                             
+                map_logits: bool = False,                             
                 **kwargs):
 
         sample = {
         'input_ids': input_ids,
         }
+        
+        og_input_ids = sample['input_ids'].clone()
         if map_tokens:
+            
             self.print('mapping tokens')
             sample['input_ids'] = self.token_translator.translate_tokens(sample['input_ids'])
         
@@ -188,6 +194,7 @@ class TransformerModel( Model):
         output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
         
         output_dict.update(sample)
+        output_dict['input_ids'] = og_input_ids
         loss = self.calculate_loss(**output_dict) 
         
         if train:

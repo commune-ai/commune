@@ -196,7 +196,7 @@ class Module:
         
         Loads a default config
         '''
-        cls.load_config( *args, **kwargs)
+        return cls.load_config( *args, **kwargs)
     
     @classmethod    
     def dict2munch(cls, x:Dict) -> Munch:
@@ -246,13 +246,17 @@ class Module:
         return save_yaml(data=data , path=path)
 
     @classmethod
-    def load_config(cls, path:str=None,  to_munch:bool = True, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None,  to_munch:bool = False, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-
+        module_tree = cls.module_tree()
+        if path in module_tree: 
+            path = module_tree[path].replace('.py', '.yaml')
+        
+            
         
         path = path if path else cls.__config_file__()
             
@@ -289,7 +293,7 @@ class Module:
         Saves the config to a yaml file
         '''
         if config == None:
-            cls = cls.get_config()
+            config = cls.get_config()
         
         path = path if path else cls.__config_file__()
         
@@ -300,7 +304,7 @@ class Module:
         else:
             raise ValueError(f'config must be a dict or munch, not {type(config)}')
         
-        config = save_yaml(data=config , path=path)
+        config = cls.save_yaml(data=config , path=path)
 
         return config
     
@@ -729,19 +733,34 @@ class Module:
         return cls.path2objectpath(cls.__module_file__())
     
     
+    
+
+    
+
+    @classmethod
+    def get_classes_from_python_path(cls, path:str, class_index=-1):
+        import re
+        
+        # read the contents of the Python script file
+        python_script = cls.get_text(path)
+        class_names  = []
+        
+        lines = python_script.split('\n')
+        for line in lines:
+            key_elements = ['class ', '(', '):']
+            if all([key_element in line for key_element in key_elements]):
+                class_name = line.split('class ')[-1].split('(')[0].strip()
+                class_names.append(class_name)
+                
+        
+        # return the class names
+        return class_names
+
     @classmethod
     def path2objectpath(cls, path:str) -> str:
-        
-        
-        module_file_basename = os.path.basename(path).split('.')[0]
-        if module_file_basename[0].isupper():
-            object_name = module_file_basename
-        else:
-            config = cls.path2config(path=path, to_munch=False)
-            object_name = config.get('module', config.get('name')) 
+        object_name = cls.get_classes_from_python_path(path)[-1]
+
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
-        if path[-1] != '.':
-            path = path + '.'
         path = path + object_name
         
         return path
@@ -762,13 +781,13 @@ class Module:
         try:
             
             path = cls.simple2path(path)
+            
             path = cls.path2objectpath(path)
             
         except KeyError as e:
             cls.print(f'{e}', verbose=verbose)
             
         
-            
         return cls.import_object(path)
 
     @classmethod
@@ -2937,10 +2956,8 @@ class Module:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls):
-        self = cls()
-        self.print(self.config)
-        print(self.is_module())
+    def test(cls, *args, **kwargs):
+        self = cls(*args, **kwargs)
                
                
     @classmethod
