@@ -28,10 +28,12 @@ class Validator(commune.Module, nn.Module):
                  max_stats_history: int = 100,
                  alpha: float = 0.5,
                  loop = None,
-                 load: bool = False
+                 load: bool = False,
+                 new_loop_per_forward: bool = False,
                  ):
         
         nn.Module.__init__(self)
+        self.new_loop_per_forward = new_loop_per_forward
         
         self.set_event_loop(loop)
         self.set_max_stats_history(max_stats_history)
@@ -70,11 +72,12 @@ class Validator(commune.Module, nn.Module):
         job = connect.async_connect(model, loop = self.loop)
         self.models[model] =  self.loop.run_until_complete(job)
             
-    def set_models(self, models: List[str] = None) -> None:
+    def set_models(self, models: List[str] = None, timeout:int = 2) -> None:
         if models == None:
             models = self.default_models()
-        jobs = [commune.async_connect(model) for model in models]
-        
+        jobs = [commune.async_connect(model, timeout=timeout) for model in models]
+        self.print('models', len(jobs))
+
         loop = commune.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
         self.models = {}
@@ -246,6 +249,8 @@ class Validator(commune.Module, nn.Module):
         return output
             
         
+    selected_models = None
+    loop = None
     
     def forward(self, 
                 input_ids: torch.Tensor,
@@ -254,19 +259,30 @@ class Validator(commune.Module, nn.Module):
                 models:str=None, 
                 threshold: float = 4.0,
                 topk: int = 256,
+                timeout = 3,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
 
                 **kwargs ):
-        
+        if self.new_loop_per_forward:
+            loop = self.new_event_loop()
+
+        else:
+            loop = self.get_event_loop()
+
         timer = self.timer()
-        if models == None:
-            models = list(self.models.keys())
-            
         
-                    
-        jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, **kwargs) for model_key in models]
+        if self.selected_models is None:
+            self.set_models(timeout=2)
+            self.selected_models = list(self.models.keys())
+
+        # self.print(len(self.models))
+            
+        if models == None:
+            models = self.selected_models
+            
+        jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, timeout=timeout, **kwargs) for model_key in models]
         
         loop =commune.get_event_loop()
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
@@ -304,7 +320,8 @@ class Validator(commune.Module, nn.Module):
             stats[model_key] = model_stats
             
             logits = output_dict['logits']
-                        
+               
+        self.print(f'ensemble_stats: {ensemble_stats}')         
         ensemble_logits = torch.stack(ensemble_logits)
         ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
         ensemble_probs_unormalized = ensemble_probs.sum(0)
@@ -419,7 +436,7 @@ class Validator(commune.Module, nn.Module):
         
     @classmethod 
     def default_models(cls):
-        return [m for m in commune.servers() if m.startswith('model')]
+        return [m for m,_ in commune.namespace().items() if m.startswith('model')]
     
     
     @classmethod
@@ -493,7 +510,7 @@ class Validator(commune.Module, nn.Module):
                wallet='ensemble.Hot1',
                netuid=3):
                 
-        model = cls()
+        model = cls(new_loop_per_forward=True)
         bittensor_module = commune.get_module('bittensor')(wallet=wallet)
         server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
         
