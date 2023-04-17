@@ -382,9 +382,10 @@ class Module:
     @classmethod
     def run_command(cls, 
                     command:str,
-                    verbose:bool = False, 
+                    verbose:bool = True, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
+                    color: str = 'green',
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -419,8 +420,8 @@ class Module:
                     line_count_idx += 1
                     stdout_text += (new_line+c).decode()
                     if verbose:
-                        log_color = verbose if isinstance(verbose, str) else 'green'
-                        cls.print(new_line.decode())
+                        
+                        cls.print(new_line.decode(), color=color)
                     new_line = b''
                     continue
                 
@@ -476,7 +477,7 @@ class Module:
     
     @staticmethod
     def port_used(port:int, ip:str ='0.0.0.0'):
-        '''
+        '''7um
         Check if port is available
         '''
         import socket
@@ -782,8 +783,8 @@ class Module:
     def list_modules(cls):
         return list(cls.module_tree().keys())
     @classmethod
-    def modules(cls, *args, **kwargs):
-        return cls.list_modules(*args, **kwargs)
+    def modules(cls, *args, **kwargs) -> List[str]:
+        return list(cls.namespace(*args, **kwargs).keys())
     
     @staticmethod
     def module_config_tree() -> List[str]:
@@ -1982,9 +1983,8 @@ class Module:
 
 
     @classmethod
-    def pm2_logs(cls, module:str,):
-        return cls.run_command(f"pm2 logs {module}")
-
+    def pm2_logs(cls, module:str,verbose=True):
+        return cls.run_command(f"pm2 logs {module}", verbose=verbose)
 
     @classmethod
     def argparse(cls):
@@ -2871,6 +2871,11 @@ class Module:
     def log(cls, *args, **kwargs):
         console = cls.resolve_console()
         return console.log(*args, **kwargs)
+    
+    @classmethod
+    def logs(cls, *args, **kwargs):
+
+        return cls.pm2_logs(*args, **kwargs)
 
     @classmethod
     def print(cls, *text:str, 
@@ -3637,6 +3642,8 @@ class Module:
         total_free_memory = sum(free_gpu_memory.values())
         return total_free_memory
     
+    total_free_gpus = total_free_gpu_memory
+    
     @classmethod
     def help(cls):
         return cls.get_function_schema_map()
@@ -3648,7 +3655,37 @@ class Module:
             cmd = 'git stash; '+ cmd
         return cls.run_command(cmd)
     
-    # @classmethod
+    @classmethod
+    def pip(cls, library, version = None):
+
+        if version in ['latest', 'upgrade']:
+            cmd = f'pip install --upgrade {library}'
+    
+        elif isinstance(version, str):
+            cmd = f'pip install {library}=={version}'
+    
+        return cls.run_command(cmd, verbose=True)
+    
+
+    @classmethod
+    def pip_upgrade(cls, library, version = None):
+        self.pip(library, version = version, upgrade = True)
+
+
+    @staticmethod
+    def symlink( src, dst):
+        os.symlink(src, dst)
+
+        import os
+
+        src = '/usr/bin/python'
+        dst = '/tmp/python'
+
+        # This creates a symbolic link on python in tmp directory
+        os.symlink(src, dst)
+        # @classmethod
+        
+        return dst
     
         
     
