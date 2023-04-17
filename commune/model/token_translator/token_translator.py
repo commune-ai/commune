@@ -255,12 +255,6 @@ class TokenTranslator(commune.Module):
         self = cls(from_tokenizer=tokenizer['from'], to_tokenizer=tokenizer['to'])  
 
         sample = dataset.sample(no_tokenizer=False)
-        # sample = self.from_tokenizer(sample['text'], 
-        #                             truncation=True, 
-        #                             max_length=64,
-        #                             return_tensors='pt',
-        #                             add_special_tokens=False,
-        #                             padding=True)
 
         output = model['from'].forward(**sample)
         

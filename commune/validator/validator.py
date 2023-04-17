@@ -273,14 +273,12 @@ class Validator(commune.Module, nn.Module):
 
         timer = self.timer()
         
-        if self.selected_models is None:
-            self.set_models(timeout=2)
-            self.selected_models = list(self.models.keys())
+        self.set_models(timeout=2)
 
         # self.print(len(self.models))
             
         if models == None:
-            models = self.selected_models
+            models = self.model_keys
             
         jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, timeout=timeout, **kwargs) for model_key in models]
         
