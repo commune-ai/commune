@@ -513,8 +513,7 @@ class Validator(commune.Module, nn.Module):
         server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
         
         free_ports = commune.get_available_ports()
-        server.config.axon.port = free_ports[0]
-        server.config.axon.external_port = free_ports[0]
+        server.config.axon.port = server.config.axon.external_port = free_ports[0]
         server.config.prometheus.port = free_ports[1]
         
         neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron') 

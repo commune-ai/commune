@@ -12,71 +12,38 @@ class TokenTranslator(commune.Module):
         
         self.set_translator(from_tokenizer=from_tokenizer, 
                                 to_tokenizer=to_tokenizer)
-        
-
 
     def set_translator(self, from_tokenizer, to_tokenizer):
         
         self.from_tokenizer  = self.get_tokenizer(from_tokenizer)
         self.to_tokenizer  = self.get_tokenizer(to_tokenizer)
+        self.translation_map= self.get_translation_map(self.from_tokenizer, self.to_tokenizer)
+     
+           
         
+    # def translate_logits(self, logits: torch.Tensor):
+    #     self.print('translate_logits', color='cyan')
+    #     self.print(self.translation_map[''])
+    #     self.print(self.translation_map[''])
         
-        self.to_translation_map = self.get_translation_map(self.from_tokenizer, self.to_tokenizer)
-        self.from_translation_map = self.get_translation_map(self.to_tokenizer, self.from_tokenizer)
-        self.split_map_cache = {}
-        
-        
-    # def translate_logits(self, logits: torch.FloatTensor,
-    #                               tokens: torch.LongTensor, tokens_std: torch.LongTensor):
-    #     probs_std = translate_logits_to_probs_std(logits=logits,
-    #                                                 offset_mapping=tokens['offset_mapping'], offset_mapping_std=tokens['offset_mapping_std'],
-    #                                                 tokenizer=self.from_tokenizer, std_tokenizer=self.to_tokenizer,
-    #                                                 split_map_cache=self.split_map_cache,
-    #                                                 to_translation_map=self.to_translation_map, from_translation_map=self.from_translation_map,
-    #                                                 tokens=tokens['input_ids'], tokens_std=tokens_std)
-    #     probs_std = probs_std
-    #     logits_std = torch.log(probs_std + 1e-40)
-        
-    #     return logits_std
+    #     return logits
     
-    def translate_tokens(self, tokens: torch.LongTensor):
-        return self.map_tokens(tokens, to_tokenizer=self.to_tokenizer).input_ids
-        
+    def translate_tokens(self, 
+                            input_ids:torch.Tensor,
+                            return_tensors='pt',
+                            padding = True,
+                            reverse = False,
+                            **kwargs):
+        if not reverse:
 
-
-    def map_tokens(self, token_batch, to_tokenizer=None, return_offsets_mapping=True):
-        r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
-            Args:
-                token_batch ( :obj:`torch.LongTensor`, `required`):
-                    token_batch to be retokenized, [batch_size, sequence_len]
-                to_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
-                    The standard tokenizer which was used to tokenize the input.
-                return_offsets_mapping ( :obj:`bool`, `required`):
-                    Return offsets_mapping in tokenization to delineate token segment positions.
-        """
-        if to_tokenizer is None:
-            to_tokenizer = self.to_tokenizer
-
-        text_batch = to_tokenizer.batch_decode(token_batch)  # decode tokens to original text
-        result = translate_special_token_text(text_batch, to_tokenizer, self.from_tokenizer)  # translate special tokens
-        to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
-
-        tokens = self.to_tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
-                                add_special_tokens=False)  # assume tokenizer.padding_side = 'left'
-
-        if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
-            server_tokens = self.from_tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
-            std_tokens = to_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
-
-            # pad offsets so that special token offset widths match for continued correct alignment
-            tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
-            tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
-                                                       pad_offsets_batch)
-        return tokens
-
-    
-
-    
+            text = self.detokenize(input_ids, tokenizer='from')
+            input_ids = self.tokenize(text=text, tokenizer='to' )['input_ids']
+        else:
+            text = self.detokenize(input_ids, tokenizer='to')
+            input_ids = self.tokenize(text=text, tokenizer='from' )['input_ids']
+            
+            
+        return input_ids
     tokenizer_cache = {}
     def get_tokenizer(cls, tokenizer_name: str, cache:bool = True) -> 'PreTrainedTokenizerBase':
         from transformers import AutoTokenizer
@@ -152,7 +119,7 @@ class TokenTranslator(commune.Module):
         return translation_map
                 
         
-    def map_logits(self, logits: torch.FloatTensor) -> None:
+    def translate_logits(self, logits: torch.FloatTensor) -> None:
         r"""
         Translate a single token probability distribution from a source tokenization to a
         sequence of probability distributions over a target tokenization.
@@ -175,7 +142,7 @@ class TokenTranslator(commune.Module):
         
         to_vocab_size = self.to_tokenizer.vocab_len
         
-        translation_map =   self.to_translation_map
+        translation_map =   self.translation_map
         to_logits = torch.zeros(logits.shape[0],to_vocab_size).to(logits.device)  # [vocab_size] 
 
         # === Unroll single distribution into std sequence ===
@@ -207,6 +174,9 @@ class TokenTranslator(commune.Module):
         
         
         return to_logits
+    
+    
+    
     @classmethod
     def set_vocab_len(cls, tokenizer: 'PreTrainedTokenizerBase'):
         r"""
@@ -226,7 +196,7 @@ class TokenTranslator(commune.Module):
                 tokenizer.vocab_len = tokenizer.vocab_size
 
     @classmethod
-    def prep_tokenizer(cls, tokenizer, to_tokenizer=None):
+    def prep_tokenizer(cls, tokenizer, std_tokenizer=None):
         tokenizer.padding_side = "left"  # Generative default expects most recent token on right-hand side with padding on left. https://github.com/huggingface/transformers/pull/10552
         # tokenizer.add_prefix_space = False
         # tokenizer.add_special_tokens({'bos_token': "[BOS]"}) # A special token representing the beginning of a sentence.
@@ -263,8 +233,8 @@ class TokenTranslator(commune.Module):
         cls.set_vocab_len(tokenizer)
         cls.set_whitespace_preserving(tokenizer)
 
-        if to_tokenizer is not None:
-            set_std_token_phrases(tokenizer, to_tokenizer)
+        if std_tokenizer is not None:
+            set_std_token_phrases(tokenizer, std_tokenizer)
 
         return tokenizer
     
@@ -333,100 +303,34 @@ class TokenTranslator(commune.Module):
             else:
                 tokenizer.whitespace_preserving = False
 
-
-
-
     @classmethod
-    def test(cls, model='model.gpt2.7b', dataset='dataset.text.bittensor'):
+    def test(cls, model='model.opt1.3b.demo', dataset='dataset.text.bittensor'):
         cls.print('test')
         dataset = commune.connect(dataset)
 
-        model = commune.connect(model, wait_for_server=True)
-        model.set_model()
-        self = cls(from_tokenizer = model.tokenizer_name(), to_tokenizer = 'gpt2')
         
+        model = commune.connect(model)
+        self = cls(from_tokenizer = model.tokenizer_name(), to_tokenizer = 'gpt2')
         loss_fn = commune.get_module('model.transformer').calculate_loss
 
-        for i in range(100):
-            sample = dataset.sample(batch_size=8, sequence_length=64, no_tokenizer=False)
+        for i in range(10):
+            sample = dataset.sample(no_tokenizer=False)
             og_sample = cls.copy(sample)
             
             
             sample['map_tokens'] = False
             sample['map_logits'] = False
-            sample['train'] = True
-            og_tokens = sample['input_ids']
-            sample['input_ids'] =  self.map_tokens(sample['input_ids']).input_ids
+
+            sample['input_ids'] = self.translate_tokens(sample['input_ids'])
             output = model.forward(**sample)
             
             
             # cls.print(output['stats'])
             
             output['logits'] = decode_topk(output['topk'], vocab_size=self.from_tokenizer.vocab_len)
-            # output['logits'] = self.translate_logits( output['logits'], tokens, sample['input_ids'])
-            # sample['input_ids']= og_tokens
 
+            output['logits'] = self.translate_logits(output['logits'])
             output.update(sample)
             cls.print(loss_fn(**output))
-            
-        
-    def translate_logits(self, logits: torch.FloatTensor) -> None:
-        r"""
-        Translate a single token probability distribution from a source tokenization to a
-        sequence of probability distributions over a target tokenization.
-            Args:
-                probs_from (:obj:`torch.FloatTensor`, `required`):
-                    [vocab_size] Input probability distribution over a from-tokenizer vocabulary.
-                probs_to (:obj:`torch.FloatTensor`, `required`):
-                    [many, vocab_size] Output probability distributions over a to-tokenizer vocabulary.
-                translation_map (:obj:`Dict[str, Any]`, `required`):
-                    Maps for each observed length, a source token to a token sequence of that length,
-                    with source index to target indices.
-
-            Returns:
-
-        """
-        
-        assert logits.dim() == 3, f'Expected logits to be 3D, got {logits.dim()}D'
-        batch_size, seqeunce_length, vocab_size = logits.shape
-        logits = logits.reshape(-1, vocab_size)
-        
-        to_vocab_size = self.to_tokenizer.vocab_len
-        
-        translation_map =   self.to_translation_map
-        to_logits = torch.zeros(logits.shape[0],to_vocab_size).to(logits.device)  # [vocab_size] 
-
-        # === Unroll single distribution into std sequence ===
-        
-        probs = torch.softmax(logits, dim=-1)  # [vocab_size, subset_size_std]
-        to_probs = torch.full_like(to_logits, 1e-8)  # [vocab_size, subset_size_std]
-        counts = torch.full_like(to_logits, 1e-8)
-        for map_len in translation_map.keys():  # each one-to-many mapping length available
-            
-            # map_len = int(map_len)
-        
-            to_idx = translation_map[map_len]['to'].T  # [map_len, subset_size_std]
-            
-            from_idx = translation_map[map_len]['from']
-
-
-            for i in range(len(to_idx)):
-                # to_probs[:, to_idx[i]] += probs[:, from_idx]
-                # counts[:, to_idx[i]] += torch.ones_like(counts[:, to_idx[i]])
-                to_probs[:, to_idx[i]] += probs[:, from_idx]
-                counts[:, to_idx[i]] += torch.ones_like(probs[:, from_idx])
-                # add probs in-place
-        # to_probs = to_probs / counts
-        to_probs = to_probs / to_probs.sum(dim=-1, keepdim=True)
-        # self.print(to_probs.sum(dim=-1, keepdim=True))
-        to_logits = torch.log(to_probs)
-        
-        to_logits =  to_logits.reshape(batch_size, seqeunce_length, to_vocab_size)
-        
-        
-        return to_logits
-    
-    
 if __name__ == "__main__":
     TokenTranslator.run()
-    
