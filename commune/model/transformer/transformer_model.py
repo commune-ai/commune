@@ -86,7 +86,7 @@ class TransformerModel( Model):
                 device: str = 'cuda',
                 optimizer: dict = {'lr': 0.00001},
                 finetune : dict = {'num_layers': 4},
-                device_map: Union[dict, str]="auto", 
+                device_map: Union[dict, str]=None, 
                 load: bool = False,
                 test: bool = True,
                 epoch_length: int = 100,
@@ -142,17 +142,15 @@ class TransformerModel( Model):
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
                 map_tokens: bool = True,
-                map_logits: bool = True,                             
+                map_logits: bool = False,                             
                 **kwargs):
 
         sample = {
         'input_ids': input_ids,
         }
-        
-        og_input_ids = sample['input_ids'].clone()
+    
         if map_tokens:
             
-            self.print('mapping tokens')
             sample['input_ids'] = self.token_translator.translate_tokens(sample['input_ids'])
         
         for k,v in sample.items():
@@ -194,7 +192,6 @@ class TransformerModel( Model):
         output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
         
         output_dict.update(sample)
-        output_dict['input_ids'] = og_input_ids
         loss = self.calculate_loss(**output_dict) 
         
         if train:
@@ -204,14 +201,12 @@ class TransformerModel( Model):
             self.stats['learn_rate'] = self.optimizer.param_groups[0]['lr']
         if isinstance(loss, torch.Tensor):
             loss = loss.item()
-        output_dict['sample_loss'] = loss
-        output_dict['epoch_loss'] = loss
-        output_dict['epoch'] = self.stats.get('epoch', 0)
         
-        past_loss = self.stats.get('loss', 0)
         inference_steps = self.stats['inference_steps']
+        past_loss = self.stats.get('loss', 0)
         self.stats['loss'] = (past_loss*(inference_steps-1) + loss ) / inference_steps
-        output_dict['stats'] = deepcopy(self.stats)         
+        output_dict['stats'] = deepcopy(self.stats)
+        output_dict['stats']['sample_loss'] = loss  
 
         return {key:output_dict[key] for key in return_keys}
 
@@ -226,6 +221,7 @@ class TransformerModel( Model):
                    device:str=None, 
                    load: bool = False,
                    epoch_length:int = None,
+                   device_map = None,
                    
                    **kwargs) -> None:   
         
@@ -233,7 +229,9 @@ class TransformerModel( Model):
         self.set_tokenizer(tokenizer)     
         self.set_optimizer(optimizer)
         self.set_finetune(finetune)
-        # self.set_device(device)
+        if device_map == None:
+            self.set_device(device)
+        
         self.set_stats(stats)    
         self.set_tag(tag)
         self.set_epoch_length(epoch_length)
@@ -271,7 +269,9 @@ class TransformerModel( Model):
             model_kwargs['device_map'] = self.config.get('device_map')
             model_kwargs['load_in_8bit']=self.config.get('load_in_8bit', False)
             max_allocation_ratio = self.config.get('max_allocation_ratio', 0.6)
-            model_kwargs['max_memory'] = self.free_gpu_memory(fmt='GB', max_allocation_ratio=max_allocation_ratio)
+            max_memory = self.free_gpu_memory(fmt='GB', max_allocation_ratio=max_allocation_ratio)  
+            model_kwargs['max_memory'] = max_memory
+
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
             fn_schema = self.get_function_schema(AutoModelForCausalLM.from_pretrained)
             self.print(f'{fn_schema}')
@@ -284,6 +284,7 @@ class TransformerModel( Model):
             # yo 
         if state_dict:
             self.model.load_state_dict(state_dict)
+
 
     def set_epoch_length(self, epoch_length:int) -> int:
         assert isinstance(epoch_length, int)
@@ -315,7 +316,7 @@ class TransformerModel( Model):
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        self.token_translator = self.get_module('model.token_translator')(from_tokenizer='gpt2',to_tokenizer=self.config['tokenizer'])
+        self.token_translator = self.get_module('model.token_translator')(from_tokenizer=self.config['tokenizer'], to_tokenizer='gpt2')
 
         return self.tokenizer
 
@@ -379,25 +380,30 @@ class TransformerModel( Model):
 
 
     @classmethod
-    def test(cls, model = 'opt1.3b', topk:int=4096 ,
+    def test(cls, model = 'opt1.3b', 
+             topk:int=4096 ,
              dataset:str = 'dataset.text.bittensor',
              num_batches = 100,
              minimum_loss = 4, 
-             load = True,
+             lr = 1e-4,
+             load = False,
              ):
         
         if isinstance(model, str):
-            self = cls(model= model, load=load)
+            self = cls(model= model, load=load, optimizer=dict(lr=lr))
         else:
             self = model
-            
+        
+        
 
         dataset = commune.connect(dataset)
 
-        for i in range(10):
+        for i in range(num_batches):
             sample = dataset.sample(batch_size=32, no_tokenizer=False)
             sample['topk'] = topk
-            output = self.forward(**sample, train=True)
+            sample['map_tokens'] = False
+            sample['map_logits'] = False
+            output = self.forward(**sample, train=False)
             cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))

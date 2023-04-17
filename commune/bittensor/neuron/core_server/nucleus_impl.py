@@ -373,7 +373,7 @@ class server(torch.nn.Module):
             pre_logits = _model_output.logits  # [batch_size, sequence_len, self.tokenizer.vocab_len]
             probs_std = translate_logits_to_probs_std(pre_logits,
                                                       tokens['offset_mapping'], tokens['offset_mapping_std'],
-                                                      self.tokenizer, self.std_tokenizer,
+                                                      self.from_tokenizer, self.to_tokenizer,
                                                       self.split_map_cache,
                                                       self.to_translation_map, self.from_translation_map,
                                                       tokens['input_ids'], token_batch)

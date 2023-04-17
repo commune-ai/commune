@@ -6,7 +6,7 @@
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# and to permit pfersons to whom the Software is furnished to do so, subject to the following conditions:
 
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
@@ -571,10 +571,11 @@ def translate_tokenizer_probs(probs: torch.FloatTensor, probs_std: torch.FloatTe
         # === One-to-many / one-to-one mapping ===
         if segment_count_base == 1:
             start_idx_std = right_idx_std - segment_count_std  # calculate starting index
-
-            translate_one_to_many(aligned_probs[right_idx-1],
-                                  probs_std[start_idx_std:start_idx_std+segment_count_std],
-                                  to_translation_map)
+            if right_idx < aligned_probs.shape[0]:
+                
+                translate_one_to_many(aligned_probs[right_idx-1],
+                                    probs_std[start_idx_std:start_idx_std+segment_count_std],
+                                    to_translation_map)
 
         # === Many-to-one mapping ===
         elif segment_count_std_base == 1:  # many-to-one
@@ -1458,7 +1459,7 @@ def decode_topk(  forward_response_tensor: torch.Tensor, vocab_size:int=50400) -
 
     logits = torch.ones((batch_size, sequence_len, vocab_size), dtype=topk_values.dtype).to(topk_values.device)
     logits *= torch.log(remainder_floor)[:, :, None]  # set probability floor: [batch_size, sequence_len, vocab_size]
-
+    topk_indices = torch.clamp(topk_indices, 0, vocab_size - 1)
     logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
 
     return logits  # [batch_size, sequence_len, vocab_size]
