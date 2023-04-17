@@ -13,3 +13,6 @@
 [submodule "commune/repos/trl"]
 	path = commune/repos/trl
 	url = https://github.com/commune-ai/trl.git
+[submodule "commune/repos/llama-cpp-python"]
+	path = commune/repos/llama-cpp-python
+	url = https://github.com/abetlen/llama-cpp-python.git

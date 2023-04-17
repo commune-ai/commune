@@ -135,7 +135,7 @@ class TransformerModel( Model):
                 hidden_dim_bounds: List =  [0, -1],
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
-                map_tokens: bool = False,
+                map_tokens: bool = True,
                 map_logits: bool = False,
                              
                 **kwargs):
@@ -144,6 +144,7 @@ class TransformerModel( Model):
         'input_ids': input_ids,
         }
         if map_tokens:
+            self.print('mapping tokens')
             sample['input_ids'] = self.token_translator.translate_tokens(sample['input_ids'])
         
         for k,v in sample.items():
@@ -261,8 +262,8 @@ class TransformerModel( Model):
             max_allocation_ratio = self.config.get('max_allocation_ratio', 0.6)
             model_kwargs['max_memory'] = self.free_gpu_memory(fmt='GB', max_allocation_ratio=max_allocation_ratio)
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-
-       
+            fn_schema = self.get_function_schema(AutoModelForCausalLM.from_pretrained)
+            self.print(f'{fn_schema}')
             
             # convert config to config
             model_config = json.loads(self.model.config.to_json_string())         
@@ -299,7 +300,7 @@ class TransformerModel( Model):
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        self.token_translator = self.get_module('model.token_translator')(from_tokenizer=self.config['tokenizer'],to_tokenizer='gpt2')
+        self.token_translator = self.get_module('model.token_translator')(from_tokenizer='gpt2',to_tokenizer=self.config['tokenizer'])
 
         return self.tokenizer
 
@@ -366,7 +367,7 @@ class TransformerModel( Model):
     @classmethod
     def test(cls, model = 'opt1.3b', topk:int=4096 ,
              dataset:str = 'dataset.text.bittensor',
-             num_batches = 10,
+             num_batches = 100,
              minimum_loss = 4, 
              ):
         
@@ -379,10 +380,9 @@ class TransformerModel( Model):
         dataset = commune.connect(dataset)
 
         for i in range(10):
-            sample = dataset.sample(batch_size=32, no_tokenizer=True)
-            sample = self.tokenize(sample['text'])  # assume tokenizer.padding_side = 'left'
+            sample = dataset.sample(batch_size=32, no_tokenizer=False)
             sample['topk'] = topk
-            output = self.forward(**sample, train=False)
+            output = self.forward(**sample, train=True)
             cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))

@@ -1,2 +1,12 @@
 module: TransformerModel
-serve: False
+model: gpt125m
+tag: null
+tokenizer: null
+device: cuda
+optimizer:
+lr: 0.00001
+finetune:
+num_layers: 4
+device_map: auto
+load: false
+test: true
