@@ -507,18 +507,28 @@ class BittensorDataset(Module):
         # This currently synchronytes on all of the self.fetch_text_tasks, completing when they all are finished.
         # finished_tasks, running_tasks  = await asyncio.wait(self.fetch_text_tasks) 
             
-
+    last_time_saved_hashes = 0
+    
+    
+    def get_saved_hashes(self, update:bool = True):
+        
+        _saved_hashes = []
+        for dataset in self.datasets:
+            hash_urls = self.glob(f'saved_file_metas/{dataset}/*')
+            
+            for hash_url in hash_urls:
+                _saved_hashes += [{'Hash': hash_url.split('/')[-1]}]
+        if update:
+            self._saved_hashes = _saved_hashes
+            
+            
+        return _saved_hashes
+    
     @property
     def saved_hashes(self) -> List[Dict[str, dict]]:
-
+        
         if not hasattr(self, '_saved_hashes'):
             self._saved_hashes = self.get_saved_hashes()
-            self.dataset2hashes = {}
-            for h in self._saved_hashes:
-                h['Hash'] = h['Hash'].split('.')[0]
-                if h['Hash'] in self.hash_dataset_map:
-                    dataset = self.hash_dataset_map[h['Hash']]
-                    self.dataset2hashes[dataset] = h['Hash']
                     
             #  = {self.hash_dataset_map[h['Hash'].split('.')[0]]: h for h in self._saved_hashes}
             
@@ -565,9 +575,9 @@ class BittensorDataset(Module):
         length = length if length else self.max_hash_size
         cid = file_meta['Hash']
         cid = cid.split('.')[0]
-        try:
-            dataset = self.hash_dataset_map[cid]
-        except KeyError:
+        
+        dataset = self.hash_dataset_map.get(cid, None)
+        if dataset is None:
             return None
         
         path=f'saved_file_metas/{dataset}/{cid}'

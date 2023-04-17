@@ -89,12 +89,14 @@ class TransformerModel( Model):
                 device_map: Union[dict, str]="auto", 
                 load: bool = False,
                 test: bool = True,
+                epoch_length: int = 100,
                 **kwargs
                 ):
         if tokenizer == None:
             tokenizer = model
         Model.__init__(self, config =locals())
         self.set_params(**self.config)
+        self.save_config()
         if test:
             self.test(self)
 
@@ -159,13 +161,13 @@ class TransformerModel( Model):
             self.optimizer.zero_grad()
             
         device = self.get_model_device(self.model)
-            
-        self.stats['inference_start_time'] =  self.time() 
+        
+        self.stats['time'] =  self.time()
         sample['input_ids'] = sample['input_ids'].to(device)
         model_output = self.model(input_ids=sample['input_ids'].to(device),
                                   output_hidden_states=output_hidden_states)
-        self.stats['inference_end_time'] = self.time() 
-        self.stats['inference_time'] = self.stats['inference_end_time'] - self.stats['inference_start_time']
+        self.stats['latency'] = self.round(self.time() - self.stats['time'], sig=2)
+        
         self.stats['inference_steps'] = self.stats.get('inference_steps', 0) + 1
         # sometime we dont care about the begginning of the sequence
         
@@ -192,17 +194,16 @@ class TransformerModel( Model):
             loss.backward()
             self.optimizer.step()
             self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
-        
+            self.stats['learn_rate'] = self.optimizer.param_groups[0]['lr']
         if isinstance(loss, torch.Tensor):
             loss = loss.item()
-        output_dict['loss'] = loss
-        # if 'loss_history' not in  self.stats:
-        #     self.stats['loss_history'] = []
-        # self.stats['loss_history'] += [append(loss.item()]
-        # self.stats['mean_loss'] =loss.item()
+        output_dict['sample_loss'] = loss
+        output_dict['epoch_loss'] = loss
+        output_dict['epoch'] = self.stats.get('epoch', 0)
         
-
-        self.stats['loss'] = (self.stats.get('loss',0)*(self.stats['inference_steps']-1) + loss ) / self.stats['inference_steps']
+        past_loss = self.stats.get('loss', 0)
+        inference_steps = self.stats['inference_steps']
+        self.stats['loss'] = (past_loss*(inference_steps-1) + loss ) / inference_steps
         output_dict['stats'] = deepcopy(self.stats)         
 
         return {key:output_dict[key] for key in return_keys}
@@ -217,6 +218,8 @@ class TransformerModel( Model):
                    stats: dict = None, 
                    device:str=None, 
                    load: bool = False,
+                   epoch_length:int = None,
+                   
                    **kwargs) -> None:   
         
         self.set_model(model)
@@ -226,6 +229,7 @@ class TransformerModel( Model):
         # self.set_device(device)
         self.set_stats(stats)    
         self.set_tag(tag)
+        self.set_epoch_length(epoch_length)
         
         if load:
             self.load()
@@ -274,6 +278,10 @@ class TransformerModel( Model):
         if state_dict:
             self.model.load_state_dict(state_dict)
 
+    def set_epoch_length(self, epoch_length:int) -> int:
+        assert isinstance(epoch_length, int)
+        self.epoch_length = epoch_length
+        return self.epoch_length
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
         from transformers import AutoTokenizer, AutoModel

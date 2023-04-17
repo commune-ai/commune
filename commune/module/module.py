@@ -1018,6 +1018,18 @@ class Module:
         return module
     
 
+    @staticmethod
+    def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
+        import math
+        """
+        Rounds x to the number of {sig} digits
+        :param x:
+        :param sig: signifant digit
+        :param small_value: smallest possible value
+        :return:
+        """
+        return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
+
     @classmethod
     def root_address(cls, name:str='module',
                     timeout:int = 100, 
