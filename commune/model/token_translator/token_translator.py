@@ -21,9 +21,11 @@ class TokenTranslator(commune.Module):
      
         
         
-    def translate_logits(self, logits: torch.Tensor):
+    # def translate_logits(self, logits: torch.Tensor):
+    #     self.print('translate_logits', color='cyan')
+    #     self.print(self.translation_map[''])
         
-        return logits
+    #     return logits
     
     def translate_tokens(self, 
                             input_ids:torch.Tensor,
@@ -107,9 +109,62 @@ class TokenTranslator(commune.Module):
         
         return translation_map
                 
+        
+    def translate_logits(self, logits: torch.FloatTensor) -> None:
+        r"""
+        Translate a single token probability distribution from a source tokenization to a
+        sequence of probability distributions over a target tokenization.
+            Args:
+                probs_from (:obj:`torch.FloatTensor`, `required`):
+                    [vocab_size] Input probability distribution over a from-tokenizer vocabulary.
+                probs_to (:obj:`torch.FloatTensor`, `required`):
+                    [many, vocab_size] Output probability distributions over a to-tokenizer vocabulary.
+                translation_map (:obj:`Dict[str, Any]`, `required`):
+                    Maps for each observed length, a source token to a token sequence of that length,
+                    with source index to target indices.
+
+            Returns:
+
+        """
+        
+        assert logits.dim() == 3, f'Expected logits to be 3D, got {logits.dim()}D'
+        batch_size, seqeunce_length, vocab_size = logits.shape
+        logits = logits.reshape(-1, vocab_size)
+        
+        to_vocab_size = self.to_tokenizer.vocab_len
+        
+        translation_map =   self.translation_map
+        to_logits = torch.zeros(logits.shape[0],to_vocab_size).to(logits.device)  # [vocab_size] 
+
+        # === Unroll single distribution into std sequence ===
+        
+        probs = torch.softmax(logits, dim=-1)  # [vocab_size, subset_size_std]
+        to_probs = torch.full_like(to_logits, 1e-8)  # [vocab_size, subset_size_std]
+        counts = torch.full_like(to_logits, 1e-8)
+        for map_len in translation_map.keys():  # each one-to-many mapping length available
+            
+            # map_len = int(map_len)
+        
+            to_idx = translation_map[map_len]['to'].T  # [map_len, subset_size_std]
+            
+            from_idx = translation_map[map_len]['from']
 
 
-    
+            for i in range(len(to_idx)):
+                # to_probs[:, to_idx[i]] += probs[:, from_idx]
+                # counts[:, to_idx[i]] += torch.ones_like(counts[:, to_idx[i]])
+                to_probs[:, to_idx[i]] += probs[:, from_idx]
+                counts[:, to_idx[i]] += torch.ones_like(probs[:, from_idx])
+                # add probs in-place
+        # to_probs = to_probs / counts
+        to_probs = to_probs / to_probs.sum(dim=-1, keepdim=True)
+        # self.print(to_probs.sum(dim=-1, keepdim=True))
+        to_logits = torch.log(to_probs)
+        
+        to_logits =  to_logits.reshape(batch_size, seqeunce_length, to_vocab_size)
+        
+        
+        return to_logits
     @classmethod
     def set_vocab_len(cls, tokenizer: 'PreTrainedTokenizerBase'):
         r"""
@@ -238,32 +293,30 @@ class TokenTranslator(commune.Module):
 
     @classmethod
     def test(cls):
-        commune.nest_asyncio()
         cls.print('test')
-        
         dataset = commune.connect('dataset.text.bittensor')
-        st.write(commune.servers())
-        model  = commune.munch({
-            'from': commune.connect('model.gpt125m'),
-            'to': commune.connect('model.opt6.7b')
+    
+        
+        
+        for i in range(10):
+            sample = dataset.sample(no_tokenizer=False)
+            og_sample = cls.copy(sample)
+            model = commune.connect('model.gptj')
             
-        })
-        
-        model_config = { k: m.config for k,m in model.items()}
-        tokenizer = { k: m.config['tokenizer'] for k,m in model.items()}
+            sample['map_tokens'] = False
+            sample['map_logits'] = False
+            output = model.forward(**sample)
+            
+            self = cls(from_tokenizer = model.tokenizer_name(), to_tokenizer = 'gpt2')
+            
+            # cls.print(output['stats'])
+            
+            output['logits'] = decode_topk(output['topk'], vocab_size=self.from_tokenizer.vocab_len)
+            loss_fn = commune.get_module('model.transformer').calculate_loss
 
-        self = cls(from_tokenizer=tokenizer['from'], to_tokenizer=tokenizer['to'])  
-
-        sample = dataset.sample(no_tokenizer=False)
-
-        output = model['from'].forward(**sample)
-        
-        cls.print(output)
-        
-        output['logits'] = decode_topk(output['topk'], vocab_size=self.from_tokenizer.vocab_len)
-        loss_fn = commune.get_module('model.transformer').calculate_loss
-        output.update(og_sample)
-        loss_fn(**output)
+            # output['logits'] = self.translate_logits(output['logits'])
+            output.update(sample)
+            cls.print(loss_fn(**output))
 if __name__ == "__main__":
     TokenTranslator.run()
     

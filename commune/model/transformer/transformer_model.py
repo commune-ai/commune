@@ -142,7 +142,7 @@ class TransformerModel( Model):
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
                 map_tokens: bool = True,
-                map_logits: bool = False,                             
+                map_logits: bool = True,                             
                 **kwargs):
 
         sample = {
@@ -338,7 +338,6 @@ class TransformerModel( Model):
         return encoded_probs  # [batch_size, sequence_len, topk + topk]
 
 
-    @classmethod
     def tokenizer_name(self):
         return self.config['tokenizer']
 
@@ -384,10 +383,11 @@ class TransformerModel( Model):
              dataset:str = 'dataset.text.bittensor',
              num_batches = 100,
              minimum_loss = 4, 
+             load = True,
              ):
         
         if isinstance(model, str):
-            self = cls(model= model)
+            self = cls(model= model, load=load)
         else:
             self = model
             
@@ -603,6 +603,7 @@ class TransformerModel( Model):
                name: str =None, 
                wait_for_server: bool = False, 
                mode:str = 'pm2',
+               tag = None,
                replace:bool = False,
                **kwargs):
 
@@ -612,6 +613,8 @@ class TransformerModel( Model):
         for model in models:
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
+            if tag != None:
+                name = f'{name}.{tag}'
             module_exists = cls.module_exists(name)     
             if replace == False and module_exists:
                 cls.print(f'Model {name} already exists', color='yellow')
