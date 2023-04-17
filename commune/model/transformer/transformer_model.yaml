@@ -5,40 +5,56 @@ finetune:
   num_layers: 4
 load: false
 model:
-  _name_or_path: facebook/opt-1.3b
-  _remove_final_layer_norm: false
-  activation_dropout: 0.0
-  activation_function: relu
+  _name_or_path: EleutherAI/gpt-neo-125m
+  activation_function: gelu_new
   architectures:
-  - OPTForCausalLM
-  attention_dropout: 0.0
-  bos_token_id: 2
-  do_layer_norm_before: true
-  dropout: 0.1
-  enable_bias: true
-  eos_token_id: 2
-  ffn_dim: 8192
-  hidden_size: 2048
-  init_std: 0.02
-  layer_norm_elementwise_affine: true
-  layerdrop: 0.0
+  - GPTNeoForCausalLM
+  attention_dropout: 0
+  attention_layers:
+  - global
+  - local
+  - global
+  - local
+  - global
+  - local
+  - global
+  - local
+  - global
+  - local
+  - global
+  - local
+  attention_types:
+  - - - global
+      - local
+    - 6
+  bos_token_id: 50256
+  embed_dropout: 0
+  eos_token_id: 50256
+  gradient_checkpointing: false
+  hidden_size: 768
+  initializer_range: 0.02
+  intermediate_size: null
+  layer_norm_epsilon: 1.0e-05
   max_position_embeddings: 2048
-  model_name: opt1.3b
-  model_path: facebook/opt-1.3b
-  model_type: opt
-  num_attention_heads: 32
-  num_hidden_layers: 24
-  pad_token_id: 1
-  prefix: </s>
-  torch_dtype: float16
+  model_name: gpt125m
+  model_path: EleutherAI/gpt-neo-125m
+  model_type: gpt_neo
+  num_heads: 12
+  num_layers: 12
+  resid_dropout: 0
+  summary_activation: null
+  summary_first_dropout: 0.1
+  summary_proj_to_labels: true
+  summary_type: cls_index
+  summary_use_proj: true
   transformers_version: 4.28.1
   use_cache: true
-  vocab_size: 50272
-  word_embed_proj_dim: 2048
+  vocab_size: 50257
+  window_size: 256
 optimizer:
   lr: 1.0e-05
   module: torch.optim.Adam
 stats: {}
 tag: null
 test: true
-tokenizer: facebook/opt-1.3b
+tokenizer: EleutherAI/gpt-neo-125m
