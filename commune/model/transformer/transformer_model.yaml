@@ -1,44 +1,16 @@
-device: cuda:7
-device_map: null
+
+model: opt1.3b
+tokenizer: null
+device: cuda
 epoch_length: 100
 finetune:
   num_layers: 4
-load: false
-model:
-  _name_or_path: facebook/opt-1.3b
-  _remove_final_layer_norm: false
-  activation_dropout: 0.0
-  activation_function: relu
-  architectures:
-  - OPTForCausalLM
-  attention_dropout: 0.0
-  bos_token_id: 2
-  do_layer_norm_before: true
-  dropout: 0.1
-  enable_bias: true
-  eos_token_id: 2
-  ffn_dim: 8192
-  hidden_size: 2048
-  init_std: 0.02
-  layer_norm_elementwise_affine: true
-  layerdrop: 0.0
-  max_position_embeddings: 2048
-  model_name: opt1.3b
-  model_path: facebook/opt-1.3b
-  model_type: opt
-  num_attention_heads: 32
-  num_hidden_layers: 24
-  pad_token_id: 1
-  prefix: </s>
-  torch_dtype: float16
-  transformers_version: 4.28.1
-  use_cache: true
-  vocab_size: 50272
-  word_embed_proj_dim: 2048
+max_allocation_ratio: 0.6 
 optimizer:
-  lr: 0.0001
+  lr: 1.0e-05
   module: torch.optim.Adam
 stats: {}
 tag: null
-test: true
-tokenizer: facebook/opt-1.3b
+test: True
+load: false
+

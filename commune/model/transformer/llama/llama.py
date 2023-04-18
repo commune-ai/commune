@@ -331,7 +331,7 @@ class LlamaModel(nn.Module, commune.Module):
 
         self.init_weights()
         
-        self.set_device(config.device)
+        # self.set_device(config.device)
 
 
 
@@ -555,6 +555,7 @@ class LlamaModel(nn.Module, commune.Module):
         
         self.layers = nn.ModuleList()
         for i in range(config.num_hidden_layers):
+            self.print(i)
             self.layers.append(LlamaDecoderLayer(config))
         
         
@@ -576,7 +577,7 @@ class LlamaModel(nn.Module, commune.Module):
 
         self.print(free_gpu_memory)
         most_free_gpu = self.most_free_gpu()
-        devices = []
+        devices = device
         if device == None:
             if model_size < free_gpu_memory[most_free_gpu]:
                 # use single gpu

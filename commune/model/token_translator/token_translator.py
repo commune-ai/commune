@@ -8,22 +8,25 @@ from commune.utils.tokenizer import get_translation_map, translate_logits_to_pro
         encode_topk, decode_topk, prep_tokenizer
 
 class TokenTranslator(commune.Module):
-    def __init__(self, from_tokenizer='facebook/opt-6.7b', to_tokenizer='gpt2'):
+    def __init__(self, tokenizer='facebook/opt-6.7b', std_tokenizer='gpt2'):
         
-        self.set_translator(from_tokenizer=from_tokenizer, 
-                                to_tokenizer=to_tokenizer)
+        self.set_translator(tokenizer=tokenizer, 
+                                std_tokenizer=std_tokenizer)
         
 
 
-    def set_translator(self, from_tokenizer, to_tokenizer):
+    def set_translator(self, tokenizer, std_tokenizer):
         
-        self.from_tokenizer  = self.get_tokenizer(from_tokenizer)
-        self.to_tokenizer  = self.get_tokenizer(to_tokenizer)
         
-        self.from_tokenizer = prep_tokenizer(self.from_tokenizer, self.to_tokenizer)
+        self.tokenizer = self.get_tokenizer(tokenizer)
+        self.std_tokenizer = self.get_tokenizer(std_tokenizer)
+
+
+        self.std_tokenizer = prep_tokenizer(self.std_tokenizer)
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         
-        self.to_translation_map = self.get_translation_map(self.from_tokenizer, self.to_tokenizer)
-        self.from_translation_map = self.get_translation_map(self.to_tokenizer, self.from_tokenizer)
+        self.to_translation_map = self.get_translation_map(self.tokenizer, self.std_tokenizer)
+        self.from_translation_map = self.get_translation_map(self.std_tokenizer, self.tokenizer)
         self.split_map_cache = {}
         
         
@@ -31,7 +34,7 @@ class TokenTranslator(commune.Module):
     #                               tokens: torch.LongTensor, tokens_std: torch.LongTensor):
     #     probs_std = translate_logits_to_probs_std(logits=logits,
     #                                                 offset_mapping=tokens['offset_mapping'], offset_mapping_std=tokens['offset_mapping_std'],
-    #                                                 tokenizer=self.from_tokenizer, std_tokenizer=self.to_tokenizer,
+    #                                                 tokenizer=self.tokenizer, std_tokenizer=self.std_tokenizer,
     #                                                 split_map_cache=self.split_map_cache,
     #                                                 to_translation_map=self.to_translation_map, from_translation_map=self.from_translation_map,
     #                                                 tokens=tokens['input_ids'], tokens_std=tokens_std)
@@ -40,42 +43,38 @@ class TokenTranslator(commune.Module):
         
     #     return logits_std
     
-    def translate_tokens(self, tokens: torch.LongTensor):
-        return self.map_tokens(tokens, to_tokenizer=self.to_tokenizer).input_ids
-        
 
 
-    def map_tokens(self, token_batch, to_tokenizer=None, return_offsets_mapping=True):
+    def translate_tokens(self, input_ids, std_tokenizer=None, return_offsets_mapping=False):
         r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
             Args:
-                token_batch ( :obj:`torch.LongTensor`, `required`):
-                    token_batch to be retokenized, [batch_size, sequence_len]
-                to_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
+                input_ids ( :obj:`torch.LongTensor`, `required`):
+                    input_ids to be retokenized, [batch_size, sequence_len]
+                std_tokenizer ( :obj:`transformers.Tokenizer`, `optional`):
                     The standard tokenizer which was used to tokenize the input.
                 return_offsets_mapping ( :obj:`bool`, `required`):
                     Return offsets_mapping in tokenization to delineate token segment positions.
         """
-        if to_tokenizer is None:
-            to_tokenizer = self.to_tokenizer
+        if std_tokenizer is None:
+            std_tokenizer = self.std_tokenizer
 
-        text_batch = to_tokenizer.batch_decode(token_batch)  # decode tokens to original text
-        result = translate_special_token_text(text_batch, to_tokenizer, self.from_tokenizer)  # translate special tokens
+        text_batch = std_tokenizer.batch_decode(input_ids)  # decode tokens to original text
+        result = translate_special_token_text(text_batch, std_tokenizer, self.tokenizer)  # translate special tokens
         to_text_batch, from_offsets_batch, to_offsets_batch, pad_offsets_batch = result
 
-        tokens = self.to_tokenizer(to_text_batch, padding=True, truncation=True, max_length=token_batch.size(1), return_tensors='pt',
-                                add_special_tokens=False)  # assume tokenizer.padding_side = 'left'
+        tokens = self.tokenizer(to_text_batch, padding=True, truncation=True, max_length=input_ids.size(1), return_tensors='pt',
+                                add_special_tokens=False) # assume tokenizer.padding_side = 'left'
 
         if return_offsets_mapping:  # get offsets_mapping in tokenization to delineate token segment positions
-            server_tokens = self.from_tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
-            std_tokens = to_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
+            server_tokens = self.tokenizer(to_text_batch, return_offsets_mapping=True, add_special_tokens=False)
+            std_tokens = std_tokenizer(text_batch, return_offsets_mapping=True)  # encode again to get offsets mapping
 
             # pad offsets so that special token offset widths match for continued correct alignment
             tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
             tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
                                                        pad_offsets_batch)
-        return tokens
+        return tokens.input_ids
 
-    
 
     
     tokenizer_cache = {}
@@ -90,6 +89,9 @@ class TokenTranslator(commune.Module):
                 tokenizer (:obj:`PreTrainedTokenizerBase`):
                     A tokenizer instance.
         """
+        
+        if not isinstance(tokenizer_name, str):
+            return tokenizer_name
         tokenizer = None
         if cache:
             if tokenizer_name in cls.tokenizer_cache:
@@ -107,14 +109,14 @@ class TokenTranslator(commune.Module):
 
 
     @classmethod
-    def get_translation_map(cls, from_tokenizer: 'PreTrainedTokenizerBase',
-                            to_tokenizer: 'PreTrainedTokenizerBase') -> Dict[str, Any]:
+    def get_translation_map(cls, tokenizer: 'PreTrainedTokenizerBase',
+                            std_tokenizer: 'PreTrainedTokenizerBase') -> Dict[str, Any]:
         r"""
         Map individual token phrases from a tokenizer to another tokenizer.
             Args:
-                from_tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
+                tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
                     From tokenizer.
-                to_tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
+                std_tokenizer (:obj:`PreTrainedTokenizerBase`, `required`):
                     To tokenizer.
 
             Returns:
@@ -125,9 +127,9 @@ class TokenTranslator(commune.Module):
 
         translation_map = {}
 
-        phrases = from_tokenizer.batch_decode(range(from_tokenizer.vocab_len))  # tokens to strings
+        phrases = tokenizer.batch_decode(range(tokenizer.vocab_len))  # tokens to strings
         # st.write(phrases[:100])
-        to_tokens = to_tokenizer(phrases)['input_ids']  # convert single token from-phrases to to-tokenization
+        to_tokens = std_tokenizer(phrases)['input_ids']  # convert single token from-phrases to to-tokenization
         
 
             
@@ -173,7 +175,7 @@ class TokenTranslator(commune.Module):
         batch_size, seqeunce_length, vocab_size = logits.shape
         logits = logits.reshape(-1, vocab_size)
         
-        to_vocab_size = self.to_tokenizer.vocab_len
+        to_vocab_size = self.std_tokenizer.vocab_len
         
         translation_map =   self.to_translation_map
         to_logits = torch.zeros(logits.shape[0],to_vocab_size).to(logits.device)  # [vocab_size] 
@@ -226,7 +228,7 @@ class TokenTranslator(commune.Module):
                 tokenizer.vocab_len = tokenizer.vocab_size
 
     @classmethod
-    def prep_tokenizer(cls, tokenizer, to_tokenizer=None):
+    def prep_tokenizer(cls, tokenizer, std_tokenizer=None):
         tokenizer.padding_side = "left"  # Generative default expects most recent token on right-hand side with padding on left. https://github.com/huggingface/transformers/pull/10552
         # tokenizer.add_prefix_space = False
         # tokenizer.add_special_tokens({'bos_token': "[BOS]"}) # A special token representing the beginning of a sentence.
@@ -263,8 +265,8 @@ class TokenTranslator(commune.Module):
         cls.set_vocab_len(tokenizer)
         cls.set_whitespace_preserving(tokenizer)
 
-        if to_tokenizer is not None:
-            set_std_token_phrases(tokenizer, to_tokenizer)
+        if std_tokenizer is not None:
+            set_std_token_phrases(tokenizer, std_tokenizer)
 
         return tokenizer
     
@@ -343,7 +345,7 @@ class TokenTranslator(commune.Module):
 
         model = commune.connect(model, wait_for_server=True)
         model.set_model()
-        self = cls(from_tokenizer = model.tokenizer_name(), to_tokenizer = 'gpt2')
+        self = cls(tokenizer = model.tokenizer_name(), std_tokenizer = 'gpt2')
         
         loss_fn = commune.get_module('model.transformer').calculate_loss
 
@@ -362,7 +364,7 @@ class TokenTranslator(commune.Module):
             
             # cls.print(output['stats'])
             
-            output['logits'] = decode_topk(output['topk'], vocab_size=self.from_tokenizer.vocab_len)
+            output['logits'] = decode_topk(output['topk'], vocab_size=self.tokenizer.vocab_len)
             # output['logits'] = self.translate_logits( output['logits'], tokens, sample['input_ids'])
             # sample['input_ids']= og_tokens
 
@@ -391,7 +393,7 @@ class TokenTranslator(commune.Module):
         batch_size, seqeunce_length, vocab_size = logits.shape
         logits = logits.reshape(-1, vocab_size)
         
-        to_vocab_size = self.to_tokenizer.vocab_len
+        to_vocab_size = self.std_tokenizer.vocab_len
         
         translation_map =   self.to_translation_map
         to_logits = torch.zeros(logits.shape[0],to_vocab_size).to(logits.device)  # [vocab_size] 
