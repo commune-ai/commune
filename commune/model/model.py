@@ -53,6 +53,7 @@ class Model( nn.Module, commune.Module):
                 if v != None:
                     self.params[k] = deepcopy(locals_dict[k])
                 
+                
         
     def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
         if isinstance(optimizer, dict):
@@ -61,7 +62,7 @@ class Model( nn.Module, commune.Module):
         
         elif optimizer == None:
             module_path = 'torch.optim.Adam'
-            optimizer_kwargs = {'lr': 0.02}
+            optimizer_kwargs = {'lr': 0.001}
             
         
         else:
@@ -76,11 +77,20 @@ class Model( nn.Module, commune.Module):
             'module': module_path,
             **optimizer_kwargs,
         }
+        
+        
+    def set_lr(self, lr:float):
+        assert lr > 0, f'lr must be greater than 0, got {lr}'
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+        self.config['optimizer']['lr'] = lr
+    set_learning_rate = set_lr
+        
     def forward(self,  **kwargs) -> Union[Dict, torch.Tensor]:
         # import ipdb; ipdb.set_trace()
         no_grad = kwargs.pop('no_grad', True)
         autocast = kwargs.pop('autocast', True)
-        empty_cache = kwargs.pop('empty_cache', False)
+        empty_cache = kwargs.pop('empty_cache', True)
         #should the model learn from the input in this forward pass
         train = kwargs['train'] = kwargs.get('train', False)
 
@@ -232,6 +242,8 @@ class Model( nn.Module, commune.Module):
                     The name of the last layer that user specified or we found.
                     None if the user did not specify and we couldnt find it. 
         '''
+        if isinstance(finetune, int):
+            finetune = dict(num_layers=finetune)
         default_kwargs = dict(num_layers=1, layer_name = None, all = False)
         
         num_layers = finetune.get('num_layers', default_kwargs['num_layers'])

@@ -20,6 +20,7 @@ class TokenTranslator(commune.Module):
         self.from_tokenizer  = self.get_tokenizer(from_tokenizer)
         self.to_tokenizer  = self.get_tokenizer(to_tokenizer)
         
+        self.from_tokenizer = prep_tokenizer(self.from_tokenizer, self.to_tokenizer)
         
         self.to_translation_map = self.get_translation_map(self.from_tokenizer, self.to_tokenizer)
         self.from_translation_map = self.get_translation_map(self.to_tokenizer, self.from_tokenizer)
@@ -100,7 +101,6 @@ class TokenTranslator(commune.Module):
             tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
         
         
-        tokenizer = cls.prep_tokenizer(tokenizer)
         
         return tokenizer
     
