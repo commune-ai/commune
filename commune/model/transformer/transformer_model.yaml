@@ -1,7 +1,7 @@
 
 model: opt1.3b
 tokenizer: null
-device: cuda
+device: null
 epoch_length: 100
 finetune:
   num_layers: 4
@@ -13,4 +13,5 @@ stats: {}
 tag: null
 test: True
 load: false
+device_map: auto
 

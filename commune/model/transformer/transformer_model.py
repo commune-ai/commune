@@ -221,7 +221,8 @@ class TransformerModel( Model):
         
                         
         free_gpu_memory = self.free_gpu_memory(fmt='b', 
-                                          max_allocation_ratio=config['max_allocation_ratio']) 
+                                          max_allocation_ratio=config['max_allocation_ratio'])
+        gpus = list(free_gpu_memory.keys()) 
         total_gpu_memory = sum(free_gpu_memory.values())
         
         
@@ -233,7 +234,8 @@ class TransformerModel( Model):
         
         unallocated_model_memory = model_size
         
-        max_memory = {}
+        max_memory = {k:0 for k in gpus}
+        
         
         buffer_memory_factor = 1.1
         while unallocated_model_memory > 0:
@@ -248,34 +250,34 @@ class TransformerModel( Model):
             free_gpu_memory[most_free_gpu] -= max_memory[most_free_gpu]
             
             
+        for k,v in max_memory.items():
+            max_memory[k] = f'{int(v//1e9)}GB'
+            
 
             
         self.print(f'max memory: {max_memory}')
 
         model_kwargs = {'max_memory': max_memory}
-        for k in ['load_in_8bit']:
+        for k in ['load_in_8bit', 'device_map']:
             if k in config:
                 model_kwargs[k] = config[k]
+                
 
         self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-        fn_schema = self.get_function_schema(AutoModelForCausalLM.from_pretrained)
-        self.print(f'{fn_schema}')
         
-        # convert config to config
-        model_config = json.loads(self.model.config.to_json_string())    
-        config.update(model_config)
-        self.config = config
+        self.device = self.model.device 
+    
         
         self.set_tokenizer(config)
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune)   
         self.set_tag(config.tag)
         self.set_stats(config.stats)    
-        self.set_epoch_length(config.epoch_length)
-        self.set_device(config.device)
-        
+        self.set_epoch_length(config.epoch_length)        
         if config.load:
             self.load() 
+            
+        self.config = config
 
 
     def set_epoch_length(self, epoch_length:int) -> int:
@@ -386,9 +388,10 @@ class TransformerModel( Model):
              ):
         
         
-        namespace = cls.namespace()
+        
 
         if remote and model in namfespace:
+            namespace = cls.namespace()
             model_name = f'model.{model}'
             model = cls.connect(model_name)
         
