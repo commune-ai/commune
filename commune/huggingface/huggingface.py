@@ -138,6 +138,14 @@ class Huggingface(commune.Module):
         else:
             return [p.split('models--')[-1].replace('--', '/') for p in paths]
     
+    
+    @classmethod
+    def snapshot_download(cls,repo_id, *args, **kwargs):
+        from huggingface_hub import snapshot_download
+        return snapshot_download(repo_id, *args, **kwargs)
+    @classmethod
+    def download(cls,repo_id, *args, **kwargs):
+        return cls.snapshot_download(repo_id, *args, **kwargs)
     @classmethod
     def cached_model_paths(cls, limit=10, **kwargs):
         dirpath = f'{cls.cache_path}/hub'
@@ -217,7 +225,7 @@ class Huggingface(commune.Module):
     @classmethod
     def test(cls): 
         self = cls()
-        cls.print(self.cached_models())
+        cls.print(self.download('chavinlo/gpt4-x-alpaca'))
 
     @classmethod
     def class_init(cls):

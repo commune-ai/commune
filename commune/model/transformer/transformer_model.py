@@ -194,6 +194,57 @@ class TransformerModel( Model):
         return {key:output_dict[key] for key in return_keys} 
         
 
+
+    @classmethod
+    def infer_max_memory(cls, model, buffer_ratio:int=1.2):
+        
+        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from accelerate import init_empty_weights
+        
+        model = cls.shortcuts.get(model, model)
+
+        print(f'loading config model from {model}...')
+        if isinstance(model, str):
+            model_config = AutoConfig.from_pretrained(model)
+            model_config_dict = model_config.to_dict()
+            with init_empty_weights():
+                model = AutoModelForCausalLM.from_config(model_config)
+    
+        model_size = cls.get_model_size(model)*buffer_ratio
+        
+        free_gpu_memory = cls.free_gpu_memory(fmt='b')
+        gpus = list(free_gpu_memory.keys()) 
+        total_gpu_memory = sum(free_gpu_memory.values())
+        
+        
+        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
+
+
+
+        cls.print(f'{model_size}')
+
+        unallocated_model_memory = model_size
+        # max_memory = {}
+        max_memory = {}
+        
+        
+        while unallocated_model_memory > 0:
+            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
+
+            
+            allocated_memory = min(unallocated_model_memory, most_free_gpu_memory)
+            unallocated_model_memory -= allocated_memory
+            reserved_memory  = min(allocated_memory, most_free_gpu_memory)
+            max_memory[most_free_gpu] = allocated_memory
+            free_gpu_memory[most_free_gpu] -= allocated_memory
+            
+            
+        for k,v in max_memory.items():
+            max_memory[k] = int(v//1e9)
+            
+        return max_memory
+            
+
         
         
     def set_model(self, config) -> None:
@@ -201,72 +252,43 @@ class TransformerModel( Model):
         
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
+        
+        self.print(commune.gpus(), color='red')
 
         model_name = config['model_name'] = config['model']
         self.model_path = config['model_path'] =self.shortcuts.get(model_name, model_name)
         # config = AutoConfig.from_pretrained(self.model_name)
+                
+
         
-        print(f'loading config model from {self.model_path}...')
         model_config = AutoConfig.from_pretrained(self.model_path)
+        with init_empty_weights():
+            model = AutoModelForCausalLM.from_config(model_config)
+            
+            
         model_config_dict = model_config.to_dict()
         for k,v in model_config_dict.items():
             assert k not in config, f'config key {k} not found in config'
             config[k] = model_config_dict[k]        
         config = self.munch(config)
         
-        with init_empty_weights():
-            self.model = AutoModelForCausalLM.from_config(model_config)
-    
-        model_size = self.get_model_size(self.model)
         
-                        
-        free_gpu_memory = self.free_gpu_memory(fmt='b', 
-                                          max_allocation_ratio=config['max_allocation_ratio'])
-        gpus = list(free_gpu_memory.keys()) 
-        total_gpu_memory = sum(free_gpu_memory.values())
-        
-        
-        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}'
+        # max_memory = self.infer_max_memory(model, buffer_ratio=config.buffer_ratio)      
 
-
-        self.print(f'{model_size}')
-
+        max_memory = self.free_gpu_memory(fmt='GB')
+        # max_memory = {int(k):f'{int(v)}GB' for k,v in max_memory.items()}
         
-        unallocated_model_memory = model_size
-        
-        max_memory = {k:0 for k in gpus}
-        
-        
-        buffer_memory_factor = 1.1
-        while unallocated_model_memory > 0:
-            most_free_gpu, most_free_gpu_memory = self.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
-
-            
-            allocated_memory = min(unallocated_model_memory, most_free_gpu_memory)
-            unallocated_model_memory -= allocated_memory
-            reserved_memory = allocated_memory * buffer_memory_factor
-            reserved_memory  = min(reserved_memory, most_free_gpu_memory)
-            max_memory[most_free_gpu] = reserved_memory
-            free_gpu_memory[most_free_gpu] -= max_memory[most_free_gpu]
-            
-            
-        for k,v in max_memory.items():
-            max_memory[k] = f'{int(v//1e9)}GB'
-            
-
-            
         self.print(f'max memory: {max_memory}')
 
-        model_kwargs = {'max_memory': max_memory}
-        for k in ['load_in_8bit', 'device_map']:
+        model_kwargs = {'max_memory': max_memory, 
+                        'device_map': 'auto'}
+        for k in ['load_in_8bit']:
             if k in config:
                 model_kwargs[k] = config[k]
                 
-
+        from accelerate import load_checkpoint_and_dispatch
         self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
         
-        self.device = self.model.device 
-    
         
         self.set_tokenizer(config)
         self.set_optimizer(config.optimizer)
@@ -618,13 +640,16 @@ class TransformerModel( Model):
                wait_for_server: bool = False, 
                mode:str = 'pm2',
                tag = None,
-               replace:bool = False,
+               replace:bool = True,
                **kwargs):
 
 
         assert len(models) > 0
         model_names = []
         for model in models:
+            max_memory = cls.infer_max_memory(model)
+            device = list(max_memory.keys())
+            cls.print(f'Infered max memory for {model} is {max_memory}', color='yellow')
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
             if tag != None:
