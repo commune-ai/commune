@@ -1841,6 +1841,7 @@ class Module:
                user: str = None,
                key : str = None,
                shortcut = None,
+               device = None,
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
@@ -1878,6 +1879,7 @@ class Module:
                     args = args,
                     kwargs = kwargs,
                     refresh=refresh,
+                    device= device,
                     **extra_kwargs
             )
             
@@ -1967,10 +1969,11 @@ class Module:
         
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
         env = {}
-        if device != None:
-            if isinstance(device, list):
-                device = ','.join(device)
-            env['CUDA_VISIBLE_DEVICES']=device
+        if device == None:
+            device = list(cls.gpus())
+            
+        if isinstance(device, list):
+            env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
             
         if verbose:
             cls.print(f'RUNNING: {command}')

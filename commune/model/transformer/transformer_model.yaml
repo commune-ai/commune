@@ -10,8 +10,10 @@ optimizer:
   lr: 1.0e-05
   module: torch.optim.Adam
 stats: {}
+buffer_ratio: 1.2
 tag: null
 test: True
 load: false
+buffer_ratio: 1.2
 device_map: auto
 
