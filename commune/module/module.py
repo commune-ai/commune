@@ -2737,7 +2737,7 @@ class Module:
             }
         return gpu_info
     
-    
+    gpu_info = gpu_memory_map = gpu_map
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -2766,6 +2766,12 @@ class Module:
         gpu_info_map = cls.gpu_map()
         most_available_gpu_tuples = sorted(gpu_info_map.items(), key=lambda x: x[1]['free'] , reverse=True)
         return most_available_gpu_tuples[0][0]
+    most_free_gpu = least_used_gpu
+    
+    @classmethod
+    def most_free_gpu_memory(cls, *args, **kwargs) -> int:
+        gpu_id = cls.most_free_gpu()
+        return cls.free_gpu_memory(*args, **kwargs)[gpu_id]
     
     @classmethod
     def gpu_info(cls, device:int = None) -> Dict[str, Union[int, float]]:
@@ -3645,6 +3651,9 @@ class Module:
             raise ValueError(f'Invalid format: {fmt}, options are gb, mb, kb, b')
         if gpus == None :
             gpus = cls.gpus()
+            
+        if isinstance(gpus, int):
+            gpus = [gpus]
         
         gpus = [int(gpu) for gpu in gpus] 
     
@@ -3685,12 +3694,12 @@ class Module:
         return cls.run_command(cmd)
     
     @classmethod
-    def pip(cls, library, version = None):
+    def pip(cls, library, version = None, upgrade = False):
 
-        if version in ['latest', 'upgrade']:
+        if upgrade:
             cmd = f'pip install --upgrade {library}'
     
-        elif isinstance(version, str):
+        elif version != None:
             cmd = f'pip install {library}=={version}'
     
         return cls.run_command(cmd, verbose=True)
@@ -3698,7 +3707,7 @@ class Module:
 
     @classmethod
     def pip_upgrade(cls, library, version = None):
-        self.pip(library, version = version, upgrade = True)
+        cls.pip(library, version = version, upgrade = True)
 
 
     @staticmethod
