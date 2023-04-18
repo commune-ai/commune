@@ -104,7 +104,7 @@ class BittensorDataset(Module):
         
         
         if download:
-            self.download(background=self.background, min_hash_count=self.min_hash_count)
+            self.download_hashes(background=self.background, min_hash_count=self.min_hash_count)
       
       
     def set_tokenizer(self, tokenizer:'bittensor.tokenizer'=None)-> 'bittensor.tokenizer':
@@ -463,9 +463,33 @@ class BittensorDataset(Module):
 
         return folder_hashes
     
+    @classmethod
+    def download(cls, *args, **kwargs):
+        kwargs['download'] = True
+        self = cls(*args, **kwargs)
+        
+        
+    @classmethod
+    def run_task(cls,
+                     fn = 'download',
+                     jobs = 2,
+                     *args, 
+                     **kwargs):
+        
+        module_path = cls.module_path()
+        prefix = f'task.{module_path}.{cls.__name__}' 
+        for job in range(jobs):
+            name = f'{prefix}.{job}'
+            
+            cls.launch(fn='download', name=name, *args, **kwargs)
     
-    
-    def download(self, chunk_size:int=100, background_thread:bool=False, ignore_error:bool =True, min_hash_count: int = 10000, background:bool = True, verbose_rate = 1):
+    def download_hashes(self,
+                 chunk_size:int=100, 
+                 background_thread:bool=False, 
+                 ignore_error:bool =True, 
+                 min_hash_count: int = 10000, 
+                 background:bool = True, 
+                 verbose_rate = 1):
         
         if background:
             thread_fn_kwargs = dict(locals())

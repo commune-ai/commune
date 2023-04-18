@@ -5,7 +5,7 @@ import streamlit as st
 commune.new_event_loop()
 from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
-        encode_topk, decode_topk, prep_tokenizer
+        encode_topk, decode_topk, prep_tokenizer, check_tokenizer_equivalence
 
 class TokenTranslator(commune.Module):
     def __init__(self, tokenizer='facebook/opt-6.7b', std_tokenizer='gpt2'):
@@ -45,7 +45,7 @@ class TokenTranslator(commune.Module):
     
 
 
-    def translate_tokens(self, input_ids, std_tokenizer=None, return_offsets_mapping=False):
+    def translate_tokens(self, input_ids, std_tokenizer=None, return_offsets_mapping=True):
         r""" Tokenizer remapping; decodes the message and then remaps the message using a new tokenizer
             Args:
                 input_ids ( :obj:`torch.LongTensor`, `required`):
@@ -73,7 +73,7 @@ class TokenTranslator(commune.Module):
             tokens['offset_mapping'] = pad_offsets(server_tokens['offset_mapping'], to_offsets_batch, pad_offsets_batch)
             tokens['offset_mapping_std'] = pad_offsets(std_tokens['offset_mapping'], from_offsets_batch,
                                                        pad_offsets_batch)
-        return tokens.input_ids
+        return tokens
 
 
     
@@ -153,62 +153,7 @@ class TokenTranslator(commune.Module):
         
         return translation_map
                 
-        
-    def map_logits(self, logits: torch.FloatTensor) -> None:
-        r"""
-        Translate a single token probability distribution from a source tokenization to a
-        sequence of probability distributions over a target tokenization.
-            Args:
-                probs_from (:obj:`torch.FloatTensor`, `required`):
-                    [vocab_size] Input probability distribution over a from-tokenizer vocabulary.
-                probs_to (:obj:`torch.FloatTensor`, `required`):
-                    [many, vocab_size] Output probability distributions over a to-tokenizer vocabulary.
-                translation_map (:obj:`Dict[str, Any]`, `required`):
-                    Maps for each observed length, a source token to a token sequence of that length,
-                    with source index to target indices.
 
-            Returns:
-
-        """
-        
-        assert logits.dim() == 3, f'Expected logits to be 3D, got {logits.dim()}D'
-        batch_size, seqeunce_length, vocab_size = logits.shape
-        logits = logits.reshape(-1, vocab_size)
-        
-        to_vocab_size = self.std_tokenizer.vocab_len
-        
-        translation_map =   self.to_translation_map
-        to_logits = torch.zeros(logits.shape[0],to_vocab_size).to(logits.device)  # [vocab_size] 
-
-        # === Unroll single distribution into std sequence ===
-        
-        probs = torch.softmax(logits, dim=-1)  # [vocab_size, subset_size_std]
-        to_probs = torch.full_like(to_logits, 1e-8)  # [vocab_size, subset_size_std]
-        counts = torch.full_like(to_logits, 1e-8)
-        for map_len in translation_map.keys():  # each one-to-many mapping length available
-            
-            # map_len = int(map_len)
-        
-            to_idx = translation_map[map_len]['to'].T  # [map_len, subset_size_std]
-            
-            from_idx = translation_map[map_len]['from']
-
-
-            for i in range(len(to_idx)):
-                # to_probs[:, to_idx[i]] += probs[:, from_idx]
-                # counts[:, to_idx[i]] += torch.ones_like(counts[:, to_idx[i]])
-                to_probs[:, to_idx[i]] += probs[:, from_idx]
-                counts[:, to_idx[i]] += torch.ones_like(probs[:, from_idx])
-                # add probs in-place
-        # to_probs = to_probs / counts
-        to_probs = to_probs / to_probs.sum(dim=-1, keepdim=True)
-        # self.print(to_probs.sum(dim=-1, keepdim=True))
-        to_logits = torch.log(to_probs)
-        
-        to_logits =  to_logits.reshape(batch_size, seqeunce_length, to_vocab_size)
-        
-        
-        return to_logits
     @classmethod
     def set_vocab_len(cls, tokenizer: 'PreTrainedTokenizerBase'):
         r"""
@@ -372,7 +317,7 @@ class TokenTranslator(commune.Module):
             cls.print(loss_fn(**output))
             
         
-    def translate_logits(self, logits: torch.FloatTensor) -> None:
+    def translate_logits(self, logits: torch.FloatTensor, **kwargs) -> None:
         r"""
         Translate a single token probability distribution from a source tokenization to a
         sequence of probability distributions over a target tokenization.

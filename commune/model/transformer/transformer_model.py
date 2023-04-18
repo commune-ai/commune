@@ -133,8 +133,13 @@ class TransformerModel( Model):
         }
     
         if map_tokens:
-            
-            sample['input_ids'] = self.token_translator.translate_tokens(sample['input_ids'])
+            offset_mapping, offset_mapping_std, original_input_ids = None, None, None
+
+            original_input_ids = self.copy(sample['input_ids'])
+            tokens = self.token_translator.translate_tokens(input_ids=sample['input_ids'], return_offsets_mapping=True)
+            offset_mapping = tokens.offset_mapping
+            offset_mapping_std = tokens.offset_mapping_std
+            sample['input_ids'] = tokens.input_ids
         
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
@@ -151,8 +156,17 @@ class TransformerModel( Model):
         
         self.stats['time'] =  self.time()
         sample['input_ids'] = sample['input_ids'].to(device)
+        
+        good_logits = False
         model_output = self.model(input_ids=sample['input_ids'].to(device),
-                                  output_hidden_states=output_hidden_states)
+                                output_hidden_states=output_hidden_states)
+        
+    
+        # check if there are any nans in the logits
+        logits_has_nans =  torch.isnan(model_output.logits).any()
+        if logits_has_nans:
+            self.print('logits has nans with sample input_ids: ', sample['input_ids'])
+                
         self.stats['latency'] = self.round(self.time() - self.stats['time'], sig=2)
         
         self.stats['inference_steps'] = self.stats.get('inference_steps', 0) + 1
@@ -165,7 +179,11 @@ class TransformerModel( Model):
         output_dict['logits']= model_output.logits[:,-output_length:,:]
         
         if map_logits:
-            output_dict['logits'] = self.token_translator.translate_logits(output_dict['logits'])
+            output_dict['logits'] = self.token_translator.translate_logits(logits = output_dict['logits'],
+                                                                           offset_mapping=offset_mapping_std,
+                                                                           offset_mapping_std=offset_mapping_std,
+                                                                           tokens=sample['input_ids'],
+                                                                           tokens_std=original_input_ids)
         # topk
         output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
         
@@ -176,6 +194,14 @@ class TransformerModel( Model):
         
         output_dict['input_ids'] = sample['input_ids']
         loss = self.calculate_loss(**output_dict) 
+        
+        # check if loss is nan
+        if torch.isnan(loss):
+            self.print(output_dict)
+            self.print('Loss is nan, skipping backward pass')
+            train = False
+            loss = torch.tensor(10)
+            raise Exception('Loss is nan, skipping backward pass')
         
         if train:
             loss.backward()
@@ -193,11 +219,10 @@ class TransformerModel( Model):
 
         return {key:output_dict[key] for key in return_keys} 
         
-
-
-    @classmethod
-    def infer_max_memory(cls, model, buffer_ratio:int=1.2):
         
+        
+    @classmethod
+    def infer_model_size(cls, model, buffer_ratio=1):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
         
@@ -211,7 +236,14 @@ class TransformerModel( Model):
                 model = AutoModelForCausalLM.from_config(model_config)
     
         model_size = cls.get_model_size(model)*buffer_ratio
+        return model_size
+
+
+    @classmethod
+    def infer_max_memory(cls, model, buffer_ratio:int=1.2):
         
+        
+        model_size = cls.infer_model_size(model)*buffer_ratio
         free_gpu_memory = cls.free_gpu_memory(fmt='b')
         gpus = list(free_gpu_memory.keys()) 
         total_gpu_memory = sum(free_gpu_memory.values())
@@ -234,7 +266,6 @@ class TransformerModel( Model):
             
             allocated_memory = min(unallocated_model_memory, most_free_gpu_memory)
             unallocated_model_memory -= allocated_memory
-            reserved_memory  = min(allocated_memory, most_free_gpu_memory)
             max_memory[most_free_gpu] = allocated_memory
             free_gpu_memory[most_free_gpu] -= allocated_memory
             
@@ -253,7 +284,6 @@ class TransformerModel( Model):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
         
-        self.print(commune.gpus(), color='red')
 
         model_name = config['model_name'] = config['model']
         self.model_path = config['model_path'] =self.shortcuts.get(model_name, model_name)
@@ -273,22 +303,30 @@ class TransformerModel( Model):
         config = self.munch(config)
         
         
-        # max_memory = self.infer_max_memory(model, buffer_ratio=config.buffer_ratio)      
-
-        max_memory = self.free_gpu_memory(fmt='GB')
-        # max_memory = {int(k):f'{int(v)}GB' for k,v in max_memory.items()}
         
-        self.print(f'max memory: {max_memory}')
-
-        model_kwargs = {'max_memory': max_memory, 
-                        'device_map': 'auto'}
+        max_memory = self.infer_max_memory(model, buffer_ratio=config.buffer_ratio)      
+        # max_memory = {int(k):f'{int(v)}GB' for k,v in max_memory.items()}
+        model_kwargs = {'max_memory': max_memory}
+            
         for k in ['load_in_8bit']:
             if k in config:
                 model_kwargs[k] = config[k]
                 
-        from accelerate import load_checkpoint_and_dispatch
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-        
+                
+        if len(max_memory) == 1:
+            if config.device == None:
+                max_memory_value = list(max_memory.values())[0]
+                gpu_id = list(max_memory.keys())[0]
+                config.device = device =  f'cuda:{gpu_id}'
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
+            self.model.to(device)
+        elif len(max_memory) > 1:
+            
+            model_kwargs['device_map'] = config.device_map
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
+        else:
+            raise Exception('no gpus found')
+    
         
         self.set_tokenizer(config)
         self.set_optimizer(config.optimizer)
@@ -397,8 +435,8 @@ class TransformerModel( Model):
 
 
     @classmethod
-    def test(cls, model = 'opt1.3b', 
-             topk:int=256 ,
+    def test(cls, model = 'gpt125m', 
+             topk:int=3096 ,
              dataset:str = 'dataset.text.bittensor',
              num_batches = 100,
              sequence_length = 256,
@@ -430,11 +468,18 @@ class TransformerModel( Model):
             sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
             sample['topk'] = topk
             sample['map_tokens'] = True
-            sample['map_logits'] = False
+            sample['map_logits'] = True
+            sample['train'] = True
+            sample['autocast'] = True
             sample['timeout'] = 6
-            output = model.forward(**sample)
-            cls.print(output)
-            cls.print(output['stats'])
+            sample['return_keys'] = [ 'logits', 'stats']
+            output = model.forward(**cls.copy(sample))
+            output['input_ids'] = sample['input_ids']
+            loss = model.calculate_loss(**output).item()
+            cls.print(f'step: {i}/{num_batches} loss: {loss}')
+            # cls.print(outpu
+            # t)
+            # cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         
@@ -646,8 +691,10 @@ class TransformerModel( Model):
 
         assert len(models) > 0
         model_names = []
+        
+        free_gpu_memory = cls.free_gpu_memory()
         for model in models:
-            max_memory = cls.infer_max_memory(model)
+            model_size = cls.infer_model_size(model)
             device = list(max_memory.keys())
             cls.print(f'Infered max memory for {model} is {max_memory}', color='yellow')
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
