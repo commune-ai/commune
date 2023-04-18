@@ -2754,7 +2754,7 @@ class Module:
         return used_gpu_memory
 
     @classmethod
-    def least_used_gpu(cls) -> int:
+    def least_used_gpu(cls, free_gpu_memory:dict = None, return_tuple:bool = False, **kwargs) -> int:
         """ Returns a dictionary of gpu_id to max memory for each gpu.
         Args:
             total_memory (int, optional): Total memory to allocate. Defaults to None.
@@ -2763,8 +2763,12 @@ class Module:
         Returns 
             Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
         """
-        gpu_info_map = cls.gpu_map()
-        most_available_gpu_tuples = sorted(gpu_info_map.items(), key=lambda x: x[1]['free'] , reverse=True)
+        if free_gpu_memory is None:
+            free_gpu_memory = cls.free_gpu_memory(**kwargs)
+        assert isinstance(free_gpu_memory, dict), f'free_gpu_memory must be a dict, not {type(free_gpu_memory)}'
+        most_available_gpu_tuples = sorted(free_gpu_memory.items(), key=lambda x: x[1] , reverse=True)
+        if return_tuple:
+            return most_available_gpu_tuples[0]
         return most_available_gpu_tuples[0][0]
     most_free_gpu = least_used_gpu
     
@@ -3724,6 +3728,19 @@ class Module:
         # @classmethod
         
         return dst
+    
+    
+    
+    @classmethod
+    def init_empty_weights(cls, model_class,  *args, fn=None, **kwargs):
+        from accelerate import init_empty_weights
+        with init_empty_weights():
+            if isinstance(fn, str):
+                if hasattr(model_class, fn):
+                    model = getattr(model_class, fn)(*args, **kwargs)
+            model = model_class(*args, **kwargs)
+        
+        return model
     
         
     

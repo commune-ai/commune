@@ -55,7 +55,8 @@ class Model( nn.Module, commune.Module):
                 
                 
         
-    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
+    def set_optimizer(self, config:Union[Dict, 'Optimizer']=None):
+        optimizer = config.get('optimizer', None)
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
             optimizer_kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
@@ -311,10 +312,15 @@ class Model( nn.Module, commune.Module):
         return commune.resolve_device(device=device)
     
     def set_config(self, config) -> None:
-        self.config = deepcopy(config)
-        self.config.pop('self',None)
-        self.config.pop('kwargs', None)
-        self.config.pop('args', None)
+        config = deepcopy(config)
+        config.pop('self',None)
+        kwargs = config.pop('kwargs', None)
+        kwargs.update(config)
+        config.pop('args', None)
+        config = self.get_config()
+        config.update(kwargs)
+        self.config = self.dict2munch(config)
+        
     
     def set_stats(self, stats: dict):
         if stats == None:

@@ -78,39 +78,22 @@ class TransformerModel( Model):
          }
     
 
-    def __init__(self,
-                # model_name: str="EleutherAI/gpt-j-6b",
-                model: str="gpt125m",
-                tag :str = None,
-                tokenizer:str = None,
-                device: str = 'cuda',
-                optimizer: dict = {'lr': 0.00001},
-                finetune : dict = {'num_layers': 4},
-                device_map: Union[dict, str]=None, 
-                load: bool = False,
-                test: bool = True,
-                epoch_length: int = 100,
+    def __init__(self, model = 'gp125m',
                 **kwargs
                 ):
-        if isinstance(model, dict):
-            config = model
-            model = config['model']
-            
-        if tokenizer == None:
-            tokenizer = model
-        Model.__init__(self, config =locals())
-        self.set_params(**self.config)
-        self.save_config(self.config)
-        if test:
+        
+        Model.__init__(self, locals())         
+        config = self.config
+        self.set_model(config)    
+        
+        if config.test:
             self.test(self)
 
+    default_tag = 'base'
     def set_tag(self,tag:str):
-        if tag == None:
-            if hasattr( self, 'tag'):
-                return self.tag
-            else:
-                tag = 'base'
-        self.tag = self.model_name + '::' +tag
+        if tag is None:
+            tag = self.default_tag
+        self.tag = tag
     @classmethod
     def calculate_loss( cls,  **kwargs) -> torch.Tensor:
         '''
@@ -191,7 +174,7 @@ class TransformerModel( Model):
         output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
         output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
         
-        output_dict.update(sample)
+        output_dict['input_ids'] = sample['input_ids']
         loss = self.calculate_loss(**output_dict) 
         
         if train:
@@ -208,82 +191,91 @@ class TransformerModel( Model):
         output_dict['stats'] = deepcopy(self.stats)
         output_dict['stats']['sample_loss'] = loss  
 
-        return {key:output_dict[key] for key in return_keys}
+        return {key:output_dict[key] for key in return_keys} 
+        
 
         
-    def set_params(self, 
-                   model:str = None,
-                   optimizer:dict = None,
-                   tokenizer: Union[str, 'tokenizer'] = None,
-                   tag:str= None, 
-                   finetune: dict = None,
-                   stats: dict = None, 
-                   device:str=None, 
-                   load: bool = False,
-                   epoch_length:int = None,
-                   device_map = None,
-                   
-                   **kwargs) -> None:   
         
-        self.set_model(model)
-        self.set_tokenizer(tokenizer)     
-        self.set_optimizer(optimizer)
-        self.set_finetune(finetune)
-        if device_map == None:
-            self.set_device(device)
-        
-        self.set_stats(stats)    
-        self.set_tag(tag)
-        self.set_epoch_length(epoch_length)
-        
-        if load:
-            self.load()
-        
-        
-    def set_model(self, model: Union[str, Dict],state_dict:Dict = None) -> None:
+    def set_model(self, config) -> None:
         
         
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from accelerate import init_empty_weights
 
-
-        if isinstance(model, str):
-            model_name = model
-        elif isinstance(model, dict):
-            model_name = model['model_name']
-            state_dict = model.get('state_dict', None)
-        else:
-            raise ValueError(f'invalid model type: {type(model)}')
+        model_name = config['model_name'] = config['model']
+        self.model_path = config['model_path'] =self.shortcuts.get(model_name, model_name)
+        # config = AutoConfig.from_pretrained(self.model_name)
+        
+        print(f'loading config model from {self.model_path}...')
+        model_config = AutoConfig.from_pretrained(self.model_path)
+        model_config_dict = model_config.to_dict()
+        for k,v in model_config_dict.items():
+            assert k not in config, f'config key {k} not found in config'
+            config[k] = model_config_dict[k]        
+        config = self.munch(config)
+        
+        with init_empty_weights():
+            self.model = AutoModelForCausalLM.from_config(model_config)
+    
+        model_size = self.get_model_size(self.model)
+        
+                        
+        free_gpu_memory = self.free_gpu_memory(fmt='b', 
+                                          max_allocation_ratio=config['max_allocation_ratio']) 
+        total_gpu_memory = sum(free_gpu_memory.values())
         
         
-        if hasattr(self, 'model_name') and self.model_name == model_name:
-            pass
+        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}'
 
-        else:
-            self.model_name =  model_name
-            self.model_path = self.shortcuts.get(model_name, model_name)
-            # config = AutoConfig.from_pretrained(self.model_name)
+
+        self.print(f'{model_size}')
+
+        
+        unallocated_model_memory = model_size
+        
+        max_memory = {}
+        
+        buffer_memory_factor = 1.1
+        while unallocated_model_memory > 0:
+            most_free_gpu, most_free_gpu_memory = self.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
+
             
-            print(f'loading model from {self.model_path}...')
-
-            model_kwargs = self.config.get('model_kwargs', {})
-            model_kwargs['device_map'] = self.config.get('device_map')
-            model_kwargs['load_in_8bit']=self.config.get('load_in_8bit', False)
-            max_allocation_ratio = self.config.get('max_allocation_ratio', 0.6)
-            max_memory = self.free_gpu_memory(fmt='GB', max_allocation_ratio=max_allocation_ratio)  
-            model_kwargs['max_memory'] = max_memory
-
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-            fn_schema = self.get_function_schema(AutoModelForCausalLM.from_pretrained)
-            self.print(f'{fn_schema}')
+            allocated_memory = min(unallocated_model_memory, most_free_gpu_memory)
+            unallocated_model_memory -= allocated_memory
+            reserved_memory = allocated_memory * buffer_memory_factor
+            reserved_memory  = min(reserved_memory, most_free_gpu_memory)
+            max_memory[most_free_gpu] = reserved_memory
+            free_gpu_memory[most_free_gpu] -= max_memory[most_free_gpu]
             
-            # convert config to config
-            model_config = json.loads(self.model.config.to_json_string())         
-            self.config['model'] = model_config
-            self.config['model']['model_name'] = self.model_name
-            self.config['model']['model_path'] = self.model_path
-            # yo 
-        if state_dict:
-            self.model.load_state_dict(state_dict)
+            
+
+            
+        self.print(f'max memory: {max_memory}')
+
+        model_kwargs = {'max_memory': max_memory}
+        for k in ['load_in_8bit']:
+            if k in config:
+                model_kwargs[k] = config[k]
+
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
+        fn_schema = self.get_function_schema(AutoModelForCausalLM.from_pretrained)
+        self.print(f'{fn_schema}')
+        
+        # convert config to config
+        model_config = json.loads(self.model.config.to_json_string())    
+        config.update(model_config)
+        self.config = config
+        
+        self.set_tokenizer(config)
+        self.set_optimizer(config.optimizer)
+        self.set_finetune(config.finetune)   
+        self.set_tag(config.tag)
+        self.set_stats(config.stats)    
+        self.set_epoch_length(config.epoch_length)
+        self.set_device(config.device)
+        
+        if config.load:
+            self.load() 
 
 
     def set_epoch_length(self, epoch_length:int) -> int:
@@ -291,32 +283,33 @@ class TransformerModel( Model):
         self.epoch_length = epoch_length
         return self.epoch_length
 
-    def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
+    def set_tokenizer(self, config):
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
 
         
-        if isinstance(tokenizer, str):
-
-            tokenizer = self.shortcuts.get(tokenizer, tokenizer)
-            self.config['tokenizer'] = tokenizer
-            
-            try:
-                # HACK TO INCLUDE LLAMA TOKENIZER
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
-            except ValueError:
-                
-                print('resorting ot use_fast = False')
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-
-   
+        if config.tokenizer is None:
+            tokenizer = config.model_path
+        assert isinstance(tokenizer, str, )
+        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+        self.config['tokenizer'] = tokenizer
         
+        try:
+            # HACK TO INCLUDE LLAMA TOKENIZER
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
+        except ValueError:
+            
+            print('resorting ot use_fast = False')
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+
         self.tokenizer = tokenizer
         
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
+        self.std_tokenizer = prep_tokenizer(self.std_tokenizer)
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        self.token_translator = self.get_module('model.token_translator')(from_tokenizer=self.config['tokenizer'], to_tokenizer='gpt2')
+        self.token_translator = self.get_module('model.token_translator')(tokenizer=tokenizer, std_tokenizer=self.std_tokenizer)
 
         return self.tokenizer
 
@@ -381,29 +374,41 @@ class TransformerModel( Model):
 
     @classmethod
     def test(cls, model = 'opt1.3b', 
-             topk:int=4096 ,
+             topk:int=256 ,
              dataset:str = 'dataset.text.bittensor',
              num_batches = 100,
+             sequence_length = 256,
+             batch_size = 32,
              minimum_loss = 4, 
              lr = 1e-4,
+             remote = False, 
              load = False,
              ):
         
-        if isinstance(model, str):
-            self = cls(model= model, load=load, optimizer=dict(lr=lr))
+        
+        namespace = cls.namespace()
+
+        if remote and model in namfespace:
+            model_name = f'model.{model}'
+            model = cls.connect(model_name)
+        
+        elif isinstance(model, str):
+            model = cls(model= model, load=load, optimizer=dict(lr=lr))
         else:
-            self = model
+            model = model
         
         
 
         dataset = commune.connect(dataset)
 
         for i in range(num_batches):
-            sample = dataset.sample(batch_size=32, no_tokenizer=False)
+            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
             sample['topk'] = topk
-            sample['map_tokens'] = False
+            sample['map_tokens'] = True
             sample['map_logits'] = False
-            output = self.forward(**sample, train=False)
+            sample['timeout'] = 6
+            output = model.forward(**sample)
+            cls.print(output)
             cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))

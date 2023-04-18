@@ -136,13 +136,16 @@ class Huggingface(commune.Module):
         if return_paths:
             return paths
         else:
-            return [os.path.basename(p).split('--')[-1] for p in paths]
+            return [p.split('models--')[-1].replace('--', '/') for p in paths]
     
     @classmethod
     def cached_model_paths(cls, limit=10, **kwargs):
         dirpath = f'{cls.cache_path}/hub'
         
         return [p for p in commune.ls(dirpath) if os.path.basename(p).startswith('models')]
+    
+    
+    
     
     @classmethod
     def cached_model2path(cls,  **kwargs):
@@ -178,6 +181,10 @@ class Huggingface(commune.Module):
             if asset_path.endswith('config.json'):
                 config_path = asset_path
                 break
+            
+        if config_path == None:
+            from transformers import AutoConfig
+            AutoConfig.from_pretrained(model_name)
         assert config_path != None
         config = cls.load_json(config_path)
             
@@ -210,8 +217,7 @@ class Huggingface(commune.Module):
     @classmethod
     def test(cls): 
         self = cls()
-        st.write(self.get_model_weights('gpt-neox-20b'))
-        self.download('lmsys/vicuna-13b-delta-v0')
+        cls.print(self.cached_models())
 
     @classmethod
     def class_init(cls):
@@ -219,6 +225,12 @@ class Huggingface(commune.Module):
         import huggingface_hub
         Huggingface = cls.merge(huggingface_hub)
         return Huggingface
+    
+    
+    def get_model_config(self, model_name):
+        return self.get_model_config(model_name)
+    
+    
     
 Huggingface.class_init()
 if __name__ == '__main__':
