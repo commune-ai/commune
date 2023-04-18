@@ -44,16 +44,6 @@ class Model( nn.Module, commune.Module):
         self.set_config(config)
         
         
-    def register_params(self, locals_dict: dict) -> None :
-        
-        if not hasattr(self, 'params'):
-            self.params = {}
-        for k, v in locals_dict.items():
-            if k not in ['self', 'kwargs', 'args']:
-                if v != None:
-                    self.params[k] = deepcopy(locals_dict[k])
-                
-                
         
     def set_optimizer(self, config:Union[Dict, 'Optimizer']=None):
         optimizer = config.get('optimizer', None)
@@ -63,7 +53,7 @@ class Model( nn.Module, commune.Module):
         
         elif optimizer == None:
             module_path = 'torch.optim.Adam'
-            optimizer_kwargs = {'lr': 0.001}
+            optimizer_kwargs = {'lr': 0.0001}
             
         
         else:
@@ -146,6 +136,12 @@ class Model( nn.Module, commune.Module):
 
 
 
+    def resolve_tag(self, tag):
+        if tag == None:
+            tag = self.tag
+        assert tag, 'tag must be set'
+        return tag
+
     def save(self, tag:str = None, keys:List[str]=None, trainable_only:bool = True, verbose:bool = True):
         tag = tag if tag else self.tag
         path = self.resolve_path(tag)
@@ -200,10 +196,10 @@ class Model( nn.Module, commune.Module):
         
         # we want to save the base layers in case we want to change the layers
 
-        # set the params and stats
-        if 'config' in loaded_state_dict:
-            self.set_config(config=loaded_state_dict['config'])
-            self.set_params(**self.config)
+        # # set the params and stats
+        # if 'config' in loaded_state_dict:
+        #     self.set_config(config=loaded_state_dict['config'])
+        #     self.set_model(**self.config)
             
         if 'model' in loaded_state_dict:
             if  hasattr(self, 'base_state_dict'):
@@ -221,19 +217,18 @@ class Model( nn.Module, commune.Module):
             self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
         
         
-    def set_tag(self, tag):
+    def set_tag(self, tag:str) -> str:
 
         if tag == None:
-            if hasattr(self, 'tag'):
-                return self.tag
-            else:
-                tag = 'base'
+            tag = 'base'
                 
-        self.tag = tag
+        self.tag = str(tag)
+        
+        return tag
         # self.load(tag)
         
         
-    def set_finetune(self, finetune ) -> Tuple[bool, str]:
+    def set_finetune(self, finetune:dict ) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):

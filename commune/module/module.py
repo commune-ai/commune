@@ -1852,11 +1852,16 @@ class Module:
         if module == None:
             module = cls 
         elif isinstance(module, str):
-            if name == None:
-                name = module 
+
             module = cls.get_module(module) 
             
-            
+            if name == None:
+                if hasattr(module, 'module_path'):
+                    name = module.launch(*args, **kwargs)
+                else:
+                    name = module.__name__.lower()
+                
+                
         cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
             
         if fn == 'serve':
