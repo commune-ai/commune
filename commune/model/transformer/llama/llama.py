@@ -87,7 +87,6 @@ class LlamaRMSNorm(nn.Module):
 
         return self.weight * hidden_states
 
-
 class LlamaRotaryEmbedding(torch.nn.Module):
     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
         super().__init__()
@@ -325,27 +324,23 @@ class LlamaModel(nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         config = self.set_config(config)
-        self.padding_idx = config.pad_token_id
-        self.vocab_size = config.vocab_size
+        self.set_initial(config)
+        self.set_layers(config)
+        self.set_final(config)
 
-        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList()
-        
-        self.set_tokenizer()
-        for i in range(config.num_hidden_layers):
-            st.write(i)
-            self.layers.append(LlamaDecoderLayer(config))
-        self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
-        # Initialize weights and apply final processing
-        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
         self.init_weights()
         
         self.set_device(config.device)
 
 
+
+    def set_final(self,config):
+        pass
+
     def set_model(self, config):
         self.model = model
+
 
     def init_weights(self):
         pass
@@ -545,80 +540,78 @@ class LlamaModel(nn.Module, commune.Module):
                 size_map[k] = current_size
                 
         return size_map
-
-    def allocte_gpus(self, gpus = [0,1]):
-        self.gpus = gpus
-        self.device = f'cuda:{gpus[0]}'
-        self.to(self.device)
-        self.parallelize(gpus)
+        
+        
+        
+        
+    def set_initial(self, config: dict):
+        self.padding_idx = config.pad_token_id
+        self.vocab_size = config.vocab_size
+        self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
+        
+        
+        
+    def set_layers(self, config ):
+        
+        self.layers = nn.ModuleList()
+        for i in range(config.num_hidden_layers):
+            self.layers.append(LlamaDecoderLayer(config))
+        
+        
         
 
-    def set_device(self,
-                   device = None,
-                   layer_name = 'layers',
-                   max_allocation_ratio = 0.9,
-                   mode = 'even'
-                   ):
+                    
+    def set_final(self, config: dict):
+        self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+
+        
+                
+
+    def set_device(self, device= None ):
+        model_size = self.model_size()
+        free_gpu_memory = self.free_gpu_memory()
+        total_free_memory = sum(free_gpu_memory.values())
+        assert total_free_memory > model_size, f'not enough memory to allocate model {total_free_memory} < {model_size}'
+
+        self.print(free_gpu_memory)
+        most_free_gpu = self.most_free_gpu()
+        devices = []
         if device == None:
-            devices = [0]
-        elif type(device) == int:
-            devices = [device]
-        elif type(device) == list:
-            devices = device
-        else:
-            raise Exception('device must be int or list')
-        self.device = devices[0]
-        self.layer_devices = []
-
+            if model_size < free_gpu_memory[most_free_gpu]:
+                # use single gpu
+                devices = [most_free_gpu]
+            else:
+                # use multiple gpus
+                assert total_free_memory > model_size, f'not enough memory to allocate model {total_free_memory} < {model_size}'
+                devices = list(free_gpu_memory.keys()) 
+        
+        
         assert type(devices) == list, 'device must be a list'
-        free_gpu_memory = self.free_gpu_memory(devices, max_allocation_ratio=max_allocation_ratio)
-        total_free_memory = self.total_gpu_memory()
-        assert total_free_memory > self.model_size(), 'not enough memory'
-        
-        
+        self.device = device = devices[0]
 
         if len(devices) == 1:
-            self.to(self.device)
-            for i in range(len(self.layers)):
-                self.layer_devices.append(self.device)
+            self.to(device)
         elif len(devices) > 1:
-            for param_name, param in self.named_parameters():
-                if f'{layer_name}.' not in param_name:
-                    param.data = param.data.to(self.device)
-                    
-
-            new_params = {}
-            assert hasattr(self, layer_name), 'model must have a layers attribute'
-            layers = getattr(self, layer_name)
-            st.write('dfhew9ufheougerpuhgver9ugvher9uh', layers)
-            for layer_i,layer in enumerate(self.layers):
-                st.write(devices)
-                
-                if mode == 'auto':
-                    layer_size = self.get_model_size(layer)
-                    free_gpus = selfzcopy(list(free_gpu_memory.keys()))
-                    selected_gpu_idx = None
-                    for gpu_id in free_gpus:
-                        free_memory = free_gpu_memory[gpu_id]
-                        if free_memory > layer_size:
-                            free_gpu_memory[gpu_id] -= layer_size
-                            selected_gpu_idx = gpu_id
-                            break
-                        else:
-                            free_gpu_memory.pop(gpu_id) 
-                            continue
-                elif mode == 'even':
-                    selected_gpu_idx = devices[layer_i // (len(self.layers) // len(devices))]
-                else:
-                    raise Exception('mode must be auto or even')
-                
-                assert selected_gpu_idx != None, 'could not allocate param to any device'
-                self.layers[layer_i] = layer.to(f'cuda:{selected_gpu_idx}')
-                self.layer_devices.append(f'cuda:{selected_gpu_idx}')
-
-                # set param to device with most free memory
+            
+            # put on the non layer parts onto the first gpu
+            for param_key, param in self.named_parameters():
+                if not param_key.startswith('layers'):
+                    param.data.to(device)
+            
+            for layer_i, layer in enumerate(self.layers):
+                layer_gpu_footprint = self.get_model_size(layer)
+                for gpu_id in free_gpu_memory.keys():
+                    free_memory = free_gpu_memory[gpu_id]
+                    if free_memory > layer_gpu_footprint:
+                        free_gpu_memory[gpu_id] -= layer_gpu_footprint
+                        device = f'cuda:{gpu_id}'
+                        layer.to(device)
+                        self.layer_devices.append(device)
+                        break
         else: 
-            raise Exception('device must be int or list')
+            raise Exception('invalid device')
+                    
 
     @classmethod
     def get_module_device(self, module, halfass = True):
@@ -696,10 +689,12 @@ class LlamaModel(nn.Module, commune.Module):
     
     @classmethod
     def test(cls, dataset='dataset.text.bittensor'):
+        cls.print('testing model')
         model = cls()
 
         dataset = commune.connect(dataset)
         sample = dataset.sample(no_tokenizer=True)
+
 
         sample = model.tokenize(sample['text'])
         output = model.forward(**sample)
