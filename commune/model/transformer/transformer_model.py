@@ -221,10 +221,8 @@ class TransformerModel( Model):
         past_loss = self.stats.get('loss', 0)
         self.stats['ma_loss'] = (past_loss*(1-alpha) + alpha*loss) if past_loss != 0 else loss
         self.stats['alpha'] = alpha
-        output_dict['stats'] = deepcopy(self.stats)
-        output_dict['stats']['sample_loss'] = loss  
-        
-        
+        self.stats['sample_loss'] = loss
+
         if train and self.stats['learn_steps'] % self.config['epoch_length'] == 0:
             self.stats['epoch'] = self.stats.get('epoch', 0) + 1
             self.stats['epoch_loss_history'] = self.stats.get('epoch_loss_history',[]) + [{'loss': self.stats['epoch_loss'], 'time': self.time()}]
@@ -233,7 +231,8 @@ class TransformerModel( Model):
             self.print('saving model...')
             self.save(tag)
 
-
+        output_dict['stats'] = deepcopy(self.stats)
+        
         return {key:output_dict[key] for key in return_keys} 
         
         
@@ -472,12 +471,14 @@ class TransformerModel( Model):
         dataset = commune.connect(dataset, wait_for_server=True)
         
         
-        if remote:
-            namespace = cls.namespace()
-            model_name = f'model.{model}'
-            model = cls.connect(model_name)
+    
+        namespace = commune.namespace()
         
-        if isinstance(model, str):
+        assert model in namespace, f"model {model} not in namespace {namespace}"
+        if model in namespace:
+            model_name = model
+            model = commune.connect(model_name)
+        elif isinstance(model, str):
             model = cls(model= model, test=False, device=device)
         else:
             model = model
@@ -492,9 +493,11 @@ class TransformerModel( Model):
             sample['train'] = True
             sample['autocast'] = True
             sample['timeout'] = 6
-            sample['return_keys'] = [ 'logits', 'stats']
+            sample['return_keys'] = [ 'topk', 'stats']
             
             output = model.forward(**cls.copy(sample))
+            output['logits'] = decode_topk(output['topk'] )
+            
             output['input_ids'] = sample['input_ids']
             cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
             # cls.print(outpu
