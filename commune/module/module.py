@@ -316,6 +316,7 @@ class Module:
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict={},
                    save_if_not_exists:bool = False,
+                   to_munch: bool = True,
                    add_attributes: bool = False) -> Munch:
         '''
         Set the config as well as its local params
@@ -323,8 +324,8 @@ class Module:
         
         from commune.utils.dict import munch2dict, dict2munch
         
-        if config == False:
-            config =  self.minimal_config()
+
+        default_config =  self.get_config()
         
         # ensure to include the inner kwargs if that is provided (Which isnt great practice lol)
         kwargs  = {**kwargs, **kwargs.pop('kwargs', {}) }
@@ -335,18 +336,28 @@ class Module:
     
         if type(config) in [dict]:
             config = config
-        elif type(config) in[Munch]:
+            config_kwargs = config.pop('kwargs', None)
+            if isinstance(config_kwargs, dict):
+                kwargs = {**config_kwargs, **kwargs}
+            config.pop('args', None)
+            config.pop('self', None)
+            config.pop('cls', None)
+        elif type(config) in [Munch]:
             config = munch2dict(config)
         elif type(config) in [str, type(None)]:
             config = self.load_config(path=config, save_if_not_exists=False)
         
+        
         config.update(kwargs)
-
+        
+        # overwrite the default config with the new config
+        config = {**default_config, **config}
         if add_attributes:
             self.__dict__.update(config)
             
         #  add the config after in case the config has a config attribute lol
-        self.config = dict2munch(config)
+        if to_munch:
+            self.config = dict2munch(config)
         
         return self.config
 
@@ -1836,6 +1847,7 @@ class Module:
                mode:str = 'pm2',
                name:Optional[str]=None, 
                tag:str=None, 
+               tag_seperator: str = ':',
                user: str = None,
                key : str = None,
                shortcut = None,
@@ -1859,17 +1871,16 @@ class Module:
             else:
                 name = module.__name__.lower()
                 
+        if tag != None:
+            name = f'{name}{tag_seperator}{tag}'
                 
         cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
             
         if fn == 'serve':
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)
-  
-  
-  
-        if mode == 'local':
 
+        if mode == 'local':
             return getattr(module, fn)(*args, **kwargs)
 
         elif mode == 'pm2':
