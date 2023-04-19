@@ -142,8 +142,8 @@ class Model( nn.Module, commune.Module):
         assert tag, 'tag must be set'
         return tag
 
-    def save(self, tag:str = None, keys:List[str]=None, trainable_only:bool = True, verbose:bool = True):
-        tag = tag if tag else self.tag
+    def save(self, tag:str = None,  trainable_only:bool = True, verbose:bool = True):
+        tag = self.resolve_tag(tag)
         path = self.resolve_path(tag)
 
         model_state_dict = self.state_dict()
@@ -157,12 +157,10 @@ class Model( nn.Module, commune.Module):
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
             'config': self.config,
+            'stats': self.stats,
             }
         
         keys = state_dict.keys() if keys == None else keys
-        
-        for k in keys:
-            assert k in state_dict, f'{k} not found in the state_dict'
         
         
         for k in keys:
@@ -190,7 +188,6 @@ class Model( nn.Module, commune.Module):
                 return
             loaded_state_dict[key] = torch.load( path)
         
-        state_dict = self.state_dict()
         
 
         
@@ -200,22 +197,22 @@ class Model( nn.Module, commune.Module):
         # if 'config' in loaded_state_dict:
         #     self.set_config(config=loaded_state_dict['config'])
         #     self.set_model(**self.config)
+        # set the params and stats
+        if 'stats' in loaded_state_dict:
+            self.set_stats(loaded_state_dict['stats'])
             
         if 'model' in loaded_state_dict:
-            if  hasattr(self, 'base_state_dict'):
-                state_dict.update(self.base_state_dict)
-                 
-            else:
-                self.base_state_dict = {}
-                for k in loaded_state_dict['model'].keys():
-                    self.base_state_dict[k] = state_dict[k].clone()
+            self.update_state_dict(loaded_state_dict['model'])
             
-            state_dict.update(loaded_state_dict['model'])
-            self.load_state_dict(state_dict)
         
         if 'optimizer' in state_dict:
             self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
         
+    def update_state_dict(self, state_dict:dict):
+        assert isinstance(state_dict, dict), f'state_dict must be a dict, got {type(state_dict)}'
+        state_dict = self.state_dict()
+        state_dict.update(state_dict)
+        self.load_state_dict(state_dict)
         
     def set_tag(self, tag:str) -> str:
 
