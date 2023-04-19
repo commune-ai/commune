@@ -1127,7 +1127,15 @@ class Module:
                     port = int(name.split(':')[1])
                     ip = name.split(':')[0]
                 else:
+                    
                     server_registry = cls.server_registry(include_peers=include_peers)
+                    servers = list(server_registry.keys())
+                    
+                    if name not in servers:
+                        for s in servers:
+                            if s.startswith(name):
+                                name = s
+                    assert name in server_registry, f'No server found with name {name} in {servers}'
                     client_kwargs = server_registry[name]
                     ip = client_kwargs['ip']
                     port = client_kwargs['port']
@@ -1279,9 +1287,9 @@ class Module:
                     continue
                 for peer_server_name, peer_server_info in peer_namespace.items():
   
-                    new_peer_server_name = f'{peer_server_name}::r{peer_id}'
-                    if new_peer_server_name not in server_registry:
-                        peer_server_name = new_peer_server_name
+
+                    peer_server_name = f'{peer_server_name}::r{peer_id}'
+                    assert peer_server_name not in server_registry
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
                     address = peer_server_info['address']
@@ -3559,7 +3567,14 @@ class Module:
     def add_peer(cls, *args, **kwargs):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
-        
+       
+    @staticmethod
+    def is_number(value):
+        try:
+            int(value)
+        except ValueError:
+            return False
+        return True
     @classmethod
     async def async_add_peer(cls, peer_address:str, name:str=None, timeout:int=2):
         peer_registry = Module.get_json('peer_registry', default={})

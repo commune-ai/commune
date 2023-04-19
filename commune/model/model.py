@@ -330,6 +330,8 @@ class Model( nn.Module, commune.Module):
     def test(cls, *args, **kwargs):
         return cls.get_module('model.transformer').test(*args, **kwargs)
 
+
+
 if __name__ == "__main__":
     
     Model.run()

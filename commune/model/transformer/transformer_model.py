@@ -124,7 +124,7 @@ class TransformerModel( Model):
                 hidden_dim_bounds: List =  [0, -1],
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
-                map_tokens: bool = True,
+                map_tokens: bool = False,
                 map_logits: bool = False,  
                 tag : str = None,                           
                 **kwargs):
@@ -324,9 +324,10 @@ class TransformerModel( Model):
         infered_max_memory = self.infer_max_memory(self.model_path)
         model_kwargs['load_in_8bit'] = bool(config.load_in_8bit)
         model_kwargs['max_memory'] = free_gpu_memory
-
+        
         if config.device != None:
-            self.print(config.device)
+            if self.is_number(config.device):
+                config.device = f'cuda:{config.device}'
             if 'cuda' in config.device:
                 if ':' in config.device:
                     device_id = int(config.device.split(':')[-1])
@@ -457,11 +458,12 @@ class TransformerModel( Model):
     def test(cls, model = 'gpt125m', 
              topk:int=256 ,
              dataset:str = 'dataset.text.bittensor',
-             num_batches = 20,
+             num_batches = 3,
              sequence_length = 256,
              batch_size = 32,
              device = None, 
              remote = False, 
+             train = False,
              load = False,
              ):
         
@@ -474,7 +476,6 @@ class TransformerModel( Model):
     
         namespace = commune.namespace()
         
-        assert model in namespace, f"model {model} not in namespace {namespace}"
         if model in namespace:
             model_name = model
             model = commune.connect(model_name)
@@ -490,7 +491,7 @@ class TransformerModel( Model):
             sample['topk'] = topk
             sample['map_tokens'] = False
             sample['map_logits'] = False
-            sample['train'] = True
+            sample['train'] = train
             sample['autocast'] = True
             sample['timeout'] = 6
             sample['return_keys'] = [ 'topk', 'stats']
@@ -689,17 +690,18 @@ class TransformerModel( Model):
     @classmethod
     def deploy_fleet(cls, 
                      model = 'gptj',
-                     tags= ['elon', 'satoshi', 'newton', 'tesla' ], 
+                     tags= ['alan', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ], 
                      replace: bool = True,
                      max_models: int = -1,
                      device: str = None,
-                     wait_for_server = True, 
+                     wait_for_server = False, 
                      ) -> List[str]:
         free_gpu_memory = cls.free_gpu_memory()
         deployed_models = []
         for i, tag in enumerate(tags):
-            cls.deploy(model, tag=tag, device=device, replace=replace, wait_for_server=wait_for_server)
-            deployed_models+= [f'{model}::{tag}']
+            
+            cls.deploy(model, tag=tag, device=i, replace=replace, wait_for_server=wait_for_server)
+            deployed_models+= [f'{model}.{tag}']
 
             
         return deployed_models

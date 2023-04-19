@@ -48,6 +48,8 @@ class Validator(commune.Module, nn.Module):
         self.set_stats(stats)
         self.set_alpha(alpha)
         self.set_tokenizer(tokenizer)
+        
+        self.config['hidden_size'] = 4096
         if load:
             self.load()
 
@@ -73,7 +75,7 @@ class Validator(commune.Module, nn.Module):
         job = connect.async_connect(model, loop = self.loop)
         self.models[model] =  self.loop.run_until_complete(job)
             
-    def set_models(self, models: List[str] = None, timeout:int = 4) -> None:
+    def set_models(self, models: List[str] = None, timeout:int = 1) -> None:
         if models == None:
             models = self.default_models()
         jobs = [commune.async_connect(model, timeout=timeout) for model in models]
@@ -86,8 +88,6 @@ class Validator(commune.Module, nn.Module):
         self.config['models'] = []
         for model, model_obj in zip(models, model_objs):
             forward_fn = model_obj.forward
-            if isinstance(forward_fn, str):
-                continue
             self.models[model] = model_obj
 
             
@@ -215,42 +215,53 @@ class Validator(commune.Module, nn.Module):
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
                 model:str=None, 
+                map_tokens=False,
                 topk: int = 256,
                 **kwargs ):
         
 
-        kwargs.update(dict(topk=topk, input_ids=input_ids, attention_mask=attention_mask))
+        kwargs.update(dict(topk=topk, map_tokens=map_tokens , input_ids=input_ids))
         sample = kwargs 
         model_name = self.copy(model)
         model = self.resolve_model(model)
-        sample['timeout'] = 4
-        
-        
+        # model = await self.async_connect(model, timeout=2)
         # we want the client to return the future
         sample['return_future'] = True
+        sample['train'] = False
         timer = commune.timer()
         output = await model.forward(**sample)
         
         
         success = False
         
+        metric = self.default_metric
         
-        if (isinstance(output, dict) and 'topk' in output):
-            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
-            metric = self.calculate_metric(dict(input_ids=sample['input_ids'], **output))
-            success = True
+        if isinstance(output, dict):
+            
+            if 'topk' in output:
+                self.print(output['topk'].mean())
+                output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
+                metric = self.calculate_metric(dict(input_ids=sample['input_ids'], **output))
+                success = True
+            else:
+                
+                output = {'error': output}
+                
     
         else:
-            metric = self.default_metric
-            success = False
             output = {'error': output}
-    
+ 
         output['stats'] =  {
             'inference_time': timer.seconds,
             'metric': metric,
             'timestamp': self.time(),
             'success': success
         }
+           
+        if not success:
+            self.print(f'forward failed: {output["error"]}')
+            
+    
             
         return output
             
@@ -264,14 +275,14 @@ class Validator(commune.Module, nn.Module):
                 output_hidden_states: bool = False,
                 models:str=None, 
                 threshold: float = 4.0,
-                topk: int = 256,
-                timeout = 4,
+                topk: int = 1024,
+                timeout = 6,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
 
                 **kwargs ):
-        if self.new_loop_per_forward:
+        if self.new_loop_per_forward or True:
             loop = self.new_event_loop()
 
         else:
@@ -285,9 +296,13 @@ class Validator(commune.Module, nn.Module):
         if models == None:
             models = self.model_keys
             
+        self.print(f'forwarding to models: {models}')
+            
         jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, timeout=timeout, **kwargs) for model_key in models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
+        
+        self.print(len(model_outputs), 'MODEL OUTPUTS')
         
         model_output_dict = {}
         for model_output, model_key in zip(model_outputs, models):
@@ -302,10 +317,18 @@ class Validator(commune.Module, nn.Module):
         ensemble_logits = []
         
         stats = self.stats
-        ensemble_stats = {  'passed': 0,'successes': 0, 'failures': 0, 'inference_time': 0.0, 'metric': 0.0, 'timestamp': self.time(), 'models': []}
+        ensemble_stats = {  'passed': 0,
+                          'successes': 0,
+                          'failures': 0, 
+                          'inference_time': 0.0,
+                          'metric': 0.0, 
+                          'timestamp': self.time(), 
+                          'models': [],
+                          'metrics': []}
         
-        
+        ensemble_stats['weights'] = []
         for model_key, output_dict in model_output_dict.items():
+            
             if output_dict['stats']['success'] == False:
                 ensemble_stats['failures'] += 1
                 continue
@@ -316,6 +339,9 @@ class Validator(commune.Module, nn.Module):
                 ensemble_logits.append(output_dict['logits'])
                 ensemble_stats['passed'] += 1
                 ensemble_stats['models'] += [model_key]
+                ensemble_stats['weights'] += [model_stats['metric']]
+                ensemble_stats['metrics'] += [model_stats['metric']]
+
             else:
                 model_stats['included'] = False
                 
@@ -323,8 +349,18 @@ class Validator(commune.Module, nn.Module):
             
             logits = output_dict['logits']
                
+               
+        ensemble_weights = torch.tensor(ensemble_stats['weights'])
+        if len(ensemble_weights) >1:
+            ensemble_weights = -(ensemble_weights - ensemble_weights.mean())/ (ensemble_weights.std())
+            ensemble_weights = torch.softmax(ensemble_weights, dim=-1)
+        else:
+            ensemble_weights = torch.ones_like(ensemble_weights)
+            
+        ensemble_stats['weights']= ensemble_weights.tolist()
         ensemble_logits = torch.stack(ensemble_logits)
         ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
+        ensemble_probs = ensemble_probs * ensemble_weights[:,None,  None, None]
         ensemble_probs_unormalized = ensemble_probs.sum(0)
         ensemble_probs = ensemble_probs_unormalized / ensemble_probs_unormalized.sum(-1, keepdim=True)
         ensemble_logits = torch.log(ensemble_probs + 1e-8)
@@ -436,7 +472,7 @@ class Validator(commune.Module, nn.Module):
         
     @classmethod 
     def default_models(cls):
-        return [m for m,_ in commune.namespace().items() if m.startswith('model')]
+        return [m for m,_ in commune.namespace('global').items() if m.startswith('model.gpt')]
     
     
     @classmethod
@@ -526,6 +562,34 @@ class Validator(commune.Module, nn.Module):
         neuron(model=server, wallet=wallet, netuid=3).run()
 
         
+    @classmethod
+    def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
+        from commune.block.bittensor.neuron.miner import neuron
+        from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
+        self = cls(model = model, tokenizer=tokenizer)
+        nucleus = neuron(model=self).model
+        nucleus.model.train()
+        nucleus.model.eval()
+        nucleus.model.half()
+        nucleus.model.config.hidden_size
+        nucleus.model.config.pad_token_id
+        nucleus.model.config.eos_token_id
+        nucleus.model.named_parameters()
+        state_dict = nucleus.model.state_dict()
+        nucleus.model.load_state_dict(state_dict)
+        
+        dataset = commune.connect(dataset)
+        sample = dataset.sample()
+        
+        for i in range(num_batches):
+            sample = dataset.sample(batch_size=32, sequence_length=256)
+            target = sample['input_ids'][:, -1:] 
+            inputs_x = sample['input_ids'][:, :-1] 
+            t = commune.timer()
+            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
+            loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor, target_phrases=target)
+            commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
+ 
 if __name__ == '__main__':
     Validator.neuron()
 
