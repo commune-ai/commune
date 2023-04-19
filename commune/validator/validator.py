@@ -81,12 +81,14 @@ class Validator(commune.Module, nn.Module):
         loop = commune.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
         self.models = {}
+        self.config['models'] = []
         for model, model_obj in zip(models, model_objs):
             self.models[model] = model_obj
-            
-        # print(self.model.getattr('model_config'))
-        self.config = Munch(model_obj.getattr('config')['model'])
-        self.config.hidden_size = self.config.get('hidden_size')
+            model_config = model_obj.config
+            if model_config.get('hidden_size', None) == None:
+                # print(self.model.getattr('model_config'))
+                self.config['models'] = [Munch(model_obj.getattr('config')['model'])]
+                self.config.hidden_size = self.config.get('hidden_size')
     
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None] = 'bittensor'):

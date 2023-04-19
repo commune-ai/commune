@@ -11,6 +11,8 @@ import argparse
 import asyncio
 
 
+boot_peers = ['162.157.13.236:9057', '162.157.13.236:9255', '199.126.197.58:9451']
+
 
 class Module:
     
@@ -32,7 +34,7 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     console = Console()
-    boot_peers = ['162.157.13.236:9250', '162.157.13.236:9450', '162.157.123.236:9050']
+    boot_peers = boot_peers
     
     
     def __init__(self, 
@@ -610,7 +612,12 @@ class Module:
                 setattr(self, k)
 
     @classmethod
-    def kill_port(cls, port:int, mode='python')-> str:
+    def kill_port(cls, port:int, mode='bash')-> str:
+        
+        port2module = cls.port2module()
+        if port in port2module:
+
+            cls.kill(port2module[port])
         
         if mode == 'python':
             import signal
@@ -625,7 +632,7 @@ class Module:
                         print('KILLED')
             return port
         elif mode == 'bash':
-            return cls.run_command('kill -9 $(lsof -t -i:{port})')
+            return cls.run_command('kill -9 $(lsof -ti:{port})')
 
     @classmethod
     def kill_server(cls, module:str, mode:str = 'pm2'):
@@ -1196,6 +1203,25 @@ class Module:
         server_registry = cls.server_registry(update=True)
 
     @classmethod
+    def port2module(cls, *args, **kwargs):
+        namespace = cls.namespace(*args, **kwargs)
+        port2module =  {}
+        for name, address in namespace.items():
+            port = int(address.split(':')[1])
+            port2module[port] = name
+        return port2module
+    port2name = port2module
+
+    @classmethod
+    def address2module(cls, *args, **kwargs):
+        namespace = cls.namespace(*args, **kwargs)
+        port2module =  {}
+        for name, address in namespace.items():
+            port2module[address] = name
+        return port2module
+    address2name = address2module
+        
+    @classmethod
     def server_registry(cls, 
                         update: bool = False,
                         address_only: bool  = False,
@@ -1206,6 +1232,8 @@ class Module:
         it will register itself with the server_registry dictionary.
         '''
         # from copy import deepcopy
+        
+        address2module = {}
     
     
         if update:
@@ -1223,10 +1251,16 @@ class Module:
             if 'address' not in server_registry[k]:
                 server_registry[k]['address'] = f"{server_registry[k]['ip']}:{server_registry[k]['port']}"
                 update = True
+            
             if not Module.port_used(int(server_registry[k]['port'])):
                 
                 del server_registry[k]
                 update = True
+            else:
+                address = server_registry[k]['address']
+                address2module[address] = k
+
+
                 
    
         if update:
@@ -1246,8 +1280,12 @@ class Module:
                         peer_server_name = new_peer_server_name
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
-
-                    server_registry[peer_server_name] = peer_server_info
+                    address = peer_server_info['address']
+                    if address not in address2module:
+                        server_registry[peer_server_name] = peer_server_info
+                    address2module[address] = peer_server_name
+                    
+        
         # sort dict by keys
         # server_registry = {k:server_registry[k] for k in sorted(server_registry.keys())}
         if address_only:
@@ -1407,13 +1445,19 @@ class Module:
     @classmethod
     def namespace(cls,
                   search = None, 
-                  network:str='local',
+                  network:str='global',
                   include_peers:bool = True, 
                   **kwargs):
-        if network == 'subspace':
+        
+        if search in ['local', 'global', 'subspace']:
+            network = search
+            search = None
+        
+        if network == 'subspace' :
             subspace = cls.subspace(**kwargs)
             namespace = subspace.namespace()
-        elif network == 'local':
+        elif network in ['local', 'global']:
+            include_peers = True if network == 'global' else False
             namespace = cls.server_registry(address_only=True, include_peers=include_peers)
         else:
             raise ValueError(f'network must be either "subspace" or "local"')
@@ -3193,16 +3237,7 @@ class Module:
     @classmethod
     async def async_call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
-        module_list = cls.module_list()
-        
-        namespace_options = cls.namespace_options(module)
-        is_remote = False
-        if module in namespace_options:
-            module = await cls.async_connect(module)
-            is_remote = True
-        else:
-            assert module in module_list, f'Invalid module {module} not in {module_list}'
-        
+        module = await cls.async_connect(module)
         return await module.remote_call(fn, *args, return_future=True, **kwargs)
 
 
@@ -3524,17 +3559,15 @@ class Module:
     @classmethod
     async def async_add_peer(cls, peer_address:str, name:str=None):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer= await cls.async_connect(peer_address, timeout=1)
-        cls.print('Adding peer: {}'.format(peer_address))
+        peer= await cls.async_connect(peer_address, timeout=2)
         peer_server_registry = peer.server_registry(include_peers = False)
-        peer_registry[peer_address] = peer_server_registry
-
-        if name != None:
-            peer_registry            
+        peer_registry[peer_address] = peer_server_registry         
 
         peers = list(peer_registry.keys())
         # config = cls.get_config().set('peers', peers)
-        await cls.async_put_json('peer_registry', peer_registry)
+        cls.put_json('peer_registry', peer_registry)
+        
+        return peer_address
     
 
         
@@ -3543,23 +3576,34 @@ class Module:
         jobs = []
         if peers == None:
             peers = cls.boot_peers
-        for peer in peers:
-            jobs.append(cls.async_add_peer(peer))
             
-        loop = asyncio.get_event_loop()
-        results = loop.run_until_complete(asyncio.gather(*jobs))
+        cls.print('Adding peers: {}'.format(peers))
+        results = []
+        for peer in peers:
+            results.append(cls.add_peer(peer))
         return results
     
     @classmethod
     def rm_peer(cls, peer_address: str):
         peer_registry = cls.get_json('peer_registry', default={})
-        peer_registry.pop(peer_address, None)        
-        cls.put_json('peer_registry', peer_registry)
+        result = peer_registry.pop(peer_address, None) 
+        if result != None:
+            result = peer_address      
+            cls.put_json('peer_registry', peer_registry)
+        return result
        
     @classmethod
-    def rm_peers(cls, peer_addresses: list):
+    def rm_peers(cls, peer_addresses: list = None):
+        rm_peers = []
+        if peer_addresses == None:
+            peer_addresses = cls.peers()
+        if isinstance(peer_addresses, str):
+            peer_addresses = [peer_addresses]
         for peer_address in peer_addresses:
-            cls.rm_peer(peer_address)
+            
+            rm_peers.append(cls.rm_peer(peer_address))
+        return rm_peers
+            
       
     @classmethod
     def update_peers(cls, peers: list = None):
@@ -3576,6 +3620,8 @@ class Module:
         if update:
             cls.update_peers()
         return cls.get_json('peer_registry', default={})
+    
+    
 
     @classmethod
     def run_jobs(cls, jobs: List, mode ='asyncio',**kwargs):
