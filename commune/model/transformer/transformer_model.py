@@ -84,7 +84,7 @@ class TransformerModel( Model):
         
         Model.__init__(self, locals())         
         config = self.config
-        self.set_model(config)    
+        self.set_model(config)
         
         if config.test:
             self.test(self)
@@ -125,7 +125,8 @@ class TransformerModel( Model):
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
                 map_tokens: bool = True,
-                map_logits: bool = False,                             
+                map_logits: bool = False,  
+                tag : str = None,                           
                 **kwargs):
 
         sample = {
@@ -206,16 +207,32 @@ class TransformerModel( Model):
         if train:
             loss.backward()
             self.optimizer.step()
+            loss = loss.item()
+                
             self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
-            self.stats['learn_rate'] = self.optimizer.param_groups[0]['lr']
-        if isinstance(loss, torch.Tensor):
+            self.stats['lr'] = self.optimizer.param_groups[0]['lr']
+            self.stats['epoch_loss'] = (self.stats.get('epoch_loss', 0)*(self.stats['learn_steps']-1) + loss)/self.stats['learn_steps']
+        else:
             loss = loss.item()
         
         inference_steps = self.stats['inference_steps']
+        alpha = self.config.get('loss_alpha', 0.9)
+        assert 0 < alpha < 1, 'loss_alpha must be between 0 and 1'
         past_loss = self.stats.get('loss', 0)
-        self.stats['loss'] = (past_loss*(inference_steps-1) + loss ) / inference_steps
+        self.stats['ma_loss'] = (past_loss*(1-alpha) + alpha*loss) if past_loss != 0 else loss
+        self.stats['alpha'] = alpha
         output_dict['stats'] = deepcopy(self.stats)
         output_dict['stats']['sample_loss'] = loss  
+        
+        
+        if train and self.stats['learn_steps'] % self.config['epoch_length'] == 0:
+            self.stats['epoch'] = self.stats.get('epoch', 0) + 1
+            self.stats['epoch_loss_history'] = self.stats.get('epoch_loss_history',[]) + [{'loss': self.stats['epoch_loss'], 'time': self.time()}]
+            self.stats['learn_steps'] = 0
+
+            self.print('saving model...')
+            self.save(tag)
+
 
         return {key:output_dict[key] for key in return_keys} 
         
@@ -342,13 +359,14 @@ class TransformerModel( Model):
 
     def set_epoch_length(self, epoch_length:int) -> int:
         assert isinstance(epoch_length, int)
-        self.epoch_length = epoch_length
+        self.epoch_length = self.config['epoch_length']=  epoch_length
         return self.epoch_length
 
     def set_tokenizer(self, config):
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
 
+        self.print('setting tokenizer...')
         
         if config.tokenizer is None:
             tokenizer = config.model_path
@@ -449,19 +467,18 @@ class TransformerModel( Model):
         
         
         
-
-        if remote and model in namfespace:
+        
+        if remote:
             namespace = cls.namespace()
             model_name = f'model.{model}'
             model = cls.connect(model_name)
         
-        elif isinstance(model, str):
-            model = cls(model= model, load=load, optimizer=dict(lr=lr))
+        if isinstance(model, str):
+            model = cls(model= model, test=False)
         else:
             model = model
-        
-        
-
+        if load:
+            model.load()
         dataset = commune.connect(dataset)
 
         for i in range(num_batches):
@@ -473,34 +490,46 @@ class TransformerModel( Model):
             sample['autocast'] = True
             sample['timeout'] = 6
             sample['return_keys'] = [ 'logits', 'stats']
+            
             output = model.forward(**cls.copy(sample))
             output['input_ids'] = sample['input_ids']
-            loss = model.calculate_loss(**output).item()
-            cls.print(f'step: {i}/{num_batches} loss: {loss}')
+            cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
             # cls.print(outpu
             # t)
             # cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         
-
+        model.save()
+    
+    
+    
     @classmethod
-    def run_train(cls,
-              model:str='gptj', 
-              dataset : Union[str, 'Module'] = 'dataset::bittensor',
-             output_length:int=10,
-             sequence_length:int=256,
-             adapter: dict = None,
-             num_batches: int = 10000, 
-             tag:str=None,
-             load: bool = False,
-             save: bool= True,
-             refresh: bool = False):
+    def train(cls,
+            model:str='gptj', 
+            dataset : Union[str, 'Module'] = 'dataset::bittensor',
+            output_length:int=10,
+            sequence_length:int=256,
+            adapter: dict = None,
+            num_batches: int = 1000, 
+            tag:str=None,
+            load: bool = False,
+            save: bool= True,
+            remote : bool = False, 
+            refresh: bool = False):
         if refresh:
             load = False
             
-
-        model = cls(model=model, tag=tag, load=load)
+        if remote:
+            namespace = cls.namespace()
+            model_name = model
+            if model not in namespace: 
+                model = f'model.{model}'
+                assert model in namespace, f'Could not find model {model} in namespace {namespace}'
+            
+            model = cls.connect(model_name)
+        else:
+            model = cls(model=model, tag=tag, load=load)
         
         if isinstance(dataset, str):
             dataset = commune.connect(dataset)
@@ -511,9 +540,7 @@ class TransformerModel( Model):
             sample['return_keys'] = ['stats']
             sample['train'] = True
             output = model.forward(**sample)
-            print(output)
-        if save:
-            model.save(tag=tag)
+            cls.print(output['stats'])
             
         return output['stats']
     

@@ -160,7 +160,7 @@ class Model( nn.Module, commune.Module):
             'stats': self.stats,
             }
         
-        keys = state_dict.keys() if keys == None else keys
+        keys = list(state_dict.keys())
         
         
         for k in keys:
@@ -201,7 +201,7 @@ class Model( nn.Module, commune.Module):
         if 'model' in loaded_state_dict:
             self.update_state_dict(loaded_state_dict['model'])
     
-        if 'optimizer' in state_dict:
+        if 'optimizer' in loaded_state_dict:
             self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
         
     def update_state_dict(self, state_dict:dict):
@@ -298,18 +298,7 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)
-    
-    def set_config(self, config) -> None:
-        config = deepcopy(config)
-        config.pop('self',None)
-        kwargs = config.pop('kwargs', None)
-        kwargs.update(config)
-        config.pop('args', None)
-        config = self.get_config()
-        config.update(kwargs)
-        self.config = self.dict2munch(config)
-        
-    
+
     def set_stats(self, stats: dict):
         if stats == None:
             if hasattr(self, 'stats'):
@@ -334,6 +323,10 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def deploy(cls, *args, **kwargs):
         return cls.get_module('model.transformer').deploy(*args, **kwargs)
+    
+    @classmethod
+    def test(cls, *args, **kwargs):
+        return cls.get_module('model.transformer').test(*args, **kwargs)
 
 if __name__ == "__main__":
     
