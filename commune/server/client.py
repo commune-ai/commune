@@ -88,7 +88,7 @@ class Client( Serializer, commune.Module):
             port: int = 80 ,
             address: str = None,
             max_processes: int = 1,
-            timeout:int = 20,
+            timeout:int = 4,
             loop: 'Loop' = None,
             key: 'Key' = None,
             network : 'Network' = None,
@@ -213,6 +213,7 @@ class Client( Serializer, commune.Module):
     ) :
         if timeout == None:
             timeout = self.timeout
+            
         data = data if data else {}
         metadata = metadata if metadata else {}
         
@@ -221,14 +222,22 @@ class Client( Serializer, commune.Module):
         
         data.update(kwargs)
 
-    
+
+
         try:
             grpc_request = self.serialize(data=data, metadata=metadata)
 
             asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
+            t = commune.timer()
+            fn = data.get('fn', None)
+            if verbose:
+                self.print(f"Sending --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color='yellow')
             response = await asyncio_future
             response = self.deserialize(response)
-            
+            seconds = t.seconds
+            if verbose:
+                self.print(f"Recieving <-- {self.endpoint}::fn::({fn}), latency: {seconds}",color='green')
+                        
             if results_only:
                 try:
                     return response['data']['result']
@@ -236,21 +245,21 @@ class Client( Serializer, commune.Module):
                     print(response) 
         except grpc.RpcError as rpc_error_call:
             response = str(rpc_error_call)
-            commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
+            # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
 
         # =======================
         # ==== Timeout Error ====
         # =======================
         except asyncio.TimeoutError:
             response = str(rpc_error_call)
-            commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
+            # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
     
         # ====================================
         # ==== Handle GRPC Unknown Errors ====
         # ====================================
         except Exception as e:
             response = str(e)
-            commune.print(f"GRPC Unknown Error: {response}", color='red')
+            # commune.print(f"GRPC Unknown Error: {response}", color='red')
         return  response
     
     async_call = async_forward
