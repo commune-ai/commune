@@ -30,11 +30,12 @@ class Validator(commune.Module, nn.Module):
                  loop = None,
                  load: bool = False,
                  new_loop_per_forward: bool = False,
+                 config = None,
                  ):
         
         nn.Module.__init__(self)
         self.new_loop_per_forward = new_loop_per_forward
-        
+        self.set_config(config)
         self.set_event_loop(loop)
         self.set_max_stats_history(max_stats_history)
         self.set_batch_size(batch_size)
@@ -80,15 +81,17 @@ class Validator(commune.Module, nn.Module):
 
         loop = commune.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
+        
+        
         self.models = {}
         self.config['models'] = []
         for model, model_obj in zip(models, model_objs):
+            forward_fn = model_obj.forward
+            if isinstance(forward_fn, str):
+                continue
             self.models[model] = model_obj
-            model_config = model_obj.config
-            if model_config.get('hidden_size', None) == None:
-                # print(self.model.getattr('model_config'))
-                self.config['models'] = [Munch(model_obj.getattr('config')['model'])]
-                self.config.hidden_size = self.config.get('hidden_size')
+
+            
     
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None] = 'bittensor'):
@@ -261,7 +264,7 @@ class Validator(commune.Module, nn.Module):
                 models:str=None, 
                 threshold: float = 4.0,
                 topk: int = 256,
-                timeout = 3,
+                timeout = 4,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
@@ -284,7 +287,6 @@ class Validator(commune.Module, nn.Module):
             
         jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, timeout=timeout, **kwargs) for model_key in models]
         
-        loop =commune.get_event_loop()
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         
         model_output_dict = {}
@@ -419,7 +421,7 @@ class Validator(commune.Module, nn.Module):
         self = Validator(models=models)
         for _ in range(10):
             sample = self.sample()
-            cls.print(self.forward(**sample)['stats'])
+            cls.print(self.forward(**sample)['stats']['ensemble'])
         self.calculate_weights()
         st.write(self.stats)
       
