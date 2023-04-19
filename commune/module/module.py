@@ -794,15 +794,14 @@ class Module:
         return cls.import_object(object_path)
 
     @classmethod
-    def get_module(cls, path:str, verbose:bool = True) -> str:
+    def get_module(cls, path:str, verbose:bool = False) -> str:
         
         try:
             
-            print(path)
             path = cls.simple2path(path)
-            print(path)
             path = cls.path2objectpath(path)
-            print(path)
+            if verbose:
+                cls.print(f'Found {path}', verbose=verbose)
         except KeyError as e:
             cls.print(f'{e}', verbose=verbose)
             
@@ -3722,6 +3721,8 @@ class Module:
             scale = 1e3
         elif fmt == 'b':
             scale = 1
+        elif fmt in ['%', 'ratio']:
+            scale = 1
         else:
             raise ValueError(f'Invalid format: {fmt}, options are gb, mb, kb, b')
         if gpus == None :
@@ -3736,7 +3737,11 @@ class Module:
             if int(gpu_id) in gpus:
                 
                 free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )/scale
-                
+                if fmt == '%':
+                    free_gpu_memory[gpu_id] = (free_gpu_memory[gpu_id]/gpu_info['total']) * 100
+                    free_gpu_memory[gpu_id] = f'{free_gpu_memory[gpu_id]:.2f}%'
+                elif fmt == 'ratio':
+                    free_gpu_memory[gpu_id] = free_gpu_memory[gpu_id]/(gpu_info['total']+1e-10)
         if fmt == 'GB':
             free_gpu_memory = {k:f'{int(v)}GB' for k,v in free_gpu_memory.items()}
 
