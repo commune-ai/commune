@@ -37,7 +37,7 @@ class VirtualModule(commune.Module):
             self.module_client = module
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
-    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=5, **kwargs):
+    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
         
     
         if return_future:
@@ -151,6 +151,7 @@ class Client( Serializer, commune.Module):
         self.client_uid = str(uuid.uuid1())
         self.semaphore = threading.Semaphore(max_processes)
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
+        self.timeout = timeout
         
 
         self.sync_the_async(loop=self.loop)
@@ -205,11 +206,13 @@ class Client( Serializer, commune.Module):
         self, 
         data: object = None, 
         metadata: dict = None,
-        timeout: int = 4,
+        timeout: int = None,
         results_only = True,
         verbose=True,
         **kwargs
     ) :
+        if timeout == None:
+            timeout = self.timeout
         data = data if data else {}
         metadata = metadata if metadata else {}
         
@@ -251,6 +254,8 @@ class Client( Serializer, commune.Module):
         return  response
     
     async_call = async_forward
+    
+    
 
     def sync_the_async(self, loop = None):
         for f in dir(self):

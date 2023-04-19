@@ -73,11 +73,10 @@ class Validator(commune.Module, nn.Module):
         job = connect.async_connect(model, loop = self.loop)
         self.models[model] =  self.loop.run_until_complete(job)
             
-    def set_models(self, models: List[str] = None, timeout:int = 2) -> None:
+    def set_models(self, models: List[str] = None, timeout:int = 4) -> None:
         if models == None:
             models = self.default_models()
         jobs = [commune.async_connect(model, timeout=timeout) for model in models]
-        self.print('models', len(jobs))
 
         loop = commune.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
@@ -224,6 +223,8 @@ class Validator(commune.Module, nn.Module):
         sample = kwargs 
         model_name = self.copy(model)
         model = self.resolve_model(model)
+        sample['timeout'] = 4
+        
         
         # we want the client to return the future
         sample['return_future'] = True
@@ -280,7 +281,6 @@ class Validator(commune.Module, nn.Module):
         
         self.set_models(timeout=2)
 
-        # self.print(len(self.models))
             
         if models == None:
             models = self.model_keys
@@ -323,7 +323,6 @@ class Validator(commune.Module, nn.Module):
             
             logits = output_dict['logits']
                
-        self.print(f'ensemble_stats: {ensemble_stats}')         
         ensemble_logits = torch.stack(ensemble_logits)
         ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
         ensemble_probs_unormalized = ensemble_probs.sum(0)
@@ -417,7 +416,6 @@ class Validator(commune.Module, nn.Module):
     @classmethod
     def test(cls):
         models = [m for m in commune.namespace() if m.startswith('model')]
-        cls.print(models)
         self = Validator(models=models)
         for _ in range(10):
             sample = self.sample()

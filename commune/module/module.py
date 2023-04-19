@@ -822,7 +822,12 @@ class Module:
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
         return list(cls.namespace(*args, **kwargs).keys())
-    
+    @classmethod
+    def models(cls, *args, **kwargs) -> List[str]:
+        return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('model')]
+    @classmethod
+    def datasets(*args, **kwargs) -> List[str]:
+        return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
@@ -2919,7 +2924,7 @@ class Module:
     
     
     @classmethod
-    def models(cls):
+    def available_models(cls):
         return cls.get_module('model.transformer').models()
     
     def model_size(self, keys = None):
@@ -3556,15 +3561,15 @@ class Module:
         return loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
         
     @classmethod
-    async def async_add_peer(cls, peer_address:str, name:str=None):
-        peer_registry = cls.get_json('peer_registry', default={})
-        peer= await cls.async_connect(peer_address, timeout=2)
+    async def async_add_peer(cls, peer_address:str, name:str=None, timeout:int=2):
+        peer_registry = Module.get_json('peer_registry', default={})
+        peer= await cls.async_connect(peer_address, timeout=timeout)
         peer_server_registry = peer.server_registry(include_peers = False)
         peer_registry[peer_address] = peer_server_registry         
 
         peers = list(peer_registry.keys())
         # config = cls.get_config().set('peers', peers)
-        cls.put_json('peer_registry', peer_registry)
+        Module.put_json('peer_registry', peer_registry)
         
         return peer_address
     
@@ -3584,11 +3589,11 @@ class Module:
     
     @classmethod
     def rm_peer(cls, peer_address: str):
-        peer_registry = cls.get_json('peer_registry', default={})
+        peer_registry = Module.get_json('peer_registry', default={})
         result = peer_registry.pop(peer_address, None) 
         if result != None:
             result = peer_address      
-            cls.put_json('peer_registry', peer_registry)
+            Module.put_json('peer_registry', peer_registry)
         return result
        
     @classmethod
@@ -3618,7 +3623,7 @@ class Module:
     def peer_registry(cls, update: bool = False):
         if update:
             cls.update_peers()
-        return cls.get_json('peer_registry', default={})
+        return Module.get_json('peer_registry', default={})
     
     
 
