@@ -690,7 +690,7 @@ class TransformerModel( Model):
                      replace: bool = True,
                      max_models: int = -1,
                      device: str = None,
-                     wait_for_server = False, 
+                     wait_for_server = True, 
                      ) -> List[str]:
         free_gpu_memory = cls.free_gpu_memory()
         deployed_models = []
