@@ -2002,7 +2002,11 @@ class Module:
     
     @classmethod
     def pm2_kill(cls, name:str):
-        output_str = cls.run_command(f"pm2 delete {name}")
+        output_list = []
+        for module in cls.pm2_list():
+            if module.startswith(name):
+                output_str = cls.run_command(f"pm2 delete {module}")
+                output_list.append(output_str)
     @classmethod
     def pm2_restart(cls, name:str):
         return cls.run_command(f"pm2 restart {name}")

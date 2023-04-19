@@ -93,7 +93,7 @@ class TransformerModel( Model):
     def set_tag(self,tag:str):
         if tag is None:
             tag = self.default_tag
-        self.tag = tag
+        self.tag = self.model_path.replace('/','--')+'--'+tag
     @classmethod
     def calculate_loss( cls,  **kwargs) -> torch.Tensor:
         '''
@@ -318,36 +318,38 @@ class TransformerModel( Model):
             assert k not in config, f'config key {k} not found in config'
             config[k] = model_config_dict[k]        
         config = self.munch(config)
+        free_gpu_memory = self.free_gpu_memory(fmt='b')
         
-        
-        
-        max_memory = self.infer_max_memory(model, buffer_ratio=config.buffer_ratio)      
-        # max_memory = {int(k):f'{int(v)}GB' for k,v in max_memory.items()}
-        model_kwargs = {'max_memory': max_memory}
-            
-        for k in ['load_in_8bit']:
-            if k in config:
-                model_kwargs[k] = config[k]
-                
-                
-        if len(max_memory) == 1:
-            if config.device == None:
-                max_memory_value = list(max_memory.values())[0]
-                gpu_id = list(max_memory.keys())[0]
-                config.device = device =  f'cuda:{gpu_id}'
+        model_kwargs = {}
+        infer_model_size = self.infer_model_size(self.model_path)
+        infered_max_memory = self.infer_max_memory(self.model_path)
+        model_kwargs['load_in_8bit'] = bool(config.load_in_8bit)
+        model_kwargs['max_memory'] = free_gpu_memory
+
+        if config.device != None:
+            self.print(config.device)
+            if 'cuda' in config.device:
+                if ':' in config.device:
+                    device_id = int(config.device.split(':')[-1])
+                else:
+                    device_id = self.most_free_gpu(free_gpu_memory=free_gpu_memory)
+                    
+                gpy_memory = free_gpu_memory[device_id]
+                assert gpy_memory > infer_model_size, f'gpu memory {gpy_memory} is less than model size {infer_model_size}'
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-            self.model.to(device)
-        elif len(max_memory) > 1:
+            self.model.to(config.device)
+            
+        else:
             
             model_kwargs['device_map'] = config.device_map
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-        else:
-            raise Exception('no gpus found')
-    
+
+        
         
         self.set_tokenizer(config)
         self.set_optimizer(config.optimizer)
-        self.set_finetune(config.finetune)   
+        self.set_finetune(config.finetune) 
+          
         self.set_tag(config.tag)
         self.set_stats(config.stats)    
         self.set_epoch_length(config.epoch_length)        
@@ -454,18 +456,20 @@ class TransformerModel( Model):
 
     @classmethod
     def test(cls, model = 'gpt125m', 
-             topk:int=3096 ,
+             topk:int=256 ,
              dataset:str = 'dataset.text.bittensor',
-             num_batches = 100,
+             num_batches = 20,
              sequence_length = 256,
              batch_size = 32,
-             minimum_loss = 4, 
-             lr = 1e-4,
+             device = None, 
              remote = False, 
              load = False,
              ):
         
+        if not commune.server_exists(dataset):
+            commune.deploy(dataset)
         
+        dataset = commune.connect(dataset, wait_for_server=True)
         
         
         if remote:
@@ -474,12 +478,11 @@ class TransformerModel( Model):
             model = cls.connect(model_name)
         
         if isinstance(model, str):
-            model = cls(model= model, test=False)
+            model = cls(model= model, test=False, device=device)
         else:
             model = model
         if load:
             model.load()
-        dataset = commune.connect(dataset)
 
         for i in range(num_batches):
             sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
@@ -503,47 +506,57 @@ class TransformerModel( Model):
         model.save()
     
     
-    
     @classmethod
-    def train(cls,
-            model:str='gptj', 
-            dataset : Union[str, 'Module'] = 'dataset::bittensor',
-            output_length:int=10,
-            sequence_length:int=256,
-            adapter: dict = None,
-            num_batches: int = 1000, 
-            tag:str=None,
-            load: bool = False,
-            save: bool= True,
-            remote : bool = False, 
-            refresh: bool = False):
-        if refresh:
-            load = False
-            
+    def train(cls, model = 'gpt125m', 
+             topk:int=3096 ,
+             dataset:str = 'dataset.text.bittensor',
+             num_batches = 100,
+             sequence_length = 256,
+             batch_size = 32,
+             minimum_loss = 4, 
+             lr = 1e-4,
+             remote = False, 
+             tag = None,
+             load = False,
+             device = None, 
+             ):
+        
+        
+        
+        
         if remote:
             namespace = cls.namespace()
-            model_name = model
-            if model not in namespace: 
-                model = f'model.{model}'
-                assert model in namespace, f'Could not find model {model} in namespace {namespace}'
-            
+            model_name = f'model.{model}'
             model = cls.connect(model_name)
-        else:
-            model = cls(model=model, tag=tag, load=load)
         
-        if isinstance(dataset, str):
-            dataset = commune.connect(dataset)
+        if isinstance(model, str):
+            model = cls(model= model, tag=tag, device=device)
+        else:
+            model = model
+        if load:
+            model.load()
+        dataset = commune.connect(dataset)
 
         for i in range(num_batches):
-            sample = dataset.sample(sequence_length=sequence_length)
-            sample['output_length'] =  output_length
-            sample['return_keys'] = ['stats']
+            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
+            sample['topk'] = topk
+            sample['map_tokens'] = False
+            sample['map_logits'] = False
             sample['train'] = True
-            output = model.forward(**sample)
-            cls.print(output['stats'])
+            sample['autocast'] = True
+            sample['timeout'] = 6
+            sample['return_keys'] = [ 'logits', 'stats']
             
-        return output['stats']
+            output = model.forward(**cls.copy(sample))
+            output['input_ids'] = sample['input_ids']
+            cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
+        
+        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
+        
+        model.save()
     
+    
+
     
     def train_model(self,
              dataset : Union[str, 'Module'] = 'dataset::bittensor',
@@ -672,26 +685,19 @@ class TransformerModel( Model):
     }
     @classmethod
     def deploy_fleet(cls, 
-                     models: List[str] = '0',
-                     replace: bool = False,
+                     model = 'gptj',
+                     tags= ['elon', 'satoshi', 'newton', 'tesla' ], 
+                     replace: bool = True,
                      max_models: int = -1,
-                     wait_for_server = False
+                     device: str = None,
+                     wait_for_server = False, 
                      ) -> List[str]:
-
-
-        
-        models = cls.fleet_group.get(models, models)
-    
-    
-        deployed_model_tags = {}
-        models = models
+        free_gpu_memory = cls.free_gpu_memory()
         deployed_models = []
-        for model in models:
-            commune.print(f'Deploying Model {model}', 'green')
-            cls.deploy(model, wait_for_server=wait_for_server, replace=replace)
-            deployed_models.append(model)
-            commune.print(f'Deployed Model {model} ({len(deployed_models)}/{len(models)})', 'green')
-            
+        for i, tag in enumerate(tags):
+            cls.deploy(model, tag=tag, device=device, replace=replace, wait_for_server=wait_for_server)
+            deployed_models+= [f'{model}::{tag}']
+
             
         return deployed_models
         
@@ -712,6 +718,7 @@ class TransformerModel( Model):
                wait_for_server: bool = False, 
                mode:str = 'pm2',
                tag = None,
+               device = None, 
                replace:bool = True,
                **kwargs):
 
@@ -722,25 +729,29 @@ class TransformerModel( Model):
         free_gpu_memory = cls.free_gpu_memory()
         for model in models:
             model_size = cls.infer_model_size(model)
-            device = list(max_memory.keys())
-            cls.print(f'Infered max memory for {model} is {max_memory}', color='yellow')
+            cls.print(f'Infered model size for {model} is {model_size}', color='yellow')
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
             if tag != None:
                 name = f'{name}.{tag}'
+            model_kwargs['tag'] = tag
+            model_kwargs['device'] = device
             module_exists = cls.module_exists(name)     
             if replace == False and module_exists:
                 cls.print(f'Model {name} already exists', color='yellow')
                 continue
             cls.launch(name=name,kwargs=model_kwargs, mode=mode)
             if wait_for_server:
-                cls.wait_for_server(name=name, sleep_interval=20, timeout=1000)
+                cls.wait_for_server(name=name, sleep_interval=5, timeout=1000)
             model_names.append(name) 
         return model_names
             
     @classmethod
     def sandbox(cls):
         self = cls(model='opt2.7b')
+        
+        
+
         
         
 if __name__ == "__main__":

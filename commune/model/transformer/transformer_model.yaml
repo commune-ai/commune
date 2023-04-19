@@ -6,10 +6,11 @@ save: true # save on epoch
 device: null
 epoch_length: 100
 max_allocation_ratio: 0.6 
-finetune: 4
+finetune: 1
 optimizer:
   lr: 1.0e-05
   module: torch.optim.Adam
+load_in_8bit: False
 stats: {}
 buffer_ratio: 1.2
 tag: null

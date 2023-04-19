@@ -292,6 +292,8 @@ class Model( nn.Module, commune.Module):
             else:
                 logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
 
+        self.print(self.num_params(trainable=True), 'trainable parameters')
+        self.print(self.num_params(trainable=False), 'untrainable parameters')
         return reached_last_layer, last_layer_name
     
     
