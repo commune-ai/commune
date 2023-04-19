@@ -188,9 +188,6 @@ class Model( nn.Module, commune.Module):
                 return
             loaded_state_dict[key] = torch.load( path)
         
-        
-
-        
         # we want to save the base layers in case we want to change the layers
 
         # # set the params and stats
@@ -203,8 +200,7 @@ class Model( nn.Module, commune.Module):
             
         if 'model' in loaded_state_dict:
             self.update_state_dict(loaded_state_dict['model'])
-            
-        
+    
         if 'optimizer' in state_dict:
             self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
         
