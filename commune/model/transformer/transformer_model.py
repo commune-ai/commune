@@ -467,8 +467,8 @@ class TransformerModel( Model):
         for i in range(num_batches):
             sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
             sample['topk'] = topk
-            sample['map_tokens'] = True
-            sample['map_logits'] = True
+            sample['map_tokens'] = False
+            sample['map_logits'] = False
             sample['train'] = True
             sample['autocast'] = True
             sample['timeout'] = 6
