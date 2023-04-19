@@ -780,10 +780,11 @@ class Module:
         
         try:
             
+            print(path)
             path = cls.simple2path(path)
-            
+            print(path)
             path = cls.path2objectpath(path)
-            
+            print(path)
         except KeyError as e:
             cls.print(f'{e}', verbose=verbose)
             
@@ -1223,18 +1224,15 @@ class Module:
         peer_registry = cls.peer_registry() 
         if len(peer_registry) > 0 and include_peers:
             
-            for peer_address, peer_namespace in peer_registry.items():
+            for peer_id, (peer_address, peer_namespace) in enumerate(peer_registry.items()):
                 if isinstance(peer_namespace, str):
                     cls.print(f'Error getting peer namespace from {peer_address}', color='red')
                     continue
                 for peer_server_name, peer_server_info in peer_namespace.items():
-                    tag = 0
-                    while peer_server_name in server_registry: 
-                        
-                        new_peer_server_name = f'{peer_server_name}.{tag}'
-                        if new_peer_server_name not in server_registry:
-                            peer_server_name = new_peer_server_name
-                        tag+= 1
+  
+                    new_peer_server_name = f'{peer_server_name}::r{peer_id}'
+                    if new_peer_server_name not in server_registry:
+                        peer_server_name = new_peer_server_name
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
 
@@ -1855,11 +1853,11 @@ class Module:
 
             module = cls.get_module(module) 
             
-            if name == None:
-                if hasattr(module, 'module_path'):
-                    name = module.launch(*args, **kwargs)
-                else:
-                    name = module.__name__.lower()
+        if name == None:
+            if hasattr(module, 'module_path'):
+                name = module.module_path()
+            else:
+                name = module.__name__.lower()
                 
                 
         cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
@@ -1941,7 +1939,7 @@ class Module:
                    device:str=None, 
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
-                   verbose: bool = False, 
+                   verbose: bool = True, 
                    refresh:bool=True ):
         
         
@@ -1974,15 +1972,19 @@ class Module:
         
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
         env = {}
-        if device == None:
-            device = list(cls.gpus())
-            
-        if isinstance(device, list):
-            env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
-            
+
+        if device != None:
+            if isinstance(device, int):
+                env['CUDA_VISIBLE_DEVICES']=str(device)
+            if isinstance(device, list):
+                env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
+                
         if verbose:
             cls.print(f'RUNNING: {command}')
 
+        cls.print(f'Launching {module_name} with command: {command}', color='green')
+        
+        
         stdout = cls.run_command(command, env=env, verbose=verbose)
         # cls.print(f'STDOUT: \n {stdout}', color='green')
         return stdout
@@ -2546,6 +2548,7 @@ class Module:
             @classmethod
             def functions(cls):
                 return Module.get_functions(module)
+            # class Module(Module):
         if is_class:
             return ModuleWrapper
         else:
@@ -3184,8 +3187,7 @@ class Module:
             is_remote = True
         else:
             assert module in module_list, f'Invalid module {module} not in {module_list}'
-            
-
+        
         return await module.remote_call(fn, *args, return_future=True, **kwargs)
 
 
@@ -3405,11 +3407,11 @@ class Module:
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
-        return cls.import_object('commuen.server.Client')(*args, **kwargs)
+        return cls.import_object('commune.server.Client')(*args, **kwargs)
     
     @classmethod
     def server(cls, *args, **kwargs) -> 'Server':
-        return cls.import_object('commuen.server.Server')(*args, **kwargs)
+        return cls.import_object('commune.server.Server')(*args, **kwargs)
     
     @classmethod
     def serializer(cls, *args, **kwargs) -> 'Serializer':
@@ -3750,8 +3752,7 @@ class Module:
         
         return model
     
-        
-    
+
 if __name__ == "__main__":
     Module.run()
     
