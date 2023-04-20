@@ -1,9 +1,5 @@
-from accelerate import init_empty_weights
-from torch import nn
-import commune
+string = "hello"
+modulus = 1000 # choose your desired modulus
 
-with init_empty_weights():
-    model = commune.get_module('model.transformer.llama')()
-    
-print(commune.get_model_size(model))
-    
+modulus_number = hash(string) 
+print(modulus_number)

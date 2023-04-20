@@ -43,7 +43,8 @@ class CLI(commune.Module):
                     if callable(result):
                         result = result(*args, **kwargs)
         
-        self.print(result)
+        if result != None:
+            self.print(result)
     
     def catch_ip(self):
         result = None
