@@ -13,6 +13,7 @@ from typing import Tuple, List, Union
 from grpc import _common
 import sys
 import os
+import random
 import asyncio
 from copy import deepcopy
 import commune
@@ -65,9 +66,9 @@ class VirtualModule(commune.Module):
             self.synced_attributes.append(attr)
             
             
-    def __call__(self, *args, **kwargs):
-        return self.remote_call(*args, **kwargs)
+
     def __getattr__(self, key):
+
         if key in ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes'] :
             return getattr(self, key)
         
@@ -155,7 +156,8 @@ class Client( Serializer, commune.Module):
         
 
         self.sync_the_async(loop=self.loop)
-        self.server_functions = self.forward(fn='functions', args=[True])
+        self.server_functions = self.forward(fn='functions', args=[False])
+        self.print(f"Connected to {self.endpoint} with {max_processes} processes {self.server_functions}")
 
 
     

@@ -793,7 +793,7 @@ class Module:
         return cls.import_object(object_path)
 
     @classmethod
-    def get_module(cls, path:str, verbose:bool = False) -> str:
+    def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
         
         try:
             
@@ -802,7 +802,10 @@ class Module:
             if verbose:
                 cls.print(f'Found {path}', verbose=verbose)
         except KeyError as e:
-            cls.print(f'{e}', verbose=verbose)
+            if handle_error:
+                cls.print(f'{e}', verbose=verbose)
+            else:
+                raise e
             
         
         return cls.import_object(path)
@@ -1318,7 +1321,14 @@ class Module:
     list_servers = servers
     
     
-
+    @classmethod
+    def rename_server(cls, name:str, new_name:str) -> Dict:
+        server_registry = cls.server_registry()
+        server_registry[new_name] = server_registry.pop(name)
+        Module.put_json(path='server_registry', data=server_registry) 
+        return {new_name:server_registry[new_name]}
+    
+    rename = rename_module = rename_server
     
     @classmethod
     def register_server(cls, name: str, 
@@ -1536,7 +1546,8 @@ class Module:
             else: 
                 raise Exception(f'The server {module_name} already exists on port {existing_server_port}')
 
-        self.module_name = module_name
+        for k in ['module_name', 'module_id', 'my_name', 'el_namo']:
+            self.__dict__[k] = module_name
 
         Server = cls.import_object('commune.server.server.Server')
         server = Server(ip=ip, 
@@ -1817,32 +1828,8 @@ class Module:
     def get_annotations(fn:callable) -> dict:
         return fn.__annotations__
 
-    @classmethod
-    def start_server(cls,
-                module:str = None,  
-                name:Optional[str]=None, 
-                tag:str=None, 
-                device:str='0', 
-                interpreter:str='python3', 
-                refresh:bool=True, 
-                args = None, 
-                kwargs = None ):
-        
-        args = args if args else []
-        kwargs = kwargs if kwargs else {}
-        kwargs['tag'] = tag
-        return cls.launch( 
-                   module = module,  
-                   fn = 'serve',
-                   name=name, 
-                   tag=tag, 
-                   args = args,
-                   kwargs = kwargs,
-                   device=device, 
-                   interpreter=interpreter, 
-                   refresh=refresh )
-      
-      
+
+
     @classmethod
     def kill(cls, *modules, mode:str = 'pm2'):
         servers = cls.servers()
@@ -1860,6 +1847,12 @@ class Module:
     def destroy(self):
         self.kill(self.module_name)
         return path
+    
+    def self_destruct(self):
+        self.kill(self.module_name)    
+        
+    def self_restart(self):
+        self.restart(self.module_name)
         
     @classmethod
     def set_shortcut(cls, shortcut: str, kwargs: dict) -> dict:
@@ -2939,6 +2932,19 @@ class Module:
     
     @classmethod
     def get_model_size(cls, model, keys = None):
+        
+        
+        model = cls.shortcuts.get(model, model)
+        if isinstance(model, str):
+            from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+            from accelerate import init_empty_weights
+            print(f'loading config model from {model}...')
+            if isinstance(model, str):
+                model_config = AutoConfig.from_pretrained(model)
+                model_config_dict = model_config.to_dict()
+                with init_empty_weights():
+                    model = AutoModelForCausalLM.from_config(model_config)
+        
         params = {}
         size_in_bytes = 0 
         for name, param in model.named_parameters():
@@ -3275,6 +3281,8 @@ class Module:
             results_map[module_name] = module_result
             
         return results_map
+
+    pool = call_pool
             
     def resolve_key(self, key: str) -> str:
         if key == None:
@@ -3731,10 +3739,10 @@ class Module:
     @classmethod
     def free_gpu_memory(cls, 
                      gpus:List[int] = None,
-                     max_allocation_ratio: float = 1.0,
+                     max_gpu_ratio: float = 0.9 ,
                      fmt = 'b') -> Dict[int, float]:
         import torch
-        assert max_allocation_ratio <= 1.0 and max_allocation_ratio > 0, 'max_allocation_ratio must be less than 1.0 and greter than 0'
+        assert max_gpu_ratio <= 1.0 and max_gpu_ratio > 0, 'max_gpu_ratio must be less than 1.0 and greter than 0'
         free_gpu_memory = {}
         
         if fmt == 'gb' or fmt == 'GB':
@@ -3760,7 +3768,8 @@ class Module:
         for gpu_id, gpu_info in cls.gpu_map().items():
             if int(gpu_id) in gpus:
                 
-                free_gpu_memory[gpu_id] = int(max_allocation_ratio * gpu_info['free'] )/scale
+                gpu_memory = min(gpu_info['free'], gpu_info['total']*max_gpu_ratio)
+                free_gpu_memory[gpu_id] = gpu_memory /scale
                 if fmt == '%':
                     free_gpu_memory[gpu_id] = (free_gpu_memory[gpu_id]/gpu_info['total']) * 100
                     free_gpu_memory[gpu_id] = f'{free_gpu_memory[gpu_id]:.2f}%'
@@ -3768,19 +3777,61 @@ class Module:
                     free_gpu_memory[gpu_id] = free_gpu_memory[gpu_id]/(gpu_info['total']+1e-10)
         if fmt == 'GB':
             free_gpu_memory = {k:f'{int(v)}GB' for k,v in free_gpu_memory.items()}
+            
+        
+        try:
+            total_free_memory = sum(free_gpu_memory.values())
+        except TypeError as e:
+            suffix_length = len(fmt) 
+            total_free_memory = sum(list(map(lambda x: float(x[:-suffix_length]), free_gpu_memory.values())))
+        assert total_free_memory > 0, 'No free memory on any GPU, please reduce the buffer ratio'
 
                 
-        
         return free_gpu_memory
     
+    
+
+    @classmethod
+    def model_size(cls, model):
+        model_size = cls.get_model_size(model)
+        return model_size
+
+
+    @classmethod
+    def max_gpu_memory(cls, model:str, max_gpu_ratio:float=0.8, fmt='b'):
+        
+        
+        model_size = cls.model_size(model)
+        free_gpu_memory = cls.free_gpu_memory(fmt=fmt, max_gpu_ratio=max_gpu_ratio)
+        gpus = list(free_gpu_memory.keys()) 
+        total_gpu_memory = sum(free_gpu_memory.values())
+        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
+        unallocated_model_memory = model_size
+        # max_memory = {}
+        max_memory = {}
+        
+        
+        while unallocated_model_memory > 0:
+            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
+
+            
+            allocated_memory = most_free_gpu_memory
+            unallocated_model_memory -= allocated_memory
+            max_memory[most_free_gpu] = most_free_gpu_memory
+            free_gpu_memory[most_free_gpu] -= allocated_memory
+            
+            
+        return max_memory
+            
+
     @classmethod
     def free_gpus(cls, *args, **kwargs):
         return cls.free_gpu_memory(*args, **kwargs)
     
     
     @classmethod
-    def total_free_gpu_memory(cls, gpus = None, max_allocation_ratio=1.0, fmt='b'):
-        free_gpu_memory = cls.free_gpu_memory(gpus=gpus, max_allocation_ratio=max_allocation_ratio, fmt=fmt)
+    def total_free_gpu_memory(cls, gpus = None, max_gpu_ratio=0.2, fmt='b'):
+        free_gpu_memory = cls.free_gpu_memory(gpus=gpus, max_gpu_ratio=max_gpu_ratio, fmt=fmt)
         total_free_memory = sum(free_gpu_memory.values())
         return total_free_memory
     
@@ -3829,7 +3880,10 @@ class Module:
         
         return dst
     
-    
+    def ping(self):
+        class_name = self.__class__.__name__
+        address = self.address
+        return f'pong from {class_name} at {address}'
     
     @classmethod
     def init_empty_weights(cls, model_class,  *args, fn=None, **kwargs):
@@ -3842,6 +3896,47 @@ class Module:
         
         return model
     
+
+
+    shortcuts =  {
+        # 0-1B models
+        'gpt125m': 'EleutherAI/gpt-neo-125m',
+
+        # 1-3B models
+        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+        'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+        'opt1.3b': 'facebook/opt-1.3b',
+        'opt2.7b': 'facebook/opt-2.7b',
+
+        # 0-7B models
+        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
+        'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+        'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+        'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+        'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+        'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+        'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
+        'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
+        'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+        'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+        'opt6.7b': 'facebook/opt-6.7b',
+        'llama': 'decapoda-research/llama-7b-hf',
+        'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+        'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+
+        # # > 7B models
+        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+        'gptneox': 'EleutherAI/gpt-neox-20b',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt13b': 'facebook/opt-13b',
+        'gpt13b': 'cerebras/Cerebras-GPT-13B'
+        
+            }
 
 if __name__ == "__main__":
     Module.run()

@@ -134,11 +134,12 @@ class Huggingface(commune.Module):
         paths = [p for p in cls.cached_model_paths()]
         
         if return_paths:
-            return paths
+            paths = paths
         else:
-            return [p.split('models--')[-1].replace('--', '/') for p in paths]
-    
-    
+            paths =  [p.split('models--')[-1].replace('--', '/') for p in paths]
+            
+        paths = [p for p in paths if '/' in p] 
+        return paths
     @classmethod
     def snapshot_download(cls,repo_id, *args, **kwargs):
         from huggingface_hub import snapshot_download
@@ -238,8 +239,7 @@ class Huggingface(commune.Module):
     def get_model_config(self, model_name):
         return self.get_model_config(model_name)
     
-    
-    
+
 Huggingface.class_init()
 if __name__ == '__main__':
     Huggingface.run()

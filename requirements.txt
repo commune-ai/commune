@@ -10,6 +10,8 @@ torch
 datasets
 transformers
 diffusers
+safetensors
+accelerate
 #visual tools
 streamlit
 plotly
@@ -30,6 +32,5 @@ retry
 psutil
 munch
 ansible
-safetensors
 
 

@@ -30,46 +30,6 @@ from commune.metric import MetricMap
 
 from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
 
-shortcuts =  {
-    # 0-1B models
-    'gpt125m': 'EleutherAI/gpt-neo-125m',
-
-    # 1-3B models
-    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-    'opt1.3b': 'facebook/opt-1.3b',
-    'opt2.7b': 'facebook/opt-2.7b',
-
-    # 0-7B models
-    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-    'gptj': 'EleutherAI/gpt-j-6b',
-    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-    'opt6.7b': 'facebook/opt-6.7b',
-    'llama': 'decapoda-research/llama-7b-hf',
-    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-
-    # # > 7B models
-    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-    'gptneox': 'EleutherAI/gpt-neox-20b',
-    'gpt20b': 'EleutherAI/gpt-neox-20b',
-    'opt13b': 'facebook/opt-13b',
-    'gpt13b': 'cerebras/Cerebras-GPT-13B'
-    
-        }
-
 """
 Examples 
 
@@ -77,7 +37,6 @@ Examples
 
 """
 class TransformerModel( Model):
-    shortcuts = shortcuts
 
     def __init__(self, model = 'gp125m',
                 **kwargs
@@ -238,60 +197,7 @@ class TransformerModel( Model):
         
         
         
-    @classmethod
-    def infer_model_size(cls, model, buffer_ratio=1):
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        from accelerate import init_empty_weights
-        
-        model = cls.shortcuts.get(model, model)
 
-        print(f'loading config model from {model}...')
-        if isinstance(model, str):
-            model_config = AutoConfig.from_pretrained(model)
-            model_config_dict = model_config.to_dict()
-            with init_empty_weights():
-                model = AutoModelForCausalLM.from_config(model_config)
-    
-        model_size = cls.get_model_size(model)*buffer_ratio
-        return model_size
-
-
-    @classmethod
-    def infer_max_memory(cls, model, buffer_ratio:int=1.2):
-        
-        
-        model_size = cls.infer_model_size(model)*buffer_ratio
-        free_gpu_memory = cls.free_gpu_memory(fmt='b')
-        gpus = list(free_gpu_memory.keys()) 
-        total_gpu_memory = sum(free_gpu_memory.values())
-        
-        
-        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
-
-
-
-        cls.print(f'{model_size}')
-
-        unallocated_model_memory = model_size
-        # max_memory = {}
-        max_memory = {}
-        
-        
-        while unallocated_model_memory > 0:
-            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
-
-            
-            allocated_memory = min(unallocated_model_memory, most_free_gpu_memory)
-            unallocated_model_memory -= allocated_memory
-            max_memory[most_free_gpu] = allocated_memory
-            free_gpu_memory[most_free_gpu] -= allocated_memory
-            
-            
-        for k,v in max_memory.items():
-            max_memory[k] = int(v//1e9)
-            
-        return max_memory
-            
 
         
         
@@ -318,25 +224,23 @@ class TransformerModel( Model):
             assert k not in config, f'config key {k} not found in config'
             config[k] = model_config_dict[k]        
         config = self.munch(config)
-        free_gpu_memory = self.free_gpu_memory(fmt='b')
+        model_size = self.model_size(self.model_path)
         
-        model_kwargs = {}
-        infer_model_size = self.infer_model_size(self.model_path)
-        infered_max_memory = self.infer_max_memory(self.model_path)
-        model_kwargs['load_in_8bit'] = bool(config.load_in_8bit)
+        max_memory = self.max_gpu_memory(self.model_path, max_gpu_ratio=config.max_gpu_ratio)
+        model_kwargs['load_in_8bit'] = config.load_in_8bit
         model_kwargs['max_memory'] = free_gpu_memory
         
+        device = config.device
+        if device != None:
+            if self.is_number(device):
+                assert int(device) in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
+                assert free_gpu_memory[int(config.device)] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
+                device = f'cuda:{device}'
+            
+            
+        
         if config.device != None:
-            if self.is_number(config.device):
-                config.device = f'cuda:{config.device}'
-            if 'cuda' in config.device:
-                if ':' in config.device:
-                    device_id = int(config.device.split(':')[-1])
-                else:
-                    device_id = self.most_free_gpu(free_gpu_memory=free_gpu_memory)
-                    
-                gpy_memory = free_gpu_memory[device_id]
-                assert gpy_memory > infer_model_size, f'gpu memory {gpy_memory} is less than model size {infer_model_size}'
+
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
             self.model.to(config.device)
             
@@ -673,8 +577,9 @@ class TransformerModel( Model):
 
         return output['stats']
     
-
-    default_models = list(shortcuts.keys())
+    @classmethod
+    def default_models(cls):
+        return list(cls.shortcuts.keys())
           
           
     fleet_group = {
@@ -716,7 +621,14 @@ class TransformerModel( Model):
             if cls.module_exists(f'model.{model}') == False:
                 undeployed_models.append(model)
         return undeployed_models
-        
+       
+    @classmethod   
+    def infer_auto_device_map(cls, model, max_memory: dict = None, max_gpu_ratio: float = 0.8):
+        if max_memory == None:
+            max_memory = self.free_gpu_memory(fmt='GB',max_gpu_ratio=max_gpu_ratio)    
+        from accelerate import infer_auto_device_map
+
+        device_map = infer_auto_device_map(model, max_memory=max_memory) 
     @classmethod
     def deploy(cls,
                *models: str,
@@ -735,7 +647,7 @@ class TransformerModel( Model):
         
         free_gpu_memory = cls.free_gpu_memory()
         for model in models:
-            model_size = cls.infer_model_size(model)
+            model_size = cls.model_size(model)
             cls.print(f'Infered model size for {model} is {model_size}', color='yellow')
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
