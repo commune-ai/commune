@@ -40,7 +40,6 @@ class CLI(commune.Module):
                 else:
                     result = getattr(module, fn)
                     
-                    print(result)
                     if callable(result):
                         result = result(*args, **kwargs)
         

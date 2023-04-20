@@ -258,8 +258,6 @@ class Module:
         if path in module_tree: 
             path = module_tree[path].replace('.py', '.yaml')
         
-            
-        
         path = path if path else cls.__config_file__()
             
         if save_if_not_exists:    
@@ -415,6 +413,7 @@ class Module:
         
         def kill_process(process):
             import signal
+            process.stdout.close()
             process.send_signal(signal.SIGINT)
             process.wait()
             # sys.exit(0)
@@ -447,7 +446,7 @@ class Module:
         except KeyboardInterrupt:
             kill_process(process)
             
-        process.stdout.close()     
+             
         kill_process(process)
         return stdout_text
 
@@ -3336,6 +3335,11 @@ class Module:
         
         
         return sig_dict
+    
+    
+    @classmethod
+    def start(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
     
       
     def authenticate(self, auth: dict , staleness: int = 60, ) -> bool:
