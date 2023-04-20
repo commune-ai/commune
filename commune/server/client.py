@@ -271,8 +271,9 @@ class Client( Serializer, commune.Module):
             
             # commune.print(f"GRPC Unknown Error: {response}", color='red')
         if verbose:
-            if 'error' in response:
-                self.print(f"ERROR {self.endpoint}::fn::({fn}), error: {response['error'][:100]}",color='red')
+            # if isinstance(response, str):
+            # if 'error' in response:
+            #     self.print(f"ERROR {self.endpoint}::fn::({fn}), error: {response['error'][:100]}",color='red')
             self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), time: {stats['time']} ",color=random_color)
                      
         
