@@ -211,12 +211,16 @@ class TransformerModel( Model):
         model_name = config['model_name'] = config['model']
         self.model_path = config['model_path'] =self.shortcuts.get(model_name, model_name)
         # config = AutoConfig.from_pretrained(self.model_name)
+        self.print(config)
                 
 
         model = self.get_empty_model(self.model_path)
-        model_size = self.model_size(model)
-        if config.max_memory == None:
-            max_memory = self.max_gpu_memory(model, max_gpu_ratio=config.max_gpu_ratio)
+        model_size = self.get_model_size(model, model_inflation_ratio=config.model_inflation_ratio)
+    
+        max_memory = self.max_gpu_memory(model_size, 
+                                            max_gpu_ratio=config.max_gpu_ratio)
+        
+        self.print(max_memory)
         
         model_kwargs=dict(
             load_in_8bit=config.load_in_8bit,
@@ -658,6 +662,8 @@ class TransformerModel( Model):
                device = None, 
                replace:bool = True,
                tag_seperator:str = '::',
+               model_inflation_ratio:float=1.2,
+               
                **kwargs):
 
 
@@ -668,20 +674,19 @@ class TransformerModel( Model):
         for model in models:
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
-                
-            model_size = cls.model_size(model)
-            cls.print(f'Infered model size for {model} is {model_size}', color='yellow')
+            max_gpu_memory = cls.max_gpu_memory(model, model_inflation_ratio=model_inflation_ratio)
+            device = list(max_gpu_memory.keys())
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
             model_kwargs['tag'] = tag
-            model_kwargs['device'] = device
+            # model_kwargs['device'] = device
             module_exists = cls.module_exists(name)     
             if replace == False and module_exists:
                 cls.print(f'Model {name} already exists', color='yellow')
                 continue
-            cls.launch(name=name,kwargs=model_kwargs, mode=mode)
+            cls.launch(name=name,kwargs=model_kwargs, mode=mode, device=device)
             if wait_for_server:
                 cls.wait_for_server(name=name, sleep_interval=5, timeout=1000)
             model_names.append(name) 
