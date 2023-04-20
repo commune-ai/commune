@@ -220,30 +220,29 @@ class Validator(commune.Module, nn.Module):
                 attention_mask: torch.Tensor = None,
                 model:str=None, 
                 map_tokens=False,
+                train: bool = False,
                 topk: int = 256,
                 **kwargs ):
         
 
-        kwargs.update(dict(topk=topk, map_tokens=map_tokens , input_ids=input_ids))
+        kwargs.update(dict(topk=topk,
+                           map_tokens=map_tokens ,
+                           input_ids=input_ids,
+                           train=train))
         sample = kwargs 
         model_name = self.copy(model)
         model = await commune.async_connect(model, timeout=1)
         # model = await self.async_connect(model, timeout=2)
         # we want the client to return the future
         sample['return_future'] = True
-        sample['train'] = False
         timer = commune.timer()
         output = await model.forward(**sample)
-        
-        
         success = False
-        
         metric = self.default_metric
         
         if isinstance(output, dict):
             
             if 'topk' in output:
-                self.print(output['topk'].mean())
                 output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
                 metric = self.calculate_metric(dict(input_ids=sample['input_ids'], **output))
                 success = True

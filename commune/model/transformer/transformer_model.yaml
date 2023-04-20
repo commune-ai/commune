@@ -15,5 +15,6 @@ max_gpu_ratio: 0.8
 tag: null
 test: True
 load: false
-device_map: auto
+device_map: null
+max_memory: null
 

@@ -1857,18 +1857,19 @@ class Module:
 
 
     @classmethod
-    def kill(cls, *modules, mode:str = 'pm2'):
+    def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True):
         servers = cls.servers()
         for module in modules:
             delete_modules = [server for server in servers if  module in server]
             for d_m in delete_modules:
-                cls.print(f'Killing {d_m}...')
+                if verbose:
+                    cls.print(f'Killing {d_m}...')
                 if mode == 'pm2':
                     cls.pm2_kill(d_m)
                 elif mode == 'ray':
                     cls.ray_kill(d_m)
 
-        return modules
+        return delete_modules
 
     def destroy(self):
         self.kill(self.module_name)
