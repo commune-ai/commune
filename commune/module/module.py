@@ -2956,8 +2956,8 @@ class Module:
     def available_models(cls):
         return cls.get_module('model.transformer').models()
     
-    def model_size(self, keys = None):
-        return self.get_model_size( self, keys)
+    def model_size(self, **kwargs ):
+        return self.get_model_size(model=self, **kwargs)
     
     
     @classmethod
@@ -2976,7 +2976,7 @@ class Module:
         return model
         
     @classmethod
-    def get_model_size(cls, model, keys = None):
+    def get_model_size(cls, model, model_inflation_ratio: float = 1.0, keys:List[str]=None):
         
         if isinstance(model, str):
             model = cls.get_empty_model(model)
@@ -2988,7 +2988,7 @@ class Module:
             
             size_in_bytes += cls.get_tensor_size(param)
           
-        return size_in_bytes
+        return size_in_bytes * model_inflation_ratio
 
 
     def num_params(self)->int:
@@ -3804,7 +3804,7 @@ class Module:
             if int(gpu_id) in gpus:
                 
                 gpu_memory = min(gpu_info['free'], gpu_info['total']*max_gpu_ratio)
-                free_gpu_memory[gpu_id] = gpu_memory /scale
+                free_gpu_memory[gpu_id] = cls.copy(gpu_memory /scale)
                 if fmt == '%':
                     free_gpu_memory[gpu_id] = (free_gpu_memory[gpu_id]/gpu_info['total']) * 100
                     free_gpu_memory[gpu_id] = f'{free_gpu_memory[gpu_id]:.2f}%'
@@ -3822,23 +3822,22 @@ class Module:
         assert total_free_memory > 0, 'No free memory on any GPU, please reduce the buffer ratio'
 
                 
-        return free_gpu_memory
+        return cls.copy(free_gpu_memory)
     
     
 
-    @classmethod
-    def model_size(cls, model):
-        model_size = cls.get_model_size(model)
-        return model_size
 
 
     @classmethod
-    def max_gpu_memory(cls, model:str, max_gpu_ratio:float=0.8, fmt='b'):
+    def max_gpu_memory(cls, model:str, max_gpu_ratio:float=0.8, fmt='b', model_inflation_ratio:float=1.2):
         
-        
-        model_size = cls.model_size(model)
+        if type(model) in [float, int]:
+            model_size = model
+        else:
+            model_size = cls.get_model_size(model, model_inflation_ratio=model_inflation_ratio)
         free_gpu_memory = cls.free_gpu_memory(fmt=fmt, max_gpu_ratio=max_gpu_ratio)
         gpus = list(free_gpu_memory.keys()) 
+        cls.print(free_gpu_memory)
         total_gpu_memory = sum(free_gpu_memory.values())
         assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
         unallocated_model_memory = model_size
@@ -3847,15 +3846,15 @@ class Module:
         
         
         while unallocated_model_memory > 0:
-            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
-
-            
-            allocated_memory = most_free_gpu_memory
+            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=deepcopy(free_gpu_memory), return_tuple=True)
+            assert most_free_gpu not in max_memory 
+            cls.print(most_free_gpu, most_free_gpu_memory)
+            allocated_memory = min(most_free_gpu_memory, unallocated_model_memory)
             unallocated_model_memory -= allocated_memory
-            max_memory[most_free_gpu] = most_free_gpu_memory
+            max_memory[most_free_gpu] = allocated_memory
             free_gpu_memory[most_free_gpu] -= allocated_memory
             
-            
+        
         return max_memory
             
 

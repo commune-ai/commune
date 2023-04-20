@@ -132,7 +132,7 @@ class HFDataset(commune.Module):
     def tokenize(self, text: str = 'Whadup',
                  padding=True, 
                  truncation=True, 
-                 max_length=64,
+                 max_length=256,
                  return_tensors='pt',
                  add_special_tokens=False,
                  device:str = None,
@@ -201,6 +201,7 @@ class HFDataset(commune.Module):
             'glue',
             'super_glue',
             'wikitext',
+            'the_pile',
         
         ]
         return default_datasets 
@@ -391,27 +392,6 @@ class HFDataset(commune.Module):
         'opt13b': 'facebook/opt-13b',
         'gpt2': 'gpt2',
          }
-    def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]):
-        tokenizer = tokenizer if tokenizer else 'gpt2'
-        from transformers import AutoTokenizer
-        
-        if isinstance(tokenizer, str):
-            tokenizer = self.tokenizer_shortcuts.get(tokenizer, tokenizer)
-            self.config['tokenizer'] = tokenizer
-
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
-            except ValueError:
-                print('resorting ot use_fast = False')
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-        
-        self.tokenizer = tokenizer
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        
-        return self.tokenizer
-
-
-
 
     @classmethod
     def available_datasets(cls, prefix:str='dataset') -> List[str]:
