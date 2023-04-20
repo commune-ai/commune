@@ -213,29 +213,27 @@ class TransformerModel( Model):
         # config = AutoConfig.from_pretrained(self.model_name)
                 
 
+        model = self.get_empty_model(self.model_path)
         
-        model_config = AutoConfig.from_pretrained(self.model_path)
-        with init_empty_weights():
-            model = AutoModelForCausalLM.from_config(model_config)
-            
-            
-        model_config_dict = model_config.to_dict()
-        for k,v in model_config_dict.items():
-            assert k not in config, f'config key {k} not found in config'
-            config[k] = model_config_dict[k]        
-        config = self.munch(config)
-        model_size = self.model_size(self.model_path)
+
         
-        max_memory = self.max_gpu_memory(self.model_path, max_gpu_ratio=config.max_gpu_ratio)
-        model_kwargs['load_in_8bit'] = config.load_in_8bit
-        model_kwargs['max_memory'] = free_gpu_memory
+        model_size = self.model_size(model)
+        
+        max_memory = self.max_gpu_memory(model, max_gpu_ratio=config.max_gpu_ratio)
+        model_kwargs=dict(
+            load_in_8bit=config.load_in_8bit,
+            max_memory=max_memory,
+        )
         
         device = config.device
         if device != None:
-            if self.is_number(device):
-                assert int(device) in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
-                assert free_gpu_memory[int(config.device)] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
-                device = f'cuda:{device}'
+            assert self.is_number(device)
+            assert int(device) in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
+            assert free_gpu_memory[int(config.device)] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
+            config.device_map = {'': int(device)}
+
+        
+        model_kwargs['device_map'] = config.device_map
             
             
         
@@ -246,7 +244,7 @@ class TransformerModel( Model):
             
         else:
             
-            model_kwargs['device_map'] = config.device_map
+            
             self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
 
         
@@ -370,16 +368,13 @@ class TransformerModel( Model):
              remote = False, 
              train = False,
              load = False,
+             save = False,
              **kwargs
              ):
         
         if not commune.server_exists(dataset):
             commune.deploy(dataset)
-        
         dataset = commune.connect(dataset, wait_for_server=True)
-        
-        
-    
         namespace = commune.namespace()
         
         if model in namespace:
@@ -412,60 +407,66 @@ class TransformerModel( Model):
             # cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
-        
-        model.save()
+        if save:
+            model.save()
     
     
+
     @classmethod
-    def train( 
-             
+    def train(cls, model = 'gpt125m', 
+             topk:int=256 ,
              dataset:str = 'dataset.text.bittensor',
-             num_batches = 100,
+             num_batches = 3,
              sequence_length = 256,
              batch_size = 32,
-             minimum_loss = 4, 
-             lr = 1e-4,
-             remote = False, 
-             tag = None,
-             load = False,
              device = None, 
+             remote = False, 
+             train = True,
+             load = False,
+             save = False,
+             **kwargs
              ):
         
+        if not commune.server_exists(dataset):
+            commune.deploy(dataset)
+        dataset = commune.connect(dataset, wait_for_server=True)
+        namespace = commune.namespace()
         
-        
-        
-        if remote:
-            namespace = cls.namespace()
-            model_name = f'model.{model}'
-            model = cls.connect(model_name)
-        
-        if isinstance(model, str):
-            model = cls(model= model, tag=tag, device=device)
+        if model in namespace:
+            model_name = model
+            model = commune.connect(model_name)
+        elif isinstance(model, str):
+            model = cls(model= model, test=False, device=device, **kwargs)
         else:
             model = model
         if load:
             model.load()
-        dataset = commune.connect(dataset)
 
         for i in range(num_batches):
             sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
             sample['topk'] = topk
             sample['map_tokens'] = False
             sample['map_logits'] = False
-            sample['train'] = True
+            sample['train'] = train
             sample['autocast'] = True
             sample['timeout'] = 6
-            sample['return_keys'] = [ 'logits', 'stats']
+            sample['return_keys'] = [ 'topk', 'stats']
             
             output = model.forward(**cls.copy(sample))
+            output['logits'] = decode_topk(output['topk'] )
+            
             output['input_ids'] = sample['input_ids']
             cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
+            # cls.print(outpu
+            # t)
+            # cls.print(output['stats'])
         
         # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
-        
-        model.save()
+        if save:
+            model.save()
     
     
+
 
     
     def train_model(self,
@@ -623,12 +624,33 @@ class TransformerModel( Model):
         return undeployed_models
        
     @classmethod   
-    def infer_auto_device_map(cls, model, max_memory: dict = None, max_gpu_ratio: float = 0.8):
+    def infer_device_map(cls, model, max_memory: dict = None, max_gpu_ratio: float = 0.8):
         if max_memory == None:
-            max_memory = self.free_gpu_memory(fmt='GB',max_gpu_ratio=max_gpu_ratio)    
+            max_memory = cls.free_gpu_memory(fmt='GB',max_gpu_ratio=max_gpu_ratio)    
         from accelerate import infer_auto_device_map
-
+        if isinstance(model, str):
+            model = cls.get_empty_model(model)
         device_map = infer_auto_device_map(model, max_memory=max_memory) 
+        return device_map
+    
+    
+    @classmethod
+    def get_empty_model(cls, model):
+        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from accelerate import init_empty_weights
+        
+        model = cls.shortcuts.get(model, model)
+
+        if isinstance(model, str):
+            print(f'loading config model from {model}...')
+
+            model_config = AutoConfig.from_pretrained(model)
+            model_config_dict = model_config.to_dict()
+            with init_empty_weights():
+                model = AutoModelForCausalLM.from_config(model_config)
+                
+        return model
+      
     @classmethod
     def deploy(cls,
                *models: str,
@@ -639,6 +661,7 @@ class TransformerModel( Model):
                tag = None,
                device = None, 
                replace:bool = True,
+               tag_seperator:str = '::',
                **kwargs):
 
 
@@ -647,12 +670,15 @@ class TransformerModel( Model):
         
         free_gpu_memory = cls.free_gpu_memory()
         for model in models:
+            if tag_seperator in model:
+                model, tag = model.split(tag_seperator)
+                
             model_size = cls.model_size(model)
             cls.print(f'Infered model size for {model} is {model_size}', color='yellow')
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
             if tag != None:
-                name = f'{name}.{tag}'
+                name = f'{name}{tag_seperator}{tag}'
             model_kwargs['tag'] = tag
             model_kwargs['device'] = device
             module_exists = cls.module_exists(name)     
@@ -669,7 +695,12 @@ class TransformerModel( Model):
     def sandbox(cls):
         self = cls(model='opt2.7b')
         
+    @classmethod
+    def device_map(self, model):
+        from accelerate import infer_auto_device_map
         
+        device_map = infer_auto_device_map(model, max_memory=self.free_gpu_memory(fmt='GB')) 
+        return device_map
 
         
         

@@ -247,6 +247,25 @@ class Module:
         print('saving yaml', path, data)
         return save_yaml(data=data , path=path)
 
+    def merge_config(self, config:Dict, overrite_keys:bool = False) -> Dict:
+        '''
+        Merges the config with the current config
+        '''
+        if hasattr(config, 'to_dict'):
+            config = config.to_dict()
+        
+        elif isinstance(config, Munch):
+            config = self.munch2dict(config)
+                
+        # merge the model config with the config
+        
+        default_config = self.munch2dict(self.config)
+        for k,v in config.items():
+            if not overrite_keys:
+                assert k not in default_config, f'config key {k} not found in config'
+            default_config[k] = config[k]        
+        self.config = self.munch(default_config)
+        return self.config
     @classmethod
     def load_config(cls, path:str=None,  to_munch:bool = False, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
         '''
@@ -482,14 +501,17 @@ class Module:
 
     
     @classmethod
-    def module_list(cls)-> List[str]:
+    def module_list(cls, search=None)-> List[str]:
         '''
         List of module paths with respect to module.py file
         
         Assumes the module root directory is the directory containing module.py
         '''
-        return list(cls.module_tree().keys())
+        module_list = list(cls.module_tree().keys())
+        if search:
+            module_list = [m for m in module_list if search in m]
     
+        return module_list
     
     @staticmethod
     def port_used(port:int, ip:str ='0.0.0.0'):
@@ -887,8 +909,12 @@ class Module:
         return bool(parent in cls.get_parents(child))
 
     @classmethod
-    def run_python(cls, path:str, interpreter:str='python'):
+    def run_python(cls, path:str, interpreter:str='python3'):
         cls.run_command(f'{interpreter} {path}')
+    @classmethod
+    def python(cls, *cmd, interpreter:str='python3'):
+        cmd = ' '.join(cmd)
+        cls.run_command(f'{interpreter} {cmd}')
 
     @classmethod
     def timer(cls, *args, **kwargs):
@@ -1948,7 +1974,8 @@ class Module:
 
             assert fn != None, 'fn must be specified for pm2 launch'
             launch_fn = getattr(cls, f'pm2_launch')
-            return launch_fn(**launch_kwargs)
+            stdout = launch_fn(**launch_kwargs)
+            return launch_kwargs
             
         elif mode == 'ray':
             launch_kwargs = dict(
@@ -1998,7 +2025,7 @@ class Module:
                    device:str=None, 
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
-                   verbose: bool = True, 
+                   verbose: bool = False, 
                    refresh:bool=True ):
         
         
@@ -2039,9 +2066,8 @@ class Module:
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
                 
         if verbose:
-            cls.print(f'RUNNING: {command}')
 
-        cls.print(f'Launching {module_name} with command: {command}', color='green')
+            cls.print(f'Launching {module_name} with command: {command}', color='green')
         
         
         stdout = cls.run_command(command, env=env, verbose=verbose)
@@ -2049,15 +2075,17 @@ class Module:
         return stdout
     
     @classmethod
-    def pm2_kill(cls, name:str):
+    def pm2_kill(cls, name:str, verbose:bool = False):
         output_list = []
-        for module in cls.pm2_list():
+        pm2_list = cls.pm2_list()
+        for module in pm2_list:
             if module.startswith(name):
-                output_str = cls.run_command(f"pm2 delete {module}")
+                output_str = cls.run_command(f"pm2 delete {module}", verbose=verbose)
                 output_list.append(output_str)
+        return output_list
     @classmethod
-    def pm2_restart(cls, name:str):
-        return cls.run_command(f"pm2 restart {name}")
+    def pm2_restart(cls, name:str, verbose:bool=False):
+        return cls.run_command(f"pm2 restart {name}", verbose=verbose)
         stdout = cls.run_command(f"pm2 status")
         if verbose:
             cls.print(stdout, color='orange')
@@ -2067,11 +2095,11 @@ class Module:
         assert hasattr(self, 'module_name'), 'self.module_name must be defined to restart'
         return self.restart(self.module_name)
     @classmethod
-    def restart(cls, name:str = None, mode:str='pm2'):
+    def restart(cls, name:str = None, mode:str='pm2', verbose:bool = False):
         if name == None:
             name = cls.default_module_name()
         if mode == 'pm2':
-            return cls.pm2_restart(name)
+            return cls.pm2_restart(name, verbose=verbose)
         elif mode == 'ray':
             return cls.ray_restart(name)
         else:
@@ -2930,21 +2958,27 @@ class Module:
     def model_size(self, keys = None):
         return self.get_model_size( self, keys)
     
+    
+    @classmethod
+    def get_empty_model(cls, model):
+        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from accelerate import init_empty_weights
+        print(f'loading config model from {model}...')
+        model = cls.shortcuts.get(model, model)
+
+        if isinstance(model, str):
+            model_config = AutoConfig.from_pretrained(model)
+            model_config_dict = model_config.to_dict()
+            with init_empty_weights():
+                model = AutoModelForCausalLM.from_config(model_config)
+                
+        return model
+        
     @classmethod
     def get_model_size(cls, model, keys = None):
         
-        
-        model = cls.shortcuts.get(model, model)
         if isinstance(model, str):
-            from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-            from accelerate import init_empty_weights
-            print(f'loading config model from {model}...')
-            if isinstance(model, str):
-                model_config = AutoConfig.from_pretrained(model)
-                model_config_dict = model_config.to_dict()
-                with init_empty_weights():
-                    model = AutoModelForCausalLM.from_config(model_config)
-        
+            model = cls.get_empty_model(model)
         params = {}
         size_in_bytes = 0 
         for name, param in model.named_parameters():
@@ -3895,9 +3929,10 @@ class Module:
             model = model_class(*args, **kwargs)
         
         return model
-    
 
-
+    @classmethod
+    def hash(cls, *args, **kwargs):
+        return cls.module('crypto.hash').hash(*args,**kwargs)
     shortcuts =  {
         # 0-1B models
         'gpt125m': 'EleutherAI/gpt-neo-125m',

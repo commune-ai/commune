@@ -17,10 +17,10 @@ from torch import nn
 class Validator(commune.Module, nn.Module):
     
     def __init__(self, 
+                 models: List[str]= None,
                  batch_size: int = 32,
                  sequence_length: int = 256,
                  dataset: str = 'dataset.text.bittensor',
-                 models: List[str]= None,
                  tokenizer: str = 'bittensor',
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
@@ -30,6 +30,7 @@ class Validator(commune.Module, nn.Module):
                  loop = None,
                  load: bool = False,
                  new_loop_per_forward: bool = False,
+                 hidden_size :int= 512,
                  config = None,
                  ):
         
@@ -40,7 +41,6 @@ class Validator(commune.Module, nn.Module):
         self.set_max_stats_history(max_stats_history)
         self.set_batch_size(batch_size)
         self.set_sequence_length(sequence_length)
-                
         self.set_dataset(dataset)
         self.set_models(models)
         self.set_key(key)
@@ -49,7 +49,7 @@ class Validator(commune.Module, nn.Module):
         self.set_alpha(alpha)
         self.set_tokenizer(tokenizer)
         
-        self.config['hidden_size'] = 4096
+        self.config['hidden_size'] = hidden_size
         if load:
             self.load()
 
@@ -78,6 +78,8 @@ class Validator(commune.Module, nn.Module):
     def set_models(self, models: List[str] = None, timeout:int = 2) -> None:
         if models == None:
             models = self.default_models()
+        if isinstance(models, str):
+            models = self.modules(models)
         jobs = [commune.async_connect(model, timeout=timeout) for model in models]
 
         loop = commune.get_event_loop()
@@ -284,13 +286,15 @@ class Validator(commune.Module, nn.Module):
                 return_output_only = False, 
 
                 **kwargs ):
+        timer = self.timer()
+        
         if self.new_loop_per_forward or True:
             loop = self.new_event_loop()
 
         else:
             loop = self.get_event_loop()
 
-        timer = self.timer()
+
 
             
         if models == None:
@@ -374,6 +378,8 @@ class Validator(commune.Module, nn.Module):
         output_dict['input_ids'] = input_ids
         
         ensemble_stats['metric'] = self.calculate_metric(output_dict)
+
+
         ensemble_stats['inference_time'] = timer.seconds
         stats['ensemble'] = ensemble_stats
         output_dict['stats'] = stats
@@ -452,14 +458,12 @@ class Validator(commune.Module, nn.Module):
     
     
     @classmethod
-    def test(cls):
-        models = [m for m in commune.namespace() if m.startswith('model')]
-        self = Validator(models=models)
-        for _ in range(10):
+    def test(cls, *args, **kwargs):
+        num_batches = kwargs.pop('num_batches', 4)
+        self = Validator(*args, **kwargs)
+        for _ in range(num_batches):
             sample = self.sample()
             cls.print(self.forward(**sample)['stats']['ensemble'])
-        self.calculate_weights()
-        st.write(self.stats)
       
     @classmethod
     def test_validation_keys(cls):
@@ -593,6 +597,6 @@ class Validator(commune.Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
 if __name__ == '__main__':
-    Validator.neuron()
+    Validator.run()
 
         
