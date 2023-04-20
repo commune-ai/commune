@@ -465,6 +465,7 @@ class TransformerModel( Model):
              remote = False, 
              train = False,
              load = False,
+             **kwargs
              ):
         
         if not commune.server_exists(dataset):
@@ -480,7 +481,7 @@ class TransformerModel( Model):
             model_name = model
             model = commune.connect(model_name)
         elif isinstance(model, str):
-            model = cls(model= model, test=False, device=device)
+            model = cls(model= model, test=False, device=device, **kwargs)
         else:
             model = model
         if load:
@@ -511,8 +512,8 @@ class TransformerModel( Model):
     
     
     @classmethod
-    def train(cls, model = 'gpt125m', 
-             topk:int=3096 ,
+    def train( 
+             
              dataset:str = 'dataset.text.bittensor',
              num_batches = 100,
              sequence_length = 256,

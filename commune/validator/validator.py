@@ -75,7 +75,7 @@ class Validator(commune.Module, nn.Module):
         job = connect.async_connect(model, loop = self.loop)
         self.models[model] =  self.loop.run_until_complete(job)
             
-    def set_models(self, models: List[str] = None, timeout:int = 1) -> None:
+    def set_models(self, models: List[str] = None, timeout:int = 2) -> None:
         if models == None:
             models = self.default_models()
         jobs = [commune.async_connect(model, timeout=timeout) for model in models]
@@ -88,6 +88,8 @@ class Validator(commune.Module, nn.Module):
         self.config['models'] = []
         for model, model_obj in zip(models, model_objs):
             forward_fn = model_obj.forward
+            if isinstance(model_obj.forward, str):
+                continue
             self.models[model] = model_obj
 
             
@@ -223,7 +225,7 @@ class Validator(commune.Module, nn.Module):
         kwargs.update(dict(topk=topk, map_tokens=map_tokens , input_ids=input_ids))
         sample = kwargs 
         model_name = self.copy(model)
-        model = self.resolve_model(model)
+        model = await commune.async_connect(model, timeout=1)
         # model = await self.async_connect(model, timeout=2)
         # we want the client to return the future
         sample['return_future'] = True
@@ -275,8 +277,8 @@ class Validator(commune.Module, nn.Module):
                 output_hidden_states: bool = False,
                 models:str=None, 
                 threshold: float = 4.0,
-                topk: int = 1024,
-                timeout = 6,
+                topk: int = 256,
+                timeout = 4,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
@@ -289,12 +291,12 @@ class Validator(commune.Module, nn.Module):
             loop = self.get_event_loop()
 
         timer = self.timer()
-        
-        self.set_models(timeout=2)
 
             
         if models == None:
             models = self.model_keys
+        if models == None:
+            models = self.default_models()
             
         self.print(f'forwarding to models: {models}')
             
