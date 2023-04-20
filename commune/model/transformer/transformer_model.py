@@ -214,41 +214,36 @@ class TransformerModel( Model):
                 
 
         model = self.get_empty_model(self.model_path)
-        
-
-        
         model_size = self.model_size(model)
-        
         max_memory = self.max_gpu_memory(model, max_gpu_ratio=config.max_gpu_ratio)
+        
         model_kwargs=dict(
             load_in_8bit=config.load_in_8bit,
             max_memory=max_memory,
         )
         
         device = config.device
-        if device != None:
+        
+        if device != None and device not in ['auto']:
             assert self.is_number(device)
             assert int(device) in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
             assert free_gpu_memory[int(config.device)] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
             config.device_map = {'': int(device)}
-
-        
-        model_kwargs['device_map'] = config.device_map
-            
-            
-        
-        if config.device != None:
-
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-            self.model.to(config.device)
-            
         else:
-            
-            
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
+            if config.device_map == None:
+                config.device_map = self.infer_device_map(model, max_memory=max_memory)
+            else:
+                assert isinstance(config.device_map, dict) or isinstance(config.device_map, str)
+
+        model_kwargs['device_map'] = config.device_map
+        self.print(model_kwargs)
+
+        self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
 
         
-        
+        self.device_map = config.device_map = self.model.hf_device_map
+        self.devices = config.devices = list(config.device_map.values())        
+        config.device = self.devices[0]
         self.set_tokenizer(config)
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
@@ -694,14 +689,6 @@ class TransformerModel( Model):
     @classmethod
     def sandbox(cls):
         self = cls(model='opt2.7b')
-        
-    @classmethod
-    def device_map(self, model):
-        from accelerate import infer_auto_device_map
-        
-        device_map = infer_auto_device_map(model, max_memory=self.free_gpu_memory(fmt='GB')) 
-        return device_map
-
         
         
 if __name__ == "__main__":
