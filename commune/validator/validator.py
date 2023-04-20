@@ -597,6 +597,6 @@ class Validator(commune.Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
 if __name__ == '__main__':
-    Validator.run()
+    Validator.neuron()
 
         

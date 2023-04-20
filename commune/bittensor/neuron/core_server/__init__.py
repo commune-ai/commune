@@ -164,6 +164,7 @@ class neuron:
             )
         self.axon = axon
         self.query_data = {}
+        commune.print(config)
         
 
         # Verify subnet exists
