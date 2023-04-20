@@ -11,7 +11,7 @@ optimizer:
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
-max_gpu_ratio: 0.2
+max_gpu_ratio: 0.8
 tag: null
 test: True
 load: false

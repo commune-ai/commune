@@ -15,7 +15,6 @@ import argparse
 import torch
 import json
 
-# logger = logger.opt(colors=True)
     
 # import torch
 import commune
@@ -168,7 +167,7 @@ class Model( nn.Module, commune.Module):
             torch.save(state_dict[k], object_path)
         
             if verbose:
-                logger.success(f'Saving {k} to {object_path}')
+                self.print(f'Saving {k} to {object_path}')
 
         return path
     
@@ -184,7 +183,7 @@ class Model( nn.Module, commune.Module):
         for path in path_list:
             key = os.path.basename(path).replace('.pt', '')
             if not os.path.exists(path):
-                logger.warning('No saved model found at {path}')
+                self.print('No saved model found at {path}')
                 return
             loaded_state_dict[key] = torch.load( path)
         
@@ -255,7 +254,7 @@ class Model( nn.Module, commune.Module):
             for name, child in reverted_child_list:    
                 if isinstance(child, nn.ModuleList):
                     if num_layers > len(child):
-                        logger.warning(f'Number of finetune layers was set higher then the layers avaliable {len(child)}')
+                        self.print(f'Number of finetune layers was set higher then the layers avaliable {len(child)}')
                         return None
                     return (name + '.' +str(len(child) - num_layers))
                 
@@ -277,7 +276,7 @@ class Model( nn.Module, commune.Module):
         if (all) or (last_layer_name == None):
             return False, last_layer_name
 
-        logger.success(f'Set to finetune layer {last_layer_name} and onwards')
+        self.print(f'Set to finetune layer {last_layer_name} and onwards')
         
         for name, param in self.named_parameters():
             if last_layer_name in name or reached_last_layer == True:
@@ -288,9 +287,9 @@ class Model( nn.Module, commune.Module):
 
         if reached_last_layer == False:
             if all:
-                logger.warning('Set to finetune the whole model, this will significantly increase the memory usage.')
+                self.print('Set to finetune the whole model, this will significantly increase the memory usage.')
             else:
-                logger.warning(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
+                self.print(f'Cannot identify the last layer of the model with name {last_layer_name}, setting to finetune on all of the parameters.')
 
         self.print(self.num_params(trainable=True), 'trainable parameters')
         self.print(self.num_params(trainable=False), 'untrainable parameters')
