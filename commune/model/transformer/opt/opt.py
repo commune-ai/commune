@@ -678,7 +678,7 @@ class OPT( nn.Module, commune.Module):
     def resolve_max_memory(cls, max_memory: Union[Dict[int, str], int], buffer_memory:int=10) -> Dict[int, str]:
         
         if isinstance(max_memory, int):
-            max_memory = cls.infer_max_memory(total_memory=max_memory, buffer_memory=buffer_memory)
+            max_memory = cls.max_gpu_memory(total_memory=max_memory, buffer_memory=buffer_memory)
         elif isinstance(max_memory, dict):
             max_memory = {int(k):v for k,v in max_memory.items()}
         else:
@@ -694,7 +694,7 @@ class OPT( nn.Module, commune.Module):
         
         return max_memory
     @classmethod
-    def infer_max_memory(cls, total_memory:int= None, buffer_memory:int=10) -> Dict[int, str]:
+    def max_gpu_memory(cls, total_memory:int= None, buffer_memory:int=10) -> Dict[int, str]:
         """ Returns a dictionary of gpu_id to max memory for each gpu.
         Args:
             total_memory (int, optional): Total memory to allocate. Defaults to None.
