@@ -13,14 +13,15 @@ from web3.main import Web3
 from eth_account.messages import encode_defunct
 from eth_keys import keys
 from copy import deepcopy
-from eth_account.account import Account
+from eth_account import Account
+
 import commune
 from typing import List, Dict, Union, Optional, Any
 
 logger = logging.getLogger(__name__)
 
 
-class EVMAccount(commune.Module):
+class EVMAccount(commune.Module, Account):
 
 
 
@@ -28,43 +29,21 @@ class EVMAccount(commune.Module):
     ENV_PRIVATE_KEY = 'PRIVATE_KEY'
     def __init__(
         self,
-        private_key: str= 'alice',
-        network: str = 'local.main',
+        *args,
+        config = None,
         **kwargs
     ) -> None:
         """Initialises EVMAccount object."""
         # assert private_key, "private_key is required."
-        commune.Module.__init__(self, **kwargs)
-
-
-        self.account = self.set_account(private_key = private_key)
+        self.config = self.set_config(config, kwargs=kwargs)
+        
+        Account.__init__(self, *args, **kwargs)
         self.set_network(network)
-
-    @property
-    def address(self) -> str:
-        return self.account.address
 
 
     @property
     def private_key(self):
-        return self.account._private_key
-        
-    def set_account(self, private_key=None):
-        if isinstance(private_key, str):
-            if isinstance(self.accounts, dict) \
-                and private_key in self.accounts.keys():
-                private_key = self.accounts[private_key]
-            else:
-                private_key = os.getenv(private_key, private_key) if isinstance(private_key, str) else None
-                if private_key == None:
-                    private_key = self.config.get('private_key', None)
-
-        
-        assert isinstance(private_key, str), f'private key should be string but is {type(private_key)}'
-
-
-        self.account = Account.from_key(private_key)
-        return self.account
+        return self._private_key
 
     def set_web3(self, web3: Web3) -> Web3:
         self.web3 = web3
@@ -81,8 +60,8 @@ class EVMAccount(commune.Module):
     def get_nonce(self, address: str = None) -> int:
         # We cannot rely on `web3.eth.get_transaction_count` because when sending multiple
         # transactions in a row without wait in between the network may not get the chance to
-        # update the transaction count for the self.account address in time.
-        # So we have to manage this internally per self.account address.
+        # update the transaction count for the self address in time.
+        # So we have to manage this internally per self address.
         address = self.resolve_address(address)
         if address not in EVMAccount._last_tx_count:
             EVMAccount._last_tx_count[address] = self.web3.eth.get_transaction_count(address)
@@ -91,10 +70,6 @@ class EVMAccount(commune.Module):
 
         return EVMAccount._last_tx_count[address]
 
-
-    @property
-    def address(self):
-        return self.account.address
 
     def sign_tx(
         self,
@@ -156,24 +131,6 @@ class EVMAccount(commune.Module):
 
         return tx_receipt.__dict__
 
-    @staticmethod
-    def python2str(input):
-        input = deepcopy(input)
-        input_type = type(input)
-        message = input
-        if input_type in [dict]:
-            message = json.dumps(input)
-        elif input_type in [list, tuple, set]:
-            message = json.dumps(list(input))
-        elif input_type in [int, float, bool, str]:
-            message = str(input)
-        return message
-
-    @staticmethod
-    def str2python(input)-> dict:
-        assert isinstance(input, str)
-        output_dict = json.loads(input)
-        return output_dict
     
     def resolve_message(self, message):
         message = self.python2str(message)
@@ -196,7 +153,7 @@ class EVMAccount(commune.Module):
         """
         signable_message = self.resolve_message(message)
 
-        signed_message = self.account.sign_message(signable_message)
+        signed_message = self.sign_message(signable_message)
         signed_message_dict = {}
         for k in ['v', 'r', 's', 'signature', 'messageHash']:
             signed_message_dict[k] = getattr(signed_message, k)
@@ -337,6 +294,26 @@ class EVMAccount(commune.Module):
         # self.test_verify_message()
         self.test_hash()
         
+        
+    def from_password(cls, password:str, salt:str='MySalt'):
+        
+        from web3.auto import w3
+        from Crypto.Protocol.KDF import PBKDF2
+
+        # Prompt the user for a password and salt
+        password = input("Enter password: ")
+        # Derive a key using PBKDF2
+        key = PBKDF2(password.encode(), salt, dkLen=32, count=100000)
+
+        # Create an account using the key
+        account = Account.privateKeyToAccount(key)
+
+        # Print the account address and private key
+        print("Account address:", account.address)
+        print("Private key:", account.privateKey.hex())
+        
+        return account
+
 if __name__ == '__main__':
     EVMAccount.test_hash()
 
