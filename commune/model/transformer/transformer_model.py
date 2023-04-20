@@ -215,7 +215,8 @@ class TransformerModel( Model):
 
         model = self.get_empty_model(self.model_path)
         model_size = self.model_size(model)
-        max_memory = self.max_gpu_memory(model, max_gpu_ratio=config.max_gpu_ratio)
+        if config.max_memory == None:
+            max_memory = self.max_gpu_memory(model, max_gpu_ratio=config.max_gpu_ratio)
         
         model_kwargs=dict(
             load_in_8bit=config.load_in_8bit,

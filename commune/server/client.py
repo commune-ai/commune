@@ -157,7 +157,7 @@ class Client( Serializer, commune.Module):
 
         self.sync_the_async(loop=self.loop)
         self.server_functions = self.forward(fn='functions', args=[False])
-        self.print(f"Connected to {self.endpoint} with {max_processes} processes {self.server_functions}")
+        # self.print(f"Connected to {self.endpoint} with {max_processes} processes")
 
 
     
@@ -224,29 +224,34 @@ class Client( Serializer, commune.Module):
         
         data.update(kwargs)
 
-
-
+        fn = data.get('fn', None)
+        random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
+        if verbose:
+            self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color=random_color)
+        stats = {
+            'time': {}
+        }
         try:
-            grpc_request = self.serialize(data=data, metadata=metadata)
-
-            asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
+            # Serialize the request
             t = commune.timer()
-            fn = data.get('fn', None)
+            grpc_request = self.serialize(data=data, metadata=metadata)
+            stats['time']['serial'] = t.seconds
             
-            random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
-            if verbose:
-                self.print(f"Sending --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color=random_color)
+            # Send the request
+            t = commune.timer()
+            asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
             response = await asyncio_future
+            stats['time']['fn'] = t.seconds
+            
+            
+            # Deserialize the response
+            t = commune.timer()
             response = self.deserialize(response)
-            seconds = t.seconds
-            if verbose:
-                self.print(f"Recieving <-- {self.endpoint}::fn::({fn}), latency: {seconds}",color=random_color)
-                        
+            stats['time']['deserial'] = t.seconds
+   
             if results_only:
-                try:
-                    return response['data']['result']
-                except Exception as e:
-                    print(response) 
+                response = response['data']['result']
+                    
         except grpc.RpcError as rpc_error_call:
             response = str(rpc_error_call)
             # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
@@ -255,15 +260,22 @@ class Client( Serializer, commune.Module):
         # ==== Timeout Error ====
         # =======================
         except asyncio.TimeoutError:
-            response = str(rpc_error_call)
+            response = {'error': str(rpc_error_call)}
             # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
     
         # ====================================
         # ==== Handle GRPC Unknown Errors ====
         # ====================================
         except Exception as e:
-            response = str(e)
+            response = {'error': str(e)}
+            
             # commune.print(f"GRPC Unknown Error: {response}", color='red')
+        if verbose:
+            if 'error' in response:
+                self.print(f"ERROR {self.endpoint}::fn::({fn}), error: {response['error'][:100]}",color='red')
+            self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), time: {stats['time']} ",color=random_color)
+                     
+        
         return  response
     
     async_call = async_forward

@@ -1,3 +1,4 @@
+import commune
 
 def get_current_time():
     from time import strftime
@@ -55,9 +56,11 @@ def timedeltatimestamp( **kwargs):
 
 
 class Timer:
-    def __init__(self, start=True):
+    def __init__(self, start=True, sigdigs:int=2):
         if start:
             self.start()
+        
+        self.sigdigs = sigdigs
     
     
     def start(self):
@@ -68,7 +71,7 @@ class Timer:
     @property
     def seconds(self) -> int:
         import time
-        return time.time() - self.start_time
+        return commune.round(time.time() - self.start_time, self.sigdigs)
     def stop(self) -> int:
         time_passed  = self.seconds
         return time_passed
