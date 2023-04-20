@@ -462,6 +462,7 @@ class Validator(commune.Module, nn.Module):
         self = Validator(*args, **kwargs)
         for _ in range(num_batches):
             sample = self.sample()
+            
             cls.print(self.forward(**sample)['stats']['ensemble'])
       
     @classmethod

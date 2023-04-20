@@ -3964,13 +3964,13 @@ class Module:
         'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
         'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
         'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-
+        'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
         # # > 7B models
         'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
         'gptneox': 'EleutherAI/gpt-neox-20b',
         'gpt20b': 'EleutherAI/gpt-neox-20b',
         'opt13b': 'facebook/opt-13b',
-        'gpt13b': 'cerebras/Cerebras-GPT-13B'
+        'gpt13b': 'cerebras/Cerebras-GPT-13B',
         
             }
 
