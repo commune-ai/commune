@@ -230,13 +230,15 @@ class Client( Serializer, commune.Module):
             asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
             t = commune.timer()
             fn = data.get('fn', None)
+            
+            random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
             if verbose:
-                self.print(f"Sending --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color='yellow')
+                self.print(f"Sending --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color=random_color)
             response = await asyncio_future
             response = self.deserialize(response)
             seconds = t.seconds
             if verbose:
-                self.print(f"Recieving <-- {self.endpoint}::fn::({fn}), latency: {seconds}",color='green')
+                self.print(f"Recieving <-- {self.endpoint}::fn::({fn}), latency: {seconds}",color=random_color)
                         
             if results_only:
                 try:

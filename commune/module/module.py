@@ -3463,9 +3463,9 @@ class Module:
             
         return subspace
     
-    @classmethod
-    def key(cls, *args, **kwargs):
-        return cls.get_module('subspace.key')(*args, **kwargs)
+    # @classmethod
+    # def key(cls, *args, **kwargs):
+    #     return cls.get_module('subspace.key')(*args, **kwargs)
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
