@@ -253,20 +253,18 @@ class Server(ServerServicer, Serializer):
         return {'data': {'result': output_data, 'info': sample_info }, 'metadata': metadata}
     
 
-    def log_sample(sample_info: dict, max_history: int = 100) -> None:
+    def log_sample(self, sample_info: dict, max_history: int = 100) -> None:
+            if not hasattr(self, 'stats'):
+                self.stats = {}
         
-            if not hasattr(self, 'sample_info_history'):
-                self.sample_info_history = []
-
 
             sample_info['success'] = True
             
-            
             self.stats['successes'] = self.stats.get('success', 0) + (1 if sample_info['success'] else 0)
             self.stats['errors'] = self.stats.get('errors', 0) + (1 if not sample_info['success'] else 0)
-            self.stats['count'] += 1
+            self.stats['requests'] = self.stats.get('requests', 0) + 1
             self.stats['history'] = self.stats.get('history', []) + [sample_info]
-            self.stats['current'] = sample_info
+            self.stats['most_recent'] = sample_info
         
             
             if len(self.stats['history']) > max_history:
