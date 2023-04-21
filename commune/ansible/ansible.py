@@ -132,6 +132,12 @@ class Ansible(commune.Module):
 
         return node2stdout
     
+    @classmethod
+    def run(cls, *args, **kwargs) -> str:
+        self = cls()
+        return self.shell(*args, **kwargs)
+        
+    
     @property
     def host_map(self):
         host_map = {}
@@ -191,6 +197,6 @@ class Ansible(commune.Module):
             self.save_inventory()
             st.write(self.shell(command_text, inventory_group='selected'))
 if __name__ == '__main__':
-    Ansible.streamlit()
+    Ansible.run()
     
     
