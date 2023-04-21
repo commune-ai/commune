@@ -367,7 +367,8 @@ class Module:
             config = self.load_config(path=config, save_if_not_exists=False)
         
         
-        config.update(kwargs)
+        for k,v in kwargs.items():
+            self.dict_put(config, k, v)
         
         # overwrite the default config with the new config
         config = {**default_config, **config}
@@ -1313,7 +1314,6 @@ class Module:
             
             for peer_id, (peer_address, peer_namespace) in enumerate(peer_registry.items()):
                 if isinstance(peer_namespace, str):
-                    cls.print(f'Error getting peer namespace from {peer_address}', color='red')
                     continue
                 for peer_server_name, peer_server_info in peer_namespace.items():
   

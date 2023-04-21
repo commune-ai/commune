@@ -14,33 +14,39 @@ class BittensorModule(commune.Module):
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                subtensor: Union[bittensor.subtensor, str] = 'finney',
+                network: Union[bittensor.subtensor, str] = 'finney',
+                netuid: int = None,
                 create: bool = False,
                 register: bool = False
                 ):
         
-        self.set_subtensor(subtensor=subtensor)
-        self.set_wallet(wallet=wallet)
+        self.set_subtensor(subtensor=network)
+        self.set_wallet( wallet=wallet)
         if create:
             self.create_wallet(wallet)
         
-    @property
-    def network_options(self):
-        network_options = ['finney', 'bellagene'] 
-        if os.getenv('SUBTENSOR', None) != None:
-            network_options.append(os.getenv('SUBTENSOR'))
+    @classmethod
+    def network_options(cls):
+        network_options = ['finney', 'bellagene', 'local'] 
+
             
         return network_options
-        
-    def set_subtensor(self, subtensor=None): 
-        subtensor_class = self.import_object('commune.bittensor.subtensor')
+      
+    @classmethod
+    def get_subtensor(cls, subtensor:Union[str, bittensor.subtensor]='finney') -> bittensor.subtensor:
         if isinstance(subtensor, str):
-            if subtensor in self.network_options:
-                subtensor = subtensor_class(network=subtensor)
-            elif ':' in subtensor:
-                subtensor = subtensor_class(chain_endpoint=subtensor)
-        
-        self.subtensor = subtensor if subtensor else subtensor_class()
+            subtensor = bittensor.subtensor(network=subtensor)
+        elif isinstance(subtensor, type(None)):
+            subtensor = bittensor.subtensor()
+        elif isinstance(subtensor, bittensor.Subtensor):
+            subtensor = subtensor
+        else:
+            raise NotImplementedError(subtensor)
+        return subtensor
+    
+    
+    def set_subtensor(self, subtensor=None): 
+        self.subtensor = self.get_subtensor(subtensor)
         self.metagraph = bittensor.metagraph(subtensor=self.subtensor).load()
         
         return self.subtensor
@@ -127,7 +133,7 @@ class BittensorModule(commune.Module):
     
     @property
     def default_network(self):
-        return self.network_options[0]
+        return self.network_options()[0]
     
     @property
     def default_wallet(self):
@@ -370,13 +376,12 @@ class BittensorModule(commune.Module):
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
                     
     @classmethod
-    def create_wallet(cls, 
+    def add_wallet(cls, 
                       wallet: str = 'default.default',
-                       coldkey: str = None,
-                       hotkey : str = None,
-                       coldkey_use_password:bool = False, 
-                       hotkey_use_password:bool = False,
+                       use_password:bool = False, 
+                       overwrite : bool = True,
                        mnemonic: str= None,
+                       mnemonic_ck : str = None,
                        seed: str = None
                        ) :
         if len(wallet.split('.')) == 2:
@@ -387,13 +392,13 @@ class BittensorModule(commune.Module):
         assert isinstance(hotkey, str), 'hotkey must be a string (or None)'
         assert isinstance(coldkey, str), 'coldkey must be a string'
         
-        if mnemonic:
-            raise NotImplementedError
-        if seed:
-            raise NotImplementedError
-        
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
-        return  wallet.create(coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)     
+        if mnemonic_ck:
+            wallet.create_from_mnemonic(mnemonic_ck, use_password=use_password, overwrite=overwrite)
+        if mnemonic:
+            return wallet.regenerate_hotkey(mnemonic=mnemonic, use_password=hotkey_use_password, overwrite=overwrite)
+        else:
+            return  wallet.create(coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)     
                  
     @classmethod
     def register_wallet(
@@ -427,8 +432,8 @@ class BittensorModule(commune.Module):
         wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
         self.set_wallet(wallet)
         
-        network_options = self.network_options
-        network = st.selectbox(f'Select Network ({network_options[0]})', self.network_options, 0)
+        network_options = self.network_options()
+        network = st.selectbox(f'Select Network ({network_options[0]})', network_options, 0)
         self.set_subtensor(subtensor=network)
         
         sync_network = st.button('Sync the Network')

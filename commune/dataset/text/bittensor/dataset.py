@@ -99,11 +99,11 @@ class BittensorDataset(Module):
         self.sample_count = 0
         self.batch_count = 0
 
+        self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
 
         
         if download:
             # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
-            self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
         
             self.download_hashes(background=self.background, min_hash_count=self.min_hash_count)
       
@@ -937,6 +937,7 @@ class BittensorDataset(Module):
     @classmethod
     def test(cls, *args,**kwargs):
         self = cls( *args,**kwargs)
+        cls.print(self.sample())
         
 
         
