@@ -120,22 +120,32 @@ class TransformerModel( Model):
 
     def _forward(self,  
                 input_ids: torch.Tensor, 
+                attention_mask: torch.Tensor = None,
                 topk:int=32,
-                output_length:int = 10,
+                output_length:int = None,
                 output_hidden_states : bool = True,
                 hidden_state_index: int = -1,
                 hidden_dim_bounds: List =  [0, -1],
                 return_keys:List[str] = ['topk', 'stats'],
                 train: bool = False,   
+                max_sequence_length : int = None,
                 map_tokens: bool = False,
                 map_logits: bool = False,  
                 tag : str = None,                           
                 **kwargs):
 
-        sample = {
-        'input_ids': input_ids,
-        }
+        # resolve the output length
+        output_length = output_length or self.config.output_length or input_ids.shape[1]
+        # resolve the max sequence length (sometimes we want to clip the input to make it faster)
+        max_sequence_length = max_sequence_length or self.config.max_sequence_length or input_ids.shape[1]
+        attention_mask = attention_mask or torch.ones_like(input_ids)
     
+    
+
+        sample = {
+        'input_ids': input_ids[:, -max_sequence_length:],
+        }
+        
         if map_tokens:
             offset_mapping, offset_mapping_std, original_input_ids = None, None, None
 
