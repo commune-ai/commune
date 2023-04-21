@@ -40,8 +40,8 @@ class Server(ServerServicer, Serializer):
             ip: Optional[str] = None,
             port: Optional[int] = None,
             max_workers: Optional[int] = 10, 
+            authenticate = False,
             maximum_concurrent_rpcs: Optional[int] = 400,
-            authenticate: bool = False,
             thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
             compression:Optional[str] = None,
@@ -87,18 +87,11 @@ class Server(ServerServicer, Serializer):
                         max_workers=max_workers,
                         maximum_concurrent_rpcs=maximum_concurrent_rpcs,
                         compression=compression,) 
-        
         self.timeout = timeout
         self.verbose = verbose
-        
-        # set the module
         self.module = module
-        
-        # set the whitelist functions
-        self.add_whitelist_functions(whitelist_functions + self.module.functions() + self.module.attributes())
-        self.add_blacklist_functions(blacklist_functions)
         self.authenticate = authenticate
-        self.subspace = subspace
+
         
         
     
@@ -195,15 +188,6 @@ class Server(ServerServicer, Serializer):
             time = {}
         )
         
-    def resolve_authentication(self, data: dict = None, metadata: dict = None):
-        
-        if self.authenticate:
-            auth = data.pop('auth', None)
-            assert isinstance(auth, dict), 'Please provide authentication Old Chap' 
-            assert hasattr(self.module, 'authenticate')
-            assert self.module.authenticate(auth=auth)
-        
-        return data, metadata
     def __call__(self,
                  data:dict = None, 
                  metadata:dict = None,
@@ -214,11 +198,10 @@ class Server(ServerServicer, Serializer):
         
         
         t = commune.timer()
+        success = False
         
         try:
-            
-            data, metadata = self.resolve_authentication(data=data, metadata=metadata)
-
+            # self.module.authenticate(data)
             fn = data['fn']
             fn_kwargs = data.get('kwargs', {})
             fn_args = data.get('args', [])
@@ -229,6 +212,8 @@ class Server(ServerServicer, Serializer):
             if verbose:
                 commune.print('Calling Function: '+fn, color='cyan')
             output_data = getattr(self.module, fn)(*fn_args,**fn_kwargs)
+            
+            success = True
 
         except RuntimeError as ex:
             commune.print(f'Exception in server: {ex}', 'red')
@@ -241,39 +226,52 @@ class Server(ServerServicer, Serializer):
             
         except Exception as ex:
             output_data = str(ex)
+            
             if verbose:
                 commune.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')
         
+
         sample_info ={
-            'seconds': t.seconds,
+            'latency': t.seconds,
             'in_bytes': sys.getsizeof(data),
             'out_bytes': sys.getsizeof(output_data),
             'auth': data.get('auth', None),
             'fn': fn,
-            'timestamp': commune.time()
+            'timestamp': commune.time(),
+            'success': success
             }
+        
+        
+        # calculate bps (bytes per second) for upload and download
+        sample_info['upload_bps'] = sample_info['in_bytes'] / sample_info['latency']
+        sample_info['download_bps'] = sample_info['out_bytes'] / sample_info['latency']
+        
+        self.log_sample(sample_info)
         
         
 
         return {'data': {'result': output_data, 'info': sample_info }, 'metadata': metadata}
     
 
-    def log_sample(sample_info: dict, max_history: int = None) -> None:
+    def log_sample(sample_info: dict, max_history: int = 100) -> None:
         
-            max_history = max_history if max_history else 100
             if not hasattr(self, 'sample_info_history'):
                 self.sample_info_history = []
-            
-            self.sample_info_history.append(sample_info)
-            if len(sample_info_history) > max_history:
-                self.sample_info_history.pop(0)
-            # calculate states
-            self.stats['count'] += 1
-            for k,v in sample_info.items():
-                if type(v) in [int, float]:
-                    prev_v = self.stats.get(k, 0)
-                    self.stats[k] = (v + prev_v*(self.stats['count'] - 1)) / self.stats['call_count']
 
+
+            sample_info['success'] = True
+            
+            
+            self.stats['successes'] = self.stats.get('success', 0) + (1 if sample_info['success'] else 0)
+            self.stats['errors'] = self.stats.get('errors', 0) + (1 if not sample_info['success'] else 0)
+            self.stats['count'] += 1
+            self.stats['history'] = self.stats.get('history', []) + [sample_info]
+            self.stats['current'] = sample_info
+        
+            
+            if len(self.stats['history']) > max_history:
+                self.stats['history'].pop(0)
+            
     def Forward(self, request: DataBlock, context: grpc.ServicerContext) -> DataBlock:
         r""" The function called by remote GRPC Forward requests. The Datablock is a generic formatter.
             

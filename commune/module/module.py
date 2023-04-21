@@ -797,7 +797,6 @@ class Module:
 
     @classmethod
     def path2objectpath(cls, path:str) -> str:
-        cls.print(path)
         object_name = cls.get_classes_from_python_path(path)
         if len(object_name) == 0:
             return None
@@ -1526,6 +1525,14 @@ class Module:
         if search:
             namespace_options = [o for o in namespace_options if search in o]
         return namespace_options
+    
+    
+    kwargs_store = {}
+    def save_kwargs(self, fn:str, kwargs:dict):
+        kwargs.pop('self', None)
+        self.kwargs_store[fn] = kwargs
+        return self.kwargs_store
+    
     @classmethod
     def serve(cls, 
               module:Any = None ,
@@ -1558,8 +1565,8 @@ class Module:
         else:
             self = module
              
-        whitelist_functions = whitelist_functions if whitelist_functions else cls.whitelist_functions
-        blacklist_functions = blacklist_functions if blacklist_functions else cls.blacklist_functions
+        whitelist_functions = whitelist_functions if whitelist_functions else cls.whitelist_functions()
+        blacklist_functions = blacklist_functions if blacklist_functions else cls.blacklist_functions()
     
         # resolve the module id
         
@@ -1579,10 +1586,11 @@ class Module:
             self.__dict__[k] = module_name
 
         Server = cls.import_object('commune.server.server.Server')
+        
+        self.save_kwargs('serve', locals())
+
         server = Server(ip=ip, 
                         port=port,
-                        whitelist_functions = whitelist_functions,
-                        blacklist_functions = blacklist_functions,
                         module = self )
         
         # register the server
@@ -3065,6 +3073,29 @@ class Module:
     def warning(cls, *args, **kwargs):
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
+    
+    
+    @classmethod
+    def whitelist_functions(cls, mode='sudo') -> List[str]:
+        access_control = cls.get_json('access_control',default={})
+        access_control['whitelist'] = access_control.get('whitelist', {})
+        access_control['whitelist'][mode]= access_control['whitelist'].get(mode, [])
+        whitelist_functions = access_control['whitelist'][mode]
+        if len(whitelist_functions) == 0:
+            whitelist_functions = cls.functions(include_module=True)
+            access_control['whitelist'][mode] = whitelist_functions
+        return access_control['whitelist'][mode]
+    
+    @classmethod
+    def blacklist_functions(cls, mode='sudo') -> List[str]:
+        access_control = cls.get_json('access_control',default={})
+        access_control['blacklist'] = access_control.get('blacklist', {})
+        access_control['blacklist'][mode]= access_control['blacklist'].get(mode, [])
+        whitelist_functions = access_control['blacklist'][mode]
+        if len(whitelist_functions) == 0:
+            whitelist_functions = []
+            access_control['blacklist'][mode] = whitelist_functions
+        return access_control['blacklist'][mode]
 
     @classmethod
     def error(cls, *args, **kwargs):
@@ -3387,8 +3418,9 @@ class Module:
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
+
       
-    def authenticate(self, auth: dict , staleness: int = 60, ) -> bool:
+    def authenticate(self, data, staleness: int = 60, ) -> bool:
         
         '''
         Args:
@@ -3401,17 +3433,25 @@ class Module:
             statleness: int (seconds) - how old the request can be
         return bool
         '''
+        if not isinstance(data, dict):
+            return False
         
-        # check if user is in the list of users
-        is_user = self.is_user(auth)
+        fn = data.get('fn', None)
+        assert fn != None, 'Must provide a function name'
         
-        # check the data
-        data = auth['data']
+        assert fn in self.whitelist_functions(), f'AuthFail: Function {fn} not in whitelist'
+        assert fn not in self.blacklist_functions(), f'AuthFail: Function {fn} in blacklist'
         
-        if data['timestamp'] < self.time() - staleness:
-            is_user = False
+        # # check if user is in the list of users
+        # is_user = self.is_user(auth)
+        
+        # # check the data
+        # data = auth['data']
+        
+        # expiration  = self.time() - staleness
+        # is_user = bool(data['timestamp'] > expiration)
             
-        return is_user
+        return True
         
         
         
