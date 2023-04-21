@@ -99,11 +99,12 @@ class BittensorDataset(Module):
         self.sample_count = 0
         self.batch_count = 0
 
-        # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
-        self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
-        
+
         
         if download:
+            # Build the text corpus by fetching the hashes of the textfiles (Current Heirarchy)
+            self.construct_text_corpus(datasets=self.datasets, load=self.load_dataset, save=self.save_dataset)
+        
             self.download_hashes(background=self.background, min_hash_count=self.min_hash_count)
       
       
@@ -162,6 +163,7 @@ class BittensorDataset(Module):
                     self.hash_dataset_map[fm['Hash']] = dataset_name
                     self.all_text_file_metas += [fm]
             
+        self.dataset_size_map = {k:len(v) for k,v in self.dataset_hash_map.items()}
         # Ensure the hash list is not empty.
         assert len(self.all_text_file_metas) > 0
 
@@ -181,7 +183,7 @@ class BittensorDataset(Module):
         """
         # Hash to the meta file to avoid duplication in case we load two of the same file_meta.
         hash2file_meta = {}
-
+        text_file_metas = []
         # If load is true, load the hashes, otherwise, fetch them from ipfs.
         if load:
             try:
@@ -200,15 +202,16 @@ class BittensorDataset(Module):
 
             
             folder_hashes = (await self.get_folder_hashes(self.dataset2hash[dataset]))[:self.max_directories]
-
             # For each folder, get the text hashes.
             tasks = []
             for f in folder_hashes:
                 tasks.append(self.get_folder_text_hashes(f, dataset=dataset))
 
+            print('hey',len(tasks))
             # Some hashes are incomplete, ensure they have Size and Hash Field.
             for folder_text_file_metas in await asyncio.gather(*tasks):
                 for file_meta in folder_text_file_metas:
+                    
                     if 'Size' in file_meta and 'Hash' in file_meta:
                         hash2file_meta[file_meta['Hash']] = file_meta   
                     
@@ -220,6 +223,7 @@ class BittensorDataset(Module):
         # Calculate the size.
         self.dataset_byte_size_map[dataset]  = sum([fm['Size'] for fm in text_file_metas])
 
+        self.print(f'Loaded {len(text_file_metas)} files from {dataset} with total size {self.dataset_byte_size_map[dataset]} bytes.')
         return text_file_metas
 
     def set_data_size(self, batch_size:Optional[int] = None, block_size:Optional[int] = None, sequence_length:Optional[int] = None,  min_block_size_bytes:Optional[int]= None, buffer_size:Optional[int]=None) -> None:
@@ -286,11 +290,7 @@ class BittensorDataset(Module):
             
     def suggest_samples(self, sample_size:int, loaded_fraction = 1.0):
         suggest_samples = []
-        if loaded_fraction > 0 :
-            suggest_samples += random.sample(self.saved_hashes, int(sample_size * loaded_fraction))
-        
-        if loaded_fraction < 1:
-            suggest_samples += random.sample(self.all_text_file_metas,  int((1-loaded_fraction)*sample_size))
+        suggest_samples += random.sample(self.saved_hashes, int(sample_size * loaded_fraction))
         return suggest_samples
     
     async def async_generate_sample(self)-> List[str]:
@@ -477,7 +477,7 @@ class BittensorDataset(Module):
                      **kwargs):
         
         module_path = cls.module_path()
-        prefix = f'task.{module_path}.{cls.__name__}' 
+        prefix = f'task.{module_path}' 
         for job in range(jobs):
             name = f'{prefix}.{job}'
             
@@ -818,10 +818,6 @@ class BittensorDataset(Module):
         The size of the dataset in bytes.
         '''
         return sum(list(self.dataset_byte_size_map.values()))
-
-    @property
-    def dataset_size_map(self):
-        return {k:len(v) for k,v in self.dataset_hash_map.items()}
 
 
     def dataloader(self, epoch_length:Optional[int] = 100) -> DataLoader:

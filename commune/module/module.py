@@ -797,8 +797,11 @@ class Module:
 
     @classmethod
     def path2objectpath(cls, path:str) -> str:
-        object_name = cls.get_classes_from_python_path(path)[-1]
-
+        cls.print(path)
+        object_name = cls.get_classes_from_python_path(path)
+        if len(object_name) == 0:
+            return None
+        object_name = object_name[0]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
         

@@ -217,9 +217,10 @@ class TransformerModel( Model):
         model = self.get_empty_model(self.model_path)
         model_size = self.get_model_size(model, model_inflation_ratio=config.model_inflation_ratio)
     
+        free_gpu_memory = self.free_gpu_memory()
         max_memory = self.max_gpu_memory(model_size, 
                                             max_gpu_ratio=config.max_gpu_ratio)
-        
+        max_memory = {k:free_gpu_memory[k] for k,v in max_memory.items()}
         self.print(max_memory)
         
         model_kwargs=dict(

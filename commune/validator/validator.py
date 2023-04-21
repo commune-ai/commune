@@ -15,7 +15,6 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 
 from torch import nn
 class Validator(commune.Module, nn.Module):
-    
     def __init__(self, 
                  models: List[str]= None,
                  batch_size: int = 32,
@@ -221,7 +220,7 @@ class Validator(commune.Module, nn.Module):
                 model:str=None, 
                 map_tokens=False,
                 train: bool = False,
-                topk: int = 256,
+                topk: int = 4096,
                 **kwargs ):
         
 
