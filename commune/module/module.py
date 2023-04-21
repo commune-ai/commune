@@ -11,7 +11,7 @@ import argparse
 import asyncio
 
 
-boot_peers = ['162.157.13.236:9057', '162.157.13.236:9255', '199.126.197.58:9451']
+boot_peers = ['162.157.13.236:9057', '162.157.13.236:9255', '162.157.13.236:9451']
 
 
 class Module:
@@ -3655,9 +3655,41 @@ class Module:
         
     @classmethod
     def add_peer(cls, *args, **kwargs):
-        loop = asyncio.get_event_loop()
+        loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
        
+    add_peers = add_peer
+    
+    
+    @classmethod
+    async def async_add_peer(cls, *peer_addresses,timeout:int=1):
+        
+        peer_registry = await Module.async_get_json('peer_registry', default={})
+
+        if len(peer_addresses) == 0:
+            peer_addresses = cls.boot_peers
+            
+        jobs = []
+        peer_results = []
+        # get the server registry for each peer
+        for peer_address in peer_addresses:
+            job = cls.async_call(module=peer_address, fn='server_registry', timeout=timeout)
+            jobs.append(job)
+            
+        # wait for all jobs to complete
+        peer_results = await asyncio.gather(*jobs)
+        
+        cls.print(f'Adding peer  to registry, {peer_results}')
+
+        #  add each peer to the registry
+        for peer_address, peer_server_registry in zip(peer_addresses, peer_results):
+            peer_registry[peer_address] = peer_server_registry
+            
+        await Module.async_put_json('peer_registry', peer_registry)
+        
+        return peer_registry
+    
+
     @staticmethod
     def is_number(value):
         try:
@@ -3665,32 +3697,9 @@ class Module:
         except ValueError:
             return False
         return True
-    @classmethod
-    async def async_add_peer(cls, peer_address:str, name:str=None, timeout:int=2):
-        peer_registry = Module.get_json('peer_registry', default={})
-        peer= await cls.async_connect(peer_address, timeout=timeout)
-        peer_server_registry = peer.server_registry(include_peers = False)
-        peer_registry[peer_address] = peer_server_registry         
-
-        peers = list(peer_registry.keys())
-        # config = cls.get_config().set('peers', peers)
-        Module.put_json('peer_registry', peer_registry)
-        
-        return peer_address
-    
 
         
-    @classmethod
-    def add_peers(cls, peers: list = None):
-        jobs = []
-        if peers == None:
-            peers = cls.boot_peers
-            
-        cls.print('Adding peers: {}'.format(peers))
-        results = []
-        for peer in peers:
-            results.append(cls.add_peer(peer))
-        return results
+
     
     @classmethod
     def rm_peer(cls, peer_address: str):
@@ -3719,6 +3728,8 @@ class Module:
         if peers == None:
             peers = cls.peers()
         cls.add_peers(peers)
+        
+        
         
     @classmethod
     def update(cls):
@@ -3976,45 +3987,6 @@ class Module:
     @classmethod
     def hash(cls, *args, **kwargs):
         return cls.module('crypto.hash').hash(*args,**kwargs)
-    shortcuts =  {
-        # 0-1B models
-        'gpt125m': 'EleutherAI/gpt-neo-125m',
-
-        # 1-3B models
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-        'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-        'opt1.3b': 'facebook/opt-1.3b',
-        'opt2.7b': 'facebook/opt-2.7b',
-
-        # 0-7B models
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-        'gptj': 'EleutherAI/gpt-j-6b',
-        'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-        'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-        'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-        'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-        'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-        'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-        'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-        'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-        'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-        'opt6.7b': 'facebook/opt-6.7b',
-        'llama': 'decapoda-research/llama-7b-hf',
-        'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-        'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-        'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
-        # # > 7B models
-        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-        'gptneox': 'EleutherAI/gpt-neox-20b',
-        'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b',
-        'gpt13b': 'cerebras/Cerebras-GPT-13B',
-        
-            }
 
 if __name__ == "__main__":
     Module.run()
