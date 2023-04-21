@@ -210,7 +210,7 @@ class Client( Serializer, commune.Module):
         metadata: dict = None,
         timeout: int = None,
         results_only = True,
-        verbose=True,
+        verbose=False,
         **kwargs
     ) :
         if timeout == None:

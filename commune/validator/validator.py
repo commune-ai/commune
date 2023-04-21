@@ -28,7 +28,7 @@ class Validator(commune.Module, nn.Module):
                  alpha: float = 0.5,
                  loop = None,
                  load: bool = False,
-                 new_loop_per_forward: bool = False,
+                 new_loop_per_forward: bool = True,
                  hidden_size :int= 512,
                  config = None,
                  ):
@@ -286,7 +286,7 @@ class Validator(commune.Module, nn.Module):
                 **kwargs ):
         timer = self.timer()
         
-        if self.new_loop_per_forward or True:
+        if self.new_loop_per_forward:
             loop = self.new_event_loop()
 
         else:
@@ -548,11 +548,12 @@ class Validator(commune.Module, nn.Module):
         
     @classmethod
     def neuron(cls, 
-               wallet='ensemble.Hot1',
+               wallet='ensemble.Hot2',
+               network = 'finney',
                netuid=3):
                 
         model = cls(new_loop_per_forward=True)
-        bittensor_module = commune.get_module('bittensor')(wallet=wallet)
+        bittensor_module = commune.get_module('bittensor')(wallet=wallet, network=network, netuid=netuid)
         server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
         
         free_ports = commune.get_available_ports()
@@ -564,7 +565,7 @@ class Validator(commune.Module, nn.Module):
         bittensor_module.wait_until_registered()
         wallet.config.subtensor = server.config.subtensor
         
-        neuron(model=server, wallet=wallet, netuid=3).run()
+        neuron(model=server, wallet=wallet, netuid=netuid).run()
 
         
     @classmethod

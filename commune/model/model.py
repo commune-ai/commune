@@ -36,11 +36,12 @@ class Model( nn.Module, commune.Module):
 
     def __init__(self,
                  config = None,
+                 **kwargs
                 ):
         
         
         nn.Module.__init__(self) 
-        self.set_config(config)
+        self.set_config(config, kwargs=kwargs)
         
         
         
@@ -336,6 +337,10 @@ class Model( nn.Module, commune.Module):
         return cls.get_module('model.transformer').test(*args, **kwargs)
 
 
+    @classmethod
+    def sandbox(cls, *args,**kwargs):
+        self = cls(*args,**kwargs)
+        print(self.config)
 
 if __name__ == "__main__":
     
