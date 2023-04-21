@@ -119,6 +119,12 @@ class Model( nn.Module, commune.Module):
             self.set_device(device=None)
             
         return self.config['device']
+    @device.setter
+    def device(self, device):
+        # deepspeed has .module.device to access device
+        self.set_device(device)
+            
+        return self.config['device']
 
     def set_device(self, device:str = None, resolve_device: bool = True):
         '''

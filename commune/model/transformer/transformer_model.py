@@ -217,11 +217,19 @@ class TransformerModel( Model):
         model = self.get_empty_model(self.model_path)
         model_size = self.get_model_size(model, model_inflation_ratio=config.model_inflation_ratio)
     
-        free_gpu_memory = self.free_gpu_memory()
-        max_memory = self.max_gpu_memory(model_size, 
-                                            max_gpu_ratio=config.max_gpu_ratio)
-        max_memory = {k:free_gpu_memory[k] for k,v in max_memory.items()}
-        self.print(max_memory)
+        free_gpu_memory = self.free_gpu_memory(max_gpu_ratio=config.max_gpu_ratio)
+        max_memory = config.max_memory
+        if max_memory == None:
+            if config.device_map != 'auto':
+                max_memory = self.max_gpu_memory(model_size, 
+                                                    max_gpu_ratio=config.max_gpu_ratio)
+                max_memory = {k:free_gpu_memory[k] for k,v in max_memory.items()}
+        elif max_memory == 'auto':
+            max_memory = free_gpu_memory
+        else:
+            max_memory = free_gpu_memory
+        config.max_memory = max_memory
+        
         
         model_kwargs=dict(
             load_in_8bit=config.load_in_8bit,
@@ -246,11 +254,13 @@ class TransformerModel( Model):
 
         self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
 
-        
         self.device_map = config.device_map = self.model.hf_device_map
         self.devices = config.devices = list(config.device_map.values())        
-        config.device = self.devices[0]
-        self.set_tokenizer(config)
+        self.device = self.devices[0]
+        
+        
+        
+        self.set_tokenizer(config.tokenizer)
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
           
@@ -268,14 +278,15 @@ class TransformerModel( Model):
         self.epoch_length = self.config['epoch_length']=  epoch_length
         return self.epoch_length
 
-    def set_tokenizer(self, config):
+    def set_tokenizer(self, tokenizer):
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
 
-        self.print('setting tokenizer...')
-        
-        if config.tokenizer is None:
-            tokenizer = config.model_path
+        if tokenizer is None:
+            tokenizer = self.model_path
+            
+        assert isinstance(tokenizer, str)
+        self.print(f'setting {tokenizer} tokenizer...')
         assert isinstance(tokenizer, str, )
         tokenizer = self.shortcuts.get(tokenizer, tokenizer)
         self.config['tokenizer'] = tokenizer
