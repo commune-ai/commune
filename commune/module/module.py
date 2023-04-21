@@ -3733,6 +3733,7 @@ class Module:
         
     @classmethod
     def update(cls):
+        cls.root_module()
         cls.update_peers()
         cls.update_server_registry()
     @classmethod
