@@ -161,4 +161,4 @@ ssh:
 	ssh -i ~/.ssh/id_rsa paperspace@${arg}
 
 miner:
-	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --axon.port 8091
+	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --axon.port 8091 --subtensor.network local

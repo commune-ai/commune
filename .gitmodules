@@ -13,3 +13,6 @@
 [submodule "commune/repos/llama-cpp-python"]
 	path = commune/repos/llama-cpp-python
 	url = https://github.com/abetlen/llama-cpp-python.git
+[submodule "subtensor"]
+	path = subtensor
+	url = https://github.com/opentensor/subtensor
