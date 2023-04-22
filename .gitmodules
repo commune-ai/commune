@@ -7,12 +7,6 @@
 [submodule "commune/repos/diffusers"]
 	path = commune/repos/diffusers
 	url = https://github.com/commune-ai/diffusers.git
-[submodule "commune/repos/trl"]
-	path = commune/repos/trl
-	url = https://github.com/commune-ai/trl.git
-[submodule "commune/repos/llama-cpp-python"]
-	path = commune/repos/llama-cpp-python
-	url = https://github.com/abetlen/llama-cpp-python.git
 [submodule "subtensor"]
 	path = subtensor
 	url = https://github.com/opentensor/subtensor
