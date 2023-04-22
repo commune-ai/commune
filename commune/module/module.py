@@ -862,6 +862,8 @@ class Module:
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
 
+
+    
     @staticmethod
     def is_imported(package:str) :
         return  bool(package in sys.modules)
@@ -2854,6 +2856,10 @@ class Module:
         available_gpus = [int(i) for i in range(torch.cuda.device_count())]
         return available_gpus
     
+    @classmethod
+    def cuda_available(cls) -> bool:
+        import torch
+        return torch.cuda.is_available()
     @classmethod
     def gpu_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
