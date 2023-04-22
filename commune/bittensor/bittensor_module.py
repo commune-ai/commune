@@ -15,26 +15,45 @@ class BittensorModule(commune.Module):
 
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] = 'finney',
-                netuid: int = None,
+                netuid: int = 1,
                 create: bool = False,
                 register: bool = False
                 ):
         
         self.set_subtensor(subtensor=network)
         self.set_wallet( wallet=wallet)
+        self.set_netuid(netuid=netuid)
         if create:
             self.create_wallet(wallet)
         
     @classmethod
     def network_options(cls):
-        network_options = ['finney', 'bellagene', 'local'] 
+        network_options = ['finney', 'test', 'local'] 
 
             
         return network_options
+    
+    
+    def set_netuid(self, netuid: int = None):
+        assert isinstance(netuid, int)
+        self.netuid = netuid
+        return self.netuid
+    
+    network2endpoint = {
+        'test': 'wss://test.finney.opentensor.ai:443'
+    }
+    @classmethod
+    def get_endpoint(cls, network:str):
+        return cls.network2endpoint.get(network, None)
+        
       
     @classmethod
     def get_subtensor(cls, subtensor:Union[str, bittensor.subtensor]='finney') -> bittensor.subtensor:
-        if isinstance(subtensor, str):
+
+        endpoint = cls.network2endpoint.get(subtensor, None)
+        if endpoint != None:
+            subtensor = bittensor.subtensor(chain_endpoint=endpoint, network='finney')
+        elif isinstance(subtensor, str):
             subtensor = bittensor.subtensor(network=subtensor)
         elif isinstance(subtensor, type(None)):
             subtensor = bittensor.subtensor()
@@ -45,7 +64,8 @@ class BittensorModule(commune.Module):
         return subtensor
     
     
-    def set_subtensor(self, subtensor=None): 
+    def set_subtensor(self, subtensor=None):
+         
         self.subtensor = self.get_subtensor(subtensor)
         self.metagraph = bittensor.metagraph(subtensor=self.subtensor).load()
         
@@ -78,13 +98,16 @@ class BittensorModule(commune.Module):
 
         return wallet 
     def resolve_subtensor(self, subtensor: 'Subtensor' = None) -> 'Subtensor':
+        if isinstance(subtensor, str):
+            subtensor = self.get_subtensor(subtensor)
         if subtensor is None:
             subtensor = self.subtensor
         return subtensor
     
     def resolve_netuid(self, netuid: int = None):
         if netuid is None:
-            netuid = 3
+            netuid = self.netuid
+        self.print('netuid', netuid)
         return netuid
     def get_neuron(self, wallet=None, netuid: int = None):
         wallet = self.get_wallet(wallet)
@@ -268,7 +291,8 @@ class BittensorModule(commune.Module):
             update_interval: Optional[int] = 50_000,
             output_in_place: bool = True,
             log_verbose: bool = True,
-            remote: bool = False, 
+            remote: bool = False,
+             
         ) -> 'bittensor.Wallet':
         """ Registers the wallet to chain.
         Args:
@@ -303,11 +327,16 @@ class BittensorModule(commune.Module):
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
+        if cuda:
+            assert self.cuda_available()
         # Get chain connection.
         subtensor = self.resolve_subtensor(subtensor)
         netuid = self.resolve_netuid(netuid)
         dev_id = self.resolve_dev_id(dev_id)
         wallet = self.resolve_wallet(wallet)
+        
+        
+        self.print(f'Registering wallet: {wallet.name}::{wallet.hotkey} on {netuid}', 'yellow')
         
         register_kwargs = dict(
                             netuid = netuid,
@@ -404,12 +433,16 @@ class BittensorModule(commune.Module):
     def register_wallet(
                         cls, 
                         wallet='default.default',
+                        network: str = 'test',
+                        netuid: Union[int, List[int]] = 3,
                         dev_id: Union[int, List[int]] = None, 
                         create: bool = True,                        
                         **kwargs
                         ):
 
-        cls(wallet=wallet).register(dev_id=dev_id, **kwargs)
+        self = cls(wallet=wallet,netuid=netuid, network=network)
+        # self.sync()
+        self.register(dev_id=dev_id, **kwargs)
 
     @classmethod  
     def sandbox(cls):
