@@ -162,3 +162,6 @@ ssh:
 
 miner:
 	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --axon.port 8091 --subtensor.network local
+
+install:
+	make pull; chmod +x ./scripts/* ; ./scripts/install_commune.sh

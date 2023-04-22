@@ -224,21 +224,21 @@ class Module:
         return cls.dict2munch(x)
     
     @classmethod
-    def load_yaml(cls, path:str=None) -> Dict:
+    def load_yaml(cls, path:str=None, root:bool = False) -> Dict:
         '''
         Loads a yaml file
         '''
-        path = cls.resolve_path(path)
+        path = cls.resolve_path(path, root=root)
         
         from commune.utils.dict import load_yaml
         return load_yaml(path)
 
     @classmethod
-    def save_yaml(cls, path:str,  data:Union[Dict, Munch]) -> Dict:
+    def save_yaml(cls, path:str,  data:Union[Dict, Munch], root:bool = False) -> Dict:
         '''
         Loads a yaml file
         '''
-        path = cls.resolve_path(path)
+        path = cls.resolve_path(path, root=root)
             
         from commune.utils.dict import save_yaml
         if isinstance(data, Munch):
@@ -554,13 +554,16 @@ class Module:
 
    
     @classmethod
-    def resolve_path(cls, path:str, extension:Optional[str]= None):
+    def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
         '''
         Resolves path for saving items that relate to the module
         
         The path is determined by the module path 
         
         '''
+        
+        tmp_dir = Module.tmp_dir() if root else cls.tmp_dir()
+        
         if path.startswith('/'):
             return path
         elif path.startswith('~/'):
@@ -952,13 +955,17 @@ class Module:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_get_json(*args, **kwargs))
     @classmethod
-    async def async_get_json(cls,path:str, default=None, **kwargs):
+    async def async_get_json(cls,
+                             path:str,
+                             default=None,
+                             root: bool = False,
+                             **kwargs):
         from commune.utils.dict import async_get_json
-        path = cls.resolve_path(path=path, extension='json')
+        path = cls.resolve_path(path=path, extension='json', root=root)
         data = await async_get_json(path, **kwargs)
         if data == None:
             data = {}
-        if 'data' in data and 'timestamp' in data:
+        if 'data' in data and 'meta' in data:
             data = data['data']
         
         return data
@@ -966,15 +973,15 @@ class Module:
     load_json = get_json
 
     @classmethod
-    def put_torch(path:str, data:Dict, **kwargs):
+    def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
         import torch
-        path = cls.resolve_path(path=path, extension='pt')
+        path = cls.resolve_path(path=path, extension='pt', root=root)
         torch.save(data, path)
         return path
     @classmethod
-    def get_torch(cls,path:str,**kwargs):
+    def get_torch(cls,path:str, root:bool = False, **kwargs):
         import torch
-        path = cls.resolve_path(path=path, extension='pt')
+        path = cls.resolve_path(path=path, extension='pt', root=root)
         return torch.load(path)
     
     @classmethod
@@ -987,35 +994,39 @@ class Module:
     @classmethod
     async def async_put_json(cls, path:str, 
                  data:Dict, 
+                 meta = None,
+                 root: bool = False, 
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json
-        path = cls.resolve_path(path=path, extension='json')
+        if meta != None:
+            data = {'data':data, 'meta':meta}
+        path = cls.resolve_path(path=path, extension='json', root=root)
         await async_put_json(path=path, data=data, **kwargs)
         return path
     
     save_json = put_json
     
     @classmethod
-    def exists(cls, path:str, extension = 'json')-> bool:
-        path = cls.resolve_path(path=path, extension=extension)
+    def exists(cls, path:str, extension = 'json', root:bool = False)-> bool:
+        path = cls.resolve_path(path=path, extension=extension, root=root)
         return os.path.exists(path)
 
     @classmethod
-    def rm_json(cls, path=None):
+    def rm_json(cls, path=None, root:bool = False):
         from commune.utils.dict import rm_json
 
         if path in ['all', '**']:
             return [cls.rm_json(f) for f in cls.glob(files_only=False)]
         
-        path = cls.resolve_path(path=path, extension='json')
+        path = cls.resolve_path(path=path, extension='json', root=root)
 
         return rm_json(path )
 
     @classmethod
-    def glob(cls,  path ='~/', files_only:bool = True):
+    def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
         
-        path = cls.resolve_path(path, extension=None)
+        path = cls.resolve_path(path, extension=None, root=root)
         
         if os.path.isdir(path):
             path = os.path.join(path, '**')
@@ -1034,8 +1045,9 @@ class Module:
 
     @classmethod
     def ls(cls, path:str = './', 
-           recursive:bool = False):
-        path = cls.resolve_path(path, extension=None)
+           recursive:bool = False,
+           root:bool = False):
+        path = cls.resolve_path(path, extension=None, root=root)
 
         ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         return [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
@@ -1159,17 +1171,22 @@ class Module:
                     ip = name.split(':')[0]
                 else:
                     
-                    server_registry = cls.server_registry(include_peers=include_peers)
-                    servers = list(server_registry.keys())
+                    namespace = cls.namespace()
+                    servers = list(namespace.keys())
                     
                     if name not in servers:
+                        found_server_bool = False
                         for s in servers:
                             if s.startswith(name):
                                 name = s
-                    assert name in server_registry, f'No server found with name {name} in {servers}'
-                    client_kwargs = server_registry[name]
-                    ip = client_kwargs['ip']
-                    port = client_kwargs['port']
+                                found_server_bool = True
+                        assert found_server_bool, f'No server found with name {name} in {servers}'
+                    assert name in namespace, f'No server found with name {name} in {servers}'
+                    module_address = namespace[name]
+                    cls.print(module_address, color='blue')
+                    ip = ':'.join(module_address.split(':')[:-1])
+                    port = int(module_address.split(':')[-1])
+                    
             if ip == None:
                 ip = cls.default_ip
             client_kwargs = dict(ip=ip, port=int(port))
@@ -1307,7 +1324,7 @@ class Module:
                 
    
         if update:
-            Module.put_json('server_registry',server_registry)
+            cls.put_json('server_registry',server_registry, root=True)
 
         peer_registry = cls.peer_registry() 
         if len(peer_registry) > 0 and include_peers:
@@ -1353,7 +1370,7 @@ class Module:
     def rename_server(cls, name:str, new_name:str) -> Dict:
         server_registry = cls.server_registry()
         server_registry[new_name] = server_registry.pop(name)
-        Module.put_json(path='server_registry', data=server_registry) 
+        cls.put_json(path='server_registry', data=server_registry, root=True) 
         return {new_name:server_registry[new_name]}
     
     rename = rename_module = rename_server
@@ -1377,7 +1394,7 @@ class Module:
             )    
         
         server_registry[name] = server_info
-        Module.put_json(path='server_registry', data=server_registry) 
+        cls.put_json(path='server_registry', data=server_registry, root=True) 
 
         # only serve module if you have a network
         if key != None:
@@ -3618,7 +3635,7 @@ class Module:
             port_range = cls.default_port_range
         
         data = dict(port_range =port_range)
-        Module.put_json('port_range', data)
+        cls.put_json('port_range', data, root=True)
         cls.port_range = data['port_range']
         return data['port_range']
     
@@ -3664,6 +3681,10 @@ class Module:
     @classmethod
     async def async_add_peer(cls, *peer_addresses,timeout:int=1):
         
+        if len(peer_addresses) == 1:
+            if isinstance(peer_addresses[0], list):
+                peer_addresses = peer_addresses[0]
+        
         peer_registry = await Module.async_get_json('peer_registry', default={})
 
         if len(peer_addresses) == 0:
@@ -3707,7 +3728,7 @@ class Module:
         result = peer_registry.pop(peer_address, None) 
         if result != None:
             result = peer_address      
-            Module.put_json('peer_registry', peer_registry)
+            cls.put_json('peer_registry', peer_registry, root=True)
         return result
        
     @classmethod
@@ -3727,15 +3748,42 @@ class Module:
     def update_peers(cls, peers: list = None):
         if peers == None:
             peers = cls.peers()
+            
+        cls.print(peers)
         cls.add_peers(peers)
         
         
         
     @classmethod
-    def update(cls):
-        cls.root_module()
-        cls.update_peers()
-        cls.update_server_registry()
+    def update(cls, 
+
+               min_update_delay: int = 60,
+               force:bool = False, 
+               verbose:bool = True,
+               
+               ):
+        update_info = Module.get_json('update_info', default={})
+        last_update_time = update_info.get('last_update', 0)
+        current_time = cls.time()
+        update_delay = (current_time - last_update_time)
+        update_bool = (update_delay > min_update_delay) or force
+        if update_bool:
+            if verbose:
+                cls.print('Updating server registry')
+            cls.root_module()
+            cls.update_peers()
+            cls.update_server_registry()
+            update_info['last_update'] = cls.time()
+            cls.put_json('update_info', update_info, root=True)
+
+            
+        else:
+            if verbose:
+                cls.print(f'Server registry is up to date, skipping update, last update was {update_delay}s ', )
+            
+   
+        
+        
     @classmethod
     def peer_registry(cls, update: bool = False):
         if update:
