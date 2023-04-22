@@ -113,47 +113,27 @@ Subspace is our blockchain that is used for several things:
     ```
     git clone https://github.com/commune-ai/commune.git
     ```
-2. Pull the submodules 
+2. install commune
     ```
-    make pull
+    make install
+    ```
+2. update commune
+    ```
+    commune sync
     ```
 
 ### Install as a Docker Container
 
 
-3. Start docker-compose. This builds and deploys all of the containers you need, which involves, commune (main enviornment), ipfs (decentralized storage), subspace (blockchain node), ganache (evm development node for local blockchain)
+1. Start docker-compose. This builds and deploys all of the containers you need, which involves, commune (main enviornment), ipfs (decentralized storage), subspace (blockchain node), ganache (evm development node for local blockchain)
 
     ```
     (sudo) make up
     ```
     - please note that if you are not using a gpu, you will need to comment out the following docker-compose code in ./docker-compose.yml
 
-4. Enter the commune evnironment 
+2. Enter the commune evnironment 
     ```
     (sudo) make enter
     ```
-
-
-# Install Locally (No Docker)
-
-3. Turn the scripts to executables
-    
-    ```bash
-    chmod +x ./scripts/*
-    ```
-
-4. Install the python, npm and rust environment
-
-```bash
-# install python
-./scripts/install_python_env.sh
-# install npm
-./scripts/install_npm_env.sh
-# install rust (Optional)
-./scripts/install_rust_env.sh
-```
-or install all of them in the following script
-```bash
-./scripts/install_local_setup.sh
-```
 
