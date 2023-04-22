@@ -106,6 +106,11 @@ Subspace is our blockchain that is used for several things:
 -**IBC for bridging with any Chain (Coming Soon)**
 - **Smart Contracts (Coming Soon)**: We intend to support
 
+## Requirments 
+
+    python >= 3.10
+    cuda >= 11.5
+    pm2 (installed with commune in the install script)
 
 
 ## Setup
@@ -117,9 +122,9 @@ Subspace is our blockchain that is used for several things:
     ```
     make install
     ```
-2. update commune
+2. update commune (sync with the network)
     ```
-    commune sync
+    commune update or commune sync
     ```
 
 ### Install as a Docker Container
