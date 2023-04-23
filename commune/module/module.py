@@ -2784,7 +2784,7 @@ class Module:
 
     @classmethod
     def merge(cls, *args, 
-                        include_hidden:bool=False, 
+                        include_hidden:bool=True, 
                         allow_conflicts:bool=True):
         
         '''
