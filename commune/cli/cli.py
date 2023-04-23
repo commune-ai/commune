@@ -23,7 +23,9 @@ class CLI(commune.Module):
             is_remote = False
             # fn_obj = getattr(module, fn)
             if args[0] in commune.module_list():
-                module = commune.get_module(args.pop(0))
+                module = args.pop(0)
+                self.print(module)
+                module = commune.get_module(module)
             elif args[0] in module.namespace():
                 module = commune.connect(args.pop(0))
                 module_info = module.info()

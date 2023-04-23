@@ -230,7 +230,7 @@ class Validator(commune.Module, nn.Module):
                            train=train))
         sample = kwargs 
         model_name = self.copy(model)
-        model = await commune.async_connect(model, timeout=1)
+        model = commune.connect(model, timeout=1)
         # model = await self.async_connect(model, timeout=2)
         # we want the client to return the future
         sample['return_future'] = True
@@ -279,6 +279,7 @@ class Validator(commune.Module, nn.Module):
                 threshold: float = 4.0,
                 topk: int = 256,
                 timeout = 4,
+                train: bool = False,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
@@ -302,7 +303,12 @@ class Validator(commune.Module, nn.Module):
             
         self.print(f'forwarding to models: {models}')
             
-        jobs = [self.async_forward(input_ids=input_ids, model=model_key, topk=topk, timeout=timeout, **kwargs) for model_key in models]
+        jobs = [self.async_forward(input_ids=input_ids, 
+                                   model=model_key, 
+                                   topk=topk, 
+                                   timeout=timeout,
+                                   train=train,
+                                   **kwargs) for model_key in models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         

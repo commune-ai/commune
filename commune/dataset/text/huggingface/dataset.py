@@ -15,23 +15,15 @@ import inspect
 from importlib import import_module
 import commune
 
-
-
 class HFDataset(commune.Module):
     def __init__(self,
-                path: str = 'pile',
-                name:str = None,
-                text_field:str = None,
-                split: str = 'train',
-                sample_index = [0,1000],
-                streaming: bool = False,
-                tokenizer: str =  'gpt2',
-                device: str = 'cpu',
-                config: dict=None
-                ):
-        params = locals()
-        params.pop('self')
-        self.set_params(**params)
+                config:dict = None,
+                ): 
+        config = self.set_config(config)
+        self.set_dataset(**config)
+        
+        
+        
 
     @property
     def default_text_feature(self):
@@ -40,30 +32,9 @@ class HFDataset(commune.Module):
                 return k
         assert False, 'No text feature found'
 
-        
- 
-    def set_params(self, **kwargs) -> None:
-        path = kwargs.get('path')
-        name = kwargs.get('name')
-        split = kwargs.get('split')
-        streaming = kwargs.get('streaming')
-        sample_index = kwargs.get('sample_index')
-        device = kwargs.get('device')
-        tokenizer = kwargs.get('tokenizer')
 
-        self.config = self.set_config(kwargs)
     
-        # self.__dict__.update(self.config)
-        
-        self.set_tokenizer(tokenizer=tokenizer)
-        self.set_dataset(path=path, 
-                         name=name, 
-                         split=split, 
-                         streaming=streaming, 
-                         sample_index = sample_index)
-        
-        
-        self.text_field = self.config.get('text_field', self.default_text_feature)
+ 
 
     def replicate(self, tag = None, **kwargs) -> None:
         '''
@@ -80,11 +51,18 @@ class HFDataset(commune.Module):
             self.replicate(tag=str(tag))
         else:
             raise ValueError(f'Invalid tag type: {type(tag)}')
-    def set_dataset(self, path:str,
+    def set_dataset(self, 
+                    path:str,
                     name:str=None, 
                     split:str=None,
                     streaming: bool = False,
-                    sample_index : List[int] = None):
+                    sample_index : List[int] = None,
+                    text_field : str = None,
+                    tokenizer : str = None,
+                    **kwargs):
+        
+
+
         kwargs = {}
         path = self.shortcuts.get(path, path)
         self.path = path
@@ -111,6 +89,12 @@ class HFDataset(commune.Module):
             self.load_dataset = self.import_object('datasets.load_dataset')
 
         self.dataset = self.load_dataset(**kwargs)
+                
+        if text_field == None:
+            text_field = self.default_text_feature
+        self.text_field = text_field
+        
+        self.set_tokenizer(tokenizer=config.tokenizer)
         return self.dataset
 
     @property
@@ -129,6 +113,38 @@ class HFDataset(commune.Module):
     default_receptor_path = 'bittensor.receptor.pool.module.ReceptorPoolModule'
 
 
+
+    def set_tokenizer(self, tokenizer):
+        from transformers import AutoTokenizer, AutoModel
+        from commune.utils.tokenizer import prep_tokenizer
+            
+        assert isinstance(tokenizer, str)
+        self.print(f'setting {tokenizer} tokenizer...')
+        assert isinstance(tokenizer, str, )
+        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+        self.config['tokenizer'] = tokenizer
+        
+        try:
+            # HACK TO INCLUDE LLAMA TOKENIZER
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
+        except ValueError:
+            
+            print('resorting ot use_fast = False')
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+
+        self.tokenizer = tokenizer
+        
+    
+        self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
+        self.std_tokenizer = prep_tokenizer(self.std_tokenizer)
+        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
+        self.token_translator = self.get_module('model.token_translator')(tokenizer=tokenizer, std_tokenizer=self.std_tokenizer)
+
+        return self.tokenizer
+
+    
+    
     def tokenize(self, text: str = 'Whadup',
                  padding=True, 
                  truncation=True, 

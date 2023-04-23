@@ -1,9 +1,12 @@
-
 module: HFDataset
 path: pile
-name: null
-text_field: null
+name: null  # replace with desired name
+text_field: null  # replace with desired text field
 split: train
+sample_index:
+  - 0
+  - 1000
+streaming: false
 tokenizer: gpt2
-
-
+device: cpu
+config: null  # replace with desired config
