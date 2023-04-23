@@ -423,8 +423,8 @@ class TransformerModel( Model):
              **kwargs
              ):
         
-        if not commune.server_exists(dataset):
-            commune.deploy(dataset)
+        # if not commune.server_exists(dataset):
+        #     commune.deploy(dataset)
         dataset = commune.connect(dataset, wait_for_server=True)
         namespace = commune.namespace()
         

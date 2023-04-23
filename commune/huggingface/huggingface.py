@@ -130,8 +130,8 @@ class Huggingface(commune.Module):
     
     cache_path = '~/.cache/huggingface'
     @classmethod
-    def cached_models(cls, limit=10, return_paths: bool = False , **kwargs):
-        paths = [p for p in cls.cached_model_paths()]
+    def models(cls, limit=10, return_paths: bool = False , **kwargs):
+        paths = [p for p in cls.model_paths()]
         
         if return_paths:
             paths = paths
@@ -148,7 +148,7 @@ class Huggingface(commune.Module):
     def download(cls,repo_id, *args, **kwargs):
         return cls.snapshot_download(repo_id, *args, **kwargs)
     @classmethod
-    def cached_model_paths(cls, limit=10, **kwargs):
+    def model_paths(cls, limit=10, **kwargs):
         dirpath = f'{cls.cache_path}/hub'
         
         return [p for p in commune.ls(dirpath) if os.path.basename(p).startswith('models')]
@@ -158,7 +158,7 @@ class Huggingface(commune.Module):
     
     @classmethod
     def cached_model2path(cls,  **kwargs):
-        paths = [p for p in cls.cached_model_paths()]
+        paths = [p for p in cls.model_paths()]
         model2path = {}
         for path in paths:
             model_name = '/'.join(os.path.basename(path).split('--')[-1:])
