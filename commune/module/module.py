@@ -1,3 +1,5 @@
+
+
 import inspect
 import os
 from copy import deepcopy
@@ -1379,8 +1381,9 @@ class Module:
                     continue
                 for peer_server_name, peer_server_info in peer_namespace.items():
   
-
-                    peer_server_name = f'{peer_server_name}::r{peer_id}'
+                    if peer_server_name in server_registry:
+                        peer_server_name = f'{peer_server_name}::r{peer_id}'
+                    
                     assert peer_server_name not in server_registry
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
@@ -1828,16 +1831,16 @@ class Module:
     def peer_info(self) -> Dict[str, Any]:
         self.info()
     @classmethod
-    def schema(cls, *args, **kwargs): 
+    def schema(cls, *args,  **kwargs): 
         function_schema_map = cls.get_function_schema_map(*args, **kwargs)
-        return {k:v['schema'] for k,v in function_schema_map.items()}
+        return {k:v for k,v in function_schema_map.items()}
     
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
-                                include_docs: bool = True):
+                                include_docs: bool = False):
         
         obj = obj if obj else cls
         if isinstance(obj, str):
@@ -1852,7 +1855,11 @@ class Module:
             if callable(getattr(obj, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
-                for fn_k, fn_v in getattr(obj, fn ).__annotations__.items():
+                obj_fn = getattr(obj, fn )
+                if not hasattr(obj_fn, '__annotations__'):
+                    obj_fn.__annotations__ = {}
+                
+                for fn_k, fn_v in obj_fn.__annotations__.items():
                     
                     fn_v = str(fn_v)  
                     if fn_v == inspect._empty:
@@ -1861,11 +1868,14 @@ class Module:
                         fn_schema[fn_k] = fn_v.split("'")[1]
                     else:
                         fn_schema[fn_k] = fn_v
-                                        
-                function_schema_map[fn] = {
-                    'schema': fn_schema,
-                    'docs': getattr(obj, fn ).__doc__
-                }
+                               
+                if include_docs:         
+                    function_schema_map[fn] = {
+                        'schema': fn_schema,
+                        'docs': getattr(obj, fn ).__doc__
+                    }
+                else:
+                    function_schema_map[fn] = fn_schema
         return function_schema_map
     
     def function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
@@ -4029,8 +4039,13 @@ class Module:
     total_free_gpus = total_free_gpu_memory
     
     @classmethod
-    def help(cls):
-        return cls.get_function_schema_map()
+    def help(cls, fn:str = None):
+        schema = cls.schema() 
+        if fn != None: 
+            return {k:v for k,v in schema.items() if fn in k}
+            
+            
+        return schema
     
     @classmethod
     def git_pull(cls, stash: bool = True):

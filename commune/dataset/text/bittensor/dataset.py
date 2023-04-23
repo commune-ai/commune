@@ -207,9 +207,11 @@ class BittensorDataset(Module):
             for f in folder_hashes:
                 tasks.append(self.get_folder_text_hashes(f, dataset=dataset))
 
-            print('hey',len(tasks))
+
+            completed_task_results = await asyncio.gather(*tasks)
+            self.print('hey',completed_task_results)
             # Some hashes are incomplete, ensure they have Size and Hash Field.
-            for folder_text_file_metas in await asyncio.gather(*tasks):
+            for folder_text_file_metas in completed_task_results:
                 for file_meta in folder_text_file_metas:
                     
                     if 'Size' in file_meta and 'Hash' in file_meta:
@@ -652,12 +654,9 @@ class BittensorDataset(Module):
         params = dict(arg=cid, offset=offset)
         params['length'] = length
         headers = {}
-        try: 
-            response = await self.api_post('cat', params=params, headers=headers, chunk_size=10000000, num_chunks=1)
+        response = await self.api_post('cat', params=params, headers=headers, chunk_size=10000000, num_chunks=1)
         
-        except:
-            response = None
-            
+
         return response
 
     async def get_folder_text_hashes(
@@ -685,7 +684,7 @@ class BittensorDataset(Module):
         
         for chunk_i in range(max_chunks):
             data = await self.cat(file_meta['Hash'], offset=chunk_i*chunk_size ,length=chunk_size)
-            
+            self.print(data, color='green')
             if data == None:
                 continue
             hashes = ['['+h + '}]'for h in data.decode().split('},')]
