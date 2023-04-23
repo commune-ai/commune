@@ -51,9 +51,9 @@ shortcuts =  {
 
 class Tokenizer(commune.Module):
     shortcuts = shortcuts
-    def __init__(self, config: commune.Config = None, **kwargs):
-        config = self.set_config(config)
-        self.config.update(kwargs)
+    def __init__(self, config ,**kwargs):
+        
+        config = self.set_config(config, kwargs=kwargs)
         self.set_tokenizer(config)
     
         

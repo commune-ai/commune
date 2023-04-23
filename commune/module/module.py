@@ -787,15 +787,13 @@ class Module:
         # read the contents of the Python script file
         python_script = cls.get_text(path)
         class_names  = []
-        
         lines = python_script.split('\n')
         for line in lines:
-            key_elements = ['class ', '(', '):']
+            key_elements = ['class ', '(', '):', 'commune.Module']
             if all([key_element in line for key_element in key_elements]):
                 class_name = line.split('class ')[-1].split('(')[0].strip()
                 class_names.append(class_name)
                 
-        
         # return the class names
         return class_names
 
@@ -821,12 +819,13 @@ class Module:
         return cls.import_object(object_path)
 
     @classmethod
-    def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
+    def get_module(cls, path:str, verbose:bool = False, handle_error:bool=False) -> str:
         
         try:
             
             path = cls.simple2path(path)
             path = cls.path2objectpath(path)
+            assert path is not None, f'Could not find path for {path}'
             if verbose:
                 cls.print(f'Found {path}', verbose=verbose)
         except KeyError as e:
@@ -835,6 +834,7 @@ class Module:
             else:
                 raise e
             
+        print()
         
         return cls.import_object(path)
 
@@ -1085,9 +1085,14 @@ class Module:
     @classmethod
     def connect(cls, *args, **kwargs):
         
-        
+        return_future = kwargs.pop('return_future', False)
         loop = kwargs.get('loop', cls.get_event_loop())
-        return loop.run_until_complete(cls.async_connect(*args, **kwargs))
+        future = cls.async_connect(*args, **kwargs)
+        if return_future:
+            return future
+        else:
+            
+            return loop.run_until_complete(future)
         
     @classmethod
     def root_module(cls, name:str='module',
@@ -3776,18 +3781,18 @@ class Module:
         if update_bool:
             if verbose:
                 cls.print('Updating server registry')
-            cls.root_module()
             cls.update_peers()
             cls.update_server_registry()
             update_info['last_update'] = cls.time()
             cls.put_json('update_info', update_info, root=True)
-
             
         else:
             if verbose:
                 cls.print(f'Server registry is up to date, skipping update, last update was {update_delay}s ', )
             
-   
+           
+        cls.root_module()
+
         
         
     @classmethod
@@ -3856,7 +3861,9 @@ class Module:
 
         # Read the contents of the file
         with open(path, 'r') as file:
-            return file.read()
+            content =  file.read()
+            
+        return content
 
 
     @classmethod
