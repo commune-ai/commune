@@ -233,6 +233,41 @@ class Module:
         from commune.utils.dict import load_yaml
         return load_yaml(path)
 
+
+    @classmethod
+    def get_fn_code(cls, 
+                    fn:str, 
+                    module:str = None, # defaults to the current module
+                    fn_seperator:str="::" ) -> str:
+        '''
+        Returns the code of a function
+        '''
+        
+        
+        if isinstance(fn, str):
+            if fn.split(fn_seperator)==2:
+                module, fn = fn.split(fn_seperator)
+                module = commune.module(module)
+
+            if module is None:
+                module = cls 
+            
+            fn = getattr(module, fn)
+        assert callable(fn), f'fn must be callable, got {fn}'       
+        fn_code = inspect.getsource(fn)
+        return fn_code
+
+    @classmethod
+    def fn_code(cls, fn ) -> str:
+        '''
+        Returns the code of a function
+        '''
+        return cls.get_fn_code(fn)
+
+    @classmethod
+    def sandbox(cls):
+        return cls.cmd('python3 commune/sandbox.py')
+    sand = sandbox
     @classmethod
     def save_yaml(cls, path:str,  data:Union[Dict, Munch], root:bool = False) -> Dict:
         '''
@@ -413,6 +448,9 @@ class Module:
         module = cls.get_module(module)
         module_filepath = module.filepath()
         cls.run_command(f'streamlit run {module_filepath}', verbose=True)
+
+
+
 
     @classmethod
     def run_command(cls, 
@@ -2645,6 +2683,9 @@ class Module:
         is_class = cls.is_class(module)
         cls.print(f'is_class: {is_class}')
         module_class = module if is_class else module.__class__
+        
+        
+        
         class ModuleWrapper(Module):
             def __init__(self, *args,**kwargs): 
                 if init_module:
@@ -3581,9 +3622,9 @@ class Module:
             
         return subspace
     
-    # @classmethod
-    # def key(cls, *args, **kwargs):
-    #     return cls.get_module('subspace.key')(*args, **kwargs)
+    @classmethod
+    def key(cls, *args, **kwargs):
+        return cls.get_module('subspace.key')(*args, **kwargs)
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
@@ -4049,6 +4090,40 @@ class Module:
     @classmethod
     def hash(cls, *args, **kwargs):
         return cls.module('crypto.hash').hash(*args,**kwargs)
+
+    @classmethod
+    def merge_classes(cls, *classes):
+        # Get the dictionary of attributes for each class
+        if len(classes) == 1:
+            classes = [cls, classes[0]]
+        assert len(classes) == 2, 'Only two classes can be merged'
+        attrs1 = class1.__dict__
+        attrs2 = class2.__dict__
+
+        # Merge the two dictionaries
+        merged_attrs = {**attrs1, **attrs2}
+
+        # Define the __init__ method for the merged class
+        def __init__(self, *args, **kwargs):
+            class1.__init__(self, *args, **kwargs)
+
+        # Add the __init__ method to the merged attributes
+        merged_attrs['__init__'] = __init__
+
+        # Define additional class methods for the merged class
+        @classmethod
+        def class_method(cls):
+            print("This is a class method of the merged class")
+
+        # Add the additional class methods to the merged attributes
+        merged_attrs['class_method'] = class_method
+
+        # Create a new class
+        class_merged = type('MergedClass', (class1, class2), merged_attrs)
+
+        # Return the merged class
+        return class_merged
+
 
 if __name__ == "__main__":
     Module.run()
