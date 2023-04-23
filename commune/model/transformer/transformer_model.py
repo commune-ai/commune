@@ -289,7 +289,6 @@ class TransformerModel( Model):
         assert isinstance(config.device_map, dict) or isinstance(config.device_map, str)
         
         model_kwargs=dict(
-            load_in_8bit=config.load_in_8bit,
             max_memory=config.max_memory,
             device_map= config.device_map,
         )
