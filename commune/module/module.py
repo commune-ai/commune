@@ -789,7 +789,7 @@ class Module:
         class_names  = []
         lines = python_script.split('\n')
         for line in lines:
-            key_elements = ['class ', '(', '):', 'commune.Module']
+            key_elements = ['class ', '(', '):']
             if all([key_element in line for key_element in key_elements]):
                 class_name = line.split('class ')[-1].split('(')[0].strip()
                 class_names.append(class_name)
