@@ -85,7 +85,8 @@ class TransformerModel( Model):
                 **kwargs
                 ):
         
-        Model.__init__(self, locals())         
+        Model.__init__(self, locals()) 
+        self.print(self.config)        
         config = self.config
         self.set_model(config)
         
@@ -144,6 +145,7 @@ class TransformerModel( Model):
 
         sample = {
         'input_ids': input_ids[:, -max_sequence_length:],
+        'attention_mask': attention_mask,
         }
         
         if map_tokens:
@@ -154,6 +156,7 @@ class TransformerModel( Model):
             offset_mapping = tokens.offset_mapping
             offset_mapping_std = tokens.offset_mapping_std
             sample['input_ids'] = tokens.input_ids
+            sample['attention_mask'] = tokens.attention_mask
         
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
@@ -425,7 +428,7 @@ class TransformerModel( Model):
         
         # if not commune.server_exists(dataset):
         #     commune.deploy(dataset)
-        dataset = commune.connect(dataset, wait_for_server=True)
+        dataset = commune.connect(dataset)
         namespace = commune.namespace()
         
         if model in namespace:

@@ -17,10 +17,15 @@ import commune
 
 class HFDataset(commune.Module):
     def __init__(self,
-                config:dict = None,
+                 path = None,
+                **kwargs
                 ): 
-        config = self.set_config(config)
-        self.set_dataset(**config)
+        
+        self.config = self.set_config(kwargs=kwargs)
+        self.config.path = path if path != None else self.config.path
+        self.set_dataset(self.config)
+        # if config.test:
+        #     self.test()
         
         
         
@@ -51,50 +56,61 @@ class HFDataset(commune.Module):
             self.replicate(tag=str(tag))
         else:
             raise ValueError(f'Invalid tag type: {type(tag)}')
-    def set_dataset(self, 
-                    path:str,
-                    name:str=None, 
-                    split:str=None,
-                    streaming: bool = False,
-                    sample_index : List[int] = None,
-                    text_field : str = None,
-                    tokenizer : str = None,
-                    **kwargs):
         
+    def default_name(self):
+        return self.available_names()[0]
+        
+    def set_dataset(self, config):
+        
+        assert isinstance(config, Munch)
+        
+        if hasattr(self, 'dataset'):
+            self.config.update(config)
 
 
+        # resolve  path and name(config)
         kwargs = {}
-        path = self.shortcuts.get(path, path)
-        self.path = path
-        if name == None:
-            name = self.available_names[0]
-        
-        kwargs['name'] = name
-        kwargs['path'] = path
-        kwargs['split'] = split
-        kwargs['streaming'] = streaming
-        
-        for k,v in kwargs.items():
-            if v != None:
-                self.__dict__[k] = self.config[k] = v
+        path = config.path
+        name = config.name
+        seperator = config.get('seperator', '::')
 
-        if sample_index:
-            assert isinstance(sample_index, list)
-            assert isinstance(sample_index[0], int)
-            assert isinstance(sample_index[1], int)
-            kwargs['split'] = f'{split}[:{10}%]'    
-        kwargs['split'] = f'{split}[:{10}%]'    
+        if len(path.split(seperator)) == 2:
+            path, name = path.split(seperator)
+        path = self.shortcuts.get(path, path)
+        self.set_dataset_builder(path)
+
+        
+        config.name = name if name != None else self.default_name()
+        config.path = path if path != None else self.default_path
+        
+        
+        
+        for k,v in config.items():
+            if k in ['path', 'name', 'split', 'streaming']:
+                kwargs[k] = config.get(k, None) 
+                
+        
         print('Loading dataset: ', kwargs)
         if not hasattr(self, 'load_dataset'):
             self.load_dataset = self.import_object('datasets.load_dataset')
 
-        self.dataset = self.load_dataset(**kwargs)
-                
+        dataset = self.load_dataset(**kwargs)
+
+
+        
+        
+        self.__dict__.update(config)
+        self.dataset = dataset
+        self.set_tokenizer(tokenizer=config.tokenizer)
+        
+        text_field = config.get('text_field', None)
         if text_field == None:
             text_field = self.default_text_feature
         self.text_field = text_field
+
         
-        self.set_tokenizer(tokenizer=config.tokenizer)
+        
+ 
         return self.dataset
 
     @property
@@ -231,11 +247,14 @@ class HFDataset(commune.Module):
             
             
     @classmethod
-    def deploy(cls, *datasets:List[str], refresh: bool = True, **kwargs):
+    def deploy(cls, *datasets:List[str], 
+               refresh: bool = True,
+               tag_seperator:str = '::',
+               **kwargs):
         for dataset in datasets:
             assert isinstance(dataset, str)
             commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
-            cls.launch(kwargs={'path':dataset}, name=f'dataset.text.{dataset}', refresh=refresh, **kwargs)
+            cls.launch(kwargs={'path':dataset}, name=f'dataset.{dataset}', refresh=refresh, **kwargs)
             
             
             
@@ -273,8 +292,9 @@ class HFDataset(commune.Module):
         final_sample = ' '.join(final_sample.split()[:sequence_length])
         return final_sample
 
-    def sample(self, batch_size:int=32, sequence_length:int=256, idx_list:List[int] = None, tokenize:bool= False)->dict:
+    def sample(self, batch_size:int=32, sequence_length:int=256, idx_list:List[int] = None, tokenize:bool= True)->dict:
         
+        self.print(locals())
         if idx_list == None:
             idx_list = [self.resolve_idx(None) for i in range(batch_size)]
             
@@ -321,48 +341,48 @@ class HFDataset(commune.Module):
             assert(callable(filter_fn))
         return filter_fn
 
-    @staticmethod
-    def set_dataset_builder( path:str=None, factory_module_path:str=None):
+    default_path = 'glue'
+
+    @classmethod
+    def resolve_path(cls, path:str=None, **kwargs):
+        path = cls.shortcuts.get(path, path)
+        if path == None:
+            path = cls.default_path
+        return path
+    @classmethod
+    def get_dataset_builder( cls, path:str=None, factory_module_path:str=None):
+        path = cls.resolve_path(path=path)
         if factory_module_path == None:
+            
             assert isinstance(path, str)
             factory_module = datasets.load.dataset_module_factory(path)
             factory_module_path = factory_module.module_path
 
         dataset_builder = datasets.load.import_main_class(factory_module_path)
         return dataset_builder
+    
+    
 
-    @staticmethod
-    def set_dataset_factory( path:str):
-        return datasets.load.dataset_module_factory(path)
+    def set_dataset_builder( self, *args, **kwargs):
+        self.dataset_builder = self.get_dataset_builder(*args, **kwargs)
+        return self.dataset_builder
 
-    @property
-    def dataset_factory(self):
-        placeholder_name = '_dataset_factory'
-        if not hasattr(self, placeholder_name):
-            setattr(self, placeholder_name,self.set_dataset_factory(self.path))
-        return getattr(self, placeholder_name)
+    @classmethod
+    def list_configs(cls, *args, **kwargs):
+        return cls.config_map(*args, **kwargs).keys()
 
-    @property
-    def dataset_builder(self):
-        placeholder_name = '_dataset_builder'
-        if not hasattr(self, placeholder_name):
-        
-            setattr(self, placeholder_name,self.set_dataset_builder(self.path))
-        return getattr(self, placeholder_name)
-
-
-
-    def list_configs(self):
-        return self.config_map
-
-    @property
     def available_names(self):
-        available_names = self.config['available_names'] = self.config.get('available_names', list(self.config_map.keys()))
-        return available_names
+        return list(self.config_map.keys())
+    
+    list_names = available_names
 
-    def builder_configs(self):
-        return self.dataset_builder.BUILDER_CONFIGS
+    @classmethod
+    def configs(cls, *args, names_only:bool = True, **kwargs):
         
+        configs = cls.get_dataset_builder(*args, **kwargs).BUILDER_CONFIGS
+        if names_only:
+            configs = [config.name for config in configs]
+        return configs
     @property
     def config_map(self):
 
@@ -388,8 +408,8 @@ class HFDataset(commune.Module):
 
     @classmethod
     def test(cls, *args, **kwargs):
-        self = cls(*args, **kwargs)
-        # self.serve()
+    
+        self = cls( *args, **kwargs)
         x = self.sample()
         print(x)
 
@@ -423,7 +443,7 @@ class HFDataset(commune.Module):
     
 
     @classmethod
-    def test(cls):
+    def test_multiple(cls):
         for path in cls.list_datasets():
             cls.print(f'TESTING ({cls.module_path()}): {path}', 'yellow')
             self = cls(path=path)
