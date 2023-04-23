@@ -5,10 +5,14 @@ import streamlit as st
 import json
 class Insurance(commune.Module):
     
-    def __init__(self, store: Dict = None, key: 'Key' = None):
+    def __init__(self,
+                 user: str = 'Alice',
+                 password: str = '1234567',
+                storage: Dict = None,):
     
-        self.set_storage(store)
-        self.set_key(key)
+
+        self.signin(username=user, password=password)
+        self.set_storage(storage)
         
     
     def set_storage(self, storage: Dict = None):
@@ -111,6 +115,7 @@ class Insurance(commune.Module):
             
     def get_user_claims(self):
         claims = []
+        st.write(self.claim_paths)
         for path in self.claim_paths:
             claims.append(self.get_claim(path=path))
         return claims
@@ -136,17 +141,26 @@ class Insurance(commune.Module):
         '''
         sign in to the insurance module
         '''
-        username = st.text_input('Username', value='Alice')
-        password = st.text_input('Password', value='Bob', type='password')
+        username = st.text_input('Username', value=self.username)
+        password = st.text_input('Password', value=self.password, type='password')
         # expand the button to the full width of the sidebar
         cols = st.columns(2)
 
+
+        signin_button = st.button('Sign In')
+    
+        if signin_button:
+            self.signin(username=username, password=password)
+        
+  
+        
+    def signin(self, username, password):
         self.username = username
         self.password = password
-        seed = username+":"+ password
-        self.key = commune.key(seed)
-        
-            
+        self.key = commune.key(username)
+        self.address = self.key.ss58_address
+        # st.write('Signed in as', self.username)
+        return True
     def streamlit_sidebar(self):
         with st.sidebar:
             st.write('# Commune AI Insurance')
@@ -247,6 +261,7 @@ class Insurance(commune.Module):
         return self.get_user_claims()
     @classmethod
     def streamlit(cls):
+        cls.new_event_loop()
         self = cls()
         self.button = {}
         self.streamlit_sidebar()
