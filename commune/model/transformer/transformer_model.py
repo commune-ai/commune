@@ -90,7 +90,7 @@ class TransformerModel( Model):
         self.set_model(self.config)
 
         
-        if config.test:
+        if self.config.test:
             self.test(self)
 
     default_tag = 'base'
