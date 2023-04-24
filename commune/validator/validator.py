@@ -19,7 +19,7 @@ class Validator(commune.Module, nn.Module):
                  models: List[str]= None,
                  batch_size: int = 32,
                  sequence_length: int = 256,
-                 dataset: str = 'dataset.text.bittensor',
+                 dataset: str = 'dataset',
                  tokenizer: str = 'bittensor',
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,

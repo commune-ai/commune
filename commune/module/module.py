@@ -15,7 +15,6 @@ import asyncio
 
 boot_peers = ['162.157.13.236:9057', '162.157.13.236:9255', '162.157.13.236:9451']
 
-
 class Module:
     
     # port range for servers
@@ -841,7 +840,7 @@ class Module:
         object_name = object_name[0]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
-        print(path,object_name,  'fam')
+        print(path)
         return path
 
     @classmethod
@@ -1000,7 +999,11 @@ class Module:
                              **kwargs):
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
-        data = await async_get_json(path, **kwargs)
+        
+        try:
+            data = await async_get_json(path, **kwargs)
+        except FileNotFoundError:
+            return default
         if data == None:
             data = {}
         if 'data' in data and 'meta' in data:

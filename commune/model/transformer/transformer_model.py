@@ -78,15 +78,16 @@ shortcuts =  {
     
         }
 
+
+
 class TransformerModel( Model):
     shortcuts = shortcuts
 
     def __init__(self,
-                **kwargs
-                ):
-              
-        config = self.set_config( kwargs=kwargs)
-        self.set_model(config)
+                 config = None,
+                **kwargs):
+        Model.__init__(self, conifg=config, **kwargs)
+        self.set_model(self.config)
 
         
         if config.test:
@@ -680,6 +681,7 @@ class TransformerModel( Model):
                 undeployed_models.append(model)
         return undeployed_models
        
+    
     @classmethod   
     def infer_device_map(cls, model, max_memory: dict = None, max_gpu_ratio: float = 0.8):
         if max_memory == None:

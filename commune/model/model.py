@@ -331,9 +331,9 @@ class Model( nn.Module, commune.Module):
     def deploy(cls, *args, **kwargs):
         return cls.get_module('model.transformer').deploy(*args, **kwargs)
     
-    @classmethod
-    def test(cls, *args, **kwargs):
-        return cls.get_module('model.transformer').test(*args, **kwargs)
+    # @classmethod
+    # def test(cls, *args, **kwargs):
+    #     return cls.get_module('model.transformer').test(*args, **kwargs)
 
 
     @classmethod
