@@ -27,4 +27,3 @@ def signin(usr: str, pwd: str):
     key = Module.signin(usr, pwd)
     address = key.address
 
-signin('bro', 'fam')

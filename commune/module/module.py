@@ -513,11 +513,7 @@ class Module:
 
 
     @classmethod
-<<<<<<< HEAD
-    def import_object(cls, key:str, verbose:bool = False)-> 'Object':
-=======
     def import_object(cls, key:str, verbose: bool = False)-> 'Object':
->>>>>>> 3f7d5cb6f6260588cda75f8efeba5e9b8290d103
         
         '''
         

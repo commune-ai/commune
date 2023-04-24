@@ -55,7 +55,7 @@ class server(torch.nn.Module):
         """
         super(server, self).__init__()
         if config == None: config = server.config()
-        self.config = config;print(config)
+        self.config = config
         self.std_tokenizer = bittensor.tokenizer()
         self.device = 'cpu'
 
