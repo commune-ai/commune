@@ -11,11 +11,11 @@ class Dashboard(commune.Module):
 
     
     def load_state(self):
-        self.server_registry = commune.server_registry()
-        self.servers = list(self.server_registry.keys())
+        self.local_namespace = commune.local_namespace()
+        self.servers = list(self.local_namespace.keys())
         for peer in self.servers:
-            if peer not in self.server_registry:
-                self.server_registry[peer] = commune.connect(peer).server_stats
+            if peer not in self.local_namespace:
+                self.local_namespace[peer] = commune.connect(peer).server_stats
         
         self.module_tree = commune.module_tree()
         self.module_list = ['module'] + list(self.module_tree.keys())
@@ -28,9 +28,9 @@ class Dashboard(commune.Module):
         peer_registry = cls.get_json('peer_registry', default={})
         peer=commune.connect(peer_address, timeout=1)
         
-        peer_server_registry = peer.server_registry()
-        st.write(peer_server_registry)
-        peer_registry[peer_address] = peer_server_registry
+        peer_local_namespace = peer.local_namespace()
+        st.write(peer_local_namespace)
+        peer_registry[peer_address] = peer_local_namespace
         
         cls.put_json('peer_registry', peer_registry)
     
@@ -120,7 +120,7 @@ class Dashboard(commune.Module):
     def streamlit_server_info(self):
         
         
-        for peer_name, peer_info in self.server_registry.items():
+        for peer_name, peer_info in self.local_namespace.items():
             with st.expander(peer_name, True):
                 peer_info['address']=  f'{peer_info["ip"]}:{peer_info["port"]}'
                 st.write(peer_info)
