@@ -1179,7 +1179,7 @@ class Module:
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
         module = cls.connect(name)
-        return module.address
+        return module.server_info['address']
     
     anchor = root_module
     anchor_address = root_address
@@ -1273,7 +1273,7 @@ class Module:
     def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
         used_local_ports = cls.get_used_ports() 
         if ip == None:
-            ip = cls.default_ip
+            ip = cls.external_ip()
         peer_addresses = []
         for port in used_local_ports:
             peer_addresses.append(f'{ip}:{port}')
@@ -1297,14 +1297,11 @@ class Module:
         loop = cls.get_event_loop()
         peers = loop.run_until_complete(asyncio.gather(*jobs))
         
-        for peer in peers:
-            try:
-                peer_name = peer.module_name
-                server_info = peer.address
-            except AttributeError:
-                continue
-            if isinstance(server_info, dict):
-                peer_registry[peer_name] = server_info
+        for peer, peer_address in zip(peers, peer_addresses):
+
+            peer_name = peer.module_name
+
+            peer_registry[peer_name] = peer_address
             
         if save:
             Module.save_json('local_namespace', peer_registry)
@@ -1338,17 +1335,21 @@ class Module:
     def remote_namespace(cls,  seperator = '<R>'):
         peer_registry = cls.peer_registry()  
         namespace = {}          
-        for peer_id, (peer_address, peer_namespace) in enumerate(peer_registry.items()):
+        for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
             
-            if isinstance(peer_namespace, dict):
+            if isinstance(peer_info, dict):
                 peer_name = f'peer{peer_id}'
-                for name, address in peer_namespace.items():
+                if 'namespace' in peer_info:
+                    if peer_info['namespace'] == None or isinstance(peer_info['namespace'], str):
+                        cls.print(f'Peer {peer_name} has no namespace', color='red')
+                        continue
+                for name, address in peer_info['namespace'].items():
                     namespace[name+seperator+peer_name] = address
             
         return namespace
             
     @classmethod
-    def local_namespace(cls, update:bool = False)-> dict:
+    def local_namespace(cls, update:bool = True)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1372,9 +1373,9 @@ class Module:
     
   
     @classmethod
-    def servers(cls, search:str = None, include_peers=False) -> List[str]:
+    def servers(cls, search:str = None) -> List[str]:
 
-        servers = list(cls.local_namespace(include_peers=include_peers).keys())
+        servers = list(cls.local_namespace().keys())
         if search: 
             servers = [s for s in servers if search in s]
         return servers
@@ -1636,7 +1637,8 @@ class Module:
         self.server_info = server.info
         self.ip = server.ip
         self.port = server.port
-        self.address = server.address
+        self.address = self.ip_address = self.ip_addy =  server.address
+        
         
         # register the server
         server_info = cls.register_server(name=module_name, 
@@ -3377,7 +3379,13 @@ class Module:
     async def async_call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
         module = await cls.async_connect(module)
-        return await module.remote_call(fn, *args, return_future=True, **kwargs)
+        fn = getattr(module, fn)
+        if inspect.iscoroutinefunction(fn):
+            return await fn(*args, **kwargs)
+        elif callable(fn):
+            return fn(*args, **kwargs)
+        else:
+            return fn
 
 
     @classmethod
@@ -3663,10 +3671,14 @@ class Module:
                     return x
     default_port_range = [50050, 50150]
     @classmethod
-    def set_port_range(cls, port_range: list = None):
-        if port_range == None:
+    def set_port_range(cls, *port_range: list):
+        if len(port_range) ==0 :
             port_range = cls.default_port_range
-        
+        assert len(port_range) == 2, 'Port range must be a list of two integers'        
+        for port in port_range:
+            assert isinstance(port, int), f'Port {port} range must be a list of integers'
+        assert port_range[0] < port_range[1], 'Port range must be a list of integers'
+                
         data = dict(port_range =port_range)
         cls.put_json('port_range', data, root=True)
         cls.port_range = data['port_range']
@@ -4118,15 +4130,23 @@ class Module:
 
     @classmethod
     def signin(cls, 
-               user:str = 'Alice', 
-               password:str = 'password',
+               user:str = 'Alice on Chains', 
+               password:str = 'Obama is a lizard',
                seperator:str = '::',
                mode: str = 'subspace'):
         cls.user = user
+        
+        # For the lazy fucks who want to us user<seperator>password
+        user_splits = user.split(seperator)
+        if len(user_splits)>1:
+            # take the last chunk as the password , 
+            # NOTE: DO NOT INCLUDE "::" in your username
+            user = user_splits[0]
+            password = seperator.join(user_splits[1:])
+            
         key_seed = seperator.join([user, password])
         cls.key = cls.get_key(key_seed ,mode=mode)
         cls.address = cls.key.ss58_address
-        
         return cls.key
         
 
