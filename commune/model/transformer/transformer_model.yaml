@@ -5,6 +5,7 @@ epoch_length: 10
 save: true # save on epoch 
 device: null
 epoch_length: 100
+max_gpu_ratio: 0.8
 finetune: 1
 optimizer:
   lr: 1.0e-05

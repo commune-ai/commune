@@ -81,14 +81,13 @@ shortcuts =  {
 class TransformerModel( Model):
     shortcuts = shortcuts
 
-    def __init__(self, model = 'gpt125m',
+    def __init__(self,
                 **kwargs
                 ):
-        
-        Model.__init__(self, locals()) 
-        self.print(self.config)        
-        config = self.config
+              
+        config = self.set_config( kwargs=kwargs)
         self.set_model(config)
+
         
         if config.test:
             self.test(self)
@@ -269,8 +268,7 @@ class TransformerModel( Model):
         self.model_path = config['model_path'] =self.shortcuts.get(model_name, model_name)
         # config = AutoConfig.from_pretrained(self.model_name)
         self.print(config)
-                
-
+            
         model = self.get_empty_model(self.model_path)
         config.max_memory = self.free_gpu_memory(max_gpu_ratio=config.max_gpu_ratio)
         config.total_memory = sum(config.max_memory.values())
