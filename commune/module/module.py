@@ -21,10 +21,13 @@ class Module:
     # port range for servers
     default_port_range = [50050, 50150] 
     
+    user = None
+    
     # default ip
     default_ip = '0.0.0.0'
     
-    
+    address = None
+    key = None
     # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
@@ -715,7 +718,7 @@ class Module:
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
         
-        cls.update_server_registry()
+        cls.update_local_namespace()
 
     @classmethod
     def restart_server(cls, module:str, mode:str = 'pm2'):
@@ -1123,7 +1126,7 @@ class Module:
 
     @classmethod
     def get_server_info(cls,name:str) -> Dict:
-        return cls.server_registry().get(name, {})
+        return cls.local_namespace().get(name, {})
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -1190,7 +1193,6 @@ class Module:
                 network : str = 'local',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
-                include_peers: bool = True,
                 **kwargs ):
         
         if (name == None and ip == None and port == None):
@@ -1280,7 +1282,7 @@ class Module:
             
     
     @classmethod
-    def get_server_registry(cls, 
+    def get_local_namespace(cls, 
                             ip:str = None, 
                             save:bool = False,
                             timeout:int  = 3) -> Dict:
@@ -1298,19 +1300,19 @@ class Module:
         for peer in peers:
             try:
                 peer_name = peer.module_name
-                server_info = peer.server_info
+                server_info = peer.address
             except AttributeError:
                 continue
             if isinstance(server_info, dict):
                 peer_registry[peer_name] = server_info
             
         if save:
-            Module.save_json('server_registry', peer_registry)
+            Module.save_json('local_namespace', peer_registry)
         return peer_registry
 
     @classmethod
-    def update_server_registry(cls) -> None:
-        server_registry = cls.server_registry(update=True)
+    def update_local_namespace(cls) -> None:
+        local_namespace = cls.local_namespace(update=True)
 
     @classmethod
     def port2module(cls, *args, **kwargs):
@@ -1331,90 +1333,48 @@ class Module:
         return port2module
     address2name = address2module
         
+        
     @classmethod
-    def server_registry(cls, 
-                        update: bool = False,
-                        address_only: bool  = False,
-                        include_peers: bool = False)-> dict:
+    def remote_namespace(cls,  seperator = '<R>'):
+        peer_registry = cls.peer_registry()  
+        namespace = {}          
+        for peer_id, (peer_address, peer_namespace) in enumerate(peer_registry.items()):
+            
+            if isinstance(peer_namespace, dict):
+                peer_name = f'peer{peer_id}'
+                for name, address in peer_namespace.items():
+                    namespace[name+seperator+peer_name] = address
+            
+        return namespace
+            
+    @classmethod
+    def local_namespace(cls, update:bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
-        it will register itself with the server_registry dictionary.
+        it will register itself with the local_namespace dictionary.
         '''
         # from copy import deepcopy
         
         address2module = {}
-    
-    
-        if update:
-            server_registry = cls.get_server_registry(save=True)
-            
             
         try:
-            server_registry = Module.get_json('server_registry', handle_error=True, default={})
+            local_namespace = Module.get_json('local_namespace', handle_error=True, default={})
         except json.JSONDecodeError as e:
             print('Error decoding server registry, resetting to empty dict')
-            server_registry = cls.get_server_registry(save=True)
-        for k in deepcopy(list(server_registry.keys())):
-            if 'port' not in server_registry[k] or 'ip' not in server_registry[k]:
-                del server_registry[k]
-                update = True
-                continue
-            if server_registry[k]['port'] == None or server_registry[k]['ip'] == None:
-                return cls.server_registry(update=True)
-            if 'address' not in server_registry[k]:
-                server_registry[k]['address'] = f"{server_registry[k]['ip']}:{server_registry[k]['port']}"
-                update = True
+            update = True
             
-            if not Module.port_used(int(server_registry[k]['port'])):
-                
-                del server_registry[k]
-                update = True
-            else:
-                address = server_registry[k]['address']
-                address2module[address] = k
-
-
-                
-   
         if update:
-            cls.put_json('server_registry',server_registry, root=True)
-
-        peer_registry = cls.peer_registry() 
-        if len(peer_registry) > 0 and include_peers:
-            
-            for peer_id, (peer_address, peer_namespace) in enumerate(peer_registry.items()):
-                if isinstance(peer_namespace, str):
-                    continue
-                for peer_server_name, peer_server_info in peer_namespace.items():
-  
-                    if peer_server_name in server_registry:
-                        peer_server_name = f'{peer_server_name}::r{peer_id}'
-                    
-                    assert peer_server_name not in server_registry
-                    if 'port' not in peer_server_info or 'ip' not in peer_server_info:
-                        continue
-                    if 'address' not in peer_server_info:
-                        peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
-                    address = peer_server_info['address']
-                    if address not in address2module:
-                        server_registry[peer_server_name] = peer_server_info
-                    address2module[address] = peer_server_name
-                    
-        
-        # sort dict by keys
-        # server_registry = {k:server_registry[k] for k in sorted(server_registry.keys())}
-        if address_only:
-            return {k:server_registry[k]['address'] for k in server_registry}
-           
-        return server_registry
+            local_namespace = cls.get_local_namespace(save=True)
+         
+        return local_namespace
 
     
   
     @classmethod
     def servers(cls, search:str = None, include_peers=False) -> List[str]:
 
-        servers = list(cls.server_registry(include_peers=include_peers).keys())
+        servers = list(cls.local_namespace(include_peers=include_peers).keys())
         if search: 
             servers = [s for s in servers if search in s]
         return servers
@@ -1425,10 +1385,10 @@ class Module:
     
     @classmethod
     def rename_server(cls, name:str, new_name:str) -> Dict:
-        server_registry = cls.server_registry()
-        server_registry[new_name] = server_registry.pop(name)
-        cls.put_json(path='server_registry', data=server_registry, root=True) 
-        return {new_name:server_registry[new_name]}
+        local_namespace = cls.local_namespace()
+        local_namespace[new_name] = local_namespace.pop(name)
+        cls.put_json(path='local_namespace', data=local_namespace, root=True) 
+        return {new_name:local_namespace[new_name]}
     
     rename = rename_module = rename_server
     
@@ -1440,7 +1400,7 @@ class Module:
                         context: str =  None,
                         network: str = None,
                         key: 'Key' = None)-> dict:
-        server_registry = cls.server_registry()    
+        local_namespace = cls.local_namespace()    
         
         server_info = dict(
                 key=key,
@@ -1450,8 +1410,8 @@ class Module:
                 port = port  
             )    
         
-        server_registry[name] = server_info
-        cls.put_json(path='server_registry', data=server_registry, root=True) 
+        local_namespace[name] = server_info
+        cls.put_json(path='local_namespace', data=local_namespace, root=True) 
 
         # only serve module if you have a network
         if key != None:
@@ -1463,7 +1423,7 @@ class Module:
 
             network.register(**register_kwargs)
             
-        return server_registry
+        return local_namespace
   
   
     @classmethod
@@ -1574,19 +1534,25 @@ class Module:
         if search in ['local', 'global', 'subspace']:
             network = search
             search = None
-        
+        namespace = {}
         if network == 'subspace' :
             subspace = cls.subspace(**kwargs)
-            namespace = subspace.namespace()
+            namespace.update(cls.subspace_namespace())
         elif network in ['local', 'global']:
             include_peers = True if network == 'global' else False
-            namespace = cls.server_registry(address_only=True, include_peers=include_peers)
+            namespace.update(cls.local_namespace())
+            if network == 'global':
+                namespace.update(cls.remote_namespace())
         else:
             raise ValueError(f'network must be either "subspace" or "local"')
         if search:
             namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
     
+    
+    @classmethod
+    def subspace_namespace(cls, search = None):
+        raise NotImplementedError()
     
 
     @classmethod
@@ -3639,11 +3605,8 @@ class Module:
             subspace = cls.subspace(subspace)
             
         return subspace
-    
-    @classmethod
-    def key(cls, *args, **kwargs):
-        return cls.get_module('subspace.key')(*args, **kwargs)
-    
+
+    key = None 
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
         return cls.import_object('commune.server.Client')(*args, **kwargs)
@@ -3709,6 +3672,9 @@ class Module:
         cls.port_range = data['port_range']
         return data['port_range']
     
+    
+    
+    
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
 
@@ -3760,21 +3726,24 @@ class Module:
         if len(peer_addresses) == 0:
             peer_addresses = cls.boot_peers
             
-        jobs = []
-        peer_results = []
+        peer_jobs = []
         # get the server registry for each peer
         for peer_address in peer_addresses:
-            job = cls.async_call(module=peer_address, fn='server_registry', timeout=timeout)
-            jobs.append(job)
+            peer_job = cls.async_call(module=peer_address, fn='namespace', timeout=timeout)
+            peer_jobs.append(peer_job)
             
         # wait for all jobs to complete
-        peer_results = await asyncio.gather(*jobs)
+        peer_namespaces = await asyncio.gather(*peer_jobs)
         
-        cls.print(f'Adding peer  to registry, {peer_results}')
+        
+        cls.print(f'Adding peer  to registry, {peer_addresses}')
 
         #  add each peer to the registry
-        for peer_address, peer_server_registry in zip(peer_addresses, peer_results):
-            peer_registry[peer_address] = peer_server_registry
+        for peer_address, peer_namespace in zip(peer_addresses, peer_namespaces):
+            # TODO : ADD PEER NAME
+            peer_registry[peer_address] = dict(name=None, 
+                                               namespace=peer_namespace,
+                                               address = peer_address)
             
         await Module.async_put_json('peer_registry', peer_registry)
         
@@ -3841,7 +3810,7 @@ class Module:
             if verbose:
                 cls.print('Updating server registry')
             cls.update_peers()
-            cls.update_server_registry()
+            cls.update_local_namespace()
             update_info['last_update'] = cls.time()
             cls.put_json('update_info', update_info, root=True)
             
@@ -4147,6 +4116,19 @@ class Module:
         # Return the merged class
         return class_merged
 
+    @classmethod
+    def signin(cls, 
+               user:str = 'Alice', 
+               password:str = 'password',
+               seperator:str = '::',
+               mode: str = 'subspace'):
+        cls.user = user
+        key_seed = seperator.join([user, password])
+        cls.key = cls.get_key(key_seed ,mode=mode)
+        cls.address = cls.key.ss58_address
+        
+        return cls.key
+        
 
 if __name__ == "__main__":
     Module.run()

@@ -377,7 +377,7 @@ if __name__ == "__main__":
     
     # ModelClient.default_model()
     
-    commune.server_registry(update=True)
+    commune.local_namespace(update=True)
     model_kwargs = dict(model='model::gptj::6', tokenizer='gptj')
     # ModelClient.test_neuron('model::gptj::7', tokenizer='gptj')
     ModelClient.run_neuron(**model_kwargs)
