@@ -13,10 +13,10 @@ load_in_8bit: False
 stats: {}
 max_gpu_ratio: 0.8
 model_inflation_ratio: 1.4
-output_length: 10
+output_length: 4
 max_sequence_length: 256
 tag: null
-test: True
+test: false
 load: false
 device_map: null
 max_memory: null

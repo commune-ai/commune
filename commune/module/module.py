@@ -523,7 +523,7 @@ class Module:
 
 
     @classmethod
-    def import_object(cls, key:str)-> 'Object':
+    def import_object(cls, key:str, verbose: bool = False)-> 'Object':
         
         '''
         
@@ -538,7 +538,8 @@ class Module:
 
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
-        cls.print(f'Importing {object_name} from {module}')
+        if verbose:
+            cls.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -1349,7 +1350,7 @@ class Module:
         return namespace
             
     @classmethod
-    def local_namespace(cls, update:bool = True)-> dict:
+    def local_namespace(cls, update:bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1359,14 +1360,17 @@ class Module:
         
         address2module = {}
             
-        try:
-            local_namespace = Module.get_json('local_namespace', handle_error=True, default={})
-        except json.JSONDecodeError as e:
-            print('Error decoding server registry, resetting to empty dict')
-            update = True
+        if update == False:
+            try:
+                local_namespace = Module.get_json('local_namespace', handle_error=True, default={})
+            except json.JSONDecodeError as e:
+                print('Error decoding server registry, resetting to empty dict')
+                update = True
             
         if update:
+            t = cls.timer()
             local_namespace = cls.get_local_namespace(save=True)
+            cls.print(f'Updated local namespace in {t.seconds} seconds', color='green')
          
         return local_namespace
 
@@ -2179,14 +2183,15 @@ class Module:
         return cls.run_command(f"pm2 logs {module}", verbose=verbose)
 
     @classmethod
-    def argparse(cls):
+    def argparse(cls, verbose: bool = False):
         import argparse
         parser = argparse.ArgumentParser(description='Gradio API and Functions')
         parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
-        cls.print(args, color='cyan')
+        if verbose:
+            cls.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
         return args
