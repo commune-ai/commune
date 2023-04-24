@@ -44,7 +44,6 @@ class Module:
     
     def __init__(self, 
                  config:Dict=None, 
-                 save_if_not_exists:bool=False, 
                  add_attributes: bool = False,
                  key: str = None,
                  boot_peers = None,
@@ -52,7 +51,7 @@ class Module:
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
         # self.new_event_loop(nest_asyncio=True)
-        self.set_config(config=config, save_if_not_exists=save_if_not_exists, add_attributes=add_attributes)  
+        self.set_config(config=config, add_attributes=add_attributes)  
         # do you want a key fam
         if key is not None:
             self.set_key(key)
@@ -195,15 +194,6 @@ class Module:
     @classmethod
     def get_module_config_path(cls) -> str:
         return cls.get_module_path(simple=False).replace('.py', '.yaml')
-
-
-    @classmethod
-    def default_config(cls, *args, **kwargs):
-        '''
-        
-        Loads a default config
-        '''
-        return cls.load_config( *args, **kwargs)
     
     @classmethod    
     def dict2munch(cls, x:Dict) -> Munch:
@@ -306,36 +296,37 @@ class Module:
             default_config[k] = config[k]        
         self.config = self.munch(default_config)
         return self.config
+    
+    
     @classmethod
-    def load_config(cls, path:str=None,  to_munch:bool = False, save_if_not_exists:bool = False) -> Union[Munch, Dict]:
+    def resolve_config_path(cls, path= None) -> str:
+        
+        module_tree = cls.module_tree()
+        if path in module_tree: 
+            path = module_tree[path].replace('.py', '.yaml')
+        path = path if path else cls.__config_file__()
+        assert isinstance(path, str)
+        return path
+    @classmethod
+    def load_config(cls, path:str=None, to_munch:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-        module_tree = cls.module_tree()
-        if path in module_tree: 
-            path = module_tree[path].replace('.py', '.yaml')
         
-        path = path if path else cls.__config_file__()
-            
-        if save_if_not_exists:    
-            if not os.path.exists(__config_file__):
-                cls.save_config(config=cls.minimal_config(), path=__config_file__)
-               
-        try:
-            
-            config = cls.load_yaml(path)
-        except FileNotFoundError as e:
-            config = cls.minimal_config()
-        
+        path = cls.resolve_config_path(path)
+        config = cls.load_yaml(path)
+
         if to_munch:
             config =  cls.dict2munch(config)
             
         
         return config
     
-    get_config = load_config
+    
+    default_config = load_config
+    
 
     @classmethod
     def put_config(cls, key, value) -> Munch:
@@ -369,12 +360,41 @@ class Module:
     
     put_config = save_config
     
+    @classmethod
+    def get_config(cls, config = None, kwargs=None, to_munch:bool = True) -> Munch:
+        '''
+        Set the config as well as its local params
+        '''
+                
+        if isinstance(config, str) or config == None:
+            config = cls.load_config(path=config)
+        elif isinstance(config, dict):
+            default_config = cls.load_config()
+            default_config.update(config)
+            
+        assert isinstance(config, dict)
+        
+        kwargs = kwargs if kwargs != None else {}
+        kwargs.update(kwargs.pop('kwargs', {}))
+        config.update(kwargs)
+        # ensure there are no inner_args to avoid ambiguous args 
+    
+        if isinstance(config, Munch) and to_munch:
+            config = cls.munch2dict(config)
+        
+            
+        #  add the config after in case the config has a config attribute lol
+        if to_munch:
+            config = cls.dict2munch(config)
+        
+        return config
+
+
 
 
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict={},
-                   save_if_not_exists:bool = False,
                    to_munch: bool = True,
                    add_attributes: bool = False) -> Munch:
         '''
@@ -384,41 +404,11 @@ class Module:
         from commune.utils.dict import munch2dict, dict2munch
         
 
-        default_config =  self.get_config()
-        
-        # ensure to include the inner kwargs if that is provided (Which isnt great practice lol)
-        kwargs  = {**kwargs, **kwargs.pop('kwargs', {}) }
-        
-        # ensure there are no inner_args to avoid ambiguous args 
-        inner_args = kwargs.pop('args', [])
-        assert len(inner_args) == 0, f'Please specify your keywords for this to act nicely, args: {inner_args}'
-    
-        if type(config) in [dict]:
-            config = config
-            config_kwargs = config.pop('kwargs', None)
-            if isinstance(config_kwargs, dict):
-                kwargs = {**config_kwargs, **kwargs}
-            config.pop('args', None)
-            config.pop('self', None)
-            config.pop('cls', None)
-        elif type(config) in [Munch]:
-            config = munch2dict(config)
-        elif type(config) in [str, type(None)]:
-            config = self.load_config(path=config, save_if_not_exists=False)
-        
-        
-        for k,v in kwargs.items():
-            self.dict_put(config, k, v)
-        
-        # overwrite the default config with the new config
-        config = {**default_config, **config}
+        config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
+
         if add_attributes:
-            self.__dict__.update(config)
-            
-        #  add the config after in case the config has a config attribute lol
-        if to_munch:
-            self.config = dict2munch(config)
-        
+            self.__dict__.update(self.munch2dict(config))
+        self.config = config 
         return self.config
 
     @classmethod
@@ -1059,6 +1049,8 @@ class Module:
     def exists(cls, path:str, extension = 'json', root:bool = False)-> bool:
         path = cls.resolve_path(path=path, extension=extension, root=root)
         return os.path.exists(path)
+    
+    exists_json = exists
 
     @classmethod
     def rm_json(cls, path=None, root:bool = False):
@@ -3669,11 +3661,15 @@ class Module:
                     return float(x)
                 except ValueError:
                     return x
-    default_port_range = [50050, 50150]
+
     @classmethod
     def set_port_range(cls, *port_range: list):
         if len(port_range) ==0 :
             port_range = cls.default_port_range
+        elif len(port_range) == 1:
+            if port_range[0] == None:
+                port_range = cls.default_port_range
+
         assert len(port_range) == 2, 'Port range must be a list of two integers'        
         for port in port_range:
             assert isinstance(port, int), f'Port {port} range must be a list of integers'
@@ -3690,11 +3686,11 @@ class Module:
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
 
-        if not Module.exists('port_range'):
+        if not cls.exists('port_range', root=True):
             cls.set_port_range(port_range)
             
         if port_range == None:
-            port_range = Module.get_json('port_range')['port_range']
+            port_range = cls.get_json('port_range', root=True)['port_range']
             
         if len(port_range) == 0:
             port_range = cls.default_port_range
