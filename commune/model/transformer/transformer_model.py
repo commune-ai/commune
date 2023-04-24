@@ -139,7 +139,7 @@ class TransformerModel( Model):
         output_length = output_length or self.config.output_length or input_ids.shape[1]
         # resolve the max sequence length (sometimes we want to clip the input to make it faster)
         max_sequence_length = max_sequence_length or self.config.max_sequence_length or input_ids.shape[1]
-        attention_mask = attention_mask or torch.ones_like(input_ids)
+        attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
     
     
 
@@ -182,7 +182,7 @@ class TransformerModel( Model):
         # check if there are any nans in the logits
         logits_has_nans =  torch.isnan(model_output.logits).any()
         if logits_has_nans:
-            self.print('logits has nans with sample input_ids: ', sample['input_ids'])
+            raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
                 
         self.stats['latency'] = self.round(self.time() - self.stats['time'], sig=2)
         
@@ -247,7 +247,8 @@ class TransformerModel( Model):
             self.print('saving model...')
             self.save(tag)
 
-        output_dict['stats'] = deepcopy(self.stats)
+        output_dict['stats'] = self.munch2dict(self.copy(self.stats))
+        
         
         return {key:output_dict[key] for key in return_keys} 
         
@@ -416,12 +417,16 @@ class TransformerModel( Model):
              topk:int=256 ,
              dataset:str = 'dataset',
              num_batches = 3,
-             sequence_length = 256,
-             batch_size = 32,
-             device = None, 
-             remote = False, 
-             train = False,
-             load = False,
+             sequence_length : int = 256,
+             batch_size: int = 32,
+             autocast : bool = True,
+             device : str = None, 
+             remote: bool = False, 
+             train: bool= False,
+             map_logits : bool = False,
+             map_tokens : bool = False,
+             timeout : int= 60,
+             load: bool  = False,
              save = False,
              **kwargs
              ):
@@ -444,20 +449,20 @@ class TransformerModel( Model):
             model.load()
 
         for i in range(num_batches):
-            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
+            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length)
             sample['topk'] = topk
-            sample['map_tokens'] = False
-            sample['map_logits'] = False
+            sample['map_tokens'] = map_tokens
+            sample['map_logits'] = map_logits
             sample['train'] = train
-            sample['autocast'] = True
-            sample['timeout'] = 6
+            sample['autocast'] = autocast
+            sample['timeout'] = timeout
             sample['return_keys'] = [ 'topk', 'stats']
             
-            output = model.forward(**cls.copy(sample))
-            output['logits'] = decode_topk(output['topk'] )
+            output = model.forward(**sample)
+            cls.print(output['stats'] )
             
-            output['input_ids'] = sample['input_ids']
-            cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
+            # output['input_ids'] = sample['input_ids']
+            # cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
             # cls.print(outpu
             # t)
             # cls.print(output['stats'])
@@ -483,8 +488,6 @@ class TransformerModel( Model):
              **kwargs
              ):
         
-        if not commune.server_exists(dataset):
-            commune.deploy(dataset)
         dataset = commune.connect(dataset, wait_for_server=True)
         namespace = commune.namespace()
         
