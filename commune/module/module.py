@@ -513,7 +513,7 @@ class Module:
 
 
     @classmethod
-    def import_object(cls, key:str)-> 'Object':
+    def import_object(cls, key:str, verbose:bool = False)-> 'Object':
         
         '''
         
@@ -528,7 +528,8 @@ class Module:
 
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
-        cls.print(f'Importing {object_name} from {module}')
+        if verbose:
+            cls.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -1139,9 +1140,9 @@ class Module:
                     return_info = False,
                     refresh:bool = False,
                     **kwargs):
-        if not cls.server_exists(name) or refresh:
-            cls.launch(name=name, **kwargs)
-            cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
+        # if not cls.server_exists(name) or refresh:
+        #     cls.launch(name=name, **kwargs)
+        #     cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
         module = cls.connect(name)
         if return_info:
             return module.server_info
@@ -1341,7 +1342,7 @@ class Module:
         return namespace
             
     @classmethod
-    def local_namespace(cls, update:bool = True)-> dict:
+    def local_namespace(cls, update:bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
