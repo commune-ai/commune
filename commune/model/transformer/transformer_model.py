@@ -414,7 +414,7 @@ class TransformerModel( Model):
     @classmethod
     def test(cls, model = 'gpt125m', 
              topk:int=256 ,
-             dataset:str = 'dataset.text.bittensor',
+             dataset:str = 'dataset',
              num_batches = 3,
              sequence_length = 256,
              batch_size = 32,
@@ -499,7 +499,7 @@ class TransformerModel( Model):
             model.load()
 
         for i in range(num_batches):
-            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length, no_tokenizer=False)
+            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length)
             sample['topk'] = topk
             sample['map_tokens'] = False
             sample['map_logits'] = False

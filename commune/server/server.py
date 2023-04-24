@@ -355,7 +355,7 @@ class Server(ServerServicer, Serializer):
         
         def print_serve_status():
             text = f'{str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
-            commune.print(text, f'STATS:{self.stats}', color='green')
+            commune.print(text, color='green')
 
         while True:
             if not wait_for_termination:
