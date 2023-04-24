@@ -17,7 +17,7 @@ class CLI(commune.Module):
         ) :
         commune.new_event_loop(True)
         module = commune.Module()
-        args, kwargs = self.parse_args() 
+        args, kwargs = self.parse_args()
         if len(args)> 0:
     
             is_remote = False
@@ -32,6 +32,8 @@ class CLI(commune.Module):
                 is_remote = True
 
             fn = args.pop(0) if len(args) > 0 else None
+            
+
             if is_remote:
                 fn = fn if fn != None else 'help'
                 result = module.remote_call(fn, *args, **kwargs)
@@ -44,7 +46,8 @@ class CLI(commune.Module):
                     
                     if callable(result):
                         result = result(*args, **kwargs)
-        
+            self.print(args, kwargs) 
+
         if result != None:
             self.print(result)
     

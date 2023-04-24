@@ -363,7 +363,10 @@ class Server(ServerServicer, Serializer):
             lifetime_seconds += update_period
             if verbose:
                 print_serve_status()
+                
                 time.sleep(update_period)
+        
+        
 
                 
             

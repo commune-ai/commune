@@ -81,7 +81,7 @@ shortcuts =  {
 class TransformerModel( Model):
     shortcuts = shortcuts
 
-    def __init__(self, model = 'gp125m',
+    def __init__(self, model = 'gpt125m',
                 **kwargs
                 ):
         

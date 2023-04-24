@@ -48,7 +48,7 @@ class Module:
                  *args, 
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        self.new_event_loop(nest_asyncio=True)
+        # self.new_event_loop(nest_asyncio=True)
         self.set_config(config=config, save_if_not_exists=save_if_not_exists, add_attributes=add_attributes)  
         # do you want a key fam
         if key is not None:
@@ -535,6 +535,7 @@ class Module:
 
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
+        cls.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -615,7 +616,7 @@ class Module:
             if tmp_dir not in path:
                 path = os.path.join(tmp_dir, path)
             if not os.path.isdir(path):
-                if extension and extension != path.split('.')[-1]:
+                if extension != None and extension != path.split('.')[-1]:
                     path = path + '.' + extension
 
             return path
@@ -830,7 +831,8 @@ class Module:
         lines = python_script.split('\n')
         for line in lines:
             key_elements = ['class ', '(', '):']
-            if all([key_element in line for key_element in key_elements]):
+            if all([key_element in line for key_element in key_elements]) and \
+                    'ModuleWrapper' not in line and 'key_elements' not in line:
                 class_name = line.split('class ')[-1].split('(')[0].strip()
                 class_names.append(class_name)
                 
@@ -845,7 +847,7 @@ class Module:
         object_name = object_name[0]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
-        
+        print(path,object_name,  'fam')
         return path
 
     @classmethod
@@ -1044,6 +1046,7 @@ class Module:
         if meta != None:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json', root=root)
+        cls.print(path,'bro')
         await async_put_json(path=path, data=data, **kwargs)
         return path
     
@@ -1353,6 +1356,10 @@ class Module:
             print('Error decoding server registry, resetting to empty dict')
             server_registry = cls.get_server_registry(save=True)
         for k in deepcopy(list(server_registry.keys())):
+            if 'port' not in server_registry[k] or 'ip' not in server_registry[k]:
+                del server_registry[k]
+                update = True
+                continue
             if server_registry[k]['port'] == None or server_registry[k]['ip'] == None:
                 return cls.server_registry(update=True)
             if 'address' not in server_registry[k]:
@@ -1385,6 +1392,8 @@ class Module:
                         peer_server_name = f'{peer_server_name}::r{peer_id}'
                     
                     assert peer_server_name not in server_registry
+                    if 'port' not in peer_server_info or 'ip' not in peer_server_info:
+                        continue
                     if 'address' not in peer_server_info:
                         peer_server_info['address'] = f"{peer_server_info['ip']}:{peer_server_info['port']}"
                     address = peer_server_info['address']
@@ -1510,7 +1519,6 @@ class Module:
 
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        servers = cls.namespace()
         return bool(name in cls.servers())
     
     @classmethod
@@ -1641,7 +1649,7 @@ class Module:
         module_name = name if name != None else self.default_module_name()
 
         '''check if the server exists'''
-        if self.module_exists(module_name): 
+        if self.server_exists(module_name): 
             if replace:
                 self.kill_server(module_name)
             else: 
@@ -2079,6 +2087,7 @@ class Module:
             raise Exception(f'launch mode {mode} not supported')
 
     deploy = launch
+    
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
         for module in cls.pm2_list():
@@ -2109,9 +2118,8 @@ class Module:
                    device:str=None, 
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
-                   verbose: bool = False, 
+                   verbose: bool = True , 
                    refresh:bool=True ):
-        
         
         # avoid these references fucking shit up
         args = args if args else []
@@ -4144,3 +4152,4 @@ if __name__ == "__main__":
     Module.run()
     
 
+# pm2 start commune/module/module.py --name module --interpreter python3

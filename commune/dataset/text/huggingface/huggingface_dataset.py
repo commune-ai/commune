@@ -344,14 +344,14 @@ class HFDataset(commune.Module):
     default_path = 'glue'
 
     @classmethod
-    def resolve_path(cls, path:str=None, **kwargs):
+    def resolve_dataset_path(cls, path:str=None, **kwargs):
         path = cls.shortcuts.get(path, path)
         if path == None:
             path = cls.default_path
         return path
     @classmethod
     def get_dataset_builder( cls, path:str=None, factory_module_path:str=None):
-        path = cls.resolve_path(path=path)
+        path = cls.resolve_dataset_path(path=path)
         if factory_module_path == None:
             
             assert isinstance(path, str)
