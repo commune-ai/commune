@@ -1,5 +1,5 @@
 
-model: opt1.3b
+model: gpt125m
 tokenizer: null
 epoch_length: 10
 save: true # save on epoch 
