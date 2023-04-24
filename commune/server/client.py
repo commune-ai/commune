@@ -253,7 +253,7 @@ class Client( Serializer, commune.Module):
                 response = response['data']['result']
                     
         except grpc.RpcError as rpc_error_call:
-            response = str(rpc_error_call)
+            response = {'error': str(rpc_error_call)}
             # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
 
         # =======================

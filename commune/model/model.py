@@ -45,8 +45,7 @@ class Model( nn.Module, commune.Module):
         
         
         
-    def set_optimizer(self, config:Union[Dict, 'Optimizer']=None):
-        optimizer = config.get('optimizer', None)
+    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
             optimizer_kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
