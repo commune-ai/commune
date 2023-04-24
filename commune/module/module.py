@@ -513,7 +513,11 @@ class Module:
 
 
     @classmethod
+<<<<<<< HEAD
     def import_object(cls, key:str, verbose:bool = False)-> 'Object':
+=======
+    def import_object(cls, key:str, verbose: bool = False)-> 'Object':
+>>>>>>> 3f7d5cb6f6260588cda75f8efeba5e9b8290d103
         
         '''
         
@@ -1352,14 +1356,17 @@ class Module:
         
         address2module = {}
             
-        try:
-            local_namespace = Module.get_json('local_namespace', handle_error=True, default={})
-        except json.JSONDecodeError as e:
-            print('Error decoding server registry, resetting to empty dict')
-            update = True
+        if update == False:
+            try:
+                local_namespace = Module.get_json('local_namespace', handle_error=True, default={})
+            except json.JSONDecodeError as e:
+                print('Error decoding server registry, resetting to empty dict')
+                update = True
             
         if update:
+            t = cls.timer()
             local_namespace = cls.get_local_namespace(save=True)
+            cls.print(f'Updated local namespace in {t.seconds} seconds', color='green')
          
         return local_namespace
 
@@ -2172,14 +2179,15 @@ class Module:
         return cls.run_command(f"pm2 logs {module}", verbose=verbose)
 
     @classmethod
-    def argparse(cls):
+    def argparse(cls, verbose: bool = False):
         import argparse
         parser = argparse.ArgumentParser(description='Gradio API and Functions')
         parser.add_argument('-fn', '--fn', dest='function', help='run a function from the module', type=str, default="__init__")
         parser.add_argument('-kwargs', '--kwargs', dest='kwargs', help='key word arguments to the function', type=str, default="{}")  
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
-        cls.print(args, color='cyan')
+        if verbose:
+            cls.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
         return args
