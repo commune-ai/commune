@@ -255,7 +255,9 @@ class HFDataset(commune.Module):
         for dataset in datasets:
             assert isinstance(dataset, str)
             commune.print(f'LAUNCHING {dataset} dataset', 'yellow')
-            cls.launch(kwargs={'path':dataset}, name=f'dataset.{dataset}', refresh=refresh, **kwargs)
+            config = cls.get_config()
+            config.update()
+            cls.launch(kwargs={'config':config}, name=f'dataset.{dataset}', refresh=refresh, )
             
             
             
