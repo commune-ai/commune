@@ -19,7 +19,7 @@ max_sequence_length: 256
 tag: null
 test: false
 load: false
-device_map: 'auto'
+device_map: null
 max_memory: null
 
 

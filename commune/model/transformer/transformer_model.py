@@ -80,7 +80,7 @@ shortcuts =  {
 
 
 from torch import nn
-class TransformerModel( Model):
+class TransformerModel(Model):
     shortcuts = shortcuts
 
     def __init__(self,
@@ -275,26 +275,32 @@ class TransformerModel( Model):
         self.print(config)
             
         model = self.get_empty_model(self.model_path)
-        config.max_memory = self.free_gpu_memory(max_gpu_ratio=config.max_gpu_ratio)
-        config.total_memory = sum(config.max_memory.values())
+        config.max_memory = self.max_gpu_memory(model=model,
+                                                model_inflation_ratio=config.model_inflation_ratio,
+                                                max_gpu_ratio=config.max_gpu_ratio)
+        
+        
+        
+        config.reserved_memory = sum(config.max_memory.values())
+    
+    
         config.model_size = self.get_model_size(model)
+        self.print(config)
+        config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+
+        if len(config.device_map) == 1:
+            device = list(config.device_map.values())[0]
+        self.print(f'config.device_map: {config.device_map}')
+        self.print(f'Allocating: {config.device_map}')
 
         device = config.device
         
         if device != None:
-            assert self.is_number(device)
-            assert int(device) in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
-            assert free_gpu_memory[int(config.device)] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
+            device = int(device)
+            assert device in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
+            assert free_gpu_memory[config.device] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
             config.device_map = {'': int(device)}
-        else:
-            if config.device_map == None:
-                config.device_map = self.infer_device_map(model, max_memory=config.max_memory)
-            
-            
-        
-
-        assert isinstance(config.device_map, dict) or isinstance(config.device_map, str)
-        
+                    
         model_kwargs=dict(
             max_memory=config.max_memory,
             device_map= config.device_map,
@@ -462,7 +468,7 @@ class TransformerModel( Model):
             sample['return_keys'] = [ 'topk', 'stats']
             
             output = model.forward(**sample)
-            cls.print(output['stats'] )
+            cls.print(output.get('stats', 'no stats fam') )
             
             # output['input_ids'] = sample['input_ids']
             # cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
@@ -691,6 +697,7 @@ class TransformerModel( Model):
         if max_memory == None:
             max_memory = cls.free_gpu_memory(fmt='GB',max_gpu_ratio=max_gpu_ratio)    
         from accelerate import infer_auto_device_map
+        
         if isinstance(model, str):
             model = cls.get_empty_model(model)
         device_map = infer_auto_device_map(model, max_memory=max_memory) 
@@ -759,6 +766,46 @@ class TransformerModel( Model):
     def sandbox(cls):
         self = cls(model='opt2.7b')
         
+
+    @classmethod
+    def max_gpu_memory(cls, model:nn.Module, 
+                       max_gpu_ratio:float=0.6,
+                       fmt='b',
+                       model_inflation_ratio:float=1.2,
+                       verbose: bool = True):
+        
+        
+        model_size = cls.get_model_size(model)
+        
+        # we want to inflate the model size to account for the overhead of the model
+        model_size = model_size * model_inflation_ratio
+        
+        
+        # get the free gpu memory woth the max_gpu_ratio in bytes 
+        free_gpu_memory = cls.free_gpu_memory(fmt=fmt, max_gpu_ratio=max_gpu_ratio)
+        total_gpu_memory = sum(free_gpu_memory.values())
+        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}'
+        unallocated_model_memory = model_size
+        max_memory = {}
+    
+        if verbose:
+            params = {k:v for k,v in locals().items() if k not in ['cls', 'free_gpu_memory']}
+            cls.print(f'params: {params}')
+            cls.print(f'free gpu memory: {free_gpu_memory}')
+            cls.print(f'model size: {model_size}')
+
+        while unallocated_model_memory > 0:
+            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=deepcopy(free_gpu_memory), return_tuple=True)
+            assert most_free_gpu not in max_memory 
+            allocated_memory = min(most_free_gpu_memory, unallocated_model_memory)
+            unallocated_model_memory -= allocated_memory
+            max_memory[most_free_gpu] = allocated_memory
+            free_gpu_memory[most_free_gpu] -= allocated_memory
+            
+        
+        return max_memory
+            
+
         
 if __name__ == "__main__":
     
