@@ -1212,13 +1212,17 @@ class Module:
         # local namespace    
         if isinstance(name, str):
             namespace = cls.namespace(network=network)
-
+            found_module = False
             for n in namespace.keys():
                 print(n,name, namespace, 'DEBUG')
                 if n.startswith(name):
                     name = n
                     name = namespace[name]
+                    found_module = True
                     break
+            if len(name.split(':')) != 2:
+                raise ValueError(f'inputs({name}, {ip}, {port}) was not found in namespace({namespace})')
+
             port = int(name.split(':')[1])
             ip = name.split(':')[0]
         port = int(port)
