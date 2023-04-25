@@ -1174,8 +1174,8 @@ class Module:
         if not cls.server_exists(name) or refresh:
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
-        module = cls.connect(name)
-        return module.server_info['address']
+       
+        return cls.namespace('local')[name]
     
     anchor = root_module
     anchor_address = root_address
@@ -1284,9 +1284,9 @@ class Module:
                             timeout:int  = 3) -> Dict:
         peer_registry = {}
         peer_addresses = cls.get_peer_addresses()
+        cls.print(peer_addresses,'bro')
         peer = ['']
         jobs = []
-        cls.print(peer_addresses)
         for address in peer_addresses:
             cls.print(f'Connecting to {address}', color='yellow')
             ip, port = address.split(':')
@@ -1297,7 +1297,10 @@ class Module:
         for peer, peer_address in zip(peers, peer_addresses):
 
             peer_name = peer.module_name
-
+            cls.print(peer_name)
+            if isinstance(peer_name, dict) and 'error' in peer_name:
+                cls.print(peer_name)
+                continue
             peer_registry[peer_name] = peer_address
             
         if save:
@@ -1403,15 +1406,8 @@ class Module:
                         key: 'Key' = None)-> dict:
         local_namespace = cls.local_namespace()    
         
-        server_info = dict(
-                key=key,
-                name=name,
-                context = context,
-                ip = ip,
-                port = port  
-            )    
         
-        local_namespace[name] = server_info
+        local_namespace[name] = f'{ip}:{port}'
         cls.put_json(path='local_namespace', data=local_namespace, root=True) 
 
         # only serve module if you have a network
@@ -2145,10 +2141,19 @@ class Module:
         return output_list
     @classmethod
     def pm2_restart(cls, name:str, verbose:bool=False):
-        return cls.run_command(f"pm2 restart {name}", verbose=verbose)
-        stdout = cls.run_command(f"pm2 status")
+        pm2_list = cls.pm2_list()
+        restarted_modules = []
+        for module in pm2_list:
+            if module.startswith(name):
+                cls.run_command(f"pm2 restart {name}", verbose=verbose)
+                restarted_modules.append(module)
+                
         if verbose:
+            stdout = cls.run_command(f"pm2 status")
+
             cls.print(stdout, color='orange')
+            
+        return restarted_modules
             
             
     def restart_self(self, mode:str='pm2'):
