@@ -3794,7 +3794,7 @@ class Module:
             if isinstance(peer_addresses[0], list):
                 peer_addresses = peer_addresses[0]
         
-        peer_registry = await Module.async_get_json('peer_registry', default={})
+        peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
         if len(peer_addresses) == 0:
             peer_addresses = cls.boot_peers
@@ -3802,7 +3802,7 @@ class Module:
         peer_jobs = []
         # get the server registry for each peer
         for peer_address in peer_addresses:
-            peer_job = cls.async_call(module=peer_address, fn='namespace', timeout=timeout, args=['local'])
+            peer_job = cls.async_call(module=peer_address, fn='namespace', timeout=timeout, network='local')
             peer_jobs.append(peer_job)
             
         # wait for all jobs to complete

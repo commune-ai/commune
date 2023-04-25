@@ -22,7 +22,7 @@ from .serializer import Serializer
 
 class VirtualModule:
     def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
-        
+
         self.synced_attributes = []
         '''
         VirtualModule is a wrapper around a Commune module.
@@ -34,6 +34,7 @@ class VirtualModule:
         if isinstance(module, str):
             import commune
             self.module_client = commune.connect(module)
+            self.success = self.module_client.success
         else:
             self.module_client = module
         self.sync_module_attributes(include_hiddden=include_hiddden)
@@ -159,6 +160,7 @@ class Client( Serializer, commune.Module):
         
 
         self.sync_the_async(loop=self.loop)
+        self.success = False
         self.set_server_functions()
         # self.print(f"Connected to {self.endpoint} with {max_processes} processes")
 
@@ -166,9 +168,11 @@ class Client( Serializer, commune.Module):
     def set_server_functions(self):
         self.server_functions = self.forward(fn='functions', args=[True])
         
-        if isinstance(self.server_functions, dict):
-            if 'error' in self.server_functions:
-                self.print(self.server_functions, color='red')
+        if isinstance(self.server_functions, list):  
+            self.success = True
+            self.server_functions += ['root_address', 'namespace']
+        else:
+            self.success = False
         
     
     @property

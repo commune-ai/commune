@@ -44,7 +44,9 @@ class Model( nn.Module, commune.Module):
         self.set_config(config, kwargs=kwargs)
         
         
-        
+    @classmethod
+    def shortcuts(cls, *args, **kwargs):
+        return cls.module('model.transformer').shortcuts
     def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
