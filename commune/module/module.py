@@ -315,6 +315,7 @@ class Module:
         '''
         
         path = cls.resolve_config_path(path)
+        print(path, 'BROO')
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -364,13 +365,17 @@ class Module:
         '''
         Set the config as well as its local params
         '''
+
                 
         if isinstance(config, str) or config == None:
             config = cls.load_config(path=config)
+            assert isinstance(config, dict)
         elif isinstance(config, dict):
             default_config = cls.load_config()
             default_config.update(config)
+            config = default_config
             
+        print(config, 'BRO')
         assert isinstance(config, dict)
         
         kwargs = kwargs if kwargs != None else {}
@@ -854,22 +859,26 @@ class Module:
         return cls.import_object(object_path)
 
     @classmethod
-    def get_module(cls, path:str, verbose:bool = False, handle_error:bool=False) -> str:
+    def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
         
+        og_path = path
         try:
             
             path = cls.simple2path(path)
             path = cls.path2objectpath(path)
+                
             assert path is not None, f'Could not find path for {path}'
             if verbose:
                 cls.print(f'Found {path}', verbose=verbose)
-        except KeyError as e:
+        except Exception as e:
+            path = og_path
             if handle_error:
                 cls.print(f'{e}', verbose=verbose)
             else:
                 raise e
             
-        print()
+        if path == None:
+            path = og_path
         
         return cls.import_object(path)
 
@@ -1189,6 +1198,7 @@ class Module:
                 network : str = 'local',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
+                verbose: bool = False, 
                 **kwargs ):
         
         if (name == None and ip == None and port == None):
@@ -1197,64 +1207,36 @@ class Module:
             
         if wait_for_server:
             cls.wait_for_server(name)
-
-        # subspce namespce
-        if network == 'subspace': 
-            network = self.resolve_network(network)
-            namespace = network.namespace()
-            server_info = namespace[name]
-            ip = server_info['ip']
-            port = server_info['port']
-            client_kwargs = {'ip':ip, 
-                                'port':port}
-                        
-            client_kwargs['network'] = network
+        
         
         # local namespace    
-        if network == 'local':
-            
-            if isinstance(name, str):
-                if len(name.split(':')) == 2:
-                    port = int(name.split(':')[1])
-                    ip = name.split(':')[0]
-                else:
-                    
-                    namespace = cls.namespace()
-                    servers = list(namespace.keys())
-                    
-                    if name not in servers:
-                        found_server_bool = False
-                        for s in servers:
-                            if s.startswith(name):
-                                name = s
-                                found_server_bool = True
-                        assert found_server_bool, f'No server found with name {name} in {servers}'
-                    assert name in namespace, f'No server found with name {name} in {servers}'
-                    module_address = namespace[name]
-                    cls.print(module_address, color='blue')
-                    ip = ':'.join(module_address.split(':')[:-1])
-                    port = int(module_address.split(':')[-1])
-                    
-            if ip == None:
-                ip = cls.default_ip
-            client_kwargs = dict(ip=ip, port=int(port))
+        if isinstance(name, str):
+            namespace = cls.namespace(network=network)
 
-
-        ip = client_kwargs['ip']
-        port = client_kwargs['port']
-        assert isinstance(port, int) , 'Port must be specified as an int'
-        assert isinstance(ip, str) , 'IP must be specified as a string'
-    
-
-        Client = cls.import_object('commune.server.client.Client')
-        client_module = Client( **kwargs,**client_kwargs)
-
-        cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-
+            for n in namespace.keys():
+                print(n,name, namespace, 'DEBUG')
+                if n.startswith(name):
+                    name = n
+                    name = namespace[name]
+                    break
+            port = int(name.split(':')[1])
+            ip = name.split(':')[0]
+        port = int(port)
+        assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
+        assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        if verbose:
+            cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
+        return cls.get_client(ip=ip, port=int(port), virtual=virtual)
+   
+    @classmethod
+    def get_client(cls, *args, virtual:bool = True, **kwargs):
+        client_class = cls.get_module('commune.server.client.Client')
+        client = client_class(*args, **kwargs)
         if virtual:
-            return client_module.virtual()
-        
-        return client_module
+            return client.virtual()
+        else:
+            return client
+    
    
     nest_asyncio_enabled : bool = False
     @classmethod
@@ -1332,8 +1314,8 @@ class Module:
         
         
     @classmethod
-    def remote_namespace(cls,  seperator = '<R>'):
-        peer_registry = cls.peer_registry()  
+    def remote_namespace(cls,  seperator = '::', verbose: bool = False, update:bool = False)-> dict:
+        peer_registry = cls.peer_registry(update=update)  
         namespace = {}          
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
             
@@ -1341,9 +1323,11 @@ class Module:
                 peer_name = f'peer{peer_id}'
                 if 'namespace' in peer_info:
                     if peer_info['namespace'] == None or isinstance(peer_info['namespace'], str):
-                        cls.print(f'Peer {peer_name} has no namespace', color='red')
+                        if verbose:
+                            cls.print(f'Peer {peer_name} has no namespace', color='red')
                         continue
                 for name, address in peer_info['namespace'].items():
+                    
                     namespace[name+seperator+peer_name] = address
             
         return namespace
@@ -1521,6 +1505,7 @@ class Module:
 
     def attributes(self):
         return list(self.__dict__.keys())
+
     @classmethod
     def namespace(cls,
                   search = None, 
@@ -1545,6 +1530,7 @@ class Module:
         if search:
             namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
+    
     
     
     @classmethod
@@ -1787,14 +1773,9 @@ class Module:
     def info(self, include_schema: bool = False ) -> Dict[str, Any]:
         function_schema_map = self.function_schema_map()
         info  = dict(
-            name = self.module_name,
-            ip = self.ip,
-            port = self.port,
             address = self.address,
-            function_schema = function_schema_map,
-            functions =  list(function_schema_map.keys()),
-            intro =function_schema_map.get('__init__', 'No Intro Available'),
-            examples =function_schema_map.get('examples', 'No Examples Available'),
+            functions =  self.functions(include_module=False),
+            attributes = self.attributes()
         )
         return info
 
@@ -2145,7 +2126,8 @@ class Module:
         restarted_modules = []
         for module in pm2_list:
             if module.startswith(name):
-                cls.run_command(f"pm2 restart {name}", verbose=verbose)
+                
+                cls.run_command(f"pm2 restart {module}", verbose=verbose)
                 restarted_modules.append(module)
                 
         if verbose:
@@ -2155,6 +2137,7 @@ class Module:
             
         return restarted_modules
             
+        
             
     def restart_self(self, mode:str='pm2'):
         assert hasattr(self, 'module_name'), 'self.module_name must be defined to restart'
@@ -3763,6 +3746,10 @@ class Module:
         #  add each peer to the registry
         for peer_address, peer_namespace in zip(peer_addresses, peer_namespaces):
             # TODO : ADD PEER NAME
+            if 'error' in peer_namespace:
+                cls.print(f'Error adding peer {peer_address} to registry: {peer_namespace["error"]}',color='red')
+                continue
+            
             peer_registry[peer_address] = dict(name=None, 
                                                namespace=peer_namespace,
                                                address = peer_address)
