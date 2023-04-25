@@ -87,7 +87,6 @@ class Validator(commune.Module, nn.Module):
         self.set_batch_size(batch_size)
         self.set_sequence_length(sequence_length)
         self.set_dataset(dataset)
-        self.set_models(models)
         self.set_metric(metric)
         self.set_stats(stats)
         self.set_alpha(alpha)
@@ -121,29 +120,30 @@ class Validator(commune.Module, nn.Module):
             self.models = {}
         job = connect.async_connect(model, loop = self.loop)
         self.models[model] =  self.loop.run_until_complete(job)
+           
             
-    def set_models(self, models: List[str] = None, timeout:int = 2) -> None:
-        if models == None:
-            models = self.default_models()
-        if isinstance(models, str):
-            models = self.modules(models)
-        jobs = [commune.async_connect(model, timeout=timeout) for model in models]
-
-        loop = commune.get_event_loop()
-        model_objs = loop.run_until_complete(asyncio.gather(*jobs))
-
-
+    @classmethod
+    def get_models(cls, models=None) -> List[str]:
+        modules = cls.modules()
         
+        if models is None:
+            models = [m for m in modules if m.startswith('model')]
+        elif isinstance(models, str):
+            models = [m for m in modules if m.startswith(models)]
+        elif isinstance(models, list):
+            models = [m for m in modules if m in models]
         
-        self.models = {}
-        self.config['models'] = []
-        for model, model_obj in zip(models, model_objs):
-            # forward_fn = model_obj.forward
-            # if isinstance(model_obj.forward, str):
-            #     continue
-            self.models[model] = model_obj
+        return models
             
+        
+        return self.modules()
+
     def set_tokenizer(self, tokenizer):
+        if tokenizer == False:
+            self.vocab_size = 50257
+            self.tokenizer = None
+            return self.tokenizer
+        s
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
 
@@ -347,8 +347,6 @@ class Validator(commune.Module, nn.Module):
 
             
         if models == None:
-            models = self.model_keys
-        if models == None:
             models = self.default_models()
             
         self.print(f'forwarding to models: {models}')
@@ -533,7 +531,7 @@ class Validator(commune.Module, nn.Module):
         
     @classmethod 
     def default_models(cls):
-        return [m for m,_ in commune.namespace('global').items() if m.startswith('model.gpt')]
+        return [m for m,_ in commune.namespace('global').items() if m.startswith('model.')]
     
     
     @classmethod
@@ -609,7 +607,6 @@ class Validator(commune.Module, nn.Module):
                netuid=3):
                 
         model = cls(new_loop_per_forward=True)
-        cls.print('brooooo')
         bittensor_module = commune.get_module('bittensor')(wallet=wallet, network=network, netuid=netuid)
         server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
         

@@ -20,7 +20,7 @@ import commune
 from .serializer import Serializer
 
 
-class VirtualModule(commune.Module):
+class VirtualModule:
     def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
         
         self.synced_attributes = []
@@ -71,10 +71,11 @@ class VirtualModule(commune.Module):
 
         if key in ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes'] :
             return getattr(self, key)
-        
-        
-        
-        return  self.module_client(fn='getattr', args=[key])
+        elif key in self.synced_attributes:
+            return getattr(self, key)
+        else:
+            print('getattr', key)
+            return  self.module_client(fn='getattr', args=[key])
 
 
 
@@ -137,6 +138,9 @@ class Client( Serializer, commune.Module):
         #     ip = '0.0.0.0'
         from commune.server.proto  import ServerStub
         # hopeful the only tuple i output, tehe
+        if len(ip.split(":")) ==2:
+            ip, port = ip.split(":")
+            port = int(port)
         self.ip, self.port = self.resolve_ip_and_port(ip=ip, port=port)
         self.set_event_loop(loop)
         channel = grpc.aio.insecure_channel(
@@ -156,7 +160,7 @@ class Client( Serializer, commune.Module):
         
 
         self.sync_the_async(loop=self.loop)
-        self.server_functions = self.forward(fn='functions', args=[False])
+        self.server_functions = self.forward(fn='functions', args=[True]) + ['namespace']
         # self.print(f"Connected to {self.endpoint} with {max_processes} processes")
 
 
