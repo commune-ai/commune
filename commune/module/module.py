@@ -1525,7 +1525,7 @@ class Module:
     def namespace(cls,
                   search = None, 
                   network:str='local',
-                  include_peers:bool = True, 
+                  update: bool = True,
                   **kwargs):
         
         if search in ['local', 'global', 'subspace']:
@@ -1537,9 +1537,9 @@ class Module:
             namespace.update(cls.subspace_namespace())
         elif network in ['local', 'global']:
             include_peers = True if network == 'global' else False
-            namespace.update(cls.local_namespace())
+            namespace.update(cls.local_namespace(update=update))
             if network == 'global':
-                namespace.update(cls.remote_namespace())
+                namespace.update(cls.remote_namespace(update=update))
         else:
             raise ValueError(f'network must be either "subspace" or "local"')
         if search:
