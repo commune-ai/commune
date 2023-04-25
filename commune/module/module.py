@@ -3738,7 +3738,7 @@ class Module:
         peer_jobs = []
         # get the server registry for each peer
         for peer_address in peer_addresses:
-            peer_job = cls.async_call(module=peer_address, fn='namespace', timeout=timeout)
+            peer_job = cls.async_call(module=peer_address, fn='namespace', timeout=timeout, args=['local'])
             peer_jobs.append(peer_job)
             
         # wait for all jobs to complete
