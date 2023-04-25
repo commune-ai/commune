@@ -143,7 +143,7 @@ class Validator(commune.Module, nn.Module):
             self.vocab_size = 50257
             self.tokenizer = None
             return self.tokenizer
-        s
+        
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
 

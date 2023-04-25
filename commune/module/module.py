@@ -327,7 +327,23 @@ class Module:
     
     default_config = load_config
     
-
+    cache_dir = 'cache'
+    @classmethod
+    def putval(cls, key, value, *args, **kwargs):
+        '''
+        Puts a value in the config
+        '''
+        data = {'value': value}
+        return cls.put_json(cls.cache_dir+'/'+key, data, *args, **kwargs)
+    putv = put = putval
+    @classmethod
+    def getval(cls, key, *args, **kwargs):
+        '''
+        Puts a value in sthe config
+        '''
+        data  = cls.get_json(cls.cache_dir+'/'+key, *args, **kwargs)
+        return data.get('value', None)
+    get = getv = getval
     @classmethod
     def put_config(cls, key, value) -> Munch:
         '''
@@ -1195,7 +1211,7 @@ class Module:
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 
-                network : str = 'local',
+                network : str = 'global',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
                 verbose: bool = False, 
@@ -1214,7 +1230,6 @@ class Module:
             namespace = cls.namespace(network=network)
             found_module = False
             for n in namespace.keys():
-                print(n,name, namespace, 'DEBUG')
                 if n.startswith(name):
                     name = n
                     name = namespace[name]
@@ -1510,12 +1525,15 @@ class Module:
     def attributes(self):
         return list(self.__dict__.keys())
 
+
     @classmethod
     def namespace(cls,
                   search = None, 
-                  network:str='local',
-                  update: bool = True,
+                  network:str='global',
+                  update: bool = False,
+                  max_staleness: int = 60,
                   **kwargs):
+        
         
         if search in ['local', 'global', 'subspace']:
             network = search
@@ -3035,10 +3053,15 @@ class Module:
         return model
         
     @classmethod
-    def get_model_size(cls, model, model_inflation_ratio: float = 1.0, keys:List[str]=None):
+    def get_model_size(cls, 
+                       model: 'nn.Module',
+                       model_inflation_ratio: float = 1.0, 
+                       keys:List[str]=None):
         
+        # get the size of the model by initializing an empty model
         if isinstance(model, str):
             model = cls.get_empty_model(model)
+            
         params = {}
         size_in_bytes = 0 
         for name, param in model.named_parameters():
@@ -3369,9 +3392,9 @@ class Module:
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
     @classmethod
-    async def async_call(cls, module:str, fn: str ,  *args, **kwargs) -> None:
+    async def async_call(cls, module:str, fn: str , verbose:bool= True, *args, **kwargs) -> None:
         # call a module
-        module = await cls.async_connect(module)
+        module = await cls.async_connect(module, verbose=verbose)
         fn = getattr(module, fn)
         if inspect.iscoroutinefunction(fn):
             return await fn(*args, **kwargs)
@@ -3805,7 +3828,14 @@ class Module:
         cls.add_peers(peers)
         
         
-        
+    def store_value(self, key, value, *args, **kwargs):
+        value = {'data': value}
+        self.put_json(key, value, *args, **kwargs)
+        return key
+    def get_value(self, key, *args, **kwargs):
+        value = self.get_json(key, *args, **kwargs)
+        value = value.get('data', None)
+        return value
     @classmethod
     def update(cls, 
 
@@ -3822,8 +3852,7 @@ class Module:
         if update_bool:
             if verbose:
                 cls.print('Updating server registry')
-            cls.update_peers()
-            cls.update_local_namespace()
+            cls.namespace(update=True)
             update_info['last_update'] = cls.time()
             cls.put_json('update_info', update_info, root=True)
             
@@ -3960,7 +3989,7 @@ class Module:
         for gpu_id, gpu_info in cls.gpu_map().items():
             if int(gpu_id) in gpus:
                 
-                gpu_memory = min(gpu_info['free'], gpu_info['total']*max_gpu_ratio)
+                gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'], 0)
                 free_gpu_memory[gpu_id] = cls.copy(gpu_memory /scale)
                 if fmt == '%':
                     free_gpu_memory[gpu_id] = (free_gpu_memory[gpu_id]/gpu_info['total']) * 100

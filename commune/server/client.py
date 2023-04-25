@@ -74,7 +74,6 @@ class VirtualModule:
         elif key in self.synced_attributes:
             return getattr(self, key)
         else:
-            print('getattr', key)
             return  self.module_client(fn='getattr', args=[key])
 
 
