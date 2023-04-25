@@ -161,7 +161,7 @@ ssh:
 	ssh -i ~/.ssh/id_rsa paperspace@${arg}
 
 miner:
-	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --axon.port 8091 --subtensor.network local
+	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --subtensor.network finney
 
 install:
 	make pull; chmod +x ./scripts/* ; ./scripts/install_commune.sh

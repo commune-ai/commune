@@ -1280,12 +1280,13 @@ class Module:
     @classmethod
     def get_local_namespace(cls, 
                             ip:str = None, 
-                            save:bool = False,
+                            save:bool = True,
                             timeout:int  = 3) -> Dict:
         peer_registry = {}
         peer_addresses = cls.get_peer_addresses()
         peer = ['']
         jobs = []
+        cls.print(peer_addresses)
         for address in peer_addresses:
             cls.print(f'Connecting to {address}', color='yellow')
             ip, port = address.split(':')
@@ -1527,7 +1528,7 @@ class Module:
     @classmethod
     def namespace(cls,
                   search = None, 
-                  network:str='global',
+                  network:str='local',
                   include_peers:bool = True, 
                   **kwargs):
         
