@@ -79,14 +79,18 @@ shortcuts =  {
         }
 
 
-
+from torch import nn
 class TransformerModel( Model):
     shortcuts = shortcuts
 
     def __init__(self,
                  config = None,
                 **kwargs):
-        Model.__init__(self, conifg=config, **kwargs)
+        nn.Module.__init__(self)
+        
+        self.set_config(config=config, kwargs=kwargs)
+        
+        print(config)
         self.set_model(self.config)
 
         
