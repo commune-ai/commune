@@ -278,7 +278,8 @@ class TransformerModel(Model):
         config.model_size = self.get_model_size(model)
         config.reserved_gpu_memory = config.model_size*self.config.model_inflation_ratio
         
-        config.max_memory = self.max_gpu_memory(memory=config.reserved_gpu_memory,
+        if config.max_memory == None:
+            config.max_memory = self.max_gpu_memory(memory=config.reserved_gpu_memory,
                                                 max_gpu_ratio=config.max_gpu_ratio)
             
         config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
@@ -299,7 +300,7 @@ class TransformerModel(Model):
             if config.verbose:
                 self.print(f'Using one device: {config.device}')
             config.device = list(config.device_map.values())[0]
-            config.device_map = {'': int(config.device)}
+            config.device_map = {'': config.device}
             model_kwargs = {}
             
         elif len(config.device_map) > 1:
@@ -699,11 +700,11 @@ class TransformerModel(Model):
        
     
     @classmethod   
-    def infer_device_map(cls, model, max_memory: dict = None, max_gpu_ratio: float = 0.8):
+    def infer_device_map(cls, model, max_memory: dict = None, **kwargs):
         if max_memory == None:
-            max_memory = cls.free_gpu_memory(fmt='GB',max_gpu_ratio=max_gpu_ratio)    
+            max_memory = cls.max_gpu_memory(**kwargs)    
+            
         from accelerate import infer_auto_device_map
-        
         if isinstance(model, str):
             model = cls.get_empty_model(model)
         device_map = infer_auto_device_map(model, max_memory=max_memory) 
@@ -750,11 +751,14 @@ class TransformerModel(Model):
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
                 
-            model_inflation_ratio = kwargs.get('model_inflation_ratio', 1)
-            max_gpu_ratio = kwargs.get('max_gpu_ratio', 0.8)
+            model_inflation_ratio = kwargs.get('model_inflation_ratio', 1.4)
             model_size_bytes = cls.get_model_size(model)*model_inflation_ratio
+    
+            max_gpu_ratio = kwargs.get('max_gpu_ratio', 0.8)
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes, max_gpu_ratio=max_gpu_ratio)
+            cls.reserve_gpus(max_gpu_memory)
             
+            cls.print(cls.reserved_gpus(), 'RESERVED_GPUS')
             kwargs['max_memory'] = max_gpu_memory
             
             
@@ -763,7 +767,8 @@ class TransformerModel(Model):
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
             model_kwargs['tag'] = tag
-            # model_kwargs['device'] = device
+
+
             module_exists = cls.module_exists(name)     
             if replace == False and module_exists:
                 cls.print(f'Model {name} already exists', color='yellow')
@@ -777,6 +782,8 @@ class TransformerModel(Model):
             if wait_for_server:
                 cls.wait_for_server(name=name, sleep_interval=5, timeout=1000)
             model_names.append(name) 
+            
+        cls.unreserve_gpus()
             
         return model_names
             

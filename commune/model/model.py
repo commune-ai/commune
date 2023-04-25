@@ -122,6 +122,8 @@ class Model( nn.Module, commune.Module):
     @device.setter
     def device(self, device):
         # deepspeed has .module.device to access device
+        if self.is_number(device):
+            device = f'cuda:{device}'
         self.set_device(device)
             
         return self.config['device']
