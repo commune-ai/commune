@@ -170,6 +170,7 @@ class Client( Serializer, commune.Module):
         
         if isinstance(self.server_functions, list):  
             self.success = True
+            self.server_functions += ['root_address', 'namespace']
         else:
             self.success = False
         
