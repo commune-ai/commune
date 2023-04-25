@@ -14,13 +14,59 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
 from torch import nn
+
+
+shortcuts =  {
+    # 0-1B models
+    'gpt125m': 'EleutherAI/gpt-neo-125m',
+
+    # 1-3B models
+    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+    'opt1.3b': 'facebook/opt-1.3b',
+    'opt2.7b': 'facebook/opt-2.7b',
+    # 'gpt3btuning' : ''
+
+    # 0-7B models
+    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+    'gptj': 'EleutherAI/gpt-j-6b',
+    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
+    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
+    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+    'opt6.7b': 'facebook/opt-6.7b',
+    'llama': 'decapoda-research/llama-7b-hf',
+    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
+    # # > 7B models
+    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+    'gptneox': 'EleutherAI/gpt-neox-20b',
+    'gpt20b': 'EleutherAI/gpt-neox-20b',
+    'opt13b': 'facebook/opt-13b',
+    'gpt13b': 'cerebras/Cerebras-GPT-13B',
+    
+        }
+
+
+
 class Validator(commune.Module, nn.Module):
+    shortcuts = shortcuts
     def __init__(self, 
                  models: List[str]= None,
                  batch_size: int = 32,
                  sequence_length: int = 256,
                  dataset: str = 'dataset',
-                 tokenizer: str = 'bittensor',
+                 tokenizer: str = 'gpt2',
                  key: Union[Dict, str] = None,
                  metric: Union[Dict, str] = None,
                  stats: Union[Dict, None] = None,
@@ -42,15 +88,17 @@ class Validator(commune.Module, nn.Module):
         self.set_sequence_length(sequence_length)
         self.set_dataset(dataset)
         self.set_models(models)
-        self.set_key(key)
         self.set_metric(metric)
         self.set_stats(stats)
         self.set_alpha(alpha)
         self.set_tokenizer(tokenizer)
-        
+        self.vocab_size = 50257
+
         self.config['hidden_size'] = hidden_size
         if load:
             self.load()
+            
+
 
         
     
@@ -83,51 +131,53 @@ class Validator(commune.Module, nn.Module):
 
         loop = commune.get_event_loop()
         model_objs = loop.run_until_complete(asyncio.gather(*jobs))
+
+
         
         
         self.models = {}
         self.config['models'] = []
         for model, model_obj in zip(models, model_objs):
-            forward_fn = model_obj.forward
-            if isinstance(model_obj.forward, str):
-                continue
+            # forward_fn = model_obj.forward
+            # if isinstance(model_obj.forward, str):
+            #     continue
             self.models[model] = model_obj
-
             
-    
+    def set_tokenizer(self, tokenizer):
+        from transformers import AutoTokenizer, AutoModel
+        from commune.utils.tokenizer import prep_tokenizer
 
-    def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None] = 'bittensor'):
-        
-        if tokenizer == None:
-            tokenizer = 'bittensor'
+        if tokenizer is None:
+            tokenizer = self.model_path
             
-        
-        if isinstance(tokenizer, str):
-            if tokenizer == 'bittensor':
-                tokenizer = bittensor.tokenizer()
-            else:
-                tokenizer = self.shortcuts.get(tokenizer, tokenizer)
-                try:
-                    tokenizer = AutoTokenizer.from_pretrained(tokenizer)
-                except ValueError:
-                    print('resorting ot use_fast = False')
-                    tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+        assert isinstance(tokenizer, str)
+        assert isinstance(tokenizer, str, )
+        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+        self.config['tokenizer'] = tokenizer
 
-        # print(tokenizer)
-        self.tokenizer = tokenizer     
-        self.vocab_size = self.tokenizer.vocab_size
-        if  self.tokenizer.pad_token == None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
         
+        self.print(f'setting {tokenizer} tokenizer...')
         
-        self.std_tokenizer = bittensor.tokenizer()
-        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
-        self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
-        
+        try:
+            # HACK TO INCLUDE LLAMA TOKENIZER
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+        except ValueError:
+            
+            print('resorting ot use_fast = False')
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+
+        print('tokenizer loaded')
+
+        self.tokenizer = tokenizer
+
+        self.tokenizer = prep_tokenizer(self.tokenizer)
         self.config['pad_token_id'] = self.tokenizer.pad_token_id
-
+        self.config['vocab_size'] = self.tokenizer.vocab_size
+        self.vocab_size = self.config.get('vocab_size', 50257)
         return self.tokenizer
+
+    
 
     def set_dataset(self, dataset: str) -> None:
         if isinstance(dataset, str):
@@ -559,20 +609,22 @@ class Validator(commune.Module, nn.Module):
                netuid=3):
                 
         model = cls(new_loop_per_forward=True)
+        cls.print('brooooo')
         bittensor_module = commune.get_module('bittensor')(wallet=wallet, network=network, netuid=netuid)
         server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
         
+        
+
         # free_ports = commune.get_available_ports()
         # server.config.axon.port = server.config.axon.external_port = free_ports[0]
         
         neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron') 
         wallet = bittensor_module.wallet
-        bittensor_module.wait_until_registered()
-        wallet.config.subtensor = server.config.subtensor
-        
+        bittensor_module.wait_until_registered()        
         neuron(model=server, wallet=wallet, netuid=netuid).run()
 
-        
+
+    miner = neuron        
     @classmethod
     def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron

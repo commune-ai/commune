@@ -346,7 +346,7 @@ class TransformerModel( Model):
         
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
-        self.std_tokenizer = prep_tokenizer(self.std_tokenizer)
+        self.tokenizer = prep_tokenizer(self.std_tokenizer)
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         self.token_translator = self.get_module('model.token_translator')(tokenizer=tokenizer, std_tokenizer=self.std_tokenizer)
 
