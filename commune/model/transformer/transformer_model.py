@@ -275,39 +275,48 @@ class TransformerModel(Model):
         self.print(config)
             
         model = self.get_empty_model(self.model_path)
-        config.max_memory = self.max_gpu_memory(model=model,
-                                                model_inflation_ratio=config.model_inflation_ratio,
-                                                max_gpu_ratio=config.max_gpu_ratio)
-        
-        
-        
-        config.reserved_gpu_memory = sum(config.max_memory.values())
         config.model_size = self.get_model_size(model)
+        config.reserved_gpu_memory = config.model_size*self.config.model_inflation_ratio
+        
+        config.max_memory = self.max_gpu_memory(memory=config.reserved_gpu_memory,
+                                                max_gpu_ratio=config.max_gpu_ratio)
+            
         config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
 
-        if len(config.device_map) == 1:
-            device = list(config.device_map.values())[0]
-        self.print(f'config.device_map: {config.device_map}')
-        self.print(f'Allocating: {config.device_map}')
-
-        device = config.device
-        
-        if device != None:
-            device = int(device)
-            assert device in free_gpu_memory.keys(), f'gpu {config.device} not found in free gpu memory {free_gpu_memory}'
-            assert free_gpu_memory[config.device] > model_size, f'gpu memory {free_gpu_memory[int(config.device)]} is less than model size {model_size}'
-            config.device_map = {'': int(device)}
-                    
+        if config.verbose:
+            self.print(f'config.device_map: {config.device_map}')
+            self.print(f'Allocating: {config.device_map}')
+       
         model_kwargs=dict(
             max_memory=config.max_memory,
             device_map= config.device_map,
         )
+        config.devices = list(config.device_map.values())
+        assert len(config.device_map) > 0, 'No devices found'
+        config.device = config.devices[0]
+        
+        if len(config.device_map) == 1:
+            if config.verbose:
+                self.print(f'Using one device: {config.device}')
+            config.device = list(config.device_map.values())[0]
+            config.device_map = {'': int(config.device)}
+            model_kwargs = {}
+            
+        elif len(config.device_map) > 1:
+            if verbose:
+                self.print(f'Using multiple devices: {config.device_map}')
+                
+        else:
+            raise Exception('No devices found')
         
         self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
 
-        self.device_map = config.device_map = self.model.hf_device_map
-        self.devices = config.devices = list(config.device_map.values())        
-        self.device = self.devices[0]
+        if config.reserve_gpus == True or isinstance(config.reserve_gpus, dict):
+            self.unreserve_gpus(config.max_memory) 
+
+        self.device_map = config.device_map 
+        self.devices = config.devices
+        self.device = config.device
         
         self.set_tokenizer(config.tokenizer)
         self.set_optimizer(config.optimizer)
@@ -728,8 +737,7 @@ class TransformerModel(Model):
                tag = None,
                device = None, 
                replace:bool = True,
-               tag_seperator:str = '::',
-               model_inflation_ratio:float=1.2,
+               tag_seperator:str = '::',               
                
                **kwargs):
 
@@ -741,8 +749,15 @@ class TransformerModel(Model):
         for model in models:
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
-            # max_gpu_memory = cls.max_gpu_memory(model, model_inflation_ratio=model_inflation_ratio)
-            # device = list(max_gpu_memory.keys())
+                
+            model_inflation_ratio = kwargs.get('model_inflation_ratio', 1)
+            max_gpu_ratio = kwargs.get('max_gpu_ratio', 0.8)
+            model_size_bytes = cls.get_model_size(model)*model_inflation_ratio
+            max_gpu_memory = cls.max_gpu_memory(model_size_bytes, max_gpu_ratio=max_gpu_ratio)
+            
+            kwargs['max_memory'] = max_gpu_memory
+            
+            
             model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
             name = f'model.{model}'
             if tag != None:
@@ -753,55 +768,22 @@ class TransformerModel(Model):
             if replace == False and module_exists:
                 cls.print(f'Model {name} already exists', color='yellow')
                 continue
-            cls.launch(name=name,kwargs=model_kwargs, mode=mode, device=device)
+            
+            cls.print(f'Deploying {name}  -> size (b): {model_size_bytes}', color='green')
+            # cls.print(f'Free GPU Memory: {free_gpu_memory}', color='green')
+            cls.print(f'Allocating GPU Memory: {max_gpu_memory}', color='cyan')
+            
+            cls.launch(name=name,kwargs=model_kwargs, mode=mode, device=device, verbose=False)
             if wait_for_server:
                 cls.wait_for_server(name=name, sleep_interval=5, timeout=1000)
             model_names.append(name) 
+            
         return model_names
             
     @classmethod
     def sandbox(cls):
         self = cls(model='opt2.7b')
         
-
-    @classmethod
-    def max_gpu_memory(cls, model:nn.Module, 
-                       max_gpu_ratio:float=0.6,
-                       fmt='b',
-                       model_inflation_ratio:float=1.2,
-                       verbose: bool = True):
-        
-        
-        model_size = cls.get_model_size(model)
-        
-        # we want to inflate the model size to account for the overhead of the model
-        model_size = model_size * model_inflation_ratio
-        
-        
-        # get the free gpu memory woth the max_gpu_ratio in bytes 
-        free_gpu_memory = cls.free_gpu_memory(fmt=fmt, max_gpu_ratio=max_gpu_ratio)
-        total_gpu_memory = sum(free_gpu_memory.values())
-        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}'
-        unallocated_model_memory = model_size
-        max_memory = {}
-    
-        if verbose:
-            params = {k:v for k,v in locals().items() if k not in ['cls', 'free_gpu_memory']}
-            cls.print(f'params: {params}')
-            cls.print(f'free gpu memory: {free_gpu_memory}')
-            cls.print(f'model size: {model_size}')
-
-        while unallocated_model_memory > 0:
-            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=deepcopy(free_gpu_memory), return_tuple=True)
-            assert most_free_gpu not in max_memory 
-            allocated_memory = min(most_free_gpu_memory, unallocated_model_memory)
-            unallocated_model_memory -= allocated_memory
-            max_memory[most_free_gpu] = allocated_memory
-            free_gpu_memory[most_free_gpu] -= allocated_memory
-            
-        
-        return max_memory
-            
 
         
 if __name__ == "__main__":

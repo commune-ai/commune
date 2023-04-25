@@ -159,10 +159,17 @@ class Client( Serializer, commune.Module):
         
 
         self.sync_the_async(loop=self.loop)
-        self.server_functions = self.forward(fn='functions', args=[True]) + ['namespace']
+        self.set_server_functions()
         # self.print(f"Connected to {self.endpoint} with {max_processes} processes")
 
 
+    def set_server_functions(self):
+        self.server_functions = self.forward(fn='functions', args=[True])
+        
+        if isinstance(self.server_functions, dict):
+            if 'error' in self.server_functions:
+                self.print(self.server_functions, color='red')
+        
     
     @property
     def endpoint(self):

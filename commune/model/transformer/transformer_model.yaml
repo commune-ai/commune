@@ -17,10 +17,11 @@ model_inflation_ratio: 1.4
 output_length: 4
 max_sequence_length: 256
 tag: null
-test: false
-reserved_gpu_memory: 0
+test: true
+reserve_gpus: null
 load: false
 device_map: null
 max_memory: null
+verbose: true
 
 
