@@ -1241,6 +1241,7 @@ class Module:
                 network : str = 'global',
                 virtual:bool = True, 
                 wait_for_server:bool = False,
+                trials = 3, 
                 verbose: bool = False, 
                 **kwargs ):
         
@@ -1263,7 +1264,11 @@ class Module:
                     found_module = True
                     break
             if len(name.split(':')) != 2:
+                if trials > 0:
+                    self.update()
+                    return await cls.async_connect(name=name, ip=ip, port=port, trials=trials-1)
                 raise ValueError(f'inputs({name}, {ip}, {port}) was not found in namespace({namespace})')
+            
 
             port = int(name.split(':')[1])
             ip = name.split(':')[0]
@@ -2169,11 +2174,12 @@ class Module:
                 output_list.append(output_str)
         return output_list
     @classmethod
-    def pm2_restart(cls, name:str, verbose:bool=False):
+    def pm2_restart(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()
+            
         restarted_modules = []
         for module in pm2_list:
-            if module.startswith(name):
+            if module.startswith(name) or name in ['all']:
                 
                 cls.run_command(f"pm2 restart {module}", verbose=verbose)
                 restarted_modules.append(module)
@@ -3788,7 +3794,10 @@ class Module:
     
     
     @classmethod
-    async def async_add_peer(cls, *peer_addresses,timeout:int=1):
+    async def async_add_peer(cls, 
+                             *peer_addresses,
+                             verbose:bool = True,
+                             timeout:int=1):
         
         if len(peer_addresses) == 1:
             if isinstance(peer_addresses[0], list):
@@ -3813,9 +3822,9 @@ class Module:
 
         #  add each peer to the registry
         for peer_address, peer_namespace in zip(peer_addresses, peer_namespaces):
-            # TODO : ADD PEER NAME
             if 'error' in peer_namespace:
-                cls.print(f'Error adding peer {peer_address} to registry: {peer_namespace["error"]}',color='red')
+                if verbose:
+                    cls.print(f'Error adding peer {peer_address}',color='red')
                 continue
             
             peer_registry[peer_address] = dict(name=None, 
@@ -4123,10 +4132,14 @@ class Module:
     @classmethod
     def reserve_gpus(cls,memory, refresh:bool = False,  **kwargs):
         
-        if isinstance(memory, str) and 'gb' in memory.lower():
-            memory = int(memory[:-2])*1e9
         reserved_gpu_memory = {} if refresh else cls.get('reserved_gpu_memory', {}, root=True)
-        gpu_memory = cls.max_gpu_memory(memory, **kwargs)
+
+        if isinstance(memory, dict):
+            gpu_memory = memory
+        else:
+            if isinstance(memory, str) and 'gb' in memory.lower():
+                memory = int(memory[:-2])*1e9
+            gpu_memory = cls.max_gpu_memory(memory, **kwargs)
         for  gpu, memory in gpu_memory.items():
             gpu = str(gpu)
             if gpu in reserved_gpu_memory:
