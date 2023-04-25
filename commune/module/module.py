@@ -1,6 +1,7 @@
 
 
 import inspect
+import numpy as np
 import os
 from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
@@ -315,7 +316,6 @@ class Module:
         '''
         
         path = cls.resolve_config_path(path)
-        print(path, 'BROO')
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -329,25 +329,51 @@ class Module:
     
     cache_dir = 'cache'
     @classmethod
-    def putval(cls, key, value, *args, **kwargs):
+    def put(cls, 
+            key, 
+            value, 
+            encrypt:bool = False,
+            sign: bool = False,
+            password: bool = None,
+            cache_dir : str = None, 
+            **kwargs):
         '''
         Puts a value in the config
         '''
-        data = {'value': value}
-        return cls.put_json(cls.cache_dir+'/'+key, data, *args, **kwargs)
-    putv = put = putval
+        cache_dir = cache_dir if cache_dir else cls.cache_dir
+
+        
+        if encrypt:
+            value = cls.encrypt(value, password=password)
+        if sign:
+            value = cls.sign(value, password=password)
+    
+        data = {'value': value,
+               'encrypted': encrypt}
+        
+        path = cache_dir+'/'+key
+        cls.put_json(path, data,  **kwargs)
+        
+        
+        return data
     @classmethod
-    def getval(cls, key, *args, **kwargs):
+    def get(cls, key, default=None,  password=None, cache_dir = None, **kwargs):
+        
         '''
         Puts a value in sthe config
         '''
-        data  = cls.get_json(cls.cache_dir+'/'+key,
-                             *args,
+        cache_dir = cache_dir if cache_dir else cls.cache_dir
+        kwargs['default'] = default
+        data  = cls.get_json(cache_dir+'/'+key,
                              **kwargs)
+     
         if data == None: 
             data = {}
-        return data.get('value', None)
-    get = getv = getval
+            
+        encrypted = data.get('encrypted', False)
+        if encrypted:
+            data['value'] = cls.decrypt(data['value'], password=password)
+        return data.get('value', default)
     @classmethod
     def put_config(cls, key, value) -> Munch:
         '''
@@ -395,7 +421,6 @@ class Module:
             default_config.update(config)
             config = default_config
             
-        print(config, 'BRO')
         assert isinstance(config, dict)
         
         kwargs = kwargs if kwargs != None else {}
@@ -865,7 +890,6 @@ class Module:
         object_name = object_name[0]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
-        print(path)
         return path
 
     @classmethod
@@ -1072,7 +1096,6 @@ class Module:
         if meta != None:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json', root=root)
-        cls.print(path,'bro')
         await async_put_json(path=path, data=data, **kwargs)
         return path
     
@@ -1286,14 +1309,15 @@ class Module:
     def get_local_namespace(cls, 
                             ip:str = None, 
                             save:bool = True,
-                            timeout:int  = 3) -> Dict:
+                            timeout:int  = 3,
+                            verbose:bool = False) -> Dict:
         peer_registry = {}
         peer_addresses = cls.get_peer_addresses()
-        cls.print(peer_addresses,'bro')
         peer = ['']
         jobs = []
         for address in peer_addresses:
-            cls.print(f'Connecting to {address}', color='yellow')
+            if verbose:
+                cls.print(f'Connecting to {address}', color='yellow')
             ip, port = address.split(':')
             jobs += [cls.async_connect(ip=ip, port=port, timeout=timeout)]
         loop = cls.get_event_loop()
@@ -1302,9 +1326,7 @@ class Module:
         for peer, peer_address in zip(peers, peer_addresses):
 
             peer_name = peer.module_name
-            cls.print(peer_name)
             if isinstance(peer_name, dict) and 'error' in peer_name:
-                cls.print(peer_name)
                 continue
             peer_registry[peer_name] = peer_address
             
@@ -1538,21 +1560,21 @@ class Module:
                   max_staleness: int = 60,
                   **kwargs):
         
-        
-        if search in ['local', 'global', 'subspace']:
+        network_options = ['local', 'global', 'subspace', 'all', 'remote']
+        if search in network_options:
             network = search
             search = None
+
+        assert network in network_options, f'network must be one of {network_options}'
+        
+        
         namespace = {}
-        if network == 'subspace' :
-            subspace = cls.subspace(**kwargs)
-            namespace.update(cls.subspace_namespace())
-        elif network in ['local', 'global']:
-            include_peers = True if network == 'global' else False
+        if network in ['subspace', 'all'] :
+            namespace.update(cls.subspace_namespace(update=update))
+        if network in ['local', 'global', 'all']:
             namespace.update(cls.local_namespace(update=update))
-            if network == 'global':
-                namespace.update(cls.remote_namespace(update=update))
-        else:
-            raise ValueError(f'network must be either "subspace" or "local"')
+        if network in ['remote', 'global','all']:
+            namespace.update(cls.remote_namespace(update=update))
         if search:
             namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
@@ -1560,8 +1582,8 @@ class Module:
     
     
     @classmethod
-    def subspace_namespace(cls, search = None):
-        raise NotImplementedError()
+    def subspace_namespace(cls, search = None, update=False):
+        return {}
     
 
     @classmethod
@@ -2682,7 +2704,6 @@ class Module:
 
         # serve the module if the bool is True
         is_class = cls.is_class(module)
-        cls.print(f'is_class: {is_class}')
         module_class = module if is_class else module.__class__
         
         
@@ -3305,6 +3326,9 @@ class Module:
     def python2str(cls, input):
         input = deepcopy(input)
         input_type = type(input)
+        if input_type == str:
+            return input
+        
         if input_type in [dict]:
             input = json.dumps(input)
         elif input_type in [bytes]:
@@ -3317,7 +3341,7 @@ class Module:
 
     @classmethod
     def str2python(cls, input)-> dict:
-        assert isinstance(input, str)
+        assert isinstance(input, str), 'input must be a string, got {}'.format(input)
         try:
             output_dict = json.loads(input)
         except json.JSONDecodeError as e:
@@ -3381,15 +3405,31 @@ class Module:
             cls.hash_module = cls.get_module('crypto.hash')()
         return cls.hash_module(data, mode=mode, **kwargs)
     
+    default_password = 'bitconnect'
+    @classmethod
+    def resolve_password(cls, password: str) -> str:
+        if password == None:
+            password = cls.default_password
+            
+        assert isinstance(password, str), 'Password must be a string'
+        return password
+    
     @classmethod
     def decrypt(cls, data: str, password= 'bitconnect') -> Any:
+        password = cls.resolve_password(password)
         key = cls.get_key(mode='aes', key=password)
+        print(data)
         data = key.decrypt(data)
-        
-        return cls.str2python(data)
+        if isinstance(data, str):
+            data = cls.str2python(data)
+            
+        if len(data) == 0:
+            raise Exception(f'could not decrypt data, try another pasword')
+        return data
 
     @classmethod
     def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect') -> bytes:
+        password = cls.resolve_password(password)
         data = cls.python2str(data)
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
@@ -3459,13 +3499,13 @@ class Module:
         self.network = network
         
         
-    def sign(self, data:dict  = None, key: str = None) -> bool:
+    @classmethod
+    def sign(cls, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
         return key.sign(data)    
     
-    def verify(self, data:dict  = None, key: str = None) -> bool:
-        key = self.resolve_key(key)
-        
+    @classmethod
+    def verify(cls, data:dict ) -> bool:        
         return key.verify(data)
         
     
@@ -3478,7 +3518,6 @@ class Module:
         
         key = self.resolve_key(key)
         if data == None:
-            # default data  
             data = {'utc_timestamp': self.time()}
 
         sig_dict = key.sign(data, return_dict=return_dict)
@@ -3963,6 +4002,7 @@ class Module:
     def free_gpu_memory(cls, 
                      gpus:List[int] = None,
                      max_gpu_ratio: float = 0.9 ,
+                     reserved_gpus: bool = None,
                      fmt = 'b') -> Dict[int, float]:
         import torch
         assert max_gpu_ratio <= 1.0 and max_gpu_ratio > 0, 'max_gpu_ratio must be less than 1.0 and greter than 0'
@@ -3986,12 +4026,25 @@ class Module:
         if isinstance(gpus, int):
             gpus = [gpus]
         
+        gpu_info_map = cls.gpu_map()
         gpus = [int(gpu) for gpu in gpus] 
+        
+        if  reserved_gpus != False:
+            if reserved_gpus == None:
+                reserved_gpus = cls.reserved_gpus()
+            assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
+            for r_gpu, r_gpu_memory in reserved_gpus.items():
+                print(gpu_info_map, 'BRO')
+                gpu_info_map[r_gpu]['total'] -= r_gpu_memory
+               
     
-        for gpu_id, gpu_info in cls.gpu_map().items():
+        for gpu_id, gpu_info in gpu_info_map.items():
             if int(gpu_id) in gpus:
                 
                 gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'], 0)
+                if gpu_memory <= 0:
+                    continue
+                    
                 free_gpu_memory[gpu_id] = cls.copy(gpu_memory /scale)
                 if fmt == '%':
                     free_gpu_memory[gpu_id] = (free_gpu_memory[gpu_id]/gpu_info['total']) * 100
@@ -4013,187 +4066,101 @@ class Module:
         return cls.copy(free_gpu_memory)
     
     
-
+    free_gpus = free_gpu_memory
 
 
     @classmethod
-    def max_gpu_memory(cls, model:str, max_gpu_ratio:float=0.8, fmt='b', model_inflation_ratio:float=1.2):
+    def max_gpu_memory(cls, memory:Union[str,int],
+                       mode:str = 'most_free', 
+                       max_gpu_ratio:float=0.8, 
+                       reserved_gpus:bool = None,
+                       fmt='b'):
         
-        if type(model) in [float, int]:
-            model_size = model
-        else:
-            model_size = cls.get_model_size(model, model_inflation_ratio=model_inflation_ratio)
-        free_gpu_memory = cls.free_gpu_memory(fmt=fmt, max_gpu_ratio=max_gpu_ratio)
+        if type(memory) == str:
+            scale_map = {
+                'gb': 1e9,
+                'mb': 1e6,
+                'kb': 1e3,
+                'b': 1
+            }
+            for k,v in scale_map.items():
+                if memory.lower().endswith(k):
+                    memory = int(float(memory.lower().replace(k, '')) * v)
+                    break
+        memory = int(memory)
+        assert memory > 0, f'memory must be greater than 0, got {memory}'
+        free_gpu_memory = cls.free_gpu_memory(fmt='b', max_gpu_ratio=max_gpu_ratio, reserved_gpus=reserved_gpus)
         gpus = list(free_gpu_memory.keys()) 
         cls.print(free_gpu_memory)
         total_gpu_memory = sum(free_gpu_memory.values())
-        assert model_size < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
-        unallocated_model_memory = model_size
+        assert memory < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
+        unallocated_memory = memory
         # max_memory = {}
         max_memory = {}
         
         
-        while unallocated_model_memory > 0:
-            most_free_gpu, most_free_gpu_memory = cls.most_free_gpu(free_gpu_memory=deepcopy(free_gpu_memory), return_tuple=True)
-            assert most_free_gpu not in max_memory 
-            cls.print(most_free_gpu, most_free_gpu_memory)
-            allocated_memory = min(most_free_gpu_memory, unallocated_model_memory)
-            unallocated_model_memory -= allocated_memory
-            max_memory[most_free_gpu] = allocated_memory
-            free_gpu_memory[most_free_gpu] -= allocated_memory
-            
         
+        while unallocated_memory > 0:
+            if mode =='random':
+                gpu = np.random.choice(gpus)
+                gpu_memory = free_gpu_memory[gpu]
+            elif mode == 'most_free':
+                gpu, gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
+            else:
+                raise ValueError(f'Invalid mode: {mode}, options are random, most_free')
+            allocated_memory = min(gpu_memory, unallocated_memory)
+            if allocated_memory>0:
+                max_memory[gpu] = allocated_memory
+                free_gpu_memory[gpu] -= allocated_memory
+            unallocated_memory -= allocated_memory
+            max_memory[gpu] = allocated_memory
+            free_gpu_memory[gpu] -= allocated_memory
+            
+        max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
         return max_memory
             
 
-
-    def reserve_gpu_memory(cls, key ,model_size:str, max_gpu_ratio:float=0.8, fmt='b', model_inflation_ratio:float=1.2):
+    @classmethod
+    def reserve_gpus(cls,memory, refresh:bool = False,  **kwargs):
         
-        model_reserved_memory = cls.get('reserved_gpu_memory', {})
-        model = cls.max_gpu_memory(model=model,
-                                   max_gpu_ratio=max_gpu_ratio,
-                                   fmt=fmt,
-                                   model_inflation_ratio=model_inflation_ratio)
+        if isinstance(memory, str) and 'gb' in memory.lower():
+            memory = int(memory[:-2])*1e9
+        reserved_gpu_memory = {} if refresh else cls.get('reserved_gpu_memory', {}, root=True)
+        gpu_memory = cls.max_gpu_memory(memory, **kwargs)
+        for  gpu, memory in gpu_memory.items():
+            gpu = str(gpu)
+            if gpu in reserved_gpu_memory:
+                reserved_gpu_memory[gpu] += memory
+            else:
+                reserved_gpu_memory[gpu] = memory
+        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         
+        return reserved_gpu_memory
+    
+    
+    @classmethod
+    def reserved_gpus(cls,*args, **kwargs) -> Dict[int, int]:
+        reserved_gpus = cls.get('reserved_gpu_memory', {}, root=True)
+        reserved_gpus = {int(k):int(v) for k,v in reserved_gpus.items() if v > 0} 
+        return reserved_gpus  
+    
+    @classmethod
+    def unreserve_gpus(cls,gpu_memory = None,*args,  **kwargs):
         
-        
-    
+        if gpu_memory is None:
+            reserved_gpu_memory = {}
+        else:
+            reserved_gpu_memory =cls.get('reserved_gpu_memory', {}, root=True)
 
-    @classmethod
-    def free_gpus(cls, *args, **kwargs):
-        return cls.free_gpu_memory(*args, **kwargs)
-    
-    
-    @classmethod
-    def total_free_gpu_memory(cls, gpus = None, max_gpu_ratio=0.2, fmt='b'):
-        free_gpu_memory = cls.free_gpu_memory(gpus=gpus, max_gpu_ratio=max_gpu_ratio, fmt=fmt)
-        total_free_memory = sum(free_gpu_memory.values())
-        return total_free_memory
-    
-    total_free_gpus = total_free_gpu_memory
-    
-    @classmethod
-    def help(cls, fn:str = None):
-        schema = cls.schema() 
-        if fn != None: 
-            return {k:v for k,v in schema.items() if fn in k}
-            
-            
-        return schema
-    
-    @classmethod
-    def git_pull(cls, stash: bool = True):
-        cmd = 'git pull'
-        if stash:
-            cmd = 'git stash; '+ cmd
-        return cls.run_command(cmd)
-    
-    @classmethod
-    def pip(cls, library, version = None, upgrade = False):
-
-        if upgrade:
-            cmd = f'pip install --upgrade {library}'
-    
-        elif version != None:
-            cmd = f'pip install {library}=={version}'
-    
-        return cls.run_command(cmd, verbose=True)
-    
-
-    @classmethod
-    def pip_upgrade(cls, library, version = None):
-        cls.pip(library, version = version, upgrade = True)
-
-
-    @staticmethod
-    def symlink( src, dst):
-        os.symlink(src, dst)
-
-        import os
-
-        src = '/usr/bin/python'
-        dst = '/tmp/python'
-
-        # This creates a symbolic link on python in tmp directory
-        os.symlink(src, dst)
-        # @classmethod
-        
-        return dst
-    
-    def ping(self):
-        class_name = self.__class__.__name__
-        address = self.address
-        return f'pong from {class_name} at {address}'
-    
-    @classmethod
-    def init_empty_weights(cls, model_class,  *args, fn=None, **kwargs):
-        from accelerate import init_empty_weights
-        with init_empty_weights():
-            if isinstance(fn, str):
-                if hasattr(model_class, fn):
-                    model = getattr(model_class, fn)(*args, **kwargs)
-            model = model_class(*args, **kwargs)
-        
-        return model
-
-    @classmethod
-    def hash(cls, *args, **kwargs):
-        return cls.module('crypto.hash').hash(*args,**kwargs)
-
-    @classmethod
-    def merge_classes(cls, *classes):
-        # Get the dictionary of attributes for each class
-        if len(classes) == 1:
-            classes = [cls, classes[0]]
-        assert len(classes) == 2, 'Only two classes can be merged'
-        attrs1 = class1.__dict__
-        attrs2 = class2.__dict__
-
-        # Merge the two dictionaries
-        merged_attrs = {**attrs1, **attrs2}
-
-        # Define the __init__ method for the merged class
-        def __init__(self, *args, **kwargs):
-            class1.__init__(self, *args, **kwargs)
-
-        # Add the __init__ method to the merged attributes
-        merged_attrs['__init__'] = __init__
-
-        # Define additional class methods for the merged class
-        @classmethod
-        def class_method(cls):
-            print("This is a class method of the merged class")
-
-        # Add the additional class methods to the merged attributes
-        merged_attrs['class_method'] = class_method
-
-        # Create a new class
-        class_merged = type('MergedClass', (class1, class2), merged_attrs)
-
-        # Return the merged class
-        return class_merged
-
-    @classmethod
-    def signin(cls, 
-               user:str = 'Alice on Chains', 
-               password:str = 'Obama is a lizard',
-               seperator:str = '::',
-               mode: str = 'subspace'):
-        cls.user = user
-        
-        # For the lazy fucks who want to us user<seperator>password
-        user_splits = user.split(seperator)
-        if len(user_splits)>1:
-            # take the last chunk as the password , 
-            # NOTE: DO NOT INCLUDE "::" in your username
-            user = user_splits[0]
-            password = seperator.join(user_splits[1:])
-            
-        key_seed = seperator.join([user, password])
-        cls.key = cls.get_key(key_seed ,mode=mode)
-        cls.address = cls.key.ss58_address
-        return cls.key
-        
+            for  gpu, memory in gpu_memory.items():
+                gpu = str(gpu)
+                if gpu in reserved_gpu_memory:
+                    reserved_gpu_memory[gpu] -= memory
+                else:
+                    
+                    reserved_gpu_memory[gpu] = memory
+        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
+      
 
 if __name__ == "__main__":
     Module.run()

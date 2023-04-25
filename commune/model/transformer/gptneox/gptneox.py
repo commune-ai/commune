@@ -383,7 +383,7 @@ class GPTNeoX(Model):
     def resolve_max_memory(cls, max_memory: Union[Dict[int, str], int], buffer_memory:int=10, max_per_gpu:int=50) -> Dict[int, str]:
         
         if isinstance(max_memory, int):
-            max_memory = cls.max_gpu_memory(total_memory=max_memory, 
+            max_memory = cls.max_gpu_memory(max_memory, 
                                               buffer_memory=buffer_memory, 
                                               max_per_gpu=max_per_gpu)
             
