@@ -341,7 +341,11 @@ class Module:
         '''
         Puts a value in sthe config
         '''
-        data  = cls.get_json(cls.cache_dir+'/'+key, *args, **kwargs)
+        data  = cls.get_json(cls.cache_dir+'/'+key,
+                             *args,
+                             **kwargs)
+        if data == None: 
+            data = {}
         return data.get('value', None)
     get = getv = getval
     @classmethod
@@ -3378,16 +3382,14 @@ class Module:
         return cls.hash_module(data, mode=mode, **kwargs)
     
     @classmethod
-    def decrypt(cls, data: str, password= None) -> Any:
+    def decrypt(cls, data: str, password= 'bitconnect') -> Any:
         key = cls.get_key(mode='aes', key=password)
         data = key.decrypt(data)
         
         return cls.str2python(data)
 
-
-
     @classmethod
-    def encrypt(cls, data: Union[str, bytes], password: str = None) -> bytes:
+    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect') -> bytes:
         data = cls.python2str(data)
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
@@ -4043,6 +4045,19 @@ class Module:
         
         return max_memory
             
+
+
+    def reserve_gpu_memory(cls, key ,model_size:str, max_gpu_ratio:float=0.8, fmt='b', model_inflation_ratio:float=1.2):
+        
+        model_reserved_memory = cls.get('reserved_gpu_memory', {})
+        model = cls.max_gpu_memory(model=model,
+                                   max_gpu_ratio=max_gpu_ratio,
+                                   fmt=fmt,
+                                   model_inflation_ratio=model_inflation_ratio)
+        
+        
+        
+    
 
     @classmethod
     def free_gpus(cls, *args, **kwargs):

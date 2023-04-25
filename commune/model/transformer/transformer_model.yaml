@@ -12,12 +12,13 @@ optimizer:
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
-max_gpu_ratio: 0.5
+max_gpu_ratio: 0.8
 model_inflation_ratio: 1.4
 output_length: 4
 max_sequence_length: 256
 tag: null
 test: false
+reserved_gpu_memory: 0
 load: false
 device_map: null
 max_memory: null

@@ -14,30 +14,6 @@ class AESKey(commune.Module):
         self.bs = AES.block_size
         self.key = hashlib.sha256(key.encode()).digest()
 
-    @staticmethod
-    def python2str(input):
-        input = deepcopy(input)
-        input_type = type(input)
-        
-        if input_type in [dict]:
-            input = json.dumps(input)
-        elif input_type in [list, tuple, set]:
-            input = json.dumps(list(input))
-        elif input_type in [int, float, bool]:
-            input = str(input)
-        return input
-
-    @staticmethod
-    def str2python(input)-> dict:
-        assert isinstance(input, str)
-        try:
-            output_dict = json.loads(input)
-        except json.JSONDecodeError as e:
-            return input
-
-        return output_dict
-
-
     def encrypt(self, data, return_string = True):
         data = self.python2str(data)
         data = self._pad(data)
