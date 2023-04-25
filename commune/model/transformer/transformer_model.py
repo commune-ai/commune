@@ -281,11 +281,8 @@ class TransformerModel(Model):
         
         
         
-        config.reserved_memory = sum(config.max_memory.values())
-    
-    
+        config.reserved_gpu_memory = sum(config.max_memory.values())
         config.model_size = self.get_model_size(model)
-        self.print(config)
         config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
 
         if len(config.device_map) == 1:
