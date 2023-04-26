@@ -1057,6 +1057,16 @@ class Module:
         from commune.utils.time import Timer
         return Timer(*args, **kwargs)
     
+    @classmethod
+    def get_params(kwargs):
+        
+        assert 'args' not in kwargs
+        kwargs.update(kwargs.get('kwargs', {}))
+        kwargs.pop('cls', None)
+        kwargs.pop('self', None)
+        return kwargs
+    
+    resolve_kwargs = clean_kwargs = get_params
     
     @classmethod
     def get_parents(cls, obj=None):
@@ -1420,7 +1430,8 @@ class Module:
                     namespace[name+seperator+peer_name] = address
             
         return namespace
-            
+        
+        
     @classmethod
     def local_namespace(cls, update:bool = False)-> dict:
         '''
@@ -2077,7 +2088,9 @@ class Module:
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
                 
-        cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
+                
+        if verbose:
+            cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
             
         if fn == 'serve':
             kwargs['tag'] = kwargs.get('tag', tag)
@@ -4253,6 +4266,27 @@ class Module:
         
         cls.put('link_cmd', link_cmd)
         
+
+    @classmethod
+    def remote_task(cls, 
+                    fn='train', 
+                    module = None,
+                    kwargs = None, 
+                    tag = None,
+                    name=None):
+        kwargs = cls.get_params(kwargs)
+        
+        tag = kwargs.get('tag', tag)
+        if name == None:
+            name = f'task::{fn}'
+    
+        if tag != None:
+            name = name + '::': tag
+            
+        cls.launch(fn=fn, 
+                   module = module
+                    kwargs=kwargs,
+                    name=name)
 
 
 
