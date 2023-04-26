@@ -3,7 +3,6 @@ import torch
 import os,sys
 import asyncio
 from transformers import AutoConfig
-asyncio.set_event_loop(asyncio.new_event_loop())
 import bittensor
 import commune
 from typing import List, Union, Optional, Dict
@@ -509,7 +508,6 @@ class BittensorModule(commune.Module):
         st.write(f'# BITTENSOR DASHBOARD {self.network}')
         
         self.streamlit_neuron_metrics()
-        
         
         
 if __name__ == "__main__":

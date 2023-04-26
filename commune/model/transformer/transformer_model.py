@@ -82,17 +82,13 @@ shortcuts =  {
 from torch import nn
 class TransformerModel(Model):
     shortcuts = shortcuts
+    model_options = list(shortcuts.keys()) + list(shortcuts.values())
 
-    def __init__(self,
-                 config = None,
-                **kwargs):
+    def __init__(self,config = None,**kwargs):
         nn.Module.__init__(self)
         
         self.set_config(config=config, kwargs=kwargs)
-        
-        print(config)
         self.set_model(self.config)
-
         
         if self.config.test:
             self.test(self)
@@ -229,7 +225,11 @@ class TransformerModel(Model):
             self.optimizer.step()
             loss = loss.item()
                 
-            self.stats['learn_steps'] = self.stats.get('learn_steps', 0) + 1
+            self.stats['train_samples'] = self.stats.get('train_samples', 0) + 1
+            self.tokens['train_tokens'] = self.stats.get('train_tokens')
+            self.stats['train_steps'] = self.stats.get('train_steps', 0) + 1
+            self.stats['epoch_size'] = epoch_length
+            self.stats['']
             self.stats['lr'] = self.optimizer.param_groups[0]['lr']
             self.stats['epoch_loss'] = (self.stats.get('epoch_loss', 0)*(self.stats['learn_steps']-1) + loss)/self.stats['learn_steps']
         else:
@@ -263,7 +263,8 @@ class TransformerModel(Model):
         
         
     def set_model(self, config) -> None:
-        
+        if config == None:
+            config = self.config
         
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
@@ -314,7 +315,8 @@ class TransformerModel(Model):
           
         self.set_tag(config.tag)
         self.set_stats(config.stats)    
-        self.set_epoch_length(config.epoch_length)        
+        self.set_epoch_length(config.epoch_length)      
+          
         if config.load:
             self.load() 
             
@@ -323,8 +325,9 @@ class TransformerModel(Model):
 
     def set_epoch_length(self, epoch_length:int) -> int:
         assert isinstance(epoch_length, int)
-        self.epoch_length = self.config['epoch_length']=  epoch_length
+        self.epoch_length = self.epoch_size = self.config['epoch_length']=  epoch_length
         return self.epoch_length
+    set_epoch_size = set_epoch_length
 
     def set_tokenizer(self, tokenizer):
         from transformers import AutoTokenizer, AutoModel
@@ -415,23 +418,24 @@ class TransformerModel(Model):
         text = self.tokenizer.batch_decode(input_ids,**kwargs)  # assume tokenizer.padding_side = 'left'
 
         return text
+    
 
+    
 
     @classmethod
-    def test(cls, model = 'gpt125m', 
+    def train(cls, model = 'gpt125m', 
              topk:int=256 ,
              dataset:str = 'dataset',
              num_batches = 3,
              sequence_length : int = 256,
              batch_size: int = 32,
              autocast : bool = True,
-             device : str = None, 
              remote: bool = False, 
-             train: bool= False,
+             train: bool= True,
              map_logits : bool = False,
              map_tokens : bool = False,
              timeout : int= 60,
-             load: bool  = False,
+             load: bool  = True,
              save = False,
              **kwargs
              ):
@@ -439,147 +443,48 @@ class TransformerModel(Model):
         # if not commune.server_exists(dataset):
         #     commune.deploy(dataset)
         dataset = commune.connect(dataset)
+
         namespace = commune.namespace()
         
+        
         if model in namespace:
-            model_name = model
-            model = commune.connect(model_name)
-        elif isinstance(model, str):
-            model = cls(model= model, test=False, device=device, **kwargs)
-        else:
-            model = model
+            model = commune.connect(model)
+        if isinstance(model, str) and model in cls.model_options:
+            model = cls(model= model, **kwargs)
             
-            
+        
         if load:
             model.load()
 
         for i in range(num_batches):
-            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length)
-            sample['topk'] = topk
-            sample['map_tokens'] = map_tokens
-            sample['map_logits'] = map_logits
-            sample['train'] = train
-            sample['autocast'] = autocast
-            sample['timeout'] = timeout
-            sample['return_keys'] = [ 'topk', 'stats']
+            sample = dataset.sample(batch_size=batch_size,
+                                    sequence_length=sequence_length)
+        
+            sample.update(
+                topk=topk,
+                map_tokens=map_tokens,
+                map_logits=map_logits,
+                train=train,
+                autocast=autocast,
+                timeout=timeout,
+                return_keys=[ 'topk', 'stats']
+            )
             
             output = model.forward(**sample)
+            
             cls.print(output.get('stats', 'no stats fam') )
-            
-            # output['input_ids'] = sample['input_ids']
-            # cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
-            # cls.print(outpu
-            # t)
-            # cls.print(output['stats'])
         
-        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
-        if save:
-            model.save()
-    
-    
-
-    @classmethod
-    def train(cls, model = 'gpt125m', 
-             topk:int=256 ,
-             dataset:str = 'dataset.text.bittensor',
-             num_batches = 3,
-             sequence_length = 256,
-             batch_size = 32,
-             device = None, 
-             remote = False, 
-             train = True,
-             load = False,
-             save = False,
-             **kwargs
-             ):
         
-        dataset = commune.connect(dataset, wait_for_server=True)
-        namespace = commune.namespace()
-        
-        if model in namespace:
-            model_name = model
-            model = commune.connect(model_name)
-        elif isinstance(model, str):
-            model = cls(model= model, test=False, device=device, **kwargs)
-        else:
-            model = model
-        if load:
-            model.load()
-
-        for i in range(num_batches):
-            sample = dataset.sample(batch_size=batch_size,sequence_length=sequence_length)
-            sample['topk'] = topk
-            sample['map_tokens'] = False
-            sample['map_logits'] = False
-            sample['train'] = train
-            sample['autocast'] = True
-            sample['timeout'] = 6
-            sample['return_keys'] = [ 'topk', 'stats']
-            
-            output = model.forward(**cls.copy(sample))
-            output['logits'] = decode_topk(output['topk'] )
-            
-            output['input_ids'] = sample['input_ids']
-            cls.print(f"step: {i}/{num_batches} stats: {output['stats']}")
-            # cls.print(outpu
-            # t)
-            # cls.print(output['stats'])
-        
-        # print(cls.calculate_loss(output['logits'].reshape(-1, output['logits'].shape[-1]), targets[:, -output_length:].flatten()))
         if save:
             model.save()
     
     
 
 
-    
-    def train_model(self,
-             dataset : Union[str, 'Module'] = 'dataset::bittensor',
-             params: dict = None,
-            output_length:int=10,
-            sequence_length:int=256,
-            num_batches: int = 1, 
-            tag : str = None,
-            save : bool = False,
-            load : bool = False,
-            refresh: bool = False,
-            **kwargs):
-        st.write(self.config)
+    test = train 
 
-        params = params if params != None else {}
-        params['tag'] = tag
 
-        if load and (refresh == False):
-            self.load(tag=tag)
-        
-        self.set_params(**params)
-        
-        if not hasattr(self, 'dataset'):
-            if isinstance(dataset, str):
-                dataset = commune.connect(dataset)
-            self.dataset = dataset
-            
-            
-            
-        for i in range(num_batches):
-            sample = self.dataset.sample(sequence_length=sequence_length)
-            if isinstance(sample, str):
-                continue
-            sample.update(dict(
-                output_length=output_length,
-                return_keys=['stats'],
-                train = True
-            ))
-            
-            output = self.forward(**sample)
-            commune.print(output, 'cyan')
 
-        if save :
-            self.save(tag=tag)
-            
-        return output['stats']
-
-    
     @classmethod
     def models(cls):
         return list(cls.shortcuts.keys())
@@ -719,6 +624,9 @@ class TransformerModel(Model):
                 model = AutoModelForCausalLM.from_config(model_config)
                 
         return model
+    
+    
+        
       
     @classmethod
     def deploy(cls,
@@ -743,30 +651,25 @@ class TransformerModel(Model):
         for model in models:
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
+            name = f'model.{model}'
+            if tag:
+                name = name+tag_seperator+str(tag)
                 
             model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes, 
                                                 max_gpu_ratio=config.max_gpu_ratio)
-            config.model = model
-            # kwargs['max_memory'] = max_gpu_memory
             devices = list(max_gpu_memory.keys())
-            name = f'model.{model}'
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
-            model_kwargs = cls.munch2dict(config)
-            model_kwargs['tag'] = tag
 
-
-            module_exists = cls.module_exists(name)     
-            if replace == False and module_exists:
-                cls.print(f'Model {name} already exists', color='yellow')
-                continue
+            kwargs = dict(model=model, tag=tag,  wait_for_server=wait_for_server)
             
-
-            cls.print(f'Config : {model_kwargs}', color='cyan')
-            cls.launch(name=name,kwargs=model_kwargs, mode=mode, device=device, verbose=False)
-            if wait_for_server:
-                cls.wait_for_server(name=name, sleep_interval=5, timeout=1000)
+            cls.launch(name=name,
+                       kwargs=kwargs,
+                       mode=mode, 
+                       refresh=True,
+                       device=device, 
+                       verbose=False)
+            
+            cls.print(f'Config : {kwargs}', color='cyan')
             model_names.append(name) 
             
         cls.unreserve_gpus()

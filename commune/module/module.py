@@ -150,6 +150,13 @@ class Module:
     def class_name(cls) -> str:
         return cls.__name__
 
+    def get_class_name(cls, obj = None) -> str:
+        obj = obj if obj != None else cls
+        if not cls.is_class(obj):
+            obj = type(obj)
+        
+        return obj.__name__
+        
     
     @property
     def module_tag(self) -> str:
@@ -230,7 +237,18 @@ class Module:
 
 
     @classmethod
-    def get_fn_code(cls, 
+    def fn_code_map(cls, module=None)-> Dict[str, str]:
+        module = module if module else cls
+        functions = cls.get_functions(module)
+        fn_code_map = {}
+        for fn in functions:
+            fn_code_map[fn] = cls.get_function_code(fn=fn, module=module)
+        return fn_code_map
+    
+    code_map = fn_code_map
+            
+    @classmethod
+    def get_function_code(cls, 
                     fn:str, 
                     module:str = None, # defaults to the current module
                     fn_seperator:str="::" ) -> str:
@@ -253,11 +271,15 @@ class Module:
         return fn_code
 
     @classmethod
-    def fn_code(cls, fn ) -> str:
+    def function_code(cls, fn ) -> str:
         '''
         Returns the code of a function
         '''
         return cls.get_fn_code(fn)
+    
+    
+    fn_code = function_code
+    get_fn_code = get_function_code
 
     @classmethod
     def sandbox(cls):
@@ -2952,7 +2974,7 @@ class Module:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_map(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_memory(cls) -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -2965,7 +2987,7 @@ class Module:
             }
         return gpu_info
     
-    gpu_info = gpu_memory_map = gpu_map
+    gpu_info = gpu_memory_map = gpu_map = gpu_memory
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -4093,6 +4115,7 @@ class Module:
     def max_gpu_memory(cls, memory:Union[str,int],
                        mode:str = 'most_free', 
                        min_memory_ratio = 0.0,
+                       reserve:bool = False, 
                        **kwargs):
         
 
@@ -4144,6 +4167,9 @@ class Module:
             free_gpu_memory[gpu] -= allocated_memory
             
         max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
+        
+        if reserve:
+            self.reserve_gpu_memory(max_gpu_memory)
         return max_memory
             
             
@@ -4153,6 +4179,16 @@ class Module:
         'gb': 1e9,
         'b': 1,
     }
+    @classmethod
+    def resolve_module(cls, module=None):
+        if module == None:
+            module = cls
+        if isinstance(module, str):
+            module = self.get_module(module)
+        
+        return module
+            
+            
     @classmethod
     def resolve_memory(cls, memory) -> str:
         
@@ -4169,26 +4205,19 @@ class Module:
         
         return memory
             
+
     @classmethod
-    def reserve_gpus(cls,memory, refresh:bool = False,  **kwargs):
-        
-        reserved_gpu_memory = {} if refresh else cls.get('reserved_gpu_memory', {}, root=True)
-
-        if isinstance(memory, dict):
-            gpu_memory = memory
-        else:
-
-            gpu_memory = cls.max_gpu_memory(memory, **kwargs)
+    def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, root=True, **kwargs):
+        reserved_gpu_memory = {} if refresh else cls.get('reserved_gpu_memory', {}, root=root)
+        if type(gpu_memory) in [int, float, str]:
+            gpu_memory = cls.max_gpu_memory(gpu_memory, **kwargs)
         for  gpu, memory in gpu_memory.items():
-            gpu = str(gpu)
             if gpu in reserved_gpu_memory:
                 reserved_gpu_memory[gpu] += memory
             else:
                 reserved_gpu_memory[gpu] = memory
-        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
-        
+        cls.put('reserved_gpu_memory', reserved_gpu_memory, root=root)
         return reserved_gpu_memory
-    
     
     @classmethod
     def reserved_gpus(cls,*args, **kwargs) -> Dict[int, int]:
@@ -4197,24 +4226,35 @@ class Module:
         return reserved_gpus  
     
     @classmethod
-    def unreserve_gpus(cls,gpu_memory = None,*args,  **kwargs):
-        
+    def unreserve_gpus(cls,gpu_memory: Union[dict] = None,*args,  **kwargs):
         if gpu_memory is None:
             reserved_gpu_memory = {}
         else:
             reserved_gpu_memory =cls.get('reserved_gpu_memory', {}, root=True)
-
             for  gpu, memory in gpu_memory.items():
                 gpu = str(gpu)
                 if gpu in reserved_gpu_memory:
                     reserved_gpu_memory[gpu] -= memory
-                else:
-                    
+                else: 
                     reserved_gpu_memory[gpu] = memory
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         return cls.get('reserved_gpu_memory')
 
     release_gpus = unleash_gpus =  unreserve_gpus
+    reserve_gpu_memory = reserve_gpus
+    unreserve_gpu_memory = unreserve_gpus
+
+    def link_cmd(cls, old, new):
+        
+        link_cmd = cls.get('link_cmd', {})
+        assert isinstance(old, str), old
+        assert isinstance(new, str), new
+        link_cmd[new] = old 
+        
+        cls.put('link_cmd', link_cmd)
+        
+
+
 
 if __name__ == "__main__":
     Module.run()
