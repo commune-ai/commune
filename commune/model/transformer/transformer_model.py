@@ -425,17 +425,6 @@ class TransformerModel(Model):
         return text
     
 
-    def remote_fn(cls, fn='train', kwargs = None, prefix='train'):
-        kwargs = cls.get_params(kwargs)
-        kwargs['remote'] = kwargs.get('remote', False)
-
-        tag = kwargs.get('tag', None)
-        task_name = f'{prefix}::{model}' 
-        if tag != None:
-            task_name = 
-        cls.launch(fn='train', 
-                    kwargs=remote_kwargs,
-                    name=task_name)
 
     @classmethod
     def train(cls, model = 'gpt125m', 
@@ -456,14 +445,9 @@ class TransformerModel(Model):
              ):
         
         if remote:
-            remote_kwargs = cls.get_params(locals())
-            remote_kwargs['remote'] = False
-
-            tag = remote_kwargs.get('tag', None)
-            task_name = f'train::{model}' if tag == None else  f'train::{model}::{tag}'
-            cls.launch(fn='train', 
-                       kwargs=remote_kwargs,
-                       name=task_name)
+            kwargs = cls.get_params(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='train',kwargs=kwargs, name=f"train::{model}")
         
         
         # if not commune.server_exists(dataset):
