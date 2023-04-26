@@ -365,7 +365,7 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def test(cls, *args, **kwargs):
         return cls.get_module('model.transformer').test(*args, **kwargs)
-
+    train = test
 
     @classmethod
     def sandbox(cls, *args,**kwargs):
