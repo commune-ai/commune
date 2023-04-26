@@ -220,18 +220,23 @@ class TransformerModel(Model):
             loss = torch.tensor(10)
             raise Exception('Loss is nan, skipping backward pass')
         
+        input_tokens = input_ids.shape[0]*input_ids.shape[1]
+        input_samples = input_ids.shape[0]
+        
         if train:
             loss.backward()
             self.optimizer.step()
             loss = loss.item()
                 
-            self.stats['train_samples'] = self.stats.get('train_samples', 0) + 1
-            self.tokens['train_tokens'] = self.stats.get('train_tokens')
+            self.stats['train_samples'] = self.stats.get('train_samples', 0) + input_samples
+            self.stats['train_tokens'] = self.stats.get('train_tokens',0) + input_tokens
             self.stats['train_steps'] = self.stats.get('train_steps', 0) + 1
-            self.stats['epoch_size'] = epoch_length
-            self.stats['']
-            self.stats['lr'] = self.optimizer.param_groups[0]['lr']
-            self.stats['epoch_loss'] = (self.stats.get('epoch_loss', 0)*(self.stats['learn_steps']-1) + loss)/self.stats['learn_steps']
+            self.stats['epoch_size'] = self.epoch_length
+            self.stats['batch_count'] = self.stats['train_steps'] % self.stats['epoch_size']
+            self.stats['lr'] = self.config['optimizer']['lr']
+            
+            # calculalte the epoch loss
+            self.stats['epoch_loss'] = (self.stats.get('epoch_loss', 0)*(self.stats['train_steps']-1) + loss)/self.stats['train_steps']
         else:
             loss = loss.item()
         
@@ -436,7 +441,7 @@ class TransformerModel(Model):
              map_tokens : bool = False,
              timeout : int= 60,
              load: bool  = True,
-             save = False,
+             save = True,
              **kwargs
              ):
         
