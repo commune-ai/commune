@@ -14,6 +14,7 @@ from munch import Munch
 import argparse
 import torch
 import json
+import glob
 
     
 # import torch
@@ -41,22 +42,31 @@ class Model( nn.Module, commune.Module):
         
         
         nn.Module.__init__(self) 
+        # sets to self.config (with kwargs injected)
         self.set_config(config, kwargs=kwargs)
+        # self.set_model(self.config)
+        
+        
+        
+
         
         
     @classmethod
     def shortcuts(cls, *args, **kwargs):
         return cls.module('model.transformer').shortcuts
-    def set_optimizer(self, optimizer:Union[Dict, 'Optimizer']=None):
+    
+    
+    def set_optimizer(self, optimizer:dict=None):
+        
+        if optimizer == None:
+            optimizer  = dict(
+                module='torch.optim.Adam',
+                lr=1e-5
+            )
         if isinstance(optimizer, dict):
             module_path = optimizer.pop('module', 'torch.optim.Adam')
             optimizer_kwargs = optimizer.get('params', optimizer.get('kwargs', optimizer))
-        
-        elif optimizer == None:
-            module_path = 'torch.optim.Adam'
-            optimizer_kwargs = {'lr': 0.0001}
-            
-        
+
         else:
             raise NotImplementedError(optimizer)
         
@@ -151,7 +161,10 @@ class Model( nn.Module, commune.Module):
         assert tag, 'tag must be set'
         return tag
 
-    def save(self, tag:str = None,  trainable_only:bool = True, verbose:bool = True):
+    def save(self, 
+             tag:str = None,  
+             trainable_only:bool = True,
+             verbose:bool = True):
         tag = self.resolve_tag(tag)
         path = self.resolve_path(tag)
 
@@ -166,7 +179,6 @@ class Model( nn.Module, commune.Module):
             'model': model_state_dict,
             'optimizer': self.optimizer.state_dict(),
             'config': self.config,
-            'stats': self.stats,
             }
         
         keys = list(state_dict.keys())
@@ -181,12 +193,21 @@ class Model( nn.Module, commune.Module):
 
         return path
     
-    def load(self, tag=None, keys:List[str] = None, map_location: str = None):
+    
+    @classmethod
+    def ls_tags(self):
+        return self.ls()
+    def load(self, tag=None, 
+             keys:List[str] = None, 
+             map_location: str = None,
+             **kwargs):
+        
+        
         map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
         path = self.resolve_path(tag)
-        import glob
         if not os.path.exists(path):
+            self.print(f'Couldnt find {path}')
             return 
         path_list = glob.glob(os.path.join(path, '*.pt'))
         loaded_state_dict = {}
@@ -204,13 +225,19 @@ class Model( nn.Module, commune.Module):
         #     self.set_config(config=loaded_state_dict['config'])
         #     self.set_model(**self.config)
         # set the params and stats
+        
+
+        
         if 'stats' in loaded_state_dict:
+            self.print('Loading stats')
             self.set_stats(loaded_state_dict['stats'])
             
         if 'model' in loaded_state_dict:
+            self.print('Loading model')
             self.update_state_dict(loaded_state_dict['model'])
     
         if 'optimizer' in loaded_state_dict:
+            self.print('Loading optimizer')
             self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
         
     def update_state_dict(self, state_dict:dict):
