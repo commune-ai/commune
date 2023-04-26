@@ -1998,15 +1998,26 @@ class Module:
     @classmethod
     def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True):
         servers = cls.servers()
+            
         for module in modules:
             delete_modules = [server for server in servers if  module in server]
+            if mode == 'pm2':
+                pm2_list =cls.pm2_list()
+                for p in pm2_list:
+                    if module in p:
+                        delete_modules.append(p)
+                        
+                    
             for d_m in delete_modules:
                 if verbose:
                     cls.print(f'Killing {d_m}...')
                 if mode == 'pm2':
+                    
                     cls.pm2_kill(d_m)
                 elif mode == 'ray':
                     cls.ray_kill(d_m)
+                    
+            
 
         return delete_modules
 
@@ -2066,6 +2077,7 @@ class Module:
                key : str = None,
                verbose : bool = True, 
                shortcut = None,
+               wait_for_server=False,
                device = None,
                **extra_kwargs):
         '''
@@ -2096,6 +2108,8 @@ class Module:
         if fn == 'serve':
             kwargs['tag'] = kwargs.get('tag', tag)
             kwargs['name'] = kwargs.get('name', name)
+        else:
+            wait_for_server = False # invalid command
 
         if mode == 'local':
             return getattr(module, fn)(*args, **kwargs)
@@ -2116,8 +2130,12 @@ class Module:
             
 
             assert fn != None, 'fn must be specified for pm2 launch'
-            launch_fn = getattr(cls, f'pm2_launch')
-            stdout = launch_fn(**launch_kwargs)
+            stdout = getattr(cls, f'{mode}_launch')(**launch_kwargs)
+            
+            
+            if wait_for_server:
+                self.wait_for_server(name)
+            
             return launch_kwargs
             
         elif mode == 'ray':
@@ -2128,12 +2146,13 @@ class Module:
                     args = args,
                     kwargs = kwargs,
                     refresh=refresh,
-                    serve = serve,
                     **extra_kwargs
             )
-            
-            launch_fn = getattr(cls, f'{mode}_launch')
-            return launch_fn(**launch_kwargs)
+            if wait_for_server:
+                self.wait_for_server(name)
+
+        
+            return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
 
@@ -2147,17 +2166,26 @@ class Module:
             if verbose:
                 cls.print(f'[red] Killed {module}[/red]')
     @classmethod
-    def pm2_list(cls, verbose:bool = False) -> List[str]:
+    def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
         output_string = cls.run_command('pm2 status', verbose=False)
         module_list = []
         for line in output_string.split('\n'):
             if '│ default     │ ' in line:
                 module_name = line.split('│')[2].strip()
+                # fixes odd issue where there is a space between the name and the front 
+                module_name = module_name.split(' ')[-1]
                 module_list += [module_name]
                 
+        
+        if search:
+            module_list = [m for m in module_list if search in m]
+                
         return module_list
-            
+    lspm2 = ls_pm2 = pm2ls = pm2_ls = pm2list = pm2_list
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
+    
+    
+    
     @classmethod
     def pm2_launch(cls, 
                    module:str = None,  
@@ -4183,7 +4211,7 @@ class Module:
         max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
         
         if reserve:
-            self.reserve_gpu_memory(max_gpu_memory)
+            cls.reserve_gpu_memory(max_memory)
         return max_memory
             
             
@@ -4222,10 +4250,12 @@ class Module:
 
     @classmethod
     def reserve_gpus(cls,gpu_memory: Union[Dict, str, int, float], refresh:bool = False, root=True, **kwargs):
-        reserved_gpu_memory = {} if refresh else cls.get('reserved_gpu_memory', {}, root=root)
+        reserved_gpu_memory = {} if refresh else cls.reserved_gpus()
         if type(gpu_memory) in [int, float, str]:
             gpu_memory = cls.max_gpu_memory(gpu_memory, **kwargs)
         for  gpu, memory in gpu_memory.items():
+            memory = cls.resolve_memory(memory) 
+            gpu = int(gpu)
             if gpu in reserved_gpu_memory:
                 reserved_gpu_memory[gpu] += memory
             else:
@@ -4234,9 +4264,10 @@ class Module:
         return reserved_gpu_memory
     
     @classmethod
-    def reserved_gpus(cls,*args, **kwargs) -> Dict[int, int]:
+    def reserved_gpus(cls,*args, **kwargs) -> Dict[str, int]:
         reserved_gpus = cls.get('reserved_gpu_memory', {}, root=True)
-        reserved_gpus = {int(k):int(v) for k,v in reserved_gpus.items() if v > 0} 
+        reserved_gpus = {k:int(v) for k,v in reserved_gpus.items() if v > 0} 
+        reserved_gpus = {int(k):int(v) for k,v in reserved_gpus.items()}
         return reserved_gpus  
     
     @classmethod
@@ -4246,11 +4277,14 @@ class Module:
         else:
             reserved_gpu_memory =cls.get('reserved_gpu_memory', {}, root=True)
             for  gpu, memory in gpu_memory.items():
-                gpu = str(gpu)
+                memory = cls.resolve_memory(memory)
+    
                 if gpu in reserved_gpu_memory:
+                    if memory == -1:
+                        memory = reserved_gpu_memory[gpu]
                     reserved_gpu_memory[gpu] -= memory
-                else: 
-                    reserved_gpu_memory[gpu] = memory
+                
+        reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         return cls.get('reserved_gpu_memory')
 

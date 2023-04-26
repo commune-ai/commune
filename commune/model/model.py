@@ -43,8 +43,9 @@ class Model( nn.Module, commune.Module):
         
         nn.Module.__init__(self) 
         # sets to self.config (with kwargs injected)
-        self.set_config(config, kwargs=kwargs)
-        # self.set_model(self.config)
+        config = self.set_config(config, kwargs=kwargs)
+        self.set_stats(config.stats)
+        self.set_model(config)
         
         
         
@@ -55,7 +56,19 @@ class Model( nn.Module, commune.Module):
     def shortcuts(cls, *args, **kwargs):
         return cls.module('model.transformer').shortcuts
     
+    # @property
+    # def stats(self):
+    #     self.config['stats'] = self.config.getattr('stats', {})
+    #     return self.config['stats']
     
+    # @stats.setter
+    # def stats(self, stats):
+    #     return self.set_stats(stats)
+    
+    def set_stats(self, stats: dict):
+        self.config['stats'] = stats
+        self.stats = self.config['stats']
+        
     def set_optimizer(self, optimizer:dict=None):
         
         if optimizer == None:
@@ -216,21 +229,13 @@ class Model( nn.Module, commune.Module):
             if not os.path.exists(path):
                 self.print('No saved model found at {path}')
                 return
-            loaded_state_dict[key] = torch.load( path)
+            loaded_state_dict[key] = torch.load(path)
         
-        # we want to save the base layers in case we want to change the layers
-
-        # # set the params and stats
-        # if 'config' in loaded_state_dict:
-        #     self.set_config(config=loaded_state_dict['config'])
-        #     self.set_model(**self.config)
-        # set the params and stats
-        
-
-        
-        if 'stats' in loaded_state_dict:
+        if 'config' in loaded_state_dict:
             self.print('Loading stats')
-            self.set_stats(loaded_state_dict['stats'])
+            config = loaded_state_dict['config']
+            
+            self.set_config(config)
             
         if 'model' in loaded_state_dict:
             self.print('Loading model')
@@ -337,14 +342,7 @@ class Model( nn.Module, commune.Module):
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)
 
-    def set_stats(self, stats: dict):
-        if stats == None:
-            if hasattr(self, 'stats'):
-                stats = self.stats
-            else:
-                stats = {}
-        self.stats = stats
-        self.config['stats'] = self.stats
+
         
     def num_params(self, trainable:bool = True) -> int:
         total_params = 0
