@@ -33,7 +33,7 @@ class Pile(commune.Module):
         shard_urls = []
         for s in shards:
             shard_urls.append(cls.get_shard_url(s, split=split))
-            
+        print(shard_urls)
         return shard_urls
         
     
@@ -46,16 +46,19 @@ class Pile(commune.Module):
     
     @classmethod
     def ls_shards(cls):
-        return [p for p in cls.glob('pile') if p.endswith('.jsonl')]
+        return [p for p in cls.glob('shards') if p.endswith('.jsonl')]
     
     @classmethod
-    def resolve_shard_path(cls, shard:int, split:str):
-        return cls.resolve_path(f'pile/shard-{shard}')
+    def get_shard_path(cls, shard:int, split:str='train', ext='jsonl'):
+        filename = f'{shard}' if shard >= 10 else f'0{shard}'
+        path= cls.resolve_path(f'shards/{filename}.{ext}')
+        return path
+
+    resolve_shard_path = get_shard_path
     @classmethod
     def shard_exists(cls, shard:int, split='train')-> bool:
         shard_path = cls.resolve_shard_path(shard,split)
         return bool(shard_path in cls.ls_shards())
-            
     
     
     @classmethod
@@ -82,8 +85,8 @@ class Pile(commune.Module):
             
         
         
-    def get_text(self, shard=1, split='train' ):
-        path = cls.get_shard_url(shard=shard, split=split)
+    def get_text(self, shard=1, split='train', path=None ):
+        path = self.get_shard_path(shard=shard, split=split) if path == None else path
         with open(path, 'r') as f:
             # Loop through each line in the file
             cnt = 0
@@ -105,5 +108,5 @@ class Pile(commune.Module):
     @classmethod
     def test(cls, *args, **kwargs):
         self = cls(*args,**kwargs)
-        self.get_text()
+        print(next(self.get_text()))
 

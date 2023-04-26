@@ -24,7 +24,6 @@ class CLI(commune.Module):
             # fn_obj = getattr(module, fn)
             if args[0] in commune.module_list():
                 module = args.pop(0)
-                self.print(module)
                 module = commune.get_module(module)
             elif args[0] in module.namespace():
                 module = commune.connect(args.pop(0))
@@ -46,7 +45,6 @@ class CLI(commune.Module):
                     
                     if callable(result):
                         result = result(*args, **kwargs)
-            self.print(args, kwargs) 
 
         if result != None:
             self.print(result)
