@@ -425,7 +425,9 @@ class Module:
         
         kwargs = kwargs if kwargs != None else {}
         kwargs.update(kwargs.pop('kwargs', {}))
-        config.update(kwargs)
+        
+        for k,v in kwargs.items():
+            cls.dict_put(config,k,v )
         # ensure there are no inner_args to avoid ambiguous args 
     
         if isinstance(config, Munch) and to_munch:
@@ -502,6 +504,8 @@ class Module:
                     verbose:bool = True, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
+                    sudo:bool = False,
+                    password: bool = None,
                     color: str = 'green',
                     **kwargs) -> 'subprocess.Popen':
         '''
@@ -520,10 +524,23 @@ class Module:
             process.wait()
             # sys.exit(0)
             
+        if password != None:
+            sudo = True
+            
+        if sudo:
+            assert isinstance(password, str)
+            command = f'sudo {command}'
+            
+            
+        print(command)
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
-                                #    universal_newlines=True,
+                                    # stderr=subprocess.PIPE, 
                                     env={**os.environ, **env}, **kwargs)
+
+        if password:
+            raise NotImplementedError
+            
         new_line = b''
         stdout_text = ''
         line_count_idx = 0
@@ -546,7 +563,8 @@ class Module:
                 new_line += c
   
         except KeyboardInterrupt:
-            kill_process(process)
+            pass
+            
             
              
         kill_process(process)
@@ -1128,8 +1146,7 @@ class Module:
             path = os.path.join(path, '**')
             
         paths = glob(path, recursive=True)
-        if len(paths) == 0:
-            paths = glob(path+'/**', recursive=True)
+        
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
@@ -4009,7 +4026,6 @@ class Module:
  
     @classmethod
     def free_gpu_memory(cls, 
-                     gpus:List[int] = None,
                      max_gpu_ratio: float = 0.9 ,
                      reserved_gpus: bool = None,
                      fmt = 'b') -> Dict[int, float]:
@@ -4029,24 +4045,19 @@ class Module:
             scale = 1
         else:
             raise ValueError(f'Invalid format: {fmt}, options are gb, mb, kb, b')
-        if gpus == None :
-            gpus = cls.gpus()
-            
-        if isinstance(gpus, int):
-            gpus = [gpus]
+
         
         gpu_info_map = cls.gpu_map()
-        gpus = [int(gpu) for gpu in gpus] 
+        gpus = [int(gpu) for gpu in gpu_info_map.keys()] 
         
         if  reserved_gpus != False:
-            if reserved_gpus == None:
-                reserved_gpus = cls.reserved_gpus()
+            reserved_gpus = cls.reserved_gpus() if reserved_gpus == None else reserved_gpus
             assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
+            
             for r_gpu, r_gpu_memory in reserved_gpus.items():
-                print(gpu_info_map, 'BRO')
                 gpu_info_map[r_gpu]['total'] -= r_gpu_memory
                
-    
+            
         for gpu_id, gpu_info in gpu_info_map.items():
             if int(gpu_id) in gpus:
                 
@@ -4081,27 +4092,23 @@ class Module:
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int],
                        mode:str = 'most_free', 
-                       max_gpu_ratio:float=0.8, 
-                       reserved_gpus:bool = None,
-                       fmt='b'):
+                       min_memory_ratio = 0.0,
+                       **kwargs):
         
-        if type(memory) == str:
-            scale_map = {
-                'gb': 1e9,
-                'mb': 1e6,
-                'kb': 1e3,
-                'b': 1
-            }
-            for k,v in scale_map.items():
-                if memory.lower().endswith(k):
-                    memory = int(float(memory.lower().replace(k, '')) * v)
-                    break
-        memory = int(memory)
+
+        
+        memory = cls.resolve_memory(memory)
+        min_memory = min_memory_ratio * memory
+        
         assert memory > 0, f'memory must be greater than 0, got {memory}'
-        free_gpu_memory = cls.free_gpu_memory(fmt='b', max_gpu_ratio=max_gpu_ratio, reserved_gpus=reserved_gpus)
+        free_gpu_memory = cls.free_gpu_memory(**kwargs)
+        
+        free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
         gpus = list(free_gpu_memory.keys()) 
         cls.print(free_gpu_memory)
         total_gpu_memory = sum(free_gpu_memory.values())
+        
+        
         assert memory < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
         unallocated_memory = memory
         # max_memory = {}
@@ -4109,6 +4116,8 @@ class Module:
         
         
         
+        
+        selected_gpus = []
         while unallocated_memory > 0:
             if mode =='random':
                 gpu = np.random.choice(gpus)
@@ -4117,6 +4126,15 @@ class Module:
                 gpu, gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
             else:
                 raise ValueError(f'Invalid mode: {mode}, options are random, most_free')
+            
+            
+            if gpu in max_memory:
+                continue
+            
+            if gpu_memory < min_memory:
+                continue
+                
+  
             allocated_memory = min(gpu_memory, unallocated_memory)
             if allocated_memory>0:
                 max_memory[gpu] = allocated_memory
@@ -4128,7 +4146,29 @@ class Module:
         max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
         return max_memory
             
-
+            
+    scale_map = {
+        'kb': 1e3,
+        'mb': 1e6,
+        'gb': 1e9,
+        'b': 1,
+    }
+    @classmethod
+    def resolve_memory(cls, memory) -> str:
+        
+        scale_found = False
+        for scale_key, scale_value in cls.scale_map.items():
+            
+            if isinstance(memory, str) and memory.lower().endswith(scale_key):
+                memory = int(int(memory[:-len(scale_key)])*scale_value)
+ 
+            if type(memory) in [float, int]:
+                scale_found = True
+                break   
+        assert scale_found, 'scale wasnt found'
+        
+        return memory
+            
     @classmethod
     def reserve_gpus(cls,memory, refresh:bool = False,  **kwargs):
         
@@ -4137,8 +4177,7 @@ class Module:
         if isinstance(memory, dict):
             gpu_memory = memory
         else:
-            if isinstance(memory, str) and 'gb' in memory.lower():
-                memory = int(memory[:-2])*1e9
+
             gpu_memory = cls.max_gpu_memory(memory, **kwargs)
         for  gpu, memory in gpu_memory.items():
             gpu = str(gpu)
@@ -4173,7 +4212,9 @@ class Module:
                     
                     reserved_gpu_memory[gpu] = memory
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
-      
+        return cls.get('reserved_gpu_memory')
+
+    release_gpus = unleash_gpus =  unreserve_gpus
 
 if __name__ == "__main__":
     Module.run()
