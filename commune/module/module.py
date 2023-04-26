@@ -283,7 +283,7 @@ class Module:
 
     @classmethod
     def sandbox(cls):
-        return cls.cmd('python3 commune/sandbox.py')
+        return cls.cmd('python3 sandbox.py')
     sand = sandbox
     @classmethod
     def save_yaml(cls, path:str,  data:Union[Dict, Munch], root:bool = False) -> Dict:
