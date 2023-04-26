@@ -282,38 +282,27 @@ class TransformerModel(Model):
             config.max_memory = self.max_gpu_memory(memory=config.reserved_gpu_memory,
                                                 max_gpu_ratio=config.max_gpu_ratio)
             
-        config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+        if config.device_map == None:
+            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+        
+        verbose = config.verbose
+        
 
-        if config.verbose:
-            self.print(f'config.device_map: {config.device_map}')
-            self.print(f'Allocating: {config.device_map}')
-       
+        if isinstance(config.device_map, dict):
+            config.device_map = {k:int(v) for k,v in config.device_map.items()}
+
         model_kwargs=dict(
             max_memory=config.max_memory,
             device_map= config.device_map,
         )
-        config.devices = list(config.device_map.values())
-        assert len(config.device_map) > 0, 'No devices found'
-        config.device = config.devices[0]
         
-        if len(config.device_map) == 1:
-            if config.verbose:
-                self.print(f'Using one device: {config.device}')
-            config.device = list(config.device_map.values())[0]
-            config.device_map = {'': config.device}
-            model_kwargs = {}
-            
-        elif len(config.device_map) > 1:
-            if verbose:
-                self.print(f'Using multiple devices: {config.device_map}')
-                
-        else:
-            raise Exception('No devices found')
-        
+        if verbose:
+            self.print(f'model_kwargs: {model_kwargs}')
+       
         self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
-
-        if config.reserve_gpus == True or isinstance(config.reserve_gpus, dict):
-            self.unreserve_gpus(config.max_memory) 
+        
+        config.devices = list(set(list(self.model.hf_device_map.values())))
+        config.device = config.devices[0]
 
         self.device_map = config.device_map 
         self.devices = config.devices
@@ -700,14 +689,17 @@ class TransformerModel(Model):
        
     
     @classmethod   
-    def infer_device_map(cls, model, max_memory: dict = None, **kwargs):
+    def infer_device_map(cls, model, 
+                         max_memory: dict = None,
+                         **kwargs,
+                         ):
         if max_memory == None:
-            max_memory = cls.max_gpu_memory(**kwargs)    
+            max_memory = cls.max_gpu_memory()    
             
         from accelerate import infer_auto_device_map
         if isinstance(model, str):
             model = cls.get_empty_model(model)
-        device_map = infer_auto_device_map(model, max_memory=max_memory) 
+        device_map = infer_auto_device_map(model, max_memory=max_memory, **kwargs) 
         return device_map
     
     
@@ -731,13 +723,12 @@ class TransformerModel(Model):
     @classmethod
     def deploy(cls,
                *models: str,
-               tokenizer: str=None, 
                name: str =None, 
                wait_for_server: bool = False, 
-               mode:str = 'pm2',
                tag = None,
                device = None, 
                replace:bool = True,
+               mode:str = 'pm2',
                tag_seperator:str = '::',               
                
                **kwargs):
@@ -747,25 +738,22 @@ class TransformerModel(Model):
         model_names = []
         
         free_gpu_memory = cls.free_gpu_memory()
+        
+        config = cls.get_config(kwargs=kwargs)
         for model in models:
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
                 
-            model_inflation_ratio = kwargs.get('model_inflation_ratio', 1.4)
-            model_size_bytes = cls.get_model_size(model)*model_inflation_ratio
-    
-            max_gpu_ratio = kwargs.get('max_gpu_ratio', 0.8)
-            max_gpu_memory = cls.max_gpu_memory(model_size_bytes, max_gpu_ratio=max_gpu_ratio)
-            cls.reserve_gpus(max_gpu_memory)
-            
-            cls.print(cls.reserved_gpus(), 'RESERVED_GPUS')
-            kwargs['max_memory'] = max_gpu_memory
-            
-            
-            model_kwargs =  {'model': model, 'tokenizer': tokenizer, **kwargs}
+            model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
+            max_gpu_memory = cls.max_gpu_memory(model_size_bytes, 
+                                                max_gpu_ratio=config.max_gpu_ratio)
+            config.model = model
+            # kwargs['max_memory'] = max_gpu_memory
+            devices = list(max_gpu_memory.keys())
             name = f'model.{model}'
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
+            model_kwargs = cls.munch2dict(config)
             model_kwargs['tag'] = tag
 
 
@@ -774,10 +762,8 @@ class TransformerModel(Model):
                 cls.print(f'Model {name} already exists', color='yellow')
                 continue
             
-            cls.print(f'Deploying {name}  -> size (b): {model_size_bytes}', color='green')
-            # cls.print(f'Free GPU Memory: {free_gpu_memory}', color='green')
-            cls.print(f'Allocating GPU Memory: {max_gpu_memory}', color='cyan')
-            
+
+            cls.print(f'Config : {model_kwargs}', color='cyan')
             cls.launch(name=name,kwargs=model_kwargs, mode=mode, device=device, verbose=False)
             if wait_for_server:
                 cls.wait_for_server(name=name, sleep_interval=5, timeout=1000)
