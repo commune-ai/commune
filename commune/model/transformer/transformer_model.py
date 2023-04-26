@@ -291,7 +291,7 @@ class TransformerModel(Model):
         
 
         if isinstance(config.device_map, dict):
-            config.device_map = {k:int(v) for k,v in config.device_map.items()}
+            config.device_map = {k:v for k,v in config.device_map.items() }
 
         model_kwargs=dict(
             max_memory=config.max_memory,
