@@ -1058,7 +1058,7 @@ class Module:
         return Timer(*args, **kwargs)
     
     @classmethod
-    def get_params(kwargs):
+    def get_params(cls, kwargs):
         
         assert 'args' not in kwargs
         kwargs.update(kwargs.get('kwargs', {}))
@@ -2064,6 +2064,7 @@ class Module:
                tag_seperator: str = ':',
                user: str = None,
                key : str = None,
+               verbose : bool = True, 
                shortcut = None,
                device = None,
                **extra_kwargs):
@@ -4268,23 +4269,24 @@ class Module:
         
 
     @classmethod
-    def remote_task(cls, 
+    def remote_fn(cls, 
                     fn='train', 
                     module = None,
                     kwargs = None, 
                     tag = None,
+                    tag_seperator= '::',
+                    prefix = 'fn',
                     name=None):
         kwargs = cls.get_params(kwargs)
         
-        tag = kwargs.get('tag', tag)
         if name == None:
-            name = f'task::{fn}'
+            name = f'{prefix}{tag_seperator}{fn}'
     
         if tag != None:
-            name = name + '::': tag
+            name = f'{name}{tag_seperator}{tag}'
             
         cls.launch(fn=fn, 
-                   module = module
+                   module = module,
                     kwargs=kwargs,
                     name=name)
 
