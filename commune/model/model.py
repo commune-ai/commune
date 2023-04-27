@@ -177,7 +177,8 @@ class Model( nn.Module, commune.Module):
     def save(self, 
              tag:str = None,  
              trainable_only:bool = True,
-             verbose:bool = True):
+             verbose:bool = True,
+             keys = None):
         tag = self.resolve_tag(tag)
         path = self.resolve_path(tag)
 
@@ -193,6 +194,10 @@ class Model( nn.Module, commune.Module):
             'optimizer': self.optimizer.state_dict(),
             'config': self.config,
             }
+        
+        if keys is not None:
+            assert all([k in state_dict for k in keys])
+            state_dict = {k:state_dict[k]  for k in keys}
         
         keys = list(state_dict.keys())
         

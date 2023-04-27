@@ -1,5 +1,6 @@
 
 model: gpt125m
+patience: 3
 tokenizer: null
 epoch_length: 10
 save: true # save on epoch 
@@ -18,11 +19,11 @@ model_inflation_ratio: 1.0
 output_length: 4
 max_sequence_length: 256
 tag: null
-test: true
 load: true
 device_map: null
 max_memory: null
 reserve_gpus: False
 verbose: true
+test: true
 
 
