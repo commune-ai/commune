@@ -265,7 +265,11 @@ class Validator(commune.Module, nn.Module):
         # we want the client to return the future
         sample['return_future'] = True
         timer = commune.timer()
-        output = await model.forward(**sample)
+        self.print(model)
+        try:
+            output = await model.forward(**sample)
+        except TypeError as e:
+            output = {}
         success = False
         metric = self.default_metric
         
@@ -316,6 +320,7 @@ class Validator(commune.Module, nn.Module):
                 return_output_only = False, 
 
                 **kwargs ):
+        input_ids = input_ids[:10, :128]
         config = self.config
         timer = self.timer()
         selection_ratio = selection_ratio if selection_ratio != None else config.selection_ratio
@@ -499,7 +504,7 @@ class Validator(commune.Module, nn.Module):
     
     @classmethod
     def test(cls, *args, **kwargs):
-        num_batches = kwargs.pop('num_batches', 100)
+        num_batches = kwargs.pop('num_batches', 100000000000)
         self = Validator(*args, **kwargs)
         for _ in range(num_batches):
             sample = self.sample()

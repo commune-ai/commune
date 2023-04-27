@@ -14,6 +14,7 @@ from munch import Munch
 import argparse
 import torch
 import json
+import random
 
 import streamlit as st
 
@@ -432,10 +433,10 @@ class TransformerModel(Model):
 
 
     @classmethod
-    def train(cls, model = 'gpt125m', 
+    def train(cls, model = 'model', 
              topk:int=256 ,
-             dataset:str = 'dataset',
-             num_batches = 3,
+             dataset:str = 'dataset.bittensor',
+             num_batches = 1000,
              sequence_length : int = 256,
              batch_size: int = 32,
              autocast : bool = True,
@@ -444,7 +445,6 @@ class TransformerModel(Model):
              map_tokens : bool = False,
              timeout : int= 60,
              load: bool  = True,
-             save = True,
              remote:bool = False,
              **kwargs
              ):
@@ -457,23 +457,23 @@ class TransformerModel(Model):
         
         # if not commune.server_exists(dataset):
         #     commune.deploy(dataset)
-        dataset = commune.connect(dataset)
-
-        namespace = commune.namespace()
+        
+        model  = cls.connect(model)  
+        dataset_name = cls.copy(dataset)    
         
         
-        if model in namespace:
-            model = commune.connect(model)
-        if isinstance(model, str) and model in cls.model_options:
-            model = cls(model= model, **kwargs)
-            
+        def sample_check(sample):
+            return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
-        if load:
-            model.load()
-
+        
         for i in range(num_batches):
+            dataset = commune.connect(dataset_name)
             sample = dataset.sample(batch_size=batch_size,
                                     sequence_length=sequence_length)
+            
+            if sample_check(sample) == False:
+                continue
+
         
             sample.update(
                 topk=topk,
@@ -484,17 +484,25 @@ class TransformerModel(Model):
                 timeout=timeout,
                 return_keys=[ 'topk', 'stats']
             )
-            
-            output = model.forward(**sample)
-            
-            cls.print(output.get('stats', 'no stats fam') )
         
-        
-        if save:
-            model.save()
-    
-    
+            try:
+                output = model.forward(**sample)
+            
 
+                cls.print('MODEL: ',model_name, )
+                cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
+            except Exception as e:
+                continue
+            
+
+    @classmethod
+    def train_fleet(cls,workers=10, **kwargs):
+        model = kwargs.get('model', 'model')
+        models = commune.modules('model')
+        for model in models:
+            worker_name = f"train.{model}"
+            kwargs['model'] = model
+            cls.remote_fn(fn='train',kwargs=kwargs, name=worker_name)
 
     test = train 
 
