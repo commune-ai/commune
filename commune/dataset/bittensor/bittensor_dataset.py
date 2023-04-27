@@ -11,8 +11,6 @@ class Dataset(commune.Module):
             return getattr(self.dataset, key)
         else:
             return getattr(self, key)
-            
-            
     
     def sample(self,*args, **kwargs):
         input_ids =  next(self.dataset)

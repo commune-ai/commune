@@ -248,6 +248,7 @@ class Validator(commune.Module, nn.Module):
                 model:str=None, 
                 map_tokens=False,
                 train: bool = None,
+                verbose:bool= False,
                 topk: int = 4096,
                 **kwargs ):
         
@@ -265,7 +266,6 @@ class Validator(commune.Module, nn.Module):
         # we want the client to return the future
         sample['return_future'] = True
         timer = commune.timer()
-        self.print(model)
         try:
             output = await model.forward(**sample)
         except TypeError as e:
@@ -295,7 +295,8 @@ class Validator(commune.Module, nn.Module):
         }
            
         if not success:
-            self.print(f'forward failed: {output["error"]}')
+            if verbose:
+                self.print(f'forward failed: {output["error"]}')
             
     
             

@@ -498,11 +498,11 @@ class TransformerModel(Model):
                 timeout=timeout,
                 return_keys=[ 'topk', 'stats']
             )
-        
-            output = model.forward(**sample)
-        
-
-            cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
+            try:
+                output = model.forward(**sample)
+                cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
+            except Exception as e:
+                cls.print(f'ERROR {e}')
             
 
     @classmethod

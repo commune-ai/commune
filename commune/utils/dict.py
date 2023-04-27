@@ -368,13 +368,16 @@ def flat2deep(flat_dict:dict):
 
 
 def deep2flat(x:dict, root_key=None, flat_dict={}):
-
+    new_flat_dict = {}
     if isinstance(x, dict):
 
         for k,v in x.items():
-            new_root_key = k  if root_key == None else '.'.join(root_key, k)
+            new_root_key = k  if root_key == None else '.'.join([root_key, k])
             new_flat_dict[new_root_key] = deep2flat(x=v,  root_key = new_root_key, flat_dict=flat_dict)
-
+    elif isinstance(x, list):
+        for i,v in enumerate(x):
+            new_root_key = str(i)  if root_key == None else '.'.join([root_key, str(i)])
+            new_flat_dict[new_root_key] = deep2flat(x=v,  root_key = new_root_key, flat_dict=flat_dict)
     else:
         flat_dict[root_key] = x
 

@@ -485,6 +485,12 @@ class Module:
         return self.config
 
     @classmethod
+    def flatten_dict(cls, x):
+        from commune.utils.dict import deep2flat
+        return deep2flat(x)
+
+        
+    @classmethod
     def add_args( cls, config: dict , prefix: str = None , parser: argparse.ArgumentParser = None ):
 
         '''
@@ -1617,32 +1623,35 @@ class Module:
     def attributes(self):
         return list(self.__dict__.keys())
 
-
+    @classmethod
+    def global_namespace(cls, update=True) -> Dict:
+        
+        global_namespace = {
+            **cls.local_namespace(update=update),
+            **cls.remote_namespace(update=update)
+        }
+        
+        return global_namespace
+        
     @classmethod
     def namespace(cls,
-                  search = None, 
+                  search = None,
                   network:str='global',
                   update: bool = False,
-                  max_staleness: int = 60,
                   **kwargs):
-        
-        network_options = ['local', 'global', 'subspace', 'all', 'remote']
-        if search in network_options:
-            network = search
-            search = None
 
-        assert network in network_options, f'network must be one of {network_options}'
-        
-        
-        namespace = {}
-        if network in ['subspace', 'all'] :
-            namespace.update(cls.subspace_namespace(update=update))
-        if network in ['local', 'global', 'all']:
-            namespace.update(cls.local_namespace(update=update))
-        if network in ['remote', 'global','all']:
-            namespace.update(cls.remote_namespace(update=update))
+        if isinstance(search, str) :
+            if hasattr(cls, f'{search}_namespace'):
+                network = search
+                search = None
+        else:
+            search = None
+                
+        namespace_fn = getattr(cls, f'{network}_namespace')
+        namespace = namespace_fn(update=update, **kwargs)
+
         if search:
-            namespace = {k:v for k,v in namespace.items() if search in k}
+            namespace = {k:v for k,v in namespace.items() if str(search) in k}
         return namespace
     
     
@@ -3575,8 +3584,10 @@ class Module:
     @classmethod
     def call_pool(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
-        
-        module_pool = list(cls.namespace(module).keys())
+        if isinstance(module, list):
+            module_pool = module
+        else:
+            module_pool = cls.modules(module)
         jobs = []
         for module in module_pool:
             jobs += [cls.async_call(module, fn, *args, **kwargs)]
@@ -4003,11 +4014,12 @@ class Module:
         return value
     @classmethod
     def update(cls, 
+               network = 'local',
                verbose:bool = True,
                
                ):
 
-            cls.namespace('global',verbose=True, update=True)
+            cls.namespace(network,verbose=True, update=True)
             # cls.root_module()
 
         
