@@ -688,6 +688,7 @@ class Module:
         
         tmp_dir = Module.tmp_dir() if root else cls.tmp_dir()
         
+        
         if path.startswith('/'):
             return path
         elif path.startswith('~/'):
@@ -1314,7 +1315,7 @@ class Module:
                     break
             if len(name.split(':')) != 2:
                 if trials > 0:
-                    self.update()
+                    cls.update()
                     return await cls.async_connect(name=name, ip=ip, port=port, trials=trials-1)
                 raise ValueError(f'inputs({name}, {ip}, {port}) was not found in namespace({namespace})')
             
@@ -1570,7 +1571,7 @@ class Module:
     @classmethod
     def wait_for_server(cls,
                           name: str ,
-                          timeout:int = 30,
+                          timeout:int = 600,
                           sleep_interval: int = 4) -> bool :
         
         start_time = cls.time()
@@ -2134,7 +2135,7 @@ class Module:
             
             
             if wait_for_server:
-                self.wait_for_server(name)
+                cls.wait_for_server(name)
             
             return launch_kwargs
             
@@ -4090,8 +4091,8 @@ class Module:
  
     @classmethod
     def free_gpu_memory(cls, 
-                     max_gpu_ratio: float = 0.9 ,
-                     reserved_gpus: bool = None,
+                     max_gpu_ratio: float = 1.0 ,
+                     reserved_gpus: bool = False,
                      fmt = 'b') -> Dict[int, float]:
         import torch
         assert max_gpu_ratio <= 1.0 and max_gpu_ratio > 0, 'max_gpu_ratio must be less than 1.0 and greter than 0'
@@ -4099,6 +4100,7 @@ class Module:
         
         if fmt == 'gb' or fmt == 'GB':
             scale = 1e9
+            
         elif fmt == 'mb':
             scale = 1e6
         elif fmt == 'kb':
@@ -4115,13 +4117,12 @@ class Module:
         gpus = [int(gpu) for gpu in gpu_info_map.keys()] 
         
         if  reserved_gpus != False:
-            reserved_gpus = cls.reserved_gpus() if reserved_gpus == None else reserved_gpus
+            reserved_gpus = reserved_gpus if isinstance(reserved_gpus, dict) else cls.copy(cls.reserved_gpus())
             assert isinstance(reserved_gpus, dict), 'reserved_gpus must be a dict'
             
             for r_gpu, r_gpu_memory in reserved_gpus.items():
                 gpu_info_map[r_gpu]['total'] -= r_gpu_memory
                
-            
         for gpu_id, gpu_info in gpu_info_map.items():
             if int(gpu_id) in gpus:
                 
@@ -4129,9 +4130,9 @@ class Module:
                 if gpu_memory <= 0:
                     continue
                     
-                free_gpu_memory[gpu_id] = cls.copy(gpu_memory /scale)
+                free_gpu_memory[gpu_id] = int(cls.copy(gpu_memory /scale))
                 if fmt == '%':
-                    free_gpu_memory[gpu_id] = (free_gpu_memory[gpu_id]/gpu_info['total']) * 100
+                    free_gpu_memory[gpu_id] =int((free_gpu_memory[gpu_id]/gpu_info['total']) * 100)
                     free_gpu_memory[gpu_id] = f'{free_gpu_memory[gpu_id]:.2f}%'
                 elif fmt == 'ratio':
                     free_gpu_memory[gpu_id] = free_gpu_memory[gpu_id]/(gpu_info['total']+1e-10)
@@ -4158,6 +4159,7 @@ class Module:
                        mode:str = 'most_free', 
                        min_memory_ratio = 0.0,
                        reserve:bool = False, 
+                       free_gpu_memory: dict = None,
                        **kwargs):
         
 
@@ -4166,15 +4168,15 @@ class Module:
         min_memory = min_memory_ratio * memory
         
         assert memory > 0, f'memory must be greater than 0, got {memory}'
-        free_gpu_memory = cls.free_gpu_memory(**kwargs)
+        free_gpu_memory = free_gpu_memory if free_gpu_memory else cls.free_gpu_memory(**kwargs)
         
-        free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
+        # free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
         gpus = list(free_gpu_memory.keys()) 
-        cls.print(free_gpu_memory)
+        cls.print(free_gpu_memory, 'BROO', cls.reserved_gpus())
         total_gpu_memory = sum(free_gpu_memory.values())
         
         
-        assert memory < total_gpu_memory, f'model size {model_size} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
+        assert memory < total_gpu_memory, f'model size {memory} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
         unallocated_memory = memory
         # max_memory = {}
         max_memory = {}
@@ -4211,7 +4213,10 @@ class Module:
         max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
         
         if reserve:
+            
             cls.reserve_gpu_memory(max_memory)
+            
+            
         return max_memory
             
             
@@ -4275,7 +4280,7 @@ class Module:
         if gpu_memory is None:
             reserved_gpu_memory = {}
         else:
-            reserved_gpu_memory =cls.get('reserved_gpu_memory', {}, root=True)
+            reserved_gpu_memory =cls.reserved_pus()
             for  gpu, memory in gpu_memory.items():
                 memory = cls.resolve_memory(memory)
     
@@ -4286,7 +4291,7 @@ class Module:
                 
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
-        return cls.get('reserved_gpu_memory')
+        return cls.reserved_gpus()
 
     release_gpus = unleash_gpus =  unreserve_gpus
     reserve_gpu_memory = reserve_gpus

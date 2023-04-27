@@ -213,14 +213,11 @@ class Pile(commune.Module):
             # HACK TO INCLUDE LLAMA TOKENIZER
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
         except ValueError:
-            
+
             print('resorting ot use_fast = False')
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-
-
+            
         self.tokenizer = tokenizer
-        
-    
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         self.std_tokenizer = prep_tokenizer(self.std_tokenizer)
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
@@ -230,8 +227,6 @@ class Pile(commune.Module):
     def to(self, device):
         self.device = device
         return self.device
-    
-    
 
     @classmethod
     def test(cls, *args, **kwargs):
