@@ -402,14 +402,32 @@ class BittensorModule(commune.Module):
                 assert (wallet, str), 'wallet must be a string'
                 cls.get_wallet(wallet)
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
-                    
+           
+    def regen_key(name = 'default',
+                  hotkey = 'default'
+                  coldkey_address:str = None,
+                  hotkey_mnemonic:str = None) :
+        
+        if name.split('.') == 2:
+            name, hotkey = name.split('.')
+        
+        wallet = bittensor.wallet(name=name, hotkey=hotkey)
+
+        if coldkey_address:
+            wallet.regenerate_coldkeypub(coldkey_address)
+                
+        if hotkey_mnemonic:
+            wallet.regenerate_hotkey(hotkey_mnemonic)
+            
+        return wallet
+                
     @classmethod
     def add_wallet(cls, 
                       wallet: str = 'default.default',
                        use_password:bool = False, 
                        overwrite : bool = True,
+                       coldkey : str = None,
                        mnemonic: str= None,
-                       mnemonic_ck : str = None,
                        seed: str = None
                        ) :
         if len(wallet.split('.')) == 2:
@@ -421,8 +439,8 @@ class BittensorModule(commune.Module):
         assert isinstance(coldkey, str), 'coldkey must be a string'
         
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
-        if mnemonic_ck:
-            wallet.create_from_mnemonic(mnemonic_ck, use_password=use_password, overwrite=overwrite)
+        if coldkey:
+            wallet.create_from_(mnemonic_ck, use_password=use_password, overwrite=overwrite)
         if mnemonic:
             return wallet.regenerate_hotkey(mnemonic=mnemonic, use_password=hotkey_use_password, overwrite=overwrite)
         else:

@@ -1,0 +1,197 @@
+""" Manages a pool of grpc connections as clients
+"""
+# The MIT License (MIT)
+# Copyright © 2021 Yuma Rao
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
+# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
+# the Software.
+
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
+# DEALINGS IN THE SOFTWARE.
+
+import math
+from typing import Tuple, List, Union
+from threading import Lock
+import streamlit as st
+import torch
+import asyncio
+from loguru import logger
+import concurrent
+import commune
+from concurrent.futures import ThreadPoolExecutor
+import commune
+
+logger = logger.opt(colors=True)
+
+
+class ClientPool (commune.Module):
+    """ Manages a pool of grpc connections as clients
+    """
+    def __init__(
+        self, 
+        max_active_clients: int = 1000,
+    ):
+        super().__init__()
+        self.max_active_clients = max_active_clients
+        self.clients = {}
+        self.cull_mutex = Lock()
+        self.total_requests = 0
+        
+
+        self.external_ip = self.external_ip()
+
+
+    def __str__(self):
+        return "ClientPool({},{})".format(len(self.clients), self.max_active_clients)
+
+    def __repr__(self):
+        return self.__str__()
+    
+    def __exit__(self):
+        for client in self.clients:
+            client.__del__()
+
+    def get_total_requests(self):
+        return self.total_requests
+
+    def forward (
+            self, 
+            endpoints: List [ 'bittensor.Endpoint' ],
+            synapses: List[ 'bittensor.Synapse' ],
+            inputs: List [ torch.Tensor ],
+            timeout: int,
+            min_successes: int = None,
+        ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
+        r""" Forward tensor inputs to endpoints.
+
+            Args:
+                endpoints (:obj:`List[ bittensor.Endpoint ]` of shape :obj:`(num_endpoints)`, `required`):
+                    List of remote endpoints which match length of inputs. Tensors from x are sent forward to these endpoints.
+
+                synapses (:obj:`List[ 'bittensor.Synapse' ]` of shape :obj:`(num_synapses)`, `required`):
+                    Bittensor synapse objects with arguments. Each corresponds to a synapse function on the axon.
+                    Responses are packed in this ordering. 
+
+                inputs (:obj:`List[torch.Tensor]` of shape :obj:`(num_endpoints * [shape])`, `required`):
+                    TODO(const): Allow multiple tensors.
+                    List of tensors to send to corresponsing endpoints. Tensors are of arbitrary type and shape depending on the
+                    modality.
+
+                timeout (int):
+                    Request timeout.
+
+            Returns:
+                forward_outputs (:obj:`List[ List[ torch.FloatTensor ]]` of shape :obj:`(num_endpoints * (num_synapses * (shape)))`, `required`):
+                    Output encodings of tensors produced by remote endpoints. Non-responses are zeroes of common shape.
+
+                forward_codes (:obj:`List[ List[bittensor.proto.ReturnCodes] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
+                    dendrite backward call return ops.
+
+                forward_times (:obj:`List[ List [float] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
+                    dendrite backward call times
+        """
+        if len(endpoints) != len(inputs):
+            raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
+        
+        loop = self.get_event_loop()
+        return loop.run_until_complete ( 
+            self.async_forward(
+                endpoints = endpoints,
+                synapses = synapses,
+                inputs = inputs,
+                timeout = timeout
+                min_successes = min_successes,
+            ) 
+        )
+
+
+    async def async_forward (
+            self, 
+            modules: List,
+            fn: None,
+            args = None,
+            kwargs = None,
+            timeout: int = 2,
+            min_successes: int = 20,
+        ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
+        # Init clients.
+        clients = [ self.get_client( m ) for m in modules ]
+        
+
+
+        kwargs = {} if kwargs == None else kwargs
+        args = [] if args == None else args
+
+        # Make calls.
+        running_tasks = []
+        st.write(inputs[0].shape, inputs[0].dtype)
+        for index, client in enumerate(clients):
+            args, kwargs = self.copy(args), self.copy(kwargs)
+            task = asyncio.create_task(
+                client.async_forward(*args, **kwargs)
+            )
+            running_tasks.append(task)
+
+
+        outputs = []
+        
+        while len(running_tasks) > 0:
+            
+            finished_tasks, running_tasks  = await asyncio.wait( running_tasks , return_when=asyncio.FIRST_COMPLETED)
+            finished_tasks, running_tasks = list(finished_tasks), list(running_tasks)
+
+            responses = await asyncio.gather(*finished_tasks)
+
+            for response in responses:
+                if  min_successes > 0:
+                    if  response[1][0] == 1:
+                        outputs.append( response )
+                    if len(outputs) >= min_successes :
+                        # cancel the rest of the tasks
+                        [t.cancel() for t in running_tasks]
+                        running_tasks = [t for t in running_tasks if t.cancelled()]
+                        assert len(running_tasks) == 0, f'{len(running_tasks)}'
+                        break
+                else:
+                    
+                    forward_outputs.append( response)
+
+        return outputs
+
+
+
+
+    def check_clients( self ):
+        r""" Destroys clients based on QPS until there are no more than max_active_clients.
+        """
+        with self.cull_mutex:
+            # ---- Finally: Kill clients over max allowed ----
+            if len(self.clients) > self.max_active_clients:
+                c = list(self.clients.keys())[0]
+                self.clients.pop(c, None)
+                    
+
+    def get_client( self, module: 'bittensor.Endpoint' , timeout=1) -> 'commune.Client':
+        r""" Finds or creates a client TCP connection associated with the passed Neuron Endpoint
+            Returns
+                client: (`commune.Client`):
+                    client with tcp connection endpoint at endpoint.ip:endpoint.port
+        """
+        # ---- Find the active client for this endpoint ----
+        if module in self.clients :
+            client = self.clients[ module]
+        else:
+            client = self.async_connect(module, timeout=timeout)
+            self.clients[ client.endpoint.hotkey ] = client
+            
+        return client
+    def getattr(self, *args, **kwargs):
+        return self.__getattribute__(  *args, **kwargs)

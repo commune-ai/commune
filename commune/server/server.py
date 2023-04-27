@@ -25,7 +25,7 @@ if os.getenv('USE_STREAMLIT'):
 from munch import Munch
 
 
-class Server(ServerServicer, Serializer):
+class Server(ServerServicer, Serializer, commune.Module):
     """ The factory class for commune.Server object
     The Server is a grpc server for the commune network which opens up communication between it and other neurons.
     The server protocol is defined in commune.proto and describes the manner in which forward and backwards requests
