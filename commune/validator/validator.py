@@ -499,7 +499,7 @@ class Validator(commune.Module, nn.Module):
     
     @classmethod
     def test(cls, *args, **kwargs):
-        num_batches = kwargs.pop('num_batches', 4)
+        num_batches = kwargs.pop('num_batches', 100)
         self = Validator(*args, **kwargs)
         for _ in range(num_batches):
             sample = self.sample()
@@ -508,6 +508,7 @@ class Validator(commune.Module, nn.Module):
             stats = output.stats
             cls.print(output.stats['ensemble'])
       
+    train = test
     @classmethod
     def test_validation_keys(cls):
         vals = [Validator() for _ in range(10)]
