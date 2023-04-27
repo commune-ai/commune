@@ -1299,12 +1299,14 @@ class Module:
                 ip:str=None, 
                 port:int=None , 
                 network : str = 'global',
+                namespace = None,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
                 trials = 3, 
                 verbose: bool = False, 
                 **kwargs ):
         
+
         if (name == None and ip == None and port == None):
             return cls.root_module()
             
@@ -1324,7 +1326,8 @@ class Module:
                 
                 print(port, ip)
             if not isinstance(port, int):
-                namespace = cls.namespace(network=network)
+                if namespace is None:
+                    namespace = cls.namespace(network=network)
                 available_modules = []
             
                 for n in namespace.keys():
@@ -1344,6 +1347,7 @@ class Module:
             cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
             
         client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
+        
         return client
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
@@ -4365,7 +4369,9 @@ class Module:
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
         import random
         assert len(x)>0
-        assert ratio > 0 and ratio < 1
+        if ratio == 1:
+            return x
+        assert ratio > 0 and ratio <= 1
         random.shuffle(x)
         k = max(int(len(x) * ratio),1)
         return x[:k]

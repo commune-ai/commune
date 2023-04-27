@@ -72,7 +72,8 @@ class Validator(commune.Module, nn.Module):
         nn.Module.__init__(self)
         self.set_config(kwargs=kwargs)
         config = self.config
-
+        
+        self.namespace = self.namespace(config.network)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
         self.set_sequence_length(config.sequence_length)
@@ -97,12 +98,6 @@ class Validator(commune.Module, nn.Module):
     def verify_signature(self, signature: Dict) -> bool:
         return True
     
-    def add_model(self, model: str, signature: Dict = None) -> None:
-        if not hasattr(self, 'models'):
-            self.models = {}
-        job = connect.async_connect(model, loop = self.loop)
-        self.models[model] =  self.loop.run_until_complete(job)
-           
             
     @classmethod
     def get_models(cls, models=None) -> List[str]:
@@ -261,8 +256,9 @@ class Validator(commune.Module, nn.Module):
                            train=train))
         sample = kwargs 
         model_name = self.copy(model)
-        model = commune.connect(model, timeout=1)
-        # model = await self.async_connect(model, timeout=2)
+        # model = commune.connect(model, timeout=1)
+        model = asyncio.create_task(self.async_connect(model, namespace=self.namespace))
+        model = await asyncio.wait_for(model, timeout=1)
         # we want the client to return the future
         sample['return_future'] = True
         timer = commune.timer()
@@ -344,12 +340,12 @@ class Validator(commune.Module, nn.Module):
             
         self.print(f'forwarding to models: {models}')
             
-        jobs = [self.async_forward(input_ids=input_ids, 
+        jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
                                    model=model_key, 
                                    topk=topk, 
                                    timeout=timeout,
                                    train=train,
-                                   **kwargs) for model_key in models]
+                                   **kwargs), timeout=1) for model_key in models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         
@@ -505,7 +501,7 @@ class Validator(commune.Module, nn.Module):
     
     @classmethod
     def test(cls, *args, **kwargs):
-        num_batches = kwargs.pop('num_batches', 100000000000)
+        num_batches = kwargs.pop('num_batches', 100)
         self = Validator(*args, **kwargs)
         for _ in range(num_batches):
             sample = self.sample()
@@ -598,8 +594,8 @@ class Validator(commune.Module, nn.Module):
         st.plotly_chart(fig)
         
     @classmethod
-    def neuron(cls, 
-               wallet='ensemble.Hot2',
+    def miner(cls, 
+               wallet='collective.0',
                network = 'finney',
                netuid=3):
                 
@@ -611,11 +607,16 @@ class Validator(commune.Module, nn.Module):
 
         # free_ports = commune.get_available_ports()
         # server.config.axon.port = server.config.axon.external_port = free_ports[0]
-        
-        neuron  = commune.import_object('commune.bittensor.neuron.core_server.neuron') 
+
+        import bittensor
+        bittensor.utils.version_checking()
+        neuron = bittensor.neurons.core_server.neuron
+
         wallet = bittensor_module.wallet
         bittensor_module.wait_until_registered()        
         neuron(model=server, wallet=wallet, netuid=netuid).run()
+
+
 
 
     miner = neuron        
@@ -648,6 +649,6 @@ class Validator(commune.Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
 if __name__ == '__main__':
-    Validator.run()
+    Validator.miner()
 
         

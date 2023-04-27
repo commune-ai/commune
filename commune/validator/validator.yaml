@@ -2,15 +2,16 @@ models: model
 tokenizer: gpt2
 network:  local
 train: True
-batch_size: 32,
-sequence_length: 256,
+batch_size: 32
+sequence_length: 256
+network: global
 dataset: dataset.bittensor
 metric:  null
 stats: {}
 max_stats_history: 100
 alpha: 0.5
-selection_ratio: 0.9
-topk: 256
+selection_ratio: 1.0
+topk: 512 
 load: False
 new_loop_per_forward: True
 hidden_size : 512
