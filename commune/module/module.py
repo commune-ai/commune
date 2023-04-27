@@ -14,7 +14,7 @@ import argparse
 import asyncio
 
 
-boot_peers = ['162.157.13.236:9057', '162.157.13.236:9255', '162.157.13.236:9451']
+boot_peers = ['162.157.13.236:9050']
 
 class Module:
     
@@ -554,7 +554,6 @@ class Module:
             command = f'sudo {command}'
             
             
-        print(command)
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
                                     # stderr=subprocess.PIPE, 
@@ -1304,28 +1303,38 @@ class Module:
             cls.wait_for_server(name)
         
         
+        
+        
         # local namespace    
         if isinstance(name, str):
-            namespace = cls.namespace(network=network)
-            available_modules = []
-            for n in namespace.keys():
-                if name in n:
-                    available_modules.append(n)
             
-            if len(available_modules)>=1:
-                name = cls.choice(available_modules)
-                name = namespace.get(name)
-            assert len(name.split(':')) == 2
-            port = int(name.split(':')[1])
-            ip = name.split(':')[0]
+            if len(name.split(':')) == 2:
+                port = int(name.split(':')[1])
+                ip = name.split(':')[0]
+                
+                print(port, ip)
+            if not isinstance(port, int):
+                namespace = cls.namespace(network=network)
+                available_modules = []
             
-        port = int(port)
+                for n in namespace.keys():
+                    if name in n:
+                        available_modules.append(n)
+                if len(available_modules)>=1:
+                    name = cls.choice(available_modules)
+                    name = namespace.get(name)
+                
+                assert len(name.split(':')) == 2
+                port = int(name.split(':')[1])
+                ip = name.split(':')[0]
+            
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
         if verbose:
             cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-        return cls.get_client(ip=ip, port=int(port), virtual=virtual)
-   
+            
+        client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
+        return client
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
         client_class = cls.get_module('commune.server.client.Client')
@@ -1357,35 +1366,6 @@ class Module:
         return peer_addresses
             
     
-    @classmethod
-    def get_local_namespace(cls, 
-                            ip:str = None, 
-                            save:bool = True,
-                            timeout:int  = 1,
-                            verbose:bool = False) -> Dict:
-        peer_registry = {}
-        peer_addresses = cls.get_peer_addresses()
-        peer = ['']
-        jobs = []
-        for address in peer_addresses:
-            if verbose:
-                cls.print(f'Connecting to {address}', color='yellow')
-            ip, port = address.split(':')
-            port = int(port)
-            if cls.port_used(port):
-                jobs += [cls.async_connect(ip=ip, port=port)]
-        loop = cls.get_event_loop()
-        peers = loop.run_until_complete(asyncio.gather(*jobs))
-        print('bro')
-        for peer, peer_address in zip(peers, peer_addresses):
-            peer_name = peer.module_name
-            if isinstance(peer_name, dict) and 'error' in peer_name:
-                continue
-            peer_registry[peer_name] = peer_address
-            
-        if save:
-            Module.save_json('local_namespace', peer_registry)
-        return peer_registry
 
     @classmethod
     def update_local_namespace(cls) -> None:
@@ -1431,8 +1411,15 @@ class Module:
         return namespace
         
         
+    @staticmethod
+    def check_response(x) -> bool:
+        if isinstance(x, dict) and 'error' in x:
+            return False
+        else:
+            return True
+        
     @classmethod
-    def local_namespace(cls, update:bool = False)-> dict:
+    def local_namespace(cls, update:bool = True)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1442,22 +1429,36 @@ class Module:
         
         address2module = {}
             
-        if update == False:
-            try:
-                local_namespace = Module.get_json('local_namespace', handle_error=True, default={})
-            except json.JSONDecodeError as e:
-                print('Error decoding server registry, resetting to empty dict')
-                update = True
-            
         if update:
-            t = cls.timer()
-            local_namespace = cls.get_local_namespace(save=True)
-            cls.print(f'Updated local namespace in {t.seconds} seconds', color='green')
-         
+
+            peer_registry = {}
+            peer_addresses = cls.get_peer_addresses()     
+            async def async_get_peer_name(peer_name):
+                
+                cls.print(peer_name,cls.port_used(int(peer_name.split(':')[1])), 'BEFORE')
+
+                peer = await cls.async_connect(peer_name, timeout=1)
+                cls.print(peer_name,cls.port_used(int(peer_name.split(':')[1])), 'AFTER')
+
+                result =  peer.module_name
+                if cls.check_response(result):
+                    return result
+                else:
+                    return None
+            
+            peer_names = [async_get_peer_name(p) for p in peer_addresses]
+            peer_names = cls.gather(peer_names)
+            local_namespace = dict(zip(peer_names, peer_addresses))
+            local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
+                
+            Module.save_json('local_namespace', local_namespace)
+
+        local_namespace = Module.get_json('local_namespace', {})
+
         return local_namespace
 
-    
-  
+        
+
     @classmethod
     def servers(cls, search:str = None) -> List[str]:
 
@@ -2196,7 +2197,7 @@ class Module:
                    device:str=None, 
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
-                   verbose: bool = True , 
+                   verbose: bool = False , 
                    refresh:bool=True ):
         
         # avoid these references fucking shit up
@@ -3266,6 +3267,8 @@ class Module:
         return logger.warning(*args, **kwargs)
     
     
+    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 'info']
+    
     @classmethod
     def whitelist_functions(cls, mode='sudo') -> List[str]:
         access_control = cls.get_json('access_control',default={})
@@ -3274,7 +3277,10 @@ class Module:
         whitelist_functions = access_control['whitelist'][mode]
         if len(whitelist_functions) == 0:
             whitelist_functions = cls.functions()
-            access_control['whitelist'][mode] = whitelist_functions
+            access_control['whitelist'][mode] = whitelist_functions + cls.helper_functions
+            
+        assert len(access_control['whitelist'][mode])>0
+        assert isinstance(access_control['whitelist'][mode], list)
         return access_control['whitelist'][mode]
     
     @classmethod
@@ -3547,6 +3553,14 @@ class Module:
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
         
+    
+        
+    def connect_pool(cls, modules):
+
+        for module in modules:
+            jobs += [cls.async_connect(module)]
+            
+
     @classmethod
     def call_pool(cls, module:str, fn: str ,  *args, **kwargs) -> None:
         # call a module
@@ -3982,7 +3996,7 @@ class Module:
                
                ):
 
-            cls.namespace('local',verbose=True, update=True)
+            cls.namespace('global',verbose=True, update=True)
             # cls.root_module()
 
         
@@ -4162,7 +4176,6 @@ class Module:
         
         # free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
         gpus = list(free_gpu_memory.keys()) 
-        cls.print(free_gpu_memory, 'BROO', cls.reserved_gpus())
         total_gpu_memory = sum(free_gpu_memory.values())
         
         
@@ -4344,7 +4357,12 @@ class Module:
     
     @classmethod
     def gather(cls,jobs:list, mode='asyncio', loop=None)-> list:
+        if not isinstance(jobs, list):
+            jobs = [jobs]
         assert isinstance(jobs, list)
+        
+        
+        
         if mode == 'asyncio':
             loop = loop if loop != None else cls.get_event_loop()
             results = loop.run_until_complete(asyncio.gather(*jobs))

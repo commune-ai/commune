@@ -1,25 +1,29 @@
-import bittensor
 import commune
 
-class Dataset( commune.Module):
-    def __init__(self, *args, **kwargs):
-        self.dataset = bittensor.dataset(*args, **kwargs)
+class Sand(commune.Module):
+    def __init__(self):
+        self._dynamic_attrs = {}
         
-    def getattr(self, key):
-        if hasattr(getattr(self, 'dataset'), key):
-            return getattr(self.dataset, key)
+    def __getattr__(self, name):
+        if name in self._dynamic_attrs:
+            return self._dynamic_attrs[name]
         else:
-            return getattr(self, key)
-            
-            
-    
-    def sample(self,*args, **kwargs):
-        input_ids =  next(self.dataset)
-        sample = {'input_ids': input_ids}
-        return sample
-
-Dataset.serve(name='bro', batch_size=32, block_size=256)
-
+            return None
         
+    def __setattr__(self, name, value):
+        if name.startswith('_'):
+            super().__setattr__(name, value)
+        else:
+            self._dynamic_attrs[name] = value
+            
+    def __delattr__(self, name):
+        if name in self._dynamic_attrs:
+            del self._dynamic_attrs[name]
+        else:
+            super().__delattr__(name)
 
-# Dataset.serve(name='data.bt')
+s = Sand()
+s.dynamic_attr = 42
+print(s.dynamic_attr) # prints 42
+del s.dynamic_attr
+print(s.dynamic_attr) # prints None
