@@ -1,5 +1,16 @@
-module: Validator
-dataset: dataset
+models: model
 tokenizer: gpt2
 network:  local
 train: True
+batch_size: 32,
+sequence_length: 256,
+dataset: dataset.bittensor
+metric:  null
+stats: {}
+max_stats_history: 100
+alpha: 0.5
+selection_ratio: 0.5
+topk: 256
+load: False
+new_loop_per_forward: True
+hidden_size : 512
