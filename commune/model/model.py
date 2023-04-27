@@ -46,12 +46,13 @@ class Model( nn.Module, commune.Module):
         config = self.set_config(config, kwargs=kwargs)
         self.set_stats(config.stats)
         self.set_model(config)
-        
-        
+        self.set_tag(config.tag)
         
 
-        
-        
+    @classmethod
+    def train_fleet(cls, *args, **kwargs):
+        return cls.module('model.transformer').train_fleet(*args, **kwargs)
+         
     @classmethod
     def shortcuts(cls, *args, **kwargs):
         return cls.module('model.transformer').shortcuts
@@ -171,7 +172,6 @@ class Model( nn.Module, commune.Module):
     def resolve_tag(self, tag):
         if tag == None:
             tag = self.tag
-        assert tag, 'tag must be set'
         return tag
 
     def save(self, 
@@ -251,17 +251,7 @@ class Model( nn.Module, commune.Module):
         state_dict.update(state_dict)
         self.load_state_dict(state_dict)
         
-    def set_tag(self, tag:str) -> str:
 
-        if tag == None:
-            tag = 'base'
-                
-        self.tag = str(tag)
-        
-        return tag
-        # self.load(tag)
-        
-        
     def set_finetune(self, finetune:dict ) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 

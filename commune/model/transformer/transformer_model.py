@@ -97,9 +97,7 @@ class TransformerModel(Model):
         
         nn.Module.__init__(self) 
         # sets to self.config (with kwargs injected)
-        self.print(kwargs)
         config = self.set_config(config, kwargs=kwargs)
-        self.print(config)
         self.set_stats(config.stats)
         self.set_model(config)
         
@@ -223,7 +221,6 @@ class TransformerModel(Model):
         
         # check if loss is nan
         if torch.isnan(loss):
-            self.print(output_dict)
             self.print('Loss is nan, skipping backward pass')
             train = False
             loss = torch.tensor(10)
@@ -300,7 +297,6 @@ class TransformerModel(Model):
       
         free_gpu_memory = self.free_gpu_memory()
 
-        self.print(free_gpu_memory, 'FAMMMM')
               
         if config.max_memory == None:
             config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
@@ -474,26 +470,23 @@ class TransformerModel(Model):
         
         # if not commune.server_exists(dataset):
         #     commune.deploy(dataset)
+        model_name = cls.copy(model)
         if model in cls.model_options:
             model = cls(model=model,tag='bro')
         else:
             model  = cls.connect(model)  
-        dataset_name = cls.copy(dataset)    
+        
         
         
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
-        print(model.tag, 'DEBUG')
         
+
+        dataset = commune.connect(dataset)
+
         for i in range(num_batches):
-            dataset = commune.connect(dataset_name)
-            try:
-                sample = dataset.sample(batch_size=batch_size,
-                                        sequence_length=sequence_length)
-            except Exception as e:
-                continue
-            if sample_check(sample) == False:
-                continue
+            sample = dataset.sample(batch_size=batch_size,
+                                    sequence_length=sequence_length)
 
         
             sample.update(
@@ -506,14 +499,10 @@ class TransformerModel(Model):
                 return_keys=[ 'topk', 'stats']
             )
         
-            try:
-                output = model.forward(**sample)
-            
+            output = model.forward(**sample)
+        
 
-                cls.print('MODEL: ',model_name, )
-                cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
-            except Exception as e:
-                continue
+            cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
             
 
     @classmethod
@@ -649,7 +638,6 @@ class TransformerModel(Model):
                 free_gpu_memory[k] = max(0, free_gpu_memory[k])
             devices = list(max_gpu_memory.keys())
             
-            cls.print(max_gpu_memory, 'max_gpu_memory')
             # cls.print(commune.reserved_gpus(), 'fam') 
             config.model = model
             config.tag = tag
@@ -665,7 +653,6 @@ class TransformerModel(Model):
             
             
             
-            cls.print(f'Config : {kwargs}', color='cyan')
             model_names.append(name) 
             
         return model_names
