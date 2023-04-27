@@ -21,13 +21,17 @@ class CLI(commune.Module):
         if len(args)> 0:
     
             is_remote = False
+            namespace = module.namespace()
+            addresses = list(namespace.values())
             # fn_obj = getattr(module, fn)
             if args[0] in commune.module_list():
                 module = args.pop(0)
                 module = commune.get_module(module)
-            elif args[0] in module.namespace():
-                module = commune.connect(args.pop(0))
-                module_info = module.info()
+            elif args[0] in module.namespace() or args[0] in addresses:
+                address = args.pop(0)
+                module = commune.connect(address)
+                print(module, address)
+                # module_info = module.info()
                 is_remote = True
 
             fn = args.pop(0) if len(args) > 0 else None
@@ -35,7 +39,11 @@ class CLI(commune.Module):
 
             if is_remote:
                 fn = fn if fn != None else 'help'
-                result = module.remote_call(fn, *args, **kwargs)
+                fn = getattr(module,fn)
+                if callable(fn):
+                    result = module.remote_call(fn, *args, **kwargs)
+                else:
+                    result = fn
                 
             else:
                 if fn == None:

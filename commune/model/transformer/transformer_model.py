@@ -85,7 +85,25 @@ class TransformerModel(Model):
     shortcuts = shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
 
+
+
     default_tag = 'base'
+    
+    def __init__(self,
+                 config = None,
+                 **kwargs
+                ):
+        
+        
+        nn.Module.__init__(self) 
+        # sets to self.config (with kwargs injected)
+        self.print(kwargs)
+        config = self.set_config(config, kwargs=kwargs)
+        self.print(config)
+        self.set_stats(config.stats)
+        self.set_model(config)
+        
+    
     def set_tag(self,tag:str):
         if tag is None:
             tag = self.default_tag
@@ -444,7 +462,6 @@ class TransformerModel(Model):
              map_logits : bool = False,
              map_tokens : bool = False,
              timeout : int= 60,
-             load: bool  = True,
              remote:bool = False,
              **kwargs
              ):
@@ -457,20 +474,24 @@ class TransformerModel(Model):
         
         # if not commune.server_exists(dataset):
         #     commune.deploy(dataset)
-        
-        model  = cls.connect(model)  
+        if model in cls.model_options:
+            model = cls(model=model,tag='bro')
+        else:
+            model  = cls.connect(model)  
         dataset_name = cls.copy(dataset)    
         
         
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
-        
+        print(model.tag, 'DEBUG')
         
         for i in range(num_batches):
             dataset = commune.connect(dataset_name)
-            sample = dataset.sample(batch_size=batch_size,
-                                    sequence_length=sequence_length)
-            
+            try:
+                sample = dataset.sample(batch_size=batch_size,
+                                        sequence_length=sequence_length)
+            except Exception as e:
+                continue
             if sample_check(sample) == False:
                 continue
 
@@ -534,7 +555,7 @@ class TransformerModel(Model):
     @classmethod
     def deploy_fleet(cls, 
                      model = 'gptj',
-                     tags= ['alan', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ], 
+                     tags= ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ], 
                      **kwargs
                      ) -> List[str]:
         tag_seperator = kwargs.get('tag_seperator', '::')
@@ -594,7 +615,6 @@ class TransformerModel(Model):
                *models: str,
                name: str =None, 
                wait_for_server: bool = False, 
-               tag = None,
                device = None, 
                replace:bool = True,
                mode:str = 'pm2',
@@ -603,6 +623,7 @@ class TransformerModel(Model):
                **kwargs):
 
 
+        tag = kwargs.get('tag', None)
         assert len(models) > 0
         model_names = []
         
@@ -613,9 +634,10 @@ class TransformerModel(Model):
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
             name = f'model.{model}'
+            if tag == None:
+                tag =  'base'
             if tag:
                 name = name+tag_seperator+str(tag)
-            cls.print(commune.reserved_gpus(), 'fam')  
     
             model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
@@ -629,8 +651,9 @@ class TransformerModel(Model):
             
             cls.print(max_gpu_memory, 'max_gpu_memory')
             # cls.print(commune.reserved_gpus(), 'fam') 
-            kwargs = dict(model=model, tag=tag)
-            
+            config.model = model
+            config.tag = tag
+            kwargs = {'config': config, 'tag': tag}
             
             cls.launch(name=name,
                        kwargs=kwargs,
