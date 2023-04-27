@@ -87,8 +87,8 @@ vali:
 dashboard:
 	streamlit run commune/dashboard.py 
 
-sandbox:
-	streamlit run examples/sandbox.py
+sand:
+	streamlit run sandbox.py
 
 sandbox_docker:
 	make exec arg="make sandbox"

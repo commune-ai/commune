@@ -256,31 +256,55 @@ class TransformerModel(Model):
         
         alpha =self.config.alpha
         assert 0 < alpha < 1, 'loss_alpha must be between 0 and 1'
-        past_loss = stats.get('loss', 0)
+        past_loss = stats.get('sample_loss', 0)
         stats['ma_loss'] = (past_loss*(1-alpha) + alpha*loss) if past_loss != 0 else loss
         stats['ma_alpha'] = alpha
         stats['sample_loss'] = loss
         stats['sample_shape'] = list(input_ids.shape)
+        stats['train'] = train
+        stats = self.register_stats(stats)
         
-        if train and stats['train_steps'] % self.config['epoch_length'] == 0:
-            stats['epoch'] = stats.get('epoch', 0) + 1
-            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': self.time()}]
-            best_epoch_loss = min([v['loss'] for v in stats['epoch_loss_history']])
-            self.set_stats(stats)
-            if stats['epoch_loss'] <= best_epoch_loss:
-                self.save(tag)
-        else:
-            self.set_stats(stats)
-
         output_dict['stats'] = self.munch2dict(stats)
         output_dict['stats'].pop('epoch_loss_history', None)
         
         return {key:output_dict[key] for key in return_keys} 
         
-        
+    default_metric = 12
+
+    def register_stats(self, stats):
+        if stats['train']:
+            
+            stats['epoch'] = stats.get('epoch', 0) + 1
+
+            prev_epoch_loss_history = stats.get('epoch_loss_history', [{'loss': self.default_metric}])
+            best_loss = min(list(map(lambda x: x.get('loss', self.default_metric), prev_epoch_loss_history)))
+            stats['best_loss'] = best_loss
+            
+            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': self.time()}]
+            
+            
+            is_better = self.is_better(metric=stats['epoch_loss'], best_metric=best_loss)
+            if is_better:
+                stats['steps_since_best'] = 0
+            else:
+                stats['steps_since_best'] = stats.get('steps_since_best', 0) + 1
+            
+            self.set_stats(stats)
+            
+            if stats['steps_since_best'] > self.config.patience:
+                self.save(keys=['config'])
+            else:
+                self.save()
+        else:
+            self.set_stats(stats)
+            
+            return stats
 
 
-        
+    def is_better(self, metric, best_metric = None):
+        if best_metric == None:
+            best_metric = self.default_metric
+        return metric < best_metric
         
     def set_model(self, config) -> None:
         if config == None:
