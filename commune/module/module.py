@@ -1120,6 +1120,8 @@ class Module:
     @classmethod
     def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
         import torch
+        
+        
         path = cls.resolve_path(path=path, extension='pt', root=root)
         torch.save(data, path)
         return path
@@ -1147,7 +1149,9 @@ class Module:
         if meta != None:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json', root=root)
+        # cls.lock_file(path)
         await async_put_json(path=path, data=data, **kwargs)
+        # cls.unlock_file(path)
         return path
     
     save_json = put_json
@@ -1435,10 +1439,10 @@ class Module:
             peer_addresses = cls.get_peer_addresses()     
             async def async_get_peer_name(peer_name):
                 
-                cls.print(peer_name,cls.port_used(int(peer_name.split(':')[1])), 'BEFORE')
-
+                import asyncio
                 peer = await cls.async_connect(peer_name, timeout=1)
-                cls.print(peer_name,cls.port_used(int(peer_name.split(':')[1])), 'AFTER')
+                
+
 
                 result =  peer.module_name
                 if cls.check_response(result):
@@ -1480,29 +1484,36 @@ class Module:
     
     rename = rename_module = rename_server
     
+    
+    
     @classmethod
-    def register_server(cls, name: str, 
-                        ip: str,
-                        port: int,
-                        netuid: Union[str, int] = None,
-                        context: str =  None,
-                        network: str = None,
-                        key: 'Key' = None)-> dict:
+    def lock_file(cls, f):
+        import fcntl
+        fcntl.flock(f, fcntl.LOCK_EX)
+        return f
+    @classmethod
+    def unlock_file(cls, f):
+        import fcntl
+        fcntl.flock(f, fcntl.LOCK_UN)
+        return f
+    
+    
+    @classmethod
+    def register_server(cls, name: str, ip: str,port: int, **kwargs)-> dict:
         local_namespace = cls.local_namespace()    
         
         
         local_namespace[name] = f'{ip}:{port}'
-        cls.put_json(path='local_namespace', data=local_namespace, root=True) 
+        cls.put_json('local_namespace', local_namespace, root=True) 
 
-        # only serve module if you have a network
-        if key != None:
-            # if the key is not None, we want to add the password to the key
-            key = cls.get_key(key)
-            # if the key is not None, we want to add the password to the key
-            network = cls.resolve_network(network)
-            server_info['netuid'] = netuid
-
-            network.register(**register_kwargs)
+        # # only serve module if you have a network
+        # if key != None:
+        #     # if the key is not None, we want to add the password to the key
+        #     key = cls.get_key(key)
+        #     # if the key is not None, we want to add the password to the key
+        #     network = cls.resolve_network(network)
+        #     server_info['netuid'] = netuid
+        #     network.register(**register_kwargs)
             
         return local_namespace
   
@@ -4380,6 +4391,15 @@ class Module:
         addresses = cls.addresses()
         return address in addresses
         
+    @classmethod
+    def task(cls, fn, timeout=1, mode='asyncio'):
+        
+        if mode == 'asyncio':
+            assert callable(fn)
+            future = asyncio.wait_for(fn, timeout=timeout)
+            return future
+        else:
+            raise NotImplemented
 if __name__ == "__main__":
     Module.run()
     
