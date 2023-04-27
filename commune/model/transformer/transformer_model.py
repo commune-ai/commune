@@ -527,19 +527,13 @@ class TransformerModel(Model):
     def deploy_fleet(cls, 
                      model = 'gptj',
                      tags= ['alan', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ], 
-                     replace: bool = True,
-                     max_models: int = -1,
-                     device: str = None,
-                     wait_for_server = False, 
+                     **kwargs
                      ) -> List[str]:
+        tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
         deployed_models = []
-        for i, tag in enumerate(tags):
-            
-            cls.deploy(model, tag=tag, device=i, replace=replace, wait_for_server=wait_for_server)
-            deployed_models+= [f'{model}.{tag}']
-
-            
+        models = [ model+tag_seperator+t for t in tags]
+        cls.deploy(*models, **kwargs)
         return deployed_models
         
     @classmethod

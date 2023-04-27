@@ -4335,6 +4335,15 @@ class Module:
         random.shuffle(x)
         k = max(int(len(x) * ratio),1)
         return x[:k]
+    
+    @classmethod
+    def tags(cls):
+        return ['alice', 'bob', 'chris', 'dan', 'fam', 'greg', 'elon']
+    
+    @classmethod
+    def rand_tag(cls):
+        return cls.choice(cls.tags())
+    
 if __name__ == "__main__":
     Module.run()
     
