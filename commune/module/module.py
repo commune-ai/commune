@@ -1315,9 +1315,6 @@ class Module:
             if len(available_modules)>=1:
                 name = cls.choice(available_modules)
                 name = namespace.get(name)
-            else:
-                raise Exception(f'no modules were found given {name}')
-        
             assert len(name.split(':')) == 2
             port = int(name.split(':')[1])
             ip = name.split(':')[0]
@@ -3900,6 +3897,7 @@ class Module:
         if len(peer_addresses) == 0:
             peer_addresses = cls.boot_peers
             
+        cls.print(peer_addresses)
         peer_jobs = []
         # get the server registry for each peer
         for peer_address in peer_addresses:
