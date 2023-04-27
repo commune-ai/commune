@@ -616,6 +616,7 @@ class TransformerModel(Model):
             
             for k,v in max_gpu_memory.items():
                 free_gpu_memory[k]-= v
+                free_gpu_memory[k] = max(0, free_gpu_memory[k])
             devices = list(max_gpu_memory.keys())
             
             cls.print(max_gpu_memory, 'max_gpu_memory')
