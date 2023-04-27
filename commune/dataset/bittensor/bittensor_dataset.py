@@ -1,9 +1,10 @@
 import bittensor
 import commune
 
-class Dataset( commune.Module):
-    def __init__(self, *args, **kwargs):
-        self.dataset = bittensor.dataset(*args, **kwargs)
+class Dataset(commune.Module):
+    def __init__(self, config=None):
+        self.set_config(config)
+        self.dataset = bittensor.dataset(**self.config)
         
     def getattr(self, key):
         if hasattr(getattr(self, 'dataset'), key):
@@ -18,8 +19,8 @@ class Dataset( commune.Module):
         sample = {'input_ids': input_ids}
         return sample
 
-Dataset.serve(name='bro', batch_size=32, block_size=256)
-
+if __name__ == "__main__":
+    Dataset.run()
         
 
 # Dataset.serve(name='data.bt')

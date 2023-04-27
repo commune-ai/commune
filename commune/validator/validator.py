@@ -62,43 +62,25 @@ shortcuts =  {
 class Validator(commune.Module, nn.Module):
     shortcuts = shortcuts
     def __init__(self, 
-                 models: List[str]= None,
-                 batch_size: int = 32,
-                 sequence_length: int = 256,
-                 dataset: str = 'dataset',
-                 tokenizer: str = 'gpt2',
-                 key: Union[Dict, str] = None,
-                 metric: Union[Dict, str] = None,
-                 stats: Union[Dict, None] = None,
-                 max_stats_history: int = 100,
-                 alpha: float = 0.5,
-                 loop = None,
-                 load: bool = False,
-                 new_loop_per_forward: bool = True,
-                 hidden_size :int= 512,
-                 config = None,
+                 **kwargs
+                 
                  ):
         
-        nn.Module.__init__(self)
-        self.new_loop_per_forward = new_loop_per_forward
-        self.set_config(config)
+        loop = kwargs.pop('loop', None)
         self.set_event_loop(loop)
-        self.set_max_stats_history(max_stats_history)
-        self.set_batch_size(batch_size)
-        self.set_sequence_length(sequence_length)
-        self.set_dataset(dataset)
-        self.set_metric(metric)
-        self.set_stats(stats)
-        self.set_alpha(alpha)
-        self.set_tokenizer(tokenizer)
-        self.vocab_size = 50257
+        
+        nn.Module.__init__(self)
+        self.set_config(kwargs=kwargs)
+        config = self.config
 
-        self.config['hidden_size'] = hidden_size
-        if load:
-            self.load()
-            
-
-
+        self.set_max_stats_history(config.max_stats_history)
+        self.set_batch_size(config.batch_size)
+        self.set_sequence_length(config.sequence_length)
+        self.set_dataset(config.dataset)
+        self.set_metric(config.metric)
+        self.set_stats(config.stats)
+        self.set_alpha(config.alpha)
+        self.set_tokenizer(config.tokenizer)
         
     
     def set_max_stats_history(self, max_stats_history: int) -> None:
@@ -139,10 +121,6 @@ class Validator(commune.Module, nn.Module):
         return self.modules()
 
     def set_tokenizer(self, tokenizer):
-        if tokenizer == False:
-            self.vocab_size = 50257
-            self.tokenizer = None
-            return self.tokenizer
         
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
@@ -329,17 +307,22 @@ class Validator(commune.Module, nn.Module):
                 output_hidden_states: bool = False,
                 models:str=None, 
                 threshold: float = 4.0,
-                topk: int = 256,
                 timeout = 4,
-                train: bool = False,
+                topk: int = None,
+                selection_ratio: int = None,
+                train: bool = None,
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
 
                 **kwargs ):
+        config = self.config
         timer = self.timer()
+        selection_ratio = selection_ratio if selection_ratio != None else config.selection_ratio
+        topk = topk if topk != None else config.topk
+        train = train if train != None else config.train
         
-        if self.new_loop_per_forward:
+        if self.config.new_loop_per_forward:
             loop = self.new_event_loop()
 
         else:
@@ -350,6 +333,8 @@ class Validator(commune.Module, nn.Module):
             
         if models == None:
             models = self.default_models()
+        models = self.random_ratio_selection(models, ratio=selection_ratio)
+        
             
         self.print(f'forwarding to models: {models}')
             
@@ -519,7 +504,9 @@ class Validator(commune.Module, nn.Module):
         for _ in range(num_batches):
             sample = self.sample()
             
-            cls.print(self.forward(**sample)['stats']['ensemble'])
+            output = self.forward(**sample)
+            stats = output.stats
+            cls.print(output.stats['ensemble'])
       
     @classmethod
     def test_validation_keys(cls):
@@ -654,6 +641,6 @@ class Validator(commune.Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
 if __name__ == '__main__':
-    Validator.neuron()
+    Validator.run()
 
         

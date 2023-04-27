@@ -1060,7 +1060,8 @@ class Module:
     
     @classmethod
     def get_params(cls, kwargs):
-        
+        kwargs = kwargs if kwargs != None else {}
+        assert isinstance(kwargs, dict)
         assert 'args' not in kwargs
         kwargs.update(kwargs.get('kwargs', {}))
         kwargs.pop('cls', None)
@@ -1306,22 +1307,21 @@ class Module:
         # local namespace    
         if isinstance(name, str):
             namespace = cls.namespace(network=network)
-            found_module = False
+            available_modules = []
             for n in namespace.keys():
-                if n.startswith(name):
-                    name = n
-                    name = namespace[name]
-                    found_module = True
-                    break
-            if len(name.split(':')) != 2:
-                if trials > 0:
-                    cls.update()
-                    return await cls.async_connect(name=name, ip=ip, port=port, trials=trials-1)
-                raise ValueError(f'inputs({name}, {ip}, {port}) was not found in namespace({namespace})')
+                if name in n:
+                    available_modules.append(n)
             
-
+            if len(available_modules)>=1:
+                name = cls.choice(available_modules)
+                name = namespace.get(name)
+            else:
+                raise Exception(f'no modules were found given {name}')
+        
+            assert len(name.split(':')) == 2
             port = int(name.split(':')[1])
             ip = name.split(':')[0]
+            
         port = int(port)
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
@@ -1364,7 +1364,7 @@ class Module:
     def get_local_namespace(cls, 
                             ip:str = None, 
                             save:bool = True,
-                            timeout:int  = 3,
+                            timeout:int  = 1,
                             verbose:bool = False) -> Dict:
         peer_registry = {}
         peer_addresses = cls.get_peer_addresses()
@@ -1374,12 +1374,13 @@ class Module:
             if verbose:
                 cls.print(f'Connecting to {address}', color='yellow')
             ip, port = address.split(':')
-            jobs += [cls.async_connect(ip=ip, port=port, timeout=timeout)]
+            port = int(port)
+            if cls.port_used(port):
+                jobs += [cls.async_connect(ip=ip, port=port)]
         loop = cls.get_event_loop()
         peers = loop.run_until_complete(asyncio.gather(*jobs))
-        
+        print('bro')
         for peer, peer_address in zip(peers, peer_addresses):
-
             peer_name = peer.module_name
             if isinstance(peer_name, dict) and 'error' in peer_name:
                 continue
@@ -2771,11 +2772,7 @@ class Module:
     
     
     @classmethod
-    def module(cls,
-               module: Any = None ,
-               init_module:bool=False , 
-               serve:bool=False, 
-               **kwargs):
+    def module(cls,module: Any = None ,**kwargs):
         '''
         Wraps a python class as a module
         '''
@@ -2797,16 +2794,22 @@ class Module:
         
         
         class ModuleWrapper(Module):
+            default_module_name = str(module_class)
             def __init__(self, *args,**kwargs): 
-                if init_module:
-                    Module.__init__(self,**kwargs)
+                Module.__init__(self, *args, **kwargs)
                 if is_class:
                     self.module = module_class(*args, **kwargs)
                 else:
                     self.module = module
+                    
+                self.module.default_module_name = str(module_class)
+                # self.module.server_exists = False
+                
+                
                 
                 # merge the inner module into the wrappers
                 self.merge(self.module)
+                
             @classmethod
             def __module_file__(cls): 
                 return cls.get_module_path(simple=False)
@@ -2825,7 +2828,7 @@ class Module:
  
             @classmethod
             def functions(cls):
-                return Module.get_functions(module)
+                return cls.get_functions(module)
             # class Module(Module):
         if is_class:
             return ModuleWrapper
@@ -2921,8 +2924,15 @@ class Module:
                 b_fn = getattr(b, b_fn_name)
             except NotImplementedError as e:
                 print(e)
+            error_fn_list = []
             if callable(b_fn):
-                setattr(a, b_fn_name, b_fn)  
+                try:
+                    setattr(a, b_fn_name, b_fn)  
+                except TypeError:
+                    error_fn_list.append(b_fn)
+                if len(error_fn_list)>0:
+                    cls.print(error_fn_list, 'DEBUG')
+                    
                 
         return a
    
@@ -3266,7 +3276,7 @@ class Module:
         access_control['whitelist'][mode]= access_control['whitelist'].get(mode, [])
         whitelist_functions = access_control['whitelist'][mode]
         if len(whitelist_functions) == 0:
-            whitelist_functions = cls.functions(include_module=True)
+            whitelist_functions = cls.functions()
             access_control['whitelist'][mode] = whitelist_functions
         return access_control['whitelist'][mode]
     
@@ -3970,30 +3980,12 @@ class Module:
         return value
     @classmethod
     def update(cls, 
-
-               min_update_delay: int = 60,
-               force:bool = False, 
                verbose:bool = True,
                
                ):
-        update_info = Module.get_json('update_info', default={})
-        last_update_time = update_info.get('last_update', 0)
-        current_time = cls.time()
-        update_delay = (current_time - last_update_time)
-        update_bool = (update_delay > min_update_delay) or force
-        if update_bool:
-            if verbose:
-                cls.print('Updating server registry')
-            cls.namespace(update=True)
-            update_info['last_update'] = cls.time()
-            cls.put_json('update_info', update_info, root=True)
-            
-        else:
-            if verbose:
-                cls.print(f'Server registry is up to date, skipping update, last update was {update_delay}s ', )
-            
-           
-        cls.root_module()
+
+            cls.namespace('local',verbose=True, update=True)
+            # cls.root_module()
 
         
         
@@ -4329,8 +4321,20 @@ class Module:
                     kwargs=kwargs,
                     name=name)
 
+    @classmethod
+    def choice(cls, options:list):
+        import random
+        assert isinstance(options, list)
+        return random.choice(options)
 
-
+    @classmethod
+    def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
+        import random
+        assert len(x)>0
+        assert ratio > 0 and ratio < 1
+        random.shuffle(x)
+        k = max(int(len(x) * ratio),1)
+        return x[:k]
 if __name__ == "__main__":
     Module.run()
     
