@@ -123,7 +123,7 @@ class ClientPool (commune.Module):
             min_successes: int = 20,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         # Init clients.
-        clients = [ self.get_client( m ) for m in modules ]
+        clients = await asyncio.gather(*[ self.async_get_client( m ) for m in modules ]
         
 
 
@@ -179,7 +179,7 @@ class ClientPool (commune.Module):
                 self.clients.pop(c, None)
                     
 
-    def get_client( self, module: 'bittensor.Endpoint' , timeout=1) -> 'commune.Client':
+    async def async_get_client( self, module: 'bittensor.Endpoint' , timeout=1) -> 'commune.Client':
         r""" Finds or creates a client TCP connection associated with the passed Neuron Endpoint
             Returns
                 client: (`commune.Client`):
@@ -189,7 +189,7 @@ class ClientPool (commune.Module):
         if module in self.clients :
             client = self.clients[ module]
         else:
-            client = self.async_connect(module, timeout=timeout)
+            client = await self.async_connect(module, timeout=timeout)
             self.clients[ client.endpoint.hotkey ] = client
             
         return client
