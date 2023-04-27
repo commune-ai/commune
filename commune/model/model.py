@@ -359,6 +359,10 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def deploy(cls, *args, **kwargs):
         return cls.get_module('model.transformer').deploy(*args, **kwargs)
+
+    @classmethod
+    def deploy_fleet(cls, *args, **kwargs):
+        return cls.get_module('model.transformer').deploy_fleet(*args, **kwargs)
     
     @classmethod
     def test(cls, *args, **kwargs):
