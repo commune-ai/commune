@@ -4342,6 +4342,26 @@ class Module:
     def rand_tag(cls):
         return cls.choice(cls.tags())
     
+    @classmethod
+    def gather(cls,jobs:list, mode='asyncio', loop=None)-> list:
+        assert isinstance(jobs, list)
+        if mode == 'asyncio':
+            loop = loop if loop != None else cls.get_event_loop()
+            results = loop.run_until_complete(asyncio.gather(*jobs))
+            
+        else:
+            raise NotImplementedError
+        
+        return results
+    @classmethod
+    def addresses(cls, *args, **kwargs) -> List[str]:
+        return list(cls.namespace(*args,**kwargs).values())
+
+    @classmethod
+    def address_exists(cls, address:str) -> List[str]:
+        addresses = cls.addresses()
+        return address in addresses
+        
 if __name__ == "__main__":
     Module.run()
     
