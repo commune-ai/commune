@@ -269,9 +269,11 @@ class Validator(commune.Module, nn.Module):
                 attention_mask: torch.Tensor = None,
                 model:str=None, 
                 map_tokens=False,
-                train: bool = False,
+                train: bool = None,
                 topk: int = 4096,
                 **kwargs ):
+        
+        train = train if isinstance(train, bool) else self.config.train 
         
 
         kwargs.update(dict(topk=topk,
@@ -409,6 +411,7 @@ class Validator(commune.Module, nn.Module):
                
                
         ensemble_weights = torch.tensor(ensemble_stats['weights'])
+        ensemble_metircs = torch.tensor(ensemble_stats['metrics'])
         if len(ensemble_weights) >1:
             ensemble_weights = -(ensemble_weights - ensemble_weights.mean())/ (ensemble_weights.std())
             ensemble_weights = torch.softmax(ensemble_weights, dim=-1)

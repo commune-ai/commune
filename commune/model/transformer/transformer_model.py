@@ -278,12 +278,18 @@ class TransformerModel(Model):
         model = self.get_empty_model(self.model_path)
         config.model_size = self.get_model_size(model)
         config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
-        
+      
+        free_gpu_memory = self.free_gpu_memory()
+
+        self.print(free_gpu_memory, 'FAMMMM')
+              
         if config.max_memory == None:
             config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
                                                 max_gpu_ratio=config.max_gpu_ratio,
                                                 reserve=config.reserve_gpus)
             
+        config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
+
         if config.device_map == None:
             config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
         
@@ -607,10 +613,19 @@ class TransformerModel(Model):
             name = f'model.{model}'
             if tag:
                 name = name+tag_seperator+str(tag)
-                
+            cls.print(commune.reserved_gpus(), 'fam')  
+    
             model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
-            max_gpu_memory = cls.max_gpu_memory(model_size_bytes,max_gpu_ratio=config.max_gpu_ratio)
+            max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
+                                                max_gpu_ratio=config.max_gpu_ratio ,
+                                                free_gpu_memory=free_gpu_memory)
+            
+            for k,v in max_gpu_memory.items():
+                free_gpu_memory[k]-= v
             devices = list(max_gpu_memory.keys())
+            
+            cls.print(max_gpu_memory, 'max_gpu_memory')
+            # cls.print(commune.reserved_gpus(), 'fam') 
             kwargs = dict(model=model, tag=tag)
             
             
@@ -622,10 +637,10 @@ class TransformerModel(Model):
                        wait_for_server=wait_for_server,
                        verbose=False)
             
+            
+            
             cls.print(f'Config : {kwargs}', color='cyan')
             model_names.append(name) 
-            
-        cls.unreserve_gpus()
             
         return model_names
             

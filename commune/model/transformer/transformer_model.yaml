@@ -22,7 +22,7 @@ test: true
 load: true
 device_map: null
 max_memory: null
-reserve_gpus: True
+reserve_gpus: False
 verbose: true
 
 
