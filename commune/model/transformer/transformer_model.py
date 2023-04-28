@@ -265,7 +265,7 @@ class TransformerModel(Model):
         output_dict['stats'] = self.munch2dict(stats)
         output_dict['stats'].pop('epoch_loss_history', None)
         
-        return Munch({key:output_dict[key] for key in return_keys})
+        return {key:output_dict[key] for key in return_keys}
         
     def register_stats(self, stats):
         stats['epoch'] = stats.get('epoch', 0)
@@ -283,11 +283,10 @@ class TransformerModel(Model):
         is_better = bool(stats['loss'] <= stats['best_loss'])
         
         if is_better:
-            stats['steps_since_best'] = 0
-            steps_since_save = stats['train_steps'] - stats['saved_step']
-            if steps_since_save > self.config.min_steps_since_save:
+            if stats['steps_since_best'] > self.config.min_steps_since_save:
                 self.save()
                 stats['saved_step'] = stats['train_steps']
+            stats['steps_since_best'] = 0
 
             stats['best_loss'] = stats['loss']
         else:
