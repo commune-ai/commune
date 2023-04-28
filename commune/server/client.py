@@ -95,7 +95,6 @@ class Client( Serializer, commune.Module):
             key: 'Key' = None,
             network : 'Network' = None,
         ):
-        self.set_key(key)
         self.set_network(network)     
         self.set_client(ip =ip,
                         port = port ,
@@ -332,8 +331,8 @@ class Client( Serializer, commune.Module):
 
     def virtual(self):
         module = VirtualModule(module = self)    
-        module.key = self.key
-        module.subspce = self.subspace   
+        # module.key = self.key
+        # module.subspce = self.subspace   
         return module
 
 

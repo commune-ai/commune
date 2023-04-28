@@ -1,6 +1,11 @@
 
 import bittensor
-print(bittensor.axon())
+print(bittensor.axon(netuid=3, port=8902))
+print(bittensor.subtensor())
+
+config = bittensor.neurons.core_server.neuron.config()
+config.neuron.no_set_weights = True
+print(bittensor.neurons.core_server.neuron.config())
 
 # import commune
 # import streamlit as st

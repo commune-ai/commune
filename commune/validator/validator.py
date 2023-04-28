@@ -63,7 +63,6 @@ class Validator(commune.Module, nn.Module):
     shortcuts = shortcuts
     def __init__(self, 
                  **kwargs
-                 
                  ):
         
         loop = kwargs.pop('loop', None)
@@ -197,7 +196,7 @@ class Validator(commune.Module, nn.Module):
         sample = self.dataset.sample(**kwargs)
         if 'input_ids' not in sample:
             sample = self.sample()
-            
+        
         return sample
     @property
     def model_keys(self):
@@ -315,9 +314,9 @@ class Validator(commune.Module, nn.Module):
                 aggregate:bool = False,
                 set_stats: bool = True,
                 return_output_only = False, 
+                verbose: bool = False,
 
                 **kwargs ):
-        input_ids = input_ids[:10, :128]
         config = self.config
         timer = self.timer()
         selection_ratio = selection_ratio if selection_ratio != None else config.selection_ratio
@@ -337,19 +336,20 @@ class Validator(commune.Module, nn.Module):
             models = self.default_models()
         models = self.random_ratio_selection(models, ratio=selection_ratio)
         
-            
-        self.print(f'forwarding to models: {models}')
+        if verbose:
+            self.print(f'forwarding to models: {models}')
             
         jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
                                    model=model_key, 
                                    topk=topk, 
                                    timeout=timeout,
                                    train=train,
-                                   **kwargs), timeout=1) for model_key in models]
+                                   **kwargs), timeout=4) for model_key in models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         
-        self.print(len(model_outputs), 'MODEL OUTPUTS')
+        if verbose:
+            self.print('RECIEVING RESPONSE FROM ',len(model_outputs), 'MODEL OUTPUTS')
         
         model_output_dict = {}
         for model_output, model_key in zip(model_outputs, models):
@@ -394,6 +394,7 @@ class Validator(commune.Module, nn.Module):
                 
             stats[model_key] = model_stats
             
+
             logits = output_dict['logits']
                
                
@@ -415,7 +416,7 @@ class Validator(commune.Module, nn.Module):
         
         output_dict = {
             'logits': ensemble_logits,
-            'hidden_states': None,
+            'hidden_states': torch.randn(ensemble_logits.shape[0], ensemble_logits.shape[1], self.config.hidden_size),
         }
         output_dict['input_ids'] = input_ids
         
@@ -426,7 +427,8 @@ class Validator(commune.Module, nn.Module):
         stats['ensemble'] = ensemble_stats
         output_dict['stats'] = stats
         self.set_stats(stats)
-        
+        if verbose:
+            self.print(stats)
         return Munch(output_dict)
     
     def validate(self, sample=None, 
@@ -497,20 +499,27 @@ class Validator(commune.Module, nn.Module):
         return [self.models[k] for k in random_model_keys]
     
     
-    
+
     
     @classmethod
     def test(cls, *args, **kwargs):
+        sleep_interval = kwargs.pop('sleep_interval', 4)
         num_batches = kwargs.pop('num_batches', 100)
         self = Validator(*args, **kwargs)
+        
+        def sample_check(sample):
+            return bool(isinstance(sample, dict) and 'input_ids' in sample)
+        
         for _ in range(num_batches):
             sample = self.sample()
-            
+            if not sample_check(sample):
+                continue
             output = self.forward(**sample)
             stats = output.stats
             cls.print(output.stats['ensemble'])
+            self.sleep(sleep_interval)
       
-    train = test
+    run_train = test
     @classmethod
     def test_validation_keys(cls):
         vals = [Validator() for _ in range(10)]
@@ -597,29 +606,50 @@ class Validator(commune.Module, nn.Module):
     def miner(cls, 
                wallet='collective.0',
                network = 'finney',
-               netuid=3):
+               netuid=3,
+               port = 8091,
+               debug = True,
+               no_set_weights = True
+               ):
                 
-        model = cls(new_loop_per_forward=True)
-        bittensor_module = commune.get_module('bittensor')(wallet=wallet, network=network, netuid=netuid)
-        server = commune.import_object('commune.bittensor.neuron.core_server.server')(model=model)
+            
+    
+        config = bittensor.neurons.core_server.neuron.config()
+        config.neuron.no_set_weights = no_set_weights
+        config.axon.port = port
+        config.netuid = netuid
+        config.logging.debug = debug
+        config.neuron.pretrained = False
         
         
+        model = cls()
+        subtensor = bittensor.subtensor(network=network)
+        server_class = commune.get_module('commune.bittensor.neuron.core_server.server')
 
-        # free_ports = commune.get_available_ports()
-        # server.config.axon.port = server.config.axon.external_port = free_ports[0]
-
-        import bittensor
+        server = server_class(model=model, config=config)
         bittensor.utils.version_checking()
-        neuron = bittensor.neurons.core_server.neuron
+    
+        coldkey, hotkey = wallet.split('.')
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        
+        import time
+        sleep_interval = 2
+        while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
+            time.sleep(sleep_interval)
+            cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')
+            
+        cls.print(f'Wallet {wallet} is registered on {network}')
+             
+             
+        bittensor.neurons.core_server.neuron(model=server, 
+               wallet=wallet,
+               subtensor=subtensor,
+               config=config,
+               netuid=netuid).run()
 
-        wallet = bittensor_module.wallet
-        bittensor_module.wait_until_registered()        
-        neuron(model=server, wallet=wallet, netuid=netuid).run()
 
 
 
-
-    miner = neuron        
     @classmethod
     def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
         from commune.block.bittensor.neuron.miner import neuron
@@ -649,6 +679,6 @@ class Validator(commune.Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
 if __name__ == '__main__':
-    Validator.miner()
+    Validator.run()
 
         
