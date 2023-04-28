@@ -239,8 +239,8 @@ class TransformerModel(Model):
             stats['train_samples'] = stats.get('train_samples', 0) + input_samples
             stats['train_tokens'] = stats.get('train_tokens',0) + input_tokens
             stats['train_steps'] = stats.get('train_steps', 0) + 1
-            stats['epoch_size'] = self.config.epoch_length
-            stats['batch_count'] = stats['train_steps'] % stats['epoch_size']
+            stats['epoch_length'] = self.config.epoch_length
+            stats['batch_count'] = stats['train_steps'] % stats['epoch_length']
             stats['lr'] = self.config['optimizer']['lr']
             
             # calculalte the epoch loss
@@ -254,58 +254,56 @@ class TransformerModel(Model):
         stats['inference_tokens'] = stats.get('inference_tokens',0) + input_tokens
         stats['inference_steps'] = stats.get('inference_steps', 0) + 1
         
-        alpha =self.config.alpha
-        assert 0 < alpha < 1, 'loss_alpha must be between 0 and 1'
-        past_loss = stats.get('sample_loss', 0)
-        stats['ma_loss'] = (past_loss*(1-alpha) + alpha*loss) if past_loss != 0 else loss
-        stats['ma_alpha'] = alpha
+        past_loss = stats.get('loss', loss)
+        alpha = 1 / self.config.evaluation_steps
+        stats['loss'] = (past_loss*(1-alpha) + alpha*loss)
         stats['sample_loss'] = loss
-        stats['sample_shape'] = list(input_ids.shape)
+        stats['input_shape'] = list(input_ids.shape)
         stats['train'] = train
         stats = self.register_stats(stats)
         
         output_dict['stats'] = self.munch2dict(stats)
         output_dict['stats'].pop('epoch_loss_history', None)
         
-        return {key:output_dict[key] for key in return_keys} 
+        return Munch({key:output_dict[key] for key in return_keys})
         
-    default_metric = 12
-
     def register_stats(self, stats):
-        if stats['train']:
-            
-            stats['epoch'] = stats.get('epoch', 0) + 1
-
-            prev_epoch_loss_history = stats.get('epoch_loss_history', [{'loss': self.default_metric}])
-            best_loss = min(list(map(lambda x: x.get('loss', self.default_metric), prev_epoch_loss_history)))
-            stats['best_loss'] = best_loss
-            
-            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': self.time()}]
-            
-            
-            is_better = self.is_better(metric=stats['epoch_loss'], best_metric=best_loss)
-            if is_better:
-                stats['steps_since_best'] = 0
-            else:
-                stats['steps_since_best'] = stats.get('steps_since_best', 0) + 1
-            
-            self.set_stats(stats)
-            
-            if stats['steps_since_best'] > self.config.patience:
-                self.save(keys=['config'])
-            else:
-                self.save()
-        else:
-            self.set_stats(stats)
-            
-            return stats
-
-
-    def is_better(self, metric, best_metric = None):
-        if best_metric == None:
-            best_metric = self.default_metric
-        return metric < best_metric
+        stats['epoch'] = stats.get('epoch', 0)
+        stats['saved_step'] = stats.get('saved_step', 0)
+        stats['steps_since_best'] = stats.get('steps_since_best', 0)
+        stats['best_loss'] = stats.get('best_loss', self.config.default_metric)
         
+
+        if stats['train'] and stats['batch_count'] == 0:
+        
+            stats['epoch'] = stats['epoch'] + 1
+            prev_epoch_loss_history = stats.get('epoch_loss_history', [{'loss': self.config.default_metric}])
+            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': self.time()}]
+            # check if the loss is better than the best loss
+        is_better = bool(stats['loss'] <= stats['best_loss'])
+        
+        if is_better:
+            stats['steps_since_best'] = 0
+            steps_since_save = stats['train_steps'] - stats['saved_step']
+            if steps_since_save > self.config.min_steps_since_save:
+                self.save()
+                stats['saved_step'] = stats['train_steps']
+
+            stats['best_loss'] = stats['loss']
+        else:
+            stats['steps_since_best'] = stats['steps_since_best'] + 1
+
+            
+        if stats['steps_since_best'] >= self.config.reload_patience:
+            stats['steps_since_best'] = 0
+            self.load(keys=['model', 'optimizer'])
+        
+        self.set_stats(stats)
+            
+        return stats
+
+
+
     def set_model(self, config) -> None:
         if config == None:
             config = self.config
@@ -471,7 +469,7 @@ class TransformerModel(Model):
 
 
     @classmethod
-    def train(cls, model = 'model', 
+    def train(cls, model = 'gpt125m', 
              topk:int=256 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
@@ -496,7 +494,7 @@ class TransformerModel(Model):
         #     commune.deploy(dataset)
         model_name = cls.copy(model)
         if model in cls.model_options:
-            model = cls(model=model,tag='bro')
+            model = cls(model=model)
         else:
             model  = cls.connect(model)  
         
@@ -509,9 +507,13 @@ class TransformerModel(Model):
         dataset = commune.connect(dataset)
 
         for i in range(num_batches):
+            
             sample = dataset.sample(batch_size=batch_size,
                                     sequence_length=sequence_length)
 
+            if not sample_check(sample):
+                cls.print('Sample check failed, skipping batch')
+                continue
         
             sample.update(
                 topk=topk,
@@ -526,7 +528,7 @@ class TransformerModel(Model):
                 output = model.forward(**sample)
                 cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
             except Exception as e:
-                cls.print(f'ERROR {e}')
+                raise e
             
 
     @classmethod

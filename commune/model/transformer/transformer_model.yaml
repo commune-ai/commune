@@ -1,8 +1,6 @@
 
 model: gpt125m
-patience: 3
 tokenizer: null
-epoch_length: 10
 save: true # save on epoch 
 device: null
 epoch_length: 100
@@ -14,7 +12,8 @@ optimizer:
 load_in_8bit: False
 stats: {}
 max_gpu_ratio: 0.8
-alpha: 0.9
+evaluation_steps: 20
+max_loss_history: 100
 model_inflation_ratio: 1.0
 output_length: 4
 max_sequence_length: 256
@@ -25,5 +24,9 @@ max_memory: null
 reserve_gpus: False
 verbose: true
 test: true
+train: False
+min_steps_since_save: 100 # save at most every 50 steps
+reload_patience: 10
+default_metric: 12
 
 
