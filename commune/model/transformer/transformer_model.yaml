@@ -26,7 +26,7 @@ verbose: true
 test: true
 train: False
 min_steps_since_save: 100 # save at most every 50 steps
-reload_patience: 10
+reload_patience: 100
 default_metric: 12
 
 

@@ -12,13 +12,13 @@ import torch
 class Pile(commune.Module):
     num_shards = 29
     default_shards = list(range(num_shards))
-    url = 'https://the-eye.eu/public/AI/pile'
     
     def __init__(self,config=None):
         self.stop_threads = False
         self.device = 'cpu'
 
         config = self.set_config(config)
+        self.url = self.config.url
         self.set_shards(config.shards)
         self.set_tokenizer(config.tokenizer)
         self.start_text_generator()
