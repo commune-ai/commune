@@ -989,13 +989,17 @@ class Module:
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
         return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('model')]
+    
     @classmethod
-    def datasets(*args, **kwargs) -> List[str]:
+    def datasets(cls, *args, **kwargs) -> List[str]:
+        return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
+    
+    @classmethod
+    def datasets(cls, *args, **kwargs) -> List[str]:
         return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
-
 
     
     @staticmethod
@@ -1442,6 +1446,8 @@ class Module:
         # from copy import deepcopy
         
         address2module = {}
+        import asyncio
+
             
         if update:
 
@@ -1449,12 +1455,10 @@ class Module:
             peer_addresses = cls.get_peer_addresses()     
             async def async_get_peer_name(peer_name):
                 
-                import asyncio
                 peer = await cls.async_connect(peer_name, timeout=1)
-                
-
 
                 result =  peer.module_name
+ 
                 if cls.check_response(result):
                     return result
                 else:
@@ -1641,6 +1645,7 @@ class Module:
     def namespace(cls,
                   search = None,
                   network:str='global',
+                  verbose: bool = False,
                   update: bool = False,
                   **kwargs):
 
@@ -1901,8 +1906,9 @@ class Module:
         function_schema_map = self.function_schema_map()
         info  = dict(
             address = self.address,
-            functions =  self.functions(include_module=False),
-            attributes = self.attributes()
+            functions =  self.whitelist_functions(),
+            attributes = self.attributes(),
+            name = self.module_name,
         )
         return info
 
@@ -3173,10 +3179,6 @@ class Module:
             return list(unique_devices)[0]
         return next(model.parameters()).device
     
-    
-    @classmethod
-    def available_models(cls):
-        return cls.get_module('model.transformer').models()
     
     def model_size(self, **kwargs ):
         return self.get_model_size(model=self, **kwargs)

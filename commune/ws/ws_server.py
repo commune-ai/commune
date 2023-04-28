@@ -2,12 +2,15 @@ import threading
 import asyncio
 import websockets
 
+import commune
 
-
-
-class SocketServer:
-
-    async def handle_client(websocket, path):
+class WSServer(commune.Module):
+    threads = []
+    def __init__(self, config = None):
+        config = self.set_config(config)
+        self.set_server(host=config.host, port=config.port)
+        
+    async def handle_client(self, websocket, path):
         # This function will be called whenever a new client connects to the server.
         # You can use this function to define how to handle incoming messages from the client.
         # For example, you can use a while loop to keep listening for messages until the client disconnects:
@@ -19,29 +22,32 @@ class SocketServer:
             response = f"You sent me this message: {message}"
             await websocket.send(response)
 
+
+
     # Define a function to create a new WebSocket server and run it on a separate thread:
-    def start_server(host, port):
+    
+
+    def set_server(self, host:str = None, port:int = None):
+
+        host = self.config.host if host == None else host
+        port = self.config.port if port == None else port
+
+
+    def start_server(self):
+        thread = threading.Thread(target=self.run_server, args=(host, port))
+        thread.deamon = self.config.deamon  # Set the daemon attribute to True
+        thread.start()
+        self.threads.append(thread)
+        
+    def run_server(self, host:str = None, port:int = None):
         asyncio.set_event_loop(asyncio.new_event_loop())
-        server = websockets.serve(handle_client, host, port)
+        server = websockets.serve(self.handle_client, host, port)
         asyncio.get_event_loop().run_until_complete(server)
         asyncio.get_event_loop().run_forever()
 
-# Define the host and port numbers for each server:
-servers = [
-    ("localhost", 8000),
-    ("localhost", 8001),
-    ("localhost", 8002)
-]
-
-# Create a new thread for each server and start it:
-threads = []
-for server in servers:
-    thread = threading.Thread(target=start_server, args=server)
-    thread.daemon = True  # Set the daemon attribute to True
-    thread.start()
-    threads.append(thread)
-
-# The main thread can exit now
-# Daemon threads will automatically terminate
-for thread in threads:
-    thread.join()
+        
+    @classmethod
+    def test(cls):
+        self = cls()
+        
+WSServer()

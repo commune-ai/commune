@@ -502,9 +502,10 @@ class Validator(commune.Module, nn.Module):
 
     
     @classmethod
-    def test(cls, *args, **kwargs):
-        sleep_interval = kwargs.pop('sleep_interval', 4)
-        num_batches = kwargs.pop('num_batches', 100)
+    def train(cls, *args, **kwargs):
+        sleep_interval = kwargs.pop('sleep_interval', 0)
+        stagger_interval = kwargs.pop('stagger_interval', 0)
+        num_batches = kwargs.pop('num_batches', 2)
         self = Validator(*args, **kwargs)
         
         def sample_check(sample):
@@ -518,7 +519,11 @@ class Validator(commune.Module, nn.Module):
             stats = output.stats
             cls.print(output.stats['ensemble'])
             self.sleep(sleep_interval)
-      
+    @classmethod
+    def test(cls,  *args, num_batches=2, **kwargs):
+        cls.train(*args, num_batches=num_batches, **kwargs)
+        
+    
     run_train = test
     @classmethod
     def test_validation_keys(cls):
