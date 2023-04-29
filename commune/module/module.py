@@ -428,6 +428,12 @@ class Module:
     
     put_config = save_config
     
+    def config_exists(self, path:str=None) -> bool:
+        '''
+        Returns true if the config exists
+        '''
+        path = path if path else self.__config_file__()
+        return self.path_exists(path)
     @classmethod
     def get_config(cls, config = None, kwargs=None, to_munch:bool = True) -> Munch:
         '''
@@ -482,6 +488,8 @@ class Module:
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
+        
+        
         return self.config
 
     @classmethod
@@ -973,16 +981,21 @@ class Module:
         return cls.import_object(path)
 
     @classmethod
-    def module_tree(cls, mode='path') -> List[str]:
+    def module_tree(cls, search=None, mode='path') -> List[str]:
         assert mode in ['path', 'object']
+        module_tree = {}
         if mode == 'path':
-            return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
+            module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
 
         elif mode == 'object':
-            return {cls.path2object(f):f for f in cls.get_module_python_paths()}
+            module_tree = {cls.path2object(f):f for f in cls.get_module_python_paths()}
+            
+        module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
+        return module_tree
     @classmethod
-    def list_modules(cls):
-        return list(cls.module_tree().keys())
+    def list_modules(cls, search=None):
+        modules = list(cls.module_tree(search).keys())
+        return modules
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
         return list(cls.namespace(*args, **kwargs).keys())
@@ -1170,6 +1183,9 @@ class Module:
     def exists(cls, path:str, extension = 'json', root:bool = False)-> bool:
         path = cls.resolve_path(path=path, extension=extension, root=root)
         return os.path.exists(path)
+
+        
+    
     
     exists_json = exists
 
@@ -2018,6 +2034,14 @@ class Module:
         fn = getattr(self, fn)
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
+
+    @classmethod
+    def function_info(cls, fn:str)->dict:
+        '''
+        Get function schema of function in cls
+        '''
+        fn_info  =  cls.function_info_map().get(fn , {})
+        return fn_info
 
     @staticmethod
     def get_annotations(fn:callable) -> dict:
