@@ -109,11 +109,12 @@ class TransformerModel(Model):
     @classmethod
     def calculate_loss( cls, logits: torch.Tensor,
                        input_ids:torch.Tensor,
-                       return_value = True **kwargs) -> torch.Tensor:
+                       return_value = False,
+                       **kwargs) -> torch.Tensor:
         '''
         Calculate the loss for the model.
         '''
-        gt = input_ids[:, -(pred.shape[1]-1):].flatten()
+        gt = input_ids[:, -(logits.shape[1]-1):].flatten()
         pred = logits[:, :logits.shape[1]-1]
             
         if len(pred.shape) == 3:
@@ -188,6 +189,7 @@ class TransformerModel(Model):
             
         device = self.get_model_device(self.model)
         
+        stats = self.copy(self.stats)
         stats['time'] =  self.time()
         sample['input_ids'] = sample['input_ids'].to(device)
         
@@ -195,7 +197,7 @@ class TransformerModel(Model):
         model_output = self.model(input_ids=sample['input_ids'].to(device),
                                 output_hidden_states=output_hidden_states)
         
-        output_dict = self.process_output(model_output)
+        # output_dict = self.process_output(model_output)
         # check if there are any nans in the logits
         logits_has_nans =  torch.isnan(model_output.logits).any()
         if logits_has_nans:
@@ -290,12 +292,14 @@ class TransformerModel(Model):
             # check if the loss is better than the best loss
         is_better = self.is_better(stats)
         
+        
+        stats['steps_since_save'] = stats['train_steps'] - stats['saved_step']
         if is_better:
-            if stats['steps_since_best'] > self.config.min_steps_since_save:
+            if stats['train_steps'] - stats['saved_step'] >= self.config.epoch_length:
                 self.save()
                 stats['saved_step'] = stats['train_steps']
+                
             stats['steps_since_best'] = 0
-
             stats['best_loss'] = stats['loss']
         else:
             stats['steps_since_best'] = stats['steps_since_best'] + 1
@@ -307,15 +311,14 @@ class TransformerModel(Model):
         
         
         
-        stats['history'] = self.stats.get('history', []) + [sample]
+        stats['history'] = self.stats.get('history', []) + [stats]
         stats['history'][-1].pop('history', None)
         self.set_stats(stats)
         
 
             
         return stats
-
-
+    
     def is_better(self, stats) -> bool:
         return stats['loss'] <= stats['best_loss']
 

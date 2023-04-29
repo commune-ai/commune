@@ -66,9 +66,12 @@ class Model( nn.Module, commune.Module):
     # def stats(self, stats):
     #     return self.set_stats(stats)
     
-    def set_stats(self, stats: dict):
-        self.config['stats'] = stats
-        self.stats = self.config['stats']
+    def set_stats(self, stats: dict = None, **kwargs):
+        if stats == None:
+            stats = self.stats
+        stats.update(kwargs)
+        self.stats = self.config['stats'] = stats
+        return stats
         
     def set_optimizer(self, optimizer:dict=None):
         
