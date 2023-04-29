@@ -1328,22 +1328,16 @@ class Module:
     anchor = root_module
     anchor_address = root_address
 
-        
-    @classmethod
-    def resolve_namespace(cls, namespace:dict,**kwargs) -> dict:
-        if isinstance(namespace, str):
-            kwargs['network'] = namespace
-            
-        if namespace == None:
-            namespace = cls.namespace(**kwargs)
-            
-        return namespace
+ 
+    
+    
+    
     @classmethod
     async def async_connect(cls, 
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 
-                network : str = 'global',
+                network : str = 'local',
                 namespace = None,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
@@ -1359,20 +1353,17 @@ class Module:
         if wait_for_server:
             cls.wait_for_server(name)
         
-        
-        
-        
+        if namespace == None:
+            namespace = cls.namespace(network)
         # local namespace    
         if isinstance(name, str):
             
+            name = namespace.get(name, name)
             if len(name.split(':')) == 2:
                 port = int(name.split(':')[1])
                 ip = name.split(':')[0]
-                
-                print(port, ip)
             if not isinstance(port, int):
-                if namespace is None:
-                    namespace = cls.namespace(network=network)
+  
                 available_modules = []
             
                 for n in namespace.keys():
@@ -1478,7 +1469,7 @@ class Module:
             return True
         
     @classmethod
-    def local_namespace(cls, update:bool = True)-> dict:
+    def local_namespace(cls, update:bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1487,21 +1478,17 @@ class Module:
         # from copy import deepcopy
         
         address2module = {}
-        import asyncio
 
-            
         if update:
 
             peer_registry = {}
-            peer_addresses = cls.get_peer_addresses()     
-            async def async_get_peer_name(peer_name):
-                
-                peer = await cls.async_connect(peer_name, timeout=1)
-
-                result =  peer.module_name
- 
-                if cls.check_response(result):
-                    return result
+            peer_addresses = cls.get_peer_addresses()  
+            namespace = cls.local_namespace(update=False)   
+            async def async_get_peer_name(peer_address):
+                peer = await cls.async_connect(peer_address, namespace=namespace, timeout=1)
+                module_name =  peer.module_name
+                if cls.check_response(module_name):
+                    return module_name
                 else:
                     return None
             
@@ -1510,9 +1497,9 @@ class Module:
             local_namespace = dict(zip(peer_names, peer_addresses))
             local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
                 
-            Module.save_json('local_namespace', local_namespace)
+            cls.save_json('local_namespace', local_namespace, root=True)
 
-        local_namespace = Module.get_json('local_namespace', {})
+        local_namespace = cls.get_json('local_namespace', {}, root=True)
 
         return local_namespace
 
@@ -1673,7 +1660,7 @@ class Module:
         return list(self.__dict__.keys())
 
     @classmethod
-    def global_namespace(cls, update=True) -> Dict:
+    def global_namespace(cls, update=False) -> Dict:
         
         global_namespace = {
             **cls.local_namespace(update=update),
@@ -1688,8 +1675,17 @@ class Module:
                   network:str='global',
                   verbose: bool = False,
                   update: bool = False,
+                  max_staleness:int = 30,
                   **kwargs):
-
+        timestamp = cls.timestamp()
+        
+        if update:
+            cls.put('updated_timestamp', timestamp )
+        else:
+            updated_timestamp = cls.get('updated_timestamp', 0)
+            staleness = timestamp - updated_timestamp
+            update = bool(staleness > updated_timestamp)
+            
         if isinstance(search, str) :
             if hasattr(cls, f'{search}_namespace'):
                 network = search
@@ -4028,7 +4024,7 @@ class Module:
         peer_namespaces = await asyncio.gather(*peer_jobs)
         
         
-        cls.print(f'Adding peer  to registry, {peer_addresses}')
+        cls.print(f'Adding peer to registry, {peer_addresses}')
 
         #  add each peer to the registry
         for peer_address, peer_namespace in zip(peer_addresses, peer_namespaces):
@@ -4079,13 +4075,7 @@ class Module:
         return rm_peers
             
       
-    @classmethod
-    def update_peers(cls, peers: list = None):
-        if peers == None:
-            peers = cls.peers()
-            
-        cls.print(peers)
-        cls.add_peers(peers)
+
         
         
     def store_value(self, key, value, *args, **kwargs):
@@ -4109,9 +4099,11 @@ class Module:
         
         
     @classmethod
-    def peer_registry(cls, update: bool = False):
+    def peer_registry(cls, peers=None, update: bool = False):
         if update:
-            cls.update_peers()
+            if peers == None:
+                peers = cls.peers()
+            cls.add_peers(peers)
         return Module.get_json('peer_registry', default={})
     
     

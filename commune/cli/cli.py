@@ -18,18 +18,21 @@ class CLI(commune.Module):
         commune.new_event_loop(True)
         module = commune.Module()
         args, kwargs = self.parse_args()
+        self.namespace = self.namespace(update=False)
+        
         if len(args)> 0:
     
             is_remote = False
-            namespace = module.namespace()
-            addresses = list(namespace.values())
+            
+            
+            addresses = list(self.namespace.values())
             # fn_obj = getattr(module, fn)
             if args[0] in commune.module_list():
                 module = args.pop(0)
                 module = commune.get_module(module)
-            elif args[0] in module.namespace() or args[0] in addresses:
+            elif args[0] in self.namespace or args[0] in addresses:
                 address = args.pop(0)
-                module = commune.connect(address)
+                module = commune.connect(address, namespace=self.namespace)
                 print(module, address)
                 # module_info = module.info()
                 is_remote = True
