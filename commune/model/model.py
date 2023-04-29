@@ -68,7 +68,7 @@ class Model( nn.Module, commune.Module):
     
     def set_stats(self, stats: dict = None, **kwargs):
         if stats == None:
-            stats = self.stats
+            stats = self.__dict__.get('stats', {})
         stats.update(kwargs)
         self.stats = self.config['stats'] = stats
         return stats
@@ -270,10 +270,7 @@ class Model( nn.Module, commune.Module):
                     The name of the last layer that user specified or we found.
                     None if the user did not specify and we couldnt find it. 
         '''
-        if isinstance(finetune, int):
-            finetune = dict(num_layers=finetune)
-        default_kwargs = dict(num_layers=1, layer_name = None, all = False)
-        
+        self.config['finetune'] = finetune
         num_layers = finetune.get('num_layers', default_kwargs['num_layers'])
         layer_name = finetune.get('layer_name', default_kwargs['layer_name'])
         all = finetune.get('all', default_kwargs['all'])

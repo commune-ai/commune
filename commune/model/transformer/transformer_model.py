@@ -295,7 +295,7 @@ class TransformerModel(Model):
         
         stats['steps_since_save'] = stats['train_steps'] - stats['saved_step']
         if is_better:
-            if stats['train_steps'] - stats['saved_step'] >= self.config.epoch_length:
+            if stats['steps_since_save'] >= self.config.epoch_length:
                 self.save()
                 stats['saved_step'] = stats['train_steps']
                 
