@@ -107,24 +107,33 @@ class TransformerModel(Model):
             tag = self.default_tag
         self.tag = self.model_path.replace('/','--')+'--'+tag
     @classmethod
-    def calculate_loss( cls,  **kwargs) -> torch.Tensor:
+    def calculate_loss( cls, logits: torch.Tensor,
+                       input_ids:torch.Tensor,
+                       return_value = True **kwargs) -> torch.Tensor:
         '''
         Calculate the loss for the model.
         '''
-        pred = kwargs['logits']
-        gt = kwargs['input_ids'][:, -(pred.shape[1]-1):].flatten()
-        return_value = kwargs.get('return_value', False)
-        pred = pred[:, :pred.shape[1]-1]
+        gt = input_ids[:, -(pred.shape[1]-1):].flatten()
+        pred = logits[:, :logits.shape[1]-1]
             
         if len(pred.shape) == 3:
             pred = pred.reshape(-1, pred.shape[-1])
         
-        assert gt.shape == pred.shape[:1], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
+        assert gt.shape[0] == pred.shape[0], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
 
         loss_fn = torch.nn.CrossEntropyLoss()
         loss =  loss_fn(pred, gt.to(pred.device))
+        
+        # check if loss is nan
+        if torch.isnan(loss):
+            self.print('Loss is nan, skipping backward pass')
+            train = False
+            loss = torch.tensor(10)
+            raise Exception('Loss is nan, skipping backward pass')
+        
         if return_value:
-            return loss.item()
+            loss = loss.item()
+        
         return loss
 
     def _forward(self,  
@@ -143,15 +152,16 @@ class TransformerModel(Model):
                 tag : str = None,                           
                 **kwargs):
         
-        stats = self.stats
+        stats = self.copy(self.stats)
 
         # resolve the output length
         output_length = output_length or self.config.output_length or input_ids.shape[1]
+        if output_length > input_ids.shape[1]:
+            output_length = input_ids.shape[1]
         # resolve the max sequence length (sometimes we want to clip the input to make it faster)
         max_sequence_length = max_sequence_length or self.config.max_sequence_length or input_ids.shape[1]
         attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
-    
-    
+
 
         sample = {
         'input_ids': input_ids[:, -max_sequence_length:],
@@ -160,7 +170,6 @@ class TransformerModel(Model):
         
         if map_tokens:
             offset_mapping, offset_mapping_std, original_input_ids = None, None, None
-
             original_input_ids = self.copy(sample['input_ids'])
             tokens = self.token_translator.translate_tokens(input_ids=sample['input_ids'], return_offsets_mapping=True)
             offset_mapping = tokens.offset_mapping
@@ -172,8 +181,7 @@ class TransformerModel(Model):
             if isinstance(v, torch.Tensor):
                 sample[k] = sample[k].to(self.device)
         
-
-            
+        
         # clip the input ids to the vocab size
         sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
         if train:
@@ -188,18 +196,16 @@ class TransformerModel(Model):
         model_output = self.model(input_ids=sample['input_ids'].to(device),
                                 output_hidden_states=output_hidden_states)
         
-    
+        output_dict = self.process_output(model_output)
         # check if there are any nans in the logits
         logits_has_nans =  torch.isnan(model_output.logits).any()
         if logits_has_nans:
             raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
                 
         # sometime we dont care about the begginning of the sequence
-        
         output_length = output_length if output_length else model_output.logits.size(1)
         
         output_dict = {}
-        # logits
         output_dict['logits']= model_output.logits[:,-output_length:,:]
         
         if map_logits:
@@ -208,16 +214,15 @@ class TransformerModel(Model):
                                                                            offset_mapping_std=offset_mapping_std,
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
-        # topk
+            
         output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
-        
-        # hidden state
         output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index]
         output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
         output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
         
         output_dict['input_ids'] = sample['input_ids']
-        loss = self.calculate_loss(**output_dict) 
+        output_dict['loss'] = self.calculate_loss(**output_dict)
+        loss = output_dict['loss']
         
         # check if loss is nan
         if torch.isnan(loss):
@@ -257,6 +262,8 @@ class TransformerModel(Model):
         past_loss = stats.get('loss', loss)
         alpha = 1 / self.config.evaluation_steps
         stats['loss'] = (past_loss*(1-alpha) + alpha*loss)
+
+        
         stats['sample_loss'] = loss
         stats['input_shape'] = list(input_ids.shape)
         stats['train'] = train
@@ -272,15 +279,16 @@ class TransformerModel(Model):
         stats['saved_step'] = stats.get('saved_step', 0)
         stats['steps_since_best'] = stats.get('steps_since_best', 0)
         stats['best_loss'] = stats.get('best_loss', self.config.default_metric)
-        
+        stats['history'] = stats.get('history', [])
 
         if stats['train'] and stats['batch_count'] == 0:
-        
+            timestamp = self.time()
+            prev_epoch_loss_history = stats.get('epoch_loss_history', [{'loss': self.config.default_metric, 'time': timestamp}])
+            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': timestamp}]
             stats['epoch'] = stats['epoch'] + 1
-            prev_epoch_loss_history = stats.get('epoch_loss_history', [{'loss': self.config.default_metric}])
-            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': self.time()}]
+
             # check if the loss is better than the best loss
-        is_better = bool(stats['loss'] <= stats['best_loss'])
+        is_better = self.is_better(stats)
         
         if is_better:
             if stats['steps_since_best'] > self.config.min_steps_since_save:
@@ -297,11 +305,19 @@ class TransformerModel(Model):
             stats['steps_since_best'] = 0
             self.load(keys=['model', 'optimizer'])
         
+        
+        
+        stats['history'] = self.stats.get('history', []) + [sample]
+        stats['history'][-1].pop('history', None)
         self.set_stats(stats)
+        
+
             
         return stats
 
 
+    def is_better(self, stats) -> bool:
+        return stats['loss'] <= stats['best_loss']
 
     def set_model(self, config) -> None:
         if config == None:
