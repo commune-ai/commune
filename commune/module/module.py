@@ -1316,6 +1316,15 @@ class Module:
 
         
     @classmethod
+    def resolve_namespace(cls, namespace:dict,**kwargs) -> dict:
+        if isinstance(namespace, str):
+            kwargs['network'] = namespace
+            
+        if namespace == None:
+            namespace = cls.namespace(**kwargs)
+            
+        return namespace
+    @classmethod
     async def async_connect(cls, 
                 name:str=None, 
                 ip:str=None, 

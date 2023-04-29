@@ -241,52 +241,47 @@ class Validator(commune.Module, nn.Module):
                 attention_mask: torch.Tensor = None,
                 model:str=None, 
                 map_tokens=False,
-                train: bool = None,
+                train: bool = False,
                 verbose:bool= False,
+                connect_timeout: bool = 2, 
                 topk: int = 4096,
                 **kwargs ):
         
-        train = train if isinstance(train, bool) else self.config.train 
-        
-
-        kwargs.update(dict(topk=topk,
-                           map_tokens=map_tokens ,
-                           input_ids=input_ids,
-                           train=train))
-        sample = kwargs 
-        model_name = self.copy(model)
-        # model = commune.connect(model, timeout=1)
-        model = asyncio.create_task(self.async_connect(model, namespace=self.namespace))
+        sample = self.get_params(locals())
+        model = asyncio.create_task(self.async_connect(model, namespace=self.namespace, timeout=connect_timeout))
         model = await asyncio.wait_for(model, timeout=1)
         # we want the client to return the future
         sample['return_future'] = True
         timer = commune.timer()
+
+        stats = {}
         try:
             output = await model.forward(**sample)
-        except TypeError as e:
-            output = {}
-        success = False
-        metric = self.default_metric
-        
-        if isinstance(output, dict):
+                
+        except Exception as e:
+            output = {'error' : str(e)}
             
-            if 'topk' in output:
-                output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
-                metric = self.calculate_metric(dict(input_ids=sample['input_ids'], **output))
-                success = True
-            else:
-                
-                output = {'error': output}
-                
+
+        
+        def check_valid_output(x):
+            if isinstance(x,dict):
+                if 'topk' in x:
+                    return True  
+            return False  
+        
+        is_valid_output = check_valid_output(output)
     
+        stats = {}
+        if is_valid_output:
+            metric = self.calculate_loss(input_ids=input_ids, **output)  
         else:
-            output = {'error': output}
- 
+            metric = self.default_metric
+    
         output['stats'] =  {
             'inference_time': timer.seconds,
             'metric': metric,
             'timestamp': self.time(),
-            'success': success
+            'success': is_valid_output
         }
            
         if not success:
@@ -307,13 +302,10 @@ class Validator(commune.Module, nn.Module):
                 output_hidden_states: bool = False,
                 models:str=None, 
                 threshold: float = 4.0,
-                timeout = 4,
+                timeout = 7,
                 topk: int = None,
                 selection_ratio: int = None,
                 train: bool = None,
-                aggregate:bool = False,
-                set_stats: bool = True,
-                return_output_only = False, 
                 verbose: bool = False,
 
                 **kwargs ):
@@ -338,7 +330,7 @@ class Validator(commune.Module, nn.Module):
         
         if verbose:
             self.print(f'forwarding to models: {models}')
-            
+        forwarded_models = models
         jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
                                    model=model_key, 
                                    topk=topk, 
@@ -357,10 +349,6 @@ class Validator(commune.Module, nn.Module):
                 continue
             model_output_dict[model_key] = model_output
             
-            
-        if aggregate:
-            raise NotImplementedError('aggregate not implemented')
-        
         ensemble_logits = []
         
         stats = self.stats
@@ -371,6 +359,7 @@ class Validator(commune.Module, nn.Module):
                           'metric': 0.0, 
                           'timestamp': self.time(), 
                           'models': [],
+                          'called_models':forwarded_models ,
                           'metrics': []}
         
         ensemble_stats['weights'] = []
@@ -503,7 +492,7 @@ class Validator(commune.Module, nn.Module):
     
     @classmethod
     def train(cls, *args, **kwargs):
-        sleep_interval = kwargs.pop('sleep_interval', 0)
+        sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
         self = Validator(*args, **kwargs)
