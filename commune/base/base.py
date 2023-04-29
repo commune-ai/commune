@@ -29,4 +29,5 @@ class Base(commune.Module):
     def users(self):
         return self.config.users
     
-Base()
+if __name__ == '__main__':
+    Base.run()
