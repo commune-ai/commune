@@ -525,9 +525,12 @@ class TransformerModel(Model):
         dataset = commune.connect(dataset)
 
         for i in range(num_batches):
-            
-            sample = dataset.sample(batch_size=batch_size,
-                                    sequence_length=sequence_length)
+            try:
+                sample = dataset.sample(batch_size=batch_size,
+                                        sequence_length=sequence_length)
+            except Exception as e:
+                cls.print('Skipping batch')
+                continue
 
             if not sample_check(sample):
                 cls.print('Sample check failed, skipping batch')
