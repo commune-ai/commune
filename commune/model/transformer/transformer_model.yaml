@@ -13,7 +13,7 @@ load_in_8bit: False
 stats: {}
 max_gpu_ratio: 0.8
 evaluation_steps: 20
-max_loss_history: 100
+loss_history_size: 100
 model_inflation_ratio: 1.0
 output_length: 4
 max_sequence_length: 256
@@ -28,5 +28,9 @@ train: False
 min_steps_since_save: 100 # save at most every 50 steps
 reload_patience: 100
 default_metric: 12
+hidden_size: 768
+vocab_size: 50258
+
+
 
 

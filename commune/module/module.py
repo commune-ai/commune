@@ -1341,7 +1341,7 @@ class Module:
                     name = cls.choice(available_modules)
                     name = namespace.get(name)
                 
-                assert len(name.split(':')) == 2
+                assert len(name.split(':')) == 2, f'Name must be specified as ip:port, inputs({name}, {ip}, {port})'
                 port = int(name.split(':')[1])
                 ip = name.split(':')[0]
             
