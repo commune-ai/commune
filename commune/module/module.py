@@ -357,6 +357,7 @@ class Module:
             encrypt:bool = False,
             sign: bool = False,
             password: bool = None,
+            mode: bool = 'json',
             cache_dir : str = None, 
             **kwargs):
         '''
@@ -374,28 +375,41 @@ class Module:
                'encrypted': encrypt}
         
         path = cache_dir+'/'+key
-        cls.put_json(path, data,  **kwargs)
+        
+        # default json 
+        getattr(cls, f'put_{mode}')(path, data, **kwargs)
         
         
         return data
     @classmethod
-    def get(cls, key, default=None,  password=None, cache_dir = None, **kwargs):
+    def get(cls,
+            key, 
+            default=None, 
+            password=None, 
+            cache_dir = None,
+            mode:str = 'json',
+            **kwargs):
         
         '''
         Puts a value in sthe config
         '''
         cache_dir = cache_dir if cache_dir else cls.cache_dir
         kwargs['default'] = default
-        data  = cls.get_json(cache_dir+'/'+key,
-                             **kwargs)
+        
+        if mode == 'json':
+            data  = cls.get_json(cache_dir+'/'+key,**kwargs)
+        else:
+            data = getattr(cls, f'get_{mode}')(key, **kwargs)
      
+        cls.print(data)
         if data == None: 
             data = {}
-            
+        
         encrypted = data.get('encrypted', False)
+        data = data.get('value', default)
         if encrypted:
-            data['value'] = cls.decrypt(data['value'], password=password)
-        return data.get('value', default)
+            data = cls.decrypt(data, password=password)
+        return data
     @classmethod
     def put_config(cls, key, value) -> Munch:
         '''
@@ -3577,16 +3591,20 @@ class Module:
         return password
     
     @classmethod
-    def decrypt(cls, data: str, password= 'bitconnect') -> Any:
+    def decrypt(cls, data: str,
+                password= 'fuckthirdparties',
+                ignore_error: bool = True) -> Any:
         password = cls.resolve_password(password)
         key = cls.get_key(mode='aes', key=password)
         print(data)
         data = key.decrypt(data)
         if isinstance(data, str):
             data = cls.str2python(data)
-            
         if len(data) == 0:
-            raise Exception(f'could not decrypt data, try another pasword')
+            if ignore_error:
+                data = None
+            else:
+                raise Exception(f'could not decrypt data, try another pasword')
         return data
 
     @classmethod
@@ -3595,8 +3613,33 @@ class Module:
         data = cls.python2str(data)
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
+    
+    module_cache = {}
+    module_cache_hits = {}
+    
+    
     @classmethod
-    async def async_call(cls, module:str, fn: str , verbose:bool= True, *args, **kwargs) -> None:
+    def put_cache(cls,k,v ):
+        cls.module_cache[k] = v
+    
+    @classmethod
+    def get_cache(cls,k, default=None, **kwargs):
+
+        v = cls.module_cache.get(k, default)
+        if v != None:
+            cls.module_cache_hits[k] = cls.module_cache_hits.get(k,0) + 1
+        print(cls.module_cache, k, v)
+        return v
+
+        
+    @classmethod
+    async def async_call(cls, 
+                         module:str, 
+                         fn: str , 
+                         verbose:bool= True, 
+                         cache_size: bool = 10,
+                         *args, 
+                         **kwargs) -> None:
         # call a module
         module = await cls.async_connect(module, verbose=verbose)
         fn = getattr(module, fn)
@@ -4455,6 +4498,32 @@ class Module:
             return future
         else:
             raise NotImplemented
+        
+    @staticmethod
+    def is_ss58(value: str) -> bool:
+        try:
+            decoded = base58.b58decode_check(value)
+            # Check if the decoded value starts with a specific prefix byte
+            prefix = decoded[0]
+            return prefix in (0x00, 0x01) # Or any other prefix values you want to allow
+        except ValueError:
+            return False
+        
+    @staticmethod
+    def is_mnemonic(s: str) -> bool:
+        import re
+        # Match 12 or 24 words separated by spaces
+        pattern = r'^(\w+\s){11}\w+(\s\w+){11}$|^(\w+\s){23}\w+$'
+        return bool(re.match(pattern, s))
+
+        
+    @staticmethod   
+    def is_private_key(s: str) -> bool:
+        import re
+        # Match a 64-character hexadecimal string
+        pattern = r'^[0-9a-fA-F]{64}$'
+        return bool(re.match(pattern, s))
+
 if __name__ == "__main__":
     Module.run()
     
