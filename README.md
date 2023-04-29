@@ -3,6 +3,21 @@
 Commune is a framework of tools that prevents developers from reinventing the wheel. The design of commune is intended to be maximally unoppinionated, with some minor assumptions about the class. This currently involves wrapping your python class with **commune.Module**. 
 
 
+## Setup
+1. clone from github
+    ```
+    git clone https://github.com/commune-ai/commune.git
+    ```
+2. install commune
+    ```
+    make install
+    ```
+2. sync commune (sync with the network)
+    ```
+    commune sync
+    ```
+
+
 ```python
 
 import commune
@@ -109,23 +124,8 @@ Subspace is our blockchain that is used for several things:
 ## Requirments 
 
     python >= 3.10
-    cuda >= 11.5
-    pm2 (installed with commune in the install script)
+    npm for pm2 (process manager)
 
-
-## Setup
-1. clone from github
-    ```
-    git clone https://github.com/commune-ai/commune.git
-    ```
-2. install commune
-    ```
-    make install
-    ```
-2. update commune (sync with the network)
-    ```
-    commune update or commune sync
-    ```
 
 ### Install as a Docker Container
 
