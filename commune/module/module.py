@@ -1052,8 +1052,10 @@ class Module:
                 continue
             file_path, file_ext =  os.path.splitext(f)
             if file_ext == '.py':
-                if os.path.exists(file_path+'.yaml'):
-                    modules.append(f)
+                for ext in ['yaml', 'yml']:
+                    if os.path.exists(file_path+'.'+ext):
+                        modules.append(f)
+                        break
         cls.module_python_paths = modules
         return modules
 
