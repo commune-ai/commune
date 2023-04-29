@@ -123,7 +123,7 @@ class ClientPool (commune.Module):
             min_successes: int = 20,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         # Init clients.
-        clients = await asyncio.gather(*[ self.async_get_client( m ) for m in modules ]
+        clients = await asyncio.gather(*[ self.async_get_client( m ) for m in modules ])
         
 
 
