@@ -152,7 +152,6 @@ class TransformerModel(Model):
                 tag : str = None,                           
                 **kwargs):
         
-        stats = self.copy(self.stats)
 
         # resolve the output length
         output_length = output_length or self.config.output_length or input_ids.shape[1]
@@ -216,9 +215,10 @@ class TransformerModel(Model):
                                                                            tokens_std=original_input_ids)
             
         output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
-        output_dict['hidden_states'] = model_output.hidden_states[hidden_state_index]
-        output_dict['hidden_states'] = output_dict['hidden_states'][:,-output_length:,:]
-        output_dict['hidden_states'] = output_dict['hidden_states'][:, :, hidden_dim_bounds[0]:hidden_dim_bounds[1]]
+        
+        if isinstance(hidden_state_index, int):
+            hidden_state_index = [hidden_state_index]
+        output_dict['hidden_states'] = [model_output.hidden_states[h_idx] for h_idx in hidden_state_index]
         
         output_dict['input_ids'] = sample['input_ids']
         output_dict['loss'] = self.calculate_loss(**output_dict)

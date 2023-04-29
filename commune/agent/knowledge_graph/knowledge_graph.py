@@ -29,22 +29,10 @@ class KnowledgeGraph(commune.Module):
   
   
     def set_model(self, model: 'Model'=  None):
-        if model == None:
-          model = dict(
-                module = 'model.openai'
-                model = "text-davinci-003",
-                temperature=0.9,
-                max_tokens=10,
-                top_p=1.0,
-                frequency_penalty=0.0,
-                presence_penalty=0.0,
-                prompt = None,
-                key = 'OPENAI_API_KEY'
-          )
-        module_path = model.pop('module')
+        module = self.config.model.module
         model_kwargs = model
 
-        self.model = commune.get_module(module_path)(**model_kwargs)
+        self.model = commune.module(module)(**model_kwargs)
         
         
     def forward(self, **kwargs):
