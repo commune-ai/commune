@@ -401,7 +401,6 @@ class Module:
         else:
             data = getattr(cls, f'get_{mode}')(key, **kwargs)
      
-        cls.print(data)
         if data == None: 
             data = {}
         
@@ -1337,7 +1336,7 @@ class Module:
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 
-                network : str = 'local',
+                network : str = 'global',
                 namespace = None,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
@@ -1353,30 +1352,21 @@ class Module:
         if wait_for_server:
             cls.wait_for_server(name)
         
-        if namespace == None:
-            namespace = cls.namespace(network)
+        namespace = cls.namespace(network, update=False)
+        namespace = cls.copy(namespace)
         # local namespace    
         if isinstance(name, str):
+            found_modules = []
+            for n in namespace.keys():
+                if name in n:
+                    found_modules.append(n)
+             
+            if len(found_modules)>0:       
+                name = namespace[cls.choice(found_modules)]
             
-            name = namespace.get(name, name)
-            if len(name.split(':')) == 2:
-                port = int(name.split(':')[1])
-                ip = name.split(':')[0]
-            if not isinstance(port, int):
-  
-                available_modules = []
-            
-                for n in namespace.keys():
-                    if name in n:
-                        available_modules.append(n)
-                if len(available_modules)>=1:
-                    name = cls.choice(available_modules)
-                    name = namespace.get(name)
-                
-                assert len(name.split(':')) == 2, f'Name must be specified as ip:port, inputs({name}, {ip}, {port})'
-                port = int(name.split(':')[1])
-                ip = name.split(':')[0]
-            
+            port = int(name.split(':')[-1])
+            ip = name.split(':')[0]
+
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
         if verbose:
@@ -1408,7 +1398,7 @@ class Module:
     def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
         used_local_ports = cls.get_used_ports() 
         if ip == None:
-            ip = cls.external_ip()
+            ip = '0.0.0.0'
         peer_addresses = []
         for port in used_local_ports:
             peer_addresses.append(f'{ip}:{port}')
@@ -1443,6 +1433,8 @@ class Module:
         
     @classmethod
     def remote_namespace(cls,  seperator = '::', verbose: bool = False, update:bool = False)-> dict:
+        
+        print(update,'DEBUG REMOTE')
         peer_registry = cls.peer_registry(update=update)  
         namespace = {}          
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
@@ -1485,12 +1477,17 @@ class Module:
             peer_addresses = cls.get_peer_addresses()  
             namespace = cls.local_namespace(update=False)   
             async def async_get_peer_name(peer_address):
-                peer = await cls.async_connect(peer_address, namespace=namespace, timeout=1)
-                module_name =  peer.module_name
+                # cls.print('Connecting: ',peer_address, color='cyan')
+                peer = await cls.async_connect(peer_address, namespace=namespace, timeout=5, virtual=False)
+                module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
+                cls.print('Connecting: ',module_name, color='cyan')
+
                 if cls.check_response(module_name):
                     return module_name
                 else:
                     return None
+                
+            # print(namespace)
             
             peer_names = [async_get_peer_name(p) for p in peer_addresses]
             peer_names = cls.gather(peer_names)
@@ -1679,12 +1676,12 @@ class Module:
                   **kwargs):
         timestamp = cls.timestamp()
         
-        if update:
-            cls.put('updated_timestamp', timestamp )
-        else:
-            updated_timestamp = cls.get('updated_timestamp', 0)
-            staleness = timestamp - updated_timestamp
-            update = bool(staleness > updated_timestamp)
+        # if update:
+        #     cls.put('updated_timestamp', timestamp )
+        # else:
+        #     updated_timestamp = cls.get('updated_timestamp', 0)
+        #     staleness = timestamp - updated_timestamp
+        #     update = bool(staleness > max_staleness)
             
         if isinstance(search, str) :
             if hasattr(cls, f'{search}_namespace'):

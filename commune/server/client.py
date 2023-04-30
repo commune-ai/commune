@@ -160,7 +160,6 @@ class Client( Serializer, commune.Module):
 
         self.sync_the_async(loop=self.loop)
         self.success = False
-        self.set_server_functions()
         # self.print(f"Connected to {self.endpoint} with {max_processes} processes")
 
 
@@ -179,11 +178,15 @@ class Client( Serializer, commune.Module):
         return f"{self.ip}:{self.port}"
 
 
-    def __call__(self, *args, **kwargs):
-        try:
-            return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
-        except TypeError:
-            return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
+    def __call__(self, *args, return_future=False, **kwargs):
+        future = self.async_forward(*args, **kwargs)
+        if return_future:
+            return future
+        else:
+            loop = self.get_event_loop()
+
+            return loop.run_until_complete(future)
+
     def __str__ ( self ):
         return "Client({})".format(self.endpoint) 
     def __repr__ ( self ):
@@ -330,7 +333,8 @@ class Client( Serializer, commune.Module):
 
 
     def virtual(self):
-        module = VirtualModule(module = self)    
+        self.set_server_functions()
+        module = VirtualModule(module = self) 
         # module.key = self.key
         # module.subspce = self.subspace   
         return module

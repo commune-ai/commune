@@ -1,6 +1,5 @@
 models: model
 tokenizer: gpt2
-network:  local
 train: True
 batch_size: 32
 sequence_length: 256
