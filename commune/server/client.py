@@ -160,11 +160,10 @@ class Client( Serializer, commune.Module):
 
         self.sync_the_async(loop=self.loop)
         self.success = False
-        # self.print(f"Connected to {self.endpoint} with {max_processes} processes")
 
 
     def set_server_functions(self):
-        self.server_functions = self.forward(fn='functions', args=[True])
+        self.server_functions = self.forward(fn='functions', kwargs={'include_module': True})
         
         if isinstance(self.server_functions, list):  
             self.success = True
@@ -282,11 +281,7 @@ class Client( Serializer, commune.Module):
         except Exception as e:
             response = {'error': str(e)}
             
-            # commune.print(f"GRPC Unknown Error: {response}", color='red')
         if verbose:
-            # if isinstance(response, str):
-            # if 'error' in response:
-            #     self.print(f"ERROR {self.endpoint}::fn::({fn}), error: {response['error'][:100]}",color='red')
             self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), time: {stats['time']} ",color=random_color)
              
         if results_only:

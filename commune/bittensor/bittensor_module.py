@@ -1,12 +1,16 @@
-import streamlit as st
+
 import torch
 import os,sys
 import asyncio
 from transformers import AutoConfig
-import bittensor
 import commune
+commune.new_event_loop()
+
+import bittensor
 from typing import List, Union, Optional, Dict
 from munch import Munch
+
+import streamlit as st
 
 class BittensorModule(commune.Module):
     wallet_path = os.path.expanduser('~/.bittensor/wallets/')
@@ -14,14 +18,15 @@ class BittensorModule(commune.Module):
 
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] = 'finney',
-                netuid: int = 1,
+                netuid: int = 3,
                 create: bool = False,
                 register: bool = False
                 ):
         
         self.set_subtensor(subtensor=network)
-        self.set_wallet( wallet=wallet)
         self.set_netuid(netuid=netuid)
+
+        self.set_wallet( wallet=wallet)
         if create:
             self.create_wallet(wallet)
         
@@ -108,11 +113,17 @@ class BittensorModule(commune.Module):
             netuid = self.netuid
         self.print('netuid', netuid)
         return netuid
+    
+    
     def get_neuron(self, wallet=None, netuid: int = None):
-        wallet = self.get_wallet(wallet)
+        wallet = self.resolve_wallet(wallet)
         netuid = self.resolve_netuid(netuid)
         return wallet.get_neuron(subtensor=self.subtensor, netuid=netuid)
     
+    
+    @classmethod
+    def neuron(cls, *args, **kwargs):
+        return cls(*args, **kwargs).get_neuron()
     
     def get_port(self, wallet=None, netuid: int = None):
         netuid = self.resolve_netuid(netuid)
@@ -123,9 +134,9 @@ class BittensorModule(commune.Module):
         return self.get_neuron(wallet=wallet, netuid = netuid).port
     
     
-    @property
-    def neuron(self):
-        return self.get_neuron()
+    # @property
+    # def neuron(self):
+    #     return self.get_neuron()
         
     
     @classmethod
@@ -186,26 +197,26 @@ class BittensorModule(commune.Module):
             self.sync(netuid=netuid)
 
             
-    @classmethod
-    def dashboard(cls):
-        st.set_page_config(layout="wide")
-        self = cls(wallet='fish', subtensor='nobunaga')
+    # @classmethod
+    # def dashboard(cls):
+        
+    #     st.set_page_config(layout="wide")
+    #     self = cls(wallet='collective.0', network='finney')
 
-        with st.sidebar:
-            self.streamlit_sidebar()
+    #     with st.sidebar:
+    #         self.streamlit_sidebar()
             
-        st.write(f'# BITTENSOR DASHBOARD {self.network}')
-        # wallets = self.list_wallets(output_wallet=True)
+    #     st.write(f'# BITTENSOR DASHBOARD {self.network}')
+    #     wallets = self.list_wallets(output_wallet=True)
         
-        commune.print(commune.run_command('pm2 status'), 'yellow')
-        st.write(commune.run_command('pm2 status').split('\n'))
-        # st.write(wallets[0].__dict__)
+    #     st.write(wallets[0].__dict__)
         
-        # self.register()
-        # st.write(self.run_miner('fish', '100'))
+    #     # self.register()
+    #     # st.write(self.run_miner('fish', '100'))
 
-        # self.streamlit_neuron_metrics()
-        
+    #     # self.streamlit_neuron_metrics()
+    
+
     def run_miner(self, 
                 coldkey='fish',
                 hotkey='1', 
@@ -404,7 +415,7 @@ class BittensorModule(commune.Module):
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
            
     def regen_key(name = 'default',
-                  hotkey = 'default'
+                  hotkey = 'default',
                   coldkey_address:str = None,
                   hotkey_mnemonic:str = None) :
         
@@ -479,6 +490,7 @@ class BittensorModule(commune.Module):
     selected_wallets = []
     def streamlit_sidebar(self):
         wallets_list = self.list_wallets(output_wallet=False)
+        
         wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
         self.set_wallet(wallet)
         
@@ -500,7 +512,7 @@ class BittensorModule(commune.Module):
             is_registered = self.is_registered()
             st.write(is_registered)
             if is_registered:
-                neuron = self.neuron
+                neuron = self.get_neuron()
                 if neuron == None:
                     return 
                 for i, (k,v) in enumerate(neuron.__dict__.items()):
@@ -515,13 +527,13 @@ class BittensorModule(commune.Module):
                     self.register_wallet()
 
     @classmethod
-    def streamlit(cls):
+    def dashboard(cls):
         st.set_page_config(layout="wide")
-        self = cls( subtensor='nobunaga')
+        self = cls( )
         self.button = {}
         with st.sidebar:
             self.streamlit_sidebar()
-            
+                    
             
         st.write(f'# BITTENSOR DASHBOARD {self.network}')
         
