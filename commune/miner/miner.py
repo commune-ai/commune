@@ -59,7 +59,7 @@ shortcuts =  {
 
 
 
-class Validator(commune.Module, nn.Module):
+class Miner(commune.Module, nn.Module):
     shortcuts = shortcuts
     def __init__(self, 
                  **kwargs
@@ -511,7 +511,7 @@ class Validator(commune.Module, nn.Module):
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
-        self = Validator(*args, **kwargs)
+        self = Miner(*args, **kwargs)
         
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
@@ -530,7 +530,7 @@ class Validator(commune.Module, nn.Module):
         
     @classmethod
     def test_validation_keys(cls):
-        vals = [Validator() for _ in range(10)]
+        vals = [Miner() for _ in range(10)]
         st.write([v.key.address for v in vals])
         hash = vals[0].key.hash({'hey': 'whadup'})
         sig = vals[0].key.sign(hash)
@@ -605,13 +605,7 @@ class Validator(commune.Module, nn.Module):
             xaxis={'categoryorder':'total ascending'}
         )
         st.plotly_chart(fig)
-      
-    @classmethod
-    def run_miner(cls, remote = True, **kwargs):  
-        return cls.remote_fn(fn='miner',name='miner',  kwargs=kwargs)
-    
-    
-    
+        
     @classmethod
     def miner(cls, 
                wallet='collective.0',
@@ -619,19 +613,9 @@ class Validator(commune.Module, nn.Module):
                netuid=3,
                port = 8091,
                debug = True,
-               no_set_weights = True,
-               remote:bool = False,
+               no_set_weights = True
                ):
-        
-        if remote:
-            agent_name = f'miner::{wallet}'
-            kwargs = cls.locals2kwargs(locals())
-            kwargs['remote'] = False
-            cls.remote_fn(fn='miner',name=agent_name,  kwargs=kwargs)
-            
                 
-            
-
             
     
         config = bittensor.neurons.core_server.neuron.config()
@@ -699,6 +683,6 @@ class Validator(commune.Module, nn.Module):
             commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
  
 if __name__ == '__main__':
-    Validator.run()
+    Miner.run()
 
         

@@ -716,7 +716,6 @@ class TransformerModel(Model):
                 free_gpu_memory[k]-= v
                 free_gpu_memory[k] = max(0, free_gpu_memory[k])
             devices = list(max_gpu_memory.keys())
-            cls.print(devices)
             # cls.print(commune.reserved_gpus(), 'fam') 
             config.model = model
             config.tag = tag
