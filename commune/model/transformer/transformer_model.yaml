@@ -23,7 +23,7 @@ device_map: null
 max_memory: null
 reserve_gpus: False
 verbose: true
-test: true
+test: false
 train: False
 min_steps_since_save: 100 # save at most every 50 steps
 reload_patience: 100

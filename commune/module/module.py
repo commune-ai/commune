@@ -539,10 +539,10 @@ class Module:
         return config
 
     @classmethod
-    def st(cls, module = None):
+    def st(cls, module = None, fn='dashboard'):
         module = cls.get_module(module)
         module_filepath = module.filepath()
-        cls.run_command(f'streamlit run {module_filepath}', verbose=True)
+        cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
 
 
 
@@ -810,7 +810,7 @@ class Module:
             return cls.run_command('kill -9 $(lsof -ti:{port})')
 
     @classmethod
-    def kill_server(cls, module:str, mode:str = 'pm2'):
+    def kill_server(cls, module:str,mode:str = 'pm2'):
         '''
         Kill the server by the name
         '''
@@ -1366,10 +1366,9 @@ class Module:
             if len(found_modules)>0:
                 name = namespace[cls.choice(found_modules)]
                 
-            try: 
-                port = int(name.split(':')[-1])
-            except ValueError as e:
-                cls.print(name, port)
+
+            port = int(name.split(':')[-1])
+
                 
             ip = name.split(':')[0]
 
@@ -1445,15 +1444,14 @@ class Module:
             
             if isinstance(peer_info, dict):
                 peer_name = f'peer{peer_id}'
-                if 'namespace' in peer_info:
-                    if peer_info['namespace'] == None or isinstance(peer_info['namespace'], str):
-                        if verbose:
-                            cls.print(f'Peer {peer_name} has no namespace', color='red')
-                        continue
-                for name, address in peer_info['namespace'].items():
-                    
-                    namespace[name+seperator+peer_name] = address
-            
+                peer_namespace = peer_info.get('namespace', None)
+                if isinstance(peer_namespace, dict):
+                    for name, address in peer_namespace.items():
+                        namespace[name+seperator+peer_name] = address
+                else:
+                    cls.print(f'Peer {peer_name} has no namespace', color='red')
+
+
         return namespace
         
         
@@ -1496,6 +1494,7 @@ class Module:
             peer_names = [async_get_peer_name(p) for p in peer_addresses]
             peer_names = cls.gather(peer_names)
             local_namespace = dict(zip(peer_names, peer_addresses))
+            
             local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
                 
             cls.save_json('local_namespace', local_namespace, root=True)
@@ -1504,7 +1503,8 @@ class Module:
             local_namespace = cls.__dict__.get('_local_namespace', None)
             if local_namespace == None:
                 local_namespace = cls.get_json('local_namespace', {}, root=True)
-
+                
+        local_namespace = {k:v for k,v in local_namespace.items()}
         return local_namespace
 
         
@@ -1617,7 +1617,7 @@ class Module:
 
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        return bool(name in cls.servers())
+        return bool(name in cls.servers(update=True))
     
     @classmethod
     def module_exists(cls, name:str, **kwargs) -> bool:
@@ -1676,7 +1676,7 @@ class Module:
     @classmethod
     def namespace(cls,
                   search = None,
-                  network:str='local',
+                  network:str='global',
                   verbose: bool = False,
                   update: bool = False,
                   max_staleness:int = 30,
@@ -1778,8 +1778,9 @@ class Module:
             else: 
                 raise Exception(f'The server {module_name} already exists on port {existing_server_port}')
 
-        for k in ['module_name', 'module_id', 'my_name', 'el_namo']:
-            self.__dict__[k] = module_name
+        for k in ['module_name', 'module_id', 'my_name', 'el_namo', 'name']:
+            if k not in self.__dict__:
+                self.__dict__[k] = module_name
 
         Server = cls.import_object('commune.server.server.Server')
         
@@ -4521,6 +4522,15 @@ class Module:
         pattern = r'^[0-9a-fA-F]{64}$'
         return bool(re.match(pattern, s))
 
+    def is_ss58(value: str) -> bool:
+        try:
+            decoded = base58.b58decode_check(value)
+            # Check if the decoded value starts with a specific prefix byte
+            prefix = decoded[0]
+            return prefix in (0x00, 0x01) # Or any other prefix values you want to allow
+        except ValueError:
+            return False
+        
 if __name__ == "__main__":
     Module.run()
     

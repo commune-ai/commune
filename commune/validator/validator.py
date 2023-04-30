@@ -241,6 +241,19 @@ class Validator(commune.Module, nn.Module):
         elif isinstance(model, str):
             model = self.models[model]
         return model
+    
+    
+    def check_input(self, x):
+        if isinstance(x,dict):
+            if 'input_ids' in x and isinstance(x['input_ids'], torch.Tensor):
+                return True
+        return False
+
+    def check_output(self, x):
+        if isinstance(x,dict):
+            if 'topk' in x:
+                return True  
+        return False  
     async def async_forward(self, 
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
@@ -262,32 +275,19 @@ class Validator(commune.Module, nn.Module):
         model_name = self.copy(model)
         model = await self.async_connect(model_name, namespace=namespace, virtual=False)
 
-        stats = {}
         sample = dict(
             input_ids=input_ids,
             attention_mask=attention_mask,
             topk= topk,
             return_keys=return_keys,
             train= train)
+        
+        assert self.check_input(sample)
         output = await model(fn='forward',
                              kwargs=sample, 
                              return_future=True)
-                
-        # except Exception as e:
-        #     output = {'error' : str(e), 'output': output}
-            
-
         
-        def check_valid_output(x):
-            if isinstance(x,dict):
-                if 'topk' in x:
-                    return True  
-            return False  
-        
-        success = check_valid_output(output)
-        
-        
-    
+        success = self.check_output(output)
         stats = {}
         if success:
             output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
@@ -296,8 +296,7 @@ class Validator(commune.Module, nn.Module):
             metric = self.default_metric
             self.print(f'forward failed: {output}', model_name)
 
-        
-    
+
         output['stats'] =  {
             'inference_time': timer.seconds,
             'metric': metric,
@@ -352,7 +351,7 @@ class Validator(commune.Module, nn.Module):
                                    topk=topk, 
                                    timeout=timeout,
                                    train=train,
-                                   **kwargs), timeout=5) for model_key in forwarded_models]
+                                   **kwargs), timeout=timeout) for model_key in forwarded_models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         

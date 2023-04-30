@@ -277,7 +277,7 @@ class TransformerModel(Model):
     def register_stats(self, stats):
         stats['epoch'] = stats.get('epoch', 0)
         stats['saved_step'] = stats.get('saved_step', 0)
-        stats['steps_since_best'] = stats.get('steps_since_best', 0)
+        stats['steps_since_best'] = stats.get('steps_since_best', 10e10)
         stats['best_loss'] = stats.get('best_loss', self.config.default_metric)
         stats['history'] = stats.get('history', [])
 
@@ -288,25 +288,24 @@ class TransformerModel(Model):
             stats['epoch'] = stats['epoch'] + 1
 
             # check if the loss is better than the best loss
-        is_better = self.is_better(stats)
-        
-        
-        stats['steps_since_save'] = stats['train_steps'] - stats['saved_step']
-        if is_better:
-            if stats['steps_since_save'] >= self.config.epoch_length:
-                self.save()
-                stats['saved_step'] = stats['train_steps']
-                
-            stats['steps_since_best'] = 0
-            stats['best_loss'] = stats['loss']
-        else:
-            stats['steps_since_best'] = stats['steps_since_best'] + 1
+            is_better = self.is_better(stats)
 
+            stats['steps_since_save'] = stats['train_steps'] - stats['saved_step']
+            if is_better:
+                if stats['steps_since_save'] >= self.config.epoch_length:
+                    self.save()
+                    stats['saved_step'] = stats['train_steps']
+                    
+                stats['steps_since_best'] = 0
+                stats['best_loss'] = stats['loss']
+            else:
+                stats['steps_since_best'] = stats['steps_since_best'] + 1
+
+                
+            if stats['steps_since_best'] >= self.config.reload_patience:
+                stats['steps_since_best'] = 0
+                self.load(keys=['model', 'optimizer'])
             
-        if stats['steps_since_best'] >= self.config.reload_patience:
-            stats['steps_since_best'] = 0
-            self.load(keys=['model', 'optimizer'])
-        
         
         
         stats['history'] = self.stats.get('history', []) + [stats]
@@ -520,14 +519,15 @@ class TransformerModel(Model):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
 
-        dataset = commune.connect(dataset)
-
+        dataset_name = cls.copy(dataset)
         for i in range(num_batches):
             try:
+                dataset = commune.connect(dataset_name)
+
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
             except Exception as e:
-                cls.print('Skipping batch')
+                cls.print(f'Skipping batch for this reason fam ({e})')
                 continue
 
             if not sample_check(sample):
