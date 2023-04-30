@@ -1071,6 +1071,9 @@ class Module:
         cls.module_python_paths = modules
         return modules
 
+    @classmethod
+    def dashboard(cls, *args, **kwargs):
+        return cls.get_module('dashboard')(*args, **kwargs)
     @staticmethod
     def get_module_config_paths() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
@@ -1510,9 +1513,9 @@ class Module:
         
 
     @classmethod
-    def servers(cls, search:str = None) -> List[str]:
+    def servers(cls, search:str = None, **kwargs) -> List[str]:
 
-        servers = list(cls.local_namespace().keys())
+        servers = list(cls.local_namespace(**kwargs ).keys())
         if search: 
             servers = [s for s in servers if search in s]
         return servers
@@ -1822,6 +1825,7 @@ class Module:
             functions = [f for f in functions if search in f]
         return functions
 
+    fns = functions
         
     @classmethod
     def get_functions(cls, obj:Any=None, include_module:bool = False,) -> List[str]:
