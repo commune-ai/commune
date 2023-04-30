@@ -1107,6 +1107,8 @@ class Module:
         kwargs.pop('self', None)
         return kwargs
     
+    locals2kwargs = get_params
+    
     resolve_kwargs = clean_kwargs = get_params
     
     @classmethod
@@ -1237,12 +1239,14 @@ class Module:
     
 
     @classmethod
-    def ls(cls, path:str = './', 
+    def ls(cls, path:str = '', 
            recursive:bool = False,
            root:bool = False):
         path = cls.resolve_path(path, extension=None, root=root)
-
-        ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
+        try:
+            ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
+        except FileNotFoundError:
+            return []
         return [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
     
     @classmethod
@@ -1357,7 +1361,9 @@ class Module:
         if wait_for_server:
             cls.wait_for_server(name)
         
-        namespace = cls.namespace(network, update=False)
+        
+        if namespace == None :
+            namespace = cls.namespace(network, update=False)
         namespace = cls.copy(namespace)
 
         # local namespace  
@@ -1678,6 +1684,8 @@ class Module:
         }
         
         return global_namespace
+        
+    
         
     @classmethod
     def namespace(cls,
@@ -3643,13 +3651,17 @@ class Module:
         
     @classmethod
     async def async_call(cls, 
-                         module:str, 
                          fn: str , 
+                         module:str = None,
                          verbose:bool= True, 
                          cache_size: bool = 10,
                          *args, 
                          **kwargs) -> None:
         # call a module
+        if len(fn.split('.'))>1 and module == None:
+            module = '.'.join(fn.split('.')[:-1])
+            fn = fn.split('.')[-1]
+            
         module = await cls.async_connect(module, verbose=verbose)
         fn = getattr(module, fn)
         if inspect.iscoroutinefunction(fn):
@@ -4262,6 +4274,14 @@ class Module:
     
     free_gpus = free_gpu_memory
 
+    @classmethod
+    def make_dirs( cls, path ):
+        """ Makes directories for path.
+        """
+        
+        directory = os.path.dirname( path )
+        if not os.path.exists( directory ):
+            os.makedirs( directory ) 
 
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int],
@@ -4424,6 +4444,11 @@ class Module:
                     tag_seperator= '::',
                     prefix = 'fn',
                     name=None):
+        
+        if len(fn.split('.'))>1:
+            module = '.'.join(fn.split('.')[:-1])
+            fn = fn.split('.')[-1]
+            
         kwargs = cls.get_params(kwargs)
         
         if name == None:
@@ -4431,6 +4456,8 @@ class Module:
     
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
+            
+        cls.print(fn, kwargs, name, module)
             
         cls.launch(fn=fn, 
                    module = module,
