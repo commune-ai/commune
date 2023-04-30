@@ -65,6 +65,8 @@ class Validator(commune.Module, nn.Module):
                  **kwargs
                  ):
         
+        self.default_models = [m for m,_ in commune.namespace('global').items() if m.startswith('model.')]
+
         loop = kwargs.pop('loop', None)
         self.set_event_loop(loop)
         
@@ -72,7 +74,8 @@ class Validator(commune.Module, nn.Module):
         self.set_config(kwargs=kwargs)
         config = self.config
         
-        self.namespace = self.namespace(config.network)
+        self.namespace = deepcopy(commune.namespace(config.network))
+        self.print(self.namespace, 'DEBUG NAMESPACE', config.network)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
         self.set_sequence_length(config.sequence_length)
@@ -81,6 +84,8 @@ class Validator(commune.Module, nn.Module):
         self.set_stats(config.stats)
         self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
+        
+    
         
     
     def set_max_stats_history(self, max_stats_history: int) -> None:
@@ -193,9 +198,10 @@ class Validator(commune.Module, nn.Module):
             sequence_length=self.sequence_length,
             batch_size=self.batch_size
         ))
+        
         sample = self.dataset.sample(**kwargs)
         if 'input_ids' not in sample:
-            sample = self.sample()
+            raise Exception(sample)
         
         return sample
     @property
@@ -243,36 +249,40 @@ class Validator(commune.Module, nn.Module):
                 map_tokens=False,
                 train: bool = False,
                 verbose:bool= False,
-                connect_timeout: bool = 2, 
+                connect_timeout: int = 2, 
+                forward_timeout: int = 5,
                 topk: int = 4096,
                 **kwargs ):
         
         sample = self.get_params(locals())
         timer = commune.timer()
-
-        try:
-            model = asyncio.create_task(self.async_connect(model, namespace=self.namespace, timeout=connect_timeout))
-            model = await asyncio.wait_for(model, timeout=3)
-            # we want the client to return the future
-            sample['return_future'] = True
-            stats = {}
-            output = await model.forward(**sample)
-                
-        except Exception as e:
-            output = {'error' : str(e)}
+        output = None
+        # try:
+        model = asyncio.create_task(self.async_connect(model, timeout=connect_timeout, namespace=deepcopy(self.namespace), virtual=False))
+        model = await asyncio.wait_for(model, timeout=connect_timeout)
+        # we want the client to return the future
+        # sample['return_future'] = True
+        stats = {}
+        output = await model(fn='forward', kwargs=sample, return_future=True)
+            
+        # except Exception as e:
+        #     output = {'error' : str(e), 'output': output}
             
 
         
         def check_valid_output(x):
             if isinstance(x,dict):
-                if 'topk' in x and 'logits' in x:
+                if 'topk' in x:
                     return True  
             return False  
         
         success = check_valid_output(output)
+        
+        
     
         stats = {}
         if success:
+            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
             metric = self.default_metric
@@ -321,20 +331,15 @@ class Validator(commune.Module, nn.Module):
 
 
 
-            
-        if models == None:
-            models = self.default_models()
-        models = self.random_ratio_selection(models, ratio=selection_ratio)
+        forwarded_models = self.random_ratio_selection(self.copy(self.default_models), ratio=selection_ratio)
         
-        if verbose:
-            self.print(f'forwarding to models: {models}')
-        forwarded_models = models
+        self.print(f'forwarding to models: {forwarded_models}')
         jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
                                    model=model_key, 
                                    topk=topk, 
                                    timeout=timeout,
                                    train=train,
-                                   **kwargs), timeout=4) for model_key in models]
+                                   **kwargs), timeout=5) for model_key in forwarded_models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         
@@ -342,7 +347,7 @@ class Validator(commune.Module, nn.Module):
             self.print('RECIEVING RESPONSE FROM ',len(model_outputs), 'MODEL OUTPUTS')
         
         model_output_dict = {}
-        for model_output, model_key in zip(model_outputs, models):
+        for model_output, model_key in zip(model_outputs, forwarded_models):
             if model_output is None:
                 continue
             model_output_dict[model_key] = model_output
@@ -522,11 +527,7 @@ class Validator(commune.Module, nn.Module):
         assert not vals[0].key.verify(hash, signature = sig, public_key = vals[1].key.public_key )
         assert vals[0].key.verify(hash, signature = sig, public_key = vals[0].key.public_key )
         
-        
-    @classmethod 
-    def default_models(cls):
-        return [m for m,_ in commune.namespace('global').items() if m.startswith('model.')]
-    
+
     
     @classmethod
     def decode_topk(cls,  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_size:int=50257) -> torch.Tensor:

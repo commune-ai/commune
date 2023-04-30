@@ -722,7 +722,6 @@ class Module:
         elif path.startswith('./'):
             return path.replace('./', cls.pwd + '/')
         else:
-            tmp_dir = cls.tmp_dir()
             if tmp_dir not in path:
                 path = os.path.join(tmp_dir, path)
             if not os.path.isdir(path):
@@ -1139,9 +1138,9 @@ class Module:
                              default=None,
                              root: bool = False,
                              **kwargs):
+
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
-        
         try:
             data = await async_get_json(path, **kwargs)
         except FileNotFoundError:
@@ -1354,17 +1353,24 @@ class Module:
         
         namespace = cls.namespace(network, update=False)
         namespace = cls.copy(namespace)
-        # local namespace    
+
+        # local namespace  
+
+
         if isinstance(name, str):
             found_modules = []
-            for n in namespace.keys():
+            modules = list(namespace.keys())
+            for n in modules:
                 if name in n:
                     found_modules.append(n)
-             
-            if len(found_modules)>0:       
+            if len(found_modules)>0:
                 name = namespace[cls.choice(found_modules)]
-            
-            port = int(name.split(':')[-1])
+                
+            try: 
+                port = int(name.split(':')[-1])
+            except ValueError as e:
+                cls.print(name, port)
+                
             ip = name.split(':')[0]
 
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
@@ -1398,7 +1404,7 @@ class Module:
     def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
         used_local_ports = cls.get_used_ports() 
         if ip == None:
-            ip = '0.0.0.0'
+            ip = cls.external_ip()
         peer_addresses = []
         for port in used_local_ports:
             peer_addresses.append(f'{ip}:{port}')
@@ -1434,7 +1440,6 @@ class Module:
     @classmethod
     def remote_namespace(cls,  seperator = '::', verbose: bool = False, update:bool = False)-> dict:
         
-        print(update,'DEBUG REMOTE')
         peer_registry = cls.peer_registry(update=update)  
         namespace = {}          
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
@@ -1495,8 +1500,11 @@ class Module:
             local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
                 
             cls.save_json('local_namespace', local_namespace, root=True)
-
-        local_namespace = cls.get_json('local_namespace', {}, root=True)
+            
+        else:
+            local_namespace = cls.__dict__.get('_local_namespace', None)
+            if local_namespace == None:
+                local_namespace = cls.get_json('local_namespace', {}, root=True)
 
         return local_namespace
 
@@ -1669,7 +1677,7 @@ class Module:
     @classmethod
     def namespace(cls,
                   search = None,
-                  network:str='global',
+                  network:str='local',
                   verbose: bool = False,
                   update: bool = False,
                   max_staleness:int = 30,
@@ -1695,6 +1703,7 @@ class Module:
 
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
+            
         return namespace
     
     
