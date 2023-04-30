@@ -183,9 +183,8 @@ class Client( Serializer, commune.Module):
         if return_future:
             return future
         else:
-            loop = self.get_event_loop()
 
-            return loop.run_until_complete(future)
+            return self.loop.run_until_complete(future)
 
     def __str__ ( self ):
         return "Client({})".format(self.endpoint) 

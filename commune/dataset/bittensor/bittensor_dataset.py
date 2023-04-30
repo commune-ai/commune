@@ -9,11 +9,16 @@ class Dataset(commune.Module):
         self.dataset = bittensor.dataset(config = self.munch(dict(dataset=config)))
         self.config = config
         
-    def getattr(self, key):
-        if hasattr(getattr(self, 'dataset'), key):
-            return getattr(self.dataset, key)
-        else:
-            return getattr(self, key)
+    # def getattr(self, key):
+    #     if hasattr(getattr(self, 'dataset'), key):
+    #         return getattr(self.dataset, key)
+    #     else:
+    #         return getattr(self, key)
+    
+    @classmethod
+    def deploy(cls, name=None, tag=None, **kwargs):
+
+        return commune.deploy(kwargs=kwargs, name=name, tag=tag)
     
     def sample(self,*args, **kwargs):
         input_ids =  next(self.dataset)

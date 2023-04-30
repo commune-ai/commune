@@ -1,6 +1,6 @@
 models: model
 tokenizer: gpt2
-train: True
+train: False
 batch_size: 32
 sequence_length: 256
 network: global
