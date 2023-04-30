@@ -242,7 +242,6 @@ class TransformerModel(Model):
             loss.backward()
             self.optimizer.step()
             loss = loss.item()
-                
             stats['train_samples'] = stats.get('train_samples', 0) + input_samples
             stats['train_tokens'] = stats.get('train_tokens',0) + input_tokens
             stats['train_steps'] = stats.get('train_steps', 0) + 1
@@ -265,7 +264,6 @@ class TransformerModel(Model):
         alpha = 1 / self.config.evaluation_steps
         stats['loss'] = (past_loss*(1-alpha) + alpha*loss)
 
-        
         stats['sample_loss'] = loss
         stats['input_shape'] = list(input_ids.shape)
         stats['train'] = train

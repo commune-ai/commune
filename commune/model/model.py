@@ -260,7 +260,7 @@ class Model( nn.Module, commune.Module):
         self.load_state_dict(state_dict)
         
 
-    def set_finetune(self, finetune:dict ) -> Tuple[bool, str]:
+    def set_finetune(self, finetune) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):
@@ -270,10 +270,9 @@ class Model( nn.Module, commune.Module):
                     The name of the last layer that user specified or we found.
                     None if the user did not specify and we couldnt find it. 
         '''
-        self.config['finetune'] = finetune
-        num_layers = finetune.get('num_layers', default_kwargs['num_layers'])
-        layer_name = finetune.get('layer_name', default_kwargs['layer_name'])
-        all = finetune.get('all', default_kwargs['all'])
+        self.config['finetune'] = num_layers = finetune
+        all = False
+        layer_name = None
 
         def find_last_layer(model: torch.nn.Module) -> Optional[str]:    
             r''' Recursively find the last layer in a nn.ModuleList
