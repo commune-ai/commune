@@ -65,7 +65,7 @@ class Validator(commune.Module, nn.Module):
                  **kwargs
                  ):
         
-        self.default_models = [m for m,_ in commune.namespace('global').items() if m.startswith('model.')]
+        self.default_models = [m for m,_ in commune.namespace('global', update=True).items() if m.startswith('model.')]
 
         loop = kwargs.pop('loop', None)
         self.set_event_loop(loop)
@@ -294,7 +294,8 @@ class Validator(commune.Module, nn.Module):
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
             metric = self.default_metric
-            self.print(f'forward failed: {output}', model_name)
+            if verbose:
+                self.print(f'forward failed: {output}', model_name)
 
 
         output['stats'] =  {
@@ -342,7 +343,7 @@ class Validator(commune.Module, nn.Module):
 
         forwarded_models = self.random_ratio_selection(self.copy(self.default_models), ratio=selection_ratio)
         
-        self.print(f'forwarding to models: {forwarded_models}')
+        self.print(f'forwarding to {len(forwarded_models)} models ')
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
         inputs_ids = input_ids[:, -sequence_length:]
         
