@@ -1328,8 +1328,11 @@ class Module:
 
  
     
-    
-    
+    @classmethod
+    def connect_pool(cls, module, *args, **kwargs):
+        module_names  = cls.modules(module)
+        modules =  cls.gather([cls.async_connect(m, **kwargs) for m in module_names])
+        return dict(zip(module_names, modules))
     @classmethod
     async def async_connect(cls, 
                 name:str=None, 
@@ -1617,7 +1620,7 @@ class Module:
 
     @classmethod
     def server_exists(cls, name:str) -> bool:
-        return bool(name in cls.servers(update=True))
+        return bool(name in cls.servers())
     
     @classmethod
     def module_exists(cls, name:str, **kwargs) -> bool:
@@ -3659,13 +3662,6 @@ class Module:
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
         
-    
-        
-    def connect_pool(cls, modules):
-
-        for module in modules:
-            jobs += [cls.async_connect(module)]
-            
 
     @classmethod
     def call_pool(cls, module:str, fn: str ,  *args, **kwargs) -> None:

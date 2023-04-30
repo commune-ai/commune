@@ -505,13 +505,11 @@ class TransformerModel(Model):
             return cls.remote_fn(fn='train',kwargs=kwargs, name=f"train::{model}")
         
         
-        # if not commune.server_exists(dataset):
-        #     commune.deploy(dataset)
-        model_name = cls.copy(model)
-        if model in cls.model_options:
-            model = cls(model=model)
-        else:
-            model  = cls.connect(model)  
+        if isinstance(model, str):
+            if model in cls.model_options:
+                model = cls(model=model)
+            else:
+                model  = cls.connect(model)  
         
         
         
@@ -519,10 +517,10 @@ class TransformerModel(Model):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
 
-        dataset_name = cls.copy(dataset)
+        if isinstance(dataset, str):
+            dataset = commune.connect(dataset)
         for i in range(num_batches):
             try:
-                dataset = commune.connect(dataset_name)
 
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
@@ -545,19 +543,20 @@ class TransformerModel(Model):
             )
             try:
                 output = model.forward(**sample)
-                cls.print('STATS: ' ,output.get('stats', 'Not Stast'))
+                cls.print('STATS: ' ,output.get('stats', 'Not Stats'))
             except Exception as e:
                 raise e
-            
+          
+          
 
     @classmethod
-    def train_fleet(cls,workers=10, **kwargs):
-        model = kwargs.get('model', 'model')
-        models = commune.modules('model')
-        for model in models:
-            worker_name = f"train.{model}"
-            kwargs['model'] = model
-            cls.remote_fn(fn='train',kwargs=kwargs, name=worker_name)
+    def train_fleet(cls, model = 'model', num_batches=2, dataset='dataset.bittensor',  **kwargs):
+        model_pool = commune.connect_pool(model)
+        models = list(model_pool.values())
+        model_names = list(model_pool.keys())
+        for model, model_name in zip(models, model_names):
+            cls.print(f"Training {model_name} on {dataset} for {num_batches} batches")
+            cls.train(model=cls.choice(models), dataset=dataset, num_batches=num_batches,**kwargs)
 
     test = train 
 
@@ -597,7 +596,7 @@ class TransformerModel(Model):
         deployed_models = []
         models = [ model+tag_seperator+t for t in tags]
         cls.deploy(*models, **kwargs)
-        return deployed_models
+        return models
         
     @classmethod
     def undeployed_models(cls, models: List[str] = 'all'):
@@ -682,7 +681,7 @@ class TransformerModel(Model):
                 free_gpu_memory[k]-= v
                 free_gpu_memory[k] = max(0, free_gpu_memory[k])
             devices = list(max_gpu_memory.keys())
-            
+            cls.print(devices)
             # cls.print(commune.reserved_gpus(), 'fam') 
             config.model = model
             config.tag = tag
