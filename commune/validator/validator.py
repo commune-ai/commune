@@ -75,7 +75,6 @@ class Validator(commune.Module, nn.Module):
         config = self.config
         
         self.namespace = deepcopy(commune.namespace(config.network))
-        self.print(self.namespace, 'DEBUG NAMESPACE', config.network)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
         self.set_sequence_length(config.sequence_length)
@@ -249,23 +248,31 @@ class Validator(commune.Module, nn.Module):
                 map_tokens=False,
                 train: bool = False,
                 verbose:bool= False,
-                connect_timeout: int = 2, 
-                forward_timeout: int = 5,
                 topk: int = 4096,
+                return_keys: List[str] = ['topk'],
                 **kwargs ):
+        
+        
         
         sample = self.get_params(locals())
         timer = commune.timer()
         output = None
         # try:
+        namespace = self.copy(self.namespace)
         model_name = self.copy(model)
-        model = asyncio.create_task(self.async_connect(model_name, timeout=connect_timeout, namespace=deepcopy(self.namespace), virtual=False))
-        model = await asyncio.wait_for(model, timeout=connect_timeout)
-        # we want the client to return the future
-        # sample['return_future'] = True
+        model = await self.async_connect(model_name, namespace=namespace, virtual=False)
+
         stats = {}
-        output = await model(fn='forward', kwargs=sample, return_future=True)
-            
+        sample = dict(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            topk= topk,
+            return_keys=return_keys,
+            train= train)
+        output = await model(fn='forward',
+                             kwargs=sample, 
+                             return_future=True)
+                
         # except Exception as e:
         #     output = {'error' : str(e), 'output': output}
             
@@ -314,6 +321,7 @@ class Validator(commune.Module, nn.Module):
                 threshold: float = 4.0,
                 timeout = 7,
                 topk: int = None,
+                sequence_length:int = None,
                 selection_ratio: int = None,
                 train: bool = None,
                 verbose: bool = False,
@@ -336,6 +344,9 @@ class Validator(commune.Module, nn.Module):
         forwarded_models = self.random_ratio_selection(self.copy(self.default_models), ratio=selection_ratio)
         
         self.print(f'forwarding to models: {forwarded_models}')
+        sequence_length = sequence_length if sequence_length else self.config.sequence_length
+        inputs_ids = input_ids[:, -sequence_length:]
+        
         jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
                                    model=model_key, 
                                    topk=topk, 
@@ -496,7 +507,7 @@ class Validator(commune.Module, nn.Module):
 
     
     @classmethod
-    def remote_train(cls, *args, **kwargs):
+    def run_train(cls, *args, **kwargs):
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
@@ -515,10 +526,8 @@ class Validator(commune.Module, nn.Module):
             self.sleep(sleep_interval)
     @classmethod
     def test(cls,  *args, num_batches=2, **kwargs):
-        cls.train(*args, num_batches=num_batches, **kwargs)
+        cls.run_train(*args, num_batches=num_batches, **kwargs)
         
-    
-    run_train = test
     @classmethod
     def test_validation_keys(cls):
         vals = [Validator() for _ in range(10)]

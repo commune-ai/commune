@@ -264,9 +264,7 @@ class Client( Serializer, commune.Module):
             response = self.deserialize(response)
             stats['time']['deserial'] = t.seconds
    
-            if results_only:
-                response = response['data']['result']
-                    
+   
         except grpc.RpcError as rpc_error_call:
             response = {'error': str(rpc_error_call)}
             # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
@@ -290,7 +288,10 @@ class Client( Serializer, commune.Module):
             # if 'error' in response:
             #     self.print(f"ERROR {self.endpoint}::fn::({fn}), error: {response['error'][:100]}",color='red')
             self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), time: {stats['time']} ",color=random_color)
-                     
+             
+        if results_only:
+            response = response.get('data', {}).get('result', response)
+                         
         
         return  response
     

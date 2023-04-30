@@ -1377,7 +1377,6 @@ class Module:
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
         if verbose:
             cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-            
         client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
         
         return client
