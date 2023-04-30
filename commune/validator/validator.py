@@ -248,14 +248,14 @@ class Validator(commune.Module, nn.Module):
                 **kwargs ):
         
         sample = self.get_params(locals())
-        model = asyncio.create_task(self.async_connect(model, namespace=self.namespace, timeout=connect_timeout))
-        model = await asyncio.wait_for(model, timeout=1)
-        # we want the client to return the future
-        sample['return_future'] = True
         timer = commune.timer()
 
-        stats = {}
         try:
+            model = asyncio.create_task(self.async_connect(model, namespace=self.namespace, timeout=connect_timeout))
+            model = await asyncio.wait_for(model, timeout=3)
+            # we want the client to return the future
+            sample['return_future'] = True
+            stats = {}
             output = await model.forward(**sample)
                 
         except Exception as e:
@@ -265,29 +265,27 @@ class Validator(commune.Module, nn.Module):
         
         def check_valid_output(x):
             if isinstance(x,dict):
-                if 'topk' in x:
+                if 'topk' in x and 'logits' in x:
                     return True  
             return False  
         
-        is_valid_output = check_valid_output(output)
+        success = check_valid_output(output)
     
         stats = {}
-        if is_valid_output:
-            metric = self.calculate_loss(input_ids=input_ids, **output)  
+        if success:
+            metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
             metric = self.default_metric
+            self.print(f'forward failed: {output}')
+
     
         output['stats'] =  {
             'inference_time': timer.seconds,
             'metric': metric,
             'timestamp': self.time(),
-            'success': is_valid_output
+            'success': success
         }
            
-        if not success:
-            if verbose:
-                self.print(f'forward failed: {output["error"]}')
-            
     
             
         return output
