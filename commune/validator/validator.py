@@ -258,7 +258,8 @@ class Validator(commune.Module, nn.Module):
         timer = commune.timer()
         output = None
         # try:
-        model = asyncio.create_task(self.async_connect(model, timeout=connect_timeout, namespace=deepcopy(self.namespace), virtual=False))
+        model_name = self.copy(model)
+        model = asyncio.create_task(self.async_connect(model_name, timeout=connect_timeout, namespace=deepcopy(self.namespace), virtual=False))
         model = await asyncio.wait_for(model, timeout=connect_timeout)
         # we want the client to return the future
         # sample['return_future'] = True
@@ -286,8 +287,9 @@ class Validator(commune.Module, nn.Module):
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
             metric = self.default_metric
-            self.print(f'forward failed: {output}')
+            self.print(f'forward failed: {output}', model_name)
 
+        
     
         output['stats'] =  {
             'inference_time': timer.seconds,
@@ -494,7 +496,7 @@ class Validator(commune.Module, nn.Module):
 
     
     @classmethod
-    def train(cls, *args, **kwargs):
+    def remote_train(cls, *args, **kwargs):
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
