@@ -51,9 +51,9 @@ shortcuts =  {
 
 class Tokenizer(commune.Module):
     shortcuts = shortcuts
-    def __init__(self, config ,**kwargs):
+    def __init__(self, **kwargs):
         
-        config = self.set_config(config, kwargs=kwargs)
+        config = self.set_config(kwargs=kwargs)
         self.set_tokenizer(config)
     
         
@@ -133,6 +133,9 @@ class Tokenizer(commune.Module):
         print(self.tokenize(text))
         print(self.detokenize(self.tokenize(text)['input_ids']))
 
+    @classmethod
+    def deploy(cls, tokenizer):
+        return cls.deploy(tag=tokenizer, kwargs=dict(tokenizer=tokenizer)   )
     
 if __name__ == "__main__":
     Tokenizer.run()

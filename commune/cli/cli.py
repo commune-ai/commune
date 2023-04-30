@@ -20,6 +20,7 @@ class CLI(commune.Module):
         args, kwargs = self.parse_args()
 
         self.namespace = self.namespace(update=False)
+        module_list = commune.module_list()
 
         if len(args)> 0:
     
@@ -28,9 +29,12 @@ class CLI(commune.Module):
             
             addresses = list(self.namespace.values())
             # fn_obj = getattr(module, fn)
-            if args[0] in commune.module_list():
+            if args[0] in module_list:
+                print(module, 'BROO', args)
                 module = args.pop(0)
+                
                 module = commune.get_module(module)
+                print(module, 'BROO')
             elif args[0] in self.namespace or args[0] in addresses:
                 address = args.pop(0)
                 module = commune.connect(address, namespace=self.namespace)
