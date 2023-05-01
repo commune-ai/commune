@@ -3660,14 +3660,13 @@ class Module:
 
         
     @classmethod
-    async def async_call(cls, 
-                         *args,
+    async def async_call(cls,
+                         module = None,
                          fn = None,
+                         *args,
                          **kwargs) -> None:
 
-        assert len(args) > 0, 'Must provide at least one argument'
-        args = list(args)
-        module = args.pop(0)
+        
         if isinstance(module, str) and fn == None:
             module, fn = '.'.join(module.split('.')[:-1]),  module.split('.')[-1],
             
@@ -3704,23 +3703,11 @@ class Module:
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
     @classmethod
-<<<<<<< HEAD
-    def call_pool(cls, fn: str , module:str = None,  *args, **kwargs) -> None:
-        # call a module
-        if isinstance(module, list):
-            module_pool = module
-        else:
-            module_pool = cls.modules(module)
-        jobs = []
-        for module in module_pool:
-            jobs += [cls.async_call(module, fn, *args, **kwargs)]
-=======
     def resolve_fn_module(cls, fn, module=None ) -> str:
     
         if module == None and len(fn.split('.')) > 1:
             module = '.'.join(fn.split('.')[:-1])
             module = cls.connect(module)
->>>>>>> 442a2c0311be24ed845b5378f6f15128a6bd7ee5
         
         return  fn, module
     @classmethod
