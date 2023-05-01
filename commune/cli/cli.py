@@ -40,20 +40,7 @@ class CLI(commune.Module):
                             servers=[s for s in module_options if args[0] == s],
             )
             
-            if len(args[0].split('.')) > 1:
-                new_servers = [f for f in module_options if '.'.join(args[0].split('.')[:-1]) == f]
-                if len(new_servers)>0:
-                    candidates['servers'] = new_servers
-                    module = new_servers[0]
-                    fn = args[0].split('.')[-1]
-                    
-                new_modules = [f for f in module_list if '.'.join(args[0].split('.')[:-1]) == f]
-                if len(new_modules)>0:
-                    candidates['modules'] = new_modules
-                    module = new_modules[0]
-                    fn = args[0].split('.')[-1]
-                    
-                    
+   
             # fn_obj = getattr(module, fn)
             if len(candidates['modules'])>0:
                 if module == None:

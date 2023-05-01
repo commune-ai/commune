@@ -47,7 +47,7 @@ class Model( nn.Module, commune.Module):
         self.set_stats(config.stats)
         self.set_model(config)
         self.set_tag(config.tag)
-        
+
 
     @classmethod
     def train_fleet(cls, *args, **kwargs):
@@ -71,6 +71,8 @@ class Model( nn.Module, commune.Module):
             stats = self.__dict__.get('stats', {})
         stats.update(kwargs)
         self.stats = self.config['stats'] = stats
+        self.stats_history = []
+    
         return stats
         
     def set_optimizer(self, optimizer:dict=None):
@@ -116,7 +118,12 @@ class Model( nn.Module, commune.Module):
         # set the model to train mode
         if train:
             no_grad = False
+            if self.training == False:
+                self.train()
+                self.training = True
         else:
+            if self.training == True:
+                self.eval()
             no_grad = True
             
             
@@ -203,18 +210,22 @@ class Model( nn.Module, commune.Module):
             state_dict = {k:state_dict[k]  for k in keys}
         
         keys = list(state_dict.keys())
-        
+        state_path_dict = {}
+        for k in keys:
+            state_path_dict[k] = os.path.join(path, f'{k}.pt')
+        state_dict['config']['state_path_dict'] = state_path_dict
         
         for k in keys:
-            object_path = os.path.join(path, f'{k}.pt')
-            torch.save(state_dict[k], object_path)
-        
+            torch.save(state_dict[k], state_path_dict[k])        
             if verbose:
-                self.print(f'Saving {k} to {object_path}')
+                self.print(f'Saving {k} to {state_path_dict[k]}')
 
         return path
     
     
+    def check_config(self, config, ensure_keys=[]):
+        for k in ensure_keys:
+            assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
     @classmethod
     def ls_tags(self):
         return self.ls()
@@ -240,10 +251,11 @@ class Model( nn.Module, commune.Module):
             loaded_state_dict[key] = torch.load(path)
         
         if 'config' in loaded_state_dict:
-            self.print('Loading stats')
             config = loaded_state_dict['config']
-            
+            self.check_config(config)
             self.set_config(config)
+            # DO WE WANT TO REBUILD THE MODEL WHEN WE LOAD A CONFIG WITH SLIGHTLY DIFFERENT PARAMS
+            self.set_stats(config.stats)
             
         if 'model' in loaded_state_dict:
             self.print('Loading model')

@@ -30,6 +30,7 @@ reload_patience: 100
 default_metric: 12
 hidden_size: 768
 vocab_size: 50258
+loss_sigdigs: 3
 
 
 
