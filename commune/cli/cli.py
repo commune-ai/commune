@@ -77,7 +77,6 @@ class CLI(commune.Module):
             else: 
                 raise Exception(f'No module, function or server found for {args[0]}')
         
-        print(module, fn, args, kwargs)
         result = getattr(module, fn)
         if callable(result):
             result = result(*args, **kwargs)

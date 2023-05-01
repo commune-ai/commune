@@ -3,5 +3,6 @@
 import commune
 import sys
 if __name__ == '__main__':
+    argv = sys.argv
     commune.cli(sys.argv[1:])
     
