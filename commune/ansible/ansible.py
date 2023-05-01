@@ -184,7 +184,7 @@ class Ansible(commune.Module):
               
      
     @classmethod
-    def streamlit(cls, ):
+    def dashboard(cls, ):
         
         self = cls()
         
