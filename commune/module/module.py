@@ -1373,8 +1373,14 @@ class Module:
             found_modules = []
             modules = list(namespace.keys())
             for n in modules:
-                if name in n:
-                    found_modules.append(n)
+                if name == n:
+                    # we found the module
+                    found_modules = [n]
+                    break
+                elif name in n:
+                    # get all the modules lol
+                    found_modules += [n]
+                    
             if len(found_modules)>0:
                 name = namespace[cls.choice(found_modules)]
                 
@@ -1414,7 +1420,7 @@ class Module:
     def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
         used_local_ports = cls.get_used_ports() 
         if ip == None:
-            ip = cls.external_ip()
+            ip = cls.default_ip
         peer_addresses = []
         for port in used_local_ports:
             peer_addresses.append(f'{ip}:{port}')
@@ -1508,7 +1514,7 @@ class Module:
             local_namespace = dict(zip(peer_names, peer_addresses))
             
             local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
-                
+            
             cls.save_json('local_namespace', local_namespace, root=True)
             
         else:
@@ -1559,7 +1565,6 @@ class Module:
     @classmethod
     def register_server(cls, name: str, ip: str,port: int, **kwargs)-> dict:
         local_namespace = cls.local_namespace()    
-        
         
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
@@ -1810,11 +1815,13 @@ class Module:
         self.port = server.port
         self.address = self.ip_address = self.ip_addy =  server.address
         
+        self.config['info'] = self.info()
+        
         
         # register the server
         server_info = cls.register_server(name=module_name, 
                                           context=context,
-                                          ip=self.ip,
+                                          ip=self.default_ip,
                                           port=self.port,
                                           network=network,
                                           netuid=netuid)
@@ -3617,9 +3624,12 @@ class Module:
         data = key.decrypt(data)
         if isinstance(data, str):
             data = cls.str2python(data)
-        if len(data) == 0:
+            
+        if isinstance(data, str) and len(data) == 0:
+    
             if ignore_error:
                 data = None
+                cls.print(f'Exception: Wrong Password, try another',color='red')
             else:
                 raise Exception(f'could not decrypt data, try another pasword')
         return data
@@ -3651,25 +3661,41 @@ class Module:
         
     @classmethod
     async def async_call(cls, 
-                         fn: str , 
-                         module:str = None,
-                         verbose:bool= True, 
-                         cache_size: bool = 10,
-                         *args, 
+                         *args,
+                         fn = None,
                          **kwargs) -> None:
-        # call a module
-        if len(fn.split('.'))>1 and module == None:
-            module = '.'.join(fn.split('.')[:-1])
-            fn = fn.split('.')[-1]
+
+        assert len(args) > 0, 'Must provide at least one argument'
+        args = list(args)
+        module = args.pop(0)
+        if isinstance(module, str) and fn == None:
+            module, fn = '.'.join(module.split('.')[:-1]),  module.split('.')[-1],
             
-        module = await cls.async_connect(module, verbose=verbose)
-        fn = getattr(module, fn)
-        if inspect.iscoroutinefunction(fn):
-            return await fn(*args, **kwargs)
-        elif callable(fn):
-            return fn(*args, **kwargs)
+            
+            pool_mode = False
+            
+            while module.endswith('.'):
+                pool_mode = True
+                module = module[:-1]
+            if pool_mode:
+                module = cls.modules(module)
+            
+        if fn == None:
+            fn = 'forward'
+        if isinstance(module, list):
+            modules = module
+            jobs = [cls.async_call(f'{m}.{fn}', *args, **kwargs) for m in modules]
+            results = await asyncio.gather(*jobs)
+            return dict(zip(modules, results))
+    
+        module = await cls.async_connect(module)
+        result = getattr(module, fn)
+        if inspect.iscoroutinefunction(result):
+            return await result(*args, **kwargs)
+        elif callable(result):
+            return result(*args, **kwargs)
         else:
-            return fn
+            return result
 
 
     @classmethod
@@ -3677,30 +3703,17 @@ class Module:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
-        
-
     @classmethod
-    def call_pool(cls, module:str, fn: str ,  *args, **kwargs) -> None:
-        # call a module
-        if isinstance(module, list):
-            module_pool = module
-        else:
-            module_pool = cls.modules(module)
-        jobs = []
-        for module in module_pool:
-            jobs += [cls.async_call(module, fn, *args, **kwargs)]
+    def resolve_fn_module(cls, fn, module=None ) -> str:
+    
+        if module == None and len(fn.split('.')) > 1:
+            module = '.'.join(fn.split('.')[:-1])
+            module = cls.connect(module)
         
-        loop = cls.get_event_loop()
-        module_results = loop.run_until_complete(asyncio.gather(*jobs))
-        
-        results_map = {}
-        for module_name, module_result in zip(module_pool, module_results):
-            results_map[module_name] = module_result
-            
-        return results_map
+        return  fn, module
+    @classmethod
 
-    pool = call_pool
-            
+    
     def resolve_key(self, key: str) -> str:
         if key == None:
             if not hasattr(self, 'key'):
@@ -4003,10 +4016,10 @@ class Module:
         return cls.get_port_range(port_range)
         return port_range
     
-    @classmethod 
-    def ansible(cls, *args, fn='shell', **kwargs):
-        ansible_module = cls.get_module('ansible')()
-        return getattr(ansible_module, fn)(*args, **kwargs)
+    # @classmethod 
+    # def ansible(cls, *args, fn='shell', **kwargs):
+    #     ansible_module = cls.get_module('ansible')()
+    #     return getattr(ansible_module, fn)(*args, **kwargs)
         
     @classmethod
     def add_peer(cls, *args, **kwargs):
@@ -4031,7 +4044,6 @@ class Module:
         if len(peer_addresses) == 0:
             peer_addresses = cls.boot_peers
             
-        cls.print(peer_addresses)
         peer_jobs = []
         # get the server registry for each peer
         for peer_address in peer_addresses:
@@ -4457,7 +4469,6 @@ class Module:
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
             
-        cls.print(fn, kwargs, name, module)
             
         cls.launch(fn=fn, 
                    module = module,

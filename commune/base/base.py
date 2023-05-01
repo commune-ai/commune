@@ -3,13 +3,14 @@ import commune
 class Base(commune.Module):
     def __init__(self, **kwargs):
         config = self.set_config(config=kwargs)
-        self.setup(config)
         
-    def setup(self, config):
-        self.add_users(config.add_users)
+    @property
+    def users(self):
+        return self.config.users
         
 
-    def add_user(self, user: str, secret: str) -> None:
+    
+    def add_user(self, user: str, password: str=None) -> None:
         self.config.users.append(user)
         return self.config.users[-1]
         
@@ -24,10 +25,14 @@ class Base(commune.Module):
         
     def load(self):
         self.config = self.get('config')
-        
-
+    
+    @classmethod
+    def test(cls):
+        cls()
     def users(self):
         return self.config.users
+    
+
     
 if __name__ == '__main__':
     Base.run()
