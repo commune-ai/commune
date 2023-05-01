@@ -23,40 +23,64 @@ class CLI(commune.Module):
 
         module_list = commune.module_list()
 
+        fn = None
+        module = None
         if len(args)> 0:
     
             namespace = self.namespace(update=False)
             
  
 
+            module_list = self.module_list()
+            functions = self.functions(args[0], include_module=True)
+            module_options = (list(namespace.values()) + list(namespace.keys()))
             candidates = dict(
-            functions=self.functions(args[0], include_module=True),
-            modules=self.module_list(args[0]),
-            servers=[s for s in (list(namespace.values()) + list(namespace.keys())) if args[0] in s],
+                            functions=[f for f in functions if f == args[0]],
+                            modules=[m for m in module_list if m == args[0]],
+                            servers=[s for s in module_options if args[0] == s],
             )
+            
+            if len(args[0].split('.')) > 1:
+                new_servers = [f for f in module_options if '.'.join(args[0].split('.')[:-1]) == f]
+                if len(new_servers)>0:
+                    candidates['servers'] = new_servers
+                    module = new_servers[0]
+                    fn = args[0].split('.')[-1]
+                    
+                new_modules = [f for f in module_list if '.'.join(args[0].split('.')[:-1]) == f]
+                if len(new_modules)>0:
+                    candidates['modules'] = new_modules
+                    module = new_modules[0]
+                    fn = args[0].split('.')[-1]
+                    
+                    
             # fn_obj = getattr(module, fn)
             if len(candidates['modules'])>0:
-                module = args.pop(0)
-                fn = args.pop(0)
-                module = commune.get_module(module)
-                result = getattr(module, fn)
-                if callable(result):
-                    result = result(*args, **kwargs)
+                if module == None:
+                    module = args.pop(0)
+                else:
+                    args.pop(0)
+                fn = fn if fn != None else args.pop(0)
+                module = commune.module(module)
             elif len(candidates['servers'])>0:
+                if module == None:
+                    module = args.pop(0)
+                else:
+                    args.pop(0)
+                fn = fn if fn != None else args.pop(0)
                 module = commune.connect(module)
-                fn = args.pop(0)
-                result = getattr(module, fn)
-                if callable(result):
-                    result = result(*args, **kwargs)
+
             elif len(candidates['functions'])>0:
-                fn = args.pop(0)
+                module = self.module
+                fn = fn if fn != None else  args.pop(0)
                 fn = candidates['functions'][0]
-                # module_info = module.info()
-                
-                result = getattr(self.module,fn)(*args, **kwargs)
             else: 
                 raise Exception(f'No module, function or server found for {args[0]}')
-            
+        
+        print(module, fn, args, kwargs)
+        result = getattr(module, fn)
+        if callable(result):
+            result = result(*args, **kwargs)
 
 
         self.print(result)
