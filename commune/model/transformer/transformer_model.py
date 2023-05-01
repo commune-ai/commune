@@ -294,7 +294,6 @@ class TransformerModel(Model):
         stats['saved_step'] = stats.get('saved_step', 0)
         stats['steps_since_best'] = stats.get('steps_since_best', 10e10)
         stats['best_loss'] = stats.get('best_loss', self.config.default_metric)
-        stats['history'] = stats.get('history', [])
 
         if stats['train'] and stats['batch_count'] == 0:
             timestamp = self.time()
@@ -303,7 +302,7 @@ class TransformerModel(Model):
             stats['epoch'] = stats['epoch'] + 1
 
             # check if the loss is better than the best loss
-            is_better = self.is_better(stats)
+            is_better = bool(stats['epoch_loss'] <= stats['best_loss'])
 
             stats['steps_since_save'] = stats['train_steps'] - stats['saved_step']
             if is_better:
@@ -311,14 +310,12 @@ class TransformerModel(Model):
                     self.save()
                     stats['saved_step'] = stats['train_steps']
                     
-                stats['steps_since_best'] = 0
-                stats['best_loss'] = stats['loss']
+                stats['best_loss'] = stats['epoch_loss']
             else:
                 stats['steps_since_best'] = stats['steps_since_best'] + 1
 
                 
-            if stats['steps_since_best'] >= self.config.reload_patience:
-                stats['steps_since_best'] = 0
+            if stats['steps_since_best'] % self.config.epoch_length == 0:
                 self.load(keys=['model', 'optimizer'])
             
         
@@ -331,8 +328,7 @@ class TransformerModel(Model):
             
         return stats
     
-    def is_better(self, stats) -> bool:
-        return stats['loss'] <= stats['best_loss']
+
 
     def set_model(self, config) -> None:
         if config == None:
@@ -567,6 +563,7 @@ class TransformerModel(Model):
                 cls.print('Sample check failed, skipping batch')
                 continue
         
+            sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
             sample.update(
                 topk=topk,
                 map_tokens=map_tokens,
