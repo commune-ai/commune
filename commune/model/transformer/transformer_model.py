@@ -578,6 +578,7 @@ class TransformerModel(Model):
             )
             try:
                 output = model.forward(**sample)
+                cls.print(output)
                 cls.print('STATS: ' ,output.get('stats', 'Not Stats'))
             except Exception as e:
                 raise e

@@ -14,7 +14,6 @@ import argparse
 import asyncio
 
 
-boot_peers = ['162.157.13.236:9050']
 
 class Module:
     
@@ -39,9 +38,15 @@ class Module:
     # Please note that this assumes that {root_dir}/module.py is where your module root is
     root_dir = root_path.split('/')[-1]
     console = Console()
-    boot_peers = boot_peers
     
     
+    @classmethod
+    def boot_peers(cls) -> List[str]: 
+        config = Module.get_config()
+        boot_peers = config.get('boot_peers', [])
+        return boot_peers
+        
+        
     def __init__(self, 
                  config:Dict=None, 
                  add_attributes: bool = False,
@@ -227,7 +232,7 @@ class Module:
     
     @classmethod
     def load_yaml(cls, path:str=None, root:bool = False) -> Dict:
-        '''
+        '''f
         Loads a yaml file
         '''
         path = cls.resolve_path(path, root=root)
@@ -321,23 +326,28 @@ class Module:
     
     
     @classmethod
-    def resolve_config_path(cls, path= None) -> str:
+    def resolve_config_path(cls, path= None, root:bool=False) -> str:
         
         module_tree = cls.module_tree()
         if path in module_tree: 
             path = module_tree[path].replace('.py', '.yaml')
-        path = path if path else cls.__config_file__()
+            
+        if path is None:
+            if root:
+                path = Module.__config_file__()
+            else:
+                path = cls.__config_file__()
         assert isinstance(path, str)
         return path
     @classmethod
-    def load_config(cls, path:str=None, to_munch:bool = False) -> Union[Munch, Dict]:
+    def load_config(cls, path:str=None, to_munch:bool = False, root:bool = False) -> Union[Munch, Dict]:
         '''
         Args:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
         
-        path = cls.resolve_config_path(path)
+        path = cls.resolve_config_path(path, root=root)
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -410,13 +420,22 @@ class Module:
             data = cls.decrypt(data, password=password)
         return data
     @classmethod
-    def put_config(cls, key, value) -> Munch:
+    def putc(cls, key, value) -> Munch:
         '''
         Saves the config to a yaml file
         '''
-        config = self.get_config()
+        config = cls.get_config()
         cls.dict_put(config, key, value)
-        self.set_config(config=config, key=key, value=value)
+        cls.set_config(config=config)
+        
+    @classmethod
+    def getc(cls, key) -> Munch:
+        '''
+        Saves the config to a yaml file
+        '''
+        config = cls.get_config()
+        return cls.dict_get(config, key)
+    
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
 
@@ -448,7 +467,11 @@ class Module:
         path = path if path else self.__config_file__()
         return self.path_exists(path)
     @classmethod
-    def get_config(cls, config = None, kwargs=None, to_munch:bool = True) -> Munch:
+    def get_config(cls, 
+                   config = None,
+                   kwargs=None, 
+                   to_munch:bool = True,
+                   root:bool = False) -> Munch:
         '''
         Set the config as well as its local params
         '''
@@ -730,6 +753,9 @@ class Module:
 
             return path
     
+    @classmethod
+    def get_address(cls, module, **kwargs):
+        return cls.namespace(**kwargs).get(module, None)
     
     @classmethod
     def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
@@ -4041,7 +4067,7 @@ class Module:
         peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
         if len(peer_addresses) == 0:
-            peer_addresses = cls.boot_peers
+            peer_addresses = cls.boot_peers()
             
         peer_jobs = []
         # get the server registry for each peer
@@ -4062,6 +4088,11 @@ class Module:
                     cls.print(f'Error adding peer {peer_address}',color='red')
                 continue
             
+            peer_ip = ':'.join(peer_address.split(':')[:-1])
+            peer_port = int(peer_address.split(':')[-1])
+            
+            peer_namespace = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_namespace.items()}
+
             peer_registry[peer_address] = dict(name=None, 
                                                namespace=peer_namespace,
                                                address = peer_address)
