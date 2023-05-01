@@ -1362,10 +1362,12 @@ class Module:
  
     
     @classmethod
-    def connect_pool(cls, module, *args, **kwargs):
+    def connect_pool(cls, module, *args, return_dict:bool=False, **kwargs):
         module_names  = cls.modules(module)
         modules =  cls.gather([cls.async_connect(m, **kwargs) for m in module_names])
-        return dict(zip(module_names, modules))
+        if return_dict:
+            modules = dict(zip(module_names, modules))
+        return modules
     @classmethod
     async def async_connect(cls, 
                 name:str=None, 
@@ -1554,9 +1556,9 @@ class Module:
         
 
     @classmethod
-    def servers(cls, search:str = None, **kwargs) -> List[str]:
+    def servers(cls, search:str = None, update=False, **kwargs) -> List[str]:
 
-        servers = list(cls.local_namespace(**kwargs ).keys())
+        servers = list(cls.local_namespace(update=update,**kwargs ).keys())
         if search: 
             servers = [s for s in servers if search in s]
         return servers
@@ -2208,11 +2210,13 @@ class Module:
                shortcut = None,
                wait_for_server=False,
                device = None,
+               update: bool = True,
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
         '''
-
+        if update:
+            cls.local_namespace()
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         if module == None:
@@ -3707,13 +3711,21 @@ class Module:
             
         if fn == None:
             fn = 'forward'
+            
         if isinstance(module, list):
             modules = module
-            jobs = [cls.async_call(f'{m}.{fn}', *args, **kwargs) for m in modules]
+            jobs = []
+            for m in modules:
+                if isinstance(m, str):
+                    job = cls.async_call(f'{m}.{fn}', *args, **kwargs)
+                else:
+                    job = cls.async_call(m, fn, *args, **kwargs)
+                jobs.append(job)
             results = await asyncio.gather(*jobs)
             return dict(zip(modules, results))
     
-        module = await cls.async_connect(module)
+        if isinstance(module, str):
+            module = await cls.async_connect(module)
         result = getattr(module, fn)
         if inspect.iscoroutinefunction(result):
             return await result(*args, **kwargs)

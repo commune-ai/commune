@@ -94,7 +94,6 @@ class TransformerModel(Model):
                  **kwargs
                 ):
         
-        
         nn.Module.__init__(self) 
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
@@ -209,126 +208,109 @@ class TransformerModel(Model):
         sample['input_ids'] = sample['input_ids'].to(device)
         
         good_logits = False
-        model_output = self.model(input_ids=sample['input_ids'].to(device),
+        output = self.model(input_ids=sample['input_ids'].to(device),
                                 output_hidden_states=output_hidden_states)
         
-        # output_dict = self.process_output(model_output)
+        # output = self.process_output(output)
         # check if there are any nans in the logits
-        logits_has_nans =  torch.isnan(model_output.logits).any()
+        logits_has_nans =  torch.isnan(output.logits).any()
         if logits_has_nans:
             raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
                 
         # sometime we dont care about the begginning of the sequence
-        output_length = output_length if output_length else model_output.logits.size(1)
+        output_length = output_length if output_length else output.logits.size(1)
         
-        output_dict = {}
-        output_dict['logits']= model_output.logits[:,-output_length:,:]
+        output['logits']= output.logits[:,-output_length:,:]
         
         if map_logits:
-            output_dict['logits'] = self.token_translator.translate_logits(logits = output_dict['logits'],
+            output['logits'] = self.token_translator.translate_logits(logits = output['logits'],
                                                                            offset_mapping=offset_mapping_std,
                                                                            offset_mapping_std=offset_mapping_std,
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
             
-        output_dict['topk']=self.encode_topk(output_dict['logits'], topk=topk)
+        output['topk']=self.encode_topk(output['logits'], topk=topk)
         
         if isinstance(hidden_state_index, int):
             hidden_state_index = [hidden_state_index]
-        output_dict['hidden_states'] = [model_output.hidden_states[h_idx] for h_idx in hidden_state_index]
+            
+        output['hidden_states'] = [output.hidden_states[h_idx] for h_idx in hidden_state_index]
+        output['input_ids'] = sample['input_ids']
+        output['loss'] = loss = self.calculate_loss(**output)
+
+
+        output = self.process_outputs(stats=stats, sample=sample, output=output)
+
+
         
-        output_dict['input_ids'] = sample['input_ids']
-        output_dict['loss'] = self.calculate_loss(**output_dict)
-        loss = output_dict['loss']
+        return {key:output[key] for key in return_keys}
         
-        # check if loss is nan
-        if torch.isnan(loss):
-            self.print('Loss is nan, skipping backward pass')
-            train = False
-            loss = torch.tensor(10)
-            raise Exception('Loss is nan, skipping backward pass')
         
-        input_tokens = input_ids.shape[0]*input_ids.shape[1]
-        input_samples = input_ids.shape[0]
+    def process_outputs(self, stats:dict, sample:dict, output:dict):
+
+        loss = output['loss']
         
-    
-        
-        if train:
+        stats['latency'] = self.round(self.time() - stats['time'], sig=2)
+        stats['steps'] = stats.get('steps', 0) + 1
+        stats['input_shape'] = list(sample['input_ids'].shape)
+        num_samples = stats['input_shape'][0]
+        num_tokens = stats['input_shape'][0]*stats['input_shape'][1]
+        stats['tokens'] = stats.get('tokens', 0) +  num_samples
+        stats['samples'] = stats.get('samples', 0) + num_tokens
+        self.print('TRAINING', self.training)
+        if self.training:
+            train_stats = stats['train'] = stats.get('train', {})
             loss.backward()
             self.optimizer.step()
             loss = loss.item()
-            stats['train_samples'] = stats.get('train_samples', 0) + input_samples
-            stats['train_tokens'] = stats.get('train_tokens',0) + input_tokens
-            stats['train_steps'] = stats.get('train_steps', 0) + 1
-            stats['epoch_length'] = self.config.epoch_length
-            stats['batch_count'] = stats['train_steps'] % stats['epoch_length']
-            stats['lr'] = self.config['optimizer']['lr']
+            train_stats['epoch'] = train_stats.get('epoch', 0)
+            train_stats['samples'] = train_stats.get('samples', 0) + num_samples
+            train_stats['tokens'] = train_stats.get('tokens',0) + num_tokens
+            train_stats['steps'] = train_stats.get('steps', 0) + 1
+            train_stats['epoch_length'] = self.config.epoch_length
+            train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1 
+            train_stats['epoch_loss'] = (train_stats.get('epoch_loss', 0)*(train_stats['batch_count']-1) + loss)/train_stats['batch_count']
             
-            # calculalte the epoch loss
-            stats['epoch_loss'] = (stats.get('epoch_loss', 0)*(stats['train_steps']-1) + loss)/stats['train_steps']
+            train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
+            train_stats['time'] = stats['time']
+            
+            for k_r in ['best_loss', 'epoch_loss']:
+                train_stats[k_r] = self.round(train_stats[k_r], self.config.loss_sigdigs)
+            train_stats['loss_history'] =train_stats.get('loss_history',[])
+            
+            
+            if train_stats['batch_count'] % self.config.epoch_length == 0:
+                train_stats['loss_history'] += [self.round(train_stats['epoch_loss'], 3)]
+                train_stats['epoch'] = train_stats['epoch'] + 1
+                train_stats['saved_epoch'] = train_stats.get('saved_epoch', 0)
+                
+                # check if the loss is better than the best loss
+                is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
+
+                if is_better:
+                    train_stats['saved_epoch'] = train_stats['epoch']
+                    train_stats['best_loss'] = train_stats['epoch_loss']
+                    self.set_stats(stats)
+                    self.save() # save all
+                else:
+
+                    self.load() # load only the model and optimizer
+            
+            
+            self.set_stats(stats)
+
         else:
             loss = loss.item()
+            stats['loss'] = loss
+            self.set_stats(stats)
         
-        stats['latency'] = self.round(self.time() - stats['time'], sig=2)
-        stats['inference_steps'] = stats.get('inference_steps', 0) + 1
-        stats['inference_samples'] = stats.get('inference_samples', 0) + input_samples
-        stats['inference_tokens'] = stats.get('inference_tokens',0) + input_tokens
-        stats['inference_steps'] = stats.get('inference_steps', 0) + 1
-        
-        past_loss = stats.get('loss', loss)
-        alpha = 1 / self.config.evaluation_steps
-        stats['loss'] = (past_loss*(1-alpha) + alpha*loss)
+        output['stats'] = self.munch2dict(stats)
 
-        stats['sample_loss'] = loss
-        stats['input_shape'] = list(input_ids.shape)
-        stats['train'] = train
-        stats = self.register_stats(stats)
-        
-        output_dict['stats'] = self.munch2dict(stats)
-        output_dict['stats'].pop('epoch_loss_history', None)
-        
-        return {key:output_dict[key] for key in return_keys}
-        
-    def register_stats(self, stats):
-        stats['epoch'] = stats.get('epoch', 0)
-        stats['saved_step'] = stats.get('saved_step', 0)
-        stats['steps_since_best'] = stats.get('steps_since_best', 10e10)
-        stats['best_loss'] = stats.get('best_loss', self.config.default_metric)
-
-        if stats['train'] and stats['batch_count'] == 0:
-            timestamp = self.time()
-            prev_epoch_loss_history = stats.get('epoch_loss_history', [{'loss': self.config.default_metric, 'time': timestamp}])
-            stats['epoch_loss_history'] =stats.get('epoch_loss_history',[]) + [{'loss': stats['epoch_loss'], 'time': timestamp}]
-            stats['epoch'] = stats['epoch'] + 1
-
-            # check if the loss is better than the best loss
-            is_better = bool(stats['epoch_loss'] <= stats['best_loss'])
-
-            stats['steps_since_save'] = stats['train_steps'] - stats['saved_step']
-            if is_better:
-                if stats['steps_since_save'] >= self.config.epoch_length:
-                    self.save()
-                    stats['saved_step'] = stats['train_steps']
-                    
-                stats['best_loss'] = stats['epoch_loss']
-            else:
-                stats['steps_since_best'] = stats['steps_since_best'] + 1
-
-                
-            if stats['steps_since_best'] % self.config.epoch_length == 0:
-                self.load(keys=['model', 'optimizer'])
-            
-        
-        
-        stats['history'] = self.stats.get('history', []) + [stats]
-        stats['history'][-1].pop('history', None)
-        self.set_stats(stats)
-        
-
-            
-        return stats
+        return output
     
-
+    def check_config(self, config, ensure_keys=['model_path']):
+        for k in ensure_keys:
+            assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
 
     def set_model(self, config) -> None:
         if config == None:
@@ -370,7 +352,7 @@ class TransformerModel(Model):
         if verbose:
             self.print(f'model_kwargs: {model_kwargs}')
        
-        self.model = AutoModelForCausalLM.from_pretrained(self.model_path, **model_kwargs) 
+        self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
         
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
@@ -512,15 +494,16 @@ class TransformerModel(Model):
 
         return text
     
-
+    
+     
 
     @classmethod
-    def train(cls, model = 'gpt125m', 
-             topk:int=256 ,
+    def run_train(cls, model = 'gpt125m', 
+             topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
              sequence_length : int = 256,
-             batch_size: int = 32,
+             batch_size: int = 8,
              autocast : bool = True,
              train: bool= True,
              map_logits : bool = False,
@@ -538,7 +521,7 @@ class TransformerModel(Model):
         
         if isinstance(model, str):
             if model in cls.model_options:
-                model = cls(model=model)
+                model = cls(model=model, **kwargs)
             else:
                 model  = cls.connect(model)  
         
@@ -548,15 +531,13 @@ class TransformerModel(Model):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
 
-        if isinstance(dataset, str):
-            dataset = commune.connect(dataset)
+        datasets = commune.connect_pool(dataset)
         for i in range(num_batches):
             try:
-
+                dataset = cls.choice(datasets)
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
             except Exception as e:
-                cls.print(f'Skipping batch for this reason fam ({e})')
                 continue
 
             if not sample_check(sample):
@@ -575,23 +556,39 @@ class TransformerModel(Model):
             )
             try:
                 output = model.forward(**sample)
-                cls.print(output)
-                cls.print('STATS: ' ,output.get('stats', 'Not Stats'))
+                cls.print('STATS: ',output.get('stats', 'no stats'))
             except Exception as e:
                 raise e
           
           
 
     @classmethod
-    def train_fleet(cls, model = 'model', num_batches=2, dataset='dataset.bittensor',  **kwargs):
-        model_pool = commune.connect_pool(model)
-        models = list(model_pool.values())
-        model_names = list(model_pool.keys())
-        for model, model_name in zip(models, model_names):
-            cls.print(f"Training {model_name} on {dataset} for {num_batches} batches")
-            cls.train(model=cls.choice(models), dataset=dataset, num_batches=num_batches,**kwargs)
+    def train_fleet(cls, model = 'model.gptj',
+                    dataset='dataset.bittensor',
+                    selection_ratio=0.4,
+                    batch_size=8,
+                    num_batches = 10,
+                    sequence_length=256,
+                    **kwargs):
+        models = commune.modules(model)
+        datasets = commune.connect_pool(dataset)
 
-    test = train 
+        for i in range(num_batches):
+            selected_models = cls.random_ratio_selection(models, selection_ratio )
+            dataset = cls.choice(datasets)
+            try:
+                sample = dataset.sample(batch_size=batch_size, sequence_length=sequence_length)
+                assert isinstance(sample, dict) and 'input_ids' in sample
+            except Exception as e:
+                continue
+            sample['train'] = True
+            sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
+            sample['return_keys'] = ['stats']
+            results = cls.call(selected_models, fn='forward', **sample)
+            cls.print(results)
+            
+            
+    test = run_train 
 
 
 
