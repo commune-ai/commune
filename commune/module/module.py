@@ -3680,7 +3680,7 @@ class Module:
         
 
     @classmethod
-    def call_pool(cls, module:str, fn: str ,  *args, **kwargs) -> None:
+    def call_pool(cls, fn: str , module:str = None,  *args, **kwargs) -> None:
         # call a module
         if isinstance(module, list):
             module_pool = module
