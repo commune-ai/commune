@@ -16,53 +16,50 @@ class CLI(commune.Module):
 
         ) :
         commune.new_event_loop(True)
-        module = commune.Module()
+        self.module = commune.Module()
         args, kwargs = self.parse_args()
 
-        self.namespace = self.namespace(update=False)
+        
+
         module_list = commune.module_list()
 
         if len(args)> 0:
     
-            is_remote = False
+            namespace = self.namespace(update=False)
             
-            
-            addresses = list(self.namespace.values())
+ 
+
+            candidates = dict(
+            functions=self.functions(args[0], include_module=True),
+            modules=self.module_list(args[0]),
+            servers=[s for s in (list(namespace.values()) + list(namespace.keys())) if args[0] in s],
+            )
             # fn_obj = getattr(module, fn)
-            if args[0] in module_list:
-                print(module, 'BROO', args)
+            if len(candidates['modules'])>0:
                 module = args.pop(0)
-                
+                fn = args.pop(0)
                 module = commune.get_module(module)
-                print(module, 'BROO')
-            elif args[0] in self.namespace or args[0] in addresses:
-                address = args.pop(0)
-                module = commune.connect(address, namespace=self.namespace)
+                result = getattr(module, fn)
+                if callable(result):
+                    result = result(*args, **kwargs)
+            elif len(candidates['servers'])>0:
+                module = commune.connect(module)
+                fn = args.pop(0)
+                result = getattr(module, fn)
+                if callable(result):
+                    result = result(*args, **kwargs)
+            elif len(candidates['functions'])>0:
+                fn = args.pop(0)
+                fn = candidates['functions'][0]
                 # module_info = module.info()
-                is_remote = True
-
-            fn = args.pop(0) if len(args) > 0 else None
+                
+                result = getattr(self.module,fn)(*args, **kwargs)
+            else: 
+                raise Exception(f'No module, function or server found for {args[0]}')
             
 
-            if is_remote:
-                fn = fn if fn != None else 'help'
-                fn = getattr(module,fn)
-                if callable(fn):
-                    result = module.remote_call(fn, *args, **kwargs)
-                else:
-                    result = fn
-                
-            else:
-                if fn == None:
-                    result = module(*args, **kwargs)
-                else:
-                    result = getattr(module, fn)
-                    
-                    if callable(result):
-                        result = result(*args, **kwargs)
 
-        if result != None:
-            self.print(result)
+        self.print(result)
     
     def catch_ip(self):
         result = None

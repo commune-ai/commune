@@ -16,8 +16,8 @@ accelerate
 streamlit
 plotly
 # ray
-ray[default]
-ray[tune]
+# ray[default]
+# ray[tune]
 #logging
 loguru
 rich
