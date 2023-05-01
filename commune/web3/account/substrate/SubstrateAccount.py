@@ -126,7 +126,6 @@ class Keypair(commune.Module):
             if isinstance(key, str):
                 seed_hex = self.hash(key)
             
-        print(seed_hex,'BRO')
         if seed_hex != None: 
 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
