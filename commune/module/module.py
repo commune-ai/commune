@@ -47,19 +47,31 @@ class Module:
         return boot_peers
         
         
+    
+        
     def __init__(self, 
                  config:Dict=None, 
                  add_attributes: bool = False,
                  key: str = None,
                  boot_peers = None,
+                 new_event_loop: bool = False,
+                 network = None,
                  *args, 
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        # self.new_event_loop(nest_asyncio=True)
         self.set_config(config=config, add_attributes=add_attributes)  
         # do you want a key fam
         if key is not None:
             self.set_key(key)
+            
+        if new_event_loop:
+            self.new_event_loop()
+    
+    
+    
+    def init(self, *args, **kwargs):
+        Module.__init__(self, *args, **kwargs)
+    
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     @classmethod
@@ -353,13 +365,13 @@ class Module:
         if to_munch:
             config =  cls.dict2munch(config)
             
+        cls.print(config, path)
         
         return config
     
     
     default_config = load_config
     
-    cache_dir = 'cache'
     @classmethod
     def put(cls, 
             key, 
@@ -368,13 +380,14 @@ class Module:
             sign: bool = False,
             password: bool = None,
             mode: bool = 'json',
-            cache_dir : str = None, 
+            cache : bool = False, 
+            cache_dir : str =  'cache', 
             **kwargs):
         '''
         Puts a value in the config
         '''
-        cache_dir = cache_dir if cache_dir else cls.cache_dir
-
+        if password != None:
+            encrypt = True
         
         if encrypt:
             value = cls.encrypt(value, password=password)
@@ -383,11 +396,15 @@ class Module:
     
         data = {'value': value,
                'encrypted': encrypt}
-        
-        path = cache_dir+'/'+key
+
+        if cache:
+            path = cache_dir+'/'+key
+        else:
+            path = key
+
         
         # default json 
-        getattr(cls, f'put_{mode}')(path, data, **kwargs)
+        getattr(cls,f'put_{mode}')(path, data, **kwargs)
         
         
         return data
@@ -396,18 +413,16 @@ class Module:
             key, 
             default=None, 
             password=None, 
-            cache_dir = None,
             mode:str = 'json',
             **kwargs):
         
         '''
         Puts a value in sthe config
         '''
-        cache_dir = cache_dir if cache_dir else cls.cache_dir
         kwargs['default'] = default
         
         if mode == 'json':
-            data  = cls.get_json(cache_dir+'/'+key,**kwargs)
+            data  = cls.get_json(key,**kwargs)
         else:
             data = getattr(cls, f'get_{mode}')(key, **kwargs)
      
@@ -504,6 +519,11 @@ class Module:
         
         return config
 
+
+
+    @classmethod
+    def config(cls, *args, **kwargs):
+        return cls.get_config(*args, **kwargs)
 
 
 
@@ -1230,6 +1250,7 @@ class Module:
         return os.path.exists(path)
 
         
+
     
     
     exists_json = exists
@@ -1668,6 +1689,9 @@ class Module:
     def module_exists(cls, name:str, **kwargs) -> bool:
         namespace = cls.namespace(**kwargs)
         return bool(name in namespace)
+    
+    
+    
     
     @classmethod
     def wait_for_server(cls,
@@ -3863,18 +3887,23 @@ class Module:
         return bool(user_address in self.users)
         
         
-    
-    def add_user(self, user: str = None, info: dict = None):
+    @classmethod
+    def add_user(cls, 
+                 user: str = None,
+                 role='sudo', **info):
         if not hasattr(self, 'users'):
             self.users = {}
         if info == None:
             info = {}
-        info.update({'timestamp': self.time()})
-        self.users[user] = info
+            
+        info.update(dict(timestamp=self.time(), role=role))
+        self.put(f'users/{user}/{role}', info)
     
-    def rm_user(user: str = None):
-        if not hasattr(self, 'users'):
-            self.users = {}
+    def get_user(self, user: str = None) -> dict:
+        self.ls(f'users/{user}')
+    
+    @classmethod
+    def rm_user(cls, user: str = None):
         self.users.pop(user, None)
         
         

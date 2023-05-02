@@ -29,7 +29,7 @@ class Pile(commune.Module):
         self.shards_urls = self.get_shard_urls(shards)
             
     @classmethod
-    def resolve_shards(cls, shards):
+    def resolve_shards(self, shards):
         if isinstance(shards, int):
             shards = list(range(shards))
         assert isinstance(shards, list)
@@ -48,11 +48,13 @@ class Pile(commune.Module):
         return shard_urls
         
     
+    
     @classmethod
     def get_shard_url(cls, shard=0, split='train'):
+        config = cls.config()
         assert isinstance(shard, int)
         filename =f'{shard}.jsonl.zst' if  bool(shard >= 10) else f'0{shard}.jsonl.zst'
-        shard_url = f'{cls.url}/{split}/{filename}'
+        shard_url = f'{config.url}/{split}/{filename}'
         return shard_url
     
     @classmethod
