@@ -14,7 +14,7 @@ class Pool(commune.Module):
         
     def resolve_queue_name(self, name = None):
         if name is None:
-            name = f'q{len(self.workers)}'
+            name = f'Q::{len(self.workers)}'
             
         assert isinstance(name, str)
         
@@ -41,14 +41,16 @@ class Pool(commune.Module):
         
     def resolve_worker_name(self, name = None):
         if name is None:
-            name = f'w{len(self.workers)}'
+            name = f'W::{len(self.workers)}'
+        else:
+            name = str(name)
         assert isinstance(name, str)
         assert name not in self.workers
         return name
       
     def add_workers(self, *names, **kwargs):
         if len(names) == 0:
-            names = [f'w{i}' for i in range(self.config.num_workers)]
+            names = [self.resolve_worker_name(i) in range(self.config.num_workers)]
         for name in names:
             self.add_worker(name, **kwargs)
         
@@ -75,23 +77,23 @@ class Pool(commune.Module):
         return mode
         
     def add_worker(self, name = None, 
-                   input_queue='input',
-                   output_queue='output',
                    update:bool= False,
                    mode:str=None,):
         name = self.resolve_worker_name(name)
         mode = self.resolve_mode(mode)
         
+        
         if name in self.workers and not update:
             return self.workers[name]
         
-        worker_kwargs = dict(
-            input_queue = input_queue,
-            output_queue = output_queue,
-            name=name
+        queue_prefix = '::'.join(name.split('::')[:-1])
+        kwargs = dict(
+            input_queue = f'{queue_prefix}::input'
+            output_queue = f'{queue_prefix}::output'     
         )
-        self.add_queue(input_queue, mode=mode)
-        self.add_queue(output_queue, mode=mode)
+
+        self.add_queue(kwargs['input_queue'], mode=mode)
+        self.add_queue(kwargs['output_queue'], mode=mode)
 
         if self.config.mode == 'thread': 
             self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {worker_kwargs}")
@@ -137,7 +139,7 @@ class Pool(commune.Module):
         in_queue = kwargs.get('input_queue', 'input')
         out_queue = kwargs.get('output_queue', 'output')
         name = kwargs.get('name', 'worker')
-        worker_prefix = f"W::{name}"
+        worker_prefix = f"Worker::{name}"
         while self.run_loop:
             print(f"Running worker: {name}")
 
@@ -174,7 +176,7 @@ class Pool(commune.Module):
     def kill(self):
         self.kill_loop()
         
-    def add_request(self,*args, fn=None, **kwargs):
+    def call(self,*args, fn=None, **kwargs):
         request = self.munch({'fn':fn, 'args': args, 'kwargs': kwargs})
         self.queue.input.put(request)
         return self.queue.output.get()
