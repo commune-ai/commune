@@ -5,8 +5,10 @@ import multiprocessing
 
 class Pool(commune.Module):
     def __init__(self, **kwargs):
-        self.queue = self.munch({})
+
+        self.run_loop = True
         self.init(**kwargs)
+        self.add_workers()
         
         
         
@@ -15,49 +17,89 @@ class Pool(commune.Module):
             name = f'q{len(self.workers)}'
             
         assert isinstance(name, str)
-        assert name not in self.queue
         
         return name
         
         
-    def add_queue(self, name = None, mode='thread'):
+    def add_queue(self, name = None, mode='thread', update:bool=False):
+        if not hasattr(self, 'queue'):
+            self.queue = self.munch({})
+        
+        name = self.resolve_queue_name(name)
+        if name in self.queue and not update:
+            return self.queue[name]
+        
+        
         if mode == 'thread':
             self.queue[name] = queue.Queue()
         else:
             raise NotImplemented(mode)
         
-    def add_queues(self, *names, mode='thread'):
+    def add_queues(self, *names,  **kwargs):
         for name in names:
-            self.add_queue(name, mode=mode)
+            self.add_queue(name, **kwargs)
         
     def resolve_worker_name(self, name = None):
         if name is None:
             name = f'w{len(self.workers)}'
-            
         assert isinstance(name, str)
         assert name not in self.workers
-        
         return name
       
-    def add_workers(self, *names):
+    def add_workers(self, *names, **kwargs):
+        if len(names) == 0:
+            names = [f'w{i}' for i in range(self.config.num_workers)]
         for name in names:
-            self.add_worker(name)
-    def add_worker(self, name = None):
+            self.add_worker(name, **kwargs)
+        
+    @property
+    def workers(self):
+        return self.config.get('workers', {})
+    @workers.setter
+    def workers(self, value):
+        self.config['workers'] = value
+        return value
+    
+    @property
+    def mode(self):
+        return self.config.get('mode', {})
+    @workers.setter
+    def mode(self, value):
+        self.config['mode'] = value
+        return value
+        
+        
+    def resolve_mode(self, mode = None):
+        if mode is None:
+            mode = self.config.mode
+        return mode
+        
+    def add_worker(self, name = None, 
+                   input_queue='input',
+                   output_queue='output',
+                   update:bool= False,
+                   mode:str=None,):
         name = self.resolve_worker_name(name)
-        self.workers = self.config.get('workers', {})
+        mode = self.resolve_mode(mode)
         
+        if name in self.workers and not update:
+            return self.workers[name]
         
-        if not hasattr(self, 'queue'):
-            queue = queue.Queue()
-        if self.mode == 'thread': 
-            if 'input' not in self.queue:
-                self.queue['input'] = queue.Queue()
-                
-            t = threading.Thread(target=self.forward_requests)
+        worker_kwargs = dict(
+            input_queue = input_queue,
+            output_queue = output_queue,
+            name=name
+        )
+        self.add_queue(input_queue, mode=mode)
+        self.add_queue(output_queue, mode=mode)
+
+        if self.config.mode == 'thread': 
+            self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {worker_kwargs}")
+            t = threading.Thread(target=self.forward_requests, kwargs=worker_kwargs)
             worker = t
             self.workers[name] = t
             t.start()
-        elif self.mode == 'process':
+        elif self.config.mode == 'process':
             p = multiprocessing.Process(target=self.forward_requests)
             self.workers[name] = t
             p.start()
@@ -69,34 +111,76 @@ class Pool(commune.Module):
     @classmethod
     def test(cls, **kwargs):
         self  = cls(**kwargs)
-        self.add_queue('input')
-        self.add_worker()
-        self.add_request('input', 'test')
-    
-    def forward_requests(self):
+        for i in range(10):
+            print(i)
+            self.add_request(f"Request {i+1}")  
+           
+    @classmethod
+    def get_schema(cls, x):
+        x = cls.munch2dict(x)
+        if isinstance(x,dict):
+            for k,v in x.items():
+                if isinstance(v,dict):
+                    x[k] = cls.get_schema(v)
+                else:
+                    x[k] = type(v)
+        elif type(x) in [list, tuple, set]:
+            x =  list(x)
+            for i,v in enumerate(x):
+                x[i] = cls.get_schema(v)
+        else:
+            x = type(x)
+        
+        return x
+              
+    def forward_requests(self,  **kwargs):
+        in_queue = kwargs.get('input_queue', 'input')
+        out_queue = kwargs.get('output_queue', 'output')
+        name = kwargs.get('name', 'worker')
+        worker_prefix = f"W::{name}"
         while self.run_loop:
-            request = self.queue[''].get()
-            if isinstance(request, str):
-                if request == 'kill':
-                    self.kill_loop()
-                    break
-                
+            print(f"Running worker: {name}")
+
+            request = self.queue[in_queue].get()
+
             if isinstance(request, dict):
-                fn = request['fn']
-                kwargs = request['kwargs']
-                args = request['args']
-                print(request)
-            # process request here
-            print(f"Processing request: {request}")
+                # get request from queue
+                # get function and arguments
+                fn = request.get('fn', None) # identity function
+                kwargs = request.get('kwargs', {})
+                args = request.get('args', [])
+                
+                if not callable(fn):
+                    fn =lambda x: x
+                    
+                assert callable(fn), f"Invalid function: {fn}"
+                
+                # process request here
+                # request_schema = self.get_schema(request)
+                self.print(f"{worker_prefix} <-- request: {request}", color='yellow')
             
+                result = fn(*args, **kwargs)
+                
+                # put result in output queue
+                self.print(f"SUCCESS: Result: {result}",color='green')
+                self.queue[out_queue].put(result)
+                
+            else:
+                cls.print(f"ERROR: Invalid request: {request}", color='red')
+
     def kill_loop(self):
         self.run_loop = False
 
-    def add_request(self, request):
-        self.request_queue.put(request)
+    def kill(self):
+        self.kill_loop()
+        
+    def add_request(self,*args, fn=None, **kwargs):
+        request = self.munch({'fn':fn, 'args': args, 'kwargs': kwargs})
+        self.queue.input.put(request)
+        return self.queue.output.get()
         
     def __del__(self):
-        self.kill_loop()
+        self.kill()
 
 if __name__ == "__main__":
     Pool.test()
