@@ -293,6 +293,7 @@ class Validator(commune.Module, nn.Module):
             output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
+            output = {'error': output}
             metric = self.default_metric
             if verbose:
                 self.print(f'forward failed: {output}', model_name)
@@ -511,6 +512,7 @@ class Validator(commune.Module, nn.Module):
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
+        
         self = Validator(*args, **kwargs)
         
         def sample_check(sample):
