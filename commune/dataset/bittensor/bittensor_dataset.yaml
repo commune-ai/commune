@@ -2,3 +2,5 @@ batch_size: 32
 block_size: 256
 dataset_names: ['default']
 max_datasets: 10
+num_batches: 1000
+save_dataset: True
