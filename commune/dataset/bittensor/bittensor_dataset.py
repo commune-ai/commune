@@ -1,11 +1,14 @@
 import bittensor
 import commune
 
+print(commune.pwd,', ',  commune.root)
 class Dataset(commune.Module):
     def __init__(self, config=None, **kwargs):
-        default_config = bittensor.dataset.config().dataset
         config = self.set_config(config, kwargs=kwargs)
-        config = self.munch({**default_config, **config})
+
+        bittensor_dataset_config = bittensor.dataset.config()
+        config = self.munch({**bittensor_dataset_config.dataset, **config})
+        self.print(config)
         self.dataset = bittensor.dataset(config = self.munch(dict(dataset=config)))
         self.config = config
         
