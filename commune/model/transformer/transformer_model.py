@@ -268,7 +268,7 @@ class TransformerModel(Model):
             train_stats['tokens'] = train_stats.get('tokens',0) + num_tokens
             train_stats['steps'] = train_stats.get('steps', 0) + 1
             train_stats['epoch_length'] = self.config.epoch_length
-            train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1 
+            train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1
             train_stats['epoch_loss'] = (train_stats.get('epoch_loss', 0)*(train_stats['batch_count']-1) + loss)/train_stats['batch_count']
             
             train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
@@ -283,6 +283,7 @@ class TransformerModel(Model):
                 train_stats['loss_history'] += [self.round(train_stats['epoch_loss'], 3)]
                 train_stats['epoch'] = train_stats['epoch'] + 1
                 train_stats['saved_epoch'] = train_stats.get('saved_epoch', 0)
+                train_stats['batch_count'] = 0
                 
                 # check if the loss is better than the best loss
                 is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
@@ -322,6 +323,10 @@ class TransformerModel(Model):
         self.model_path = config['model_path'] = self.shortcuts.get(config['model'], config['model'])
 
         model = self.get_empty_model(self.model_path)
+        
+        
+        self.print(model.__dict__['_modules'])
+        # assert False
         config.model_size = self.get_model_size(model)
         config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
       

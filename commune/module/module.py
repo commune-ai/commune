@@ -1059,6 +1059,15 @@ class Module:
         modules = list(cls.namespace(*args, **kwargs).keys())
         modules = sorted(modules)
         return modules
+    
+    @classmethod
+    def tasks(cls, *args, mode='pm2',**kwargs) -> List[str]:
+        kwargs['network'] = 'local'
+        kwargs['update'] = True
+        modules = cls.modules(*args, **kwargs)
+        tasks = getattr(cls, f'{mode}_list')()
+        tasks = list(filter(lambda x: x not in modules, tasks))
+        return tasks
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
         models = [k for k in list(cls.modules()) if k.startswith('model')]
@@ -3290,6 +3299,21 @@ class Module:
                 cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
     
+    
+    @classmethod
+    def params_map(cls, model):
+        params_map = {}
+        state_dict = model.state_dict()
+        for k,v in state_dict.items():
+            params_map[k] = {'shape': v.shape ,
+                             'size': cls.get_tensor_size(v)}
+            
+        return params_map
+    
+    @classmethod
+    def params_size_map(cls, model):
+        return {k: v['size'] for k,v in cls.params_map(model).items()}
+    
 
     @classmethod
     def get_num_params(cls, model:'nn.Module' = None)->int:
@@ -3301,7 +3325,6 @@ class Module:
 
     @classmethod
     def get_tensor_size(cls, tensor:'torch.Tensor'):
-        import torch
         return tensor.nelement() * tensor.element_size()
     @classmethod 
     def get_model_device(cls, model, fast_and_lazy:bool = True) -> 'torch.device':
