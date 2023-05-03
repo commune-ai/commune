@@ -701,7 +701,7 @@ class TransformerModel(Model):
                name: str =None, 
                wait_for_server: bool = False, 
                device = None, 
-               replace:bool = True,
+               replace:bool = False,
                mode:str = 'pm2',
                tag_seperator:str = '::',               
                
@@ -723,6 +723,10 @@ class TransformerModel(Model):
                 tag =  'base'
             if tag:
                 name = name+tag_seperator+str(tag)
+                  
+            if cls.module_exists(name) and replace == False:
+                cls.print(f'{name} already exists, skipping...')
+                continue
     
             model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
