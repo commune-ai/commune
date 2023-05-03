@@ -1547,7 +1547,7 @@ class Module:
             return True
         
     @classmethod
-    def local_namespace(cls, update:bool = False)-> dict:
+    def local_namespace(cls, update:bool = False, verbose:bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -1563,10 +1563,10 @@ class Module:
             peer_addresses = cls.get_peer_addresses()  
             namespace = cls.local_namespace(update=False)   
             async def async_get_peer_name(peer_address):
-                # cls.print('Connecting: ',peer_address, color='cyan')
                 peer = await cls.async_connect(peer_address, namespace=namespace, timeout=5, virtual=False)
                 module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
-                cls.print('Connecting: ',module_name, color='cyan')
+                if verbose:
+                    cls.print('Connecting: ',module_name, color='cyan')
 
                 if cls.check_response(module_name):
                     return module_name

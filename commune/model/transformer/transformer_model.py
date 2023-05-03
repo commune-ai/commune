@@ -575,13 +575,14 @@ class TransformerModel(Model):
                     num_batches = 10,
                     sequence_length=256,
                     remote:bool = False,
+                    tag = None,
                     **kwargs):
         
         kwargs = cls.get_params(locals())
         
         if remote:
             kwargs.update(remote=False) # otherwise we get a remote recursion error
-            return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}")
+            return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
         
         models = commune.modules(model)
         datasets = commune.connect_pool(dataset)
