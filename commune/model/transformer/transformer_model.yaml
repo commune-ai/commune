@@ -14,7 +14,7 @@ stats: {}
 max_gpu_ratio: 0.8
 evaluation_steps: 20
 loss_history_size: 100
-model_inflation_ratio: 1.0
+model_inflation_ratio: 1.5
 output_length: 4
 max_sequence_length: 256
 tag: null
