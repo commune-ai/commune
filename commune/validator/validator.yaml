@@ -9,7 +9,7 @@ metric:  null
 stats: {}
 threshold: 4.0
 max_stats_history: 100
-alpha: 0.5
+alpha: 0.1
 selection_ratio: 1.0
 topk: 512 
 load: False

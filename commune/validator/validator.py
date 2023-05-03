@@ -24,12 +24,8 @@ class Validator(commune.Model):
                  **kwargs
                  ):
         self.init_model(**kwargs)
-        self.set_config(kwargs=kwargs)
-
+        config = self.set_config(kwargs=kwargs)
         self.default_models = [m for m,_ in commune.namespace('global', update=True).items() if m.startswith('model.')]
-        self.set_config(kwargs=kwargs)
-        config = self.config
-        
         self.namespace = deepcopy(commune.namespace(config.network))
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
@@ -366,7 +362,6 @@ class Validator(commune.Model):
         # convert the renormalized weights back to logits
         logits = torch.log(probs + 1e-10) 
         
-        ensemble['input_ids'] = input_ids
         ensemble['logits'] = logits
         # TODO: add ensemble metrics
  
@@ -382,20 +377,25 @@ class Validator(commune.Model):
             model_stats[mkey]['rank'] = ensemble['rank'][i]
             model_stats[mkey]['weights'] = ensemble['weights'][i]
             
-        
-        model_stats['ensemble'] = {
-            'timestamp': self.time(),
-            'metric': self.calculate_metric(ensemble),
-            'inference_time': timer.seconds,
-            'rank': None,
-            'weights': None,
-        }    
+            
+        best_model = ensemble['models'][best_model_idx]
+        best_model_metric = ensemble['metrics'][best_model_idx]
+        metric = self.calculate_metric({**ensemble, 'input_ids': input_ids})
+    
         ensemble['stats'] = {
             # 'model_stats': model_stats,
             'models': model_stats,
-            'best_model_score': model_stats[ensemble['models'][rank[0]]]['metric'],
-            'ensemble_score': model_stats['ensemble']['metric'],
+            'called_models': len(forwarded_models),
+            'passed_models': len(model_stats),
+            'timestamp': self.time(),
+            'best_metric': best_model_metric,
+            'best_model': best_model,
+            'difference': best_model_metric - metric,
+            'metric': metric,
+            'inference_time': timer.seconds
         }
+        
+
         
         self.set_stats(stats)
         
@@ -436,8 +436,15 @@ class Validator(commune.Model):
             
 
     def set_stats(self, stats: Dict[str, Any] = None) -> None:
-        self.stats = stats if stats is not None else {}
-        assert isinstance(self.stats, dict)
+        stats  = stats if stats != None else {}
+        model_stats = stats.get('models', {})
+        for m_k, m_stats in model_stats.items():
+            for k in self.config.ma_keys:
+                m_stats[k] = (1-self.config.alpha)*m_stats.get(k,0) + self.config.alpha*m_stats[k]
+            stats['models'][m_k] = m_stats
+        assert isinstance(stats, dict)
+        self.stats = stats
+        self.config['stats'] = stats
         
     def calculate_weights(self):
         
