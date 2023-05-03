@@ -10,6 +10,7 @@ import os, sys
 from typing import *
 from loguru import logger
 import time
+
 from munch import Munch
 import argparse
 import torch
@@ -257,7 +258,6 @@ class TransformerModel(Model):
         num_tokens = stats['input_shape'][0]*stats['input_shape'][1]
         stats['tokens'] = stats.get('tokens', 0) +  num_samples
         stats['samples'] = stats.get('samples', 0) + num_tokens
-        self.print('TRAINING', self.training)
         if self.training:
             train_stats = stats['train'] = stats.get('train', {})
             loss.backward()
@@ -570,21 +570,24 @@ class TransformerModel(Model):
     @classmethod
     def train_fleet(cls, model = 'model.gptj',
                     dataset='dataset.bittensor',
-                    selection_ratio=0.4,
+                    selection_ratio=1.0,
                     batch_size=8,
                     num_batches = 10,
                     sequence_length=256,
                     remote:bool = False,
+                    network='local',
                     tag = None,
                     **kwargs):
         
         kwargs = cls.get_params(locals())
+        import pandas as pd
         
         if remote:
+            cls.print(kwargs)
             kwargs.update(remote=False) # otherwise we get a remote recursion error
             return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
         
-        models = commune.modules(model)
+        models = commune.modules(model, network=network)
         datasets = commune.connect_pool(dataset)
 
         for i in range(num_batches):
@@ -599,7 +602,12 @@ class TransformerModel(Model):
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
             sample['return_keys'] = ['stats']
             results = cls.call(selected_models, fn='forward', **sample)
-            cls.print(results)
+            stats = {k:v.get('stats', {}) for k,v in results.items()}
+            print_keys = ['epoch_loss', 'best_loss',  'steps']
+            print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
+            print_stats = pd.DataFrame(print_stats)
+            print_stats = print_stats.sort_values(by=['best_loss'])
+            cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
             
             
     test = run_train 

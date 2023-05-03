@@ -23,9 +23,9 @@ class Validator(commune.Model):
     def __init__(self, 
                  **kwargs
                  ):
-        self.init_model(**kwargs)
+        self.init_model()
         config = self.set_config(kwargs=kwargs)
-        self.default_models = [m for m,_ in commune.namespace('global', update=True).items() if m.startswith('model.')]
+        self.default_models = [m for m,_ in commune.namespace(self.config.network, update=True).items() if m.startswith('model.')]
         self.namespace = deepcopy(commune.namespace(config.network))
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
@@ -345,7 +345,7 @@ class Validator(commune.Model):
         w = ensemble['weights']
         if len(w) >1:
             w = torch.tensor(w)
-            w = -(w - w.mean())/ (w.std())
+            w = -(w - w.mean())/ (w.std()+1e-10)
             w = torch.softmax(w, dim=-1)
         else:
             w = torch.ones_like(w)

@@ -2,7 +2,7 @@ models: model
 tokenizer: gpt2
 train: False
 batch_size: 8
-sequence_length: 64
+sequence_length: 256
 network: global
 dataset: dataset.bittensor
 metric:  null
