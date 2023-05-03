@@ -296,7 +296,7 @@ class Validator(commune.Model):
         
         self.print(f'forwarding to {len(forwarded_models)} models ')
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
-        inputs_ids = input_ids[:, -sequence_length:]
+        inputs_ids = input_ids[:self.config.batch_size, -sequence_length:]
         
         jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
                                    model=model_key, 

@@ -365,15 +365,25 @@ class Model( nn.Module, commune.Module):
 
     @classmethod
     def deploy(cls, *args, **kwargs):
-        return cls.get_module('model.transformer').deploy(*args, **kwargs)
+        return cls.base_model().deploy(*args, **kwargs)
+
 
     @classmethod
     def deploy_fleet(cls, *args, **kwargs):
-        return cls.get_module('model.transformer').deploy_fleet(*args, **kwargs)
+        return cls.base_model().deploy_fleet(*args, **kwargs)
+    
+    
+    @classmethod
+    def base_model(cls):
+        return cls.module('model.transformer')
+    
+    @classmethod
+    def train_fleet(cls, *args, **kwargs):
+        return cls.base_model().train_fleet(*args, **kwargs)
     
     @classmethod
     def test(cls, *args, **kwargs):
-        return cls.get_module('model.transformer').test(*args, **kwargs)
+        return cls.base_model().test(*args, **kwargs)
     train = test
 
     @classmethod
