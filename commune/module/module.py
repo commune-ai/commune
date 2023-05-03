@@ -1056,11 +1056,13 @@ class Module:
         return modules
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
-        return list(cls.namespace(*args, **kwargs).keys())
+        modules = list(cls.namespace(*args, **kwargs).keys())
+        modules = sorted(modules)
+        return modules
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('model')]
-    
+        models = [k for k in list(cls.modules()) if k.startswith('model')]
+        return models
     @classmethod
     def datasets(cls, *args, **kwargs) -> List[str]:
         return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
@@ -1153,10 +1155,9 @@ class Module:
         kwargs.pop('self', None)
         return kwargs
     
-    locals2kwargs = get_params
-    
-    resolve_kwargs = clean_kwargs = get_params
-    
+
+    locals2kwargs = get_kwargs =  get_params
+        
     @classmethod
     def get_parents(cls, obj=None):
         
@@ -1506,14 +1507,18 @@ class Module:
         
         
     @classmethod
-    def remote_namespace(cls,  seperator = '::', verbose: bool = False, update:bool = False)-> dict:
+    def remote_namespace(cls,  
+                         seperator = '::', 
+                         verbose: bool = False, 
+                         update:bool = False,
+                         prefix:bool = 'R')-> dict:
         
         peer_registry = cls.peer_registry(update=update)  
         namespace = {}          
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
             
             if isinstance(peer_info, dict):
-                peer_name = f'peer{peer_id}'
+                peer_name = f'{prefix}{peer_id}'
                 peer_namespace = peer_info.get('namespace', None)
                 if isinstance(peer_namespace, dict):
                     for name, address in peer_namespace.items():
@@ -4097,6 +4102,15 @@ class Module:
        
     add_peers = add_peer
     
+    
+    @classmethod
+    def success(cls, x):
+        # assume that if the result is a dictionary, and it has an error key, then it is an error
+        if isinstance(x, dict):
+            if 'error' in x:
+                return False
+            
+        return True
     
     @classmethod
     async def async_add_peer(cls, 
