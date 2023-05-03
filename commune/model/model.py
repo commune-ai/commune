@@ -41,14 +41,15 @@ class Model( nn.Module, commune.Module):
                 ):
         
         
-        nn.Module.__init__(self) 
+        self.init_model(model)
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
         self.set_stats(config.stats)
         self.set_model(config)
         self.set_tag(config.tag)
 
-
+    def init_model(self):
+        nn.Module.__init__(self) 
     @classmethod
     def train_fleet(cls, *args, **kwargs):
         return cls.module('model.transformer').train_fleet(*args, **kwargs)
