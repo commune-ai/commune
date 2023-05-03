@@ -1266,6 +1266,9 @@ class Module:
 
         return rm_json(path )
 
+    def rm(cls, *args, mode='json', **kwargs):
+        fn = getattr(cls, f'rm_{mode}')
+        return fn(*args, **kwargs)
     @classmethod
     def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
         
@@ -3760,7 +3763,7 @@ class Module:
 
 
     @classmethod
-    def call(cls,  *args, **kwargs) -> None:
+    def call(cls,  *args, loop=None, **kwargs) -> None:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     

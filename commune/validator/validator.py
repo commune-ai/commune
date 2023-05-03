@@ -16,61 +16,17 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 from torch import nn
 
 
-shortcuts =  {
-    # 0-1B models
-    'gpt125m': 'EleutherAI/gpt-neo-125m',
-
-    # 1-3B models
-    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-    'opt1.3b': 'facebook/opt-1.3b',
-    'opt2.7b': 'facebook/opt-2.7b',
-    # 'gpt3btuning' : ''
-
-    # 0-7B models
-    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-    'gptj': 'EleutherAI/gpt-j-6b',
-    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-    'opt6.7b': 'facebook/opt-6.7b',
-    'llama': 'decapoda-research/llama-7b-hf',
-    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
-    # # > 7B models
-    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-    'gptneox': 'EleutherAI/gpt-neox-20b',
-    'gpt20b': 'EleutherAI/gpt-neox-20b',
-    'opt13b': 'facebook/opt-13b',
-    'gpt13b': 'cerebras/Cerebras-GPT-13B',
-    
-        }
 
 
+class Validator(commune.Model):
 
-class Validator(commune.Module, nn.Module):
-    shortcuts = shortcuts
     def __init__(self, 
                  **kwargs
                  ):
-        
-        self.default_models = [m for m,_ in commune.namespace('global', update=True).items() if m.startswith('model.')]
+        self.init_model(**kwargs)
+        self.set_config(kwargs=kwargs)
 
-        loop = kwargs.pop('loop', None)
-        self.set_event_loop(loop)
-        
-        nn.Module.__init__(self)
+        self.default_models = [m for m,_ in commune.namespace('global', update=True).items() if m.startswith('model.')]
         self.set_config(kwargs=kwargs)
         config = self.config
         
@@ -79,7 +35,6 @@ class Validator(commune.Module, nn.Module):
         self.set_batch_size(config.batch_size)
         self.set_sequence_length(config.sequence_length)
         self.set_dataset(config.dataset)
-        self.set_metric(config.metric)
         self.set_stats(config.stats)
         self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
@@ -128,7 +83,7 @@ class Validator(commune.Module, nn.Module):
             
         assert isinstance(tokenizer, str)
         assert isinstance(tokenizer, str, )
-        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+
         self.config['tokenizer'] = tokenizer
 
         
@@ -164,12 +119,11 @@ class Validator(commune.Module, nn.Module):
         self.dataset = dataset
         
 
-    def set_metric(self, metric = None) -> None:
-        if metric is None:
-            metric = torch.nn.CrossEntropyLoss()
-        self.metric = metric
+
     def calculate_metric(self, x):
-        
+        if not hasattr(self, 'metric'):
+            self.metric = torch.nn.CrossEntropyLoss()
+            
         input_ids = x.get('input_ids', None).clone()
         pred = x.get('logits', None).clone()
         if input_ids != None:
@@ -325,7 +279,7 @@ class Validator(commune.Module, nn.Module):
                 sequence_length:int = None,
                 selection_ratio: int = None,
                 train: bool = None,
-                verbose: bool = False,
+                verbose: bool = True,
 
                 **kwargs ):
         config = self.config
@@ -369,73 +323,86 @@ class Validator(commune.Module, nn.Module):
         ensemble_logits = []
         
         stats = self.stats
-        ensemble_stats = {  'passed': 0,
-                          'successes': 0,
-                          'failures': 0, 
-                          'inference_time': 0.0,
-                          'metric': 0.0, 
-                          'timestamp': self.time(), 
-                          'models': [],
-                          'called_models':forwarded_models ,
-                          'metrics': []}
+        ensemble_stats = {
+                            'timestamp': self.time(), 
+                          'called_models':forwarded_models}
         
-        ensemble_stats['weights'] = []
-        for model_key, output_dict in model_output_dict.items():
-            
-            if output_dict['stats']['success'] == False:
-                ensemble_stats['failures'] += 1
-                continue
-            ensemble_stats['successes'] += 1
-            model_stats= output_dict['stats']
-            if model_stats['metric'] < threshold:
-                
-                ensemble_logits.append(output_dict['logits'])
-                ensemble_stats['passed'] += 1
-                ensemble_stats['models'] += [model_key]
-                ensemble_stats['weights'] += [model_stats['metric']]
-                ensemble_stats['metrics'] += [model_stats['metric']]
+        model_stats = {}
+        weights = []
+        ensemble = self.munch({
+            'weights': [],
+            'logits': [],
+            'metrics': [],  
+            'probs': [],
+            'models': [],
+        })
+        for m_key, m_output in model_output_dict.items():
+            m_stats = m_output['stats']
 
-            else:
-                model_stats['included'] = False
-                
-            stats[model_key] = model_stats
-            
-
-            logits = output_dict['logits']
+            if m_stats['success'] and m_stats['metric'] < self.config.threshold:
+                ensemble['logits']+= [m_output['logits']]
+                ensemble['metrics'] += [m_stats['metric']]
+                ensemble['weights'] += [ensemble['metrics'][-1]]
+                ensemble['models'] += [m_key]
+                model_stats[m_key] = m_stats
                
-               
-        ensemble_weights = torch.tensor(ensemble_stats['weights'])
-        ensemble_metircs = torch.tensor(ensemble_stats['metrics'])
-        if len(ensemble_weights) >1:
-            ensemble_weights = -(ensemble_weights - ensemble_weights.mean())/ (ensemble_weights.std())
-            ensemble_weights = torch.softmax(ensemble_weights, dim=-1)
+        w = ensemble['weights']
+        if len(w) >1:
+            w = torch.tensor(w)
+            w = -(w - w.mean())/ (w.std())
+            w = torch.softmax(w, dim=-1)
         else:
-            ensemble_weights = torch.ones_like(ensemble_weights)
+            w = torch.ones_like(w)
+
+        logits  = torch.stack(ensemble['logits'])
+        
+        
+        probs = torch.softmax(logits, dim=-1)
+        
+        probs = probs * w[:,None,  None, None]
+        probs_unormalized = probs.sum(0)
+        probs = probs_unormalized / probs_unormalized.sum(-1, keepdim=True)
+        
+        # convert the renormalized weights back to logits
+        logits = torch.log(probs + 1e-10) 
+        
+        ensemble['input_ids'] = input_ids
+        ensemble['logits'] = logits
+        # TODO: add ensemble metrics
+ 
+        
+        rank = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
+        best_model_idx = rank[0]
+        
+        ensemble['rank'] = rank
+        ensemble['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
+        
+        for i, (mkey, mstats) in enumerate(model_stats.items()):
+            print(len(rank), i, len(model_stats))
+            model_stats[mkey]['rank'] = ensemble['rank'][i]
+            model_stats[mkey]['weights'] = ensemble['weights'][i]
             
-        ensemble_stats['weights']= ensemble_weights.tolist()
-        ensemble_logits = torch.stack(ensemble_logits)
-        ensemble_probs = torch.softmax(ensemble_logits, dim=-1)
-        ensemble_probs = ensemble_probs * ensemble_weights[:,None,  None, None]
-        ensemble_probs_unormalized = ensemble_probs.sum(0)
-        ensemble_probs = ensemble_probs_unormalized / ensemble_probs_unormalized.sum(-1, keepdim=True)
-        ensemble_logits = torch.log(ensemble_probs + 1e-8)
         
-        output_dict = {
-            'logits': ensemble_logits,
-            'hidden_states': torch.randn(ensemble_logits.shape[0], ensemble_logits.shape[1], self.config.hidden_size),
+        model_stats['ensemble'] = {
+            'timestamp': self.time(),
+            'metric': self.calculate_metric(ensemble),
+            'inference_time': timer.seconds,
+            'rank': None,
+            'weights': None,
+        }    
+        ensemble['stats'] = {
+            # 'model_stats': model_stats,
+            'models': model_stats,
+            'best_model_score': model_stats[ensemble['models'][rank[0]]]['metric'],
+            'ensemble_score': model_stats['ensemble']['metric'],
         }
-        output_dict['input_ids'] = input_ids
         
-        ensemble_stats['metric'] = self.calculate_metric(output_dict)
-
-
-        ensemble_stats['inference_time'] = timer.seconds
-        stats['ensemble'] = ensemble_stats
-        output_dict['stats'] = stats
         self.set_stats(stats)
+        
         if verbose:
             self.print(stats)
-        return Munch(output_dict)
+            
+        return Munch(ensemble)
     
     def validate(self, sample=None, 
                  models: str = None,
@@ -523,8 +490,7 @@ class Validator(commune.Module, nn.Module):
             if not sample_check(sample):
                 continue
             output = self.forward(**sample)
-            stats = output.stats
-            cls.print(output.stats['ensemble'])
+            cls.print(output.stats)
             self.sleep(sleep_interval)
     @classmethod
     def test(cls,  *args, num_batches=2, **kwargs):
