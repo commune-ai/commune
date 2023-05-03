@@ -522,7 +522,7 @@ class Module:
 
 
     @classmethod
-    def config(cls, *args, **kwargs):
+    def cfg(cls, *args, **kwargs):
         return cls.get_config(*args, **kwargs)
 
 

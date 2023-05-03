@@ -384,7 +384,7 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def test(cls, *args, **kwargs):
         return cls.base_model().test(*args, **kwargs)
-    train = test
+    # train = test
 
     @classmethod
     def sandbox(cls, *args,**kwargs):
