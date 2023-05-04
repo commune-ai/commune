@@ -69,10 +69,7 @@ class Huggingface(commune.Module):
 
         return models
 
-    @property
-    def models(self):
-        df = self.list_models(return_type='pandas')
-        return df
+
     @property
     def datasets(self):
         df = self.list_datasets(return_type='pandas')

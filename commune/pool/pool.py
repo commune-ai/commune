@@ -94,7 +94,7 @@ class Pool(commune.Module):
 
         self.add_queue(kwargs['input_queue'], mode=mode)
         self.add_queue(kwargs['output_queue'], mode=mode)
-        kwargs = self.munch(kwargs)
+        
         if self.config.mode == 'thread': 
             self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {worker_kwargs}")
             t = threading.Thread(target=self.forward_requests, kwargs=worker_kwargs)
