@@ -521,7 +521,7 @@ class TransformerModel(Model):
              ):
         
         if remote:
-            kwargs = cls.get_params(locals())
+            kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
             return cls.remote_fn(fn='train',kwargs=kwargs, name=f"train::{model}")
         
@@ -584,7 +584,7 @@ class TransformerModel(Model):
                     tag = None,
                     **kwargs):
         
-        kwargs = cls.get_params(locals())
+        kwargs = cls.locals2kwargs(locals())
         import pandas as pd
         
         if remote:

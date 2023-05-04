@@ -689,7 +689,8 @@ class Module:
         obj =  getattr(import_module(module), object_name)
         return obj
     
-    get_object = import_object
+    get_object = importobj = import_object
+    
 
     
     @classmethod
@@ -706,16 +707,27 @@ class Module:
         return module_list
     
     @staticmethod
-    def port_used(port:int, ip:str ='0.0.0.0'):
+    def port_used(port:int, ip:str ='0.0.0.0', timeout:int=1):
         '''7um
         Check if port is available
         '''
+        import select
         import socket
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex((ip, port))
+        sock.setblocking(False)
+        try:
+            sock.connect((ip, port))
+            return True
+        except socket.error as ex:
+            if ex.errno != socket.errno.EINPROGRESS:
+                raise
+        ready = select.select([sock], [], [], timeout)
+        if not ready[0]:
+            sock.close()
+            return False
         sock.close()
-        return result == 0
-    
+        return True
+
     @classmethod
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
         return not cls.port_used(port=port, ip=ip)
@@ -735,11 +747,19 @@ class Module:
         if ports == None:
             ports = list(range(*port_range))
         
-        used_ports = []
-        for port in ports: 
-            if cls.port_used(port=port, ip=ip):
-                used_ports.append(port)
+        async def check_port(port, ip):
+            return cls.port_used(port=port, ip=ip)
         
+        used_ports = []
+        jobs = []
+        for port in ports: 
+            jobs += [check_port(port=port, ip=ip)]
+                
+        results = cls.gather(jobs)
+        for port, result in zip(ports, results):
+            if isinstance(result, bool) and result:
+                used_ports += [port]
+            
         return used_ports
     
 
@@ -937,11 +957,27 @@ class Module:
         return modules
 
     @classmethod
+    def path_config_exists(cls, path:str) -> bool:
+        '''
+        Checks if the path exists
+        '''
+        for ext in ['.yaml', '.yml']:
+            if os.path.exists(path.replace('.py', ext)):
+                return True
+        return False
+    @classmethod
     def path2simple(cls, path:str) -> str:
 
+        # does the config exist
+
         simple_path =  path.split(deepcopy(cls.root_dir))[-1]
-        simple_path = os.path.dirname(simple_path)
+
+        if cls.path_config_exists(path):
+            simple_path = os.path.dirname(simple_path)
+
         simple_path = simple_path.replace('.py', '')
+        
+        
         simple_path = simple_path.replace('/', '.')[1:]
 
         return simple_path
@@ -970,31 +1006,41 @@ class Module:
         return cls.path2objectpath(cls.__module_file__())
     
     
-    
-
-    
 
     @classmethod
-    def get_classes_from_python_path(cls, path:str, class_index=-1):
+    def find_python_classes(cls, path:str = None, class_index=-1, search = None):
         import re
         
+        if path is None:
+            path = cls.filepath()
         # read the contents of the Python script file
         python_script = cls.get_text(path)
         class_names  = []
         lines = python_script.split('\n')
         for line in lines:
             key_elements = ['class ', '(', '):']
-            if all([key_element in line for key_element in key_elements]) and \
-                    'ModuleWrapper' not in line and 'key_elements' not in line:
+            self_ref_condition = 'key_elements' not in line
+
+            has_class_bool = all([key_element in line for key_element in key_elements])
+            other_exceptions = ['ModuleWrapper' not in line, 'key_elements' not in line]
+            if has_class_bool and all(other_exceptions):
+                if  search != None:
+                    if isinstance(search, str):
+                        search = [search]
+                    if not any([s in line for s in search]):
+                        continue
+                        
                 class_name = line.split('class ')[-1].split('(')[0].strip()
                 class_names.append(class_name)
                 
         # return the class names
         return class_names
+    
+    
 
     @classmethod
     def path2objectpath(cls, path:str) -> str:
-        object_name = cls.get_classes_from_python_path(path)
+        object_name = cls.find_python_classes(path)
         if len(object_name) == 0:
             return None
         object_name = object_name[0]
@@ -1061,7 +1107,7 @@ class Module:
     @classmethod
     def tasks(cls, *args, mode='pm2',**kwargs) -> List[str]:
         kwargs['network'] = 'local'
-        kwargs['update'] = True
+        kwargs['update'] = False
         modules = cls.modules(*args, **kwargs)
         tasks = getattr(cls, f'{mode}_list')()
         tasks = list(filter(lambda x: x not in modules, tasks))
@@ -1119,11 +1165,16 @@ class Module:
                 continue
             file_path, file_ext =  os.path.splitext(f)
             if file_ext == '.py':
-                for ext in ['yaml', 'yml']:
-                    if os.path.exists(file_path+'.'+ext):
+                has_config = any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']])
+                if has_config:
+                    modules.append(f)
+                else:
+                    f_classes = cls.find_python_classes(f, search=['commune.Module'])
+                    
+                    if len(f_classes) > 0:
                         modules.append(f)
-                        break
         cls.module_python_paths = modules
+        
         return modules
 
     @classmethod
@@ -1153,17 +1204,25 @@ class Module:
         return Timer(*args, **kwargs)
     
     @classmethod
-    def get_params(cls, kwargs):
-        kwargs = kwargs if kwargs != None else {}
-        assert isinstance(kwargs, dict)
-        assert 'args' not in kwargs
-        kwargs.update(kwargs.get('kwargs', {}))
+    def locals2kwargs(cls,
+                      locals_dict:dict,
+                      include_args:bool=True) -> dict:
+        kwargs = {}
+        locals_dict = locals_dict if locals_dict != None else {}
+        assert isinstance(locals_dict, dict)
+        kwargs.update(locals_dict)
+        kwargs.update(locals_dict.get('kwargs', {}))
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
+
+        if include_args == False:
+            args = locals_dict.pop('args', [])
+            return dict(kwargs=kwargs, args=args)
+        
         return kwargs
     
 
-    locals2kwargs = get_kwargs =  get_params
+    get_kwargs = get_params = locals2kwargs 
         
     @classmethod
     def get_parents(cls, obj=None):
@@ -1559,9 +1618,9 @@ class Module:
 
             peer_registry = {}
             peer_addresses = cls.get_peer_addresses()  
-            namespace = cls.local_namespace(update=False)   
+            print('FUCKK')
             async def async_get_peer_name(peer_address):
-                peer = await cls.async_connect(peer_address, namespace=namespace, timeout=5, virtual=False)
+                peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False)
                 module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
                 if verbose:
                     cls.print('Connecting: ',module_name, color='cyan')
@@ -1815,6 +1874,8 @@ class Module:
         self.kwargs_store[fn] = kwargs
         return self.kwargs_store
     
+    
+    
     @classmethod
     def serve(cls, 
               module:Any = None ,
@@ -1854,12 +1915,19 @@ class Module:
         
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
-        
-        module_name = name if name != None else self.default_module_name()
+        if name == None:
+            if hasattr(self, 'default_module_name'):
+                name = self.default_module_name()
+            else:
+                name = self.__class__.__name__
+                
+        module_name = name
 
         '''check if the server exists'''
         if self.server_exists(module_name): 
             if replace:
+                if verbose:
+                    cls.print(f'Stopping server {module_name}')
                 self.kill_server(module_name)
             else: 
                 raise Exception(f'The server {module_name} already exists on port {existing_server_port}')
@@ -1868,7 +1936,7 @@ class Module:
             if k not in self.__dict__:
                 self.__dict__[k] = module_name
 
-        Server = cls.import_object('commune.server.server.Server')
+        Server = cls.import_object('commune.server.Server')
         
         self.save_kwargs('serve', locals())
 
@@ -2965,18 +3033,10 @@ class Module:
         
         class ModuleWrapper(Module):
             default_module_name = str(module_class)
-            def __init__(self, *args,**kwargs): 
-                Module.__init__(self, *args, **kwargs)
-                if is_class:
-                    self.module = module_class(*args, **kwargs)
-                else:
-                    self.module = module
-                    
+            def __init__(self, module): 
+                Module.__init__(self, *args, **kwargs) 
                 self.module.default_module_name = str(module_class)
                 # self.module.server_exists = False
-                
-                
-                
                 # merge the inner module into the wrappers
                 self.merge(self.module)
                 
@@ -4311,27 +4371,6 @@ class Module:
 
 
     @classmethod
-    def get_file_class(cls, path=None, ignore_error:bool = False):
-        if cls == Module:
-            return 'Module'
-        # Get the file path of the module
-        module_file_path = os.path.abspath(module.__file__)
-
-        # Read the contents of the file
-        with open(module_file_path, 'r') as file:
-            file_contents = file.read()
-            
-        file_content = cls.get_file_contents(obj)
-        for k in ['(commune.Module)']:
-            if k in file_content:
-                return file_content.split(k)[0].split('class')[-1]
-        if ignore_error:
-            return None
-        else: 
-            raise ValueError('Could not find class name in file')
-        
- 
-    @classmethod
     def free_gpu_memory(cls, 
                      max_gpu_ratio: float = 1.0 ,
                      reserved_gpus: bool = False,
@@ -4571,8 +4610,8 @@ class Module:
             module = '.'.join(fn.split('.')[:-1])
             fn = fn.split('.')[-1]
             
+        kwargs = kwargs if kwargs else {}
         args = args if args else []
-        kwargs = cls.get_params(kwargs)
         
         if name == None:
             name = f'{prefix}{tag_seperator}{fn}'
