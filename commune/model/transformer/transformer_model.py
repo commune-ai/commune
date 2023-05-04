@@ -602,7 +602,7 @@ class TransformerModel(Model):
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
             sample['return_keys'] = ['stats']
             results = cls.call(selected_models, fn='forward', **sample)
-            stats = {k:v.get('stats', {}) for k,v in results.items()}
+            stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
             print_keys = ['epoch_loss', 'best_loss',  'steps']
             print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
             print_stats = pd.DataFrame(print_stats)
