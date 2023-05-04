@@ -337,8 +337,7 @@ class TransformerModel(Model):
             config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
                                                 max_gpu_ratio=config.max_gpu_ratio,
                                                 reserve=config.reserve_gpus)
-            
-        config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
+            config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
 
         if config.device_map == None:
             config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
@@ -532,6 +531,7 @@ class TransformerModel(Model):
         
         
         
+        cls.print(model, 'MODEL')
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
@@ -560,9 +560,11 @@ class TransformerModel(Model):
                 return_keys=[ 'topk', 'stats']
             )
             try:
+            
                 output = model.forward(**sample)
                 cls.print('STATS: ',output.get('stats', 'no stats'))
             except Exception as e:
+                cls.print(model.forward)
                 raise e
           
           
@@ -672,6 +674,7 @@ class TransformerModel(Model):
         if isinstance(model, str):
             model = cls.get_empty_model(model)
         device_map = infer_auto_device_map(model, max_memory=max_memory, **kwargs) 
+        
         return device_map
     
     

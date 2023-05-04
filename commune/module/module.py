@@ -364,8 +364,6 @@ class Module:
 
         if to_munch:
             config =  cls.dict2munch(config)
-            
-        cls.print(config, path)
         
         return config
     
