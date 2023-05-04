@@ -3119,7 +3119,8 @@ class Module:
     @classmethod
     def merge(cls, *args, 
                         include_hidden:bool=True, 
-                        allow_conflicts:bool=True):
+                        allow_conflicts:bool=True, 
+                        verbose: bool = False):
         
         '''
         Merge the functions of a python object into the current object (a)
@@ -3146,7 +3147,8 @@ class Module:
             # if the function already exists in the object, raise an error
             if  allow_conflicts:
                 if hasattr(a, b_fn_name):
-                    cls.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
+                    if verbose:
+                        cls.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
             else:
                 assert not hasattr(a, b_fn_name), f'function {b_fn_name} already exists in {a}'
                 
@@ -3162,7 +3164,8 @@ class Module:
                 except TypeError:
                     error_fn_list.append(b_fn)
                 if len(error_fn_list)>0:
-                    cls.print(error_fn_list, 'DEBUG')
+                    if verbose:
+                        cls.print(error_fn_list, 'DEBUG')
                     
                 
         return a
@@ -4626,6 +4629,7 @@ class Module:
                     kwargs=kwargs,
                     name=name)
 
+    rfn = remote_fn
     @classmethod
     def choice(cls, options:list):
         import random
