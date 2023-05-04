@@ -25,8 +25,7 @@ class Validator(commune.Model):
                  ):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
-        self.default_models = [m for m,_ in commune.namespace(self.config.network, update=True).items() if m.startswith('model.')]
-        self.namespace = deepcopy(commune.namespace(config.network))
+        self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
         self.set_sequence_length(config.sequence_length)
@@ -266,6 +265,36 @@ class Validator(commune.Model):
     selected_models = None
     loop = None
     
+    
+    def set_models(self, 
+                   models: Union[str, List[str]] = 'model' ,
+                   network:str = None,
+                   update:bool=False, ) -> List[str]:
+
+        network = network if network != None else self.config.network 
+            
+        self.namespace = commune.namespace(network=network,update=update )
+        if isinstance(models, list):
+            for m in models:
+                assert isinstance(m, str)
+                assert m in self.namespace, f'{m} does not exist in namespce'
+        elif isinstance(models, str):    
+            models = [m for m in self.namespace.keys() if m.startswith(models)]
+            
+        self.available_models = models
+        return models
+    @classmethod
+    def get_sample_schema(cls, x:dict) -> dict:
+        sample_schema = {}
+        for k,v in x.items():
+            if isinstance(v, torch.Tensor):
+                sample_schema = dict(
+                    shape=list(v.shape),
+                    dtype= v.dtype
+                )
+        return sample_schema    
+    
+    
     def forward(self, 
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
@@ -298,8 +327,9 @@ class Validator(commune.Model):
             loop = self.get_event_loop()
 
 
+        available_models = self.available_models
 
-        called_models = self.random_ratio_selection(self.copy(self.default_models), ratio=selection_ratio)
+        called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=selection_ratio)
         
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
         batch_size = batch_size if batch_size else self.config.batch_size
@@ -308,14 +338,9 @@ class Validator(commune.Model):
         if verbose:
             self.print(f'forwarding to {len(called_models)} models ')
 
-        jobs = [asyncio.wait_for(self.async_forward(
-                                   input_ids=input_ids, 
-                                   model=model_key, 
-                                   topk=topk, 
-                                   timeout=timeout,
-                                   train=train,
-                                   **kwargs), timeout=timeout) for model_key in called_models]
+        sample = dict(input_ids=input_ids, topk=topk, timeout=timeout,train=train, **kwargs)
         
+        jobs = [asyncio.wait_for(self.async_forward(**sample,model=m), timeout=timeout) for m in called_models]
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         
         if verbose:
@@ -329,16 +354,18 @@ class Validator(commune.Model):
             
         ensemble_logits = []
         
-        stats = self.stats
         stats = {
                 'timestamp': self.time(), 
-                'called_models':called_models,
-                'infernce_time': timer.seconds,
+                'models_available': len(available_models),
+                'models_called':len(called_models),
+                
+                'models_failed': [],
+                
+                'inference_time': timer.seconds,
                 'metric': None,
-                'called_models': called_models,
-                'failed_models': [],
-                'success_models': [],
-                'success_ratio': None,
+                'success' : 0,
+                'input_schema': self.get_sample_schema(sample),
+                'best_metric': None,
                           }
         
         model_stats = {}
@@ -348,7 +375,8 @@ class Validator(commune.Model):
             'logits': [],
             'metrics': [],  
             'probs': [],
-            'models': []
+            'models': [],
+            'models_failed': []
 
         })
         stats['success'] = 0
@@ -361,25 +389,25 @@ class Validator(commune.Model):
                 ensemble['metrics'] += [m_stats['metric']]
                 ensemble['weights'] += [ensemble['metrics'][-1]]
                 ensemble['models'] += [m_key]
+            else: 
+                ensemble['models_failed'] += [m_key]
                 
         # calculate the stats
-        stats['success_models'] = ensemble['models']
-        stats['failed_models'] = [m for m in called_models if m not in stats['success_models']]
-        
-        # calculate the counts of models for each category (called, success, failed)
-        for k in ['called', 'success', 'failed']:
-             stats[k] = len(stats[f'{k}_models'])
-             
-        # calculate the success ratio
-        stats['success_ratio'] = self.round(stats['success'] / stats['called'] + 1e-10, 3)
-            
-               
+
+        stats['called'] = len(called_models)
+        stats['models_failed'] = ensemble['models_failed']
+        stats['models'] = ensemble['models']
+        stats['success'] = len(ensemble['models'])
+        stats['fails'] = stats['called'] - stats['success']
+
+
         w = torch.tensor(ensemble['weights'])
         if len(w) >1:
             w = -(w - w.mean())/ (w.std()+1e-10)
             w = torch.softmax(w, dim=-1)
         else:
             w = torch.ones_like(w)
+
 
         logits  = torch.stack(ensemble['logits'])
         
@@ -395,7 +423,8 @@ class Validator(commune.Model):
         
         ensemble['logits'] = logits
         # TODO: add ensemble metrics
- 
+        ensemble['weights']  = w.tolist()
+        
         
         rank = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
         best_model_idx = rank[0]
@@ -404,7 +433,6 @@ class Validator(commune.Model):
         ensemble['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
         
         for i, (mkey, mstats) in enumerate(model_stats.items()):
-            print(len(rank), i, len(model_stats))
             model_stats[mkey]['rank'] = ensemble['rank'][i]
             model_stats[mkey]['weights'] = ensemble['weights'][i]
             
@@ -415,24 +443,20 @@ class Validator(commune.Model):
     
         stats.update({
             # 'model_stats': model_stats,
-            'models': model_stats,
-            'timestamp': self.time(),
+            # 'model_stats': model_stats,
             'best_metric': best_model_metric,
-            'best_model': best_model,
-            'difference': best_model_metric - metric,
             'metric': metric,
             'inference_time': timer.seconds
         })
         
         ensemble['stats'] = stats
         
-
         
+          
         self.set_stats(stats)
         
         if verbose:
             self.print(stats)
-            
         return Munch(ensemble)
     
     def validate(self, sample=None, 
@@ -464,15 +488,12 @@ class Validator(commune.Model):
         stats = self.get_json(path, default={})
            
         self.stats = stats
-            
+          
+          
 
     def set_stats(self, stats: Dict[str, Any] = None) -> None:
         stats  = stats if stats != None else {}
-        model_stats = stats.get('models', {})
-        for m_k, m_stats in model_stats.items():
-            for k in self.config.ma_keys:
-                m_stats[k] = (1-self.config.alpha)*m_stats.get(k,0) + self.config.alpha*m_stats[k]
-            stats['models'][m_k] = m_stats
+
         assert isinstance(stats, dict)
         self.stats = stats
         self.config['stats'] = stats
@@ -528,6 +549,7 @@ class Validator(commune.Model):
             if not sample_check(sample):
                 continue
             output = self.forward(**sample)
+            output.stats.pop('models', None)
             cls.print(output.stats)
             self.sleep(sleep_interval)
     @classmethod
