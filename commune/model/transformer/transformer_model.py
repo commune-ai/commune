@@ -169,6 +169,7 @@ class TransformerModel(Model):
                 **kwargs):
         
 
+        
         # resolve the output length
         output_length = output_length or self.config.output_length or input_ids.shape[1]
         if output_length > input_ids.shape[1]:
@@ -221,8 +222,11 @@ class TransformerModel(Model):
         # sometime we dont care about the begginning of the sequence
         output_length = output_length if output_length else output.logits.size(1)
         
+        output['hidden_states'] = output.hidden_states[hidden_state_index]
+        output['input_ids'] = sample['input_ids']
         output['logits']= output.logits[:,-output_length:,:]
         
+        # map th elogits
         if map_logits:
             output['logits'] = self.token_translator.translate_logits(logits = output['logits'],
                                                                            offset_mapping=offset_mapping_std,
@@ -231,12 +235,6 @@ class TransformerModel(Model):
                                                                            tokens_std=original_input_ids)
             
         output['topk']=self.encode_topk(output['logits'], topk=topk)
-        
-        if isinstance(hidden_state_index, int):
-            hidden_state_index = [hidden_state_index]
-            
-        output['hidden_states'] = [output.hidden_states[h_idx] for h_idx in hidden_state_index]
-        output['input_ids'] = sample['input_ids']
         output['loss'] = loss = self.calculate_loss(**output)
 
 
@@ -246,7 +244,12 @@ class TransformerModel(Model):
         
         return {key:output[key] for key in return_keys}
         
-        
+       
+    def encode(self, text:str, **kwargs):
+        kwargs['return_keys'] = ['hidden_states']
+        sample = self.tokenize(text)
+        kwargs.update(sample)
+        return self.forward(**kwargs)['hidden_states']
     def process_outputs(self, stats:dict, sample:dict, output:dict):
 
         loss = output['loss']
@@ -614,7 +617,15 @@ class TransformerModel(Model):
             
     test = run_train 
 
+    @classmethod
+    def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
+        self = cls()
+        t = cls.timer()
+        for i in range(num_samples):
+            cls.print(self.encode(text).shape)
+            cls.print(num_samples/t.seconds, 'samples per second')
 
+    
 
     @classmethod
     def models(cls):
