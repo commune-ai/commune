@@ -211,6 +211,7 @@ class Validator(commune.Model):
                 map_tokens=False,
                 train: bool = False,
                 verbose:bool= False,
+                output_length: bool = 2,
                 topk: int = 4096,
                 return_keys: List[str] = ['topk'],
                 **kwargs ):
@@ -229,6 +230,7 @@ class Validator(commune.Model):
             input_ids=input_ids,
             attention_mask=attention_mask,
             topk= topk,
+            output_length=output_length,
             return_keys=return_keys,
             train= train)
         
@@ -274,10 +276,15 @@ class Validator(commune.Model):
                 topk: int = None,
                 sequence_length:int = None,
                 selection_ratio: int = None,
+                batch_size :int = None,
                 train: bool = None,
                 verbose: bool = True,
-
+                retries: int = 4,
                 **kwargs ):
+        
+        
+        
+        
         config = self.config
         timer = self.timer()
         selection_ratio = selection_ratio if selection_ratio != None else config.selection_ratio
@@ -292,18 +299,22 @@ class Validator(commune.Model):
 
 
 
-        forwarded_models = self.random_ratio_selection(self.copy(self.default_models), ratio=selection_ratio)
+        called_models = self.random_ratio_selection(self.copy(self.default_models), ratio=selection_ratio)
         
-        self.print(f'forwarding to {len(forwarded_models)} models ')
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
-        inputs_ids = input_ids[:self.config.batch_size, -sequence_length:]
+        batch_size = batch_size if batch_size else self.config.batch_size
+        inputs_ids = input_ids[:batch_size, -sequence_length:]
         
-        jobs = [asyncio.wait_for(self.async_forward(input_ids=input_ids, 
+        if verbose:
+            self.print(f'forwarding to {len(called_models)} models ')
+
+        jobs = [asyncio.wait_for(self.async_forward(
+                                   input_ids=input_ids, 
                                    model=model_key, 
                                    topk=topk, 
                                    timeout=timeout,
                                    train=train,
-                                   **kwargs), timeout=timeout) for model_key in forwarded_models]
+                                   **kwargs), timeout=timeout) for model_key in called_models]
         
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
         
@@ -311,7 +322,7 @@ class Validator(commune.Model):
             self.print('RECIEVING RESPONSE FROM ',len(model_outputs), 'MODEL OUTPUTS')
         
         model_output_dict = {}
-        for model_output, model_key in zip(model_outputs, forwarded_models):
+        for model_output, model_key in zip(model_outputs, called_models):
             if model_output is None:
                 continue
             model_output_dict[model_key] = model_output
@@ -319,9 +330,16 @@ class Validator(commune.Model):
         ensemble_logits = []
         
         stats = self.stats
-        ensemble_stats = {
-                            'timestamp': self.time(), 
-                          'called_models':forwarded_models}
+        stats = {
+                'timestamp': self.time(), 
+                'called_models':called_models,
+                'infernce_time': timer.seconds,
+                'metric': None,
+                'called_models': called_models,
+                'failed_models': [],
+                'success_models': [],
+                'success_ratio': None,
+                          }
         
         model_stats = {}
         weights = []
@@ -330,21 +348,34 @@ class Validator(commune.Model):
             'logits': [],
             'metrics': [],  
             'probs': [],
-            'models': [],
+            'models': []
+
         })
+        stats['success'] = 0
         for m_key, m_output in model_output_dict.items():
             m_stats = m_output['stats']
 
             if m_stats['success'] and m_stats['metric'] < self.config.threshold:
+                model_stats[m_key] = m_stats
                 ensemble['logits']+= [m_output['logits']]
                 ensemble['metrics'] += [m_stats['metric']]
                 ensemble['weights'] += [ensemble['metrics'][-1]]
                 ensemble['models'] += [m_key]
-                model_stats[m_key] = m_stats
+                
+        # calculate the stats
+        stats['success_models'] = ensemble['models']
+        stats['failed_models'] = [m for m in called_models if m not in stats['success_models']]
+        
+        # calculate the counts of models for each category (called, success, failed)
+        for k in ['called', 'success', 'failed']:
+             stats[k] = len(stats[f'{k}_models'])
+             
+        # calculate the success ratio
+        stats['success_ratio'] = self.round(stats['success'] / stats['called'] + 1e-10, 3)
+            
                
-        w = ensemble['weights']
+        w = torch.tensor(ensemble['weights'])
         if len(w) >1:
-            w = torch.tensor(w)
             w = -(w - w.mean())/ (w.std()+1e-10)
             w = torch.softmax(w, dim=-1)
         else:
@@ -382,18 +413,18 @@ class Validator(commune.Model):
         best_model_metric = ensemble['metrics'][best_model_idx]
         metric = self.calculate_metric({**ensemble, 'input_ids': input_ids})
     
-        ensemble['stats'] = {
+        stats.update({
             # 'model_stats': model_stats,
             'models': model_stats,
-            'called_models': len(forwarded_models),
-            'passed_models': len(model_stats),
             'timestamp': self.time(),
             'best_metric': best_model_metric,
             'best_model': best_model,
             'difference': best_model_metric - metric,
             'metric': metric,
             'inference_time': timer.seconds
-        }
+        })
+        
+        ensemble['stats'] = stats
         
 
         
