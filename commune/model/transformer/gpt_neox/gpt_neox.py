@@ -5,38 +5,18 @@ from torch import nn
 from commune.model.transformer.gpt_neox.gpt_neox_blocks import GPTNeoXLayer
 import streamlit as st
 class GPTNeox(commune.Module, nn.Module):
-    def __init__(self, config = None, 
-                 blocks: List = None,
-                 init_weights: bool = False):
+    def __init__(self, **kwargs):
         
         nn.Module.__init__(self)
-        self.set_model(blocks=blocks, config=config, init_weights=init_weights)
-
-
-
-
-        # Initialize weights and appdefly final processing
-
-    def set_model(self, 
-                  blocks=None,
-                  config = None,
-                  init_weights: bool = True):
-        self.set_config(config)
+        config = self.set_config(kwargs=kwargs)
+        self.set_model()
+    def set_model(self, ):
+        
         self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
-        self.set_blocks(blocks)
-        # if init_weights:
-        #     self.init_weights()
+        self.set_layers(self.config.num_hidden_layers)
+        if self.config.init_weights:
+            self.init_weights()
         self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
-    def default_blocks(self):
-        blocks = []
-        for _ in range(self.config.num_hidden_layers):
-            st.write(_)
-            block = GPTNeoXLayer(self.config)
-            block = commune.module(block)
-            
-            st.write(blocks[-1].state_dict())
-        st.write()
-        return 
     
     base = GPTNeoXLayer
     def resolve_block(self, block:str):
@@ -46,20 +26,21 @@ class GPTNeox(commune.Module, nn.Module):
             block = block
         else:
             raise ValueError(f"block must be a string or a {self.base} object")
-        return self.blocks[index]
+        return self.layers[index]
     
     def replace_block(self, index, layer):
         self.layers[index] = layer
         
-        
-        self.layers[index] = layer
+    
     def set_layers(self, 
-                   layers
+                   num_hidden_layers=1,
                    ):
         layers = []
-        if layers == None:
-            layers = self.default_layers()
+        for _ in range(num_hidden_layers):
+            print(_)
+            layers.append(GPTNeoXLayer(self.config))
         
+        print(layers)
         self.layers = layers
         self.layers = nn.ModuleList(layers)
         
@@ -206,7 +187,7 @@ class GPTNeox(commune.Module, nn.Module):
     @classmethod
     def test(cls):
         self = cls()
-        st.write(self)
+        cls.print(self)
         
     def init_weights(self):
         self.apply(self._init_weights)
