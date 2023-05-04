@@ -4560,6 +4560,7 @@ class Module:
     def remote_fn(cls, 
                     fn='train', 
                     module = None,
+                    args= None,
                     kwargs = None, 
                     tag = None,
                     tag_seperator= '::',
@@ -4570,6 +4571,7 @@ class Module:
             module = '.'.join(fn.split('.')[:-1])
             fn = fn.split('.')[-1]
             
+        args = args if args else []
         kwargs = cls.get_params(kwargs)
         
         if name == None:
@@ -4678,6 +4680,21 @@ class Module:
         except ValueError:
             return False
         
+    @classmethod
+    def get_sample_schema(cls, x:dict) -> dict:
+        import torch
+        '''
+        
+        '''
+        sample_schema = {}
+        for k,v in x.items():
+            if isinstance(v, torch.Tensor):
+                sample_schema = dict(
+                    shape=list(v.shape),
+                    dtype= v.dtype
+                )
+        return sample_schema    
+    
 if __name__ == "__main__":
     Module.run()
     

@@ -231,7 +231,8 @@ class Validator(commune.Model):
             topk= topk,
             output_length=output_length,
             return_keys=return_keys,
-            train= train)
+            train= train
+            )
         
         assert self.check_input(sample)
         output = await model(fn='forward',
@@ -283,18 +284,7 @@ class Validator(commune.Model):
             
         self.available_models = models
         return models
-    @classmethod
-    def get_sample_schema(cls, x:dict) -> dict:
-        sample_schema = {}
-        for k,v in x.items():
-            if isinstance(v, torch.Tensor):
-                sample_schema = dict(
-                    shape=list(v.shape),
-                    dtype= v.dtype
-                )
-        return sample_schema    
-    
-    
+
     def forward(self, 
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
@@ -304,7 +294,7 @@ class Validator(commune.Model):
                 timeout = 7,
                 topk: int = None,
                 sequence_length:int = None,
-                selection_ratio: int = None,
+                ratio: int = None,
                 batch_size :int = None,
                 train: bool = None,
                 verbose: bool = True,
@@ -316,7 +306,7 @@ class Validator(commune.Model):
         
         config = self.config
         timer = self.timer()
-        selection_ratio = selection_ratio if selection_ratio != None else config.selection_ratio
+        ratio = ratio if ratio != None else config.ratio
         topk = topk if topk != None else config.topk
         train = train if train != None else config.train
         
@@ -329,16 +319,19 @@ class Validator(commune.Model):
 
         available_models = self.available_models
 
-        called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=selection_ratio)
+        called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=ratio)
         
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
         batch_size = batch_size if batch_size else self.config.batch_size
-        inputs_ids = input_ids[:batch_size, -sequence_length:]
-        
+        input_ids = input_ids[:batch_size, -sequence_length:]
         if verbose:
             self.print(f'forwarding to {len(called_models)} models ')
 
-        sample = dict(input_ids=input_ids, topk=topk, timeout=timeout,train=train, **kwargs)
+        sample = dict(input_ids=input_ids, 
+                      topk=topk, 
+                      timeout=timeout,
+                      train=train, 
+                      **kwargs)
         
         jobs = [asyncio.wait_for(self.async_forward(**sample,model=m), timeout=timeout) for m in called_models]
         model_outputs = loop.run_until_complete(asyncio.gather(*jobs))
@@ -535,6 +528,9 @@ class Validator(commune.Model):
     
     @classmethod
     def run_train(cls, *args, **kwargs):
+        
+        if kwargs.pop('remote', False):
+            return cls.remote_fn(fn='run_train', args=args, kwargs=kwargs)
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
