@@ -13,7 +13,7 @@ threshold: 4.0
 max_stats_history: 100
 alpha: 0.1
 ma_keys: ['metric', 'weights']
-selection_ratio: 1.0
+ratio: 1.0
 topk: 512 
 load: False
 new_loop_per_forward: True
