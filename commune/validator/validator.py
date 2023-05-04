@@ -25,6 +25,7 @@ class Validator(commune.Model):
                  ):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
+        self.print(config)
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
@@ -217,7 +218,7 @@ class Validator(commune.Model):
         
         
         
-        sample = self.get_params(locals())
+        sample = self.locals2kwargs(locals())
         timer = commune.timer()
         output = None
         # try:
@@ -274,7 +275,7 @@ class Validator(commune.Model):
 
         network = network if network != None else self.config.network 
             
-        self.namespace = commune.namespace(network=network,update=update )
+        self.namespace = commune.namespace(network=network,update=False )
         if isinstance(models, list):
             for m in models:
                 assert isinstance(m, str)
@@ -548,9 +549,28 @@ class Validator(commune.Model):
             output.stats.pop('models', None)
             cls.print(output.stats)
             self.sleep(sleep_interval)
+            
+            
     @classmethod
-    def test(cls,  *args, num_batches=2, **kwargs):
-        cls.run_train(*args, num_batches=num_batches, **kwargs)
+    def ensure_defaults(params:dict, defaults:dict) -> dict:
+        for k, v in defaults.items():
+            if k not in params:
+                params[k] = v
+                
+        return params
+            
+    @classmethod
+    def test(cls,  
+             *args,
+             batch_size=8, 
+             num_batches=2, 
+             remote=False,
+             **kwargs):
+        
+        print(locals().keys())
+        kwargs = cls.locals2kwargs(locals())
+     
+        return cls.run_train(*args, **kwargs)
         
     @classmethod
     def test_validation_keys(cls):
@@ -648,10 +668,9 @@ class Validator(commune.Model):
                ):
         
         if remote:
-            agent_name = f'miner::{wallet}'
             kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
-            cls.remote_fn(fn='miner',name=agent_name,  kwargs=kwargs)
+            return cls.remote_fn(fn='miner',name=f'miner::{wallet}',  kwargs=kwargs)
             
                 
             
