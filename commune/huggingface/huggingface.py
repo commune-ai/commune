@@ -64,10 +64,13 @@ class Huggingface(commune.Module):
  
  
  
-    def get_tokenizer(self, model_name_or_path:str=None, *args, **kwargs):
-        return AutoTokenizer.from_pretrained(model_name_or_path, *args, **kwargs)
+    @classmethod
+    def get_tokenizer(cls, model:str=None, *args, **kwargs):
+        model = cls.resolve_model(model)
+        return AutoTokenizer.from_pretrained(model, *args, **kwargs)
 
     def get_model(self, model_name_or_path:str=None, *args, **kwargs):
+        model = cls.resolve_model(model)
         return AutoModel.from_pretrained(model_name_or_path, *args, **kwargs)
  
  
@@ -76,7 +79,12 @@ class Huggingface(commune.Module):
         if model in cls.shortcuts:
             model = cls.shortcuts[model]
         return model
- 
+    
+    @classmethod
+    def model_saved(cls, model:str):
+        model = cls.resolve_model(model)
+        return bool(model in cls.saved_models())
+    
     def list_datasets(self,return_type = 'dict', filter_fn=lambda x: x['downloads'] > 1000, refresh_cache =False, *args, **kwargs):
         datasets = {} if refresh_cache else self.get_json('datasets',default={})
         if len(datasets) == 0:
@@ -201,8 +209,9 @@ class Huggingface(commune.Module):
         from huggingface_hub import snapshot_download
         return snapshot_download(repo_id, *args, **kwargs)
     @classmethod
-    def download(cls,repo_id, *args, **kwargs):
-        return cls.snapshot_download(repo_id, *args, **kwargs)
+    def download(cls,model, *args, **kwargs):
+        model = cls.resolve_model(model, *args, **kwargs)
+        return cls.snapshot_download(model, *args, **kwargs)
     @classmethod
     def model_paths(cls, limit=10, **kwargs):
         dirpath = f'{cls.cache_path}/hub'
@@ -213,17 +222,23 @@ class Huggingface(commune.Module):
     
     
     @classmethod
-    def cached_model2path(cls,  **kwargs):
+    def saved_model2path(cls,  **kwargs):
         paths = [p for p in cls.model_paths()]
         model2path = {}
         for path in paths:
-            model_name = '/'.join(os.path.basename(path).split('--')[-1:])
+            model_name =os.path.basename(path).split('models--')[-1].replace('--', '/')
             model2path[model_name] = path
+        print(model2path)
         return model2path
+    
+    
+    @classmethod
+    def saved_models(cls) -> List[str]:
+        return list(cls.saved_model2path().keys())
     
     @classmethod
     def get_model_snapshots(cls, model_name):
-        root_path = cls.cached_model2path().get(model_name) + '/snapshots'
+        root_path = cls.saved_model2path().get(model_name) + '/snapshots'
         cls.print(root_path)
         snapshots = commune.ls(root_path)
         return [ snapshot  for snapshot in snapshots]
@@ -234,9 +249,14 @@ class Huggingface(commune.Module):
         return snapshots[0]
     
     @classmethod
-    def get_model_assets(cls, model_name):
-        snapshots = cls.get_model_snapshots(model_name) 
-        return cls.ls(snapshots[0])
+    def get_model_assets(cls, model, search=None):
+        model = cls.resolve_model(model)
+        snapshots = cls.get_model_snapshots(model) 
+        asset_paths = cls.ls(snapshots[0])
+        if search != None:
+            asset_paths = [a for a in asset_paths if search in a]
+        
+        return asset_paths
     
     @classmethod
     def get_model_config(cls, model_name):
@@ -255,29 +275,58 @@ class Huggingface(commune.Module):
             
         return config
         
+        
     @classmethod
-    def get_model_weights(cls, model_name, load:bool = True):
+    def load_torch(cls, path):
+        ext = os.path.splitext(path)[-1]
+        if 'safetensors' in ext:
+            torch_data = load_file(path)
+        else:
+            torch_data = torch.load(path)
+        assert isinstance(torch_data, dict) or isinstance(torch_data, torch.Tensor)
+        return torch_data
+    @classmethod
+    def get_model_weights(cls,
+                          model_name = None, 
+                          load:bool = False,
+                          mode = 'safetensors'):
+        model_name = cls.resolve_model(model_name)
         asset_paths = cls.get_model_assets(model_name) 
         model_weight_paths = []
         model_weights = {}
         for asset_path in asset_paths:
-            for k in ['bin','pt','pth','safetensors']:
-                if os.path.splitext(asset_path)[-1] == '.'+k:
-                    model_weight_paths.append(asset_path)
-                    if load:
-                        if k in ['safetensors']:
-                            
-                            model_weights_chunk = load_file(asset_path)
-                        else:
-                            model_weights_chunk = torch.load(asset_path)
-                        assert isinstance(model_weights_chunk, dict)
-                        model_weights.update(model_weights_chunk)
-                            
-                    
-                    
+            ext = os.path.splitext(asset_path)[-1]
+            if mode not in ext:
+                continue
+            model_weight_paths.append(asset_path)
+            if load:
+                model_weights_chunk = cls.load_torch(asset_path)
+                model_weights.update(model_weights_chunk)
+                                      
         if load:
             return model_weights
         return model_weight_paths
+    
+    
+
+    @classmethod
+    def load_model_weights(cls, model='gpt20b',remove_prefix=True):
+        
+        model = cls.resolve_model(model)
+        state_dict = {}
+        weight_paths = cls.get_model_weights(model, load=False)
+        weight_paths = sorted(weight_paths)
+
+        for i,weight_path in enumerate(weight_paths):
+            chunk_state_dict = cls.load_torch(weight_path)
+            if remove_prefix:
+                chunk_state_dict = {'.'.join(k.split('.')[1:]):v for k,v in chunk_state_dict.items()}
+            state_dict.update(chunk_state_dict)
+            
+            
+        return state_dict
+
+
         
     @classmethod
     def test(cls): 
@@ -295,6 +344,9 @@ class Huggingface(commune.Module):
     def get_model_config(self, model_name):
         return self.get_model_config(model_name)
     
+    @classmethod
+    def test(cls):
+        cls.model_paths()
 
 Huggingface.class_init()
 if __name__ == '__main__':

@@ -244,8 +244,8 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids):
 class GPTNeoXMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.dense_h_to_4h = nn.Linear(config.hidden_size, config.intermediate_size)
-        self.dense_4h_to_h = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.dense_h_to_4h = nn.Linear(config.hidden_size, config.intermediate_size_factor*config.hidden_size)
+        self.dense_4h_to_h = nn.Linear(config.intermediate_size_factor*config.hidden_size, config.hidden_size)
         self.act = ACT2FN[config.hidden_act]
 
     def forward(self, hidden_states):
@@ -305,7 +305,6 @@ class GPTNeoXLayer(nn.Module):
             outputs = (hidden_states,) + outputs[1:]  # hidden_states, (attn_weights)
 
         return outputs
-
 
 
 if __name__ == "__main__":

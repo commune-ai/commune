@@ -1008,7 +1008,7 @@ class Module:
     
 
     @classmethod
-    def find_python_classes(cls, path:str = None, class_index=-1, search = None):
+    def find_python_classes(cls, path:str = None, class_index=0, search = None):
         import re
         
         if path is None:
@@ -1043,7 +1043,7 @@ class Module:
         object_name = cls.find_python_classes(path)
         if len(object_name) == 0:
             return None
-        object_name = object_name[0]
+        object_name = object_name[-1]
         path = path.replace(cls.repo_path+'/', '').replace('.py','.').replace('/', '.') 
         path = path + object_name
         return path
@@ -3407,17 +3407,21 @@ class Module:
     @classmethod
     def get_empty_model(cls, model):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        from accelerate import init_empty_weights
         print(f'loading config model from {model}...')
         model = cls.shortcuts.get(model, model)
 
         if isinstance(model, str):
             model_config = AutoConfig.from_pretrained(model)
             model_config_dict = model_config.to_dict()
-            with init_empty_weights():
+            with cls.init_empty_weights():
                 model = AutoModelForCausalLM.from_config(model_config)
                 
         return model
+    @classmethod
+    def init_empty_weights(cls, *args, **kwargs):
+        from accelerate import init_empty_weights
+
+        return init_empty_weights(*args, **kwargs)
         
     @classmethod
     def get_model_size(cls, 
@@ -4738,6 +4742,7 @@ class Module:
                     dtype= v.dtype
                 )
         return sample_schema    
+    
     
 if __name__ == "__main__":
     Module.run()
