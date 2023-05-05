@@ -5,8 +5,10 @@ from torch import nn
 from commune.model.transformer.gpt_neox.gpt_neox_blocks import GPTNeoXLayer
 import streamlit as st
 class GPTNeox(commune.Module, nn.Module):
-    def __init__(self, **kwargs):
+    
+    def __init__(self,layer=GPTNeoXLayer, **kwargs):
         
+        self.layer = layer
         nn.Module.__init__(self)
         config = self.set_config(kwargs=kwargs)
         self.set_model(self.config)
@@ -21,73 +23,79 @@ class GPTNeox(commune.Module, nn.Module):
 
         
         layers = []
-        layer_info_list = []
-        cumulative_stats = {
-            'params': 0,
-            'size': 0,
-        }
+        config['block_info'] = block_info = {}
         
-        initial_block_info = {
+        
+        # IN BLOCK
+        
+        block_info['in'] = {
             'params':  self.get_num_params(self),
             'size': self.get_model_size(self)
         }
         
-        free_gpu_memory = self.free_gpu_memory(max_gpu_ratio=self.config.max_gpu_ratio)
-        next_gpu = self.most_free_gpu(free_gpu_memory)
-        self.print(f"Initial Block:", free_gpu_memory)
         
+        # N BLOCKS
+        block_info['layers'] = []  
         max_gpu_memory = {}
         for i in range(config.num_hidden_layers):
             
-            layer = GPTNeoXLayer(self.config)
-
-            layer_info = {
-                'params':  self.get_num_params(layer),
-                'size': self.get_model_size(layer)
-            }
-        
-            layer_info_list.append(layer_info)
-            layer_params = layer.parameters()
+            layer = self.layer(config)
             layers.append(layer)
+            
+            block_info['layers'] += [{
+                'params':  self.get_num_params(layer),
+                'size': self.get_model_size(layer),
+                'layer': type(layer).__name__,
+            }]
         
 
+        free_gpu_memory = self.free_gpu_memory(max_gpu_ratio=self.config.max_gpu_ratio)
         
-        self.layers = layers
-        self.layers = nn.ModuleList(layers)
-        
-
+        # OUT BLOCK
+    
         self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
         self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
         self.gradient_checkpointing = False
         
-        base_model_info = {}
-        for k in ['params', 'size']:
-            base_model_info[k] = initial_block_info[k] + sum([layer_info[k] for layer_info in layer_info_list])
-            
-        total_model_info = {
-            'params':  self.get_num_params(self),
-            'size': self.get_model_size(self)
-        }
-        final_layer_info = {
-            'params':  total_model_info['params'] - base_model_size,
-            'size': total_model_info['sixe'] - base_model_size
+        block_info['out'] = {
+            'params':  self.get_num_params(self)-  block_info['in']['params'],
+            'size': self.get_model_size(self) -  block_info['in']['size']
         }
         
-        layer_info_list.append(final_layer_info)
+        next_gpu = self.most_free_gpu(free_gpu_memory)
+        next_gpu_memory = free_gpu_memory[next_gpu]
+        non_middle_memory = sum([block_info[block]['size'] for block in ['in', 'out']])
+        assert next_gpu_memory > non_middle_memory
+        free_gpu_memory[next_gpu] -= non_middle_memory
+        for block in ['in', 'out']:
+            block_info[block]['gpu'] = next_gpu
+        # self.to(next_gpu)
+        
+        for i, layer in enumerate(block_info['layers']):
+            if free_gpu_memory[next_gpu] < layer['size']:
+                next_gpu = self.most_free_gpu(free_gpu_memory)
+            free_gpu_memory[next_gpu] -= layer['size']
+            layer['gpu'] = next_gpu
         
         
-        self.print(layer_info_list)
+        config['block_info'] = block_info
+        st.write(config.block_info)
+
+        # self.to(next_gpu)
+        self.device = next_gpu
         
         
+        self.layers = nn.ModuleList(layers)
 
 
-        if self.config.init_weights:
+        if config.init_weights:
             self.init_weights()
-        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
-        self.load_weights()
-        
+        self.final_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.load_weights(config.load_weights)
+        self.config = config
 
     
+
     base = GPTNeoXLayer
     def resolve_block(self, block:str):
         if isinstance(block, str):
@@ -261,8 +269,9 @@ class GPTNeox(commune.Module, nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
-    def load_weights(self, model='gpt20b'):
+    def load_weights(self, model=None):
         hf = self.module('huggingface')
+        model = self.config.model if model is None else model
         new_state_dict =  hf.load_model_weights(model)
         state_dict = self.state_dict()
         for k in new_state_dict.keys():
