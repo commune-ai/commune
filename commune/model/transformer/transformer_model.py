@@ -532,10 +532,10 @@ class TransformerModel(Model):
         
         
         if isinstance(model, str):
-            if model in cls.model_options:
-                model = cls(model=model, **kwargs)
+            if cls.module_exists(model):
+                model  = cls.connect(model) 
             else:
-                model  = cls.connect(model)  
+                model = cls(model=model, **kwargs)
         
         
         
