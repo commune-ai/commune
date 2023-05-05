@@ -131,6 +131,8 @@ class GPTNeox(commune.Module, nn.Module):
     def set_input_embeddings(self, value):
         self.embed_in = value
 
+
+
     def forward(
         self,
         input_ids: Optional[torch.LongTensor] = None,
@@ -142,6 +144,8 @@ class GPTNeox(commune.Module, nn.Module):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        no_grad : bool = False,
+        autocast: bool = False,
     ) -> Dict[str, torch.Tensor]:
         r"""
         past_key_values (`tuple(tuple(torch.FloatTensor))` of length `config.n_layers` with each tuple having 4 tensors of shape `(batch_size, num_heads, sequence_length - 1, embed_size_per_head)`):
@@ -153,6 +157,19 @@ class GPTNeox(commune.Module, nn.Module):
             If set to `True`, `past_key_values` key value states are returned and can be used to speed up decoding (see
             `past_key_values`).
         """
+        
+
+        kwargs = self.locals2kwargs(locals())
+        if kwargs.get('no_grad', False):
+            kwargs['no_grad'] = False
+            with torch.no_grad():
+                return self.forward(**kwargs)
+            
+        if kwargs.get('autocast', False):
+            kwargs['autocast'] = False
+            with torch.cuda.amp.autocast():
+                return self.forward(**kwargs)
+        
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
