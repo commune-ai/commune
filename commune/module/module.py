@@ -3385,6 +3385,7 @@ class Module:
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
 
+    get_model_params = get_num_params
     @classmethod
     def get_tensor_size(cls, tensor:'torch.Tensor'):
         return tensor.nelement() * tensor.element_size()
@@ -3869,17 +3870,17 @@ class Module:
             module = cls.connect(module)
         
         return  fn, module
-    @classmethod
 
     
     def resolve_key(self, key: str) -> str:
         if key == None:
-            if not hasattr(self, 'key'):
+            if getattr(self, 'key', None) == None:
                 self.set_key(key)
             key = self.key
         elif isinstance(key, str):
             key = self.get_key(key)
             
+        print(key, 'KEY')
         return key  
                 
                 
@@ -3899,8 +3900,7 @@ class Module:
         self.network = network
         
         
-    @classmethod
-    def sign(cls, data:dict  = None, key: str = None) -> bool:
+    def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
         return key.sign(data)    
     
@@ -3986,35 +3986,33 @@ class Module:
         
     @classmethod
     def add_user(cls, 
-                 user: str = None,
+                 name: str = None,
+                 signature: str = None,
                  role='sudo', **info):
         if not hasattr(self, 'users'):
             self.users = {}
-        if info == None:
-            info = {}
-            
-        info.update(dict(timestamp=self.time(), role=role))
+        info.update(dict(timestamp=self.time(), 
+                         role=role, 
+                         user=user,
+                         address=address))
         self.put(f'users/{user}/{role}', info)
     
-    def get_user(self, user: str = None) -> dict:
-        self.ls(f'users/{user}')
+    @classmethod
+    def get_user(cls, user: str = None) -> dict:
+        return cls.ls(f'users/{user}')
     
     @classmethod
     def rm_user(cls, user: str = None):
-        self.users.pop(user, None)
+        self.users.pop(user, None)  
         
-        
-        
-    @property
+    @classmethod
     def users(self):
-        if not hasattr(self, '_users'):
-            self._users = {}
         return self._users
     
-    @users.setter
-    def users(self, value: dict):
-        self._users = value
-        
+    
+    
+    
+    
     @classmethod
     def network(cls,  *args, mode='subspace', **kwargs) -> str:
         if mode == 'subspace':
@@ -4075,8 +4073,7 @@ class Module:
             subspace = cls.subspace(subspace)
             
         return subspace
-
-    key = None 
+    
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
         return cls.import_object('commune.server.Client')(*args, **kwargs)
