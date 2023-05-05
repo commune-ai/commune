@@ -391,6 +391,19 @@ class Model( nn.Module, commune.Module):
         self = cls(*args,**kwargs)
         print(self.config)
 
+
+    @classmethod
+    def quantize(cls,
+                 model:str,
+                 dynamic_q_layer : set = {torch.nn.Linear}, 
+                 dtype=torch.qint8, **kwargs):
+        self = torch.ao.quantization.quantize_dynamic( model,  # the original model
+        dynamic_q_layer,  # a set of layers to dynamically quantize
+        dtype=torch.qint8)
+        return self
+    
+
+
 if __name__ == "__main__":
     
     Model.run()
