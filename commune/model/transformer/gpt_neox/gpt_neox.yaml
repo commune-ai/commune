@@ -20,3 +20,4 @@ use_parallel_residual: True
 pruned_heads : null
 no_split_modules : ["GPTNeoXLayer"]
 max_gpu_ratio: 0.8
+load_weights: gpt20b
