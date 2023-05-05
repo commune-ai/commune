@@ -68,6 +68,9 @@ def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] 
     return inverted_mask.masked_fill(inverted_mask.to(torch.bool), torch.finfo(dtype).min)
 
 
+
+
+
 class LlamaRMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
         """
@@ -324,12 +327,15 @@ class LlamaModel(nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         config = self.set_config(config)
+        self.set_tokenizer()
         self.set_initial(config)
         self.set_layers(config)
         self.set_final(config)
 
+        self.load_weights(config.load_weights)
 
         self.init_weights()
+
         
         # self.set_device(config.device)
 
@@ -623,23 +629,18 @@ class LlamaModel(nn.Module, commune.Module):
         return next(module.parameters()).device
 
     def set_tokenizer(self, tokenizer:Union[str, 'tokenizer', None]= 'lmsys/vicuna-7b-delta-v0'):
-        from transformers import AutoTokenizer, AutoModel
+        from transformers import AutoTokenizer, AutoModel, AutoConfig
         from commune.utils.tokenizer import prep_tokenizer
+
 
         
         if isinstance(tokenizer, str):
 
-            # tokenizer = self.shortcuts.get(tokenizer, tokenizer)
             self.config['tokenizer'] = tokenizer
-            
-            try:
-                # HACK TO INCLUDE LLAMA TOKENIZER
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
-            except ValueError:
-                
-                print('resorting ot use_fast = False')
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-
+        print(tokenizer)
+        # tokenizer_config = AutoConfig.from_pretrained(tokenizer)
+        # self.print(tokenizer_config)
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer)
    
         
         self.tokenizer = tokenizer
@@ -689,20 +690,29 @@ class LlamaModel(nn.Module, commune.Module):
     
     
     @classmethod
-    def test(cls, dataset='dataset.text.bittensor'):
+    def test(cls, dataset='dataset.bittensor'):
         cls.print('testing model')
         model = cls()
 
         dataset = commune.connect(dataset)
-        sample = dataset.sample(no_tokenizer=True)
+        sample_text = dataset.sample(no_tokenizer=True)
 
 
-        sample = model.tokenize(sample['text'])
+        sample = model.tokenize(sample_text)
         output = model.forward(**sample)
         
         st.write(output)
         return model
 
+    def load_weights(self, model='gpt20b'):
+        hf = self.module('huggingface')
+        new_state_dict =  hf.load_model_weights(model)
+        state_dict = self.state_dict()
+        for k in new_state_dict.keys():
+            if k in state_dict.keys():
+                state_dict[k] = new_state_dict[k]
+        self.load_state_dict(state_dict)
+        
 if __name__ == "__main__":
 
     

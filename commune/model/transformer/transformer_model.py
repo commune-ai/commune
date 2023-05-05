@@ -290,16 +290,21 @@ class TransformerModel(Model):
                 
                 # check if the loss is better than the best loss
                 is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
-
+                train_stats['epochs_since_saved'] = train_stats['epoch'] - train_stats['saved_epoch']
+                train_stats['is_better'] = is_better
+                
                 if is_better:
-                    train_stats['saved_epoch'] = train_stats['epoch']
+                    if train_stats['epochs_since_saved'] >= self.config.min_epochs_since_saved:
+                        self.set_stats(stats)
+                        self.save() # save all
+                        train_stats['saved_epoch'] = train_stats['epoch']
+                        
                     train_stats['best_loss'] = train_stats['epoch_loss']
-                    self.set_stats(stats)
-                    self.save() # save all
+                    
                 else:
+                    if train_stats['epochs_since_saved'] > self.config.max_epochs_since_saved:
+                        self.load()
 
-                    self.load() # load only the model and optimizer
-            
             
             self.set_stats(stats)
 

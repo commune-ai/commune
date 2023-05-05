@@ -9,14 +9,84 @@ class GPTNeox(commune.Module, nn.Module):
         
         nn.Module.__init__(self)
         config = self.set_config(kwargs=kwargs)
-        self.set_model()
-    def set_model(self, ):
-        
+        self.set_model(self.config)
+    def set_model(self, config):
+        if config.init_empty_weights:
+            with self.init_empty_weights():
+                config.init_empty_weights = False
+                model = self.set_model(config)
+            return model
         self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
-        self.set_layers(self.config.num_hidden_layers)
+        
+
+        
+        layers = []
+        layer_info_list = []
+        cumulative_stats = {
+            'params': 0,
+            'size': 0,
+        }
+        
+        initial_block_info = {
+            'params':  self.get_num_params(self),
+            'size': self.get_model_size(self)
+        }
+        
+        free_gpu_memory = self.free_gpu_memory(max_gpu_ratio=self.config.max_gpu_ratio)
+        next_gpu = self.most_free_gpu(free_gpu_memory)
+        self.print(f"Initial Block:", free_gpu_memory)
+        
+        max_gpu_memory = {}
+        for i in range(config.num_hidden_layers):
+            
+            layer = GPTNeoXLayer(self.config)
+
+            layer_info = {
+                'params':  self.get_num_params(layer),
+                'size': self.get_model_size(layer)
+            }
+        
+            layer_info_list.append(layer_info)
+            layer_params = layer.parameters()
+            layers.append(layer)
+        
+
+        
+        self.layers = layers
+        self.layers = nn.ModuleList(layers)
+        
+
+        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+        self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
+        self.gradient_checkpointing = False
+        
+        base_model_info = {}
+        for k in ['params', 'size']:
+            base_model_info[k] = initial_block_info[k] + sum([layer_info[k] for layer_info in layer_info_list])
+            
+        total_model_info = {
+            'params':  self.get_num_params(self),
+            'size': self.get_model_size(self)
+        }
+        final_layer_info = {
+            'params':  total_model_info['params'] - base_model_size,
+            'size': total_model_info['sixe'] - base_model_size
+        }
+        
+        layer_info_list.append(final_layer_info)
+        
+        
+        self.print(layer_info_list)
+        
+        
+
+
         if self.config.init_weights:
             self.init_weights()
         self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
+        self.load_weights()
+        
+
     
     base = GPTNeoXLayer
     def resolve_block(self, block:str):
@@ -30,23 +100,7 @@ class GPTNeox(commune.Module, nn.Module):
     
     def replace_block(self, index, layer):
         self.layers[index] = layer
-        
-    
-    def set_layers(self, 
-                   num_hidden_layers=1,
-                   ):
-        layers = []
-        for _ in range(num_hidden_layers):
-            print(_)
-            layers.append(GPTNeoXLayer(self.config))
-        
-        print(layers)
-        self.layers = layers
-        self.layers = nn.ModuleList(layers)
-        
-        self.final_layer_norm = nn.LayerNorm(self.config.hidden_size, eps=self.config.layer_norm_eps)
-        self.embed_in = nn.Embedding(self.config.vocab_size, self.config.hidden_size)
-        self.gradient_checkpointing = False
+
     def get_input_embeddings(self):
         return self.embed_in
 
@@ -186,7 +240,8 @@ class GPTNeox(commune.Module, nn.Module):
         
     @classmethod
     def test(cls):
-        self = cls()
+        with cls.init_empty_weights():
+            self = cls()
         cls.print(self)
         
     def init_weights(self):
@@ -206,9 +261,18 @@ class GPTNeox(commune.Module, nn.Module):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
 
+    def load_weights(self, model='gpt20b'):
+        hf = self.module('huggingface')
+        new_state_dict =  hf.load_model_weights(model)
+        state_dict = self.state_dict()
+        for k in new_state_dict.keys():
+            if k in state_dict.keys():
+                state_dict[k] = new_state_dict[k]
+        self.load_state_dict(state_dict)
+        
 
 
 if __name__ == "__main__":
-    st.write(GPTNeox())
+    GPTNeox.run()
 
 # print(models)
