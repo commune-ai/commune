@@ -237,16 +237,18 @@ class Huggingface(commune.Module):
         return list(cls.saved_model2path().keys())
     
     @classmethod
-    def get_model_snapshots(cls, model_name):
-        root_path = cls.saved_model2path().get(model_name) + '/snapshots'
-        cls.print(root_path)
+    def get_model_snapshots(cls, model):
+        model = cls.resolve_model(model)
+        root_path = cls.saved_model2path().get(model) + '/snapshots'
         snapshots = commune.ls(root_path)
         return [ snapshot  for snapshot in snapshots]
     
     @classmethod
-    def get_model_snapshot(cls, model_name):
-        snapshots = cls.get_model_snapshots(model_name) 
+    def get_model_snapshot(cls, model):
+        snapshots = cls.get_model_snapshots(model) 
         return snapshots[0]
+    
+    get_model_path = get_model_snapshot
     
     @classmethod
     def get_model_assets(cls, model, search=None):

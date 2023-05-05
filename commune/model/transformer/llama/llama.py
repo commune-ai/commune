@@ -162,6 +162,7 @@ class LlamaAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
+
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = self.hidden_size // self.num_heads
@@ -327,25 +328,75 @@ class LlamaModel(nn.Module, commune.Module):
         nn.Module.__init__(self)
         
         config = self.set_config(config)
-        self.set_tokenizer()
-        self.set_initial(config)
-        self.set_layers(config)
-        self.set_final(config)
-
-        self.load_weights(config.load_weights)
-
-        self.init_weights()
+        self.blocks = {}
+        self.set_model(config)
 
         
         # self.set_device(config.device)
 
 
 
-    def set_final(self,config):
-        pass
+    def register_blocks(self, key, blocks:list, same_device = True):
+        device= None
+        for block in blocks:
+            block_info = self.register_block(key, block,device=device)
+            if device == None and same_device:
+                device = block_info['device']
+            
+        return self.blocks[key]
+    
 
+
+    def register_block(self, key:str,  block:str, device=None):
+            
+
+
+        block_info = {
+            'params': self.get_num_params(block),
+            'size': self.get_model_size(block)
+        }
+        if key in self.blocks:
+            if not isinstance(self.blocks[key], list):
+                self.blocks[key] = [self.blocks[key], block_info] 
+            else:
+                self.blocks[key].append(block_info)
+        else:
+            self.blocks[key] =  block_info
+        
+        
+        # self.print('broo')
+        if 'free_gpu_memory' not in self.config:
+            self.config['free_gpu_memory'] = self.free_gpu_memory()
+
+        
+        if device == None:
+                        
+            free_gpu_memory = self.config['free_gpu_memory']
+
+            next_gpu = self.most_free_gpu(free_gpu_memory)
+            while free_gpu_memory[next_gpu] < block_info['size']:
+                next_gpu = self.most_free_gpu(free_gpu_memory)
+            free_gpu_memory[next_gpu] -= block_info['size']
+            self.free_gpu_memory = free_gpu_memory
+            device = f'cuda:{next_gpu}'
+        block_info['device'] = device    
+        block = block.to(device)
+        return block_info
+        
     def set_model(self, config):
-        self.model = model
+        self.print("Setting tokenizer")
+        self.set_tokenizer()
+        self.print("Setting initial")
+        self.set_input_layer(config)
+        
+        self.print("Setting layers")
+        self.set_layers(config)
+        
+        self.print("Setting final")
+        self.set_output_layer(config)
+        self.load_weights(config.load_weights)
+        self.init_weights()
+        
 
 
     def init_weights(self):
@@ -456,7 +507,7 @@ class LlamaModel(nn.Module, commune.Module):
                 use_cache=use_cache,
             )
             
-            layer_device = self.layer_devices[idx]
+            layer_device =self.blocks['layer'][idx]['device']
             
             
             for k, v in layer_kwargs.items():
@@ -473,7 +524,9 @@ class LlamaModel(nn.Module, commune.Module):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-        hidden_states = hidden_states.to(self.device)
+
+        out_device = self.blocks['out'][-1]['device']
+        hidden_states = hidden_states.to(out_device)
         hidden_states = self.norm(hidden_states)
         logits = self.lm_head(hidden_states)
 
@@ -535,7 +588,7 @@ class LlamaModel(nn.Module, commune.Module):
         return loss
 
     def model_size(self, keys = None):
-        return self.get_model_size( self, keys)
+        return self.get_model_size( self)
     
     def params_size_map(self, cumulative = True):
         size_map = {k: self.get_tensor_size(v) for k,v in self.named_parameters()}
@@ -550,75 +603,34 @@ class LlamaModel(nn.Module, commune.Module):
         
         
         
-    def set_initial(self, config: dict):
+    def set_input_layer(self, config: dict):
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         
+        self.register_block('input', self.embed_tokens)  
+        self.device = self.embed_tokens.weight.device
         
         
     def set_layers(self, config ):
         
-        self.layers = nn.ModuleList()
+        layers = []
         for i in range(config.num_hidden_layers):
-            self.print(i)
-            self.layers.append(LlamaDecoderLayer(config))
-        
-        
-        
-
+            layer = LlamaDecoderLayer(config)
+            self.register_block('layer', layer)
+            layers.append(layer)
+            
+        self.layers = nn.ModuleList(layers)
                     
-    def set_final(self, config: dict):
+    def set_output_layer(self, config: dict):
         self.norm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
-
         
-                
-
-    def set_device(self, device= None ):
-        model_size = self.model_size()
-        free_gpu_memory = self.free_gpu_memory()
-        total_free_memory = sum(free_gpu_memory.values())
-        assert total_free_memory > model_size, f'not enough memory to allocate model {total_free_memory} < {model_size}'
-
-        self.print(free_gpu_memory)
-        most_free_gpu = self.most_free_gpu()
-        devices = device
-        if device == None:
-            if model_size < free_gpu_memory[most_free_gpu]:
-                # use single gpu
-                devices = [most_free_gpu]
-            else:
-                # use multiple gpus
-                assert total_free_memory > model_size, f'not enough memory to allocate model {total_free_memory} < {model_size}'
-                devices = list(free_gpu_memory.keys()) 
+        self.register_blocks('out', [self.norm,self.lm_head], same_device = True)
         
         
-        assert type(devices) == list, 'device must be a list'
-        self.device = device = devices[0]
 
-        if len(devices) == 1:
-            self.to(device)
-        elif len(devices) > 1:
-            
-            # put on the non layer parts onto the first gpu
-            for param_key, param in self.named_parameters():
-                if not param_key.startswith('layers'):
-                    param.data.to(device)
-            
-            for layer_i, layer in enumerate(self.layers):
-                layer_gpu_footprint = self.get_model_size(layer)
-                for gpu_id in free_gpu_memory.keys():
-                    free_memory = free_gpu_memory[gpu_id]
-                    if free_memory > layer_gpu_footprint:
-                        free_gpu_memory[gpu_id] -= layer_gpu_footprint
-                        device = f'cuda:{gpu_id}'
-                        layer.to(device)
-                        self.layer_devices.append(device)
-                        break
-        else: 
-            raise Exception('invalid device')
-                    
+        
 
     @classmethod
     def get_module_device(self, module, halfass = True):
@@ -637,18 +649,19 @@ class LlamaModel(nn.Module, commune.Module):
         if isinstance(tokenizer, str):
 
             self.config['tokenizer'] = tokenizer
-        print(tokenizer)
-        # tokenizer_config = AutoConfig.from_pretrained(tokenizer)
-        # self.print(tokenizer_config)
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer)
+            
+        hf = commune.module('huggingface')
+        tokenizer_class = commune.import_object('commune.model.transformer.llama.LlamaTokenizer')
+        path = hf.get_model_path('llama')
+        tokenizer = tokenizer_class.from_pretrained(path)
    
-        
         self.tokenizer = tokenizer
         
     
-        self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
-        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
-        
+        # self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
+        self.tokenizer = prep_tokenizer(self.tokenizer)
+        self.tokenizer.pad_token = tokenizer.eos_token
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
 
         return self.tokenizer
 
@@ -694,10 +707,11 @@ class LlamaModel(nn.Module, commune.Module):
         cls.print('testing model')
         model = cls()
 
-        dataset = commune.connect(dataset)
-        sample_text = dataset.sample(no_tokenizer=True)
+        # dataset = commune.connect(dataset)
+        sample_text = 'Yo whadup, my name is'
 
 
+        print(sample_text)
         sample = model.tokenize(sample_text)
         output = model.forward(**sample)
         
