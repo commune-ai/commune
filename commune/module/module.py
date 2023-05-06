@@ -705,28 +705,21 @@ class Module:
             module_list = [m for m in module_list if search in m]
     
         return module_list
-    
+
     @staticmethod
-    def port_used(port:int, ip:str ='0.0.0.0', timeout:int=1):
-        '''7um
-        Check if port is available
-        '''
-        import select
+    def port_used(port: int, ip: str = '0.0.0.0', timeout: int = 1):
         import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setblocking(False)
-        try:
-            sock.connect((ip, port))
-            return True
-        except socket.error as ex:
-            if ex.errno != socket.errno.EINPROGRESS:
-                raise
-        ready = select.select([sock], [], [], timeout)
-        if not ready[0]:
-            sock.close()
-            return False
-        sock.close()
-        return True
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            # Set the socket timeout
+            sock.settimeout(timeout)
+
+            # Try to connect to the specified IP and port
+            try:
+                sock.connect((ip, port))
+                return True
+            except socket.error:
+                return False
+    
 
     @classmethod
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
@@ -1445,8 +1438,12 @@ class Module:
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
        
-        return cls.namespace('local')[name]
+        address =  cls.namespace('local')[name]
+        address = address.replace(cls.default_ip,cls.external_ip())
+        return address
     
+    
+    addy = root_address
     anchor = root_module
     anchor_address = root_address
 
@@ -1895,7 +1892,7 @@ class Module:
               wait_for_server:bool = False,
               wait_for_server_timeout:int = 30,
               wait_for_server_sleep_interval: int = 1,
-              
+              verbose = False,
               *args, 
               **kwargs ):
         '''
