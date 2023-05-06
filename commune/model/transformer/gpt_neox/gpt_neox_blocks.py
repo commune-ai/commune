@@ -29,41 +29,8 @@ from transformers.file_utils import (
     add_start_docstrings_to_model_forward,
     replace_return_docstrings,
 )
-from transformers.modeling_utils import PreTrainedModel
-
-from gpt_neox_config import GPTNeoXConfig
 
 
-
-
-class GPTNeoXPreTrainedModel(PreTrainedModel):
-    """
-    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
-    models.
-    """
-
-    config_class = GPTNeoXConfig
-    base_model_prefix = "gpt_neox"
-    supports_gradient_checkpointing = True
-    _no_split_modules = ["GPTNeoXLayer"]
-
-    def _init_weights(self, module):
-        """Initialize the weights"""
-        if isinstance(module, nn.Linear):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-            if module.bias is not None:
-                module.bias.data.zero_()
-        elif isinstance(module, nn.Embedding):
-            module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
-            if module.padding_idx is not None:
-                module.weight.data[module.padding_idx].zero_()
-        elif isinstance(module, nn.LayerNorm):
-            module.bias.data.zero_()
-            module.weight.data.fill_(1.0)
-
-    def _set_gradient_checkpointing(self, module, value=False):
-        if isinstance(module, GPTNeoXModel):
-            module.gradient_checkpointing = value
 
 
 class GPTNeoXAttention(nn.Module):
@@ -277,8 +244,8 @@ def apply_rotary_pos_emb(q, k, cos, sin, position_ids):
 class GPTNeoXMLP(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.dense_h_to_4h = nn.Linear(config.hidden_size, config.intermediate_size)
-        self.dense_4h_to_h = nn.Linear(config.intermediate_size, config.hidden_size)
+        self.dense_h_to_4h = nn.Linear(config.hidden_size, config.intermediate_size_factor*config.hidden_size)
+        self.dense_4h_to_h = nn.Linear(config.intermediate_size_factor*config.hidden_size, config.hidden_size)
         self.act = ACT2FN[config.hidden_act]
 
     def forward(self, hidden_states):
@@ -338,7 +305,6 @@ class GPTNeoXLayer(nn.Module):
             outputs = (hidden_states,) + outputs[1:]  # hidden_states, (attn_weights)
 
         return outputs
-
 
 
 if __name__ == "__main__":

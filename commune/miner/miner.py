@@ -267,7 +267,7 @@ class Miner(commune.Module, nn.Module):
         
         
         
-        sample = self.get_params(locals())
+        sample = self.locals2kwargs(locals())
         timer = commune.timer()
         output = None
         # try:
