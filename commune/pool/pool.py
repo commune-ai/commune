@@ -50,7 +50,7 @@ class Pool(commune.Module):
       
     def add_workers(self, *names, **kwargs):
         if len(names) == 0:
-            names = [self.resolve_worker_name(i) in range(self.config.num_workers)]
+            names = [self.resolve_worker_name(i) for i in range(self.config.num_workers)]
         for name in names:
             self.add_worker(name, **kwargs)
         
@@ -88,13 +88,13 @@ class Pool(commune.Module):
         
         queue_prefix = '::'.join(name.split('::')[:-1])
         kwargs = dict(
-            input_queue = f'{queue_prefix}::input'
+            input_queue = f'{queue_prefix}::input',
             output_queue = f'{queue_prefix}::output'     
         )
 
         self.add_queue(kwargs['input_queue'], mode=mode)
         self.add_queue(kwargs['output_queue'], mode=mode)
-
+        
         if self.config.mode == 'thread': 
             self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {worker_kwargs}")
             t = threading.Thread(target=self.forward_requests, kwargs=worker_kwargs)

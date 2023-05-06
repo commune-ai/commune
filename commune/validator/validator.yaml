@@ -1,9 +1,11 @@
-models: model
+
+models: model.
+network: global
+update: True
 tokenizer: gpt2
 train: False
-batch_size: 8
+batch_size: 32
 sequence_length: 256
-network: global
 dataset: dataset.bittensor
 metric:  null
 stats: {}
@@ -11,7 +13,7 @@ threshold: 4.0
 max_stats_history: 100
 alpha: 0.1
 ma_keys: ['metric', 'weights']
-selection_ratio: 1.0
+ratio: 1.0
 topk: 512 
 load: False
 new_loop_per_forward: True
