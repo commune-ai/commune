@@ -376,6 +376,8 @@ class TransformerModel(Model):
         if config.reserve_gpus:
             self.unreserve_gpus(config.max_memory)
         
+        self.print(f'device_map: {self.devices}')
+        
         self.set_tokenizer(config.tokenizer)
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
@@ -657,16 +659,18 @@ class TransformerModel(Model):
     }
     @classmethod
     def deploy_fleet(cls, 
+                     *tags, 
                      model = 'gptj',
-                     tags= ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ], 
                      **kwargs
                      ) -> List[str]:
+        if len(tags) == 0:
+        
+            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ],
         tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
-        deployed_models = []
         models = [ model+tag_seperator+t for t in tags]
-        cls.deploy(*models, **kwargs)
-        return models
+        deployed_models = cls.deploy(*models, **kwargs)
+        return {'deployed': deployed_models}
         
     @classmethod
     def undeployed_models(cls, models: List[str] = 'all'):
@@ -695,14 +699,15 @@ class TransformerModel(Model):
     
     
     @classmethod
-    def get_empty_model(cls, model):
+    def get_empty_model(cls, model, verbose: bool = False):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
         
         model = cls.shortcuts.get(model, model)
 
         if isinstance(model, str):
-            print(f'loading config model from {model}...')
+            if verbose:
+                cls.print(f'loading config model from {model}...')
 
             model_config = AutoConfig.from_pretrained(model)
             model_config_dict = model_config.to_dict()
@@ -729,7 +734,7 @@ class TransformerModel(Model):
 
         tag = kwargs.get('tag', None)
         assert len(models) > 0
-        model_names = []
+        deployed_models = []
         
         free_gpu_memory = cls.free_gpu_memory()
         
@@ -744,8 +749,10 @@ class TransformerModel(Model):
                 name = name+tag_seperator+str(tag)
                   
             if cls.module_exists(name) and replace == False:
-                cls.print(f'{name} already exists, skipping...')
+                cls.print(f'{name} already exists, skipping...', color='red')
                 continue
+            else:
+                cls.print(f'{name} does not exist, deploying...', color='green')
     
             model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
@@ -771,9 +778,9 @@ class TransformerModel(Model):
             
             
             
-            model_names.append(name) 
+            deployed_models[name] = {'model': model, 'tag': tag, 'devices': devices, 'max_gpu_memory': max_gpu_memory}
             
-        return model_names
+        return deployed_models
             
     @classmethod
     def sandbox(cls):
