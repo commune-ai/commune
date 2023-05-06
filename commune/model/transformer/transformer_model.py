@@ -325,13 +325,17 @@ class TransformerModel(Model):
             assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
 
     def set_model(self, config) -> None:
+        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from accelerate import init_empty_weights
+        
+        self.model_path = config['model_path'] = config['model'] = self.shortcuts.get(config['model'], config['model'])
+
+        self.set_tokenizer(config.tokenizer)
+
         if config == None:
             config = self.config
         
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        from accelerate import init_empty_weights
 
-        self.model_path = config['model_path'] = self.shortcuts.get(config['model'], config['model'])
 
         model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
         
@@ -348,6 +352,8 @@ class TransformerModel(Model):
             config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
                                                 max_gpu_ratio=config.max_gpu_ratio,
                                                 reserve=config.reserve_gpus)
+        
+        
             config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
 
         if config.device_map == None:
@@ -382,7 +388,6 @@ class TransformerModel(Model):
         
         self.print(f'device_map: {self.devices}')
         
-        self.set_tokenizer(config.tokenizer)
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
           
@@ -402,22 +407,31 @@ class TransformerModel(Model):
         return self.epoch_length
     set_epoch_size = set_epoch_length
 
+
+    def resolve_tokenizer(self, tokenizer:str):
+        if tokenizer is None:
+            tokenizer = self.config.model_path
+        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+        assert isinstance(tokenizer, str)
+        return tokenizer
     def set_tokenizer(self, tokenizer):
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
+        tokenizer = self.resolve_tokenizer(tokenizer)
 
-        if tokenizer is None:
-            tokenizer = self.model_path
-            
-        assert isinstance(tokenizer, str)
         self.print(f'setting {tokenizer} tokenizer...')
         assert isinstance(tokenizer, str, )
-        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
         self.config['tokenizer'] = tokenizer
         
+        # HACK TO INCLUDE LLAMA TOKENIZER
+        if 'llama' in tokenizer:
+            from transformers import LlamaTokenizer
+            tokenizer_class = LlamaTokenizer
+        else:
+            tokenizer_class = AutoTokenizer
+                
         try:
-            # HACK TO INCLUDE LLAMA TOKENIZER
-            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
+            tokenizer = tokenizer_class.from_pretrained(tokenizer, use_fast=True)
         except ValueError:
             
             print('resorting ot use_fast = False')
@@ -514,17 +528,22 @@ class TransformerModel(Model):
         return text
     
     
-     
+    
 
+     
     @classmethod
-    def run_train(cls, model = 'gpt125m', 
+    def learn(cls , *args, **kwargs):
+        kwargs['train'] = True
+        return cls.test(*args, **kwargs)
+    @classmethod
+    def evaluate(cls, model = 'gpt125m', 
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
              sequence_length : int = 256,
              batch_size: int = 8,
              autocast : bool = True,
-             train: bool= True,
+             train: bool= False,
              map_logits : bool = False,
              map_tokens : bool = False,
              timeout : int= 60,
@@ -550,7 +569,9 @@ class TransformerModel(Model):
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
-
+        @classmethod
+        def resolve_model(cls, model):
+            return cls.shortcuts.get(model, model)
         datasets = commune.connect_pool(dataset)
         for i in range(num_batches):
             try:
@@ -582,6 +603,8 @@ class TransformerModel(Model):
                 cls.print(model.forward)
                 raise e
           
+          
+    test = evaluate
           
 
     @classmethod
@@ -626,8 +649,6 @@ class TransformerModel(Model):
             print_stats = print_stats.sort_values(by=['best_loss'])
             cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
             
-            
-    test = run_train 
 
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
