@@ -3403,18 +3403,24 @@ class Module:
     
     
     @classmethod
-    def get_empty_model(cls, model):
+    def get_empty_model(cls, model, verbose: bool = False, trust_remote_code:bool=True, **kwargs):
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        print(f'loading config model from {model}...')
+        from accelerate import init_empty_weights
+        
+        kwargs['trust_remote_code'] = trust_remote_code
         model = cls.shortcuts.get(model, model)
 
         if isinstance(model, str):
-            model_config = AutoConfig.from_pretrained(model)
+            if verbose:
+                cls.print(f'loading config model from {model}...')
+
+            model_config = AutoConfig.from_pretrained(model, **kwargs)
             model_config_dict = model_config.to_dict()
-            with cls.init_empty_weights():
-                model = AutoModelForCausalLM.from_config(model_config)
+            with init_empty_weights():
+                model = AutoModelForCausalLM.from_config(model_config,  **kwargs)
                 
         return model
+    
     @classmethod
     def init_empty_weights(cls, *args, **kwargs):
         from accelerate import init_empty_weights
