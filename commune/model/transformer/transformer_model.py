@@ -137,21 +137,34 @@ class TransformerModel(Model):
         
         return loss
 
-
+    hf = commune.module('huggingface')()
     @classmethod
-    def generate(cls, text: str = 'hey whadup', max_length: int = 32, **kwargs):
-        model = cls.connect('model.gpt125m')
-        sample = model.tokenize(text)
+    def generate(cls, text: str = 'hey whadup, my name is', model=None,  max_length: int = 32, **kwargs):
+        
+        if model is None:
+            model = cls.models()[0]
+            
+        if isinstance(model, str):
+            model = cls.connect(model)
+        
         responses = []
+        
+        
+        import bittensor
+        tokenizer = bittensor.tokenizer()
         for i in range(max_length):
+            sample = tokenizer(text, return_tensors='pt')
+            topk = 10
+            sample['topk'] = topk
             output = model.forward(**sample)
-            output['logits'] = cls.decode_topk(output['topk'])
-            output_ids = torch.argmax(output['logits'][:, -1, :], dim=-1)
-            cls.print(output_ids)
-            print(output_text)
+            output['logits'] = cls.decode_topk(output['topk'], topk=topk)
+            output_ids = torch.argmax(output['logits'][:, -2, :], dim=-1)
+            output_text = tokenizer.decode(output_ids)
+            text+=output_text
+            print(text, output_ids)
             responses.append(output_text)
         
-        return self.forward(**sample)
+        return responses
     def _forward(self,  
                 input_ids: torch.Tensor, 
                 attention_mask: torch.Tensor = None,
@@ -450,9 +463,10 @@ class TransformerModel(Model):
 
 
     @staticmethod
-    def decode_topk(  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_size:int=50257) -> torch.Tensor:
+    def decode_topk(  forward_response_tensor: torch.Tensor, topk=4096, vocab_size:int=50257) -> torch.Tensor:
         """ Returns full logits by decoding topk-encoding input. """
         batch_size, sequence_len, _ = forward_response_tensor.shape
+        
         encoded_probs = forward_response_tensor  # encoded probabilities: [batch_size, sequence_len, topk + topk]
         topk_values = encoded_probs[..., :topk]  # topk probs: [batch_size, sequence_len, topk]
         topk_indices = encoded_probs[..., topk:].long()  # topk probs indices: [batch_size, sequence_len, topk]
