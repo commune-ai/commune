@@ -388,8 +388,7 @@ class GPTNeox(commune.Module, nn.Module):
 
         sample = c.call('dataset.bittensor', fn='sample')
         
-        with torch.no_grad():
-            output =  model.forward(**sample)
+        output =  model.forward(**sample)
         cls.print(cls.dict_schema(output))     
 
 if __name__ == "__main__":

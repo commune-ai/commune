@@ -138,33 +138,23 @@ class TransformerModel(Model):
         return loss
 
     hf = commune.module('huggingface')()
+
+
+    def generate(self, 
+                 text:str,
+                 **kwargs) -> List[str]:
+        
+        
+        input_ids = self.tokenize(text)['input_ids']
+        output_ids =  self.model.generate(input_ids, **kwargs)
+        output_text = self.detokenize(output_ids, skip_special_tokens=True)
+        return output_text
+    
     @classmethod
-    def generate(cls, text: str = 'hey whadup, my name is', model=None,  max_length: int = 32, **kwargs):
-        
-        if model is None:
-            model = cls.models()[0]
-            
-        if isinstance(model, str):
-            model = cls.connect(model)
-        
-        responses = []
-        
-        
-        import bittensor
-        tokenizer = bittensor.tokenizer()
-        for i in range(max_length):
-            sample = tokenizer(text, return_tensors='pt')
-            topk = 10
-            sample['topk'] = topk
-            output = model.forward(**sample)
-            output['logits'] = cls.decode_topk(output['topk'], topk=topk)
-            output_ids = torch.argmax(output['logits'][:, -2, :], dim=-1)
-            output_text = tokenizer.decode(output_ids)
-            text+=output_text
-            print(text, output_ids)
-            responses.append(output_text)
-        
-        return responses
+    def test_generate(cls, text='Hello world', **kwargs):
+        model = cls()
+        output_text = model.generate(text, **kwargs)
+        return output_text
     def _forward(self,  
                 input_ids: torch.Tensor, 
                 attention_mask: torch.Tensor = None,
@@ -486,7 +476,8 @@ class TransformerModel(Model):
     def tokenizer_name(self):
         return self.config['tokenizer']
 
-    def tokenize(self, text: str = 'Whadup',
+    def tokenize(self, 
+                 text: str = 'Whadup',
                  padding=True, 
                  truncation=True, 
                  max_length=64,
@@ -496,13 +487,12 @@ class TransformerModel(Model):
                  **kwargs) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
         
-        sample = self.tokenizer(text, 
-                                             padding=padding, 
-                                             truncation=truncation, 
-                                             max_length=max_length, 
-                                             return_tensors=return_tensors,
-                                             add_special_tokens=add_special_tokens, 
-                                             **kwargs)  # assume tokenizer.padding_side = 'left'
+        sample = self.tokenizer(text, padding=padding, 
+                                      truncation=truncation, 
+                                      max_length=max_length, 
+                                      return_tensors=return_tensors,
+                                      add_special_tokens=add_special_tokens, 
+                                      **kwargs)  # assume tokenizer.padding_side = 'left'
 
         device = device if device != None else self.device
         
