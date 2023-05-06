@@ -333,7 +333,7 @@ class TransformerModel(Model):
 
         self.model_path = config['model_path'] = self.shortcuts.get(config['model'], config['model'])
 
-        model = self.get_empty_model(self.model_path)
+        model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
         
         
         self.print(model.__dict__['_modules'])
@@ -362,6 +362,7 @@ class TransformerModel(Model):
         model_kwargs=dict(
             max_memory=config.max_memory,
             device_map= config.device_map,
+            trust_remote_code=config.trust_remote_code,
         )
         
         if verbose:
@@ -702,26 +703,7 @@ class TransformerModel(Model):
         return device_map
     
     
-    @classmethod
-    def get_empty_model(cls, model, verbose: bool = False):
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
-        from accelerate import init_empty_weights
-        
-        model = cls.shortcuts.get(model, model)
 
-        if isinstance(model, str):
-            if verbose:
-                cls.print(f'loading config model from {model}...')
-
-            model_config = AutoConfig.from_pretrained(model)
-            model_config_dict = model_config.to_dict()
-            with init_empty_weights():
-                model = AutoModelForCausalLM.from_config(model_config)
-                
-        return model
-    
-    
-        
       
     @classmethod
     def deploy(cls,
@@ -738,11 +720,15 @@ class TransformerModel(Model):
 
         tag = kwargs.get('tag', None)
         assert len(models) > 0
-        deployed_models = []
+
         
         free_gpu_memory = cls.free_gpu_memory()
         
         config = cls.get_config(kwargs=kwargs)
+        
+        
+        
+        deployed_models = {}
         for model in models:
             if tag_seperator in model:
                 model, tag = model.split(tag_seperator)
