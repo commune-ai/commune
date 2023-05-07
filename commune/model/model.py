@@ -71,6 +71,7 @@ class Model( nn.Module, commune.Module):
         if stats == None:
             stats = self.__dict__.get('stats', {})
         stats.update(kwargs)
+        print('stats', stats)
         self.stats = self.config['stats'] = stats
         self.stats_history = []
     
