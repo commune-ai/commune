@@ -52,14 +52,7 @@ class Pool(c.Module):
         if len(names) == 0:
             names = [self.resolve_worker_name(i) for i in range(self.config.num_workers)]
         for name in names:
-            self.add_worker(name, out_queue= 'background', **kwargs)
-            
-        # add background worker
-        self.add_worker(name='background', 
-                        fn=self.background_fn, 
-                        in_queue='background',
-                        out_queue='output',
-                        **kwargs)
+            self.add_worker(name, **kwargs)
         
         
         
@@ -131,8 +124,10 @@ class Pool(c.Module):
     def test(cls, **kwargs):
         self  = cls(**kwargs)
         for i in range(10):
-            self.add_request(f"Request {i+1}")  
-        self.kill_workers()
+            self.put({'bro':  f"Request {i+1}"})  
+            cls.print(self.queue.output.qsize())
+        cls.print('Done')
+        self.kill()
     @classmethod
     def get_schema(cls, x):
         x = cls.munch2dict(x)
@@ -175,7 +170,7 @@ class Pool(c.Module):
             
             return output
         else:
-            return None
+            return request
             
     def forward_requests(self,  **kwargs):
         verbose = kwargs.get('verbose', True)
@@ -186,7 +181,7 @@ class Pool(c.Module):
         worker_prefix = f"Worker::{name}"
         
 
-        
+        color= self.ranodm_color()
         while True:
             request = self.queue[in_queue].get()
             if verbose:
@@ -199,11 +194,10 @@ class Pool(c.Module):
             
             
             output = fn(request, **kwargs)
-            print(f"output: {output}")
             self.queue[out_queue].put(output)
             
             if verbose:
-                self.print(f"{worker_prefix} --> result: {output}")
+                self.print(f"{worker_prefix} --> result: {output}", color='green')
     def kill_loop(self):
         self.run_loop = False
 
@@ -211,18 +205,14 @@ class Pool(c.Module):
         # kill all workers
         for name, worker in self.workers.items():
             self.add_request('kill')
-            self.queue.background.put('kill')
-        for name, worker in self.workers.items():
-            worker.join()
         
         
-    def call(self,*args, fn=None, **kwargs):
+    def put(self, request):
         
-        request = self.munch({'fn':fn, 'args': args, 'kwargs': kwargs})
         self.queue.input.put(request)
 
-    
-    add_request = call
+    def get(self):
+        return getattr(self.queue, q).get()
         
     def __del__(self):
         self.kill()

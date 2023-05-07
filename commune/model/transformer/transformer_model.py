@@ -548,7 +548,7 @@ class TransformerModel(Model):
              train: bool= False,
              map_logits : bool = False,
              map_tokens : bool = False,
-             timeout : int= 60,
+             timeout : int= 3,
              remote:bool = False,
              **kwargs
              ):
@@ -581,8 +581,10 @@ class TransformerModel(Model):
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
             except Exception as e:
+                
                 del datasets[data_idx]
                 cls.print('failed to sample from dataset, skipping batch')
+                continue
 
             if not sample_check(sample):
                 cls.print('Sample check failed, skipping batch')
@@ -608,49 +610,58 @@ class TransformerModel(Model):
           
           
     test = evaluate
-          
-
+    
     @classmethod
-    def learn_fleet(cls, model = 'model.gptj',
-                    dataset='dataset.bittensor',
-                    selection_ratio=0.4,
-                    batch_size=8,
-                    num_batches = 10,
-                    sequence_length=256,
-                    remote:bool = False,
-                    network='local',
-                    tag = None,
-                    **kwargs):
-        
-        kwargs = cls.locals2kwargs(locals())
-
-        
-        if remote:
-            kwargs.update(remote=False) # otherwise we get a remote recursion error
-            return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
-        
+    def train_fleet(cls, model = 'model.gptj', network='local', **kwargs):
         models = commune.modules(model, network=network)
-        datasets = commune.connect_pool(dataset)
+        for m in models:
+            cls.print(f"Training {m}")
+            cls.learn(model=m, **kwargs)
+        
+          
+    # @classmethod
+    # def train_fleet(cls, model = 'model.gptj',
+    #                 dataset='dataset.bittensor',
+    #                 selection_ratio= 1.0,
+    #                 batch_size=8,
+    #                 num_batches = 1000,
+    #                 sequence_length=256,
+    #                 remote:bool = False,
+    #                 network='global',
+    #                 tag = None,
+    #                 **kwargs):
+        
+    #     kwargs = cls.locals2kwargs(locals())
 
-        for i in range(num_batches):
-            selected_models = cls.random_ratio_selection(models, selection_ratio )
-            dataset = cls.choice(datasets)
-            try:
-                sample = dataset.sample(batch_size=batch_size, sequence_length=sequence_length)
-                assert isinstance(sample, dict) and 'input_ids' in sample
-            except Exception as e:
-                continue
-            sample['train'] = True
-            sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
-            sample['return_keys'] = ['stats']
-            results = cls.call(selected_models, fn='forward', **sample)
-            stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
-            print_keys = ['epoch_loss', 'best_loss',  'steps']
-            print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
-            print_stats = pd.DataFrame(print_stats)
-            print_stats = print_stats.sort_values(by=['best_loss'])
-            cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
-            
+        
+    #     if remote:
+    #         kwargs.update(remote=False) # otherwise we get a remote recursion error
+    #         return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
+        
+    #     models = commune.modules(model, network=network)
+    #     datasets = commune.connect_pool(dataset)
+
+    #     for i in range(num_batches):
+    #         selected_models = cls.random_ratio_selection(models, selection_ratio )
+    #         dataset = cls.choice(datasets)
+    #         try:
+    #             sample = dataset.sample(batch_size=batch_size, sequence_length=sequence_length)
+    #             assert isinstance(sample, dict) and 'input_ids' in sample
+    #         except Exception as e:
+    #             continue
+    #         sample['train'] = True
+    #         sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
+    #         sample['return_keys'] = ['stats']
+    #         results = cls.call(selected_models, fn='forward', **sample)
+    #         stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
+    #         print_keys = ['epoch_loss', 'best_loss',  'steps']
+    #         print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
+    #         print_stats = pd.DataFrame(print_stats)
+    #         print_stats = print_stats.sort_values(by=['best_loss'])
+    #         cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
+    
+    # train_fleet = learn_fleet
+    
 
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
@@ -696,10 +707,6 @@ class TransformerModel(Model):
         if len(tags) == 0:
         
             tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
-<<<<<<< HEAD
-=======
-        tags = tags[:max_models]
->>>>>>> 4b050c4da6953dde826c072347ad4f1467532368
         tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]
@@ -740,7 +747,7 @@ class TransformerModel(Model):
                name: str =None, 
                wait_for_server: bool = False, 
                device = None, 
-               replace:bool = False,
+               replace:bool = True,
                mode:str = 'pm2',
                tag_seperator:str = '::',     
                **kwargs):

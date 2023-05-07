@@ -591,7 +591,7 @@ class Module:
     @classmethod
     def run_command(cls, 
                     command:str,
-                    verbose:bool = True, 
+                    verbose:bool = False, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
                     sudo:bool = False,
@@ -1124,7 +1124,8 @@ class Module:
         return tasks
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
-        models = [k for k in list(cls.modules()) if k.startswith('model')]
+        models = cls.modules(*args, **kwargs)
+        models = [k for k in models if k.startswith('model')]
         return models
     @classmethod
     def datasets(cls, *args, **kwargs) -> List[str]:
@@ -1892,7 +1893,10 @@ class Module:
         namespace = namespace_fn(update=update, **kwargs)
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
-            
+        module_names = list(namespace.values())
+        # module_addresses =  cls.call_pool(modules=module_names, fn='address', namespace=namespace)
+        
+
         # namespace = {k:v for k,v in namespace.items() if k in connected_module_map}
         cls.put(f'namespace/{network}', namespace, root=True) 
         return namespace
@@ -2283,7 +2287,7 @@ class Module:
     @classmethod
     def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True):
         servers = cls.servers()
-            
+        delete_modules = []
         for module in modules:
             delete_modules = [server for server in servers if  module in server]
             if mode == 'pm2':
@@ -2291,6 +2295,13 @@ class Module:
                 for p in pm2_list:
                     if module in p:
                         delete_modules.append(p)
+            elif mode == 'ray':
+                ray_list = cls.ray_list()
+                for r in ray_list:
+                    if module in r:
+                        delete_modules.append(r)
+            else:
+                raise Exception(f'Unknown mode: {mode}')
                         
                     
             for d_m in delete_modules:
@@ -2564,6 +2575,9 @@ class Module:
     def restart_self(self, mode:str='pm2'):
         assert hasattr(self, 'module_name'), 'self.module_name must be defined to restart'
         return self.restart(self.module_name)
+    
+    
+    
     @classmethod
     def restart(cls, name:str = None, mode:str='pm2', verbose:bool = False):
         if name == None:
@@ -3910,6 +3924,35 @@ class Module:
 
 
     @classmethod
+    def live_modules(cls, **kwargs):
+        return cls.call_pool(fn='address', **kwargs)
+    @classmethod
+    def call_pool(cls, *args, **kwargs):
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_call_pool(*args, **kwargs))
+    @classmethod
+    async def async_call_pool(cls,
+                              modules = None, 
+                              fn = 'address',
+                              success_only =  True,
+                              *args, **kwargs):
+        if isinstance(modules, str) or modules == None:
+            modules = cls.modules(modules)
+        jobs = []
+        for m in modules:
+            job = cls.async_call(m, fn, *args, **kwargs)
+            jobs.append(job)
+        
+        
+            
+        responses = await asyncio.gather(*jobs)
+        
+        if success_only:
+            responses = [r for r in responses if cls.is_success(r)]
+
+        return responses
+    
+    @classmethod
     def call(cls,  *args, loop=None, **kwargs) -> None:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
@@ -4244,7 +4287,7 @@ class Module:
     
     
     @classmethod
-    def success(cls, x):
+    def is_success(cls, x):
         # assume that if the result is a dictionary, and it has an error key, then it is an error
         if isinstance(x, dict):
             if 'error' in x:
@@ -4346,12 +4389,13 @@ class Module:
         return value
     @classmethod
     def update(cls, 
-               network = 'local',
+               network = 'global',
                verbose:bool = True,
                
                ):
 
             cls.namespace(network,verbose=True, update=True)
+            
             # cls.root_module()
 
         
@@ -4698,6 +4742,12 @@ class Module:
         return random.choice(options)
 
     @classmethod
+    def random_color(cls):
+        import random
+        return random.choice(cls.colors())
+
+
+    @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
         import random
         assert len(x)>0
@@ -4802,7 +4852,6 @@ class Module:
     
     
     @classmethod
-<<<<<<< HEAD
     def miner(cls, mode='bittensor', *args, **kwargs):
         
         if mode == 'bittensor':
@@ -4810,13 +4859,6 @@ class Module:
             return Miner(*args, **kwargs)
         else:
             raise NotImplemented
-=======
-    def learn(cls,*args, module='model.transformer', **kwargs):
-        module = cls.module(module)
-        module.learn(*args, **kwargs)
-  
-    
->>>>>>> 4b050c4da6953dde826c072347ad4f1467532368
     
 if __name__ == "__main__":
     Module.run()

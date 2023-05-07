@@ -2,10 +2,5 @@ batch_size: 32
 block_size: 256
 dataset_names: ['default']
 max_datasets: 10
-<<<<<<< HEAD
-num_batches: 10000000000000000000
-save_dataset: False
-=======
 num_batches: 100000
 save_dataset: True
->>>>>>> c793812ca23ba0422c5e6d0a9e4d0e82713fbf6f
