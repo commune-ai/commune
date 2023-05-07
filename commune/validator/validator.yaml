@@ -11,6 +11,7 @@ metric:  null
 stats: {}
 threshold: 4.0
 max_stats_history: 100
+namespace_update_interval: 100
 alpha: 0.1
 ma_keys: ['metric', 'weights']
 ratio: 1.0

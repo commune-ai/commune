@@ -739,8 +739,7 @@ class TransformerModel(Model):
                device = None, 
                replace:bool = False,
                mode:str = 'pm2',
-               tag_seperator:str = '::',               
-               
+               tag_seperator:str = '::',     
                **kwargs):
 
 
