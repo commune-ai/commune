@@ -26,6 +26,7 @@ class Validator(commune.Model):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
         self.print(config)
+        
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
@@ -35,8 +36,20 @@ class Validator(commune.Model):
         self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
         
-    
+    namespace_update_ts =0
+    _namespace = None
+    @property
+    def namespace(self):
+        if not hasattr(self, '_namespace'):
+            self._namespace = commune.namespace(network=self.config.network,update=False )
+        time_since_update = self.time() - self.namespace_update_ts
+        if time_since_update > self.config.namespace_update_interval:
+            self.namespace_update_ts = self.time()
+            self._namespace = commune.namespace(network=self.config.network,update=False )
         
+        return self._namespace
+
+
     
     def set_max_stats_history(self, max_stats_history: int) -> None:
         self.max_stats_history = max_stats_history
@@ -275,7 +288,6 @@ class Validator(commune.Model):
 
         network = network if network != None else self.config.network 
             
-        self.namespace = commune.namespace(network=network,update=False )
         if isinstance(models, list):
             for m in models:
                 assert isinstance(m, str)
@@ -285,6 +297,8 @@ class Validator(commune.Model):
             
         self.available_models = models
         return models
+
+    
 
     def forward(self, 
                 input_ids: torch.Tensor,
@@ -300,6 +314,7 @@ class Validator(commune.Model):
                 train: bool = None,
                 verbose: bool = True,
                 retries: int = 4,
+                save = True,
                 **kwargs ):
         
         
@@ -319,7 +334,9 @@ class Validator(commune.Model):
 
 
         available_models = self.available_models
-
+        # shuffle to avoid overloading the first model
+        available_models = self.available_models
+        shuffle(available_models)
         called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=ratio)
         
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
@@ -449,6 +466,9 @@ class Validator(commune.Model):
           
         self.set_stats(stats)
         
+        if save:
+            self.save()
+        
         if verbose:
             self.print(stats)
         return Munch(ensemble)
@@ -491,6 +511,21 @@ class Validator(commune.Model):
         assert isinstance(stats, dict)
         self.stats = stats
         self.config['stats'] = stats
+        
+    @property
+    def tag(self):
+        return self.config.get('tag', 'base')
+    
+    @tag.setter
+    def tag(self,tag):
+        self.config['tag'] = tag
+    
+    def save(self, tag=None):
+        tag = tag if tag else self.tag
+        self.put(f'{tag}/config', self.config)
+    def load(self, tag=None):
+        tag = tag if tag else self.tag
+        self.get(f'{tag}/config')
         
     def calculate_weights(self):
         
@@ -547,7 +582,6 @@ class Validator(commune.Model):
                 continue
             output = self.forward(**sample)
             output.stats.pop('models', None)
-            cls.print(output.stats)
             self.sleep(sleep_interval)
             
             
@@ -567,7 +601,6 @@ class Validator(commune.Model):
              remote=False,
              **kwargs):
         
-        print(locals().keys())
         kwargs = cls.locals2kwargs(locals())
      
         return cls.run_train(*args, **kwargs)
@@ -662,6 +695,7 @@ class Validator(commune.Model):
                network = 'finney',
                netuid=3,
                port = 8091,
+               prometheus_port = None,
                debug = True,
                no_set_weights = True,
                remote:bool = False,
@@ -673,16 +707,16 @@ class Validator(commune.Model):
             return cls.remote_fn(fn='miner',name=f'miner::{wallet}',  kwargs=kwargs)
             
                 
-            
-
-            
-    
+        
         config = bittensor.neurons.core_server.neuron.config()
         config.neuron.no_set_weights = no_set_weights
         config.axon.port = port
+        config.prometheus.port = prometheus_port if prometheus_port is not None else cls.free_port()
         config.netuid = netuid
         config.logging.debug = debug
         config.neuron.pretrained = False
+        
+        cls.print(config)
         
         
         model = cls()

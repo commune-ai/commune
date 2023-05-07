@@ -819,22 +819,38 @@ class Module:
     
     
     @classmethod
-    def get_available_port(cls, port_range: List[int] = None , ip:str =None) -> int:
+    def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None) -> int:
         
         '''
         
         Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
         '''
+        avoid_ports = avoid_ports if avoid_ports else []
         port_range = cls.resolve_port_range(port_range)
         ip = ip if ip else cls.default_ip
         
         # return only when the port is available
         for port in range(*port_range): 
+            if port in avoid_ports:
+                continue
             if cls.port_available(port=port, ip=ip):
                 return port
     
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
+    get_available_port = free_port
+    
+    @classmethod
+    def free_ports(cls, num_ports=1, **kwargs):
+        '''
+        This function returns a list of free ports
+        '''
+        free_ports = []
+        for i in range(num_ports):
+            kwargs['avoid_ports'] = free_ports
+            free_ports.append(cls.free_port(**kwargs))
+        
+        return free_ports
     def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
         for k,v in kwargs.items():
             if k != 'self': # skip the self
@@ -1486,9 +1502,13 @@ class Module:
 
 
         if isinstance(name, str):
+            is_name_address = ':' in name and len(name.split(':')) == 2 and name.split(':')[1].isdigit()
+            
             found_modules = []
             modules = list(namespace.keys())
-            for n in modules:
+            module_addresses = list(namespace.values())
+            module_options = modules + module_addresses
+            for n in module_options:
                 if name == n:
                     # we found the module
                     found_modules = [n]
@@ -1498,8 +1518,13 @@ class Module:
                     found_modules += [n]
                     
             if len(found_modules)>0:
-                name = namespace[cls.choice(found_modules)]
+                name = cls.choice(found_modules)
+                if name not in module_addresses:
+                    name = namespace[name]
                 
+            else:
+                raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
+            
 
             port = int(name.split(':')[-1])
 
