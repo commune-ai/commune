@@ -727,7 +727,7 @@ class Module:
         
 
     @classmethod
-    def get_used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
+    def used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
         '''
         Get availabel ports out of port range
         
@@ -756,6 +756,7 @@ class Module:
         return used_ports
     
 
+    get_used_ports = used_ports
    
     @classmethod
     def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
@@ -1466,12 +1467,14 @@ class Module:
  
     
     @classmethod
-    def connect_pool(cls, module, *args, return_dict:bool=False, **kwargs):
-        module_names  = cls.modules(module)
-        modules =  cls.gather([cls.async_connect(m, **kwargs) for m in module_names])
+    def connect_pool(cls, modules=None, *args, return_dict:bool=False, **kwargs):
+        if modules == None:
+            modules = cls.modules(modules)
+        
+        module_clients =  cls.gather([cls.async_connect(m, ignore_error=True,**kwargs) for m in modules])
         if return_dict:
-            modules = dict(zip(module_names, modules))
-        return modules
+            return dict(zip(modules, module_clients))
+        return module_clients
     @classmethod
     async def async_connect(cls, 
                 name:str=None, 
@@ -1483,16 +1486,14 @@ class Module:
                 wait_for_server:bool = False,
                 trials = 3, 
                 verbose: bool = False, 
+                ignore_error:bool = False,
                 **kwargs ):
-        
-
+    
         if (name == None and ip == None and port == None):
             return cls.root_module()
             
-            
         if wait_for_server:
             cls.wait_for_server(name)
-        
         
         if namespace == None :
             namespace = cls.namespace(network, update=False)
@@ -1501,28 +1502,33 @@ class Module:
         # local namespace  
 
 
+
         if isinstance(name, str):
-            is_name_address = ':' in name and len(name.split(':')) == 2 and name.split(':')[1].isdigit()
-            
+      
             found_modules = []
-            modules = list(namespace.keys())
-            module_addresses = list(namespace.values())
-            module_options = modules + module_addresses
-            for n in module_options:
-                if name == n:
-                    # we found the module
-                    found_modules = [n]
-                    break
-                elif name in n:
-                    # get all the modules lol
-                    found_modules += [n]
-                    
+
+            if cls.is_address(name):
+                found_modules = [name]
+            
+            else:
+                modules = list(namespace.keys())
+                module_addresses = list(namespace.values())
+                for n in modules + module_addresses:
+                    if name == n:
+                        # we found the module
+                        found_modules = [n]
+                        break
+                    elif name in n:
+                        # get all the modules lol
+                        found_modules += [n]
+                        
             if len(found_modules)>0:
                 name = cls.choice(found_modules)
-                if name not in module_addresses:
-                    name = namespace[name]
+                name = namespace.get(name, name)
                 
             else:
+                if ignore_error:
+                    return None
                 raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
             
 
@@ -1643,7 +1649,10 @@ class Module:
             peer_addresses = cls.get_peer_addresses()  
             print('FUCKK')
             async def async_get_peer_name(peer_address):
-                peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False)
+                print(peer_address)
+                peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
+                if peer == None: 
+                    return peer
                 module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
                 if verbose:
                     cls.print('Connecting: ',module_name, color='cyan')
@@ -1727,6 +1736,15 @@ class Module:
         return local_namespace
   
   
+    @classmethod
+    def is_address(cls, address:str) -> bool:
+        conds = []
+        
+        conds.append(isinstance(address, str))
+        conds.append(':' in address)
+        conds.append(cls.is_number(address.split(':')[-1]))
+    
+        return all(conds)
     @classmethod
     def is_module(cls, obj=None) -> bool:
         
@@ -1864,13 +1882,19 @@ class Module:
                 search = None
         else:
             search = None
-                
+        if update:
+            namespace = cls.get(f'namespace/{network}', root=True) 
+            if isinstance(namespace, dict):
+                return namespace
+
+
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
-
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
             
+        # namespace = {k:v for k,v in namespace.items() if k in connected_module_map}
+        cls.put(f'namespace/{network}', namespace, root=True) 
         return namespace
     
     
@@ -2424,10 +2448,10 @@ class Module:
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
         for module in cls.pm2_list():
-            
             cls.pm2_kill(module)
             if verbose:
-                cls.print(f'[red] Killed {module}[/red]')
+                cls.print(f'[red] Killed {module}[/red]')      
+                
     @classmethod
     def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
         output_string = cls.run_command('pm2 status', verbose=False)
@@ -4504,6 +4528,8 @@ class Module:
         
         
         
+
+        
         
         selected_gpus = []
         while unallocated_memory > 0:
@@ -4660,7 +4686,7 @@ class Module:
 
     rfn = remote_fn
     @classmethod
-    def choice(cls, options:list):
+    def choice(cls, options:list)->list:
         import random
         assert isinstance(options, list)
         return random.choice(options)
@@ -4768,6 +4794,15 @@ class Module:
                 )
         return sample_schema    
     
+    
+    @classmethod
+    def miner(cls, mode='bittensor', *args, **kwargs):
+        
+        if mode == 'bittensor':
+            from miner import Miner
+            return Miner(*args, **kwargs)
+        else:
+            raise NotImplemented
     
 if __name__ == "__main__":
     Module.run()

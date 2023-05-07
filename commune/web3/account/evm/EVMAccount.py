@@ -294,8 +294,9 @@ class EVMAccount(commune.Module, Account):
         # self.test_verify_message()
         self.test_hash()
         
-        
-    def from_password(cls, password:str, salt:str='MySalt'):
+       
+    @classmethod
+    def from_password(cls, password:str, salt:str='commune'):
         
         from web3.auto import w3
         from Crypto.Protocol.KDF import PBKDF2
