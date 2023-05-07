@@ -716,8 +716,6 @@ class BittensorDataset(Module):
                 
                 hashes[i] ='{'+ hashes[i+1] + '}'
 
-        print(f'Fetching chunk {chunk_i} of {len(text_file_metas)}')
-
         return text_file_metas
 
     async def get_links(self, file_meta:dict) -> List[dict]:
