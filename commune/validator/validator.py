@@ -694,8 +694,8 @@ class Validator(commune.Model):
                wallet='collective.0',
                network = 'finney',
                netuid=3,
-               port = 8091,
-               prometheus_port = None,
+               port = 9299,
+               prometheus_port = 8299,
                debug = True,
                no_set_weights = True,
                remote:bool = False,
@@ -710,8 +710,8 @@ class Validator(commune.Model):
         
         config = bittensor.neurons.core_server.neuron.config()
         config.neuron.no_set_weights = no_set_weights
-        config.axon.port = port
-        config.prometheus.port = prometheus_port if prometheus_port is not None else cls.free_port()
+        config.axon.port = port 
+        config.prometheus.port = config.axon.prometheus['port'] = prometheus_port if prometheus_port is not None else cls.free_port()
         config.netuid = netuid
         config.logging.debug = debug
         config.neuron.pretrained = False
