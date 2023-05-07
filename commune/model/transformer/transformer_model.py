@@ -10,6 +10,7 @@ import os, sys
 from typing import *
 from loguru import logger
 import time
+import pandas as pd
 
 from munch import Munch
 import argparse
@@ -275,7 +276,8 @@ class TransformerModel(Model):
             train_stats['steps'] = train_stats.get('steps', 0) + 1
             train_stats['epoch_length'] = self.config.epoch_length
             train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1
-            train_stats['epoch_loss'] = (train_stats.get('epoch_loss', 0)*(train_stats['batch_count']-1) + loss)/train_stats['batch_count']
+            alpha = 1/self.config.epoch_length
+            train_stats['epoch_loss'] = (train_stats.get('epoch_loss', loss)*(1-alpha)+ loss*alpha)
             
             train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
             train_stats['time'] = stats['time']
@@ -288,25 +290,26 @@ class TransformerModel(Model):
             if train_stats['batch_count'] % self.config.epoch_length == 0:
                 train_stats['loss_history'] += [self.round(train_stats['epoch_loss'], 3)]
                 train_stats['epoch'] = train_stats['epoch'] + 1
-                train_stats['saved_epoch'] = train_stats.get('saved_epoch', 0)
                 train_stats['batch_count'] = 0
                 
                 # check if the loss is better than the best loss
-                is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
-                train_stats['epochs_since_saved'] = train_stats['epoch'] - train_stats['saved_epoch']
-                train_stats['is_better'] = is_better
-                
-                if is_better:
-                    if train_stats['epochs_since_saved'] >= self.config.min_epochs_since_saved:
-                        self.set_stats(stats)
-                        self.save() # save all
-                        train_stats['saved_epoch'] = train_stats['epoch']
-                        
-                    train_stats['best_loss'] = train_stats['epoch_loss']
+            is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
+            train_stats['is_better'] = is_better
+            train_stats['saved_step'] = train_stats.get('saved_step', 0)
+            
+            train_stats['steps_since_saved'] = train_stats['steps'] - train_stats['saved_step']
+
+            if is_better:
+                if train_stats['steps_since_saved'] >= self.config.min_steps_since_saved :
+                    self.set_stats(stats)
+                    self.save() # save all
+                    train_stats['saved_step'] = train_stats['steps']
                     
-                else:
-                    if train_stats['epochs_since_saved'] > self.config.max_epochs_since_saved:
-                        self.load()
+                train_stats['best_loss'] = train_stats['epoch_loss']
+                
+            else:
+                if train_stats['steps_since_saved'] > self.config.min_steps_since_saved:
+                    self.load()
 
             
             self.set_stats(stats)
@@ -324,6 +327,7 @@ class TransformerModel(Model):
         for k in ensure_keys:
             assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
 
+    
     def set_model(self, config) -> None:
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
@@ -392,12 +396,11 @@ class TransformerModel(Model):
         self.set_finetune(config.finetune) 
           
         self.set_tag(config.tag)
-        self.set_stats(config.stats)    
         self.set_epoch_length(config.epoch_length)      
           
         if config.load:
-            self.load() 
-            
+            self.load()
+        self.set_stats(config.stats)    
         self.config = config
 
 
@@ -443,7 +446,6 @@ class TransformerModel(Model):
     
         self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         self.tokenizer = prep_tokenizer(self.std_tokenizer)
-        self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         self.token_translator = self.get_module('model.token_translator')(tokenizer=tokenizer, std_tokenizer=self.std_tokenizer)
 
         return self.tokenizer
@@ -565,7 +567,6 @@ class TransformerModel(Model):
         
         
         
-        cls.print(model, 'MODEL')
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
@@ -575,11 +576,13 @@ class TransformerModel(Model):
         datasets = commune.connect_pool(dataset)
         for i in range(num_batches):
             try:
-                dataset = cls.choice(datasets)
+                data_idx = cls.choice(list(range(len(datasets))))
+                dataset = datasets[data_idx]
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
             except Exception as e:
-                continue
+                del datasets[data_idx]
+                cls.print('failed to sample from dataset, skipping batch')
 
             if not sample_check(sample):
                 cls.print('Sample check failed, skipping batch')
@@ -608,7 +611,7 @@ class TransformerModel(Model):
           
 
     @classmethod
-    def train_fleet(cls, model = 'model.gptj',
+    def learn_fleet(cls, model = 'model.gptj',
                     dataset='dataset.bittensor',
                     selection_ratio=1.0,
                     batch_size=8,
@@ -620,7 +623,7 @@ class TransformerModel(Model):
                     **kwargs):
         
         kwargs = cls.locals2kwargs(locals())
-        import pandas as pd
+
         
         if remote:
             cls.print(kwargs)
@@ -687,11 +690,13 @@ class TransformerModel(Model):
     def deploy_fleet(cls, 
                      *tags, 
                      model = 'gptj',
+                     max_models = 4,
                      **kwargs
                      ) -> List[str]:
         if len(tags) == 0:
         
-            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ],
+            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
+        tags = tags[:max_models]
         tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]
@@ -768,8 +773,10 @@ class TransformerModel(Model):
             model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
                                                 max_gpu_ratio=config.max_gpu_ratio ,
-                                                free_gpu_memory=free_gpu_memory)
-            
+                                                free_gpu_memory=free_gpu_memory,
+                                                saturate=True)
+    
+            cls.print(max_gpu_memory)
             for k,v in max_gpu_memory.items():
                 free_gpu_memory[k]-= v
                 free_gpu_memory[k] = max(0, free_gpu_memory[k])
@@ -797,6 +804,8 @@ class TransformerModel(Model):
     def sandbox(cls):
         self = cls(model='opt2.7b')
         
+        
+    
 
         
 if __name__ == "__main__":

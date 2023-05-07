@@ -4099,7 +4099,7 @@ class Module:
         return cls.import_object('commune.launchpad.Launchpad')()
     @classmethod
     def determine_type(cls, x):
-        if x.lower() == 'null':
+        if x.lower() == 'null' or x == 'None':
             return None
         elif x.lower() in ['true', 'false']:
             return bool(x.lower() == 'true')
@@ -4115,6 +4115,8 @@ class Module:
                 return x
         elif x.startswith('{') and x.endswith('}'):
             # this is a dictionary
+            if len(x) == 2:
+                return {}
             try:
                 dict_items = x[1:-1].split(',')
                 # try to convert each item to a key-value pair
@@ -4457,6 +4459,7 @@ class Module:
                        min_memory_ratio = 0.0,
                        reserve:bool = False, 
                        free_gpu_memory: dict = None,
+                       saturate:bool = False,
                        **kwargs):
         
 
@@ -4513,6 +4516,9 @@ class Module:
             cls.reserve_gpu_memory(max_memory)
             
             
+        if saturate:
+            free_gpu_memory = cls.free_gpu_memory()
+            max_memory = {gpu:free_gpu_memory[gpu] for gpu in max_memory.keys()}
         return max_memory
             
             
@@ -4742,6 +4748,13 @@ class Module:
                     dtype= v.dtype
                 )
         return sample_schema    
+    
+    
+    @classmethod
+    def learn(cls,*args, module='model.transformer', **kwargs):
+        module = cls.module(module)
+        module.learn(*args, **kwargs)
+  
     
     
 if __name__ == "__main__":

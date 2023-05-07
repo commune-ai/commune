@@ -1,7 +1,6 @@
 import bittensor
 import commune
 
-print(commune.pwd,', ',  commune.root)
 class Dataset(commune.Module):
     def __init__(self, config=None, **kwargs):
         config = self.set_config(config, kwargs=kwargs)
@@ -11,6 +10,9 @@ class Dataset(commune.Module):
         self.print(config)
         self.dataset = bittensor.dataset(config = self.munch(dict(dataset=config)))
         self.config = config
+        self.sample()
+        
+
         
     # def getattr(self, key):
     #     if hasattr(getattr(self, 'dataset'), key):
@@ -18,10 +20,10 @@ class Dataset(commune.Module):
     #     else:
     #         return getattr(self, key)
     
-    @classmethod
-    def deploy(cls, name=None, tag=None, **kwargs):
+    # @classmethod
+    # def deploy(cls, name=None, tag=None, **kwargs):
 
-        return commune.deploy(kwargs=kwargs, name=name, tag=tag)
+    #     return commune.deploy(kwargs=kwargs, name=name, tag=tag)
     
     def sample(self,*args, **kwargs):
         input_ids =  next(self.dataset)
