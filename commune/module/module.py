@@ -4764,7 +4764,7 @@ class Module:
             if isinstance(v, torch.Tensor):
                 sample_schema = dict(
                     shape=list(v.shape),
-                    dtype= v.dtype
+                    dtype= str(v.dtype)
                 )
         return sample_schema    
     
