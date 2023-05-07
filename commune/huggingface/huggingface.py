@@ -329,11 +329,6 @@ class Huggingface(commune.Module):
         return state_dict
 
 
-        
-    @classmethod
-    def test(cls): 
-        self = cls()
-        cls.print(self.download('chavinlo/gpt4-x-alpaca'))
 
     @classmethod
     def class_init(cls):

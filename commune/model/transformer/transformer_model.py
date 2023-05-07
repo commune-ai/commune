@@ -666,7 +666,8 @@ class TransformerModel(Model):
     def deploy_fleet(cls, 
                      *tags, 
                      model = 'gptj',
-                     **kwargs
+                     max_models = 4,
+        x             **kwargs
                      ) -> List[str]:
         if len(tags) == 0:
         
@@ -713,8 +714,7 @@ class TransformerModel(Model):
                device = None, 
                replace:bool = False,
                mode:str = 'pm2',
-               tag_seperator:str = '::',               
-               
+               tag_seperator:str = '::',     
                **kwargs):
 
 
