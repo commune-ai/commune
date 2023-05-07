@@ -7,6 +7,7 @@ train: False
 batch_size: 32
 sequence_length: 256
 dataset: dataset.bittensor
+stats: {}
 metric:  null
 stats: {}
 threshold: 4.0
@@ -16,6 +17,7 @@ alpha: 0.1
 ma_keys: ['metric', 'weights']
 ratio: 1.0
 topk: 512 
-load: False
+load: True
+save: True
 new_loop_per_forward: True
 hidden_size : 512

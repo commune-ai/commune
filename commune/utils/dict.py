@@ -9,13 +9,16 @@ import numpy as np
 from contextlib import contextmanager
 from typing import Dict, List, Union, Any, Tuple, Callable, Optional
 from importlib import import_module
+import torch
 import pickle
 import math
 from typing import Union
 import datetime
+import munch
 from commune.utils.asyncio import sync_wrapper
 from commune.utils.os import ensure_path, path_exists
 
+import pandas as pd
 
 def rm_json(path:str, ignore_error:bool=True) -> Union['NoneType', str]:
     import shutil, os
@@ -454,6 +457,14 @@ async def async_put_json( path, data):
         json_str = json.dumps(data)
     elif data_type in [pd.DataFrame]:
         json_str = json.dumps(data.to_dict())
+    elif data_type in [torch.Tensor]:
+        json_str = json.dumps(data.tolist())
+    elif data_type in [np.ndarray]:
+        json_str = json.dumps(data.tolist())
+    elif data_type in [np.float32, np.float64, np.float16]:
+        json_str = json.dumps(float(data))
+    elif data_type in [Munch]:
+        json_str = json.dumps(data.toDict())
     else:
         raise NotImplementedError(f"{data_type}, is not supported")
     

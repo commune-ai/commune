@@ -25,8 +25,10 @@ class Validator(c.Model):
                  ):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
-        self.print(config)
         
+        if config.load:
+            self.load(self.tag)
+        self.set_namespace()
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
@@ -35,19 +37,16 @@ class Validator(c.Model):
         self.set_stats(config.stats)
         self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
+
         
     namespace_update_ts =0
     _namespace = None
-    @property
-    def namespace(self):
-        if not hasattr(self, '_namespace'):
-            self._namespace = c.namespace(network=self.config.network,update=False )
-        time_since_update = self.time() - self.namespace_update_ts
-        if time_since_update > self.config.namespace_update_interval:
-            self.namespace_update_ts = self.time()
-            self._namespace = c.namespace(network=self.config.network,update=False )
-        
-        return self._namespace
+    
+    def set_namespace(self):
+        c.print(self.config)
+        self.namespace_update_ts = self.time()
+        self.namespace = c.namespace(network=self.config.network,update=False )
+    
 
 
     
@@ -119,15 +118,28 @@ class Validator(c.Model):
 
     
 
+    @classmethod
+    def get_dataset(cls, dataset: str) -> None:
+        sample = None
+        datasets = c.modules(dataset)
+        for dataset in datasets:
+            if isinstance(dataset, str):
+                dataset = c.connect(dataset)
+                if callable(dataset.sample):
+                    break
+            else:
+                raise ValueError(f'Invalid dataset type: {type(dataset)}')
+        
+        if isinstance(dataset, str): 
+            raise ValueError(f'Dataset not found {datasets}')
+        return dataset
+    
+    
     def set_dataset(self, dataset: str) -> None:
-        if isinstance(dataset, str):
-            dataset = c.connect(dataset)
-        else:
-            raise ValueError(f'Invalid dataset type: {type(dataset)}')
+        self.dataset = self.get_dataset(dataset)
+        return self.dataset
         
-        self.dataset = dataset
         
-
 
     def calculate_metric(self, x):
         if not hasattr(self, 'metric'):
@@ -312,7 +324,7 @@ class Validator(c.Model):
                 ratio: int = None,
                 batch_size :int = None,
                 train: bool = None,
-                verbose: bool = True,
+                verbose: bool = False,
                 retries: int = 4,
                 save = True,
                 **kwargs ):
@@ -394,7 +406,10 @@ class Validator(c.Model):
         for m_key, m_output in model_output_dict.items():
             m_stats = m_output['stats']
 
-            if m_stats['success'] and m_stats['metric'] < self.config.threshold:
+            is_success  =  m_stats['success'] and m_stats['metric'] < self.config.threshold
+            
+            
+            if  is_success:
                 model_stats[m_key] = m_stats
                 ensemble['logits']+= [m_output['logits']]
                 ensemble['metrics'] += [m_stats['metric']]
@@ -402,6 +417,8 @@ class Validator(c.Model):
                 ensemble['models'] += [m_key]
             else: 
                 ensemble['models_failed'] += [m_key]
+                
+                
         ensemble['weights'] = c.copy(ensemble['metrics'])
         # calculate the stats
 
@@ -437,15 +454,15 @@ class Validator(c.Model):
         ensemble['weights']  = w.tolist()
         
         
-        rank = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
-        best_model_idx = rank[0]
+        ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
+        best_model_idx = ranks[0]
         
-        ensemble['rank'] = rank
         ensemble['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
         
         for i, (mkey, mstats) in enumerate(model_stats.items()):
-            model_stats[mkey]['rank'] = ensemble['rank'][i]
-            model_stats[mkey]['weights'] = ensemble['weights'][i]
+            if mstats == None:
+                continue
+            model_stats[mkey]['weight'] = ensemble['weights'][i]
             
             
         best_model = ensemble['models'][best_model_idx]
@@ -472,43 +489,52 @@ class Validator(c.Model):
         if verbose:
             self.print(stats)
         return Munch(ensemble)
-    
-    def validate(self, sample=None, 
-                 models: str = None,
-                 topk:int=512, 
-                 num_batches: int = 1,
-                 num_models: int = 10,
-                 save: bool = True,
-                 **kwargs,
-                 
-                 ):
-        for i in range(num_batches):
-            sample = self.sample() if sample == None else sample
-            sample['models'] =  self.random_model_keys(num_models)
-            sample['topk'] = topk
-            kwargs.update(sample)
-            output = self.forward(**kwargs)
-        if save:
-            self.save()
-        
-        return output
 
-    def save(self, tag = None) -> Dict[str, Any]:
+    def save(self, tag = None, verbose:bool = True) -> Dict[str, Any]:
         tag = self.tag if tag == None else tag
-        self.put_json(path, self.tag)
+        path = f'{tag}/config'
+        
+        self.put_json(path, self.config)
             
-    def load(self, path: str = 'stats') -> Dict[str, Any]:
-
-        stats = self.get_json(path, default={})
-           
-        self.stats = stats
+    def load(self, tag=None) -> Dict[str, Any]:
+        tag = self.tag if tag == None else tag
+        path = f'{tag}/config'
+        print(path)
+        config = self.get_json(path, default=self.config)
+        self.set_config(config)
           
     def set_stats(self, stats: Dict[str, Any] = None) -> None:
+        
+        self.stats = self.config.get('stats', {})
         stats  = stats if stats != None else {}
 
+
+        model_stats = self.stats.get('model_stats', {})
+        new_model_stats = stats.get('model_stats', {})
+        for m, new_mstats in new_model_stats.items():
+            past_mstats = model_stats.get(m, {})
+            for k, v in new_mstats.items():
+                past_v = past_mstats.get(k, v)
+                new_mstats[k] = past_v*(1-self.config.alpha) + v*self.config.alpha
+            new_mstats['successes'] = past_mstats.get('successes', 0) + 1
+            new_mstats['fails'] = past_mstats.get('fails', 0)
+            model_stats[m] = new_mstats
+            
+        for m in stats.get('models_failed', []):
+            past_mstats = model_stats.get(m, {})
+            past_mstats['weight'] = past_mstats.get('weight', 0) * (1- self.config.alpha)
+            past_mstats['metric'] = past_mstats.get('metric', self.default_metric)* (1-self.config.alpha) + self.default_metric*self.config.alpha
+            past_mstats['successes'] = past_mstats.get('successs', 0)
+            past_mstats['fails'] = past_mstats.get('fails', 0) + 1
+
+            model_stats[m] = past_mstats
+
+        stats['model_stats'] = model_stats
         assert isinstance(stats, dict)
         self.stats = stats
         self.config['stats'] = stats
+        
+        
         
     @property
     def tag(self):
@@ -518,14 +544,7 @@ class Validator(c.Model):
     def tag(self,tag):
         self.config['tag'] = tag
     
-    def save(self):
-        self.put(f'{self.tag}/config', self.config)
-        
-    @classmethod
-    def load(cls, tag=None):
-        if tag != None:
-            tag = 'base'
-        return self.get(f'{tag}/config')
+    
         
     def get_state(self, tag=None):
         return cls().load()
@@ -566,10 +585,10 @@ class Validator(c.Model):
 
     
     @classmethod
-    def run_train(cls, *args, **kwargs):
+    def learn(cls, *args, **kwargs):
         
         if kwargs.pop('remote', False):
-            return cls.remote_fn(fn='run_train', args=args, kwargs=kwargs)
+            return cls.remote_fn(fn='learn', args=args, kwargs=kwargs)
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
@@ -584,7 +603,8 @@ class Validator(c.Model):
             if not sample_check(sample):
                 continue
             output = self.forward(**sample)
-            output.stats.pop('models', None)
+            # model_stats = output.stats.pop('model_stats', None)
+            c.print(self.stats['model_stats'])
             self.sleep(sleep_interval)
             
             
@@ -605,8 +625,7 @@ class Validator(c.Model):
              **kwargs):
         
         kwargs = cls.locals2kwargs(locals())
-     
-        return cls.run_train(*args, **kwargs)
+        return cls.learn(*args, **kwargs)
         
     @classmethod
     def test_validation_keys(cls):
@@ -726,7 +745,6 @@ class Validator(c.Model):
         config.logging.debug = debug
         config.neuron.pretrained = False
         
-        cls.print(config)
         
         
         model = cls()
