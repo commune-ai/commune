@@ -1,9 +1,9 @@
 import queue
-import commune
+import commune as c
 import threading
 import multiprocessing
 
-class Pool(commune.Module):
+class Pool(c.Module):
     def __init__(self, **kwargs):
 
         self.run_loop = True
@@ -52,7 +52,16 @@ class Pool(commune.Module):
         if len(names) == 0:
             names = [self.resolve_worker_name(i) for i in range(self.config.num_workers)]
         for name in names:
-            self.add_worker(name, **kwargs)
+            self.add_worker(name, out_queue= 'background', **kwargs)
+            
+        # add background worker
+        self.add_worker(name='background', 
+                        fn=self.background_fn, 
+                        in_queue='background',
+                        out_queue='output',
+                        **kwargs)
+        
+        
         
     @property
     def workers(self):
@@ -78,7 +87,11 @@ class Pool(commune.Module):
         
     def add_worker(self, name = None, 
                    update:bool= False,
-                   mode:str=None,):
+                   fn = None,
+                   mode:str=None,
+                   in_queue:str=None,
+                   out_queue:str=None,
+                   verbose: bool = True):
         name = self.resolve_worker_name(name)
         mode = self.resolve_mode(mode)
         
@@ -88,21 +101,25 @@ class Pool(commune.Module):
         
         queue_prefix = '::'.join(name.split('::')[:-1])
         kwargs = dict(
-            input_queue = f'{queue_prefix}::input',
-            output_queue = f'{queue_prefix}::output'     
+            in_queue = 'input' if in_queue is None else in_queue,
+            out_queue = 'output' if out_queue is None else out_queue,   
+            fn = self.default_fn if fn is None else fn,
         )
 
-        self.add_queue(kwargs['input_queue'], mode=mode)
-        self.add_queue(kwargs['output_queue'], mode=mode)
+        self.add_queue(kwargs['in_queue'], mode=mode)
+        self.add_queue(kwargs['out_queue'], mode=mode)
         
+        if verbose:
+            self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {kwargs}")
+
         if self.config.mode == 'thread': 
-            self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {worker_kwargs}")
-            t = threading.Thread(target=self.forward_requests, kwargs=worker_kwargs)
+        
+            t = threading.Thread(target=self.forward_requests, kwargs=kwargs)
             worker = t
             self.workers[name] = t
             t.start()
         elif self.config.mode == 'process':
-            p = multiprocessing.Process(target=self.forward_requests)
+            p = multiprocessing.Process(target=self.forward_requests, kwargs=kwargs)
             self.workers[name] = t
             p.start()
      
@@ -114,9 +131,8 @@ class Pool(commune.Module):
     def test(cls, **kwargs):
         self  = cls(**kwargs)
         for i in range(10):
-            print(i)
             self.add_request(f"Request {i+1}")  
-           
+        self.kill_workers()
     @classmethod
     def get_schema(cls, x):
         x = cls.munch2dict(x)
@@ -134,52 +150,79 @@ class Pool(commune.Module):
             x = type(x)
         
         return x
-              
+    
+    cache = {}
+    def background_fn(self, request, **kwargs):
+        request_hash = 'BRO'
+        c.print(f"Background worker: {request} {request_hash}")
+    
+    
+    def default_fn(self,request, **kwargs):
+
+        if isinstance(request, dict):
+            # get request from queue
+            # get function and arguments
+            fn = request.get('fn', None) # identity function
+            kwargs = request.get('kwargs', {})
+            args = request.get('args', [])
+            
+            if not callable(fn):
+                fn =lambda x: x
+                
+            assert callable(fn), f"Invalid function: {fn}"
+
+            output = fn(*args, **kwargs)
+            
+            return output
+        else:
+            return None
+            
     def forward_requests(self,  **kwargs):
-        in_queue = kwargs.get('input_queue', 'input')
-        out_queue = kwargs.get('output_queue', 'output')
+        verbose = kwargs.get('verbose', True)
+        in_queue = kwargs.get('in_queue', 'input')
+        out_queue = kwargs.get('out_queue', 'output')
+        fn = kwargs.get('fn', self.default_fn)
         name = kwargs.get('name', 'worker')
         worker_prefix = f"Worker::{name}"
-        while self.run_loop:
-            print(f"Running worker: {name}")
+        
 
+        
+        while True:
             request = self.queue[in_queue].get()
-
-            if isinstance(request, dict):
-                # get request from queue
-                # get function and arguments
-                fn = request.get('fn', None) # identity function
-                kwargs = request.get('kwargs', {})
-                args = request.get('args', [])
-                
-                if not callable(fn):
-                    fn =lambda x: x
-                    
-                assert callable(fn), f"Invalid function: {fn}"
-                
-                # process request here
-                # request_schema = self.get_schema(request)
+            if verbose:
                 self.print(f"{worker_prefix} <-- request: {request}", color='yellow')
+                
+            if request == 'kill':
+                if verbose: 
+                    self.print(f"Killing worker: {name}", color='red')
+                break
             
-                result = fn(*args, **kwargs)
-                
-                # put result in output queue
-                self.print(f"SUCCESS: Result: {result}",color='green')
-                self.queue[out_queue].put(result)
-                
-            else:
-                cls.print(f"ERROR: Invalid request: {request}", color='red')
-
+            
+            output = fn(request, **kwargs)
+            print(f"output: {output}")
+            self.queue[out_queue].put(output)
+            
+            if verbose:
+                self.print(f"{worker_prefix} --> result: {output}")
     def kill_loop(self):
         self.run_loop = False
 
-    def kill(self):
-        self.kill_loop()
+    def kill_workers(self):
+        # kill all workers
+        for name, worker in self.workers.items():
+            self.add_request('kill')
+            self.queue.background.put('kill')
+        for name, worker in self.workers.items():
+            worker.join()
+        
         
     def call(self,*args, fn=None, **kwargs):
+        
         request = self.munch({'fn':fn, 'args': args, 'kwargs': kwargs})
         self.queue.input.put(request)
-        return self.queue.output.get()
+
+    
+    add_request = call
         
     def __del__(self):
         self.kill()
