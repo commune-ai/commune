@@ -336,7 +336,6 @@ class Validator(commune.Model):
         available_models = self.available_models
         # shuffle to avoid overloading the first model
         available_models = self.available_models
-        shuffle(available_models)
         called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=ratio)
         
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
@@ -349,6 +348,7 @@ class Validator(commune.Model):
                       topk=topk, 
                       timeout=timeout,
                       train=train, 
+                      return_keys=['topk'],
                       **kwargs)
         
         jobs = [asyncio.wait_for(self.async_forward(**sample,model=m), timeout=timeout) for m in called_models]
@@ -466,6 +466,7 @@ class Validator(commune.Model):
           
         self.set_stats(stats)
         
+        print(self.config)
         if save:
             self.save()
         
