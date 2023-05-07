@@ -635,7 +635,11 @@ class BittensorDataset(Module):
     
     
     
-    async def cat(self, cid:str, offset:int = 0, length:int = None)->bytes:
+    async def cat(self,
+                  cid:str,
+                  offset:int = 0,
+                  length:int = 1000,
+                  headers: dict=  None)->bytes:
         '''
         Cat endpoint.
         Args:
@@ -651,8 +655,11 @@ class BittensorDataset(Module):
                 The response from the cat call.
                 
         '''
-        params = dict(arg=cid, offset=offset)
-        params['length'] = length
+        
+        headers = headers if headers else {}
+        
+        
+        params = dict(arg=cid, offset=int(offset),lenght=int(length))
         headers = {}
         response = await self.api_post('cat', params=params, headers=headers, chunk_size=10000000, num_chunks=1)
         
@@ -683,8 +690,15 @@ class BittensorDataset(Module):
         text_file_metas = []
         
         for chunk_i in range(max_chunks):
-            data = await self.cat(file_meta['Hash'], offset=chunk_i*chunk_size ,length=chunk_size)
-            self.print(data, color='green')
+            
+            try:
+                data = await self.cat(file_meta['Hash'], offset=chunk_i*chunk_size ,length=chunk_size)
+            except Exception as e:
+                self.print(e, color='red')
+                continue
+            
+            
+            
             if data == None:
                 continue
             hashes = ['['+h + '}]'for h in data.decode().split('},')]
@@ -701,6 +715,8 @@ class BittensorDataset(Module):
                     continue
                 
                 hashes[i] ='{'+ hashes[i+1] + '}'
+
+        print(f'Fetching chunk {chunk_i} of {len(text_file_metas)}')
 
         return text_file_metas
 
