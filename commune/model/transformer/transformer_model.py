@@ -534,7 +534,7 @@ class TransformerModel(Model):
     @classmethod
     def learn(cls , *args, **kwargs):
         kwargs['train'] = True
-        return cls.test(*args, **kwargs)
+        return cls.evaluate(*args, **kwargs)
     @classmethod
     def evaluate(cls, model = 'gpt125m', 
              topk:int=512 ,
@@ -554,7 +554,7 @@ class TransformerModel(Model):
         if remote:
             kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
-            return cls.remote_fn(fn='train',kwargs=kwargs, name=f"train::{model}")
+            return cls.remote_fn(fn='learn',kwargs=kwargs, name=f"train::{model}")
         
         
         if isinstance(model, str):
@@ -608,9 +608,9 @@ class TransformerModel(Model):
           
 
     @classmethod
-    def train_fleet(cls, model = 'model.gptj',
+    def learn_fleet(cls, model = 'model.gptj',
                     dataset='dataset.bittensor',
-                    selection_ratio=1.0,
+                    selection_ratio=0.4,
                     batch_size=8,
                     num_batches = 10,
                     sequence_length=256,
@@ -623,7 +623,6 @@ class TransformerModel(Model):
         import pandas as pd
         
         if remote:
-            cls.print(kwargs)
             kwargs.update(remote=False) # otherwise we get a remote recursion error
             return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
         
@@ -688,11 +687,12 @@ class TransformerModel(Model):
                      *tags, 
                      model = 'gptj',
                      max_models = 4,
-        x             **kwargs
+                     **kwargs
                      ) -> List[str]:
+        commune.update()
         if len(tags) == 0:
         
-            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ],
+            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
         tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]

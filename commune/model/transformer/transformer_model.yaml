@@ -25,7 +25,7 @@ max_memory: null
 reserve_gpus: False
 verbose: true
 test: false
-train: False
+train: True
 min_steps_since_save: 100 # save at most every 50 steps
 max_epochs_since_saved: 2
 min_epochs_since_saved: 1
