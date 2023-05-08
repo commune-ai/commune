@@ -406,6 +406,7 @@ class TransformerModel(c.Model):
     def set_params(params:dict = None):
         params = params if params is not None else self.params
         
+        
         return params
 
 
