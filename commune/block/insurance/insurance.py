@@ -231,7 +231,7 @@ class Insurance(commune.Module):
             with cols[1]:
                 claim_data.incident_location = st.text_input('Incident Location', value=claim_data.incident_location)
                 claim_data.incident_description = st.text_area('Incident Description', value=claim_data.incident_description)
-                claim_data.claim_type = st.text_input('Claim Type', value=claim_data.claim_type)
+                claim_data.claim_type = st.text_xinput('Claim Type', value=claim_data.claim_type)
                 claim_data.claim_amount = st.number_input('Claim Amount (in USD)', value=claim_data.claim_amount)
         # get contents of the file
         if claim_data.claim_document is not None:
