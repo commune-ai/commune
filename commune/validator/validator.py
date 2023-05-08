@@ -721,7 +721,11 @@ class Validator(c.Model):
                remote:bool = False,
                ):
         
-        assert not cls.port_used(port), f'Port {port} is already in use.'
+        if remote:
+            kwargs = cls.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='miner',name=f'miner::{wallet}',  kwargs=kwargs)
+            
         
         if model == None:
             model = cls()
@@ -730,12 +734,9 @@ class Validator(c.Model):
         else:
             raise ValueError(f'Invalid model type: {type(model)}')
         
-        if remote:
-            kwargs = cls.locals2kwargs(locals())
-            kwargs['remote'] = False
-            return cls.remote_fn(fn='miner',name=f'miner::{wallet}',  kwargs=kwargs)
-            
-                
+
+        assert not cls.port_used(port), f'Port {port} is already in use.'
+  
         
         config = bittensor.neurons.core_server.neuron.config()
         config.neuron.no_set_weights = no_set_weights

@@ -544,6 +544,7 @@ class TransformerModel(Model):
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
+             batch_delay = 1,
              sequence_length : int = 256,
              batch_size: int = 8,
              autocast : bool = True,
@@ -577,19 +578,18 @@ class TransformerModel(Model):
             return cls.shortcuts.get(model, model)
         datasets = commune.connect_pool(dataset)
         for i in range(num_batches):
+            c.sleep(batch_delay)
             try:
                 data_idx = cls.choice(list(range(len(datasets))))
                 dataset = datasets[data_idx]
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
+                if not sample_check(sample):
+                    raise Exception('Sample check failed')
             except Exception as e:
                 
                 del datasets[data_idx]
-                cls.print('failed to sample from dataset, skipping batch')
-                continue
-
-            if not sample_check(sample):
-                cls.print('Sample check failed, skipping batch')
+                cls.print(f'failed to sample from {data_idx} of {len(datasets)}, skipping batch')
                 continue
         
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]

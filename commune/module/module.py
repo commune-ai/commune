@@ -2271,7 +2271,9 @@ class Module:
 
 
     @classmethod
-    def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True):
+    def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True, update:bool = True):
+        if update:
+            self.update()
         servers = cls.servers()
         delete_modules = []
         for module in modules:
@@ -2345,7 +2347,7 @@ class Module:
         return shortcut
     ## PM2 LAND
     @classmethod
-    def launch(cls, 
+    def deploy(cls, 
                module:str = None, 
                fn: str = 'serve',
                args : list = None,
@@ -2440,7 +2442,7 @@ class Module:
         else: 
             raise Exception(f'launch mode {mode} not supported')
 
-    deploy = launch
+    launch = deploy
     
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
