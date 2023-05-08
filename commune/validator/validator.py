@@ -43,7 +43,6 @@ class Validator(c.Model):
     _namespace = None
     
     def set_namespace(self):
-        c.print(self.config)
         self.namespace_update_ts = self.time()
         self.namespace = c.namespace(network=self.config.network,update=False )
     
@@ -126,7 +125,9 @@ class Validator(c.Model):
             if isinstance(dataset, str):
                 dataset = c.connect(dataset)
                 if callable(dataset.sample):
-                    break
+                    sample = dataset.sample()
+                    if cls.check_input(sample):
+                        break
             else:
                 raise ValueError(f'Invalid dataset type: {type(dataset)}')
         
@@ -217,8 +218,8 @@ class Validator(c.Model):
             model = self.models[model]
         return model
     
-    
-    def check_input(self, x):
+    @classmethod
+    def check_input(cls, x):
         if isinstance(x,dict):
             if 'input_ids' in x and isinstance(x['input_ids'], torch.Tensor):
                 return True
