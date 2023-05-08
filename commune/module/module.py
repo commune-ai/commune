@@ -1115,11 +1115,11 @@ class Module:
         return modules
     
     @classmethod
-    def tasks(cls, *args, mode='pm2',**kwargs) -> List[str]:
+    def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
         kwargs['network'] = 'local'
         kwargs['update'] = False
-        modules = cls.modules(*args, **kwargs)
-        tasks = getattr(cls, f'{mode}_list')()
+        modules = cls.modules( **kwargs)
+        tasks = getattr(cls, f'{mode}_list')(task)
         tasks = list(filter(lambda x: x not in modules, tasks))
         return tasks
     @classmethod

@@ -530,7 +530,10 @@ class TransformerModel(c.Model):
     
     
 
-     
+    @classmethod
+    def resolve_model(cls, model):
+        return cls.shortcuts.get(model, model)
+    
     @classmethod
     def learn(cls , *args, **kwargs):
         kwargs['train'] = True
@@ -585,7 +588,10 @@ class TransformerModel(c.Model):
             except Exception as e:
                 
                 del datasets[data_idx]
-                cls.print(f'failed to sample from {data_idx} of {len(datasets)}, skipping batch')
+                cls.print('failed to sample from dataset, skipping batch')
+                continue
+            if not sample_check(sample):
+                cls.print('Sample check failed, skipping batch')
                 continue
         
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
@@ -746,7 +752,7 @@ class TransformerModel(c.Model):
                wait_for_server: bool = False, 
                device = None, 
                namespace = None,
-               update:bool = True,
+               update:bool = False,
                mode:str = 'pm2',
                refresh = False,
                tag_seperator:str = '::',     
@@ -800,7 +806,6 @@ class TransformerModel(c.Model):
             cls.launch(name=name,
                        kwargs=kwargs,
                        mode=mode, 
-                       refresh=False,
                        device=device, 
                        wait_for_server=wait_for_server,
                        verbose=False)
