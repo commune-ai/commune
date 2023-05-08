@@ -591,7 +591,7 @@ class Module:
     @classmethod
     def run_command(cls, 
                     command:str,
-                    verbose:bool = True, 
+                    verbose:bool = False, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
                     sudo:bool = False,
@@ -727,7 +727,7 @@ class Module:
         
 
     @classmethod
-    def get_used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
+    def used_ports(cls, ports:List[int] = None, ip:str = '0.0.0.0', port_range:Tuple[int, int] = None):
         '''
         Get availabel ports out of port range
         
@@ -756,6 +756,7 @@ class Module:
         return used_ports
     
 
+    get_used_ports = used_ports
    
     @classmethod
     def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
@@ -1123,7 +1124,8 @@ class Module:
         return tasks
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
-        models = [k for k in list(cls.modules()) if k.startswith('model')]
+        models = cls.modules(*args, **kwargs)
+        models = [k for k in models if k.startswith('model')]
         return models
     @classmethod
     def datasets(cls, *args, **kwargs) -> List[str]:
@@ -1466,12 +1468,14 @@ class Module:
  
     
     @classmethod
-    def connect_pool(cls, module, *args, return_dict:bool=False, **kwargs):
-        module_names  = cls.modules(module)
-        modules =  cls.gather([cls.async_connect(m, **kwargs) for m in module_names])
+    def connect_pool(cls, modules=None, *args, return_dict:bool=False, **kwargs):
+        if modules == None:
+            modules = cls.modules(modules)
+        
+        module_clients =  cls.gather([cls.async_connect(m, ignore_error=True,**kwargs) for m in modules])
         if return_dict:
-            modules = dict(zip(module_names, modules))
-        return modules
+            return dict(zip(modules, module_clients))
+        return module_clients
     @classmethod
     async def async_connect(cls, 
                 name:str=None, 
@@ -1483,16 +1487,14 @@ class Module:
                 wait_for_server:bool = False,
                 trials = 3, 
                 verbose: bool = False, 
+                ignore_error:bool = False,
                 **kwargs ):
-        
-
+    
         if (name == None and ip == None and port == None):
             return cls.root_module()
             
-            
         if wait_for_server:
             cls.wait_for_server(name)
-        
         
         if namespace == None :
             namespace = cls.namespace(network, update=False)
@@ -1501,28 +1503,33 @@ class Module:
         # local namespace  
 
 
+
         if isinstance(name, str):
-            is_name_address = ':' in name and len(name.split(':')) == 2 and name.split(':')[1].isdigit()
-            
+      
             found_modules = []
-            modules = list(namespace.keys())
-            module_addresses = list(namespace.values())
-            module_options = modules + module_addresses
-            for n in module_options:
-                if name == n:
-                    # we found the module
-                    found_modules = [n]
-                    break
-                elif name in n:
-                    # get all the modules lol
-                    found_modules += [n]
-                    
+
+            if cls.is_address(name):
+                found_modules = [name]
+            
+            else:
+                modules = list(namespace.keys())
+                module_addresses = list(namespace.values())
+                for n in modules + module_addresses:
+                    if name == n:
+                        # we found the module
+                        found_modules = [n]
+                        break
+                    elif name in n:
+                        # get all the modules lol
+                        found_modules += [n]
+                        
             if len(found_modules)>0:
                 name = cls.choice(found_modules)
-                if name not in module_addresses:
-                    name = namespace[name]
+                name = namespace.get(name, name)
                 
             else:
+                if ignore_error:
+                    return None
                 raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
             
 
@@ -1641,9 +1648,10 @@ class Module:
 
             peer_registry = {}
             peer_addresses = cls.get_peer_addresses()  
-            print('FUCKK')
             async def async_get_peer_name(peer_address):
-                peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False)
+                peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
+                if peer == None: 
+                    return peer
                 module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
                 if verbose:
                     cls.print('Connecting: ',module_name, color='cyan')
@@ -1727,6 +1735,15 @@ class Module:
         return local_namespace
   
   
+    @classmethod
+    def is_address(cls, address:str) -> bool:
+        conds = []
+        
+        conds.append(isinstance(address, str))
+        conds.append(':' in address)
+        conds.append(cls.is_number(address.split(':')[-1]))
+    
+        return all(conds)
     @classmethod
     def is_module(cls, obj=None) -> bool:
         
@@ -1849,28 +1866,25 @@ class Module:
                   update: bool = False,
                   max_staleness:int = 30,
                   **kwargs):
-        timestamp = cls.timestamp()
         
-        # if update:
-        #     cls.put('updated_timestamp', timestamp )
-        # else:
-        #     updated_timestamp = cls.get('updated_timestamp', 0)
-        #     staleness = timestamp - updated_timestamp
-        #     update = bool(staleness > max_staleness)
-            
         if isinstance(search, str) :
             if hasattr(cls, f'{search}_namespace'):
                 network = search
                 search = None
         else:
             search = None
-                
+
+
+
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
-
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
-            
+        module_names = list(namespace.values())
+        # module_addresses =  cls.call_pool(modules=module_names, fn='address', namespace=namespace)
+        
+
+        # namespace = {k:v for k,v in namespace.items() if k in connected_module_map}
         return namespace
     
     
@@ -2257,9 +2271,11 @@ class Module:
 
 
     @classmethod
-    def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True):
+    def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True, update:bool = True):
+        if update:
+            self.update()
         servers = cls.servers()
-            
+        delete_modules = []
         for module in modules:
             delete_modules = [server for server in servers if  module in server]
             if mode == 'pm2':
@@ -2267,6 +2283,13 @@ class Module:
                 for p in pm2_list:
                     if module in p:
                         delete_modules.append(p)
+            elif mode == 'ray':
+                ray_list = cls.ray_list()
+                for r in ray_list:
+                    if module in r:
+                        delete_modules.append(r)
+            else:
+                raise Exception(f'Unknown mode: {mode}')
                         
                     
             for d_m in delete_modules:
@@ -2324,7 +2347,7 @@ class Module:
         return shortcut
     ## PM2 LAND
     @classmethod
-    def launch(cls, 
+    def deploy(cls, 
                module:str = None, 
                fn: str = 'serve',
                args : list = None,
@@ -2346,7 +2369,7 @@ class Module:
         Launch a module as pm2 or ray 
         '''
         if update:
-            cls.local_namespace()
+            cls.update()
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         if module == None:
@@ -2419,15 +2442,15 @@ class Module:
         else: 
             raise Exception(f'launch mode {mode} not supported')
 
-    deploy = launch
+    launch = deploy
     
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
         for module in cls.pm2_list():
-            
             cls.pm2_kill(module)
             if verbose:
-                cls.print(f'[red] Killed {module}[/red]')
+                cls.print(f'[red] Killed {module}[/red]')      
+                
     @classmethod
     def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
         output_string = cls.run_command('pm2 status', verbose=False)
@@ -2540,6 +2563,9 @@ class Module:
     def restart_self(self, mode:str='pm2'):
         assert hasattr(self, 'module_name'), 'self.module_name must be defined to restart'
         return self.restart(self.module_name)
+    
+    
+    
     @classmethod
     def restart(cls, name:str = None, mode:str='pm2', verbose:bool = False):
         if name == None:
@@ -2592,7 +2618,10 @@ class Module:
         from commune.api import API
         return API(*args, **kwargs)
     
-
+    @classmethod
+    def learn(cls, *args, **kwargs):
+        return cls.module('model.transformer').learn(*args, **kwargs)
+        
     
     @classmethod
     def get_methods(cls, obj:type= None, modes:Union[str, List[str]] = 'all',  ) -> List[str]:
@@ -3886,6 +3915,35 @@ class Module:
 
 
     @classmethod
+    def live_modules(cls, **kwargs):
+        return cls.call_pool(fn='address', **kwargs)
+    @classmethod
+    def call_pool(cls, *args, **kwargs):
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_call_pool(*args, **kwargs))
+    @classmethod
+    async def async_call_pool(cls,
+                              modules = None, 
+                              fn = 'address',
+                              success_only =  True,
+                              *args, **kwargs):
+        if isinstance(modules, str) or modules == None:
+            modules = cls.modules(modules)
+        jobs = []
+        for m in modules:
+            job = cls.async_call(m, fn, *args, **kwargs)
+            jobs.append(job)
+        
+        
+            
+        responses = await asyncio.gather(*jobs)
+        
+        if success_only:
+            responses = [r for r in responses if cls.is_success(r)]
+
+        return responses
+    
+    @classmethod
     def call(cls,  *args, loop=None, **kwargs) -> None:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
@@ -4220,7 +4278,7 @@ class Module:
     
     
     @classmethod
-    def success(cls, x):
+    def is_success(cls, x):
         # assume that if the result is a dictionary, and it has an error key, then it is an error
         if isinstance(x, dict):
             if 'error' in x:
@@ -4322,12 +4380,13 @@ class Module:
         return value
     @classmethod
     def update(cls, 
-               network = 'local',
+               network = 'global',
                verbose:bool = True,
                
                ):
 
-            cls.namespace(network,verbose=True, update=True)
+            cls.namespace(network=network,verbose=True, update=True)
+            
             # cls.root_module()
 
         
@@ -4507,6 +4566,8 @@ class Module:
         
         
         
+
+        
         
         selected_gpus = []
         while unallocated_memory > 0:
@@ -4666,10 +4727,16 @@ class Module:
 
     rfn = remote_fn
     @classmethod
-    def choice(cls, options:list):
+    def choice(cls, options:list)->list:
         import random
         assert isinstance(options, list)
         return random.choice(options)
+
+    @classmethod
+    def random_color(cls):
+        import random
+        return random.choice(cls.colors())
+
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
@@ -4776,11 +4843,13 @@ class Module:
     
     
     @classmethod
-    def learn(cls,*args, module='model.transformer', **kwargs):
-        module = cls.module(module)
-        module.learn(*args, **kwargs)
-  
-    
+    def miner(cls, mode='bittensor', *args, **kwargs):
+        
+        if mode == 'bittensor':
+            from miner import Miner
+            return Miner(*args, **kwargs)
+        else:
+            raise NotImplemented
     
 if __name__ == "__main__":
     Module.run()

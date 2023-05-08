@@ -1,7 +1,7 @@
 # import nest_asyncio
 # nest_asyncio.apply()
-import commune
-commune.new_event_loop()
+import commune as c
+c.new_event_loop()
 import bittensor
 import streamlit as st
 import torch
@@ -18,15 +18,17 @@ from torch import nn
 
 
 
-class Validator(commune.Model):
+class Validator(c.Model):
 
     def __init__(self, 
                  **kwargs
                  ):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
-        self.print(config)
         
+        if config.load:
+            self.load(self.tag)
+        self.set_namespace()
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
@@ -35,19 +37,15 @@ class Validator(commune.Model):
         self.set_stats(config.stats)
         self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
+
         
     namespace_update_ts =0
     _namespace = None
-    @property
-    def namespace(self):
-        if not hasattr(self, '_namespace'):
-            self._namespace = commune.namespace(network=self.config.network,update=False )
-        time_since_update = self.time() - self.namespace_update_ts
-        if time_since_update > self.config.namespace_update_interval:
-            self.namespace_update_ts = self.time()
-            self._namespace = commune.namespace(network=self.config.network,update=False )
-        
-        return self._namespace
+    
+    def set_namespace(self):
+        self.namespace_update_ts = self.time()
+        self.namespace = c.namespace(network=self.config.network,update=False )
+    
 
 
     
@@ -105,10 +103,7 @@ class Validator(commune.Model):
             
             print('resorting ot use_fast = False')
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-
-
-        print('tokenizer loaded')
-
+        
         self.tokenizer = tokenizer
 
         self.tokenizer = prep_tokenizer(self.tokenizer)
@@ -119,15 +114,30 @@ class Validator(commune.Model):
 
     
 
+    @classmethod
+    def get_dataset(cls, dataset: str) -> None:
+        sample = None
+        datasets = c.modules(dataset)
+        for dataset in datasets:
+            if isinstance(dataset, str):
+                dataset = c.connect(dataset)
+                if callable(dataset.sample):
+                    sample = dataset.sample()
+                    if cls.check_input(sample):
+                        break
+            else:
+                raise ValueError(f'Invalid dataset type: {type(dataset)}')
+        
+        if isinstance(dataset, str): 
+            raise ValueError(f'Dataset not found {datasets}')
+        return dataset
+    
+    
     def set_dataset(self, dataset: str) -> None:
-        if isinstance(dataset, str):
-            dataset = commune.connect(dataset)
-        else:
-            raise ValueError(f'Invalid dataset type: {type(dataset)}')
+        self.dataset = self.get_dataset(dataset)
+        return self.dataset
         
-        self.dataset = dataset
         
-
 
     def calculate_metric(self, x):
         if not hasattr(self, 'metric'):
@@ -205,8 +215,8 @@ class Validator(commune.Model):
             model = self.models[model]
         return model
     
-    
-    def check_input(self, x):
+    @classmethod
+    def check_input(cls, x):
         if isinstance(x,dict):
             if 'input_ids' in x and isinstance(x['input_ids'], torch.Tensor):
                 return True
@@ -232,7 +242,7 @@ class Validator(commune.Model):
         
         
         sample = self.locals2kwargs(locals())
-        timer = commune.timer()
+        timer = c.timer()
         output = None
         # try:
         namespace = self.copy(self.namespace)
@@ -312,7 +322,7 @@ class Validator(commune.Model):
                 ratio: int = None,
                 batch_size :int = None,
                 train: bool = None,
-                verbose: bool = True,
+                verbose: bool = False,
                 retries: int = 4,
                 save = True,
                 **kwargs ):
@@ -394,7 +404,10 @@ class Validator(commune.Model):
         for m_key, m_output in model_output_dict.items():
             m_stats = m_output['stats']
 
-            if m_stats['success'] and m_stats['metric'] < self.config.threshold:
+            is_success  =  m_stats['success'] and m_stats['metric'] < self.config.threshold
+            
+            
+            if  is_success:
                 model_stats[m_key] = m_stats
                 ensemble['logits']+= [m_output['logits']]
                 ensemble['metrics'] += [m_stats['metric']]
@@ -403,6 +416,8 @@ class Validator(commune.Model):
             else: 
                 ensemble['models_failed'] += [m_key]
                 
+                
+        ensemble['weights'] = c.copy(ensemble['metrics'])
         # calculate the stats
 
         stats['called'] = len(called_models)
@@ -437,15 +452,15 @@ class Validator(commune.Model):
         ensemble['weights']  = w.tolist()
         
         
-        rank = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
-        best_model_idx = rank[0]
+        ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
+        best_model_idx = ranks[0]
         
-        ensemble['rank'] = rank
         ensemble['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
         
         for i, (mkey, mstats) in enumerate(model_stats.items()):
-            model_stats[mkey]['rank'] = ensemble['rank'][i]
-            model_stats[mkey]['weights'] = ensemble['weights'][i]
+            if mstats == None:
+                continue
+            model_stats[mkey]['weight'] = ensemble['weights'][i]
             
             
         best_model = ensemble['models'][best_model_idx]
@@ -454,7 +469,7 @@ class Validator(commune.Model):
     
         stats.update({
             # 'model_stats': model_stats,
-            # 'model_stats': model_stats,
+            'model_stats': model_stats,
             'best_metric': best_model_metric,
             'metric': metric,
             'inference_time': timer.seconds
@@ -465,53 +480,59 @@ class Validator(commune.Model):
         
           
         self.set_stats(stats)
-        
-        print(self.config)
+    
         if save:
             self.save()
         
         if verbose:
             self.print(stats)
         return Munch(ensemble)
-    
-    def validate(self, sample=None, 
-                 models: str = None,
-                 topk:int=512, 
-                 num_batches: int = 1,
-                 num_models: int = 10,
-                 save: bool = True,
-                 **kwargs,
-                 
-                 ):
-        for i in range(num_batches):
-            sample = self.sample() if sample == None else sample
-            sample['models'] =  self.random_model_keys(num_models)
-            sample['topk'] = topk
-            kwargs.update(sample)
-            output = self.forward(**kwargs)
-        if save:
-            self.save()
-        
-        return output
 
-    def save(self, path: str = 'stats') -> Dict[str, Any]:
+    def save(self, tag = None, verbose:bool = True) -> Dict[str, Any]:
+        tag = self.tag if tag == None else tag
+        path = f'{tag}/config'
         
-        self.put_json(path, self.stats)
+        self.put_json(path, self.config)
             
-    def load(self, path: str = 'stats') -> Dict[str, Any]:
-
-        stats = self.get_json(path, default={})
-           
-        self.stats = stats
+    def load(self, tag=None) -> Dict[str, Any]:
+        tag = self.tag if tag == None else tag
+        path = f'{tag}/config'
+        print(path)
+        config = self.get_json(path, default=self.config)
+        self.set_config(config)
           
-          
-
     def set_stats(self, stats: Dict[str, Any] = None) -> None:
+        
+        self.stats = self.config.get('stats', {})
         stats  = stats if stats != None else {}
 
+
+        model_stats = self.stats.get('model_stats', {})
+        new_model_stats = stats.get('model_stats', {})
+        for m, new_mstats in new_model_stats.items():
+            past_mstats = model_stats.get(m, {})
+            for k, v in new_mstats.items():
+                past_v = past_mstats.get(k, v)
+                new_mstats[k] = past_v*(1-self.config.alpha) + v*self.config.alpha
+            new_mstats['successes'] = past_mstats.get('successes', 0) + 1
+            new_mstats['fails'] = past_mstats.get('fails', 0)
+            model_stats[m] = new_mstats
+            
+        for m in stats.get('models_failed', []):
+            past_mstats = model_stats.get(m, {})
+            past_mstats['weight'] = past_mstats.get('weight', 0) * (1- self.config.alpha)
+            past_mstats['metric'] = past_mstats.get('metric', self.default_metric)* (1-self.config.alpha) + self.default_metric*self.config.alpha
+            past_mstats['successes'] = past_mstats.get('successs', 0)
+            past_mstats['fails'] = past_mstats.get('fails', 0) + 1
+
+            model_stats[m] = past_mstats
+
+        stats['model_stats'] = model_stats
         assert isinstance(stats, dict)
         self.stats = stats
         self.config['stats'] = stats
+        
+        
         
     @property
     def tag(self):
@@ -521,12 +542,10 @@ class Validator(commune.Model):
     def tag(self,tag):
         self.config['tag'] = tag
     
-    def save(self, tag=None):
-        tag = tag if tag else self.tag
-        self.put(f'{tag}/config', self.config)
-    def load(self, tag=None):
-        tag = tag if tag else self.tag
-        self.get(f'{tag}/config')
+    
+        
+    def get_state(self, tag=None):
+        return cls().load()
         
     def calculate_weights(self):
         
@@ -564,10 +583,10 @@ class Validator(commune.Model):
 
     
     @classmethod
-    def run_train(cls, *args, **kwargs):
+    def learn(cls, *args, **kwargs):
         
         if kwargs.pop('remote', False):
-            return cls.remote_fn(fn='run_train', args=args, kwargs=kwargs)
+            return cls.remote_fn(fn='learn', args=args, kwargs=kwargs)
         sleep_interval = kwargs.pop('sleep_interval', 3)
         stagger_interval = kwargs.pop('stagger_interval', 0)
         num_batches = kwargs.pop('num_batches', 2)
@@ -582,7 +601,8 @@ class Validator(commune.Model):
             if not sample_check(sample):
                 continue
             output = self.forward(**sample)
-            output.stats.pop('models', None)
+            # model_stats = output.stats.pop('model_stats', None)
+            c.print(self.stats['model_stats'])
             self.sleep(sleep_interval)
             
             
@@ -603,8 +623,7 @@ class Validator(commune.Model):
              **kwargs):
         
         kwargs = cls.locals2kwargs(locals())
-     
-        return cls.run_train(*args, **kwargs)
+        return cls.learn(*args, **kwargs)
         
     @classmethod
     def test_validation_keys(cls):
@@ -664,13 +683,12 @@ class Validator(commune.Model):
         df = pd.DataFrame(df_rows)
         
         return df
-
     @classmethod
     def streamlit(cls):
         
         import streamlit as st
-        commune.new_event_loop(nest_asyncio=True)
-        # commune.nest_asyncio()
+        c.new_event_loop(nest_asyncio=True)
+        # c.nest_asyncio()
         self = cls(models=None, dataset='dataset.text.bittensor', load=True)
         
         df = self.stats_table
@@ -692,11 +710,12 @@ class Validator(commune.Model):
     
     @classmethod
     def miner(cls, 
+               model =  None,
                wallet='collective.0',
                network = 'finney',
                netuid=3,
-               port = 9299,
-               prometheus_port = 8299,
+               port = 9296,
+               prometheus_port = 9295,
                debug = True,
                no_set_weights = True,
                remote:bool = False,
@@ -707,7 +726,17 @@ class Validator(commune.Model):
             kwargs['remote'] = False
             return cls.remote_fn(fn='miner',name=f'miner::{wallet}',  kwargs=kwargs)
             
-                
+        
+        if model == None:
+            model = cls()
+        elif isinstance(model, str):
+            model = c.module(model)()
+        else:
+            raise ValueError(f'Invalid model type: {type(model)}')
+        
+
+        assert not cls.port_used(port), f'Port {port} is already in use.'
+  
         
         config = bittensor.neurons.core_server.neuron.config()
         config.neuron.no_set_weights = no_set_weights
@@ -717,12 +746,11 @@ class Validator(commune.Model):
         config.logging.debug = debug
         config.neuron.pretrained = False
         
-        cls.print(config)
         
         
         model = cls()
         subtensor = bittensor.subtensor(network=network)
-        server_class = commune.get_module('commune.bittensor.neuron.core_server.server')
+        server_class = c.get_module('commune.bittensor.neuron.core_server.server')
 
         server = server_class(model=model, config=config)
         bittensor.utils.version_checking()
@@ -748,34 +776,7 @@ class Validator(commune.Model):
 
 
 
-    @classmethod
-    def test_neuron(cls, model='model::gpt2.7b', tokenizer='bittensor', num_batches=2, dataset='dataset::bittensor', batch_size=32, sequence_length=12, topk=4096, **model_kwargs):
-        from commune.block.bittensor.neuron.miner import neuron
-        from bittensor.utils.tokenizer_utils import phrase_cross_entropy, topk_token_phrases, prep_tokenizer
-        self = cls(model = model, tokenizer=tokenizer)
-        nucleus = neuron(model=self).model
-        nucleus.model.train()
-        nucleus.model.eval()
-        nucleus.model.half()
-        nucleus.model.config.hidden_size
-        nucleus.model.config.pad_token_id
-        nucleus.model.config.eos_token_id
-        nucleus.model.named_parameters()
-        state_dict = nucleus.model.state_dict()
-        nucleus.model.load_state_dict(state_dict)
-        
-        dataset = commune.connect(dataset)
-        sample = dataset.sample()
-        
-        for i in range(num_batches):
-            sample = dataset.sample(batch_size=32, sequence_length=256)
-            target = sample['input_ids'][:, -1:] 
-            inputs_x = sample['input_ids'][:, :-1] 
-            t = commune.timer()
-            message, _model_output, topk_tensor = nucleus.encode_forward_causallmnext(inputs_x, topk=topk)
-            loss_tuple = phrase_cross_entropy(topk_tensor=topk_tensor, target_phrases=target)
-            commune.print(f'Loss : {loss_tuple[0].item()} Time: {t.seconds}', 'cyan')
- 
+
 if __name__ == '__main__':
     Validator.run()
 

@@ -49,6 +49,8 @@ class Serializer:
         metadata_bytes = self.dict2bytes(metadata)
         return DataBlock(data=data_bytes, metadata = metadata_bytes, blocks=sub_blocks)
 
+
+
     def deserialize(self, proto: DataBlock) -> object:
         """Serializes a torch object to DataBlock wire format.
         """

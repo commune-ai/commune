@@ -228,7 +228,7 @@ class TransformerModel(Model):
         
         output['hidden_states'] = output.hidden_states[hidden_state_index]
         output['input_ids'] = sample['input_ids']
-        output['logits']= output.logits[:,-output_length:,:]
+
         
         # map th elogits
         if map_logits:
@@ -238,8 +238,9 @@ class TransformerModel(Model):
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
             
-        output['topk']=self.encode_topk(output['logits'], topk=topk)
         output['loss'] = loss = self.calculate_loss(**output)
+        output['logits']= output.logits[:,-output_length:,:]
+        output['topk']=self.encode_topk(output['logits'], topk=topk)
 
 
         output = self.process_outputs(stats=stats, sample=sample, output=output)
@@ -265,6 +266,7 @@ class TransformerModel(Model):
         num_tokens = stats['input_shape'][0]*stats['input_shape'][1]
         stats['tokens'] = stats.get('tokens', 0) +  num_samples
         stats['samples'] = stats.get('samples', 0) + num_tokens
+        
         if self.training:
             train_stats = stats['train'] = stats.get('train', {})
             loss.backward()
@@ -278,7 +280,7 @@ class TransformerModel(Model):
             train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1
             alpha = 1/self.config.epoch_length
             train_stats['epoch_loss'] = (train_stats.get('epoch_loss', loss)*(1-alpha)+ loss*alpha)
-            
+            stats['loss'] = loss
             train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
             train_stats['time'] = stats['time']
             
@@ -539,19 +541,20 @@ class TransformerModel(Model):
     @classmethod
     def learn(cls , *args, **kwargs):
         kwargs['train'] = True
-        return cls.test(*args, **kwargs)
+        return cls.evaluate(*args, **kwargs)
     @classmethod
     def evaluate(cls, model = 'gpt125m', 
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
+             batch_delay = 1,
              sequence_length : int = 256,
              batch_size: int = 8,
              autocast : bool = True,
              train: bool= False,
              map_logits : bool = False,
              map_tokens : bool = False,
-             timeout : int= 60,
+             timeout : int= 3,
              remote:bool = False,
              **kwargs
              ):
@@ -559,7 +562,7 @@ class TransformerModel(Model):
         if remote:
             kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
-            return cls.remote_fn(fn='train',kwargs=kwargs, name=f"train::{model}")
+            return cls.remote_fn(fn='learn',kwargs=kwargs, name=f"train::{model}")
         
         
         if isinstance(model, str):
@@ -575,17 +578,25 @@ class TransformerModel(Model):
         
         datasets = commune.connect_pool(dataset)
         for i in range(num_batches):
+            c.sleep(batch_delay)
             try:
                 data_idx = cls.choice(list(range(len(datasets))))
                 dataset = datasets[data_idx]
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
+                if not sample_check(sample):
+                    raise Exception('Sample check failed')
             except Exception as e:
+                
                 del datasets[data_idx]
+<<<<<<< HEAD
                 cls.print('failed to sample from dataset, skipping batch')
                 continue
             if not sample_check(sample):
                 cls.print('Sample check failed, skipping batch')
+=======
+                cls.print(f'failed to sample from {data_idx} of {len(datasets)}, skipping batch')
+>>>>>>> c58ed692782c6154cb9f33882d504d3d044c8678
                 continue
         
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
@@ -608,50 +619,58 @@ class TransformerModel(Model):
           
           
     test = evaluate
-          
-
+    
     @classmethod
-    def learn_fleet(cls, model = 'model.gptj',
-                    dataset='dataset.bittensor',
-                    selection_ratio=1.0,
-                    batch_size=8,
-                    num_batches = 10,
-                    sequence_length=256,
-                    remote:bool = False,
-                    network='local',
-                    tag = None,
-                    **kwargs):
-        
-        kwargs = cls.locals2kwargs(locals())
-
-        
-        if remote:
-            cls.print(kwargs)
-            kwargs.update(remote=False) # otherwise we get a remote recursion error
-            return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
-        
+    def train_fleet(cls, model = 'model.gptj', network='local', **kwargs):
         models = commune.modules(model, network=network)
-        datasets = commune.connect_pool(dataset)
+        for m in models:
+            cls.print(f"Training {m}")
+            cls.learn(model=m, **kwargs)
+        
+          
+    # @classmethod
+    # def train_fleet(cls, model = 'model.gptj',
+    #                 dataset='dataset.bittensor',
+    #                 selection_ratio= 1.0,
+    #                 batch_size=8,
+    #                 num_batches = 1000,
+    #                 sequence_length=256,
+    #                 remote:bool = False,
+    #                 network='global',
+    #                 tag = None,
+    #                 **kwargs):
+        
+    #     kwargs = cls.locals2kwargs(locals())
 
-        for i in range(num_batches):
-            selected_models = cls.random_ratio_selection(models, selection_ratio )
-            dataset = cls.choice(datasets)
-            try:
-                sample = dataset.sample(batch_size=batch_size, sequence_length=sequence_length)
-                assert isinstance(sample, dict) and 'input_ids' in sample
-            except Exception as e:
-                continue
-            sample['train'] = True
-            sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
-            sample['return_keys'] = ['stats']
-            results = cls.call(selected_models, fn='forward', **sample)
-            stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
-            print_keys = ['epoch_loss', 'best_loss',  'steps']
-            print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
-            print_stats = pd.DataFrame(print_stats)
-            print_stats = print_stats.sort_values(by=['best_loss'])
-            cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
-            
+        
+    #     if remote:
+    #         kwargs.update(remote=False) # otherwise we get a remote recursion error
+    #         return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
+        
+    #     models = commune.modules(model, network=network)
+    #     datasets = commune.connect_pool(dataset)
+
+    #     for i in range(num_batches):
+    #         selected_models = cls.random_ratio_selection(models, selection_ratio )
+    #         dataset = cls.choice(datasets)
+    #         try:
+    #             sample = dataset.sample(batch_size=batch_size, sequence_length=sequence_length)
+    #             assert isinstance(sample, dict) and 'input_ids' in sample
+    #         except Exception as e:
+    #             continue
+    #         sample['train'] = True
+    #         sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
+    #         sample['return_keys'] = ['stats']
+    #         results = cls.call(selected_models, fn='forward', **sample)
+    #         stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
+    #         print_keys = ['epoch_loss', 'best_loss',  'steps']
+    #         print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
+    #         print_stats = pd.DataFrame(print_stats)
+    #         print_stats = print_stats.sort_values(by=['best_loss'])
+    #         cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
+    
+    # train_fleet = learn_fleet
+    
 
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
@@ -693,10 +712,10 @@ class TransformerModel(Model):
                      max_models = 4,
                      **kwargs
                      ) -> List[str]:
+        commune.update()
         if len(tags) == 0:
         
             tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
-        tags = tags[:max_models]
         tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]
@@ -737,12 +756,20 @@ class TransformerModel(Model):
                name: str =None, 
                wait_for_server: bool = False, 
                device = None, 
+<<<<<<< HEAD
                refresh:bool = False,
+=======
+               namespace = None,
+               update:bool = True,
+>>>>>>> c58ed692782c6154cb9f33882d504d3d044c8678
                mode:str = 'pm2',
+               refresh = False,
                tag_seperator:str = '::',     
                **kwargs):
-
-
+        
+        
+        if update:
+            cls.update()
         tag = kwargs.get('tag', None)
         assert len(models) > 0
 
@@ -788,6 +815,10 @@ class TransformerModel(Model):
             cls.launch(name=name,
                        kwargs=kwargs,
                        mode=mode, 
+<<<<<<< HEAD
+=======
+                       refresh=False,
+>>>>>>> c58ed692782c6154cb9f33882d504d3d044c8678
                        device=device, 
                        wait_for_server=wait_for_server,
                        verbose=False)
