@@ -543,7 +543,7 @@ class TransformerModel(c.Model):
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
-             batch_delay = 2,
+             batch_delay = 0.3,
              sequence_length : int = 256,
              batch_size: int = 8,
              autocast : bool = True,
@@ -572,28 +572,32 @@ class TransformerModel(c.Model):
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
+        datasets = c.connect_pool(dataset)
+        
+        data_idx = cls.choice(list(range(len(datasets))))
+        
         @classmethod
         def resolve_model(cls, model):
             return cls.shortcuts.get(model, model)
         datasets = c.connect_pool(dataset)
+        data_idx = 0
         for i in range(num_batches):
-            c.sleep(batch_delay)
+            
             try:
-                data_idx = cls.choice(list(range(len(datasets))))
                 dataset = datasets[data_idx]
                 sample = dataset.sample(batch_size=batch_size,
                                         sequence_length=sequence_length)
                 if not sample_check(sample):
                     raise Exception('Sample check failed')
             except Exception as e:
-                
+
                 del datasets[data_idx]
-                cls.print('failed to sample from dataset, skipping batch')
-                continue
-            if not sample_check(sample):
-                cls.print('Sample check failed, skipping batch')
+                cls.print(f'failed to sample, removing dataset {data_idx}, {len(datasets)} remaining')
+                data_idx = cls.choice(list(range(len(datasets))))
+                
                 continue
         
+            c.sleep(batch_delay)
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
             sample.update(
                 topk=topk,
