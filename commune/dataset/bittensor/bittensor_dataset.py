@@ -28,7 +28,8 @@ class Dataset(commune.Module):
     #     return commune.deploy(kwargs=kwargs, name=name, tag=tag)
     
     
-    def check_sample(self, sample):
+    @classmethod
+    def check_sample(cls, sample):
         assert isinstance(sample, dict)
         assert 'input_ids' in sample.keys()
         return sample

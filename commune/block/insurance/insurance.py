@@ -125,13 +125,13 @@ class Insurance(commune.Module):
         
         self = cls()
         data = {'fam': 1, 'bro': 'fam', 'chris': {'sup': [1,'dawg']}}
-        key = commune.key('Alice')
+        key = commune.get_key('Alice')
         st.write(self.put('bro',
                           data,
                           encrypt=False,
                           key=key
                           ))
-        st.write(self.put('fam', data, key=commune.key('Bob'), encrypt=False))
+        st.write(self.put('fam', data, key=commune.get_key('Bob'), encrypt=False))
 
         # st.write(self.get('bro'))
         st.write(self.key2address)
@@ -157,7 +157,7 @@ class Insurance(commune.Module):
     def signin(self, username, password):
         self.username = username
         self.password = password
-        self.key = commune.key(username)
+        self.key = commune.get_key(username+password)
         self.address = self.key.ss58_address
         # st.write('Signed in as', self.username)
         return True
@@ -223,7 +223,7 @@ class Insurance(commune.Module):
                 
                 
                 claim_data.policy_number = st.text_input('Policy Number', value=claim_data.policy_number)
-                claim_data.claimant_name = st.text_input('Claimant Name', value=claim_data.claimant_name)
+                claim_data.claimant_name = st.text_input('Claimant Name', value=self.username)
                 claim_data.claimant_contact = st.text_input('Claimant Contact (Phone/Email)', value=claim_data.claimant_contact)
                 claim_data.incident_date = st.date_input('Incident Date', value=claim_data.incident_date)
                 claim_data.claim_status = st.text_input('Claim Status', value=claim_data.claim_status)

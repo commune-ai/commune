@@ -1722,16 +1722,14 @@ class Module:
         
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
-
-        # # only serve module if you have a network
-        # if key != None:
-        #     # if the key is not None, we want to add the password to the key
-        #     key = cls.get_key(key)
-        #     # if the key is not None, we want to add the password to the key
-        #     network = cls.resolve_network(network)
-        #     server_info['netuid'] = netuid
-        #     network.register(**register_kwargs)
-            
+        return local_namespace
+    
+    @classmethod
+    def deregister_server(cls, name: str)-> dict:
+        local_namespace = cls.local_namespace()    
+        
+        local_namespace.pop(name, None)
+        cls.put_json('local_namespace', local_namespace, root=True) 
         return local_namespace
   
   
@@ -2567,16 +2565,26 @@ class Module:
     
     
     @classmethod
-    def restart(cls, name:str = None, mode:str='pm2', verbose:bool = False):
-        if name == None:
-            name = cls.default_module_name()
-        if mode == 'pm2':
-            return cls.pm2_restart(name, verbose=verbose)
-        elif mode == 'ray':
-            return cls.ray_restart(name)
-        else:
-            raise Exception(f'mode {mode} not supported')
+    def restart(cls, *names:str, mode:str='pm2', verbose:bool = False):
+
+        if len(names) == 0:
+            names = [None]
+            
         
+        
+        for name in names:
+            print(f'restarting {name}')
+            if name == None:
+                name = cls.default_module_name()
+            if mode == 'pm2':
+                cls.pm2_restart(name, verbose=verbose)
+            elif mode == 'ray':
+                cls.ray_restart(name)
+            else:
+                raise Exception(f'mode {mode} not supported')
+        
+            
+        return names
 
     @classmethod
     def pm2_status(cls, verbose=True):
