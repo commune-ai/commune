@@ -2381,7 +2381,7 @@ class Module:
         Launch a module as pm2 or ray 
         '''
         if update:
-            cls.local_namespace()
+            cls.update()
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         if module == None:
@@ -4394,7 +4394,7 @@ class Module:
                
                ):
 
-            cls.namespace(network,verbose=True, update=True)
+            cls.namespace(network=network,verbose=True, update=True)
             
             # cls.root_module()
 

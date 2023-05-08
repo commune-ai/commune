@@ -747,12 +747,16 @@ class TransformerModel(Model):
                name: str =None, 
                wait_for_server: bool = False, 
                device = None, 
-               replace:bool = True,
+               namespace = None,
+               update:bool = True,
                mode:str = 'pm2',
+               refresh = False,
                tag_seperator:str = '::',     
                **kwargs):
-
-
+        
+        
+        if update:
+            cls.update()
         tag = kwargs.get('tag', None)
         assert len(models) > 0
 
@@ -773,7 +777,7 @@ class TransformerModel(Model):
             if tag:
                 name = name+tag_seperator+str(tag)
                   
-            if cls.module_exists(name) and replace == False:
+            if cls.module_exists(name) and refresh == False:
                 cls.print(f'{name} already exists, skipping...', color='red')
                 continue
             else:
@@ -798,7 +802,7 @@ class TransformerModel(Model):
             cls.launch(name=name,
                        kwargs=kwargs,
                        mode=mode, 
-                       refresh=True,
+                       refresh=False,
                        device=device, 
                        wait_for_server=wait_for_server,
                        verbose=False)
