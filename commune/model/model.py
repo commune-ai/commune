@@ -76,6 +76,9 @@ class Model( nn.Module, commune.Module):
         self.stats_history = []
     
         return stats
+    @classmethod
+    def learn(cls, *args, **kwargs):
+        return cls.module('model.transformer').learn(*args, **kwargs)
         
     def set_optimizer(self, optimizer:dict=None):
         

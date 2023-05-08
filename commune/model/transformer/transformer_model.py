@@ -228,7 +228,7 @@ class TransformerModel(Model):
         
         output['hidden_states'] = output.hidden_states[hidden_state_index]
         output['input_ids'] = sample['input_ids']
-        output['logits']= output.logits[:,-output_length:,:]
+
         
         # map th elogits
         if map_logits:
@@ -238,8 +238,9 @@ class TransformerModel(Model):
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
             
-        output['topk']=self.encode_topk(output['logits'], topk=topk)
         output['loss'] = loss = self.calculate_loss(**output)
+        output['logits']= output.logits[:,-output_length:,:]
+        output['topk']=self.encode_topk(output['logits'], topk=topk)
 
 
         output = self.process_outputs(stats=stats, sample=sample, output=output)
@@ -265,6 +266,7 @@ class TransformerModel(Model):
         num_tokens = stats['input_shape'][0]*stats['input_shape'][1]
         stats['tokens'] = stats.get('tokens', 0) +  num_samples
         stats['samples'] = stats.get('samples', 0) + num_tokens
+        
         if self.training:
             train_stats = stats['train'] = stats.get('train', {})
             loss.backward()
@@ -278,7 +280,7 @@ class TransformerModel(Model):
             train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1
             alpha = 1/self.config.epoch_length
             train_stats['epoch_loss'] = (train_stats.get('epoch_loss', loss)*(1-alpha)+ loss*alpha)
-            
+            stats['loss'] = loss
             train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
             train_stats['time'] = stats['time']
             

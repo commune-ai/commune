@@ -103,10 +103,7 @@ class Validator(c.Model):
             
             print('resorting ot use_fast = False')
             tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-
-
-        print('tokenizer loaded')
-
+        
         self.tokenizer = tokenizer
 
         self.tokenizer = prep_tokenizer(self.tokenizer)
@@ -723,6 +720,8 @@ class Validator(c.Model):
                no_set_weights = True,
                remote:bool = False,
                ):
+        
+        assert not cls.port_used(port), f'Port {port} is already in use.'
         
         if model == None:
             model = cls()

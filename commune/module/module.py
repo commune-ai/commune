@@ -1648,9 +1648,7 @@ class Module:
 
             peer_registry = {}
             peer_addresses = cls.get_peer_addresses()  
-            print('FUCKK')
             async def async_get_peer_name(peer_address):
-                print(peer_address)
                 peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
                 if peer == None: 
                     return peer
@@ -1868,25 +1866,14 @@ class Module:
                   update: bool = False,
                   max_staleness:int = 30,
                   **kwargs):
-        timestamp = cls.timestamp()
         
-        # if update:
-        #     cls.put('updated_timestamp', timestamp )
-        # else:
-        #     updated_timestamp = cls.get('updated_timestamp', 0)
-        #     staleness = timestamp - updated_timestamp
-        #     update = bool(staleness > max_staleness)
-            
         if isinstance(search, str) :
             if hasattr(cls, f'{search}_namespace'):
                 network = search
                 search = None
         else:
             search = None
-        if update:
-            namespace = cls.get(f'namespace/{network}', root=True) 
-            if isinstance(namespace, dict):
-                return namespace
+
 
 
         namespace_fn = getattr(cls, f'{network}_namespace')
@@ -1898,7 +1885,6 @@ class Module:
         
 
         # namespace = {k:v for k,v in namespace.items() if k in connected_module_map}
-        cls.put(f'namespace/{network}', namespace, root=True) 
         return namespace
     
     
@@ -2630,7 +2616,10 @@ class Module:
         from commune.api import API
         return API(*args, **kwargs)
     
-
+    @classmethod
+    def learn(cls, *args, **kwargs):
+        return cls.module('model.transformer').learn(*args, **kwargs)
+        
     
     @classmethod
     def get_methods(cls, obj:type= None, modes:Union[str, List[str]] = 'all',  ) -> List[str]:
