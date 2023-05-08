@@ -15,7 +15,7 @@ trust_remote_code: True
 finetune: 2
 
 optimizer:
-  lr: 1.0e-04
+  lr: 5.0e-05
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}

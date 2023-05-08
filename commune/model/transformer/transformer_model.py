@@ -24,12 +24,8 @@ import streamlit as st
 # logger = logger.opt(colors=True)
     
 # import torch
-import commune
-from commune.model import Model
-# commune.utils
+import commune as c
 from torch import nn
-# commune.new_event_loop()
-from commune.metric import MetricMap
 
 from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
 
@@ -83,7 +79,7 @@ shortcuts =  {
 
 
 from torch import nn
-class TransformerModel(Model):
+class TransformerModel(c.Model):
     shortcuts = shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
 
@@ -138,7 +134,7 @@ class TransformerModel(Model):
         
         return loss
 
-    hf = commune.module('huggingface')()
+    hf = c.module('huggingface')()
 
 
     def generate(self, 
@@ -544,14 +540,14 @@ class TransformerModel(Model):
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
-             batch_delay = 1,
+             batch_delay = 2,
              sequence_length : int = 256,
              batch_size: int = 8,
              autocast : bool = True,
              train: bool= False,
              map_logits : bool = False,
              map_tokens : bool = False,
-             timeout : int= 3,
+             timeout : int= 6,
              remote:bool = False,
              **kwargs
              ):
@@ -576,7 +572,7 @@ class TransformerModel(Model):
         @classmethod
         def resolve_model(cls, model):
             return cls.shortcuts.get(model, model)
-        datasets = commune.connect_pool(dataset)
+        datasets = c.connect_pool(dataset)
         for i in range(num_batches):
             c.sleep(batch_delay)
             try:
@@ -603,9 +599,9 @@ class TransformerModel(Model):
                 return_keys=[ 'topk', 'stats']
             )
             try:
-            
+                sample['timeout'] = timeout
                 output = model.forward(**sample)
-                cls.print('STATS: ',output.get('stats', 'no stats'))
+                cls.print('STATS: ',output.get('stats', output))
             except Exception as e:
                 cls.print(model.forward)
                 raise e
@@ -615,7 +611,7 @@ class TransformerModel(Model):
     
     @classmethod
     def train_fleet(cls, model = 'model.gptj', network='local', **kwargs):
-        models = commune.modules(model, network=network)
+        models = c.modules(model, network=network)
         for m in models:
             cls.print(f"Training {m}")
             cls.learn(model=m, **kwargs)
@@ -640,8 +636,8 @@ class TransformerModel(Model):
     #         kwargs.update(remote=False) # otherwise we get a remote recursion error
     #         return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
         
-    #     models = commune.modules(model, network=network)
-    #     datasets = commune.connect_pool(dataset)
+    #     models = c.modules(model, network=network)
+    #     datasets = c.connect_pool(dataset)
 
     #     for i in range(num_batches):
     #         selected_models = cls.random_ratio_selection(models, selection_ratio )
@@ -705,7 +701,7 @@ class TransformerModel(Model):
                      max_models = 4,
                      **kwargs
                      ) -> List[str]:
-        commune.update()
+        c.update()
         if len(tags) == 0:
         
             tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
@@ -796,7 +792,7 @@ class TransformerModel(Model):
                 free_gpu_memory[k]-= v
                 free_gpu_memory[k] = max(0, free_gpu_memory[k])
             devices = list(max_gpu_memory.keys())
-            # cls.print(commune.reserved_gpus(), 'fam') 
+            # cls.print(c.reserved_gpus(), 'fam') 
             config.model = model
             config.tag = tag
             kwargs = {'config': config, 'tag': tag}

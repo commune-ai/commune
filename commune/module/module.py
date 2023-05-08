@@ -2273,7 +2273,7 @@ class Module:
     @classmethod
     def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True, update:bool = True):
         if update:
-            self.update()
+            cls.update()
         servers = cls.servers()
         delete_modules = []
         for module in modules:
@@ -3870,8 +3870,8 @@ class Module:
         
     @classmethod
     async def async_call(cls,
-                         module = None,
-                         fn = None,
+                         module,
+                         fn,
                          *args,
                          **kwargs) -> None:
 

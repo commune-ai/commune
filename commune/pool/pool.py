@@ -2,15 +2,24 @@ import queue
 import commune as c
 import threading
 import multiprocessing
-
+import asyncio
 class Pool(c.Module):
-    def __init__(self, **kwargs):
+    def __init__(self, fn = None, **kwargs):
 
+    
         self.run_loop = True
         self.init(**kwargs)
+        self.set_fn(fn)
         self.add_workers()
         
         
+        
+    def set_fn(self, fn):
+        if fn is None:
+            fn = self.default_fn
+        self.fn = fn
+        assert callable(self.fn)
+        return fn
         
     def resolve_queue_name(self, name = None):
         if name is None:
@@ -96,7 +105,7 @@ class Pool(c.Module):
         kwargs = dict(
             in_queue = 'input' if in_queue is None else in_queue,
             out_queue = 'output' if out_queue is None else out_queue,   
-            fn = self.default_fn if fn is None else fn,
+            fn = self.fn if fn is None else fn,
         )
 
         self.add_queue(kwargs['in_queue'], mode=mode)
@@ -105,11 +114,13 @@ class Pool(c.Module):
         if verbose:
             self.print(f"Adding worker: {name}, mode: {mode}, kwargs: {kwargs}")
 
+        self.lock = threading.Lock()
         if self.config.mode == 'thread': 
         
             t = threading.Thread(target=self.forward_requests, kwargs=kwargs)
             worker = t
             self.workers[name] = t
+            t.daemon = self.config.daemon
             t.start()
         elif self.config.mode == 'process':
             p = multiprocessing.Process(target=self.forward_requests, kwargs=kwargs)
@@ -124,10 +135,11 @@ class Pool(c.Module):
     def test(cls, **kwargs):
         self  = cls(**kwargs)
         for i in range(10):
-            self.put({'bro':  f"Request {i+1}"})  
-            cls.print(self.queue.output.qsize())
+            self.put(dict(module='dataset.bittensor', fn='sample'))  
         cls.print('Done')
-        self.kill()
+        for  i in range(10):
+            self.get()
+        # self.kill()
     @classmethod
     def get_schema(cls, x):
         x = cls.munch2dict(x)
@@ -146,26 +158,19 @@ class Pool(c.Module):
         
         return x
     
-    cache = {}
-    def background_fn(self, request, **kwargs):
-        request_hash = 'BRO'
-        c.print(f"Background worker: {request} {request_hash}")
-    
+
     
     def default_fn(self,request, **kwargs):
-
+        
         if isinstance(request, dict):
             # get request from queue
             # get function and arguments
-            fn = request.get('fn', None) # identity function
+            module = request.get('module') # identity function
+            fn = request.get('fn', 'forward') # identity function
             kwargs = request.get('kwargs', {})
             args = request.get('args', [])
-            
-            if not callable(fn):
-                fn =lambda x: x
-                
+            result = asyncio.run(c.async_call(module=module, fn=fn, *args,**kwargs))
             assert callable(fn), f"Invalid function: {fn}"
-
             output = fn(*args, **kwargs)
             
             return output
@@ -173,31 +178,37 @@ class Pool(c.Module):
             return request
             
     def forward_requests(self,  **kwargs):
-        verbose = kwargs.get('verbose', True)
-        in_queue = kwargs.get('in_queue', 'input')
-        out_queue = kwargs.get('out_queue', 'output')
-        fn = kwargs.get('fn', self.default_fn)
-        name = kwargs.get('name', 'worker')
-        worker_prefix = f"Worker::{name}"
         
-
-        color= self.ranodm_color()
-        while True:
-            request = self.queue[in_queue].get()
-            if verbose:
-                self.print(f"{worker_prefix} <-- request: {request}", color='yellow')
+        with self.lock:
+            verbose = kwargs.get('verbose', True)
+            in_queue = kwargs.get('in_queue', 'input')
+            out_queue = kwargs.get('out_queue', 'output')
+            fn = kwargs.get('fn', self.fn)
+            name = kwargs.get('name', 'worker')
+            worker_prefix = f"Worker::{name}"
+        
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            color= 'yellow'
+            while True:
+                request = self.queue[in_queue].get()
+                if verbose:
+                    self.print(f"{worker_prefix} <-- request: {request}", color='yellow')
+                    
+                if request == 'kill':
+                    if verbose: 
+                        self.print(f"Killing worker: {name}", color='red')
+                    break
                 
-            if request == 'kill':
-                if verbose: 
-                    self.print(f"Killing worker: {name}", color='red')
-                break
-            
-            
-            output = fn(request, **kwargs)
-            self.queue[out_queue].put(output)
-            
-            if verbose:
-                self.print(f"{worker_prefix} --> result: {output}", color='green')
+                try:
+                    output = fn(request, **kwargs)
+                except Exception as e:
+                    output = str(e)
+                    self.print(f"Error: {e}", color='red')
+                    continue
+                self.queue[out_queue].put(output)
+                
+                if verbose:
+                    self.print(f"{worker_prefix} --> result: {output}", color='green')
     def kill_loop(self):
         self.run_loop = False
 
@@ -206,7 +217,8 @@ class Pool(c.Module):
         for name, worker in self.workers.items():
             self.add_request('kill')
         
-        
+    def __del__(self):
+        self.kill_workers()
     def put(self, request):
         
         self.queue.input.put(request)
@@ -214,8 +226,6 @@ class Pool(c.Module):
     def get(self):
         return getattr(self.queue, q).get()
         
-    def __del__(self):
-        self.kill()
 
 if __name__ == "__main__":
     Pool.test()

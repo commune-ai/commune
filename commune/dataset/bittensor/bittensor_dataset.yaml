@@ -1,6 +1,19 @@
 batch_size: 32
-block_size: 256
-dataset_names: ['default']
+sequence_length: 256
+min_block_size_bytes: 10000
+tokenizer: bittensor.tokenizer
+no_tokenizer: false
+max_hash_size: 10000000
+num_workers: 1
+datasets: 
+  - default
 max_datasets: 10
-num_batches: 100000
-save_dataset: False
+max_directories: 100000
+save_dataset: true
+load_dataset: true
+buffer_size: 1
+buffer_calls_per_update: 1
+download: false
+background: true
+min_hash_count: 850000
+nest_asyncio: true
