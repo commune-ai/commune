@@ -234,8 +234,9 @@ class TransformerModel(c.Model):
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
             
-        output['loss'] = loss = self.calculate_loss(**output)
+        
         output['logits']= output.logits[:,-output_length:,:]
+        output['loss'] = loss = self.calculate_loss(**output)
         output['topk']=self.encode_topk(output['logits'], topk=topk)
 
 
@@ -400,6 +401,12 @@ class TransformerModel(c.Model):
             self.load()
         self.set_stats(config.stats)    
         self.config = config
+
+
+    def set_params(params:dict = None):
+        params = params if params is not None else self.params
+        
+        return params
 
 
     def set_epoch_length(self, epoch_length:int) -> int:

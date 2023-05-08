@@ -2269,13 +2269,17 @@ class Module:
 
 
     @classmethod
-    def kill(cls, *modules, mode:str = 'pm2', verbose:bool = True, update:bool = True):
+    def kill(cls, *modules,
+             mode:str = 'pm2',
+             verbose:bool = True, 
+             network='local',
+             update:bool = True):
         if update:
             cls.update()
-        servers = cls.servers()
+        modules = cls.modules(network=network)
         delete_modules = []
         for module in modules:
-            delete_modules = [server for server in servers if  module in server]
+            delete_modules = [m for m in modules if  module in m]
             if mode == 'pm2':
                 pm2_list =cls.pm2_list()
                 for p in pm2_list:
@@ -2298,6 +2302,8 @@ class Module:
                     cls.pm2_kill(d_m)
                 elif mode == 'ray':
                     cls.ray_kill(d_m)
+                    
+                self.print(f'Killed {d_m}')
                     
             
 
@@ -2565,26 +2571,8 @@ class Module:
     
     
     @classmethod
-    def restart(cls, *names:str, mode:str='pm2', verbose:bool = False):
-
-        if len(names) == 0:
-            names = [None]
-            
-        
-        
-        for name in names:
-            print(f'restarting {name}')
-            if name == None:
-                name = cls.default_module_name()
-            if mode == 'pm2':
-                cls.pm2_restart(name, verbose=verbose)
-            elif mode == 'ray':
-                cls.ray_restart(name)
-            else:
-                raise Exception(f'mode {mode} not supported')
-        
-            
-        return names
+    def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
+        return getattr(cls, f'{mode}_restart')(name, verbose=verbose)
 
     @classmethod
     def pm2_status(cls, verbose=True):

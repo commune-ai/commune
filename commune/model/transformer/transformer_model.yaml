@@ -19,12 +19,11 @@ optimizer:
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
-max_gpu_ratio: 0.8
 model_inflation_ratio: 1.5
 output_length: 4
 max_sequence_length: 256
 tag: null
-load: true
+load: false
 device_map: null
 max_memory: null
 reserve_gpus: False
@@ -33,7 +32,6 @@ test: false
 train: True
 min_steps_since_save: 100 # save at most every 50 steps
 max_epochs_since_saved: 2
-min_epochs_since_saved: 1
 default_metric: 12
 hidden_size: 768
 vocab_size: 50258
