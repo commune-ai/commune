@@ -63,7 +63,9 @@ class BittensorDataset(Module):
             background: bool = True,
             min_hash_count : int = 850000,
             loop: Optional['asyncio.loop'] = None ,
-            nest_asyncio: bool = True):
+            nest_asyncio: bool = True
+            
+            ):
 
         self.kwargs = locals()
         self.loop = loop if loop else self.get_event_loop()
@@ -918,7 +920,6 @@ class BittensorDataset(Module):
     
         for dataset in datasets:
             module_name = f'dataset:{dataset.lower()}'
-            print(commune.connect(module_name).sample())
             
     
     @classmethod
