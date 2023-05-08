@@ -532,7 +532,10 @@ class TransformerModel(Model):
     
     
 
-     
+    @classmethod
+    def resolve_model(cls, model):
+        return cls.shortcuts.get(model, model)
+    
     @classmethod
     def learn(cls , *args, **kwargs):
         kwargs['train'] = True
@@ -570,9 +573,6 @@ class TransformerModel(Model):
         def sample_check(sample):
             return bool(isinstance(sample, dict) and 'input_ids' in sample)
         
-        @classmethod
-        def resolve_model(cls, model):
-            return cls.shortcuts.get(model, model)
         datasets = commune.connect_pool(dataset)
         for i in range(num_batches):
             try:
@@ -583,7 +583,7 @@ class TransformerModel(Model):
             except Exception as e:
                 del datasets[data_idx]
                 cls.print('failed to sample from dataset, skipping batch')
-
+                continue
             if not sample_check(sample):
                 cls.print('Sample check failed, skipping batch')
                 continue
@@ -737,7 +737,7 @@ class TransformerModel(Model):
                name: str =None, 
                wait_for_server: bool = False, 
                device = None, 
-               replace:bool = False,
+               refresh:bool = False,
                mode:str = 'pm2',
                tag_seperator:str = '::',     
                **kwargs):
@@ -763,7 +763,7 @@ class TransformerModel(Model):
             if tag:
                 name = name+tag_seperator+str(tag)
                   
-            if cls.module_exists(name) and replace == False:
+            if cls.module_exists(name) and refresh == False:
                 cls.print(f'{name} already exists, skipping...', color='red')
                 continue
             else:
@@ -788,7 +788,6 @@ class TransformerModel(Model):
             cls.launch(name=name,
                        kwargs=kwargs,
                        mode=mode, 
-                       refresh=True,
                        device=device, 
                        wait_for_server=wait_for_server,
                        verbose=False)
