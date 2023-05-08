@@ -540,6 +540,11 @@ class BittensorModule(commune.Module):
         self.streamlit_neuron_metrics()
         
         
+    @classmethod
+    def score(cls, wallet='collective.0'):
+        cmd = f"grep Loss ~/.pm2/logs/{wallet}.log"+ " | awk -F\| {'print $10'} | awk {'print $2'} | awk '{for(i=1;i<=NF;i++) {sum[i] += $i; sumsq[i] += ($i)^2}} END {for (i=1;i<=NF;i++) {printf \"%f +/- %f \", sum[i]/NR, sqrt((sumsq[i]-sum[i]^2/NR)/NR)}}'"
+        print(cmd)
+        return cls.cmd(cmd)
 if __name__ == "__main__":
     BittensorModule.run()
 
