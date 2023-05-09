@@ -432,22 +432,19 @@ class Module:
         if encrypted:
             data = cls.decrypt(data, password=password)
         return data
-    @classmethod
-    def putc(cls, key, value) -> Munch:
+    def putc(self, key, value) -> Munch:
         '''
         Saves the config to a yaml file
         '''
-        config = cls.get_config()
+        config = self.config
         cls.dict_put(config, key, value)
         cls.set_config(config=config)
         
-    @classmethod
-    def getc(cls, key) -> Munch:
+    def getc(self, key) -> Munch:
         '''
         Saves the config to a yaml file
         '''
-        config = cls.get_config()
-        return cls.dict_get(config, key)
+        return cls.dict_get(self.config, key)
     
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
@@ -3917,6 +3914,7 @@ class Module:
     def call_pool(cls, *args, **kwargs):
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call_pool(*args, **kwargs))
+    cpool = call_pool
     @classmethod
     async def async_call_pool(cls,
                               modules = None, 
@@ -4286,6 +4284,7 @@ class Module:
     def reset_peers(cls, *args, **kwargs):
         cls.rm_peers()
         return cls.add_peers(*args, **kwargs)
+    
     
     @classmethod
     def add_peers(cls, *peer_addresses, **kwargs): 

@@ -70,7 +70,8 @@ class Model( nn.Module, commune.Module):
     def set_stats(self, stats: dict = None, **kwargs):
         if stats == None:
             stats = self.__dict__.get('stats', {})
-        stats.update(kwargs)
+        if len(stats)>0:
+            stats.update(kwargs)
         self.stats = self.config['stats'] = stats
         self.stats_history = []
     

@@ -34,8 +34,12 @@ class Dataset(c.Module):
     
     @classmethod
     def deploy_fleet(cls, **kwargs):
+        tag = kwargs.get('tag', None)
         for d in cls.availabe_datasets():
             c.print(f'Deploying {d}')
+            if tag is not None:
+                d = f'{d}.{tag}'
+            
             cls.deploy(kwargs={'dataset_names': d, **kwargs}, tag=d)
     
     @classmethod
