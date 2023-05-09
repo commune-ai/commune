@@ -736,7 +736,6 @@ class TransformerModel(c.Model):
     def deploy_fleet(cls, 
                      *tags, 
                      model = 'gptj',
-                     max_models = 4,
                      **kwargs
                      ) -> List[str]:
         c.update()
