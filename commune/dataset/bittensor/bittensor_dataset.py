@@ -1,9 +1,9 @@
 import bittensor
-import commune
+import commune as c
 
-class Dataset(commune.Module):
+class Dataset(c.Module):
     def __init__(self, config=None, **kwargs):
-        config = self.set_config(config, kwargs=kwargs)
+        config = self.set_config(config=config, kwargs=kwargs)
 
         bittensor_dataset_config = bittensor.dataset.config()
         config = self.munch({**bittensor_dataset_config.dataset, **config})
@@ -14,7 +14,7 @@ class Dataset(commune.Module):
         
 
         
-        self.test(self)
+        # self.test(self)
         
     # def getattr(self, key):
     #     if hasattr(getattr(self, 'dataset'), key):
@@ -27,6 +27,16 @@ class Dataset(commune.Module):
 
     #     return commune.deploy(kwargs=kwargs, name=name, tag=tag)
     
+    @classmethod
+    def availabe_datasets(cls):
+        return cls.getc('available_datasets')
+    
+    
+    @classmethod
+    def deploy_fleet(cls, **kwargs):
+        for d in cls.availabe_datasets():
+            c.print(f'Deploying {d}')
+            cls.deploy(kwargs={'dataset_names': d, **kwargs}, tag=d)
     
     @classmethod
     def check_sample(cls, sample):
@@ -40,13 +50,14 @@ class Dataset(commune.Module):
         return sample
     
     
+    
     @classmethod
-    def test(cls, dataset=None, *args, **kwargs):
-        if dataset is None:
-            dataset = cls(*args, **kwargs)
+    def test(cls, *args, module=None, **kwargs):
         cls.print('Testing dataset')
+        dataset = cls(*args, **kwargs)
         sample = dataset.sample()
-        cls.check_sample(sample)
+        assert cls.check_sample(sample)
+        c.print('Dataset test passed')
 
 if __name__ == "__main__":
     Dataset.run()

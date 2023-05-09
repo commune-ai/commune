@@ -5,7 +5,6 @@ save: true # save on epoch
 device: null
 stats: null
 epoch_length: 100
-min_steps_since_saved: 50
 default_metric: 12
 hidden_size: 768
 vocab_size: 50258
@@ -22,6 +21,7 @@ stats: {}
 model_inflation_ratio: 1.5
 output_length: 4
 max_sequence_length: 256
+clip_grad_norm: 1.0
 tag: null
 load: false
 device_map: null
@@ -30,7 +30,7 @@ reserve_gpus: False
 verbose: true
 test: false
 train: True
-min_steps_since_save: 100 # save at most every 50 steps
+min_samples_since_checkpoint: 100 # save at most every 50 steps
 max_epochs_since_saved: 2
 default_metric: 12
 hidden_size: 768
