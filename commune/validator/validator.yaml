@@ -20,4 +20,6 @@ topk: 512
 load: True
 save: True
 new_loop_per_forward: True
+optimizer: 
+  lr: 0.0001
 hidden_size : 512
