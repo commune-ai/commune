@@ -1272,7 +1272,8 @@ class Module:
         path = cls.resolve_path(path=path, extension='json', root=root)
         try:
             data = await async_get_json(path, **kwargs)
-        except FileNotFoundError:
+        except Exception as e:
+            cls.print(f'Failed to load json from {path} with error {e}')
             return default
         if data == None:
             data = {}
