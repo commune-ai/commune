@@ -2270,17 +2270,16 @@ class Module:
 
 
     @classmethod
-    def kill(cls, *modules,
+    def kill(cls, module,
              mode:str = 'pm2',
              verbose:bool = True, 
              network='local',
              update:bool = True):
         if update:
             cls.update()
-        modules = cls.modules(network=network)
+        modules = cls.modules(module,network=network)
         delete_modules = []
         for module in modules:
-            delete_modules = [m for m in modules if  module in m]
             if mode == 'pm2':
                 pm2_list =cls.pm2_list()
                 for p in pm2_list:
@@ -2304,7 +2303,7 @@ class Module:
                 elif mode == 'ray':
                     cls.ray_kill(d_m)
                     
-                self.print(f'Killed {d_m}')
+                cls.print(f'Killed {d_m}')
                     
             
 

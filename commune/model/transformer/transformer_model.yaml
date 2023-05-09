@@ -5,14 +5,14 @@ save: true # save on epoch
 device: null
 stats: null
 epoch_length: 100
+patience_epochs: 2
 default_metric: 12
 hidden_size: 768
 vocab_size: 50258
 loss_sigdigs: 3
 max_gpu_ratio: 0.8
 trust_remote_code: True
-finetune: 3
-
+finetune: 2
 optimizer:
   lr: 1.0e-05
   module: torch.optim.Adam

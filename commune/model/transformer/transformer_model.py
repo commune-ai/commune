@@ -732,12 +732,47 @@ class TransformerModel(c.Model):
         'all': default_models,
         'default': default_models,
     }
+    
+    
+    @staticmethod
+    def get_configurations(params:dict)-> List[dict]:
+        import itertools
+        configurations = []
+        keys = params.keys()
+        values = [params[key] for key in keys]
+        for combination in itertools.product(*values):
+            config = {}
+            for i, key in enumerate(keys):
+                config[key] = combination[i]
+            configurations.append(config)
+        return configurations
+
+    @classmethod
+    def hyperfleet(cls, 
+                     *tags, 
+                     model = 'gptj',
+                     params = {
+                         'optimizer.lr': [1e-4, 1e-5],
+                         'finetune': [1,2,3,4],
+                     }, 
+                     **kwargs
+                     ) -> List[str]:
+        params_configurations = cls.get_configurations(params)
+        deployed_models = []
+        free_gpu_memory  = cls.free_gpu_memory()
+        for params in params_configurations:
+            kwargs.update(params)
+            tag = '_'.join([f'{k}:{v}' for k,v in params.items()])
+            deployed_models += cls.deploy(model, tag=tag, free_gpu_memory=free_gpu_memory, **kwargs)
+        
+        return {'deployed': deployed_models}
     @classmethod
     def deploy_fleet(cls, 
                      *tags, 
                      model = 'gptj',
                      **kwargs
                      ) -> List[str]:
+        
         c.update()
         if len(tags) == 0:
         
@@ -785,6 +820,7 @@ class TransformerModel(c.Model):
                namespace = None,
                update:bool = False,
                mode:str = 'pm2',
+               free_gpu_memory: dict = None,
                refresh = False,
                tag_seperator:str = '::',     
                **kwargs):
@@ -795,8 +831,8 @@ class TransformerModel(c.Model):
         tag = kwargs.get('tag', None)
         assert len(models) > 0
 
-        
-        free_gpu_memory = cls.free_gpu_memory()
+        if free_gpu_memory == None:
+            free_gpu_memory = cls.free_gpu_memory()
         
         config = cls.get_config(kwargs=kwargs)
         
