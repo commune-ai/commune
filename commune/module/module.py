@@ -498,7 +498,7 @@ class Module:
             default_config.update(config)
             config = default_config
             
-        assert isinstance(config, dict)
+        assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         
         kwargs = kwargs if kwargs != None else {}
         kwargs.update(kwargs.pop('kwargs', {}))
@@ -4269,8 +4269,8 @@ class Module:
     def add_peer(cls, *args, **kwargs):
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
-       
-    add_peers = add_peer
+    
+    
     
     
     @classmethod
@@ -4283,49 +4283,55 @@ class Module:
         return True
     
     @classmethod
+    def reset_peers(cls, *args, **kwargs):
+        cls.rm_peers()
+        return cls.add_peers(*args, **kwargs)
+    
+    @classmethod
+    def add_peers(cls, *peer_addresses, **kwargs): 
+        if len(peer_addresses) == 0:
+            peer_address = cls.boot_peers()
+            
+        if len(peer_addresses) == 1 and isinstance(peer_addresses[0], list):
+            peer_addresses = peer_addresses[0]
+        jobs = []
+        for peer_address in peer_addresses:
+            job = cls.async_add_peer(peer_address, **kwargs)
+            jobs += [job]
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(asyncio.gather(*jobs))
+    
+    @classmethod
     async def async_add_peer(cls, 
-                             *peer_addresses,
+                             peer_address,
                              verbose:bool = True,
                              timeout:int=1):
         
-        if len(peer_addresses) == 1:
-            if isinstance(peer_addresses[0], list):
-                peer_addresses = peer_addresses[0]
-        
         peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
-        if len(peer_addresses) == 0:
-            peer_addresses = cls.boot_peers()
-            
-        peer_jobs = []
-        # get the server registry for each peer
-        for peer_address in peer_addresses:
-            peer_job = cls.async_call(module=peer_address, fn='namespace', timeout=timeout, network='local')
-            peer_jobs.append(peer_job)
-            
-        # wait for all jobs to complete
-        peer_namespaces = await asyncio.gather(*peer_jobs)
+
+        peer_namespace = await cls.async_call(module=peer_address, fn='namespace', timeout=timeout, network='local')
         
-        
-        cls.print(f'Adding peer to registry, {peer_addresses}')
+        if verbose:
+            cls.print(f'Adding peer to registry, {peer_address}')
 
         #  add each peer to the registry
-        for peer_address, peer_namespace in zip(peer_addresses, peer_namespaces):
-            if 'error' in peer_namespace:
-                if verbose:
-                    cls.print(f'Error adding peer {peer_address}',color='red')
-                continue
-            
-            peer_ip = ':'.join(peer_address.split(':')[:-1])
-            peer_port = int(peer_address.split(':')[-1])
-            
-            peer_namespace = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_namespace.items()}
 
-            peer_registry[peer_address] = dict(name=None, 
-                                               namespace=peer_namespace,
-                                               address = peer_address)
+        if 'error' in peer_namespace:
+            if verbose:
+                cls.print(f'Error adding peer {peer_address}',color='red')
+            return None     
+        print(peer_address)   
+        peer_ip = ':'.join(peer_address.split(':')[:-1])
+        peer_port = int(peer_address.split(':')[-1])
+        
+        peer_namespace = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_namespace.items()}
+
+        peer_registry[peer_address] = dict(name=None, 
+                                            namespace=peer_namespace,
+                                            address = peer_address)
             
-        await Module.async_put_json('peer_registry', peer_registry)
+        await cls.async_put_json('peer_registry', peer_registry, root=True)
         
         return peer_registry
     
@@ -4496,11 +4502,9 @@ class Module:
                
         for gpu_id, gpu_info in gpu_info_map.items():
             if int(gpu_id) in gpus:
-                
                 gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'], 0)
                 if gpu_memory <= 0:
                     continue
-                    
                 free_gpu_memory[gpu_id] = int(cls.copy(gpu_memory /scale))
                 if fmt == '%':
                     free_gpu_memory[gpu_id] =int((free_gpu_memory[gpu_id]/gpu_info['total']) * 100)

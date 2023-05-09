@@ -112,7 +112,7 @@ class TransformerModel(c.Model):
         Calculate the loss for the model.
         '''
         gt = input_ids[:, -(logits.shape[1]-1):].flatten()
-        pred = logits[:, :logits.shape[1]-1]
+        pred = logits[:, :-1]
             
         if len(pred.shape) == 3:
             pred = pred.reshape(-1, pred.shape[-1])
@@ -265,8 +265,11 @@ class TransformerModel(c.Model):
         stats['samples'] = stats.get('samples', 0) + num_tokens
         
         if self.training:
+
             train_stats = stats['train'] = stats.get('train', {})
             loss.backward()
+            if self.config.get('clip_grad_norm', 0)> 0:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
             self.optimizer.step()
             loss = loss.item()
             train_stats['epoch'] = train_stats.get('epoch', 0)
@@ -280,7 +283,7 @@ class TransformerModel(c.Model):
             stats['loss'] = loss
             train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
             train_stats['time'] = stats['time']
-            
+            train_stats['checkpoint_step'] = train_stats.get('checkpoint_step', 0)
             for k_r in ['best_loss', 'epoch_loss']:
                 train_stats[k_r] = self.round(train_stats[k_r], self.config.loss_sigdigs)
             train_stats['loss_history'] =train_stats.get('loss_history',[])
@@ -292,23 +295,24 @@ class TransformerModel(c.Model):
                 train_stats['batch_count'] = 0
                 
                 # check if the loss is better than the best loss
-            is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
-            train_stats['is_better'] = is_better
+
             train_stats['saved_step'] = train_stats.get('saved_step', 0)
             
-            train_stats['steps_since_saved'] = train_stats['steps'] - train_stats['saved_step']
+            train_stats['steps_since_checkpoint'] = train_stats['steps'] - train_stats['checkpoint_step']
+            self.config.min_steps_since_checkpoint = self.config.get('min_steps_since_checkpoint', self.config.epoch_length)
 
-            if is_better:
-                if train_stats['steps_since_saved'] >= self.config.min_steps_since_saved :
+            if train_stats['steps_since_checkpoint'] >= self.config.min_steps_since_checkpoint :
+                is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
+                train_stats['is_better'] = is_better
+                if  is_better:
                     self.set_stats(stats)
                     self.save() # save all
-                    train_stats['saved_step'] = train_stats['steps']
-                    
-                train_stats['best_loss'] = train_stats['epoch_loss']
-                
-            else:
-                if train_stats['steps_since_saved'] > self.config.min_steps_since_saved:
+                    train_stats['saved_step'] = train_stats['checkpoint_step'] = train_stats['steps']
+                    train_stats['best_loss'] = train_stats['epoch_loss']
+                else:
                     self.load()
+                    train_stats['loaded_step'] = train_stats['checkpoint_step'] = train_stats['steps']
+                    train_stats['epoch_loss'] = train_stats['best_loss']
 
             
             self.set_stats(stats)
@@ -328,7 +332,7 @@ class TransformerModel(c.Model):
 
     
     def set_model(self, config) -> None:
-        from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
+        from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         
         self.model_path = config['model_path'] = config['model'] = self.shortcuts.get(config['model'], config['model'])
@@ -378,6 +382,7 @@ class TransformerModel(c.Model):
             self.print(f'model_kwargs: {model_kwargs}')
        
         self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
+        c.print(self.model.config)
         
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
@@ -536,26 +541,72 @@ class TransformerModel(c.Model):
         return text
     
     
-    
-
     @classmethod
-    def resolve_model(cls, model):
-        return cls.shortcuts.get(model, model)
+    def sample_check(cls, sample):
+        return bool(isinstance(sample, dict) and 'input_ids' in sample)
     
     @classmethod
-    def learn(cls , *args, **kwargs):
-        kwargs['train'] = True
-        return cls.evaluate(*args, **kwargs)
+    def sample_generator(cls, dataset, max_trials=10, batch_size=1, sequence_length=64, num_batches=10):
+        sample = None
+        if not hasattr(cls, 'dataset_pool'):
+            cls.dataset_pool = c.connect_pool(dataset)
+        
+        
+        for _ in range(num_batches):
+            sample = None
+            fail_count = 0
+            
+        
+            while not cls.sample_check(sample) and fail_count < max_trials:
+                if len(cls.dataset_pool) == 0:
+                    cls.dataset_pool = c.connect_pool(dataset)
+                try:
+                    data_idx =cls.choice(list(range(len(cls.dataset_pool))))
+                    sample = cls.dataset_pool[data_idx].sample(batch_size=batch_size,
+                                            sequence_length=sequence_length)
+                    if not sample_check(sample):
+                        raise Exception('Sample check failed')
+                    
+                    
+                except Exception as e:
+                    fail_count += 1
+                    del cls.dataset_pool[data_idx]
+                    # cls.print(f'ERROR {e} failed to sample, removing dataset {data_idx}, {len(cls.dataset_pool)} remaining', color='red')
+            yield sample
+    
+    
+    
     @classmethod
-    def evaluate(cls, model = 'gpt125m', 
+    def resolve_model(cls, model, **kwargs):      
+        if isinstance(model, str):
+            if cls.module_exists(model):
+                model  = cls.connect(model) 
+            else:
+                model = cls(model=model, **kwargs)
+        elif isinstance(model, nn.Module):
+            model = model
+        elif isinstance(model, dict):
+            model = cls(**model)
+        elif model == None:
+            model = cls()
+        else:
+            raise ValueError(f"Model type {type(model)} not supported.")
+        
+        
+        return model
+                
+    
+    
+    @classmethod
+    def learn(cls, model = 'gpt125m', 
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
-             batch_delay = 0.3,
+             batch_delay = 0.0,
              sequence_length : int = 256,
              batch_size: int = 8,
              autocast : bool = True,
-             train: bool= False,
+             train: bool= True,
              map_logits : bool = False,
              map_tokens : bool = False,
              timeout : int= 6,
@@ -568,43 +619,15 @@ class TransformerModel(c.Model):
             kwargs['remote'] = False
             return cls.remote_fn(fn='learn',kwargs=kwargs, name=f"train::{model}")
         
-        
-        if isinstance(model, str):
-            if cls.module_exists(model):
-                model  = cls.connect(model) 
-            else:
-                model = cls(model=model, **kwargs)
-        
-        
-        
-        def sample_check(sample):
-            return bool(isinstance(sample, dict) and 'input_ids' in sample)
-        
-        datasets = c.connect_pool(dataset)
-        
-        data_idx = cls.choice(list(range(len(datasets))))
-        
-        @classmethod
-        def resolve_model(cls, model):
-            return cls.shortcuts.get(model, model)
-        datasets = c.connect_pool(dataset)
-        data_idx = 0
-        for i in range(num_batches):
-            
-            try:
-                dataset = datasets[data_idx]
-                sample = dataset.sample(batch_size=batch_size,
-                                        sequence_length=sequence_length)
-                if not sample_check(sample):
-                    raise Exception('Sample check failed')
-            except Exception as e:
+        model = cls.resolve_model(model, **kwargs)
+        sample_generator = cls.sample_generator(dataset=dataset,
+                                                batch_size=batch_size, 
+                                                sequence_length=sequence_length,
+                                                num_batches=num_batches)
 
-                del datasets[data_idx]
-                cls.print(f'failed to sample, removing dataset {data_idx}, {len(datasets)} remaining')
-                data_idx = cls.choice(list(range(len(datasets))))
-                
-                continue
-        
+        for i in range(num_batches):
+            sample = next(sample_generator)
+            
             c.sleep(batch_delay)
             sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
             sample.update(
@@ -615,17 +638,14 @@ class TransformerModel(c.Model):
                 autocast=autocast,
                 timeout=timeout,
                 return_keys=[ 'topk', 'stats']
+                
             )
-            try:
-                sample['timeout'] = timeout
-                output = model.forward(**sample)
-                cls.print('STATS: ',output.get('stats', output))
-            except Exception as e:
-                cls.print(model.forward)
-                raise e
+            output = model.forward(**sample)
+            cls.print('STATS: ',output.get('stats', output))
+
           
           
-    test = evaluate
+    test = evaluate = learn
     
     @classmethod
     def train_fleet(cls, model = 'model.gptj', network='local', **kwargs):

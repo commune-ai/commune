@@ -1,21 +1,5 @@
 """ Manages a pool of grpc connections as clients
 """
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
-# DEALINGS IN THE SOFTWARE.
 
 import math
 from typing import Tuple, List, Union
@@ -29,24 +13,19 @@ import commune
 from concurrent.futures import ThreadPoolExecutor
 import commune
 
-logger = logger.opt(colors=True)
-
-
 class ClientPool (commune.Module):
     """ Manages a pool of grpc connections as clients
     """
     def __init__(
-        self, 
-        max_active_clients: int = 1000,
+        self, **kwargs
     ):
-        super().__init__()
-        self.max_active_clients = max_active_clients
+        self.set_config(kwargs=kwargs)
+        self.max_active_clients = self.config.max_active_clients
+        self.client_modules = self.modules()
         self.clients = {}
+        self.stats = {}
         self.cull_mutex = Lock()
         self.total_requests = 0
-        
-
-        self.external_ip = self.external_ip()
 
 
     def __str__(self):
@@ -64,9 +43,8 @@ class ClientPool (commune.Module):
 
     def forward (
             self, 
-            endpoints: List [ 'bittensor.Endpoint' ],
-            synapses: List[ 'bittensor.Synapse' ],
-            inputs: List [ torch.Tensor ],
+            modules: List [str ] = None,
+            kwargs = None, 
             timeout: int,
             min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
@@ -98,33 +76,25 @@ class ClientPool (commune.Module):
                 forward_times (:obj:`List[ List [float] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
                     dendrite backward call times
         """
-        if len(endpoints) != len(inputs):
-            raise ValueError('Endpoints must have the same length as passed inputs. Got {} and {}'.format(len(endpoints), len(inputs)))
-        
+
         loop = self.get_event_loop()
         return loop.run_until_complete ( 
-            self.async_forward(
-                endpoints = endpoints,
-                synapses = synapses,
-                inputs = inputs,
-                timeout = timeout
-                min_successes = min_successes,
-            ) 
+            self.async_forward(kwargs=kwargs) 
         )
 
 
     async def async_forward (
             self, 
-            modules: List,
+            module = None,
             fn: None,
             args = None,
             kwargs = None,
             timeout: int = 2,
-            min_successes: int = 20,
+            min_successes: int = 2,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         # Init clients.
         clients = await asyncio.gather(*[ self.async_get_client( m ) for m in modules ])
-        
+        clients = zip(modules, clients)
 
 
         kwargs = {} if kwargs == None else kwargs
@@ -133,7 +103,7 @@ class ClientPool (commune.Module):
         # Make calls.
         running_tasks = []
         st.write(inputs[0].shape, inputs[0].dtype)
-        for index, client in enumerate(clients):
+        for index, (client) in enumerate(clients.items()):
             args, kwargs = self.copy(args), self.copy(kwargs)
             task = asyncio.create_task(
                 client.async_forward(*args, **kwargs)
@@ -193,5 +163,4 @@ class ClientPool (commune.Module):
             self.clients[ client.endpoint.hotkey ] = client
             
         return client
-    def getattr(self, *args, **kwargs):
-        return self.__getattribute__(  *args, **kwargs)
+    
