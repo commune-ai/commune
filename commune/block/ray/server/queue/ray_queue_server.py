@@ -107,7 +107,7 @@ class QueueServer(Module):
 
 
     def put(self, topic, item, block=False, timeout=None, **kwargs):
-        if not self.exists(topic):
+        if not self.file_exists(topic):
             self.create_topic(topic=topic, **kwargs)
         
         try:
@@ -119,7 +119,7 @@ class QueueServer(Module):
 
 
     def put_batch(self, topic, items, **kwargs):
-        if not self.exists(topic):
+        if not self.file_exists(topic):
             self.create_topic(topic=topic, **kwargs)
         return self.get_queue(topic).put_nowait_batch(items)
 

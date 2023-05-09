@@ -784,7 +784,7 @@ class Keypair(commune.Module):
         if path == None:
             oath = self.default_path
         if override == False:
-            assert self.exists(path) == False, "Path already exists, set override=True to override"
+            assert self.file_exists(path) == False, "Path already exists, set override=True to override"
         state = self.state_dict(password=password, encrypt=encrypt)
         self.put_json(path, state)
 

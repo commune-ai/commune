@@ -29,7 +29,7 @@ class Dataset(c.Module):
     
     @classmethod
     def availabe_datasets(cls):
-        return cls.getc('available_datasets')
+        return cls.get_config().get('available_datasets')
     
     
     @classmethod

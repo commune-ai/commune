@@ -5,7 +5,7 @@ save: true # save on epoch
 device: null
 stats: null
 epoch_length: 100
-patience_epochs: 2
+patience_epochs: 4
 best_loss_delta: -0.1
 default_metric: 12
 hidden_size: 768
