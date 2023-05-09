@@ -1108,8 +1108,14 @@ class Module:
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
         modules = list(cls.namespace(*args, **kwargs).keys())
-        modules = sorted(modules)
+        # sorted(modules)
         return modules
+    
+    @classmethod
+    def valid_module(cls,module,**kwargs ):
+        modules = cls.modules(module, **kwargs)
+        print(modules)
+        return bool(len(modules) > 0)
     
     @classmethod
     def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
@@ -1321,7 +1327,7 @@ class Module:
     save_json = put_json
     
     @classmethod
-    def exists(cls, path:str, extension = 'json', root:bool = False)-> bool:
+    def file_exists(cls, path:str, extension = 'json', root:bool = False)-> bool:
         path = cls.resolve_path(path=path, extension=extension, root=root)
         return os.path.exists(path)
 
@@ -1329,7 +1335,7 @@ class Module:
 
     
     
-    exists_json = exists
+    exists_json = file_exists
 
     @classmethod
     def rm_json(cls, path=None, root:bool = False):
@@ -1796,7 +1802,7 @@ class Module:
         return bool(name in cls.servers())
     
     @classmethod
-    def module_exists(cls, name:str, **kwargs) -> bool:
+    def exists(cls, name:str, **kwargs) -> bool:
         namespace = cls.namespace(**kwargs)
         return bool(name in namespace)
     
@@ -4235,7 +4241,7 @@ class Module:
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
 
-        if not cls.exists('port_range', root=True):
+        if not cls.file_exists('port_range', root=True):
             cls.set_port_range(port_range)
             
         if port_range == None:

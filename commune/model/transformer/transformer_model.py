@@ -596,7 +596,7 @@ class TransformerModel(c.Model):
     @classmethod
     def resolve_model(cls, model, **kwargs):      
         if isinstance(model, str):
-            if cls.module_exists(model):
+            if cls.exists(model):
                 model  = cls.connect(model) 
             else:
                 model = cls(model=model, **kwargs)
@@ -782,6 +782,7 @@ class TransformerModel(c.Model):
         deployed_models = []
         free_gpu_memory  = cls.free_gpu_memory()
         for params in params_configurations:
+            
             kwargs.update(params)
             tag = '_'.join([f'{k}:{v}' for k,v in params.items()])
             deployed_models += cls.deploy(model, tag=tag, free_gpu_memory=free_gpu_memory, **kwargs)
@@ -809,7 +810,7 @@ class TransformerModel(c.Model):
         models = cls.fleet_group.get(models, models)
         undeployed_models = []
         for model in models:
-            if cls.module_exists(f'model.{model}') == False:
+            if cls.exists(f'model.{model}') == False:
                 undeployed_models.append(model)
         return undeployed_models
        
@@ -869,7 +870,7 @@ class TransformerModel(c.Model):
             if tag:
                 name = name+tag_seperator+str(tag)
                   
-            if cls.module_exists(name) and refresh == False:
+            if cls.exists(name) and refresh == False:
                 cls.print(f'{name} already exists, skipping...', color='red')
                 continue
             else:
