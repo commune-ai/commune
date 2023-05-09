@@ -5,6 +5,8 @@ save: true # save on epoch
 device: null
 stats: null
 epoch_length: 100
+patience_epochs: 2
+best_loss_delta: -0.1
 default_metric: 12
 hidden_size: 768
 vocab_size: 50258
@@ -30,7 +32,6 @@ reserve_gpus: False
 verbose: true
 test: false
 train: True
-min_samples_since_checkpoint: 100 # save at most every 50 steps
 max_epochs_since_saved: 2
 default_metric: 12
 hidden_size: 768
