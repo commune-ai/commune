@@ -296,8 +296,8 @@ class TransformerModel(c.Model):
             train_stats['saved_step'] = train_stats.get('saved_step', 0)
             
             train_stats['steps_since_checkpoint'] = train_stats['steps'] - train_stats['checkpoint_step']
-            if 'patience_steps' not in self.config:
-                self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
+            
+            self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
             
             train_stats['patience_steps'] = self.config.patience_steps
             if len(train_stats['loss_history']) >= self.config.patience_epochs:
