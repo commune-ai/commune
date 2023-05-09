@@ -53,8 +53,6 @@ class Dataset(c.Module):
         sample = {'input_ids': input_ids}
         return sample
     
-    
-    
     @classmethod
     def test(cls, *args, module=None, **kwargs):
         cls.print('Testing dataset')

@@ -270,7 +270,6 @@ class Model( nn.Module, commune.Module):
             self.check_config(config)
             self.set_config(config)
             # DO WE WANT TO REBUILD THE MODEL WHEN WE LOAD A CONFIG WITH SLIGHTLY DIFFERENT PARAMS
-            self.set_stats(config.stats)
             
         if 'model' in loaded_state_dict:
             self.print('Loading model')

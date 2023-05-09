@@ -339,6 +339,9 @@ class TransformerModel(c.Model):
 
     
     def set_model(self, config) -> None:
+        
+        if config.load:
+            self.load(keys=['config']) 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         
@@ -362,16 +365,14 @@ class TransformerModel(c.Model):
         free_gpu_memory = self.free_gpu_memory()
 
               
-        if config.max_memory == None:
-            config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
-                                                max_gpu_ratio=config.max_gpu_ratio,
-                                                reserve=config.reserve_gpus)
-        
-        
-            config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
+        config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
+                                            max_gpu_ratio=config.max_gpu_ratio,
+                                            reserve=config.reserve_gpus)
+    
+    
+        config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
 
-        if config.device_map == None:
-            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+        config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
         
         verbose = config.verbose
         

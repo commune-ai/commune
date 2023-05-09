@@ -360,6 +360,7 @@ class Module:
         '''
         
         path = cls.resolve_config_path(path, root=root)
+        print(path)
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -499,7 +500,7 @@ class Module:
                 
         if isinstance(config, str) or config == None:
             config = cls.load_config(path=config)
-            assert isinstance(config, dict)
+            assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
             default_config = cls.load_config()
             default_config.update(config)
@@ -2300,6 +2301,7 @@ class Module:
 
         return delete_modules
 
+    delete = kill
     def destroy(self):
         self.kill(self.module_name)
         return path
@@ -4857,6 +4859,10 @@ class Module:
     def learn(cls, *args, **kwargs):
         return cls.module('model.transformer').learn(*args, **kwargs)
         
+    @classmethod
+    def miner(cls,*args, **kwargs):
+        kwargs['remote'] = kwargs.get('remote', True)
+        return cls.module('validator').miner(*args, **kwargs)
 if __name__ == "__main__":
     Module.run()
     

@@ -25,20 +25,23 @@ class Validator(c.Model):
                  ):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
-        
+
         if config.load:
             self.load(self.tag)
+
         self.set_namespace()
+
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_max_stats_history(config.max_stats_history)
         self.set_batch_size(config.batch_size)
         self.set_sequence_length(config.sequence_length)
         self.set_dataset(config.dataset)
-        self.set_stats(config.stats)
         self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
+        self.weights = nn.Parameter(torch.ones(5))
 
-        
+        self.set_optimizer(config.optimizer)
+
     namespace_update_ts =0
     _namespace = None
     
@@ -490,18 +493,14 @@ class Validator(c.Model):
             self.print(stats)
         return Munch(ensemble)
 
-    def save(self, tag = None, verbose:bool = True) -> Dict[str, Any]:
-        tag = self.tag if tag == None else tag
-        path = f'{tag}/config'
-        
-        self.put_json(path, self.config)
-            
-    def load(self, tag=None) -> Dict[str, Any]:
-        tag = self.tag if tag == None else tag
-        path = f'{tag}/config'
-        print(path)
-        config = self.get_json(path, default=self.config)
-        self.set_config(config)
+    def save(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
+        c.Model.save(self, tag=tag, verbose=verbose, keys=keys)
+
+
+    def load(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
+        c.Model.load(self, tag=tag, verbose=verbose, keys=keys)
+
+
           
     def set_stats(self, stats: Dict[str, Any] = None) -> None:
         
@@ -716,13 +715,16 @@ class Validator(c.Model):
                wallet='collective.0',
                network = 'finney',
                netuid=3,
-               port = 9296,
-               prometheus_port = 9295,
+               port = 9269,
+               prometheus_port = 8269,
                debug = True,
                no_set_weights = True,
                remote:bool = False,
+               tag=None,
                ):
         
+        if tag == None:
+            tag = f'{wallet}::{network}::{netuid}'
         if remote:
             kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
@@ -730,7 +732,7 @@ class Validator(c.Model):
             
         
         if model == None:
-            model = cls()
+            model = cls(tag=tag)
         elif isinstance(model, str):
             model = c.module(model)()
         else:
