@@ -2459,7 +2459,14 @@ class Module:
                 
         
         if search:
-            module_list = [m for m in module_list if search in m]
+            if isinstance(search, str):
+                search = [search]
+            elif isinstance(search, list):
+                pass
+                assert all([isinstance(s, str) for s in search]), 'search must be a list of strings'
+                
+            search_true = lambda x: any([s in x for s in search])
+            module_list = [m for m in module_list if search_true(m)]
                 
         return module_list
     lspm2 = ls_pm2 = pm2ls = pm2_ls = pm2list = pm2_list
@@ -2530,13 +2537,14 @@ class Module:
     def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
+        kill_list = []
         for module in pm2_list:
             if module.startswith(name):
                 if verbose:
                     cls.print(f'Killing {module}', color='red')
                 output_str = cls.run_command(f"pm2 delete {module}", verbose=False)
-                output_list.append(output_str)
-        return output_list
+                kill_list.append(module)
+        return kill_list
     @classmethod
     def pm2_restart(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()

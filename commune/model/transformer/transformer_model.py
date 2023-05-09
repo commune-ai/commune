@@ -92,7 +92,6 @@ class TransformerModel(c.Model):
         nn.Module.__init__(self) 
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
-        self.set_stats(config.stats)
         self.set_model(config)
         
     
@@ -253,6 +252,7 @@ class TransformerModel(c.Model):
 
         loss = output['loss']
         
+
         stats['latency'] = self.round(self.time() - stats['time'], sig=2)
         stats['steps'] = stats.get('steps', 0) + 1
         stats['input_shape'] = list(sample['input_ids'].shape)
@@ -265,8 +265,14 @@ class TransformerModel(c.Model):
 
             train_stats = stats['train'] = stats.get('train', {})
             loss.backward()
-            if self.config.get('clip_grad_norm', 0)> 0:
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
+
+            if self.config.get('accumulate_grad_batches', 1) > 1:
+                if stats['steps'] % self.config.accumulate_grad_batches == 0:
+                    if self.config.get('clip_grad_norm', 0)> 0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+            
             self.optimizer.step()
             loss = loss.item()
             train_stats['epoch'] = train_stats.get('epoch', 0)
@@ -274,9 +280,9 @@ class TransformerModel(c.Model):
             train_stats['tokens'] = train_stats.get('tokens',0) + num_tokens
             train_stats['steps'] = train_stats.get('steps', 0) + 1
             train_stats['epoch_length'] = self.config.epoch_length
-            train_stats['batch_count'] = train_stats.get('batch_count', 0) + 1
-            alpha = 1/self.config.epoch_length
-            train_stats['epoch_loss'] = (train_stats.get('epoch_loss', loss)*(1-alpha)+ loss*alpha)
+            train_stats['batch_count'] = batch_count = train_stats.get('batch_count', 0) + 1
+            epoch_loss = train_stats.get('epoch_loss', loss)
+            train_stats['epoch_loss'] = (epoch_loss*batch_count+ loss)/(batch_count+1)
             stats['loss'] = loss
             train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
             train_stats['time'] = stats['time']
@@ -296,7 +302,6 @@ class TransformerModel(c.Model):
             train_stats['saved_step'] = train_stats.get('saved_step', 0)
             
             train_stats['steps_since_checkpoint'] = train_stats['steps'] - train_stats['checkpoint_step']
-            
             self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
             
             train_stats['patience_steps'] = self.config.patience_steps
@@ -401,12 +406,8 @@ class TransformerModel(c.Model):
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
           
-        self.set_tag(config.tag)
-        self.set_epoch_length(config.epoch_length)      
-          
         if config.load:
-            self.load()
-        self.set_stats(config.stats)    
+            self.load() 
         self.config = config
 
 
@@ -430,11 +431,6 @@ class TransformerModel(c.Model):
         return params
 
 
-    def set_epoch_length(self, epoch_length:int) -> int:
-        assert isinstance(epoch_length, int)
-        self.epoch_length = self.epoch_size = self.config['epoch_length']=  epoch_length
-        return self.epoch_length
-    set_epoch_size = set_epoch_length
 
 
     def resolve_tokenizer(self, tokenizer:str):
@@ -561,38 +557,48 @@ class TransformerModel(c.Model):
         return bool(isinstance(sample, dict) and 'input_ids' in sample)
     
     @classmethod
-    def sample_generator(cls, dataset, max_trials=10, batch_size=1, sequence_length=64, num_batches=10):
+    async def async_get_sample(cls, dataset, max_trials=10, batch_size=1, sequence_length=64, num_batches=10):
         sample = None
         if not hasattr(cls, 'dataset_pool'):
             cls.dataset_pool = c.connect_pool(dataset)
-        
-        
-        for _ in range(num_batches):
-            sample = None
-            fail_count = 0
+
+        fail_count = 0
+       
+        while not cls.sample_check(sample) and fail_count < max_trials:
+            if len(cls.dataset_pool) == 0:
+                cls.dataset_pool = c.connect_pool(dataset)
+            try:
+                data_idx =cls.choice(list(range(len(cls.dataset_pool))))
+                sample = cls.dataset_pool[data_idx].sample(batch_size=batch_size,
+                                        sequence_length=sequence_length)
+                
+                if not cls.sample_check(sample):
+                    raise Exception('Sample check failed')
+                sample['input_ids'] = sample['input_ids'][:batch_size, -sequence_length:]
+                
+                
+            except Exception as e:
+                fail_count += 1
+                del cls.dataset_pool[data_idx]
+                cls.print(f'ERROR {e} failed to sample, removing dataset {data_idx}, {len(cls.dataset_pool)} remaining', color='red')
+        assert cls.sample_check(sample), f'Failed to sample from {dataset} after {max_trials} trials.'
+        return sample
+    
+    @classmethod
+    def get_sample(cls, timeout=2, retries = 3, *args, **kwargs):
+        try:
+            if timeout:
+                # Add timeout to the async_get_sample call
+                coro = asyncio.wait_for(cls.async_get_sample(*args, **kwargs), timeout=timeout)
+            else:
+                coro = cls.async_get_sample(*args, **kwargs)
             
-        
-            while not cls.sample_check(sample) and fail_count < max_trials:
-                if len(cls.dataset_pool) == 0:
-                    cls.dataset_pool = c.connect_pool(dataset)
-                try:
-                    data_idx =cls.choice(list(range(len(cls.dataset_pool))))
-                    sample = cls.dataset_pool[data_idx].sample(batch_size=batch_size,
-                                            sequence_length=sequence_length)
-                    
-                    if not sample_check(sample):
-                        raise Exception('Sample check failed')
-                    sample['input_ids'] = sample['input_ids'][:batch_size, -sequence_length:]
-                    
-                    
-                except Exception as e:
-                    fail_count += 1
-                    del cls.dataset_pool[data_idx]
-                    # cls.print(f'ERROR {e} failed to sample, removing dataset {data_idx}, {len(cls.dataset_pool)} remaining', color='red')
-            yield sample
-    
-    
-    
+            return asyncio.run(coro)
+        except asyncio.TimeoutError:
+            # Handle the timeout error here
+            print("Async function call timed out.")
+            if retries > 0:
+                return cls.get_sample(timeout=timeout, retries=retries-1, *args, **kwargs)
     @classmethod
     def resolve_model(cls, model, **kwargs):      
         if isinstance(model, str):
@@ -641,16 +647,15 @@ class TransformerModel(c.Model):
             return cls.remote_fn(fn='learn',kwargs=kwargs, name=f"train::{model}")
         
         model = cls.resolve_model(model, **kwargs)
-        sample_generator = cls.sample_generator(dataset=dataset,
-                                                batch_size=batch_size, 
-                                                sequence_length=sequence_length,
-                                                num_batches=num_batches)
 
         for i in range(num_batches):
-            sample = next(sample_generator)
-            
-            c.sleep(batch_delay)
-            sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
+            cls.print('GETTING SAMPLE')
+            sample = cls.get_sample(dataset=dataset,
+                                                    batch_size=batch_size, 
+                                                    sequence_length=sequence_length,
+                                                    num_batches=num_batches)
+        
+        
             sample.update(
                 topk=topk,
                 map_tokens=map_tokens,
@@ -661,6 +666,7 @@ class TransformerModel(c.Model):
                 return_keys=[ 'topk', 'stats']
                 
             )
+            
             output = model.forward(**sample)
             cls.print('STATS: ',output.get('stats', output))
 

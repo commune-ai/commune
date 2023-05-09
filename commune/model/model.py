@@ -44,9 +44,18 @@ class Model( nn.Module, commune.Module):
         self.init_model(model)
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
-        self.set_stats(config.stats)
         self.set_model(config)
-        self.set_tag(config.tag)
+
+    @property
+    def tag(self):
+        if self.config.get('tag', None) == None:
+            self.config['tag'] = 'base'
+        return self.config['tag']
+        
+
+    @tag.setter
+    def tag(self, tag):
+        self.config['tag'] = tag
 
     def init_model(self):
         nn.Module.__init__(self) 
@@ -58,24 +67,22 @@ class Model( nn.Module, commune.Module):
     def shortcuts(cls, *args, **kwargs):
         return cls.module('model.transformer').shortcuts
     
-    # @property
-    # def stats(self):
-    #     self.config['stats'] = self.config.getattr('stats', {})
-    #     return self.config['stats']
+    @property
+    def stats(self):
+        return self.config.get('stats', {})
+
+    @stats.setter
+    def stats(self, stats):
+        assert isinstance(stats, dict)
+        self.config['stats'] = stats
+        self.save(keys=['config'])
     
-    # @stats.setter
-    # def stats(self, stats):
-    #     return self.set_stats(stats)
-    
-    def set_stats(self, stats: dict = None, **kwargs):
+    def set_stats(self, stats: dict = None,):
         if stats == None:
-            stats = self.__dict__.get('stats', {})
-        if len(stats)>0:
-            stats.update(kwargs)
-        self.stats = self.config['stats'] = stats
-        self.stats_history = []
-    
-        return stats
+            stats = {}
+        assert isinstance(stats, dict)
+        self.stats = stats
+        
     @classmethod
     def learn(cls, *args, **kwargs):
         return cls.module('model.transformer').learn(*args, **kwargs)
@@ -187,6 +194,7 @@ class Model( nn.Module, commune.Module):
     def resolve_tag(self, tag):
         if tag == None:
             tag = self.tag
+        print(f'tag: {tag}')
         return tag
 
     def save(self, 
@@ -210,15 +218,17 @@ class Model( nn.Module, commune.Module):
             'config': self.config,
             }
         
-        if keys is not None:
-            assert all([k in state_dict for k in keys])
-            state_dict = {k:state_dict[k]  for k in keys}
-        
-        keys = list(state_dict.keys())
+        if keys == None:
+            keys = list(state_dict.keys())
+        else:
+            assert isinstance(keys, list), f'keys must be a list, got {keys}'
+            assert all([isinstance(k, str) for k in keys]), f'keys must be a list of strings, got {keys}'
+            assert all([k in state_dict for k in keys]), f'keys must be a list of strings, got {keys}'
+            keys = keys
         state_path_dict = {}
         for k in keys:
             state_path_dict[k] = os.path.join(path, f'{k}.pt')
-        state_dict['config']['state_path_dict'] = state_path_dict
+        self.config['state_path_dict']= {**self.config.get('state_path_dict', {}), **state_path_dict}
         
         for k in keys:
             torch.save(state_dict[k], state_path_dict[k])        
