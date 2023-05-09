@@ -300,8 +300,8 @@ class TransformerModel(c.Model):
                 self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
             
             train_stats['patience_steps'] = self.config.patience_steps
-            if len(train_stats['loss_history']) > self.config.patience_epochs:
-                candidate_loss = sum(train_stats['epoch_loss'][-self.config.patience_epochs:])/self.config.patience_epochs
+            if len(train_stats['loss_history']) >= self.config.patience_epochs:
+                candidate_loss = sum(train_stats['loss_history'][-self.config.patience_epochs:])/self.config.patience_epochs
             else:
                 candidate_loss = train_stats['epoch_loss']
             if train_stats['steps_since_checkpoint'] >= self.config.patience_steps :
@@ -849,7 +849,7 @@ class TransformerModel(c.Model):
         
         
         if update:
-            cls.update()
+            cls.update(network='local')
         tag = kwargs.get('tag', None)
         assert len(models) > 0
 

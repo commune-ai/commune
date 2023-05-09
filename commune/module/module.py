@@ -432,19 +432,29 @@ class Module:
         if encrypted:
             data = cls.decrypt(data, password=password)
         return data
+    
+    
+    def config_keys(self, config:Dict = None) -> List[str]:
+        '''
+        Returns the keys of the config
+        '''
+        config = config or self.config
+        return list(config.keys())
+    
     def putc(self, key, value) -> Munch:
         '''
         Saves the config to a yaml file
         '''
         config = self.config
-        cls.dict_put(config, key, value)
-        cls.set_config(config=config)
+        self.dict_put(config, key, value)
+        self.set_config(config=config)
+    setc = putc
         
-    def getc(self, key) -> Munch:
+    def getc(self, key) -> Any:
         '''
         Saves the config to a yaml file
         '''
-        return cls.dict_get(self.config, key)
+        return self.dict_get(self.config, key)
     
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
@@ -1876,7 +1886,8 @@ class Module:
         else:
             search = None
 
-
+        if network == 'loco':
+            netowrk = 'local'
 
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
@@ -1939,6 +1950,9 @@ class Module:
         '''
         Servers the module on a specified port
         '''
+        # we want to make sure that the module is loco
+        cls.update(network='local')
+    
 
         if module == None:
             self = cls(*args, **kwargs)
@@ -2275,40 +2289,14 @@ class Module:
     @classmethod
     def kill(cls, module,
              mode:str = 'pm2',
-             verbose:bool = True, 
-             network='local',
-             update:bool = True):
-        if update:
-            cls.update()
-        modules = cls.modules(module,network=network)
+             verbose:bool = False,
+             **kwargs):
+
+
         delete_modules = []
-        for module in modules:
-            if mode == 'pm2':
-                pm2_list =cls.pm2_list()
-                for p in pm2_list:
-                    if module in p:
-                        delete_modules.append(p)
-            elif mode == 'ray':
-                ray_list = cls.ray_list()
-                for r in ray_list:
-                    if module in r:
-                        delete_modules.append(r)
-            else:
-                raise Exception(f'Unknown mode: {mode}')
-                        
-                    
-            for d_m in delete_modules:
-                if verbose:
-                    cls.print(f'Killing {d_m}...')
-                if mode == 'pm2':
-                    
-                    cls.pm2_kill(d_m)
-                elif mode == 'ray':
-                    cls.ray_kill(d_m)
-                    
-                cls.print(f'Killed {d_m}')
-                    
-            
+        delete_modules =  getattr(cls, f'{mode}_kill')(module, verbose=verbose, **kwargs)
+       
+        cls.update(network='local')
 
         return delete_modules
 
@@ -2539,12 +2527,14 @@ class Module:
         return stdout
     
     @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = False):
+    def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
         for module in pm2_list:
             if module.startswith(name):
-                output_str = cls.run_command(f"pm2 delete {module}", verbose=verbose)
+                if verbose:
+                    cls.print(f'Killing {module}', color='red')
+                output_str = cls.run_command(f"pm2 delete {module}", verbose=False)
                 output_list.append(output_str)
         return output_list
     @classmethod
@@ -2554,14 +2544,11 @@ class Module:
         restarted_modules = []
         for module in pm2_list:
             if module.startswith(name) or name in ['all']:
-                
-                cls.run_command(f"pm2 restart {module}", verbose=verbose)
+                if verbose:
+                    cls.print(f'Restarting {module}', color='cyan')
+                cls.run_command(f"pm2 restart {module}")
                 restarted_modules.append(module)
-                
-        if verbose:
-            stdout = cls.run_command(f"pm2 status")
 
-            cls.print(stdout, color='orange')
             
         return restarted_modules
             
@@ -2574,9 +2561,10 @@ class Module:
     
     
     @classmethod
-    def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
-        return getattr(cls, f'{mode}_restart')(name, verbose=verbose)
-
+    def restart(cls, name:str, mode:str='pm2', verbose:bool = True):
+        refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose)
+        return refreshed_modules
+    refresh = restart
     @classmethod
     def pm2_status(cls, verbose=True):
         stdout = cls.run_command(f"pm2 status")
@@ -4389,6 +4377,7 @@ class Module:
     def update(cls, 
                network = 'global',
                verbose:bool = True,
+               min_staleness = 30,
                
                ):
 
@@ -4856,6 +4845,10 @@ class Module:
         else:
             raise NotImplemented
     
+    @classmethod
+    def learn(cls, *args, **kwargs):
+        return cls.module('model.transformer').learn(*args, **kwargs)
+        
 if __name__ == "__main__":
     Module.run()
     

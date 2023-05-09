@@ -375,7 +375,7 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def deploy_fleet(cls, *args, **kwargs):
         return cls.base_model().deploy_fleet(*args, **kwargs)
-    
+    fleet = deploy_fleet
     
     @classmethod
     def base_model(cls):
