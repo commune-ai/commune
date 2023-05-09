@@ -82,9 +82,6 @@ from torch import nn
 class TransformerModel(c.Model):
     shortcuts = shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
-
-
-
     default_tag = 'base'
     
     def __init__(self,
@@ -299,24 +296,29 @@ class TransformerModel(c.Model):
             train_stats['saved_step'] = train_stats.get('saved_step', 0)
             
             train_stats['steps_since_checkpoint'] = train_stats['steps'] - train_stats['checkpoint_step']
-            self.config.min_steps_since_checkpoint = self.config.get('min_steps_since_checkpoint', self.config.epoch_length)
-
-            if train_stats['steps_since_checkpoint'] >= self.config.min_steps_since_checkpoint :
-                is_better = bool(train_stats['epoch_loss'] <= train_stats['best_loss'])
-                train_stats['is_better'] = is_better
+            if 'patience_steps' not in self.config:
+                self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
+            
+            train_stats['patience_steps'] = self.config.patience_steps
+            if len(train_stats['loss_history']) > self.config.patience_epochs:
+                candidate_loss = sum(train_stats['epoch_loss'][-self.config.patience_epochs:])/self.config.patience_epochs
+            else:
+                candidate_loss = train_stats['epoch_loss']
+            if train_stats['steps_since_checkpoint'] >= self.config.patience_steps :
+                is_better = train_stats['is_better'] = bool(candidate_loss <= (train_stats['best_loss'] + self.config.best_loss_delta))
                 if  is_better:
-                    self.set_stats(stats)
-                    self.save() # save all
                     train_stats['saved_step'] = train_stats['checkpoint_step'] = train_stats['steps']
                     train_stats['best_loss'] = train_stats['epoch_loss']
+                    self.set_stats(stats)
+                    self.save() # save all
                 else:
-                    self.load()
                     train_stats['loaded_step'] = train_stats['checkpoint_step'] = train_stats['steps']
-                    train_stats['epoch_loss'] = train_stats['best_loss']
+                    train_stats['epoch_loss'] = loss
+                    self.load()
 
-            
+            stats['loss'] = loss
             self.set_stats(stats)
-
+            
         else:
             loss = loss.item()
             stats['loss'] = loss
@@ -409,7 +411,20 @@ class TransformerModel(c.Model):
 
 
     def set_params(params:dict = None):
-        params = params if params is not None else self.params
+        params = params if params is not None else {}
+        if params.get('lr', None) is not None:
+            self.set_lr(lr)
+            
+        if params.get('optimizer', None) is not None:
+            self.set_optimizer(params['optimizer'])
+            
+        if params.get('clip_grad_norm', None) is not None:
+            self.set_optimizer(params['optimizer'])
+            
+        if params.get('finetune', None) is not None:
+            self.set_finetune(params['finetune'])
+        
+        
         
         
         return params
@@ -564,8 +579,10 @@ class TransformerModel(c.Model):
                     data_idx =cls.choice(list(range(len(cls.dataset_pool))))
                     sample = cls.dataset_pool[data_idx].sample(batch_size=batch_size,
                                             sequence_length=sequence_length)
+                    
                     if not sample_check(sample):
                         raise Exception('Sample check failed')
+                    sample['input_ids'] = sample['input_ids'][:batch_size, -sequence_length:]
                     
                     
                 except Exception as e:
@@ -596,6 +613,10 @@ class TransformerModel(c.Model):
         return model
                 
     
+    @classmethod
+    def test(cls, *args,**kwargs):
+        kwargs['batch_size'] = 4
+        kwargs['sequence_length'] = 32
     
     @classmethod
     def learn(cls, model = 'gpt125m', 
