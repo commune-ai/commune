@@ -83,18 +83,21 @@ class ClientPool (commune.Module):
         )
 
 
+
     async def async_forward (
             self, 
-            module = None,
             fn: None,
+            module = None,
             args = None,
             kwargs = None,
             timeout: int = 2,
             min_successes: int = 2,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         # Init clients.
-        clients = await asyncio.gather(*[ self.async_get_client( m ) for m in modules ])
-        clients = zip(modules, clients)
+        
+    
+    
+        client = await self.async_get_clients( module )
 
 
         kwargs = {} if kwargs == None else kwargs
@@ -102,7 +105,6 @@ class ClientPool (commune.Module):
 
         # Make calls.
         running_tasks = []
-        st.write(inputs[0].shape, inputs[0].dtype)
         for index, (client) in enumerate(clients.items()):
             args, kwargs = self.copy(args), self.copy(kwargs)
             task = asyncio.create_task(
@@ -132,7 +134,7 @@ class ClientPool (commune.Module):
                         break
                 else:
                     
-                    forward_outputs.append( response)
+                    outputs.append( response)
 
         return outputs
 
@@ -149,15 +151,24 @@ class ClientPool (commune.Module):
                 self.clients.pop(c, None)
                     
 
-    async def async_get_client( self, module: 'bittensor.Endpoint' , timeout=1) -> 'commune.Client':
+
+    async def async_get_client( self, 
+                               module = None,
+                               timeout=1 ) -> 'commune.Client':
         r""" Finds or creates a client TCP connection associated with the passed Neuron Endpoint
             Returns
                 client: (`commune.Client`):
                     client with tcp connection endpoint at endpoint.ip:endpoint.port
         """
         # ---- Find the active client for this endpoint ----
+        
+        modules = self.modules(module)
+        
+        
+        if module == None:
+            client = self.choice(self.clients.values())
         if module in self.clients :
-            client = self.clients[ module]
+            client = self.clients[module]
         else:
             client = await self.async_connect(module, timeout=timeout)
             self.clients[ client.endpoint.hotkey ] = client

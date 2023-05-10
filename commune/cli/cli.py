@@ -72,14 +72,3 @@ class CLI(commune.Module):
 
         self.print(result)
     
-    def catch_ip(self):
-        result = None
-        if len(args[0].split(':')) == 2:
-            # commune module:fn args kwargs 
-            module_fn = args.pop(0)
-            module, fn = module_fn.split(':')
-            module = commune.connect(module)
-            result = module.remote_call(fn, *args,**kwargs)
-            
-            
-        return result
