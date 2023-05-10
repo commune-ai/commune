@@ -2,7 +2,7 @@
 models: model.
 network: global
 update: True
-tokenizer: gptj
+tokenizer: gpt2
 train: False
 batch_size: 32
 sequence_length: 256

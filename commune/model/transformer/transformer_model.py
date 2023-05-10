@@ -149,6 +149,18 @@ class TransformerModel(c.Model):
         model = cls()
         output_text = model.generate(text, **kwargs)
         return output_text
+
+    @staticmethod
+    def check_logits( output):
+        assert hasattr(output, 'logits'), 'output does not have logits'
+        
+        # check if logits has nans
+        logits_has_nans =  torch.isnan(output.logits).any()
+        if logits_has_nans:
+            raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
+              
+        return logits_has_nans
+    
     def _forward(self,  
                 input_ids: torch.Tensor, 
                 attention_mask: torch.Tensor = None,
@@ -164,8 +176,6 @@ class TransformerModel(c.Model):
                 map_logits: bool = False,  
                 tag : str = None,                           
                 **kwargs):
-        
-
         
         # resolve the output length
         output_length = output_length or self.config.output_length or input_ids.shape[1]
@@ -190,35 +200,30 @@ class TransformerModel(c.Model):
             sample['input_ids'] = tokens.input_ids
             sample['attention_mask'] = tokens.attention_mask
         
+        
+        # move to device for all tensors
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
                 sample[k] = sample[k].to(self.device)
         
         
-        # clip the input ids to the vocab size
+        # clip the input ids to the vocab size to avoid index errors
         sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
-        if train:
-            self.optimizer.zero_grad()
+        
+        
             
-        device = self.get_model_device(self.model)
-        
-        stats = self.copy(self.stats)
+        stats = self.stats
         stats['time'] =  self.time()
-        sample['input_ids'] = sample['input_ids'].to(device)
+        sample['input_ids'] = sample['input_ids'].to(self.device)
         
-        good_logits = False
-        output = self.model(input_ids=sample['input_ids'].to(device),
+        # forward pass
+        output = self.model(input_ids=sample['input_ids'].to(self.device),
                                 output_hidden_states=output_hidden_states)
         
-        # output = self.process_output(output)
         # check if there are any nans in the logits
-        logits_has_nans =  torch.isnan(output.logits).any()
-        if logits_has_nans:
-            raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
-                
+        self.check_output(output)
         # sometime we dont care about the begginning of the sequence
         output_length = output_length if output_length else output.logits.size(1)
-        
         output['hidden_states'] = output.hidden_states[hidden_state_index]
         output['input_ids'] = sample['input_ids']
 
@@ -268,6 +273,7 @@ class TransformerModel(c.Model):
 
             if self.config.get('accumulate_grad_batches', 1) > 1:
                 if stats['steps'] % self.config.accumulate_grad_batches == 0:
+                    # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
                     if self.config.get('clip_grad_norm', 0)> 0:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
                     self.optimizer.step()
@@ -629,7 +635,7 @@ class TransformerModel(c.Model):
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
-             batch_delay = 0.0,
+             batch_delay = 1,
              sequence_length : int = 256,
              batch_size: int = 32,
              autocast : bool = True,
@@ -666,6 +672,8 @@ class TransformerModel(c.Model):
                 return_keys=[ 'topk', 'stats']
                 
             )
+            
+            cls.sleep(batch_delay)
             
             output = model.forward(**sample)
             cls.print('STATS: ',output.get('stats', output))
