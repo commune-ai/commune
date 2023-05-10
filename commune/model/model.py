@@ -77,6 +77,9 @@ class Model( nn.Module, commune.Module):
         self.config['stats'] = stats
         self.save(keys=['config'])
     
+    def reset_stats(self):
+        self.stats = {}
+    
     def set_stats(self, stats: dict = None,):
         if stats == None:
             stats = {}
@@ -160,33 +163,33 @@ class Model( nn.Module, commune.Module):
 
 
     
-    def process_forward_locals(self, locals):
-        kwargs = self.locals2kwargs(locals)
+    # def process_forward_locals(self, locals):
+    #     kwargs = self.locals2kwargs(locals)
         
-        # import ipdb; ipdb.set_trace()
-        no_grad = kwargs.pop('no_grad', True)
-        autocast = kwargs.pop('autocast', True)
-        empty_cache = kwargs.pop('empty_cache', True)
-        train = kwargs['train'] = kwargs.get('train', False)
+    #     # import ipdb; ipdb.set_trace()
+    #     no_grad = kwargs.pop('no_grad', True)
+    #     autocast = kwargs.pop('autocast', True)
+    #     empty_cache = kwargs.pop('empty_cache', True)
+    #     train = kwargs['train'] = kwargs.get('train', False)
 
-        # set the model to train mode
-        if train:
-            no_grad = False
-            if self.training == False:
-                self.train()
-                self.training = True
-        else:
-            no_grad = True
+    #     # set the model to train mode
+    #     if train:
+    #         no_grad = False
+    #         if self.training == False:
+    #             self.train()
+    #             self.training = True
+    #     else:
+    #         no_grad = True
             
-        if no_grad == True:
-            # need to set no_grad to false to run forward ,or it will recurse  
-            kwargs['no_grad'] = False
-            with torch.no_grad():
-                return self.forward(**kwargs)
-        if autocast == True:
-            kwargs['autocast'] = False
-            with torch.cuda.amp.autocast():
-                return self.forward(**kwargs)
+    #     if no_grad == True:
+    #         # need to set no_grad to false to run forward ,or it will recurse  forever
+    #         kwargs['no_grad'] = False
+    #         with torch.no_grad():
+    #             return self.forward(**kwargs)
+    #     if autocast == True:
+    #         kwargs['autocast'] = False
+    #         with torch.cuda.amp.autocast():
+    #             return self.forward(**kwargs)
             
        
 
