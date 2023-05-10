@@ -200,7 +200,7 @@ class Model( nn.Module, commune.Module):
     def save(self, 
              tag:str = None,  
              trainable_only:bool = True,
-             verbose:bool = True,
+             verbose:bool = False,
              keys = None):
         tag = self.resolve_tag(tag)
         path = self.resolve_path(tag)
@@ -244,6 +244,29 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def ls_tags(self):
         return self.ls()
+    
+    @classmethod
+    def tags(cls):
+        return cls.ls(return_full_path=False)
+    def refresh(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
+        tag = tag if tag != None else self.tag
+        path = self.resolve_path(tag)
+        self.rm_json(path)
+        return path
+    
+    @classmethod
+    def get_stats(cls, tag=None):
+        if tag == None:
+            tag = cls.tags()[0]
+        return cls.get_json(cls.resolve_path(tag)+'/config.json').get('stats', {})
+    
+
+    @classmethod
+    def get_stats_table(cls, tag=None):
+        stats = cls.get_stats(tag)
+        return pd.DataFrame(stats).T
+
+    
     def load(self, tag=None, 
              keys:List[str] = None, 
              map_location: str = None,
