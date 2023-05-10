@@ -8,6 +8,7 @@ import torch
 from typing import Dict, List, Union, Any
 import random
 from copy import deepcopy
+import pandas as pd
 import asyncio
 from munch import Munch
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
@@ -26,6 +27,10 @@ class Validator(c.Model):
         self.init_model()
         config = self.set_config(kwargs=kwargs)
 
+
+        if config.refresh:
+            self.refresh(self.tag)
+            config.load = False
         if config.load:
             self.load(self.tag)
 
@@ -50,7 +55,8 @@ class Validator(c.Model):
         self.namespace = c.namespace(network=self.config.network,update=False )
     
 
-
+    def set_dataset(self, dataset):
+        self.dataset = c.module('dataset')
     
     def set_max_stats_history(self, max_stats_history: int) -> None:
         self.max_stats_history = max_stats_history
@@ -87,6 +93,7 @@ class Validator(c.Model):
         
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
+        tokenizer = self.module('model.transformer').shortcuts.get(tokenizer, tokenizer)
 
         if tokenizer is None:
             tokenizer = self.model_path
@@ -136,10 +143,6 @@ class Validator(c.Model):
         return dataset
     
     
-    def set_dataset(self, dataset: str) -> None:
-        self.dataset = self.get_dataset(dataset)
-        return self.dataset
-        
         
 
     def calculate_metric(self, x):
@@ -175,9 +178,6 @@ class Validator(c.Model):
         ))
         
         sample = self.dataset.sample(**kwargs)
-        if 'input_ids' not in sample:
-            raise Exception(sample)
-        
         return sample
    
    
@@ -313,6 +313,70 @@ class Validator(c.Model):
         self.available_models = models
         return models
 
+
+    def calculate_wieghts(self, w):
+        if not isinstance(w, torch.Tensor):
+            w = torch.tensor(w)
+        
+        if len(w) >1:
+            w = -(w - w.mean())/ (w.std()+1e-10)
+            w = torch.softmax(w, dim=-1)
+        else:
+            w = torch.ones_like(w)
+        return w
+        
+
+        
+    def process_outputs_mixture(self, ensemble_output):
+
+        
+        w = self.calculate_wieghts(ensemble_output['weights'])
+        ensemble_output['ranks'] =  ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
+
+
+        logits  = torch.stack(ensemble_output['logits'])
+        probs = torch.softmax(logits, dim=-1)
+        
+        probs = probs * w[:,None,  None, None]
+        probs_unormalized = probs.sum(0)
+        probs = probs_unormalized / probs_unormalized.sum(-1, keepdim=True)
+        
+
+        # convert the renormalized weights back to logits
+        logits = torch.log(probs + 1e-10) 
+        ensemble_output['logits'] = logits
+        
+        # TODO: add ensemble_output metrics
+        ensemble_output['weights']  = w.tolist()
+        
+        # TODO: add ensemble_output metrics (defaulting to the first model)
+        ensemble_output['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
+
+        return ensemble_output
+        
+    
+
+    def process_outputs(self, ensemble_output):
+        
+                
+
+        w = self.calculate_wieghts(ensemble_output['weights'])
+        ensemble_output['ranks'] =  ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
+
+
+        best_model_idx = ensemble_output['ranks'][0]
+        self.print('Selected model:', ensemble_output['models'][best_model_idx])
+        ensemble_output['logits'] = logits = ensemble_output['logits'][best_model_idx]
+        # convert the renormalized weights back to logits
+        
+        # TODO: add ensemble_output metrics
+        ensemble_output['weights']  = w.tolist()
+        
+        # TODO: add ensemble_output metrics (defaulting to the first model)
+        ensemble_output['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
+
+        return ensemble_output
+        
     
 
     def forward(self, 
@@ -325,15 +389,16 @@ class Validator(c.Model):
                 topk: int = None,
                 sequence_length:int = None,
                 ratio: int = None,
-                batch_size :int = None,
+                batch_size :int = 32,
                 train: bool = None,
                 verbose: bool = False,
                 retries: int = 4,
+                tag = None,
                 save = True,
                 **kwargs ):
         
         
-        
+        tag = tag if tag != None else self.tag
         
         config = self.config
         timer = self.timer()
@@ -378,34 +443,32 @@ class Validator(c.Model):
                 continue
             model_output_dict[model_key] = model_output
             
-        ensemble_logits = []
         
         stats = {
-                'timestamp': self.time(), 
                 'models_available': len(available_models),
                 'models_called':len(called_models),
-                
                 'models_failed': [],
-                
                 'inference_time': timer.seconds,
                 'metric': None,
-                'success' : 0,
                 'input_schema': self.get_sample_schema(sample),
                 'best_metric': None,
                           }
         
         model_stats = {}
-        weights = []
-        ensemble = self.munch({
+        
+        
+        ensemble_output = self.munch({
             'weights': [],
             'logits': [],
             'metrics': [],  
             'probs': [],
             'models': [],
-            'models_failed': []
+            'models_failed': [],
+            'ranks': [],
 
         })
-        stats['success'] = 0
+        
+         
         for m_key, m_output in model_output_dict.items():
             m_stats = m_output['stats']
 
@@ -414,63 +477,36 @@ class Validator(c.Model):
             
             if  is_success:
                 model_stats[m_key] = m_stats
-                ensemble['logits']+= [m_output['logits']]
-                ensemble['metrics'] += [m_stats['metric']]
-                ensemble['weights'] += [ensemble['metrics'][-1]]
-                ensemble['models'] += [m_key]
+                ensemble_output['logits']+= [m_output['logits']]
+                ensemble_output['metrics'] += [m_stats['metric']]
+                ensemble_output['weights'] += [m_stats['metric']]
+                ensemble_output['models'] += [m_key]
             else: 
-                ensemble['models_failed'] += [m_key]
+                ensemble_output['models_failed'] += [m_key]
                 
-                
-        ensemble['weights'] = c.copy(ensemble['metrics'])
+        ensemble_outputs = self.process_outputs(ensemble_output)
+        best_model_idx = ensemble_output['ranks'][0]
         # calculate the stats
-
+        stats['best_metric'] = ensemble_output['metrics'][best_model_idx]
+        stats['best_model'] = ensemble_output['models'][best_model_idx]
         stats['called'] = len(called_models)
-        stats['models_failed'] = ensemble['models_failed']
-        stats['models'] = ensemble['models']
-        stats['success'] = len(ensemble['models'])
+        stats['models_failed'] = ensemble_output['models_failed']
+        stats['models'] = ensemble_output['models']
+        stats['success'] = len(ensemble_output['models'])
         stats['fails'] = stats['called'] - stats['success']
 
 
-        w = torch.tensor(ensemble['weights'])
-        if len(w) >1:
-            w = -(w - w.mean())/ (w.std()+1e-10)
-            w = torch.softmax(w, dim=-1)
-        else:
-            w = torch.ones_like(w)
 
-
-        logits  = torch.stack(ensemble['logits'])
-        
-        
-        probs = torch.softmax(logits, dim=-1)
-        
-        probs = probs * w[:,None,  None, None]
-        probs_unormalized = probs.sum(0)
-        probs = probs_unormalized / probs_unormalized.sum(-1, keepdim=True)
-        
-        # convert the renormalized weights back to logits
-        logits = torch.log(probs + 1e-10) 
-        
-        ensemble['logits'] = logits
-        # TODO: add ensemble metrics
-        ensemble['weights']  = w.tolist()
-        
-        
-        ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
-        best_model_idx = ranks[0]
-        
-        ensemble['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
         
         for i, (mkey, mstats) in enumerate(model_stats.items()):
             if mstats == None:
                 continue
-            model_stats[mkey]['weight'] = ensemble['weights'][i]
+            model_stats[mkey]['weight'] = ensemble_output['weights'][i]
             
             
-        best_model = ensemble['models'][best_model_idx]
-        best_model_metric = ensemble['metrics'][best_model_idx]
-        metric = self.calculate_metric({**ensemble, 'input_ids': input_ids})
+        best_model = ensemble_output['models'][best_model_idx]
+        best_model_metric = ensemble_output['metrics'][best_model_idx]
+        metric = self.calculate_metric({**ensemble_output, 'input_ids': input_ids})
     
         stats.update({
             # 'model_stats': model_stats,
@@ -480,18 +516,18 @@ class Validator(c.Model):
             'inference_time': timer.seconds
         })
         
-        ensemble['stats'] = stats
+        ensemble_output['stats'] = stats
         
         
           
         self.set_stats(stats)
     
         if save:
-            self.save()
+            self.save(tag=tag)
         
         if verbose:
             self.print(stats)
-        return Munch(ensemble)
+        return Munch(ensemble_output)
 
     def save(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.save(self, tag=tag, verbose=verbose, keys=keys)
@@ -499,6 +535,11 @@ class Validator(c.Model):
 
     def load(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.load(self, tag=tag, verbose=verbose, keys=keys)
+        
+    def refresh(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
+        c.Model.refresh(self, tag=tag, verbose=verbose, keys=keys)
+
+
 
 
           
@@ -521,9 +562,6 @@ class Validator(c.Model):
             
         for m in stats.get('models_failed', []):
             past_mstats = model_stats.get(m, {})
-            past_mstats['weight'] = past_mstats.get('weight', 0) * (1- self.config.alpha)
-            past_mstats['metric'] = past_mstats.get('metric', self.default_metric)* (1-self.config.alpha) + self.default_metric*self.config.alpha
-            past_mstats['successes'] = past_mstats.get('successs', 0)
             past_mstats['fails'] = past_mstats.get('fails', 0) + 1
 
             model_stats[m] = past_mstats
@@ -547,21 +585,7 @@ class Validator(c.Model):
         
     def get_state(self, tag=None):
         return cls().load()
-        
-    def calculate_weights(self):
-        
-        
-        total_weights = 0 
-        weight_map = {}
-        for k in self.stats.keys():
-            weight_map[k] =  1 / (self.stats[k]['metric'] + 1e-8)
-            total_weights = total_weights + weight_map[k]
-
-
-        for k in self.stats.keys():
-            weight_map[k] = weight_map[k] / total_weights
-            self.stats[k]['weight'] = weight_map[k]
-            
+     
     def random_model_key(self):
         random_model_key = random.choice(self.model_keys)
         return random_model_key
@@ -580,6 +604,10 @@ class Validator(c.Model):
         random_model_keys = random.choices(self.model_keys, k=num_models)
         return [self.models[k] for k in random_model_keys]
     
+    @staticmethod
+    def sample_check(sample):
+        return bool(isinstance(sample, dict) and 'input_ids' in sample)
+    
     
 
     
@@ -594,12 +622,10 @@ class Validator(c.Model):
         
         self = Validator(*args, **kwargs)
         
-        def sample_check(sample):
-            return bool(isinstance(sample, dict) and 'input_ids' in sample)
-        
+
         for _ in range(num_batches):
             sample = self.sample()
-            if not sample_check(sample):
+            if not self.sample_check(sample):
                 continue
             output = self.forward(**sample)
             # model_stats = output.stats.pop('model_stats', None)
@@ -614,17 +640,57 @@ class Validator(c.Model):
                 params[k] = v
                 
         return params
+    
+    def stats_table(self):
+        return self.get_stats_table(self.stats)
+    
+    @classmethod
+    def get_stats_table(cls, stats: Dict[str, Any] = None) -> pd.DataFrame:
+        if isinstance(stats, str):
+            stats = cls.get_stats(tag=stats)
+        rows = []
+        
+        for model, stats in stats.get('model_stats', {}).items():
+            
+            row = {'model': model, **stats}
+            row = {k:round(v, 4) if isinstance(v, float) else v for k, v in row.items() if k not in ['timestamp', 'success']}
+            rows.append(row)
+
+        df = pd.DataFrame(rows)
+        if len(df) > 0:
+            df = df.sort_values(by='metric')
+        return df
             
     @classmethod
     def test(cls,  
              *args,
+             tag='test',
              batch_size=8, 
              num_batches=2, 
              remote=False,
              **kwargs):
-        
+
         kwargs = cls.locals2kwargs(locals())
-        return cls.learn(*args, **kwargs)
+        if kwargs.pop('remote', False):
+            return cls.remote_fn(fn='learn', args=args, kwargs=kwargs)
+        sleep_interval = kwargs.pop('sleep_interval', 1)
+        stagger_interval = kwargs.pop('stagger_interval', 0)
+        num_batches = kwargs.pop('num_batches', 2)
+        
+        self = Validator(*args, **kwargs)
+        
+        self.print(self.stats_table())
+        
+        for _ in range(num_batches):
+            sample = self.sample()
+            if not self.sample_check(sample):
+                continue
+            output = self.forward(**sample)
+            # model_stats = output.stats.pop('model_stats', None)
+            
+            
+            c.print(self.stats_table())
+            self.sleep(sleep_interval)
         
     @classmethod
     def test_validation_keys(cls):
@@ -673,17 +739,8 @@ class Validator(c.Model):
     #         samples_per_second = i/timer.seconds
     #         cls.print(f'samples_per_second: {samples_per_second}')
     
-    @property
-    def stats_table(self): 
-        df_rows = []
-        for k in self.stats.keys():
-            self.stats[k]['model'] = k
-            df_rows.append(self.stats[k])
-            
-        import pandas as pd
-        df = pd.DataFrame(df_rows)
+
         
-        return df
     @classmethod
     def streamlit(cls):
         

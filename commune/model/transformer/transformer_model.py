@@ -74,6 +74,7 @@ shortcuts =  {
     'gpt20b': 'EleutherAI/gpt-neox-20b',
     'opt13b': 'facebook/opt-13b',
     'gpt13b': 'cerebras/Cerebras-GPT-13B',
+    'sld': os.path.expanduser('~/models/gpt-j-6B-vR')
     
         }
 
@@ -384,6 +385,7 @@ class TransformerModel(c.Model):
             max_memory=config.max_memory,
             device_map= config.device_map,
             trust_remote_code=config.trust_remote_code,
+            # local_files_only=True
         )
         
         if verbose:

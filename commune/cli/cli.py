@@ -42,7 +42,12 @@ class CLI(commune.Module):
             
    
             # fn_obj = getattr(module, fn)
-            if len(candidates['modules'])>0:
+
+            if len(candidates['functions'])>0:
+                module = self.module
+                fn = fn if fn != None else  args.pop(0)
+                fn = candidates['functions'][0]
+            elif len(candidates['modules'])>0:
                 if module == None:
                     module = args.pop(0)
                 else:
@@ -57,10 +62,6 @@ class CLI(commune.Module):
                 fn = fn if fn != None else args.pop(0)
                 module = commune.connect(module)
 
-            elif len(candidates['functions'])>0:
-                module = self.module
-                fn = fn if fn != None else  args.pop(0)
-                fn = candidates['functions'][0]
             else: 
                 raise Exception(f'No module, function or server found for {args[0]}')
         

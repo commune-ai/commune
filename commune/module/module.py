@@ -360,7 +360,6 @@ class Module:
         '''
         
         path = cls.resolve_config_path(path, root=root)
-        print(path)
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -1384,13 +1383,16 @@ class Module:
     @classmethod
     def ls(cls, path:str = '', 
            recursive:bool = False,
-           root:bool = False):
+           root:bool = False,
+           return_full_path:bool = True):
         path = cls.resolve_path(path, extension=None, root=root)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         except FileNotFoundError:
             return []
-        return [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
+        if return_full_path:
+            ls_files = [os.path.expanduser(os.path.join(path,f)) for f in ls_files]
+        return ls_files
     
     @classmethod
     def lsdir(cls, path:str) -> List[str]:
@@ -3614,6 +3616,7 @@ class Module:
         import json
         return cls.from_dict(json.loads(json_str))
      
+     
     @classmethod
     def status(cls, *args, **kwargs):
         console = cls.resolve_console()
@@ -4845,15 +4848,7 @@ class Module:
                 )
         return sample_schema    
     
-    
-    @classmethod
-    def miner(cls, mode='bittensor', *args, **kwargs):
-        
-        if mode == 'bittensor':
-            from miner import Miner
-            return Miner(*args, **kwargs)
-        else:
-            raise NotImplemented
+
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -4863,6 +4858,7 @@ class Module:
     def miner(cls,*args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
         return cls.module('validator').miner(*args, **kwargs)
+    
 if __name__ == "__main__":
     Module.run()
     
