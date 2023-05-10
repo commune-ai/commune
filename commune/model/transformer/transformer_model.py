@@ -94,6 +94,7 @@ class TransformerModel(c.Model):
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
         self.set_model(config)
+
         
     
     def set_tag(self,tag:str):
@@ -151,13 +152,12 @@ class TransformerModel(c.Model):
         return output_text
 
     @staticmethod
-    def check_logits( output):
+    def check_output( output):
         assert hasattr(output, 'logits'), 'output does not have logits'
         
         # check if logits has nans
         logits_has_nans =  torch.isnan(output.logits).any()
-        if logits_has_nans:
-            raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
+        assert not logits_has_nans, 'logits has nans'
               
         return logits_has_nans
     
@@ -213,12 +213,12 @@ class TransformerModel(c.Model):
         
             
         stats = self.stats
-        stats['time'] =  self.time()
-        sample['input_ids'] = sample['input_ids'].to(self.device)
+        stats['sample'] =  {**stats.get('sample', {}), **{'time': self.time()}}
         
         # forward pass
         output = self.model(input_ids=sample['input_ids'].to(self.device),
                                 output_hidden_states=output_hidden_states)
+        
         
         # check if there are any nans in the logits
         self.check_output(output)
@@ -254,87 +254,91 @@ class TransformerModel(c.Model):
         kwargs.update(sample)
         return self.forward(**kwargs)['hidden_states']
     def process_outputs(self, stats:dict, sample:dict, output:dict):
-
+        
         loss = output['loss']
+        # training stats
         
-
-        stats['latency'] = self.round(self.time() - stats['time'], sig=2)
-        stats['steps'] = stats.get('steps', 0) + 1
-        stats['input_shape'] = list(sample['input_ids'].shape)
-        num_samples = stats['input_shape'][0]
-        num_tokens = stats['input_shape'][0]*stats['input_shape'][1]
-        stats['tokens'] = stats.get('tokens', 0) +  num_samples
-        stats['samples'] = stats.get('samples', 0) + num_tokens
         
-        if self.training:
-
-            train_stats = stats['train'] = stats.get('train', {})
-            loss.backward()
-
-            if self.config.get('accumulate_grad_batches', 1) > 1:
-                if stats['steps'] % self.config.accumulate_grad_batches == 0:
-                    # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
-                    if self.config.get('clip_grad_norm', 0)> 0:
-                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
+        
+        stats['sample'] = {
+            'input_shape':list(sample['input_ids'].shape),
+            'latency': self.round(self.time() - stats['sample']['time'], sig=2),
+            'timestamp': self.time(),
+            'loss': loss.clone().item(),
+            # 'history': stats['sample'].get('history',[])
             
-            self.optimizer.step()
-            loss = loss.item()
-            train_stats['epoch'] = train_stats.get('epoch', 0)
-            train_stats['samples'] = train_stats.get('samples', 0) + num_samples
-            train_stats['tokens'] = train_stats.get('tokens',0) + num_tokens
-            train_stats['steps'] = train_stats.get('steps', 0) + 1
-            train_stats['epoch_length'] = self.config.epoch_length
-            train_stats['batch_count'] = batch_count = train_stats.get('batch_count', 0) + 1
-            epoch_loss = train_stats.get('epoch_loss', loss)
-            train_stats['epoch_loss'] = (epoch_loss*batch_count+ loss)/(batch_count+1)
-            stats['loss'] = loss
-            train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
-            train_stats['time'] = stats['time']
-            train_stats['checkpoint_step'] = train_stats.get('checkpoint_step', 0)
-            for k_r in ['best_loss', 'epoch_loss']:
-                train_stats[k_r] = self.round(train_stats[k_r], self.config.loss_sigdigs)
-            train_stats['loss_history'] =train_stats.get('loss_history',[])
-            
-            
-            if train_stats['batch_count'] % self.config.epoch_length == 0:
-                train_stats['loss_history'] += [self.round(train_stats['epoch_loss'], 3)]
-                train_stats['epoch'] = train_stats['epoch'] + 1
-                train_stats['batch_count'] = 0
+        }
                 
-                # check if the loss is better than the best loss
+        for mode in ['train', 'eval']:
+            mode_stats = stats[mode] = stats.get(mode, {})
+            
+            
+            # skip if we are not training and we are in training mode
+            if mode == 'train' and not self.training:
+                continue
+            
 
-            train_stats['saved_step'] = train_stats.get('saved_step', 0)
+            # update the stats for the mode
+            mode_stats['samples'] = mode_stats.get('samples', 0) + sample['input_ids'].shape[0]
+            mode_stats['tokens'] = mode_stats.get('tokens',0) + sample['input_ids'].shape[0]*sample['input_ids'].shape[1]
+            mode_stats['steps'] = mode_stats.get('steps', 0) + 1
+            mode_stats['epoch_length'] = self.config.epoch_length
+            mode_stats['epoch'] = mode_stats.get('epoch', 0)
+            mode_stats['alpha'] = alpha = 1/mode_stats['epoch_length']
+            mode_stats['loss_history'] =mode_stats.get('loss_history',[])
             
-            train_stats['steps_since_checkpoint'] = train_stats['steps'] - train_stats['checkpoint_step']
-            self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
-            
-            train_stats['patience_steps'] = self.config.patience_steps
-            if len(train_stats['loss_history']) >= self.config.patience_epochs:
-                candidate_loss = sum(train_stats['loss_history'][-self.config.patience_epochs:])/self.config.patience_epochs
-            else:
-                candidate_loss = train_stats['epoch_loss']
-            if train_stats['steps_since_checkpoint'] >= self.config.patience_steps :
-                is_better = train_stats['is_better'] = bool(candidate_loss <= (train_stats['best_loss'] + self.config.best_loss_delta))
-                if  is_better:
-                    train_stats['saved_step'] = train_stats['checkpoint_step'] = train_stats['steps']
-                    train_stats['best_loss'] = train_stats['epoch_loss']
-                    self.set_stats(stats)
-                    self.save() # save all
-                else:
-                    train_stats['loaded_step'] = train_stats['checkpoint_step'] = train_stats['steps']
-                    train_stats['epoch_loss'] = loss
-                    self.load()
+            # calculate the running average of the loss
+            sample_loss = loss.item()
+            mode_stats['epoch_loss'] = mode_stats.get('epoch_loss', sample_loss)
+            mode_stats['epoch_loss'] = mode_stats['epoch_loss']*(1-alpha)+ sample_loss*alpha
+            mode_stats['epoch_loss'] = self.round(mode_stats['epoch_loss'], self.config.loss_sigdigs)
 
-            stats['loss'] = loss
-            self.set_stats(stats)
+            # update the loss history
+            mode_stats['batch_count'] = mode_stats['steps'] % self.config.epoch_length
+            if mode_stats['steps'] % self.config.epoch_length == 0:
+                mode_stats['epoch_loss'] = loss.item()
+                mode_stats['loss_history'] += [self.round(mode_stats['epoch_loss'], 3)]
+                mode_stats['epoch'] = mode_stats['epoch'] + 1
+                mode_stats['batch_count'] = 0
+                    
             
-        else:
-            loss = loss.item()
-            stats['loss'] = loss
-            self.set_stats(stats)
+            # update the stats for the mode
+            if mode == 'train':
+                mode_stats['best_loss'] = mode_stats.get('best_loss', self.config.default_metric)
+
+                mode_stats['checkpoint_step'] = mode_stats.get('checkpoint_step', 0)
+                loss.backward()
+                if self.config.get('accumulate_grad_batches', 1) > 1:
+                    if mode_stats['steps'] % self.config.accumulate_grad_batches == 0:
+                        # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
+                        if self.config.get('clip_grad_norm', 0)> 0:
+                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
+                        self.optimizer.step()
+                        self.optimizer.zero_grad()
+                
+                self.optimizer.step()
+
+                mode_stats['steps_since_checkpoint'] = mode_stats['steps'] - mode_stats['checkpoint_step']
+                mode_stats['patience_steps'] = self.config['patience_steps'] = self.config.get('patience_steps', self.config.epoch_length*self.config.patience_epochs)
+                if mode_stats['steps_since_checkpoint'] >= self.config.patience_steps :
+                    is_better = mode_stats['is_better'] = bool(mode_stats['epoch_loss'] <= (mode_stats['best_loss'] + self.config.best_loss_delta))
+                    if  is_better:
+                        mode_stats['checkpoint_step'] = mode_stats['steps']
+                        mode_stats['best_loss'] = mode_stats['epoch_loss']
+                        self.stats = stats
+                        self.save() # save all
+                    else:
+                        mode_stats['checkpoint_step'] = mode_stats['steps']
+                        mode_stats['epoch_loss'] = loss.item()
+                        self.load(keys=['model', 'optimizer'])
+                        
+            stats[mode] = mode_stats
+
         
+
+              
+        self.stats = stats
+    
         output['stats'] = self.munch2dict(stats)
 
         return output
@@ -415,7 +419,9 @@ class TransformerModel(c.Model):
         self.set_finetune(config.finetune) 
           
         if config.load:
-            self.load() 
+            self.load(['model', 'optimizer']) 
+        if config.reset_stats:
+            self.reset_stats()
         self.config = config
 
 

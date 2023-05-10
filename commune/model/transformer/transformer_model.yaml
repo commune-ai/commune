@@ -4,19 +4,21 @@ tokenizer: null
 save: true # save on epoch 
 device: null
 stats: null
-epoch_length: 100
-accumulation_gradients: 1
+epoch_length: 3
+accumulation_gradients: 3
 patience_epochs: 4
 best_loss_delta: -0.1
 default_metric: 12
+reset_stats: false
 hidden_size: 768
 vocab_size: 50258
 loss_sigdigs: 3
 max_gpu_ratio: 0.8
+sample_history: 100
 trust_remote_code: True
-finetune: 4
+finetune: 2
 optimizer:
-  lr: 1.0e-03
+  lr: 1.0e-04
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
