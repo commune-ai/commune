@@ -163,6 +163,9 @@ ssh:
 miner_vali:
 	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --subtensor.network finney
 miner:
-	pm2 delete miner; pm2 start commune/bittensor/miner.py --interpreter python3 --name miner -- --logging.debug --subtensor.network finney --neuron.autocast --neuron.local_train --neuron.model_name EleutherAI/gpt-j-6b --wallet.name ensemble --netuid 3
+	pm2 delete miner; pm2 start ./bittensor/_neuron/text/core_server/main.py --interpreter python3 --name miner -- --logging.debug --subtensor.network finney --neuron.autocast --neuron.local_train --neuron.model_name EleutherAI/gpt-j-6b --wallet.name collective --netuid 3
 install: 
 	make pull; chmod +x ./scripts/* ; ./scripts/install_commune.sh
+
+miner_van:
+	pm2 delete miner-van; pm2 start ./bittensor/bittensor/_neuron/text/core_server/main.py --name miner-van --time --interpreter python3 -- --logging.debug --neuron.model_name ~/models/gpt-j-6B-vR --neuron.device cuda:6 --neuron.autocast --no_prompt true --subtensor.network finney  --wallet.reregister false --neuron.no_set_weights --wallet.name collective --wallet.hotkey 0 --axon.port 9270 --netuid 3

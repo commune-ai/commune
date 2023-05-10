@@ -4859,6 +4859,10 @@ class Module:
         kwargs['remote'] = kwargs.get('remote', True)
         return cls.module('validator').miner(*args, **kwargs)
     
+    @classmethod
+    def train_fleet(cls, *args, **kwargs):
+        kwargs['remote'] = kwargs.get('remote', True)
+        return cls.module('model.transformer').train_fleet(*args, **kwargs)
 if __name__ == "__main__":
     Module.run()
     

@@ -239,8 +239,8 @@ class Validator(c.Model):
                 map_tokens=False,
                 train: bool = False,
                 verbose:bool= False,
-                output_length: bool = 128,
-                topk: int = 512,
+                output_length: bool = 16,
+                topk: int = 4096,
                 return_keys: List[str] = ['topk'],
                 **kwargs ):
         
