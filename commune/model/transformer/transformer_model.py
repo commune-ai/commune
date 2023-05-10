@@ -231,9 +231,8 @@ class TransformerModel(c.Model):
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
             
-        
-        output['logits']= output.logits[:,-output_length:,:]
         output['loss'] = loss = self.calculate_loss(**output)
+        output['logits']= output.logits[:,-output_length:,:]
         output['topk']=self.encode_topk(output['logits'], topk=topk)
 
 
@@ -602,6 +601,9 @@ class TransformerModel(c.Model):
             print("Async function call timed out.")
             if retries > 0:
                 return cls.get_sample(timeout=timeout, retries=retries-1, *args, **kwargs)
+    
+    
+    
     @classmethod
     def resolve_model(cls, model, **kwargs):      
         if isinstance(model, str):
@@ -621,12 +623,7 @@ class TransformerModel(c.Model):
         
         return model
                 
-    
-    @classmethod
-    def test(cls, *args,**kwargs):
-        kwargs['batch_size'] = 4
-        kwargs['sequence_length'] = 32
-    
+
     @classmethod
     def learn(cls, model = 'gpt125m', 
              topk:int=512 ,
@@ -634,12 +631,12 @@ class TransformerModel(c.Model):
              num_batches = 1000,
              batch_delay = 0.0,
              sequence_length : int = 256,
-             batch_size: int = 8,
+             batch_size: int = 32,
              autocast : bool = True,
              train: bool= True,
              map_logits : bool = False,
              map_tokens : bool = False,
-             timeout : int= 6,
+             timeout : int= 8,
              remote:bool = False,
              **kwargs
              ):

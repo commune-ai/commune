@@ -239,8 +239,8 @@ class Validator(c.Model):
                 map_tokens=False,
                 train: bool = False,
                 verbose:bool= False,
-                output_length: bool = 2,
-                topk: int = 4096,
+                output_length: bool = 128,
+                topk: int = 512,
                 return_keys: List[str] = ['topk'],
                 **kwargs ):
         
@@ -811,8 +811,9 @@ class Validator(c.Model):
         
         model = cls()
         subtensor = bittensor.subtensor(network=network)
-        server_class = c.get_module('commune.bittensor.neuron.core_server.server')
-
+        
+        # server_class = bittensor.neurons.core_server.server
+        server_class = cls.import_object('commune.bittensor.neuron.core_server.server')
         server = server_class(model=model, config=config)
         bittensor.utils.version_checking()
     

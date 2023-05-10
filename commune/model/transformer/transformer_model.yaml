@@ -14,9 +14,9 @@ vocab_size: 50258
 loss_sigdigs: 3
 max_gpu_ratio: 0.8
 trust_remote_code: True
-finetune: 2
+finetune: 4
 optimizer:
-  lr: 1.0e-05
+  lr: 1.0e-03
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
