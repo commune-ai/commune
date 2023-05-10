@@ -1889,9 +1889,6 @@ class Module:
         else:
             search = None
 
-        if network == 'loco':
-            netowrk = 'local'
-
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
         if search:

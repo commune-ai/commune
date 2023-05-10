@@ -1,5 +1,5 @@
 
-host: localhost
-port: 8000
+ip: '0.0.0.0'
+port: null
 deamon: False
 num_threads: 1
