@@ -308,16 +308,13 @@ class TransformerModel(c.Model):
 
                 mode_stats['checkpoint_step'] = mode_stats.get('checkpoint_step', 0)
                 loss.backward()
-                if self.config.get('accumulate_grad_batches', 1) > 1:
-                    if mode_stats['steps'] % self.config.accumulate_grad_batches == 0:
-                        # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
-                        if self.config.get('clip_grad_norm', 0)> 0:
-                            torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
-                        self.optimizer.step()
-                        self.optimizer.zero_grad()
+                if mode_stats['steps'] % self.config.accumulate_grad_batches == 0:
+                    # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
+                    if self.config.get('clip_grad_norm', 0)> 0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
                 
-                self.optimizer.step()
-
                 mode_stats['steps_since_checkpoint'] = mode_stats['steps'] - mode_stats['checkpoint_step']
                 mode_stats['patience_steps'] = self.config['patience_steps'] = self.config.get('patience_steps', self.config.epoch_length*self.config.patience_epochs)
                 if mode_stats['steps_since_checkpoint'] >= self.config.patience_steps :
@@ -688,6 +685,18 @@ class TransformerModel(c.Model):
           
     test = evaluate = learn
     
+    @property
+    def tag(self):
+        if self.config.get('tag', None) == None:
+            self.config['tag'] = 'base'
+            
+        return  self.config['tag']
+        
+
+    @tag.setter
+    def tag(self, tag):
+        self.config['tag'] = tag
+        
     @classmethod
     def train_fleet(cls, model = 'model.gptj', network='local', **kwargs):
         models = c.modules(model, network=network)
@@ -864,22 +873,23 @@ class TransformerModel(c.Model):
                mode:str = 'pm2',
                free_gpu_memory: dict = None,
                refresh = False,
-               tag_seperator:str = '::',     
-               **kwargs):
-        
-        
-        if update:
-            cls.update(network='local')
-        tag = kwargs.get('tag', None)
-        assert len(models) > 0
-
-        if free_gpu_memory == None:
-            free_gpu_memory = cls.free_gpu_memory()
+               tag_seperator:str = '::',    
+               **kwargs
+              ):
         
         config = cls.get_config(kwargs=kwargs)
         
-        
-        
+        if refresh:
+            for model in models:
+                cls.delete(model)
+          
+        if update:
+            cls.update(network='local')
+            
+        tag = kwargs.get('tag', None)
+        assert len(models) > 0
+        if free_gpu_memory == None:
+            free_gpu_memory = cls.free_gpu_memory()
         deployed_models = {}
         for model in models:
             if tag_seperator in model:

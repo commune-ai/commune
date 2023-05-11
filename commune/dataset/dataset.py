@@ -57,4 +57,4 @@ class Dataset(c.Module):
             # Handle the timeout error here
             print("Async function call timed out.")
             if retries > 0:
-                return cls.get_sample(timeout=timeout, retries=retries-1, *args, **kwargs)
+                return cls.sample(timeout=timeout, retries=retries-1, *args, **kwargs)
