@@ -3930,9 +3930,10 @@ class Module:
                               *args, **kwargs):
         if isinstance(modules, str) or modules == None:
             modules = cls.modules(modules)
+        print(modules)
         jobs = []
         for m in modules:
-            job = cls.async_call(m, fn, *args, **kwargs)
+            job = cls.async_call(module=m, fn=fn, *args, **kwargs)
             jobs.append(job)
         
         
