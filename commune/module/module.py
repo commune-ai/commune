@@ -3936,8 +3936,6 @@ class Module:
             job = cls.async_call(module=m, fn=fn, *args, **kwargs)
             jobs.append(job)
         
-        
-            
         responses = await asyncio.gather(*jobs)
         
         if success_only:
