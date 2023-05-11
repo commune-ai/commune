@@ -74,7 +74,7 @@ shortcuts =  {
     'gpt20b': 'EleutherAI/gpt-neox-20b',
     'opt13b': 'facebook/opt-13b',
     'gpt13b': 'cerebras/Cerebras-GPT-13B',
-    'sld': os.path.expanduser('~/models/gpt-j-6B-vR')
+    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR')
     
         }
 
@@ -364,7 +364,6 @@ class TransformerModel(c.Model):
         model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
         
         
-        self.print(model.__dict__['_modules'])
         # assert False
         config.model_size = self.get_model_size(model)
         config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
@@ -398,7 +397,7 @@ class TransformerModel(c.Model):
             self.print(f'model_kwargs: {model_kwargs}')
        
         self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
-        c.print(self.model.config)
+        # c.print(self.model.config.__dict__)
         
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
@@ -416,10 +415,12 @@ class TransformerModel(c.Model):
         self.set_finetune(config.finetune) 
           
         if config.load:
-            self.load(['model', 'optimizer']) 
+            self.load(keys=['model', 'optimizer']) 
         if config.reset_stats:
             self.reset_stats()
         self.config = config
+        
+        
 
 
     def set_params(params:dict = None):
@@ -691,8 +692,15 @@ class TransformerModel(c.Model):
             self.config['tag'] = 'base'
             
         return  self.config['tag']
-        
-
+       
+    
+    def resolve_state_path(self, tag=None):
+        tag = tag if tag != None else self.tag
+        print(tag, self.config.model)
+        path = self.config.model+'_'+tag
+        path = self.resolve_path(path)
+        return path
+    
     @tag.setter
     def tag(self, tag):
         self.config['tag'] = tag
@@ -821,13 +829,15 @@ class TransformerModel(c.Model):
     def deploy_fleet(cls, 
                      *tags, 
                      model = 'gptj',
+                     max_models = 4,
                      **kwargs
                      ) -> List[str]:
         
         c.update()
         if len(tags) == 0:
         
-            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
+            tags = ['alice', 'bob', 'chris', 'dan', 'eve', 'frank', 'gina', 'harry', 'ian', 'jane', 'kate', 'larry', 'mike', 'nancy', 'olivia', 'peter', 'quinn', 'rob', 'sarah', 'tom', 'ursula', 'victor', 'wanda', 'xavier', 'yolanda', 'zach']
+            tags = tags[:max_models]
         tag_seperator = kwargs.get('tag_seperator', '::')
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]
