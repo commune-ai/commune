@@ -238,7 +238,7 @@ class Model( nn.Module, commune.Module):
              verbose:bool = False,
              keys = None):
         tag = self.resolve_tag(tag)
-        path = self.resolve_path(tag)
+        path = self.resolve_state_path(tag)
 
         model_state_dict = self.state_dict()
         
@@ -300,6 +300,11 @@ class Model( nn.Module, commune.Module):
         return pd.DataFrame(stats).T
 
     
+    def resolve_state_path(self, tag=None):
+        tag = tag if tag != None else self.tag
+        path = self.resolve_path(tag)
+        return path
+    
     def load(self, tag=None, 
              keys:List[str] = None, 
              map_location: str = None,
@@ -308,7 +313,7 @@ class Model( nn.Module, commune.Module):
         
         map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
-        path = self.resolve_path(tag)
+        path = self.resolve_state_path(tag)
         if not os.path.exists(path):
             self.print(f'Couldnt find {path}')
             return 
@@ -417,6 +422,7 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)
+
 
 
         

@@ -5,9 +5,9 @@ save: true # save on epoch
 device: null
 stats: null
 epoch_length: 200
-accumulation_gradients: 2
+accumulate_grad_batches: 2
 patience_epochs: 1
-best_loss_delta: -0.1
+best_loss_delta: 0
 default_metric: 12
 reset_stats: false
 hidden_size: 768
