@@ -12,9 +12,9 @@ import asyncio
 from munch import Munch
 from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map, translate_logits_to_probs_std, \
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
-
+import time
 from torch import nn
-
+import os
 
 
 class Miner(commune.Module, nn.Module):
@@ -22,19 +22,23 @@ class Miner(commune.Module, nn.Module):
 
     
     
+    
     @classmethod
-    def start(cls, 
-               model_name:str='gptjvr',
-               wallet='collective.0',
+    def mine(cls, 
+               model_name:str=os.path.expanduser('~/models/gpt-j-6B-vR'),
+               wallet='ensemble.Hotk3',
                network = 'finney',
                netuid=3,
-               port = 9269,
-               prometheus_port = 8269,
+               port = 9469,
+               device = 0,
+               prometheus_port = None,
                debug = True,
                no_set_weights = True,
                remote:bool = False,
                tag=None,
-               sleep_interval = 2
+               cuda = 0, 
+               sleep_interval = 2,
+               autocast = True,
                ):
         
         
@@ -43,30 +47,43 @@ class Miner(commune.Module, nn.Module):
         if remote:
             kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
-            return cls.remote_fn(fn='miner',name=f'miner::{tag}',  kwargs=kwargs)
+            return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
 
         assert not cls.port_used(port), f'Port {port} is already in use.'
   
         
         config = bittensor.neurons.core_server.neuron.config()
+        
+        # model things
         config.neuron.no_set_weights = no_set_weights
         config.neuron.model_name = model_name
-        config.axon.port = port  if port is not None else cls.free_port()
-        config.prometheus.port = config.axon.prometheus['port'] = prometheus_port if prometheus_port is not None else cls.free_port()
+        config.neuron.device = f'cuda:{device}'
+        config.neuron.autocast = autocast
+        
+        # axon port
+        port = port  if port is not None else cls.free_port()
+        config.axon.port = port
+        
+        # prometheus port
+        config.prometheus.port =  port + 1 if prometheus_port is None else prometheus_port
+        config.axon.prometheus.port = config.prometheus.port
+        
+        # others
         config.netuid = netuid
         config.logging.debug = debug
-        config.neuron.pretrained = False
-        
 
+
+        # network
         subtensor = bittensor.subtensor(network=network)
         bittensor.utils.version_checking()
     
+        # wallet
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         
-        import time
-        
+
+        # wait for registration
         while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
             time.sleep(sleep_interval)
             cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')
@@ -74,7 +91,8 @@ class Miner(commune.Module, nn.Module):
         cls.print(f'Wallet {wallet} is registered on {network}')
              
              
-        bittensor.neurons.core_server.neuron(model=server, 
+        
+        bittensor.neurons.core_server.neuron(
                wallet=wallet,
                subtensor=subtensor,
                config=config,

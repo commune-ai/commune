@@ -4856,14 +4856,18 @@ class Module:
         return cls.module('model.transformer').learn(*args, **kwargs)
         
     @classmethod
-    def miner(cls,*args, **kwargs):
+    def mine(cls,*args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
-        return cls.module('validator').miner(*args, **kwargs)
+        return cls.module('miner').mine(*args, **kwargs)
     
     @classmethod
     def train_fleet(cls, *args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
         return cls.module('model.transformer').train_fleet(*args, **kwargs)
+    
+    @classmethod
+    def miners(cls, prefix='miner'):
+        return cls.pm2_list(prefix)
 if __name__ == "__main__":
     Module.run()
     
