@@ -624,9 +624,11 @@ class Validator(c.Model):
         
 
         for _ in range(num_batches):
+            
             sample = self.sample()
             if not self.sample_check(sample):
                 continue
+            sample['train'] = True
             output = self.forward(**sample)
             # model_stats = output.stats.pop('model_stats', None)
             c.print(self.stats['model_stats'])

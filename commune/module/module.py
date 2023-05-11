@@ -4296,7 +4296,7 @@ class Module:
     @classmethod
     def add_peers(cls, *peer_addresses, **kwargs): 
         if len(peer_addresses) == 0:
-            peer_address = cls.boot_peers()
+            peer_addresses = cls.boot_peers()
             
         if len(peer_addresses) == 1 and isinstance(peer_addresses[0], list):
             peer_addresses = peer_addresses[0]
@@ -4304,6 +4304,8 @@ class Module:
         for peer_address in peer_addresses:
             job = cls.async_add_peer(peer_address, **kwargs)
             jobs += [job]
+            
+        print(jobs)
         loop = cls.get_event_loop()
         return loop.run_until_complete(asyncio.gather(*jobs))
     
