@@ -4,9 +4,9 @@ tokenizer: null
 save: true # save on epoch 
 device: null
 stats: null
-epoch_length: 3
-accumulation_gradients: 3
-patience_epochs: 4
+epoch_length: 200
+accumulation_gradients: 1
+patience_epochs: 1
 best_loss_delta: -0.1
 default_metric: 12
 reset_stats: false
@@ -16,9 +16,9 @@ loss_sigdigs: 3
 max_gpu_ratio: 0.8
 sample_history: 100
 trust_remote_code: True
-finetune: 2
+finetune: 1
 optimizer:
-  lr: 1.0e-04
+  lr: 1.0e-05
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
