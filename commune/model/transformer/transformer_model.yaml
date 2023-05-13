@@ -4,10 +4,10 @@ tokenizer: null
 save: true # save on epoch 
 device: null
 stats: null
-epoch_length: 200
-accumulate_grad_batches: 2
-patience_epochs: 1
-best_loss_delta: 0
+epoch_length: 500
+accumulate_grad_batches: 1
+patience_epochs: 10
+best_epoch_loss_delta: 0.0
 default_metric: 12
 reset_stats: false
 hidden_size: 768
@@ -18,7 +18,7 @@ sample_history: 100
 trust_remote_code: True
 finetune: 1
 optimizer:
-  lr: 1.0e-05
+  lr: 2.0e-05
   module: torch.optim.Adam
 load_in_8bit: False
 stats: {}
@@ -28,6 +28,7 @@ max_sequence_length: 256
 clip_grad_norm: 1.0
 tag: null
 load: false
+refresh_state: false
 device_map: null
 max_memory: null
 reserve_gpus: False

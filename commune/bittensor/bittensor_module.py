@@ -19,16 +19,10 @@ class BittensorModule(commune.Module):
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] = 'finney',
                 netuid: int = 3,
-                create: bool = False,
-                register: bool = False
                 ):
         
         self.set_subtensor(subtensor=network)
         self.set_netuid(netuid=netuid)
-
-        self.set_wallet( wallet=wallet)
-        if create:
-            self.create_wallet(wallet)
         
     @classmethod
     def network_options(cls):
