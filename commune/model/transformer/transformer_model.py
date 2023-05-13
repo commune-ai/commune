@@ -74,7 +74,8 @@ shortcuts =  {
     'gpt20b': 'EleutherAI/gpt-neox-20b',
     'opt13b': 'facebook/opt-13b',
     'gpt13b': 'cerebras/Cerebras-GPT-13B',
-    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR')
+    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
+    'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
     
         }
 
