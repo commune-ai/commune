@@ -204,6 +204,11 @@ class BittensorModule(commune.Module):
         
         return wallet2path
     
+    @classmethod
+    def get_wallet_path(self, wallet=None):
+        if wallet is None:
+            wallet = self.wallet
+        return self.wallet2path()[wallet]
     
     @classmethod
     def rm_wallet(cls, wallet):
@@ -524,14 +529,18 @@ class BittensorModule(commune.Module):
 
             
     @classmethod 
-    def add_coldkey (cls,name = 'default',
+    def add_coldkey (cls,name,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = True) :
         
-        
+        if not overwrite:
+            assert not cls.coldkey_exists(name), f'Wallet {name} already exists.'
         wallet = bittensor.wallet(name=name)
-        wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
+        if mnemonic is None:
+            wallet.create_new_coldkey(use_password=use_password, overwrite=overwrite)
+        else:
+            wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
         return wallet
     
             
