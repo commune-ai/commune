@@ -187,6 +187,8 @@ class BittensorModule(commune.Module):
                     if not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
                         continue
                 wallets.append(f'{c}.{h}')
+                
+        wallets = sorted(wallets)
         return wallets
     
     @classmethod
@@ -526,6 +528,19 @@ class BittensorModule(commune.Module):
                 cls.get_wallet(wallet)
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
            
+           
+    @classmethod
+    def add_key_fleet(cls, name='ensemble',
+                      hotkeys=[i+1 for i in range(8)] , 
+                      use_password: bool=False,
+                      overwrite:bool = True):
+        
+        cls.add_coldkey(name=name, use_password=use_password, overwrite=overwrite)
+        
+        for hotkey in hotkeys:
+            cls.add_hotkey(coldkey=name, hotkey=hotkey, use_password=use_password, overwrite=overwrite)
+
+        
 
             
     @classmethod 
