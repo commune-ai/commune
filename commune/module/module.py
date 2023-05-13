@@ -4759,7 +4759,7 @@ class Module:
     
     @classmethod
     def tags(cls):
-        return ['alice', 'bob', 'chris', 'dan', 'fam', 'greg', 'elon']
+        return ['alice', 'bob', 'chris', 'dan', 'fam', 'greg', 'elon', 'huck']
     
     @classmethod
     def rand_tag(cls):

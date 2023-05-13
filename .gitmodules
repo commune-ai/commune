@@ -13,3 +13,6 @@
 [submodule "bittensor"]
 	path = bittensor
 	url = https://github.com/opentensor/bittensor.git
+[submodule "trl"]
+	path = trl
+	url = https://github.com/lvwerra/trl

@@ -229,6 +229,7 @@ class Server(ServerServicer, Serializer, commune.Module):
             output_data = str(ex)
             if any([rex in output_data for rex in self.exceptions_to_raise]):
                 raise(ex)
+                self.stop()
             
             if verbose:
                 commune.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')

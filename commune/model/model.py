@@ -346,6 +346,17 @@ class Model( nn.Module, commune.Module):
         state_dict.update(state_dict)
         self.load_state_dict(state_dict)
         
+        
+        
+    def get_state_dict(self, keys=None):
+
+        assert isinstance(state_dict, dict), f'state_dict must be a dict, got {type(state_dict)}'
+        state_dict = self.state_dict()
+        if keys == None:
+            keys = state_dict.keys()
+        state_dict.update(state_dict)
+        self.load_state_dict(state_dict)
+        
 
     def set_finetune(self, finetune) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
