@@ -818,6 +818,8 @@ class BittensorModule(commune.Module):
             wait_for_finalization = wait_for_finalization,
             prompt = prompt
         )
+    
+    
     def get_balance(self, wallet=None):
         wallet = self.resolve_wallet(wallet)
         return wallet.balance
@@ -828,6 +830,134 @@ class BittensorModule(commune.Module):
         print(cmd)
         return cls.cmd(cmd)
     
+    @classmethod
+    def mine(cls, 
+               wallet='ensemble.Hot5',
+               model_name:str=os.path.expanduser('~/models/gpt-j-6B-vR'),
+               network = 'finney',
+               netuid=3,
+               port = None,
+               device = None,
+               prometheus_port = None,
+               debug = True,
+               no_set_weights = True,
+               remote:bool = False,
+               tag=None,
+               sleep_interval = 2,
+               autocast = True,
+               burned_register = False,
+               ):
+        
+        
+        if tag == None:
+            tag = f'{wallet}::{network}::{netuid}'
+        if remote:
+            kwargs = cls.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
+            
+        if port == None:
+            port = cls.free_port()
+        assert not cls.port_used(port), f'Port {port} is already in use.'
+  
+        
+        config = bittensor.neurons.core_server.neuron.config()
+        
+        # model things
+        config.neuron.no_set_weights = no_set_weights
+        config.neuron.model_name = model_name
+        
+        if device is None:
+            device = cls.most_free_gpu()
+        
+        assert torch.cuda.is_available(), 'No CUDA device available.'
+        config.neuron.device = f'cuda:{device}'
+        config.neuron.autocast = autocast
+        
+        # axon port
+        port = port  if port is not None else cls.free_port()
+        config.axon.port = port
+        assert not cls.port_used(config.axon.port), f'Port {config.axon.port} is already in use.'
+        
+        # prometheus port
+        config.prometheus.port =  port + 1 if prometheus_port is None else prometheus_port
+        while cls.port_used(config.prometheus.port):
+            config.prometheus.port += 1
+            
+            
+        config.axon.prometheus.port = config.prometheus.port
+        config.netuid = netuid
+        config.logging.debug = debug
+
+
+        # network
+        subtensor = bittensor.subtensor(network=network)
+        bittensor.utils.version_checking()
+    
+        # wallet
+        coldkey, hotkey = wallet.split('.')
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        
+        cls.print('Config: ', config)
+        # wait for registration
+        
+            
+        if burned_register:
+            subtensor.burned_register(
+                wallet = wallet,
+                netuid = netuid,
+                wait_for_inclusion = False,
+                wait_for_finalization = True,
+                prompt = False,
+        )
+        while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
+            time.sleep(sleep_interval)
+            cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')
+            
+        cls.print(f'Wallet {wallet} is registered on {network}')
+             
+             
+        
+        bittensor.neurons.core_server.neuron(
+               wallet=wallet,
+               subtensor=subtensor,
+               config=config,
+               netuid=netuid).run()
+
+    @classmethod
+    def miner_fleet(cls, name='ensemble', 
+                    hotkeys=[i+1 for i in range(8)],
+                    remote=True,
+                    netuid=3,
+                    network='finney',
+                    refresh: bool = False,
+                    model_name=os.path.expanduser('~/models/gpt-j-6B-vR')): 
+        
+        
+        wallets = [f'{name}.{hotkey}' for hotkey in hotkeys]
+        
+        gpus = cls.gpus()
+        
+        axon_ports = []
+        for i, wallet in enumerate(wallets):
+            device = i
+            assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
+            tag = f'{wallet}::{network}::{netuid}'
+            miner_name = f'miner::{tag}'
+            axon_port = cls.free_port()
+            while cls.port_used(axon_port) or axon_port in axon_ports:
+                axon_port += 1
+            axon_ports.append(axon_port)
+            prometheus_port = axon_port - 1000
+            if miner_name in cls.miners() and not refresh:
+                cls.print(f'{miner_name} is already running. Skipping ...')
+                continue
+            else:
+                cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
+                # cls.mine(wallet=wallet, remote=remote, tag=tag, device=device)
+            
+            # self.mine(wallet=wallet, remote=remote, tag=tag)
+            
     
 
 if __name__ == "__main__":
