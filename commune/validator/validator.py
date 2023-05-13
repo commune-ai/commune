@@ -485,7 +485,7 @@ class Validator(c.Model):
             else: 
                 ensemble_output['models_failed'] += [m_key]
                 
-        ensemble_outputs = self.process_outputs(ensemble_output)
+        ensemble_outputs = self.process_outputs_mixture(ensemble_output)
         best_model_idx = ensemble_output['ranks'][0]
         # calculate the stats
         stats['best_metric'] = ensemble_output['metrics'][best_model_idx]
