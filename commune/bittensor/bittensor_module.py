@@ -81,14 +81,12 @@ class BittensorModule(commune.Module):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
             elif len(wallet.split('.')) == 1:
-                name = bittensor.wallet(name=wallet)
+                name = bittensor.wallet(name=wallet, )
                 hotkey = None
             else:
                 raise NotImplementedError(wallet)
                 
             wallet =bittensor.wallet(name=name, hotkey=hotkey)
-        elif isinstance(wallet, type(None)):
-            wallet = bittensor.wallet()
         elif isinstance(wallet, bittensor.Wallet):
             wallet = wallet
         else:
@@ -102,10 +100,16 @@ class BittensorModule(commune.Module):
             subtensor = self.subtensor
         return subtensor
     
-    def resolve_netuid(self, netuid: int = None):
+
+    def resolve_netuid(self, netuid: int = None) -> int:
         if netuid is None:
             netuid = self.netuid
-        self.print('netuid', netuid)
+        return netuid
+    default_netuid = 3
+    @classmethod
+    def get_netuid(cls, netuid: int = None) -> int:
+        if netuid is None:
+            netuid = cls.default_netuid
         return netuid
     
     
@@ -171,12 +175,43 @@ class BittensorModule(commune.Module):
         return wallet_list
     
     @classmethod
-    def wallets(cls):
+    def wallets(cls, registered_only=False, subtensor='finney', netuid:int=None):
         wallets = []
+        if registered_only:
+            subtensor = cls.get_subtensor(subtensor)
+            netuid = cls.get_netuid(netuid)
         for c in cls.coldkeys():
             for h in cls.hotkeys(c):
+                wallet = f'{c}.{h}'
+                if registered_only:
+                    if not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
+                        continue
                 wallets.append(f'{c}.{h}')
         return wallets
+    
+    @classmethod
+    def wallet2path(cls, search = None):
+        wallets = cls.wallets()
+        wallet2path = {}
+        for wallet in wallets:
+            ck, hk = wallet.split('.')
+            if search is not None:
+                if search not in wallet:
+                    continue
+                    
+            wallet2path[wallet] = os.path.join(cls.wallets_path, ck, 'hotkeys', hk)
+
+        
+        return wallet2path
+    
+    
+    @classmethod
+    def rm_wallet(cls, wallet):
+        wallet2path = cls.wallet2path()
+        assert wallet in wallet2path, f'Wallet {wallet} not found in {wallet2path.keys()}'
+        cls.rm(wallet2path[wallet])
+     
+        return cls.wallets()
     
     @classmethod
     def hotkeys(cls, wallet='default'):
@@ -212,13 +247,13 @@ class BittensorModule(commune.Module):
     
     @classmethod
     def hotkey_exists(cls, coldkey:str, hotkey:str) -> bool:
-        hotkeys = self.hotkeys(coldkey)
+        hotkeys = cls.hotkeys(coldkey)
         return bool(hotkey in hotkeys)
     
     @classmethod
-    def coldkey_exists(cls, wallet:str) -> bool:
-        wallet = cls.get_wallet(wallet)
-        return wallet.coldkey_file.exists_on_device()
+    def coldkey_exists(cls, coldkey:str) -> bool:
+        coldkeys = cls.coldkeys()
+        return bool(coldkey in coldkeys)
     
     
     
@@ -233,16 +268,16 @@ class BittensorModule(commune.Module):
     @property
     def network(self):
         return self.subtensor.network
-    
-    
-    def is_registered(self, netuid: int = None, wallet = None):
-        netuid = self.resolve_netuid(netuid)
-        wallet = self.resolve_wallet(wallet)
-        return wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
+    @classmethod
+    def is_registered(cls, wallet = None, netuid: int = None, subtensor: 'Subtensor' = None):
+        netuid = cls.get_netuid(netuid)
+        wallet = cls.get_wallet(wallet)
+        subtensor = cls.get_subtensor(subtensor)
+        return wallet.is_registered(subtensor= subtensor, netuid=  netuid)
 
     @property
     def registered(self):
-        return self.is_registered()
+        return self.is_registered(wallet=self.wallet, netuid=self.netuid, subtensor=self.subtensor)
     def sync(self, netuid=None):
         netuid = self.resolve_netuid(netuid)
         return self.metagraph.sync(netuid=netuid)
@@ -250,7 +285,7 @@ class BittensorModule(commune.Module):
     def wait_until_registered(self, netuid: int = None, wallet: 'Wallet'=None, interval:int=60):
         seconds_waited = 0
         # loop until registered.
-        while not self.is_registered( netuid=netuid, wallet=wallet):
+        while not self.is_registered( netuid=netuid, wallet=wallet, subtensor=self.subtensor):
             # sleep then sync
             self.print(f'Waiting for registering {seconds_waited} seconds', color='purple')
             self.sleep(interval)
@@ -498,16 +533,63 @@ class BittensorModule(commune.Module):
         wallet = bittensor.wallet(name=name)
         wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
         return wallet
+    
+            
+    @classmethod 
+    def add_coldkeypub (cls,name = 'default',
+                       ss58_address:str = None,
+                       use_password=False,
+                       overwrite:bool = True) :
+        
+        wallet = bittensor.wallet(name=name)
+        wallet.regenerate_coldkeypub(ss58_address=ss58_address, use_password=use_password, overwrite=overwrite)
+        return name
+
+
+    @classmethod
+    def new_coldkey( cls, name,
+                           n_words:int = 12,
+                           use_password: bool = False,
+                           overwrite:bool = False) -> 'Wallet':  
+        
+        if not overwrite:
+            assert not cls.coldkey_exists(name), f'Wallet {name} already exists.'
+        
+        wallet = bittensor.wallet(name=name)
+        wallet.create_new_coldkey(n_words=n_words, use_password=use_password, overwrite=overwrite)
+        
+        
+    @classmethod
+    def new_hotkey( cls, name :str,
+                        hotkey:str,
+                        n_words:int = 12,
+                        overwrite:bool = False,
+                        use_password:bool = False) -> 'Wallet': 
+        hotkey = str(hotkey) 
+        assert cls.coldkey_exists(name), f'Wallet {name} does not exist.'
+        if not overwrite:
+            assert not cls.hotkey_exists(name, hotkey), f'Hotkey {hotkey} already exists.'
+        
+        wallet = bittensor.wallet(name=name, hotkey=hotkey)
+        wallet.create_new_hotkey(n_words=n_words, use_password=use_password, overwrite=overwrite)
+        
+        
 
     @classmethod 
-    def add_hotkey (cls,hotkey,
-                       coldkey,
+    def add_hotkey (cls, coldkey,
+                        hotkey,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = True) :
+        hotkey= str(hotkey)
+        coldkey= str(coldkey)
         assert coldkey in cls.coldkeys()
-        coldkey = bittensor.wallet(name=coldkey, hotkey=hotkey)
-        wallet.regenerate_hotkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
+
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        if mnemonic is None:
+            wallet.create_new_hotkey(use_password=use_password, overwrite=overwrite)
+        else:
+            wallet.regenerate_hotkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
         return wallet
     
     @classmethod 

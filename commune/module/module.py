@@ -1357,10 +1357,12 @@ class Module:
         path = cls.resolve_path(path=path, extension='json', root=root)
 
         return rm_json(path )
-
-    def rm(cls, *args, mode='json', **kwargs):
-        fn = getattr(cls, f'rm_{mode}')
-        return fn(*args, **kwargs)
+    @classmethod
+    def rm(cls, path, root:bool = False):
+        path = cls.resolve_path(path=path, extension=None, root=root)
+        cls.print(path)
+        assert os.path.exists(path)
+        return os.remove(path)
     @classmethod
     def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
         
