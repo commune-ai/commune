@@ -35,13 +35,8 @@ class Validator(c.Model):
             self.load(self.tag)
 
         self.set_namespace()
-
         self.set_models(models=config.models, network=config.network, update=config.update)
-        self.set_max_stats_history(config.max_stats_history)
-        self.set_batch_size(config.batch_size)
-        self.set_sequence_length(config.sequence_length)
         self.set_dataset(config.dataset)
-        self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
         self.weights = nn.Parameter(torch.ones(5))
 
@@ -51,23 +46,17 @@ class Validator(c.Model):
     _namespace = None
     
     def set_namespace(self):
-        self.namespace_update_ts = self.time()
+        current_time = self.time()
+        # 
+        if current_time - self.namespace_update_ts> self.config.namespace_update_interval:
+            self.namespace_update_ts = self.time()
+            self._namespace = c.namespace(network=self.config.network,update=False )
         self.namespace = c.namespace(network=self.config.network,update=False )
     
 
     def set_dataset(self, dataset):
         self.dataset = c.module('dataset')
-    
-    def set_max_stats_history(self, max_stats_history: int) -> None:
-        self.max_stats_history = max_stats_history
-    def set_batch_size(self, batch_size: int) -> None:
-        self.batch_size = batch_size
-    def set_sequence_length(self, sequence_length: int) -> None:
-        self.sequence_length = sequence_length
 
-    def set_alpha(self, alpha: float) -> None:
-        # set alpha for exponential moving average
-        self.alpha = alpha
         
     def verify_signature(self, signature: Dict) -> bool:
         return True
@@ -172,8 +161,8 @@ class Validator(c.Model):
     def sample(self, **kwargs):
         kwargs.update(dict(
             # tokenize=True, 
-            sequence_length=self.sequence_length,
-            batch_size=self.batch_size
+            sequence_length=self.config.sequence_length,
+            batch_size=self.config.batch_size
         ))
         
         sample = self.dataset.sample(**kwargs)
@@ -207,10 +196,6 @@ class Validator(c.Model):
             sample_metadata[k] = metadata_k
 
         return sample_metadata
-            
-    @property
-    def default_metric(self) -> float:
-        return 10.0
 
     def resolve_model(self, model: str = None) -> Any:
         if model is None:
@@ -240,16 +225,15 @@ class Validator(c.Model):
                 verbose:bool= False,
                 output_length: bool = 16,
                 topk: int = 4096,
-                return_keys: List[str] = ['topk'],
+                return_keys: List[str] = ['topk', 'stats'],
                 **kwargs ):
         
         sample = self.locals2kwargs(locals())
         timer = c.timer()
-        output = None
-        # try:
-        namespace = self.copy(self.namespace)
-        model_name = self.copy(model)
-        model = await self.async_connect(model_name, namespace=namespace, virtual=False)
+
+        model = await self.async_connect(model, 
+                                         namespace=self.namespace, 
+                                         virtual=False)
 
         sample = dict(
             input_ids=input_ids,
@@ -265,16 +249,18 @@ class Validator(c.Model):
                              kwargs=sample, 
                              return_future=True)
         
+        # check the outputs of the model
         success = self.check_output(output)
-        stats = {}
+        
+        self.print(f'forward success: {success}', model, output)
         if success:
             output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.config.vocab_size)
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
             output = {'error': output}
-            metric = self.default_metric
+            metric = self.config.default_metric
             if verbose:
-                self.print(f'forward failed: {output}', model_name)
+                self.print(f'forward failed: {output}', model)
 
 
         output['stats'] =  {
@@ -282,6 +268,7 @@ class Validator(c.Model):
             'metric': metric,
             'timestamp': self.time(),
             'success': success
+            
         }
                 
         return output
@@ -424,7 +411,6 @@ class Validator(c.Model):
                       topk=topk, 
                       timeout=timeout,
                       train=train, 
-                      return_keys=['topk'],
                       **kwargs)
         
         jobs = [asyncio.wait_for(self.async_forward(**sample,model=m), timeout=timeout) for m in called_models]
@@ -452,7 +438,6 @@ class Validator(c.Model):
         
         model_stats = {}
         
-        
         ensemble_output = self.munch({
             'weights': [],
             'logits': [],
@@ -464,12 +449,9 @@ class Validator(c.Model):
 
         })
         
-         
         for m_key, m_output in model_output_dict.items():
             m_stats = m_output['stats']
-
             is_success  =  m_stats['success'] and m_stats['metric'] < self.config.threshold
-            
             
             if  is_success:
                 model_stats[m_key] = m_stats
@@ -491,9 +473,6 @@ class Validator(c.Model):
         stats['success'] = len(ensemble_output['models'])
         stats['fails'] = stats['called'] - stats['success']
 
-
-
-        
         for i, (mkey, mstats) in enumerate(model_stats.items()):
             if mstats == None:
                 continue
