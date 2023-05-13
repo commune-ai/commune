@@ -9,7 +9,7 @@ commune.new_event_loop()
 import bittensor
 from typing import List, Union, Optional, Dict
 from munch import Munch
-
+import time
 import streamlit as st
 
 class BittensorModule(commune.Module):
@@ -81,8 +81,8 @@ class BittensorModule(commune.Module):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
             elif len(wallet.split('.')) == 1:
-                name = bittensor.wallet(name=wallet, )
-                hotkey = None
+                name = wallet
+                hotkey = cls.hotkeys(name)[0]
             else:
                 raise NotImplementedError(wallet)
                 
@@ -175,7 +175,7 @@ class BittensorModule(commune.Module):
         return wallet_list
     
     @classmethod
-    def wallets(cls, registered_only=False, subtensor='finney', netuid:int=None):
+    def wallets(cls, search = None, registered_only=False, subtensor='finney', netuid:int=None):
         wallets = []
         if registered_only:
             subtensor = cls.get_subtensor(subtensor)
@@ -186,10 +186,30 @@ class BittensorModule(commune.Module):
                 if registered_only:
                     if not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
                         continue
-                wallets.append(f'{c}.{h}')
+                    
+                
+                if search is not None:
+                    if search not in wallet:
+                        continue
+                    
+                wallets.append(wallet)
                 
         wallets = sorted(wallets)
         return wallets
+    
+    @classmethod
+    def registered_wallets(cls, search=None,  subtensor='finney', netuid:int=None):
+        wallets =  cls.wallets(search=search,registered_only=True, subtensor=subtensor, netuid=netuid)
+        return wallets
+
+    @classmethod
+    def unregistered_wallets(cls, search=None,  subtensor='finney', netuid:int=None):
+        wallets =  cls.wallets(search=search,registered_only=False, subtensor=subtensor, netuid=netuid)
+        registered_wallets = cls.registered_wallets(search=search, subtensor=subtensor, netuid=netuid)
+        unregistered_wallets = [w for w in wallets if w not in registered_wallets]
+        return unregistered_wallets
+    
+    
     
     @classmethod
     def wallet2path(cls, search = None):
@@ -247,10 +267,8 @@ class BittensorModule(commune.Module):
     
     @classmethod
     def wallet_exists(cls, wallet:str):
-        wallet = self.get_wallet(wallet)
-        coldkey_exists = wallet.coldkey_file.exists_on_device()
-        hotkey_exists = wallet.hotkey_file.exists_on_device()
-        return bool(coldkey_exists and hotkey_exists)
+        wallets = cls.wallets()
+        return bool(wallet and wallets)
     
     @classmethod
     def hotkey_exists(cls, coldkey:str, hotkey:str) -> bool:
@@ -524,7 +542,6 @@ class BittensorModule(commune.Module):
         
         if isinstance(wallets, list):
             for wallet in wallets:
-                assert (wallet, str), 'wallet must be a string'
                 cls.get_wallet(wallet)
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
            
@@ -799,30 +816,46 @@ class BittensorModule(commune.Module):
         return self.wallet.balance 
     
     
-    
+    @classmethod
     def burned_register (
-            self,
+            cls,
             wallet: 'bittensor.Wallet' = None,
             netuid: int = None,
-            wait_for_inclusion: bool = False,
+            wait_for_inclusion: bool = True,
             wait_for_finalization: bool = True,
-            prompt: bool = False
+            prompt: bool = False,
+            subtensor = None
         ):
-        wallet = self.resolve_wallet(wallet)
-        netuid = self.resolve_netuid(netuid)
-        st.write(wallet, netuid)
-        self.subtensor.burned_register(
+        wallet = cls.get_wallet(wallet)
+        netuid = cls.get_netuid(netuid)
+        subtensor = cls.get_subtensor(subtensor)
+        subtensor.burned_register(
             wallet = wallet,
             netuid = netuid,
             wait_for_inclusion = wait_for_inclusion,
             wait_for_finalization = wait_for_finalization,
             prompt = prompt
         )
+        
+    @classmethod
+    def burned_register_many(cls, *wallets, sleep_interval=3, **kwargs):
+        for wallet in wallets:
+            assert cls.wallet_exists(wallet), f'wallet {wallet} does not exist'
+            cls.print(f'burned_register {wallet}')
+            cls.burned_register(wallet=wallet, **kwargs)
+            cls.sleep(sleep_interval)
     
     
+    
+    @classmethod
     def get_balance(self, wallet=None):
-        wallet = self.resolve_wallet(wallet)
+        wallet = self.get_wallet(wallet)
         return wallet.balance
+    
+    @classmethod
+    def get_address(cls, wallet=None):
+        wallet = cls.get_wallet(wallet)
+        return wallet.coldkey.ss58_address
         
     @classmethod
     def score(cls, wallet='collective.0'):
@@ -925,13 +958,13 @@ class BittensorModule(commune.Module):
                netuid=netuid).run()
 
     @classmethod
-    def miner_fleet(cls, name='ensemble', 
+    def deploy_miners(cls, name='ensemble', 
                     hotkeys=[i+1 for i in range(8)],
                     remote=True,
                     netuid=3,
                     network='finney',
                     refresh: bool = False,
-                    model_name=os.path.expanduser('~/models/gpt-j-6B-vR')): 
+                    burned_register=False): 
         
         
         wallets = [f'{name}.{hotkey}' for hotkey in hotkeys]
@@ -940,6 +973,7 @@ class BittensorModule(commune.Module):
         
         axon_ports = []
         for i, wallet in enumerate(wallets):
+            assert cls.wallet_exists(wallet), f'Wallet {wallet} does not exist.'
             device = i
             assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
             tag = f'{wallet}::{network}::{netuid}'
@@ -954,11 +988,22 @@ class BittensorModule(commune.Module):
                 continue
             else:
                 cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
-                # cls.mine(wallet=wallet, remote=remote, tag=tag, device=device)
+                cls.mine(wallet=wallet,
+                         remote=remote, 
+                         tag=tag, 
+                         device=device, 
+                        port=axon_port,
+                        prometheus_port = prometheus_port,
+                         burned_register=burned_register)
             
             # self.mine(wallet=wallet, remote=remote, tag=tag)
             
-    
+    @classmethod
+    def miners(cls, prefix='miner'):
+        return cls.pm2_list(prefix)    
+    @classmethod
+    def kill_miners(cls, prefix='miner'):
+        return cls.kill(prefix)    
 
 if __name__ == "__main__":
     BittensorModule.run()
