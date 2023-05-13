@@ -171,6 +171,29 @@ class BittensorModule(commune.Module):
         return wallet_list
     
     @classmethod
+    def wallets(cls):
+        wallets = []
+        for c in cls.coldkeys():
+            for h in cls.hotkeys(c):
+                wallets.append(f'{c}.{h}')
+        return wallets
+    
+    @classmethod
+    def hotkeys(cls, wallet='default'):
+        coldkeys = cls.coldkeys()
+        assert wallet in coldkeys, f'Wallet {wallet} not found in {coldkeys}'
+        return  [os.path.basename(p) for p in cls.ls(os.path.join(cls.wallets_path, wallet, 'hotkeys'))]
+        
+    @classmethod
+    def coldkeys(cls, wallet='default'):
+        
+        return  [os.path.basename(p)for p in cls.ls(cls.wallets_path)]
+
+        
+    def coldkey_exists(cls, wallet='default'):
+        return [os.path.basename(p)for p in cls.ls(cls.wallets_path)]
+    
+    @classmethod
     def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
         wallet_paths = cls.list_wallet_paths()
         wallets = [p.replace(cls.wallets_path, '').replace('/hotkeys/','.') for p in wallet_paths]
@@ -179,6 +202,25 @@ class BittensorModule(commune.Module):
             wallets = [cls.get_wallet(w) for w in wallets]
             
         return wallets
+    
+    @classmethod
+    def wallet_exists(cls, wallet:str):
+        wallet = self.get_wallet(wallet)
+        coldkey_exists = wallet.coldkey_file.exists_on_device()
+        hotkey_exists = wallet.hotkey_file.exists_on_device()
+        return bool(coldkey_exists and hotkey_exists)
+    
+    @classmethod
+    def hotkey_exists(cls, coldkey:str, hotkey:str) -> bool:
+        hotkeys = self.hotkeys(coldkey)
+        return bool(hotkey in hotkeys)
+    
+    @classmethod
+    def coldkey_exists(cls, wallet:str) -> bool:
+        wallet = cls.get_wallet(wallet)
+        return wallet.coldkey_file.exists_on_device()
+    
+    
     
     @property
     def default_network(self):
@@ -444,32 +486,52 @@ class BittensorModule(commune.Module):
                 cls.get_wallet(wallet)
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
            
-    def regen_key(name = 'default',
-                  hotkey = 'default',
-                  coldkey_address:str = None,
-                  hotkey_mnemonic:str = None) :
-        
-        if name.split('.') == 2:
-            name, hotkey = name.split('.')
-        
-        wallet = bittensor.wallet(name=name, hotkey=hotkey)
 
-        if coldkey_address:
-            wallet.regenerate_coldkeypub(coldkey_address)
-                
-        if hotkey_mnemonic:
-            wallet.regenerate_hotkey(hotkey_mnemonic)
+            
+    @classmethod 
+    def add_coldkey (cls,name = 'default',
+                       mnemonic:str = None,
+                       use_password=False,
+                       overwrite:bool = True) :
+        
+        
+        wallet = bittensor.wallet(name=name)
+        wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
+        return wallet
+
+    @classmethod 
+    def add_hotkey (cls,hotkey,
+                       coldkey,
+                       mnemonic:str = None,
+                       use_password=False,
+                       overwrite:bool = True) :
+        assert coldkey in cls.coldkeys()
+        coldkey = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        wallet.regenerate_hotkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
+        return wallet
+    
+    @classmethod 
+    def regen_hotkey (cls,name = 'default.default',
+                       mnemonic:str = None,
+                       use_password=False,
+                       overwrite:bool = True) :
+        
+        
+        assert len(name.split('.')) == 2, 'name must be of the form coldkey.hotkey'
+        wallet = bittensor.wallet(name=name, hotkey=hotkey)
+        
+        wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
             
         return wallet
-                
+    
+          
     @classmethod
     def add_wallet(cls, 
                       wallet: str = 'default.default',
-                       use_password:bool = False, 
-                       overwrite : bool = True,
                        coldkey : str = None,
                        mnemonic: str= None,
-                       seed: str = None
+                       use_password:bool = False, 
+                       overwrite : bool = True,
                        ) :
         if len(wallet.split('.')) == 2:
            coldkey, hotkey = wallet.split('.')
@@ -524,7 +586,6 @@ class BittensorModule(commune.Module):
         
         wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
         self.set_wallet(wallet)
-        st.write(self.get_balance('bitconnect.0'))
         network_options = self.network_options()
         network = st.selectbox(f'Select Network ({network_options[0]})', network_options, 0)
         self.set_subtensor(subtensor=network)
