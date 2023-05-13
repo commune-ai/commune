@@ -22,21 +22,19 @@ class Miner(commune.Module, nn.Module):
 
     
     
-    
     @classmethod
     def mine(cls, 
+               wallet='ensemble.Hot5',
                model_name:str=os.path.expanduser('~/models/gpt-j-6B-vR'),
-               wallet='ensemble.Hotk3',
                network = 'finney',
                netuid=3,
-               port = 9469,
-               device = 0,
+               port = None,
+               device = None,
                prometheus_port = None,
                debug = True,
                no_set_weights = True,
                remote:bool = False,
                tag=None,
-               cuda = 0, 
                sleep_interval = 2,
                autocast = True,
                ):
@@ -49,7 +47,8 @@ class Miner(commune.Module, nn.Module):
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
-
+        if port == None:
+            port = cls.free_port()
         assert not cls.port_used(port), f'Port {port} is already in use.'
   
         
@@ -58,18 +57,26 @@ class Miner(commune.Module, nn.Module):
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.neuron.model_name = model_name
+        
+        if device is None:
+            device = cls.most_free_gpu()
+        
+        assert torch.cuda.is_available(), 'No CUDA device available.'
         config.neuron.device = f'cuda:{device}'
         config.neuron.autocast = autocast
         
         # axon port
         port = port  if port is not None else cls.free_port()
         config.axon.port = port
+        assert not cls.port_used(config.axon.port), f'Port {config.axon.port} is already in use.'
         
         # prometheus port
         config.prometheus.port =  port + 1 if prometheus_port is None else prometheus_port
+        while cls.port_used(config.prometheus.port):
+            config.prometheus.port += 1
+            
+            
         config.axon.prometheus.port = config.prometheus.port
-        
-        # others
         config.netuid = netuid
         config.logging.debug = debug
 
@@ -82,7 +89,7 @@ class Miner(commune.Module, nn.Module):
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         
-
+        cls.print('Config: ', config)
         # wait for registration
         while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
             time.sleep(sleep_interval)
@@ -99,8 +106,10 @@ class Miner(commune.Module, nn.Module):
                netuid=netuid).run()
 
 
-     
+        
 if __name__ == '__main__':
     Miner.run()
 
         
+
+

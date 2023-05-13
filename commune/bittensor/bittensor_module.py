@@ -13,7 +13,7 @@ from munch import Munch
 import streamlit as st
 
 class BittensorModule(commune.Module):
-    wallet_path = os.path.expanduser('~/.bittensor/wallets/')
+    wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
@@ -109,29 +109,51 @@ class BittensorModule(commune.Module):
         return netuid
     
     
-    def get_neuron(self, wallet=None, netuid: int = None):
+    def get_neuron_info(self, wallet=None, netuid: int = None):
         wallet = self.resolve_wallet(wallet)
         netuid = self.resolve_netuid(netuid)
-        return wallet.get_neuron(subtensor=self.subtensor, netuid=netuid)
+        neuron_info = wallet.get_neuron(subtensor=self.subtensor, netuid=netuid)
+        if neuron_info is None:
+            neuron_info = {}
+            
+        return neuron_info
+    
+    def get_axon_info(self, wallet=None, netuid: int = None, neuron_info=None):
+        if neuron_info is None:
+            neuron_info = self.get_neuron_info(wallet=wallet, netuid=netuid)
+        axon_info = neuron_info.axon_info
+        return axon_info
+    
+    def get_prometheus_info(self, wallet=None, netuid: int = None, neuron_info=None):
+        if neuron_info is None:
+            neuron_info= self.get_neuron(wallet=wallet, netuid=netuid)
+        prometheus_info = neuron_info.prometheus_info
+        return prometheus_info
     
     
-    @classmethod
-    def neuron(cls, *args, **kwargs):
-        return cls(*args, **kwargs).get_neuron()
-    
-    def get_port(self, wallet=None, netuid: int = None):
-        netuid = self.resolve_netuid(netuid)
-        return self.get_neuron(wallet=wallet, netuid=netuid ).port
-
-    def get_info(self, wallet=None, key=None, netuid: int = None):
-        netuid = self.resolve_netuid(netuid)
-        return self.get_neuron(wallet=wallet, netuid = netuid).port
     
     
-    # @property
-    # def neuron(self):
-    #     return self.get_neuron()
+    @property
+    def neuron_info(self):
+        return self.get_neuron_info()
+    
+    @property
+    def axon_info(self):
+        return self.get_axon_info()
         
+    @property
+    def prometheus_info(self):
+        return self.get_prometheus_info()
+        
+    def get_axon_port(self, wallet=None, netuid: int = None):
+        netuid = self.resolve_netuid(netuid)
+        return self.get_neuron(wallet=wallet, netuid=netuid ).axon_info.port
+
+    def get_prometheus_port(self, wallet=None, netuid: int = None):
+        netuid = self.resolve_netuid(netuid)
+        return self.get_neuron(wallet=wallet, netuid=netuid ).axon_info.port
+
+    
     
     @classmethod
     def walk(cls, path:str) -> List[str]:
@@ -144,14 +166,14 @@ class BittensorModule(commune.Module):
         return path_list
     @classmethod
     def list_wallet_paths(cls):
-        wallet_list =  cls.ls(cls.wallet_path, recursive=True)
+        wallet_list =  cls.ls(cls.wallets_path, recursive=True)
         sorted(wallet_list)
         return wallet_list
     
     @classmethod
     def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
         wallet_paths = cls.list_wallet_paths()
-        wallets = [p.replace(cls.wallet_path, '').replace('/hotkeys/','.') for p in wallet_paths]
+        wallets = [p.replace(cls.wallets_path, '').replace('/hotkeys/','.') for p in wallet_paths]
 
         if output_wallet:
             wallets = [cls.get_wallet(w) for w in wallets]
@@ -176,6 +198,9 @@ class BittensorModule(commune.Module):
         wallet = self.resolve_wallet(wallet)
         return wallet.is_registered(subtensor= self.subtensor, netuid=  netuid)
 
+    @property
+    def registered(self):
+        return self.is_registered()
     def sync(self, netuid=None):
         netuid = self.resolve_netuid(netuid)
         return self.metagraph.sync(netuid=netuid)
@@ -222,7 +247,7 @@ class BittensorModule(commune.Module):
         name = f'miner_{coldkey}_{hotkey}'
         
         wallet = self.get_wallet(f'{coldkey}.{hotkey}')
-        neuron = self.get_neuron(wallet)
+        neuron = self.get_neuron_info(wallet)
         
      
         
@@ -275,8 +300,19 @@ class BittensorModule(commune.Module):
         return dev_id
     
     def resolve_wallet(self, wallet=None):
+        if isinstance(wallet, str):
+            wallet = self.get_wallet(wallet)
         if wallet is None:
             wallet = self.wallet
+        return wallet
+
+
+    def resolve_wallet_name(self, wallet=None):
+        if isinstance(wallet, str):
+            wallet = self.get_wallet(wallet)
+        if wallet is None:
+            wallet = self.wallet
+        wallet_name = f'{wallet.name}.{wallet.hotkey_str}'
         return wallet
 
     def register ( 
@@ -483,11 +519,12 @@ class BittensorModule(commune.Module):
     # Streamlit Landing Page    
     selected_wallets = []
     def streamlit_sidebar(self):
+
         wallets_list = self.list_wallets(output_wallet=False)
         
         wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
         self.set_wallet(wallet)
-        
+        st.write(self.get_balance('bitconnect.0'))
         network_options = self.network_options()
         network = st.selectbox(f'Select Network ({network_options[0]})', network_options, 0)
         self.set_subtensor(subtensor=network)
@@ -496,29 +533,88 @@ class BittensorModule(commune.Module):
         if sync_network:
             self.sync()
             
-        with st.expander('Wallet Stats', True):
             st.write(self.wallet)
-            st.write(self.wallet.__dict__)
-             
+            
+
+        st.metric(label='Balance', value=int(self.get_balance())/1e9)
+
+
+    @staticmethod
+    def display_metrics_dict(metrics:dict, num_columns=3):
+        if metrics == None:
+            return
+        if not isinstance(metrics, dict):
+            metrics = metrics.__dict__
+        
+        cols = st.columns(num_columns)
+
+            
+        for i, (k,v) in enumerate(metrics.items()):
+            
+            if type(v) in [int, float]:
+                cols[i % num_columns].metric(label=k, value=v)
+                
+    default_model_name = os.path.expanduser('~/models/gpt-j-6B-vR')
     def streamlit_neuron_metrics(self, num_columns=3):
-        with st.expander('Neuron Stats', True):
-            cols = st.columns(num_columns)
-            is_registered = self.is_registered()
-            st.write(is_registered)
-            if is_registered:
-                neuron = self.get_neuron()
-                if neuron == None:
-                    return 
-                for i, (k,v) in enumerate(neuron.__dict__.items()):
-                    
-                    if type(v) in [int, float]:
-                        cols[i % num_columns].metric(label=k, value=v)
-                st.write(neuron.__dict__)
-            else:
-                st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
-                self.button['register'] = st.button('Register')
-                if self.button['register']:
-                    self.register_wallet()
+        if not self.registered:
+            st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
+            self.button['register'] = st.button('Register')
+            self.button['burned_register'] = st.button('Burn Register')
+
+
+        
+            if self.button['register']:
+                self.register_wallet()
+            if self.button['burned_register']:
+                self.burned_register()
+                
+            neuron_info = self.get_neuron_info()
+            axon_info = neuron_info.axon_info
+            prometheus_info = axon_info.get('prometheus_info', {})
+            # with st.expander('Miner', True):
+                
+            #     self.resolve_wallet_name(wallet)
+            #     miner_kwargs = dict()
+                
+                
+            #     axon_port = neuron_info.get('axon_info', {}).get('port', None)
+            #     if axon_port == None:
+            #         axon_port = self.free_port()
+            #     miner_kwargs['axon_port'] = st.number_input('Axon Port', value=axon_port)
+                
+                
+                
+            #     prometheus_port = prometheus_info.get('port', None)
+            #     if prometheus_port == None:
+            #         prometheus_port = axon_port + 1
+            #         while self.port_used(prometheus_port):
+            #             prometheus_port = prometheus_port + 1
+                        
+                
+                
+            #     miner_kwargs['prometheus_port'] = st.number_input('Prometheus Port', value=prometheus_port)
+            #     miner_kwargs['device'] = st.number_input('Device', self.most_free_gpu() )
+            #     assert miner_kwargs['device'] in commune.gpus(), f'gpu {miner_kwargs["device"]} is not available'
+            #     miner_kwargs['model_name'] = st.text_input('model_name', self.default_model_name )
+            #     miner_kwargs['remote'] = st.checkbox('remote', False)
+            
+            #     self.button['mine'] = st.button('Start Miner')
+
+            #     if self.button['mine']:
+            #         self.mine(**miner_kwargs)
+            
+            return  
+        
+        neuron_info = self.get_neuron_info()
+        with st.expander('Neuron Stats', False):
+            self.display_metrics_dict(neuron_info)
+
+
+        with st.expander('Axon Stats', False):
+            self.display_metrics_dict(neuron_info.axon_info)
+
+        with st.expander('Prometheus Stats', False):
+            self.display_metrics_dict(neuron_info.prometheus_info)
 
     @classmethod
     def dashboard(cls):
@@ -529,16 +625,44 @@ class BittensorModule(commune.Module):
             self.streamlit_sidebar()
                     
             
-        st.write(f'# BITTENSOR DASHBOARD {self.network}')
         
         self.streamlit_neuron_metrics()
-        
+    @property
+    def balance(self):
+        return self.wallet.balance 
+    
+    
+    
+    def burned_register (
+            self,
+            wallet: 'bittensor.Wallet' = None,
+            netuid: int = None,
+            wait_for_inclusion: bool = False,
+            wait_for_finalization: bool = True,
+            prompt: bool = False
+        ):
+        wallet = self.resolve_wallet(wallet)
+        netuid = self.resolve_netuid(netuid)
+        st.write(wallet, netuid)
+        self.subtensor.burned_register(
+            wallet = wallet,
+            netuid = netuid,
+            wait_for_inclusion = wait_for_inclusion,
+            wait_for_finalization = wait_for_finalization,
+            prompt = prompt
+        )
+    def get_balance(self, wallet=None):
+        wallet = self.resolve_wallet(wallet)
+        return wallet.balance
         
     @classmethod
     def score(cls, wallet='collective.0'):
         cmd = f"grep Loss ~/.pm2/logs/{wallet}.log"+ " | awk -F\| {'print $10'} | awk {'print $2'} | awk '{for(i=1;i<=NF;i++) {sum[i] += $i; sumsq[i] += ($i)^2}} END {for (i=1;i<=NF;i++) {printf \"%f +/- %f \", sum[i]/NR, sqrt((sumsq[i]-sum[i]^2/NR)/NR)}}'"
         print(cmd)
         return cls.cmd(cmd)
+    
+    
+
 if __name__ == "__main__":
     BittensorModule.run()
 
