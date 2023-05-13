@@ -19,3 +19,11 @@ topk: 512
 load: False
 new_loop_per_forward: True
 hidden_size : 512
+
+
+ensemble:
+  Hot5: chest floor despair public hazard math extra gadget shrug coast pigeon help
+  Hot6: feed lock connect liar pledge hill diagram elevator faculty survey parade yard
+  Hot7: rookie famous resource type hand trial until protect jealous crawl valid wagon
+  Hot8: invest iron lumber salon ostrich aware remember mind brief mammal enough fresh
+  Hot9: bottom rebel hurry cushion humor vendor spoil clap loop shoe jump convince 
