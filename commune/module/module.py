@@ -1412,7 +1412,7 @@ class Module:
     
        
     @classmethod
-    def bittensor(cls, *args, **kwargs):
+    def bt(cls, *args, **kwargs):
         return cls.get_module('bittensor')(*args, **kwargs)
     @classmethod
     def __str__(cls):
@@ -4676,7 +4676,7 @@ class Module:
         if gpu_memory is None:
             reserved_gpu_memory = {}
         else:
-            reserved_gpu_memory =cls.reserved_pus()
+            reserved_gpu_memory =cls.reserved_gpus()
             for  gpu, memory in gpu_memory.items():
                 memory = cls.resolve_memory(memory)
     
@@ -4685,6 +4685,7 @@ class Module:
                         memory = reserved_gpu_memory[gpu]
                     reserved_gpu_memory[gpu] -= memory
                 
+        cls.print(f'unreserving {gpu_memory}')
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         return cls.reserved_gpus()

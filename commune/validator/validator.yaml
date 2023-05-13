@@ -3,7 +3,7 @@ models: model.
 network: global
 update: True
 tokenizer: gptj
-ensemble_mode: best
+ensemble_mode: mixture
 train: False
 batch_size: 32
 sequence_length: 256
