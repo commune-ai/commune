@@ -3,8 +3,8 @@ import torch
 import os,sys
 import asyncio
 from transformers import AutoConfig
-import commune
-commune.new_event_loop()
+import commune as c
+c.new_event_loop()
 
 import bittensor
 from typing import List, Union, Optional, Dict
@@ -12,7 +12,7 @@ from munch import Munch
 import time
 import streamlit as st
 
-class BittensorModule(commune.Module):
+class BittensorModule(c.Module):
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     def __init__(self,
 
@@ -166,6 +166,7 @@ class BittensorModule(commune.Module):
             
         return wallet2axon
     
+    w2a = wallet2axon
     
     @classmethod
     def wallet2port(cls, *args, **kwargs):
@@ -430,18 +431,18 @@ class BittensorModule(commune.Module):
         try:
             import cubit
         except ImportError:
-            commune.run_command('pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl')
+            c.run_command('pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl')
         if port == None:
             port = neuron.port
     
         
         if refresh:
-            commune.pm2_kill(name)
+            c.pm2_kill(name)
             
         
-        assert commune.port_used(port) == False, f'Port {port} is already in use'
-        command_str = f"pm2 start commune/model/client/model.py --name {name} --time --interpreter {interpreter} --  --logging.debug  --subtensor.chain_endpoint {subtensor} --wallet.name {coldkey} --wallet.hotkey {hotkey} --axon.port {port}"
-        # return commune.run_command(command_str)
+        assert c.port_used(port) == False, f'Port {port} is already in use'
+        command_str = f"pm2 start c/model/client/model.py --name {name} --time --interpreter {interpreter} --  --logging.debug  --subtensor.chain_endpoint {subtensor} --wallet.name {coldkey} --wallet.hotkey {hotkey} --axon.port {port}"
+        # return c.run_command(command_str)
         st.write(command_str)
           
           
@@ -452,7 +453,7 @@ class BittensorModule(commune.Module):
         try:
             import bittensor
         except ImportError:
-            commune.run_command('pip install bittensor')
+            c.run_command('pip install bittensor')
             
         return cubit
     
@@ -460,7 +461,7 @@ class BittensorModule(commune.Module):
         try:
             import cubit
         except ImportError:
-            commune.run_command('pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl')
+            c.run_command('pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl')
             
     
 
@@ -471,7 +472,7 @@ class BittensorModule(commune.Module):
     @classmethod
     def resolve_dev_id(cls, dev_id: Union[int, List[int]] = None):
         if dev_id is None:
-            dev_id = commune.gpus()
+            dev_id = c.gpus()
             
         return dev_id
     
@@ -581,14 +582,13 @@ class BittensorModule(commune.Module):
   
     @classmethod
     def register_loop(cls, *args, **kwargs):
-        import commune
-        # commune.new_event_loop()
+        # c.new_event_loop()
         self = cls(*args, **kwargs)
         wallets = self.list_wallets()
         for wallet in wallets:
             # print(wallet)
             self.set_wallet(wallet)
-            self.register(dev_id=commune.gpus())
+            self.register(dev_id=c.gpus())
             
             
     @classmethod
@@ -766,7 +766,7 @@ class BittensorModule(commune.Module):
         
         processes_per_gpus = 2
         for i in range(processes_per_gpus):
-            for dev_id in commune.gpus():
+            for dev_id in c.gpus():
                 cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='pm2')
         
         # print(cls.launch(f'register_{1}'))
@@ -852,7 +852,7 @@ class BittensorModule(commune.Module):
                 
             #     miner_kwargs['prometheus_port'] = st.number_input('Prometheus Port', value=prometheus_port)
             #     miner_kwargs['device'] = st.number_input('Device', self.most_free_gpu() )
-            #     assert miner_kwargs['device'] in commune.gpus(), f'gpu {miner_kwargs["device"]} is not available'
+            #     assert miner_kwargs['device'] in c.gpus(), f'gpu {miner_kwargs["device"]} is not available'
             #     miner_kwargs['model_name'] = st.text_input('model_name', self.default_model_name )
             #     miner_kwargs['remote'] = st.checkbox('remote', False)
             
@@ -967,7 +967,7 @@ class BittensorModule(commune.Module):
                prometheus_port = None,
                debug = True,
                no_set_weights = True,
-               remote:bool = False,
+               remote:bool = True,
                tag=None,
                sleep_interval = 2,
                autocast = True,
@@ -984,6 +984,8 @@ class BittensorModule(commune.Module):
             
         if port == None:
             port = cls.free_port()
+        while cls.port_used(port):
+            port = port + 1
         assert not cls.port_used(port), f'Port {port} is already in use.'
   
         model_name=os.path.expanduser('~/models/gpt-j-6B-vR')
@@ -1109,6 +1111,9 @@ class BittensorModule(commune.Module):
         return subtensor.query_subtensor('Burn', None, [3]).value/1e9
 
     
+    @classmethod
+    def mlogs(cls, wallet, name='miner', network='finney', netuid=3):
+        return c.logs(f'miner::{wallet}::{network}::{netuid}')
 
     @classmethod
     def sandbox(cls):
