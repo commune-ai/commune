@@ -143,7 +143,6 @@ class BittensorModule(c.Module):
         wallet2neuron = {}
         
         async def async_get_neuron(w):
-            cls.print(w)
             neuron_info = cls.get_neuron(wallet=w)
             return neuron_info
         
@@ -997,7 +996,7 @@ class BittensorModule(c.Module):
                tag=None,
                sleep_interval = 2,
                autocast = True,
-               burned_register = True,
+               burned_register = False,
                max_fee = 1.5,
                ):
         
