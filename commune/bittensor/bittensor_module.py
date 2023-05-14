@@ -914,7 +914,7 @@ class BittensorModule(commune.Module):
             port = cls.free_port()
         assert not cls.port_used(port), f'Port {port} is already in use.'
   
-        
+        model_name=os.path.expanduser('~/models/gpt-j-6B-vR')
         config = bittensor.neurons.core_server.neuron.config()
         
         # model things
