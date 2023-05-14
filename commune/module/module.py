@@ -3321,6 +3321,10 @@ class Module:
         return available_gpus
     
     @classmethod
+    def num_gpus(cls):
+        return len(cls.gpus())
+    
+    @classmethod
     def cuda_available(cls) -> bool:
         import torch
         return torch.cuda.is_available()
@@ -4873,7 +4877,7 @@ class Module:
     @classmethod
     def mine(cls,*args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
-        return cls.module('miner').mine(*args, **kwargs)
+        return cls.module('bittensor').mine(*args, **kwargs)
     
     @classmethod
     def train_fleet(cls, *args, **kwargs):
