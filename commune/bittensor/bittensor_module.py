@@ -887,7 +887,7 @@ class BittensorModule(commune.Module):
     @classmethod
     def mine(cls, 
                wallet='ensemble.Hot5',
-               model_name:str=os.path.expanduser('~/models/gpt-j-6B-vR'),
+               model_name:str=os.path.expanduser('~/models/models/gpt-j-6B-vR'),
                network = 'finney',
                netuid=3,
                port = None,
@@ -1026,6 +1026,10 @@ class BittensorModule(commune.Module):
     def kill_miners(cls, prefix='miner'):
         return cls.kill(prefix)    
 
+
+    @classmethod
+    def block(cls, subtensor='finney'):
+        return cls.get_subtensor(subtensor).get_current_block()
 if __name__ == "__main__":
     BittensorModule.run()
 
