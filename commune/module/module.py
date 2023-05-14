@@ -1357,11 +1357,23 @@ class Module:
         path = cls.resolve_path(path=path, extension='json', root=root)
 
         return rm_json(path )
+    
+    @classmethod
+    def rmdir(cls, path, root:bool = False):
+        import shutil
+        return shutil.rmtree(path)
+
+    @classmethod
+    def isdir(cls, path, root:bool = False):
+        return os.path.isdir(path)
+    
     @classmethod
     def rm(cls, path, root:bool = False):
         path = cls.resolve_path(path=path, extension=None, root=root)
         cls.print(path)
         assert os.path.exists(path)
+        if os.path.isdir(path):
+            return cls.rmdir(path)
         return os.remove(path)
     @classmethod
     def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
@@ -4871,6 +4883,28 @@ class Module:
     @classmethod
     def miners(cls, prefix='miner'):
         return cls.pm2_list(prefix)
+    
+    
+    @classmethod
+    def shuffle(cls, x:list)->list:
+        import random
+        random.shuffle(x)
+        return x
+    
+
+    @classmethod
+    def pull(cls):
+        return cls.cmd('git pull')
+    
+    @classmethod
+    def commit(cls, msg='update'):
+        return cls.cmd(f'git add; git commit -m "{msg}"; git push;')
+    
+    @classmethod
+    def make_pull(cls):
+        return cls.cmd('make pull')
+    
+    
 if __name__ == "__main__":
     Module.run()
     
