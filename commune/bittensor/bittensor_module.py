@@ -440,7 +440,7 @@ class BittensorModule(commune.Module):
         
         if isinstance(wallets, list):
             for wallet in wallets:
-                assert (wallet, str), 'wallet must be a string'
+                # assert (wallet, str), 'wallet must be a string'
                 cls.get_wallet(wallet)
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
            
