@@ -898,11 +898,20 @@ class BittensorModule(c.Module):
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = True,
             prompt: bool = False,
-            subtensor = None
+            subtensor = None,
+            max_fee = 1.5,
+            wait_for_fee = True
         ):
         wallet = cls.get_wallet(wallet)
         netuid = cls.get_netuid(netuid)
         subtensor = cls.get_subtensor(subtensor)
+        fee = cls.burn_fee(subtensor=subtensor)
+        if wait_for_fee:
+            while fee > max_fee:
+                cls.print(f'fee {fee} is too high, max_fee is {max_fee}')
+                time.sleep(1)
+                fee = cls.burn_fee(subtensor=subtensor)
+        assert fee < max_fee, f'fee {fee} is too high, max_fee is {max_fee}'
         subtensor.burned_register(
             wallet = wallet,
             netuid = netuid,
@@ -912,15 +921,30 @@ class BittensorModule(c.Module):
         )
         
     burn_reg = burned_register
+    
+    @classmethod
+    def burned_register_many(cls, *wallets, **kwargs):
+        for wallet in wallets:
+            cls.burned_register(wallet=wallet, **kwargs)
+            
+    burn_reg_many = burned_register_many
         
     @classmethod
-    def burned_register_many(cls, *wallets, sleep_interval=3, **kwargs):
+    def burned_register_coldkey(cls, coldkey, max_wallets = None,  sleep_interval=3, **kwargs):
+        
+        wallets = cls.unregistered(coldkey)
+        if max_wallets == None:
+            max_wallets = cls.num_gpus()
+        
+        # if max_wallets == None:
+        wallets = wallets[:max_wallets]
         for wallet in wallets:
             assert cls.wallet_exists(wallet), f'wallet {wallet} does not exist'
             cls.print(f'burned_register {wallet}')
             cls.burned_register(wallet=wallet, **kwargs)
             cls.sleep(sleep_interval)
     
+    burn_reg_ck = burned_register_coldkey
     
     @classmethod
     def transfer(cls, 
@@ -931,7 +955,9 @@ class BittensorModule(c.Module):
                 wait_for_finalization: bool = True,
                 subtensor: 'bittensor.Subtensor' = None,
                 prompt: bool = False,):
-        wallet = self.get_wallet(wallet)
+        wallet = cls.get_wallet(wallet)
+        balance = cls.get_balance(wallet)
+        assert balance >= amount, f'balance {balance} is less than amount {amount}'
         wallet.transfer( 
             dest=dest,
             amount=amount, 
@@ -971,7 +997,8 @@ class BittensorModule(c.Module):
                tag=None,
                sleep_interval = 2,
                autocast = True,
-               burned_register = False,
+               burned_register = True,
+               max_fee = 1.5,
                ):
         
         
@@ -986,18 +1013,18 @@ class BittensorModule(c.Module):
             port = cls.free_port()
         while cls.port_used(port):
             port = port + 1
+            
         assert not cls.port_used(port), f'Port {port} is already in use.'
   
-        model_name=os.path.expanduser('~/models/gpt-j-6B-vR')
         config = bittensor.neurons.core_server.neuron.config()
         
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.neuron.model_name = model_name
         
+        # device setting 
         if device is None:
             device = cls.most_free_gpu()
-        
         assert torch.cuda.is_available(), 'No CUDA device available.'
         config.neuron.device = f'cuda:{device}'
         config.neuron.autocast = autocast
@@ -1030,21 +1057,31 @@ class BittensorModule(c.Module):
         # wait for registration
         
             
-        if burned_register:
-            subtensor.burned_register(
-                wallet = wallet,
-                netuid = netuid,
-                wait_for_inclusion = False,
-                wait_for_finalization = True,
-                prompt = False,
-        )
+
         while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
+            
+            if burned_register:
+                cls.burned_register(
+                    wallet = wallet,
+                    netuid = netuid,
+                    wait_for_inclusion = False,
+                    wait_for_finalization = True,
+                    prompt = False,
+                    max_fee = max_fee,
+                    subtensor = subtensor,
+                )
             time.sleep(sleep_interval)
             cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')
             
         cls.print(f'Wallet {wallet} is registered on {network}')
              
-             
+        # enseure ports are free
+        while cls.port_used(config.axon.port):
+            config.axon.port += 1             
+        while cls.port_used(config.prometheus.port):
+            config.prometheus.port += 1
+            
+        
         
         bittensor.neurons.core_server.neuron(
                wallet=wallet,
@@ -1115,10 +1152,53 @@ class BittensorModule(c.Module):
     def mlogs(cls, wallet, name='miner', network='finney', netuid=3):
         return c.logs(f'miner::{wallet}::{network}::{netuid}')
 
+
+    @classmethod
+    def unstake_all(cls, coldkey):
+        
+        assert coldkey in cls.coldkeys()
+        hotkeys = cls.hotkeys(wallet)
+        for hotkey in hotkeys:
+            wallet = f'{wallet}.{hotkey}'
+            balance = cls.get_balance(wallet)
+            cls.unstake(wallet=wallet, 
+                        amount=balance,
+                        wait_for_inclusion=wait_for_inclusion,
+                        wait_for_finalization=wait_for_finalization,
+                        prompt=prompt, 
+                        subtensor=subtensor)
+            
+
+    @classmethod
+    def unstake (
+        cls,
+        wallet,
+        amount: float = None, 
+        wait_for_inclusion:bool = True, 
+        wait_for_finalization:bool = False,
+        prompt: bool = False,
+        subtensor: 'bittensor.subtensor' = None,
+    ) -> bool:
+        """ Removes stake into the wallet coldkey from the specified hotkey uid."""
+        subtensor = cls.get_subtensor(subtensor)
+
+        
+        wallet = cls.get_wallet(wallet)
+        wallet.hotkey.ss58_address
+        return subtensor.unstake( wallet=wallet, 
+                                 hotkey_ss58=wallet.hotkey.ss58_address, 
+                                 amount=amount,
+                                 wait_for_inclusion=wait_for_inclusion,
+                                 wait_for_finalization=wait_for_finalization, 
+                                 prompt=prompt )
+
+
     @classmethod
     def sandbox(cls):
         self = cls(network='local')
         cls.pritn(self.reged(subtensor='local'))
+        
+        
 if __name__ == "__main__":
     BittensorModule.run()
 
