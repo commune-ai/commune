@@ -908,7 +908,7 @@ class BittensorModule(c.Module):
             wait_for_finalization: bool = True,
             prompt: bool = False,
             subtensor = None,
-            max_fee = 1.5,
+            max_fee = 2.0,
             wait_for_fee = True
         ):
         wallet = cls.get_wallet(wallet)
@@ -981,7 +981,7 @@ class BittensorModule(c.Module):
         return wallet.balance
     
     @classmethod
-    def get_address(cls, wallet):
+    def address(cls, wallet):
         wallet = cls.get_wallet(wallet)
         return wallet.coldkey.ss58_address
         
@@ -991,7 +991,7 @@ class BittensorModule(c.Module):
         print(cmd)
         return cls.cmd(cmd)
     
-    default_model_name = os.path.expanduser('~/models/models/gpt-j-6B-vR')
+    default_model_name = os.path.expanduser('~/models/gpt-j-6B-vR')
 
     @classmethod
     def mine(cls, 
@@ -1008,8 +1008,8 @@ class BittensorModule(c.Module):
                tag=None,
                sleep_interval = 2,
                autocast = True,
-               burned_register = False,
-               max_fee = 1.5,
+               burn_reg = False,
+               max_fee = 2.0,
                ):
         
         
@@ -1025,6 +1025,9 @@ class BittensorModule(c.Module):
         while cls.port_used(port):
             port = port + 1
             
+            
+        if model_name == None:
+            model_name = cls.default_model_name
         assert not cls.port_used(port), f'Port {port} is already in use.'
   
         config = bittensor.neurons.core_server.neuron.config()
@@ -1066,7 +1069,7 @@ class BittensorModule(c.Module):
             
         while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
             
-            if burned_register:
+            if burn_reg:
                 cls.burned_register(
                     wallet = wallet,
                     netuid = netuid,
@@ -1096,7 +1099,7 @@ class BittensorModule(c.Module):
                netuid=netuid).run()
 
     @classmethod
-    def deploy_miners(cls, name='ensemble', 
+    def mine_fleet(cls, name='ensemble', 
                     hotkeys=[i+1 for i in range(8)],
                     remote=True,
                     netuid=3,
