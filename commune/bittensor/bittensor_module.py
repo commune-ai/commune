@@ -38,21 +38,34 @@ class BittensorModule(commune.Module):
         return self.netuid
     
     network2endpoint = {
-        'test': 'wss://test.finney.opentensor.ai:443'
+        'test': 'wss://test.finney.opentensor.ai:443',
+        'local': 'ws://0.0.0.0:9944',
+        'finney': 'wss://entrypoint-finney.opentensor.ai:443',
     }
     @classmethod
     def get_endpoint(cls, network:str):
         return cls.network2endpoint.get(network, None)
-        
+       
+       
+    @classmethod
+    def is_endpoint(cls, endpoint):
+        # TODO: check if endpoint is valid, can be limited to just checking if it is a string
+        return bool(':' in endpoint and cls.is_number(endpoint.split(':')[-1]))
       
     @classmethod
     def get_subtensor(cls, subtensor:Union[str, bittensor.subtensor]='finney') -> bittensor.subtensor:
-
-        endpoint = cls.network2endpoint.get(subtensor, None)
-        if endpoint != None:
-            subtensor = bittensor.subtensor(chain_endpoint=endpoint, network='finney')
+        
+        if  subtensor == None:
+            subtensor = bittensor.subtensor()
         elif isinstance(subtensor, str):
-            subtensor = bittensor.subtensor(network=subtensor)
+            if cls.is_endpoint(subtensor):
+                subtensor = bittensor.subtensor(chain_endpoint=subtensor)
+            elif subtensor in cls.network2endpoint: 
+                endpoint = cls.network2endpoint[subtensor]
+                subtensor = bittensor.subtensor(chain_endpoint=endpoint)
+            else:
+                raise NotImplementedError(subtensor)
+            
         elif isinstance(subtensor, type(None)):
             subtensor = bittensor.subtensor()
         elif isinstance(subtensor, bittensor.Subtensor):
@@ -113,49 +126,98 @@ class BittensorModule(commune.Module):
         return netuid
     
     
-    def get_neuron_info(self, wallet=None, netuid: int = None):
-        wallet = self.resolve_wallet(wallet)
-        netuid = self.resolve_netuid(netuid)
-        neuron_info = wallet.get_neuron(subtensor=self.subtensor, netuid=netuid)
+    @classmethod
+    def get_neuron(cls, wallet=None, netuid: int = None, subtensor=None):
+        wallet = cls.get_wallet(wallet)
+        netuid = cls.get_netuid(netuid)
+        subtensor = cls.get_subtensor(subtensor)
+        neuron_info = wallet.get_neuron(subtensor=subtensor, netuid=netuid)
         if neuron_info is None:
             neuron_info = {}
             
         return neuron_info
     
-    def get_axon_info(self, wallet=None, netuid: int = None, neuron_info=None):
-        if neuron_info is None:
-            neuron_info = self.get_neuron_info(wallet=wallet, netuid=netuid)
+    @classmethod
+    def wallet2neuron(cls, *args, **kwargs):
+        kwargs['registered'] = True
+        wallet2neuron = {}
+        
+        async def async_get_neuron(w):
+            cls.print(w)
+            neuron_info = cls.get_neuron(wallet=w)
+            return neuron_info
+        
+        wallets = cls.wallets(*args, **kwargs)
+        jobs = [async_get_neuron(w) for w in wallets]
+        neurons = cls.gather(jobs)
+        
+        wallet2neuron = {w:n for w, n in zip(wallets, neurons)}
+            
+            
+        return wallet2neuron
+    
+    
+    @classmethod
+    def wallet2axon(cls, *args, **kwargs):
+
+        wallet2neuron = cls.wallet2neuron(*args, **kwargs)
+        wallet2axon = {w:n.axon_info for w, n in wallet2neuron.items()}
+            
+            
+        return wallet2axon
+    
+    w2a = wallet2axon
+    
+    
+    @classmethod
+    def wallet2stats(cls, *args, **kwargs):
+        kwargs['registered'] = True
+        wallet2neuron = {}
+        for w  in cls.wallets(*args, **kwargs):
+            wallet2neuron[w] = cls.get_neuron(wallet=w)
+            
+        return wallet2neuron
+    
+    w2n = wallet2neuron
+            
+    
+    get_neuron = get_neuron
+    
+    @classmethod
+    def get_axon(cls, wallet=None, netuid: int = None, subtensor=None):
+        neuron_info = cls.get_neuron(wallet=wallet, netuid=netuid, subtensor=subtensor)
         axon_info = neuron_info.axon_info
         return axon_info
     
-    def get_prometheus_info(self, wallet=None, netuid: int = None, neuron_info=None):
-        if neuron_info is None:
-            neuron_info= self.get_neuron(wallet=wallet, netuid=netuid)
+    @classmethod
+    def get_prometheus(cls, wallet=None, netuid: int = None, subtensor=None):
+        subtensor = cls.get_subtensor(subtensor)
+        neuron_info= cls.get_neuron(wallet=wallet, netuid=netuid)
+            
         prometheus_info = neuron_info.prometheus_info
         return prometheus_info
-    
-    
+
     
     
     @property
     def neuron_info(self):
-        return self.get_neuron_info()
+        return self.get_neuron(subtensor=self.subtensor, netuid=self.netuid, wallet=self.wallet)
     
     @property
     def axon_info(self):
-        return self.get_axon_info()
+        return self.get_axon(subtensor=self.subtensor, netuid=self.netuid, wallet=self.wallet)
         
     @property
     def prometheus_info(self):
-        return self.get_prometheus_info()
+        return self.get_prometheus(subtensor=self.subtensor, netuid=self.netuid, wallet=self.wallet)
         
-    def get_axon_port(self, wallet=None, netuid: int = None):
-        netuid = self.resolve_netuid(netuid)
-        return self.get_neuron(wallet=wallet, netuid=netuid ).axon_info.port
+    # def get_axon_port(self, wallet=None, netuid: int = None):
+    #     netuid = self.resolve_netuid(netuid)
+    #     return self.get_neuron(wallet=wallet, netuid=netuid ).axon_info.port
 
-    def get_prometheus_port(self, wallet=None, netuid: int = None):
-        netuid = self.resolve_netuid(netuid)
-        return self.get_neuron(wallet=wallet, netuid=netuid ).axon_info.port
+    # def get_prometheus_port(self, wallet=None, netuid: int = None):
+    #     netuid = self.resolve_netuid(netuid)
+    #     return self.get_neuron(wallet=wallet, netuid=netuid ).axon_info.port
 
     
     
@@ -169,7 +231,7 @@ class BittensorModule(commune.Module):
                     path_list.append(os.path.join(root, f))
         return path_list
     @classmethod
-    def list_wallet_paths(cls):
+    def wallet_paths(cls):
         wallet_list =  cls.ls(cls.wallets_path, recursive=True)
         sorted(wallet_list)
         return wallet_list
@@ -259,7 +321,7 @@ class BittensorModule(commune.Module):
     
     @classmethod
     def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
-        wallet_paths = cls.list_wallet_paths()
+        wallet_paths = cls.wallet_paths()
         wallets = [p.replace(cls.wallets_path, '').replace('/hotkeys/','.') for p in wallet_paths]
 
         if output_wallet:
@@ -351,7 +413,7 @@ class BittensorModule(commune.Module):
         name = f'miner_{coldkey}_{hotkey}'
         
         wallet = self.get_wallet(f'{coldkey}.{hotkey}')
-        neuron = self.get_neuron_info(wallet)
+        neuron = self.get_neuron(wallet)
         
      
         
@@ -754,7 +816,7 @@ class BittensorModule(commune.Module):
             if self.button['burned_register']:
                 self.burned_register()
                 
-            neuron_info = self.get_neuron_info()
+            neuron_info = self.get_neuron()
             axon_info = neuron_info.axon_info
             prometheus_info = axon_info.get('prometheus_info', {})
             # with st.expander('Miner', True):
@@ -791,7 +853,7 @@ class BittensorModule(commune.Module):
             
             return  
         
-        neuron_info = self.get_neuron_info()
+        neuron_info = self.get_neuron()
         with st.expander('Neuron Stats', False):
             self.display_metrics_dict(neuron_info)
 
@@ -1030,6 +1092,18 @@ class BittensorModule(commune.Module):
     @classmethod
     def block(cls, subtensor='finney'):
         return cls.get_subtensor(subtensor).get_current_block()
+    
+    @classmethod
+    def burn_fee(cls, subtensor='finney'):
+        subtensor = cls.get_subtensor(subtensor)
+        return subtensor.query_subtensor('Burn', None, [3]).value/1e9
+
+    
+
+    @classmethod
+    def sandbox(cls):
+        self = cls(network='local')
+        cls.pritn(self.reged(subtensor='local'))
 if __name__ == "__main__":
     BittensorModule.run()
 
