@@ -166,7 +166,17 @@ class BittensorModule(commune.Module):
             
         return wallet2axon
     
-    w2a = wallet2axon
+    
+    @classmethod
+    def wallet2port(cls, *args, **kwargs):
+
+        wallet2neuron = cls.wallet2neuron(*args, **kwargs)
+        wallet2port = {w: n.axon_info.port for w, n in wallet2neuron.items()}
+            
+            
+        return wallet2port
+    
+    w2p = wallet2port
     
     
     @classmethod
