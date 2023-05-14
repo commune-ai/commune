@@ -252,7 +252,6 @@ class Validator(c.Model):
         # check the outputs of the model
         success = self.check_output(output)
         
-        self.print(f'forward success: {success}', model, output)
         if success:
             output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.config.vocab_size)
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))

@@ -37,6 +37,7 @@ class Miner(commune.Module, nn.Module):
                tag=None,
                sleep_interval = 2,
                autocast = True,
+               burn_register = False,
                ):
         
         
@@ -91,6 +92,8 @@ class Miner(commune.Module, nn.Module):
         
         cls.print('Config: ', config)
         # wait for registration
+        
+            
         while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
             time.sleep(sleep_interval)
             cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')

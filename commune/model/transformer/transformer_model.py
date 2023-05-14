@@ -711,7 +711,7 @@ class TransformerModel(c.Model):
         models = c.modules(model, network=network)
         if isinstance(skip, str):
             skip = [skip]
-        elif skipp == None:
+        elif skip == None:
             skip = []
         else:
             raise ValueError(f"Skip must be a string or None, got {skip}")
@@ -856,6 +856,7 @@ class TransformerModel(c.Model):
         
         print(f'deploying {tags} on {cls.gpus()}')
         tag_seperator = kwargs.get('tag_seperator', '::')
+        
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]
         deployed_models = cls.deploy(*models, **kwargs)
