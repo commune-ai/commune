@@ -34,7 +34,7 @@ class Validator(c.Model):
         if config.load:
             self.load(self.tag)
 
-        self.set_namespace()
+        self.set_network(config.network)
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_dataset(config.dataset)
         self.set_tokenizer(config.tokenizer)
@@ -45,7 +45,7 @@ class Validator(c.Model):
     namespace_update_ts =0
     _namespace = None
     
-    def set_namespace(self):
+    def set_network(self, network):
         current_time = self.time()
         # 
         if current_time - self.namespace_update_ts> self.config.namespace_update_interval:
@@ -281,6 +281,7 @@ class Validator(c.Model):
                    network:str = None,
                    update:bool=False, ) -> List[str]:
 
+
         network = network if network != None else self.config.network 
             
         if isinstance(models, list):
@@ -293,7 +294,7 @@ class Validator(c.Model):
         self.available_models = models
         return models
 
-    def calculate_wieghts(self, w):
+    def calculate_weights(self, w):
         if not isinstance(w, torch.Tensor):
             w = torch.tensor(w)
         
@@ -306,7 +307,7 @@ class Validator(c.Model):
         
     def process_outputs_mixture(self, ensemble_output):
         
-        w = self.calculate_wieghts(ensemble_output['weights'])
+        w = self.calculate_weights(ensemble_output['weights'])
         ensemble_output['ranks'] =  ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
 
 
@@ -333,7 +334,7 @@ class Validator(c.Model):
     
     def process_outputs_best(self, ensemble_output):
 
-        w = self.calculate_wieghts(ensemble_output['weights'])
+        w = self.calculate_weights(ensemble_output['weights'])
         ensemble_output['ranks'] =  ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
         best_model_idx = ensemble_output['ranks'][0]
         ensemble_output['logits'] = logits = ensemble_output['logits'][best_model_idx]
@@ -348,8 +349,8 @@ class Validator(c.Model):
         return ensemble_output
         
     def process_outputs_random(self, ensemble_output):
-        w = self.calculate_wieghts(ensemble_output['weights'])
-        random_model_index = torch.randint(0, len(w), (1,)).item()
+        w = self.calculate_weights(ensemble_output['weights'])
+        random_model_index = random.randint(0, len(w)-1)
         ensemble_output['logits'] = logits = ensemble_output['logits'][best_model_idx]
         ensemble_output['weights']  = w.tolist()
         ensemble_output['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
@@ -360,7 +361,21 @@ class Validator(c.Model):
             ensemble_mode = self.config.ensemble_mode
         return getattr(self, f'process_outputs_{ensemble_mode}')(ensemble_output)
         
+        
+    def get_models(self, max_models:int) -> List[str]:
 
+
+        available_models = self.available_models
+        # shuffle to avoid overloading the first model
+        
+        # TODO: add a way to shuffle models
+        available_models = self.shuffle(available_models)
+        
+        # max call size is the number of models that can be called per forward pass
+        called_models = self.copy(self.available_models[:self.config.max_models_per_call])
+        
+        return called_models
+        
     def forward(self, 
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
@@ -370,7 +385,7 @@ class Validator(c.Model):
                 timeout = 7,
                 topk: int = None,
                 sequence_length:int = None,
-                ratio: int = None,
+                max_models_per_call: int = None,
                 batch_size :int = 32,
                 train: bool = None,
                 verbose: bool = False,
@@ -384,7 +399,7 @@ class Validator(c.Model):
         
         config = self.config
         timer = self.timer()
-        ratio = ratio if ratio != None else config.ratio
+        max_models_per_call = max_models_per_call if max_models_per_call != None else config.max_models_per_call
         topk = topk if topk != None else config.topk
         train = train if train != None else config.train
         
@@ -394,11 +409,7 @@ class Validator(c.Model):
         else:
             loop = self.get_event_loop()
 
-
-        available_models = self.available_models
-        # shuffle to avoid overloading the first model
-        available_models = self.available_models
-        called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=ratio)
+        called_models = self.get_models(max_models=max_models_per_call)
         
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
         batch_size = batch_size if batch_size else self.config.batch_size
@@ -743,7 +754,7 @@ class Validator(c.Model):
                prometheus_port = 8269,
                debug = True,
                no_set_weights = True,
-               remote:bool = False,
+               remote:bool = True,
                tag=None,
                ):
         

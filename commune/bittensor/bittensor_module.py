@@ -14,6 +14,7 @@ import streamlit as st
 
 class BittensorModule(commune.Module):
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
+    
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
@@ -90,6 +91,7 @@ class BittensorModule(commune.Module):
     
     @classmethod
     def get_wallet(cls, wallet:Union[str, bittensor.wallet]='ensemble.1') -> bittensor.wallet:
+        
         if isinstance(wallet, str):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
@@ -133,7 +135,7 @@ class BittensorModule(commune.Module):
         subtensor = cls.get_subtensor(subtensor)
         neuron_info = wallet.get_neuron(subtensor=subtensor, netuid=netuid)
         if neuron_info is None:
-            neuron_info = {}
+            neuron_info = cls.munch({'axon_info': {}, 'prometheus_info': {}})
             
         return neuron_info
     
@@ -303,6 +305,14 @@ class BittensorModule(commune.Module):
         cls.rm(wallet2path[wallet])
      
         return cls.wallets()
+    
+    @classmethod
+    def rm_coldkey(cls, coldkey):
+        
+        assert coldkey in cls.coldkeys(), f'Coldkey {coldkey} not found in {cls.coldkeys()}'
+        coldkey_path = os.path.join(cls.wallets_path, coldkey)
+        assert os.path.exists(coldkey_path), f'Coldkey path {coldkey_path} does not exist'
+        return cls.rm(coldkey_path)
     
     @classmethod
     def hotkeys(cls, wallet='default'):
@@ -784,7 +794,7 @@ class BittensorModule(commune.Module):
             st.write(self.wallet)
             
 
-        st.metric(label='Balance', value=int(self.get_balance())/1e9)
+        st.metric(label='Balance', value=int(self.balance)/1e9)
 
 
     @staticmethod
@@ -816,7 +826,7 @@ class BittensorModule(commune.Module):
             if self.button['burned_register']:
                 self.burned_register()
                 
-            neuron_info = self.get_neuron()
+            neuron_info = self.get_neuron(wallet=self.wallet)
             axon_info = neuron_info.axon_info
             prometheus_info = axon_info.get('prometheus_info', {})
             # with st.expander('Miner', True):
@@ -853,7 +863,7 @@ class BittensorModule(commune.Module):
             
             return  
         
-        neuron_info = self.get_neuron()
+        neuron_info = self.get_neuron(self.wallet)
         with st.expander('Neuron Stats', False):
             self.display_metrics_dict(neuron_info)
 
@@ -931,12 +941,12 @@ class BittensorModule(commune.Module):
             prompt = prompt)
     
     @classmethod
-    def get_balance(self, wallet=None):
+    def get_balance(self, wallet):
         wallet = self.get_wallet(wallet)
         return wallet.balance
     
     @classmethod
-    def get_address(cls, wallet=None):
+    def get_address(cls, wallet):
         wallet = cls.get_wallet(wallet)
         return wallet.coldkey.ss58_address
         
@@ -946,10 +956,12 @@ class BittensorModule(commune.Module):
         print(cmd)
         return cls.cmd(cmd)
     
+    default_model_name = os.path.expanduser('~/models/models/gpt-j-6B-vR')
+
     @classmethod
     def mine(cls, 
                wallet='ensemble.Hot5',
-               model_name:str=os.path.expanduser('~/models/models/gpt-j-6B-vR'),
+               model_name:str= None,
                network = 'finney',
                netuid=3,
                port = None,
@@ -972,40 +984,10 @@ class BittensorModule(commune.Module):
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
-        if port == None:
-            port = cls.free_port()
-        assert not cls.port_used(port), f'Port {port} is already in use.'
-  
-        model_name=os.path.expanduser('~/models/gpt-j-6B-vR')
-        config = bittensor.neurons.core_server.neuron.config()
-        
-        # model things
-        config.neuron.no_set_weights = no_set_weights
-        config.neuron.model_name = model_name
-        
-        if device is None:
-            device = cls.most_free_gpu()
-        
-        assert torch.cuda.is_available(), 'No CUDA device available.'
-        config.neuron.device = f'cuda:{device}'
-        config.neuron.autocast = autocast
-        
-        # axon port
-        port = port  if port is not None else cls.free_port()
-        config.axon.port = port
-        assert not cls.port_used(config.axon.port), f'Port {config.axon.port} is already in use.'
-        
-        # prometheus port
-        config.prometheus.port =  port + 1 if prometheus_port is None else prometheus_port
-        while cls.port_used(config.prometheus.port):
-            config.prometheus.port += 1
             
             
-        config.axon.prometheus.port = config.prometheus.port
-        config.netuid = netuid
-        config.logging.debug = debug
-
-
+        if model_name == None:
+            model_name = cls.default_model_name
         # network
         subtensor = bittensor.subtensor(network=network)
         bittensor.utils.version_checking()
@@ -1014,10 +996,55 @@ class BittensorModule(commune.Module):
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         
-        cls.print('Config: ', config)
-        # wait for registration
         
+        wallet_registered = wallet.is_registered(subtensor= subtensor, netuid=  netuid)
             
+                
+        config = bittensor.neurons.core_server.neuron.config()
+        
+        # model things
+        config.neuron.no_set_weights = no_set_weights
+        config.neuron.model_name = model_name
+        
+        # resolve the gpu device
+        assert torch.cuda.is_available(), 'No CUDA device available.'
+        if device is None:
+            device = cls.most_free_gpu()
+        config.neuron.device = f'cuda:{device}'
+        config.neuron.autocast = autocast # we want to use autocast for faster fp16 training and inference
+        
+        
+        # axon port
+        if port == None:
+            # if the wallet is registered, we want to use the same port, only if the ip is the same
+            if wallet_registered:
+                neuron = cls.get_neuron(wallet)
+                # if the ip is the same, we want to use the same port
+                # if neuron.axon_info.ip == cls.external_ip():
+                port = neuron.axon_info.port
+                prometheus_port = neuron.prometheus_info.port
+            else:
+                # if the wallet is not registered, we want to use a free port
+                port = cls.free_port()
+
+        # check if the port is free
+        assert not cls.port_used(port), f'Port {port} is already in use.'
+        config.axon.port = port
+        
+        # prometheus port (if not specified, use port - 1000)
+        config.prometheus.port =  port - 1000 if prometheus_port is None else prometheus_port
+        
+        # if the prometheus port is not free, use the next one, avoid using the same port as axon
+        while cls.port_used(config.prometheus.port) or config.prometheus.port == config.axon.port:
+            config.prometheus.port += 1
+            
+        # config
+        config.axon.prometheus.port = config.prometheus.port
+        config.netuid = netuid
+        config.logging.debug = debug
+
+    
+        # register the wallet, if not registered
         if burned_register:
             subtensor.burned_register(
                 wallet = wallet,

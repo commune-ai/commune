@@ -3,7 +3,7 @@ models: model.
 network: global
 update: True
 tokenizer: gptj
-ensemble_mode: mixture
+ensemble_mode: best
 train: False
 batch_size: 32
 sequence_length: 256
@@ -17,7 +17,7 @@ max_stats_history: 100
 namespace_update_interval: 100
 alpha: 0.1
 ma_keys: ['metric', 'weights']
-ratio: 1.0
+max_models_per_call: 3
 topk: 4096 
 load: False
 save: True
