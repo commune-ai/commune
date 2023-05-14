@@ -3,4 +3,7 @@ import commune as c
 # c.print(c.call('dataset', 'sample')['input_ids'].shape)
 
 import bittensor
-print(isinstance(bittensor.wallet(), bittensor.Wallet))
+
+subtensor = bittensor.subtensor()
+
+print(subtensor.query_subtensor('Burn', None, [3]).value)
