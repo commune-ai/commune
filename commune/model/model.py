@@ -229,7 +229,6 @@ class Model( nn.Module, commune.Module):
     def resolve_tag(self, tag):
         if tag == None:
             tag = self.tag
-        print(f'tag: {tag}')
         return tag
 
     def save(self, 

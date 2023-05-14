@@ -1357,10 +1357,12 @@ class Module:
         path = cls.resolve_path(path=path, extension='json', root=root)
 
         return rm_json(path )
-
-    def rm(cls, *args, mode='json', **kwargs):
-        fn = getattr(cls, f'rm_{mode}')
-        return fn(*args, **kwargs)
+    @classmethod
+    def rm(cls, path, root:bool = False):
+        path = cls.resolve_path(path=path, extension=None, root=root)
+        cls.print(path)
+        assert os.path.exists(path)
+        return os.remove(path)
     @classmethod
     def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
         
@@ -1412,7 +1414,7 @@ class Module:
     
        
     @classmethod
-    def bittensor(cls, *args, **kwargs):
+    def bt(cls, *args, **kwargs):
         return cls.get_module('bittensor')(*args, **kwargs)
     @classmethod
     def __str__(cls):
@@ -4676,7 +4678,7 @@ class Module:
         if gpu_memory is None:
             reserved_gpu_memory = {}
         else:
-            reserved_gpu_memory =cls.reserved_pus()
+            reserved_gpu_memory =cls.reserved_gpus()
             for  gpu, memory in gpu_memory.items():
                 memory = cls.resolve_memory(memory)
     
@@ -4685,6 +4687,7 @@ class Module:
                         memory = reserved_gpu_memory[gpu]
                     reserved_gpu_memory[gpu] -= memory
                 
+        cls.print(f'unreserving {gpu_memory}')
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         return cls.reserved_gpus()
