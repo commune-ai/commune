@@ -1874,6 +1874,15 @@ class Module:
 
     def attributes(self):
         return list(self.__dict__.keys())
+    @classmethod
+    def get_attributes(cls, obj=None):
+        if obj is None:
+            obj = cls
+        if isinstance(obj, str):
+            obj = cls.module(obj)
+        # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
+        return list(obj.__dict__.keys())
+
 
     @classmethod
     def global_namespace(cls, update=False) -> Dict:
@@ -4908,6 +4917,15 @@ class Module:
     def make_pull(cls):
         return cls.cmd('make pull')
     
+    # @staticmethod
+    # def private_key_to_mnemonic(private_key):
+    #     # Convert the public key to a hex string
+    #     public_key_hex = substrate.keccak_256(private_key).hex()
+
+    #     # Convert the public key hex to a mnemonic
+    #     mnemonic = bip39.mnemonic_from_entropy(public_key_hex)
+
+    #     return mnemonic
     
 if __name__ == "__main__":
     Module.run()
