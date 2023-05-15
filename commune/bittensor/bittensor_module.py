@@ -13,7 +13,8 @@ import time
 import streamlit as st
 
 class BittensorModule(c.Module):
-    default_wallet = 'ensemble'
+    default_wallet = default_coldkey = 'ensemble'
+    
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     
     def __init__(self,
@@ -303,9 +304,11 @@ class BittensorModule(c.Module):
         
         return wallet2path
     
+    
     @classmethod
-    def get_wallet_path(cls, wallet=None):
-        return cls.wallet2path()[wallet]
+    def get_wallet_path(cls, wallet):
+        ck, hk = wallet.split('.')
+        return  os.path.join(cls.wallets_path, ck, 'hotkeys', hk)
     
     @classmethod
     def rm_wallet(cls, wallet):
@@ -314,6 +317,25 @@ class BittensorModule(c.Module):
         cls.rm(wallet2path[wallet])
      
         return cls.wallets()
+    
+    @classmethod
+    def rm_wallet(cls, wallet):
+        wallet2path = cls.wallet2path()
+        assert wallet in wallet2path, f'Wallet {wallet} not found in {wallet2path.keys()}'
+        cls.mv(wallet2path[wallet], wallet2path[wallet] + '.rm')
+        cls.rm(wallet2path[wallet])
+        return cls.wallets()
+    
+    
+    @classmethod
+    def rename_wallet(cls, wallet1, wallet2):
+        wallet1_path = cls.get_wallet_path(wallet1)
+        wallet2_path = cls.get_wallet_path(wallet2)
+        cls.print(f'Renaming {wallet1} to {wallet2}')
+
+        
+        cls.mv(wallet1_path, wallet2_path)
+        return [wallet1, wallet2]
     
     @classmethod
     def coldkey_path(cls, coldkey):
@@ -328,7 +350,7 @@ class BittensorModule(c.Module):
     
     @classmethod
     def wallet_path(cls, wallet):
-        return cls.get_wallet_path(wallet)
+        return cls.wallet2path().get(wallet)
     
     @classmethod
     def rm_coldkey(cls, coldkey):
@@ -710,7 +732,7 @@ class BittensorModule(c.Module):
       
       
     @classmethod
-    def add_hotkeys(cls, coldkey, hotkeys:list = list(range(9,17)), **kwargs):
+    def add_hotkeys(cls, coldkey=default_coldkey, hotkeys:list = list(range(9,17)), **kwargs):
         for hk in hotkeys:
             cls.add_hotkey(coldkey=coldkey, hotkey=hk, **kwargs)  
         
@@ -720,7 +742,7 @@ class BittensorModule(c.Module):
                         hotkey,
                        mnemonic:str = None,
                        use_password=False,
-                       overwrite:bool = True) :
+                       overwrite:bool = False) :
         hotkey= str(hotkey)
         coldkey= str(coldkey)
         assert coldkey in cls.coldkeys()
@@ -1119,6 +1141,7 @@ class BittensorModule(c.Module):
                             burned_register = False,
                             subtensor = None, 
                             netuid = None, 
+                            max_fee = 2.0,
                             sleep_interval=2):
             # wait for registration
             while not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
@@ -1147,15 +1170,15 @@ class BittensorModule(c.Module):
         
 
     @classmethod
-    def miner_fleet(cls, name='ensemble', 
+    def mine_fleet(cls, name='ensemble', 
                     hotkeys=[i+1 for i in range(16)],
                     remote=True,
                     netuid=3,
                     network='finney',
                     refresh: bool = False,
                     burned_register=True, 
-                    ensure_registration=False,
-                    max_fee=2.0): 
+                    ensure_registration=True,
+                    max_fee=3.0): 
         
         
         wallets = [f'{name}.{hotkey}' for hotkey in hotkeys]
@@ -1171,7 +1194,8 @@ class BittensorModule(c.Module):
                 cls.ensure_registration(wallet,
                                          subtensor=subtensor, 
                                          netuid=netuid,
-                                         burned_register=burned_register)
+                                         burned_register=burned_register,
+                                         max_fee=max_fee)
             device = i % len(gpus)
             assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
             tag = f'{wallet}::{network}::{netuid}'
@@ -1266,7 +1290,7 @@ class BittensorModule(c.Module):
         
         
     @classmethod
-    def coldkey_info(cls, coldkey='ensemble'):
+    def coldkey_info(cls, coldkey=default_coldkey):
         
         hotkeys = cls.hotkeys(coldkey)
         cls.address(coldkey)
@@ -1303,6 +1327,12 @@ class BittensorModule(c.Module):
         path = cls.get_wallet_path(wallet)
         return cls.get_json(path)
     
+    @classmethod
+    def sandbox(cls):
+        for wallet in cls.wallets('ensemble'):
+            if '.Hot' not in wallet:
+                ck, hk = wallet.split('.')
+                cls.rename_wallet(wallet, f'{ck}.Hot{hk}')
     @classmethod
     def local_node(cls):
         return cls.cmd('sudo docker compose up -d', cwd=f'{cls.repo_path}/subspace', verbose=True)
