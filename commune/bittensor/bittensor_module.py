@@ -1161,20 +1161,23 @@ class BittensorModule(c.Module):
 
     @classmethod
     def mine_fleet(cls, name='ensemble', 
-                    hotkeys=[i+1 for i in range(16)],
                     remote=True,
                     netuid=3,
                     network='finney',
+                    model_name = default_model_name,
                     refresh: bool = False,
                     burned_register=False, 
                     ensure_registration=False,
                     max_fee=2.0): 
         
         
-        wallets = [f'{name}.{hotkey}' for hotkey in hotkeys]
+    
+        wallets = cls.unreged(name)
         
         gpus = cls.gpus()
         subtensor = cls.get_subtensor(network)
+        model_size = cls.get_model_size(model_name)
+        free_gpu_memory = cls.free_gpu_memory()
         
         axon_ports = []
         for i, wallet in enumerate(wallets):
@@ -1186,7 +1189,10 @@ class BittensorModule(c.Module):
                                          netuid=netuid,
                                          burned_register=burned_register,
                                          max_fee=max_fee)
-            device = i % len(gpus)
+                
+            device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
+            free_gpu_memory[device] -= model_size
+            assert free_gpu_memory[device] > 0, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
             assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
             tag = f'{wallet}::{network}::{netuid}'
             miner_name = f'miner::{tag}'
@@ -1301,10 +1307,8 @@ class BittensorModule(c.Module):
     @classmethod
     def coldkey_info(cls, coldkey=default_coldkey, unreged = False):
         
-        hotkeys = cls.hotkeys(coldkey)
-        cls.address(coldkey)
         if unreged:
-            hotkeys = cls.unreged(coldkey) 
+            hotkeys = cls.unregistered_hotkeys(coldkey) 
             wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
 
         else:
@@ -1314,6 +1318,9 @@ class BittensorModule(c.Module):
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
         coldkey_json = cls.coldkey_json(coldkey)
+        if coldkey_json == None:
+            coldkey_json = cls.coldkeypub_json(coldkey)
+            
         
         
         
@@ -1338,6 +1345,12 @@ class BittensorModule(c.Module):
     def coldkey_json(cls, coldkey):
         path = cls.coldkey_path(coldkey)
         return cls.get_json(path)
+    @classmethod
+    def coldkeypub_json(cls, coldkey):
+        path = cls.coldkeypub_path(coldkey)
+        return cls.get_json(path)
+    
+    
     
     @classmethod
     async def async_wallet_json(cls, wallet):
