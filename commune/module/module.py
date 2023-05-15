@@ -3489,7 +3489,7 @@ class Module:
         from accelerate import init_empty_weights
         
         kwargs['trust_remote_code'] = trust_remote_code
-        model = cls.shortcuts.get(model, model)
+        model = cls.module('model.transformer').shortcuts.get(model, model)
 
         if isinstance(model, str):
             if verbose:
