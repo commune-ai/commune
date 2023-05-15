@@ -1161,18 +1161,21 @@ class BittensorModule(c.Module):
 
     @classmethod
     def mine_fleet(cls, name='ensemble', 
+                    hotkeys = None,
                     remote=True,
                     netuid=3,
                     network='finney',
                     model_name = default_model_name,
-                    refresh: bool = False,
+                    refresh: bool = True,
                     burned_register=False, 
                     ensure_registration=False,
-                    max_fee=2.0): 
+                    max_fee=1.3): 
         
         
-    
-        wallets = cls.unreged(name)
+        if hotkeys == None:
+            wallets = cls.unreged(name)
+        else:
+            wallets  = [f'{name}.{h}' for h in hotkeys]
         
         gpus = cls.gpus()
         subtensor = cls.get_subtensor(network)
