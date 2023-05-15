@@ -636,7 +636,7 @@ class TransformerModel(c.Model):
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
-             batch_delay = 1,
+             batch_delay = 3,
              sequence_length : int = 256,
              batch_size: int = 32,
              autocast : bool = True,

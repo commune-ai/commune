@@ -4199,6 +4199,14 @@ class Module:
     def serializer(cls, *args, **kwargs) -> 'Serializer':
         return cls.import_object('commune.server.Serializer')(*args, **kwargs)
 
+    
+    @classmethod
+    def serialize(cls, data, metadata=None, **kwargs) -> 'Serializer':
+        metadata = metadata or {}
+        if not isinstance(data, dict):
+            data = dict(value=data)
+        return cls.serializer().serialize(data=data, metadata=metadata ,**kwargs)
+
     @classmethod
     def copy(cls, data: Any) -> Any:
         import copy
@@ -4917,6 +4925,24 @@ class Module:
     def make_pull(cls):
         return cls.cmd('make pull')
     
+    
+    @staticmethod
+    def encode_topk( forward_response_tensor: 'torch.Tensor' , topk:int=4096) -> 'torch.Tensor':
+        import torch
+        """ Returns topk tokens/probabilities given unnormalized logits as input. """
+
+        #import ipdb; ipdb.set_trace()
+
+        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
+        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
+
+        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
+
+        topk_values = probs.gather( index=topk_indices, dim=-1)
+        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
+        return encoded_probs  # [batch_size, sequence_len, topk + topk]
+
     # @staticmethod
     # def private_key_to_mnemonic(private_key):
     #     # Convert the public key to a hex string
@@ -4926,6 +4952,8 @@ class Module:
     #     mnemonic = bip39.mnemonic_from_entropy(public_key_hex)
 
     #     return mnemonic
+    
+    
     
 if __name__ == "__main__":
     Module.run()

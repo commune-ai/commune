@@ -183,9 +183,9 @@ class Serializer:
 
     def get_str_type(self, data):
         data_type = str(type(data)).split("'")[1]
-        if data_type == 'munch.Munch':
+        if data_type in ['munch.Munch', 'Munch']:
             data_type = 'munch'
-        if data_type == 'torch.Tensor':
+        if data_type in ['torch.Tensor', 'Tensor']:
             data_type = 'torch'
         
         return data_type
