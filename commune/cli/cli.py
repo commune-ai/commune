@@ -84,7 +84,8 @@ class CLI(commune.Module):
         return result
     
     shortcuts = {
-        'bt': 'bittensor'
+        'bt': 'bittensor',
+        'hf': 'huggingface'
     }
     @classmethod
     def resolve_shortcut(cls, name):

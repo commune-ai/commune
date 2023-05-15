@@ -289,6 +289,10 @@ class BittensorModule(c.Module):
     
     
     @classmethod
+    def unregistered_hotkeys(cls, wallet=default_coldkey,  subtensor='finney', netuid:int=None):
+        return [w.split('.')[-1] for w in cls.unregistered_wallets(search=wallet, subtensor=subtensor, netuid=netuid)]
+    
+    @classmethod
     def wallet2path(cls, search = None):
         wallets = cls.wallets()
         wallet2path = {}
@@ -1042,8 +1046,8 @@ class BittensorModule(c.Module):
 
     @classmethod
     def mine(cls, 
-               wallet='ensemble.Hot5',
-               model_name:str= None,
+               wallet='ensemble.5',
+               model_name:str= default_model_name,
                network = 'finney',
                netuid=3,
                port = None,
@@ -1051,7 +1055,7 @@ class BittensorModule(c.Module):
                prometheus_port = None,
                debug = True,
                no_set_weights = True,
-               remote:bool = True,
+               remote:bool = False,
                tag=None,
                sleep_interval = 2,
                autocast = True,
@@ -1065,42 +1069,10 @@ class BittensorModule(c.Module):
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
-        if port == None:
-            port = cls.free_port()
-        while cls.port_used(port):
-            port = port + 1
-            
-            
-        if model_name == None:
-            model_name = cls.default_model_name
-        assert not cls.port_used(port), f'Port {port} is already in use.'
-  
         config = bittensor.neurons.core_server.neuron.config()
-        
         # model things
         config.neuron.no_set_weights = no_set_weights
-        config.neuron.model_name = model_name
         
-        # device setting 
-        if device is None:
-            device = cls.most_free_gpu()
-        assert torch.cuda.is_available(), 'No CUDA device available.'
-        config.neuron.device = f'cuda:{device}'
-        config.neuron.autocast = autocast
-        
-        # axon port
-        port = port  if port is not None else cls.free_port()
-        config.axon.port = port
-        assert not cls.port_used(config.axon.port), f'Port {config.axon.port} is already in use.'
-        
-        # prometheus port
-        config.prometheus.port =  port + 1 if prometheus_port is None else prometheus_port
-        while cls.port_used(config.prometheus.port):
-            config.prometheus.port += 1
-            
-            
-        if model_name == None:
-            model_name = cls.default_model_name
         # network
         subtensor = bittensor.subtensor(network=network)
         bittensor.utils.version_checking()
@@ -1108,32 +1080,44 @@ class BittensorModule(c.Module):
         # wallet
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        
+        cls.ensure_registration(wallet=wallet, 
+                                 subtensor=subtensor, 
+                                 netuid=netuid,
+                                 max_fee=max_fee,
+                                 burned_register=burned_register, 
+                                 sleep_interval=sleep_interval)
                     
-        while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
-            
-            if burned_register:
-                cls.burned_register(
-                    wallet = wallet,
-                    netuid = netuid,
-                    wait_for_inclusion = False,
-                    wait_for_finalization = True,
-                    prompt = False,
-                    max_fee = max_fee,
-                    subtensor = subtensor,
-                )
-            time.sleep(sleep_interval)
-            cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')
-            
-        cls.print(f'Wallet {wallet} is registered on {network}')
-             
+
         # enseure ports are free
+        # axon port
+        port = port if port is not None else cls.free_port()
+        config.axon.port = port
         while cls.port_used(config.axon.port):
-            config.axon.port += 1             
+            config.axon.port += 1    
+            
+        # ensure prometheus port
+        config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None else prometheus_port         
         while cls.port_used(config.prometheus.port):
             config.prometheus.port += 1
             
+            
+        # neuron things
+        config.neuron.autocast = autocast  
+        if device is None:
+            device = cls.most_free_gpu()
+
+        model_name = model_name if model_name is not None else cls.default_model_name
+        model_size = cls.get_model_size(model_name)
+        free_gpu_memory = cls.free_gpu_memory()
+        if free_gpu_memory[device] < model_size:
+            device = cls.most_free_gpu()
+        assert free_gpu_memory[device] > model_size, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
+            
+        config.neuron.device = f'cuda:{device}'
+        config.neuron.model_name = model_name
         
-        
+        cls.print(config)
         bittensor.neurons.core_server.neuron(
                wallet=wallet,
                subtensor=subtensor,
@@ -1143,11 +1127,10 @@ class BittensorModule(c.Module):
 
     @classmethod
     def ensure_registration(cls, 
-                            
                             wallet, 
+                            subtensor = 'finney', 
                             burned_register = False,
-                            subtensor = None, 
-                            netuid = None, 
+                            netuid = 3, 
                             max_fee = 2.0,
                             sleep_interval=2):
             # wait for registration
@@ -1168,7 +1151,7 @@ class BittensorModule(c.Module):
                 c.sleep(sleep_interval)
                 
                 cls.print(f'Pending Registration {wallet} Waiting 2s ...')
-                
+            cls.print(f'{wallet} is registered on {subtensor} {netuid}!')
     @classmethod
     def burn_reg_unreged(cls, **kwargs):
         for w in cls.unreged():
@@ -1232,9 +1215,14 @@ class BittensorModule(c.Module):
         return cls.pm2_list(prefix) 
     
     @classmethod
-    def wallet2miner(cls, wallet=None):
+    def wallet2miner(cls, wallet=None, unreged=False):
         wallet2miner = {}
+        if unreged:
+            unreged_wallets = cls.unreged()
+        else:
+            unreged_wallets = []
         for m in cls.miners():
+            
             wallet2miner[m.split('::')[1]] = m
             
         if wallet in wallet2miner:
@@ -1311,12 +1299,17 @@ class BittensorModule(c.Module):
         
         
     @classmethod
-    def coldkey_info(cls, coldkey=default_coldkey):
+    def coldkey_info(cls, coldkey=default_coldkey, unreged = False):
         
         hotkeys = cls.hotkeys(coldkey)
         cls.address(coldkey)
-        hotkeys =  cls.hotkeys(coldkey)
-        wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
+        if unreged:
+            hotkeys = cls.unreged(coldkey) 
+            wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
+
+        else:
+            hotkeys =  cls.hotkeys(coldkey)
+            wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
         
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
