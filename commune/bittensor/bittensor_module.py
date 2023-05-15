@@ -1099,22 +1099,43 @@ class BittensorModule(c.Module):
                netuid=netuid).run()
 
     @classmethod
-    def mine_fleet(cls, name='ensemble', 
+    def miner_fleet(cls, name='ensemble', 
                     hotkeys=[i+1 for i in range(8)],
                     remote=True,
                     netuid=3,
                     network='finney',
                     refresh: bool = False,
-                    burned_register=False): 
+                    burned_register=False, 
+                    wait_for_register=True,
+                    max_fee=2.0): 
         
         
         wallets = [f'{name}.{hotkey}' for hotkey in hotkeys]
         
         gpus = cls.gpus()
+        subtensor = cls.get_subtensor(network)
         
         axon_ports = []
         for i, wallet in enumerate(wallets):
+            
             assert cls.wallet_exists(wallet), f'Wallet {wallet} does not exist.'
+            if wait_for_register:
+                # wait for registration
+                while not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
+                    # burn registration
+                    if burned_register:
+                        cls.burned_register(
+                            wallet = wallet,
+                            netuid = netuid,
+                            wait_for_inclusion = False,
+                            wait_for_finalization = True,
+                            prompt = False,
+                            subtensor = subtensor,
+                            max_fee = max_fee,
+                        )
+                    time.sleep(2)
+                    cls.print(f'Pending Registration {wallet} Waiting 2s ...')
+                    
             device = i
             assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
             tag = f'{wallet}::{network}::{netuid}'
@@ -1129,6 +1150,7 @@ class BittensorModule(c.Module):
                 continue
             else:
                 cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
+                continue
                 cls.mine(wallet=wallet,
                          remote=remote, 
                          tag=tag, 
@@ -1208,6 +1230,21 @@ class BittensorModule(c.Module):
         cls.pritn(self.reged(subtensor='local'))
         
         
+    @classmethod
+    def coldkey_map(cls, coldkey):
+        
+        hotkeys = cls.hotkeys(coldkey)
+        wallets = [cls.get_wallet(w) for w in cls.wallets(coldkey)]
+        
+        coldkey_map = {
+            'coldkey': wallets[0].coldkey.ss58_address,
+            'hotkeys': {w.hotkey_str: w.hotkey.mnemonic for w in wallets},
+        }
+        
+        return coldkey_map
+    @classmethod
+    def local_node(cls):
+        return cls.cmd('sudo docker-compose up', cwd=f'{cls.repo_path}/subspace')
 if __name__ == "__main__":
     BittensorModule.run()
 
