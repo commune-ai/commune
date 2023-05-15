@@ -304,11 +304,19 @@ class Model( nn.Module, commune.Module):
         path = self.resolve_path(tag)
         return path
     
+    def reset_params(self):
+        self.load_state_dict(self.og_state_dict['model'])
+        self.optimizer.load_state_dict(self.og_state_dict['optimizer'])
+    
+    
     def load(self, tag=None, 
              keys:List[str] = None, 
              map_location: str = None,
              **kwargs):
-        
+        if not hasattr(self, 'load_cnt'):
+            self.load_cnt = 0
+            
+        self.load_cnt += 1
         
         map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
@@ -316,8 +324,11 @@ class Model( nn.Module, commune.Module):
         if not os.path.exists(path):
             self.print(f'Couldnt find {path}')
             return 
+        
         path_list = glob.glob(os.path.join(path, '*.pt'))
         loaded_state_dict = {}
+        
+        # load the keys (model, optimizer, config) into a dict
         for path in path_list:
             key = os.path.basename(path).replace('.pt', '')
             if not os.path.exists(path):
@@ -331,12 +342,20 @@ class Model( nn.Module, commune.Module):
             self.set_config(config)
             # DO WE WANT TO REBUILD THE MODEL WHEN WE LOAD A CONFIG WITH SLIGHTLY DIFFERENT PARAMS
             
+        if self.load_cnt == 1:
+            # save the original state dict to get the vanilla model
+            self.og_state['model'] = {k:states_dict[k] for k,v in loaded_state_dict['model'].keys() if v.requires_grad}
+            self.og_state['optimizer'] = self.optimizer.state_dict()
+            self.og_state['config'] = self.copy(self.config)
+            
+        states_dict = self.state_dict()
         if 'model' in loaded_state_dict:
             self.print('Loading model')
             self.update_state_dict(loaded_state_dict['model'])
     
         if 'optimizer' in loaded_state_dict:
             self.print('Loading optimizer')
+            self.og_optimizer_state_dict = self.optimizer.state_dict()
             self.optimizer.load_state_dict(loaded_state_dict['optimizer'])
         
     def update_state_dict(self, state_dict:dict):
@@ -414,6 +433,7 @@ class Model( nn.Module, commune.Module):
         for name, param in self.named_parameters():
             if last_layer_name in name or reached_last_layer == True:
                 param.requires_grad = True
+                
                 reached_last_layer = True
             else:
                 param.requires_grad = False
@@ -448,9 +468,9 @@ class Model( nn.Module, commune.Module):
                 
         return total_params
 
-    @classmethod
-    def deploy(cls, *args, **kwargs):
-        return cls.base_model().deploy(*args, **kwargs)
+    # @classmethod
+    # def deploy(cls, *args, **kwargs):
+    #     return cls.base_model().deploy(*args, **kwargs)
 
 
     @classmethod
