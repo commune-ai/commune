@@ -29,12 +29,6 @@ from torch import nn
 
 from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
 
-"""
-Examples 
-
-
-
-"""
 
 shortcuts =  {
     # 0-1B models
@@ -74,7 +68,8 @@ shortcuts =  {
     'gpt20b': 'EleutherAI/gpt-neox-20b',
     'opt13b': 'facebook/opt-13b',
     'gpt13b': 'cerebras/Cerebras-GPT-13B',
-    'sld': os.path.expanduser('~/models/gpt-j-6B-vR')
+    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
+    'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
     
         }
 
@@ -94,6 +89,7 @@ class TransformerModel(c.Model):
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
         self.set_model(config)
+
         
     
     def set_tag(self,tag:str):
@@ -149,6 +145,17 @@ class TransformerModel(c.Model):
         model = cls()
         output_text = model.generate(text, **kwargs)
         return output_text
+
+    @staticmethod
+    def check_output( output):
+        assert hasattr(output, 'logits'), 'output does not have logits'
+        
+        # check if logits has nans
+        logits_has_nans =  torch.isnan(output.logits).any()
+        assert not logits_has_nans, 'logits has nans'
+              
+        return logits_has_nans
+    
     def _forward(self,  
                 input_ids: torch.Tensor, 
                 attention_mask: torch.Tensor = None,
@@ -164,8 +171,6 @@ class TransformerModel(c.Model):
                 map_logits: bool = False,  
                 tag : str = None,                           
                 **kwargs):
-        
-
         
         # resolve the output length
         output_length = output_length or self.config.output_length or input_ids.shape[1]
@@ -190,35 +195,30 @@ class TransformerModel(c.Model):
             sample['input_ids'] = tokens.input_ids
             sample['attention_mask'] = tokens.attention_mask
         
+        
+        # move to device for all tensors
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
                 sample[k] = sample[k].to(self.device)
         
         
-        # clip the input ids to the vocab size
+        # clip the input ids to the vocab size to avoid index errors
         sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
-        if train:
-            self.optimizer.zero_grad()
+        
+        
             
-        device = self.get_model_device(self.model)
+        stats = self.stats
+        stats['sample'] =  {**stats.get('sample', {}), **{'time': self.time()}}
         
-        stats = self.copy(self.stats)
-        stats['time'] =  self.time()
-        sample['input_ids'] = sample['input_ids'].to(device)
-        
-        good_logits = False
-        output = self.model(input_ids=sample['input_ids'].to(device),
+        # forward pass
+        output = self.model(input_ids=sample['input_ids'].to(self.device),
                                 output_hidden_states=output_hidden_states)
         
-        # output = self.process_output(output)
+        
         # check if there are any nans in the logits
-        logits_has_nans =  torch.isnan(output.logits).any()
-        if logits_has_nans:
-            raise Exception('logits has nans with sample input_ids: ', sample['input_ids'])
-                
+        self.check_output(output)
         # sometime we dont care about the begginning of the sequence
         output_length = output_length if output_length else output.logits.size(1)
-        
         output['hidden_states'] = output.hidden_states[hidden_state_index]
         output['input_ids'] = sample['input_ids']
 
@@ -231,9 +231,8 @@ class TransformerModel(c.Model):
                                                                            tokens=sample['input_ids'],
                                                                            tokens_std=original_input_ids)
             
-        
-        output['logits']= output.logits[:,-output_length:,:]
         output['loss'] = loss = self.calculate_loss(**output)
+        output['logits']= output.logits[:,-output_length:,:]
         output['topk']=self.encode_topk(output['logits'], topk=topk)
 
 
@@ -250,86 +249,90 @@ class TransformerModel(c.Model):
         kwargs.update(sample)
         return self.forward(**kwargs)['hidden_states']
     def process_outputs(self, stats:dict, sample:dict, output:dict):
-
+        
         loss = output['loss']
+        # training stats
         
-
-        stats['latency'] = self.round(self.time() - stats['time'], sig=2)
-        stats['steps'] = stats.get('steps', 0) + 1
-        stats['input_shape'] = list(sample['input_ids'].shape)
-        num_samples = stats['input_shape'][0]
-        num_tokens = stats['input_shape'][0]*stats['input_shape'][1]
-        stats['tokens'] = stats.get('tokens', 0) +  num_samples
-        stats['samples'] = stats.get('samples', 0) + num_tokens
         
-        if self.training:
+        
+        sample_stats = {
+            'input_shape':list(sample['input_ids'].shape),
+            'latency': self.round(self.time() - stats['sample']['time'], sig=2),
+            'timestamp': int(self.time()),
+            'loss': self.round(loss.clone().item(), 3),
+            # 'history': stats['sample'].get('history',[])
+            
+        }
+        stats['sample'] = sample_stats
 
-            train_stats = stats['train'] = stats.get('train', {})
-            loss.backward()
+                
+        for mode in ['train', 'eval']:
+            mode_stats = stats[mode] = stats.get(mode, {})
+            
+            
+            # skip if we are not training and we are in training mode
+            if mode == 'train' and not self.training:
+                continue
+            
 
-            if self.config.get('accumulate_grad_batches', 1) > 1:
-                if stats['steps'] % self.config.accumulate_grad_batches == 0:
+            # update the stats for the mode
+            mode_stats['samples'] = mode_stats.get('samples', 0) + stats['sample']['input_shape'][0]
+            mode_stats['tokens'] = mode_stats.get('tokens',0) + stats['sample']['input_shape'][0]*stats['sample']['input_shape'][1]
+            mode_stats['steps'] = mode_stats.get('steps', 0) + 1
+            mode_stats['epoch_length'] = self.config.epoch_length
+            mode_stats['epoch'] = mode_stats.get('epoch', 0)
+            
+            # calculate the running average of the loss
+            sample_loss = loss.item()
+            mode_stats['batch_count'] = mode_stats['steps'] % self.config.epoch_length
+            mode_stats['epoch_loss'] = mode_stats.get('epoch_loss', sample_loss)
+            mode_stats['epoch_loss'] = (mode_stats['epoch_loss']*mode_stats['batch_count']+ sample_loss)/(mode_stats['batch_count']+1)
+            mode_stats['epoch_loss'] = self.round(mode_stats['epoch_loss'], self.config.loss_sigdigs)
+            mode_stats['epoch_loss_history'] =mode_stats.get('epoch_loss_history',[])
+            
+
+            # update the loss history
+            if mode_stats['steps'] % self.config.epoch_length == 0:
+                mode_stats['epoch_loss'] = loss.item()
+                mode_stats['epoch_loss_history'] += [self.round(mode_stats['epoch_loss'], 3)]
+                mode_stats['epoch'] = mode_stats['epoch'] + 1
+                mode_stats['batch_count'] = 0
+                    
+            
+            # update the stats for the mode
+            if mode == 'train':
+                mode_stats['saved_step'] = mode_stats.get('saved_step', 0)
+                mode_stats['best_epoch_loss'] = mode_stats.get('best_epoch_loss', self.config.default_metric)
+                mode_stats['checkpoint_step'] = mode_stats.get('checkpoint_step', 0)
+                loss.backward()
+                if mode_stats['steps'] % self.config.accumulate_grad_batches == 0:
+                    # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
                     if self.config.get('clip_grad_norm', 0)> 0:
                         torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
                     self.optimizer.step()
                     self.optimizer.zero_grad()
-            
-            self.optimizer.step()
-            loss = loss.item()
-            train_stats['epoch'] = train_stats.get('epoch', 0)
-            train_stats['samples'] = train_stats.get('samples', 0) + num_samples
-            train_stats['tokens'] = train_stats.get('tokens',0) + num_tokens
-            train_stats['steps'] = train_stats.get('steps', 0) + 1
-            train_stats['epoch_length'] = self.config.epoch_length
-            train_stats['batch_count'] = batch_count = train_stats.get('batch_count', 0) + 1
-            epoch_loss = train_stats.get('epoch_loss', loss)
-            train_stats['epoch_loss'] = (epoch_loss*batch_count+ loss)/(batch_count+1)
-            stats['loss'] = loss
-            train_stats['best_loss'] = train_stats.get('best_loss', self.config.default_metric)
-            train_stats['time'] = stats['time']
-            train_stats['checkpoint_step'] = train_stats.get('checkpoint_step', 0)
-            for k_r in ['best_loss', 'epoch_loss']:
-                train_stats[k_r] = self.round(train_stats[k_r], self.config.loss_sigdigs)
-            train_stats['loss_history'] =train_stats.get('loss_history',[])
-            
-            
-            if train_stats['batch_count'] % self.config.epoch_length == 0:
-                train_stats['loss_history'] += [self.round(train_stats['epoch_loss'], 3)]
-                train_stats['epoch'] = train_stats['epoch'] + 1
-                train_stats['batch_count'] = 0
                 
-                # check if the loss is better than the best loss
+                mode_stats['steps_since_checkpoint'] = mode_stats['steps'] - mode_stats['checkpoint_step']
+                mode_stats['patience_steps'] = self.config['patience_steps'] = self.config.get('patience_steps', self.config.epoch_length*self.config.patience_epochs)
+                if mode_stats['steps_since_checkpoint'] >= self.config.patience_steps :
+                    is_better = mode_stats['is_better'] = bool(mode_stats['epoch_loss'] <= (mode_stats['best_epoch_loss'] - self.config.best_epoch_loss_delta))
+                    if  is_better:
+                        mode_stats['checkpoint_step'] = mode_stats['saved_step']=  mode_stats['steps']
+                        mode_stats['best_epoch_loss'] = mode_stats['epoch_loss']
+                        self.stats = stats
+                        self.save() # save all
+                    else:
+                        mode_stats['checkpoint_step'] = mode_stats['steps']
+                        mode_stats['epoch_loss'] = loss.item()
+                        self.load(keys=['model', 'optimizer'])
+                        
+            stats[mode] = mode_stats
 
-            train_stats['saved_step'] = train_stats.get('saved_step', 0)
-            
-            train_stats['steps_since_checkpoint'] = train_stats['steps'] - train_stats['checkpoint_step']
-            self.config.patience_steps = self.config.epoch_length*self.config.patience_epochs
-            
-            train_stats['patience_steps'] = self.config.patience_steps
-            if len(train_stats['loss_history']) >= self.config.patience_epochs:
-                candidate_loss = sum(train_stats['loss_history'][-self.config.patience_epochs:])/self.config.patience_epochs
-            else:
-                candidate_loss = train_stats['epoch_loss']
-            if train_stats['steps_since_checkpoint'] >= self.config.patience_steps :
-                is_better = train_stats['is_better'] = bool(candidate_loss <= (train_stats['best_loss'] + self.config.best_loss_delta))
-                if  is_better:
-                    train_stats['saved_step'] = train_stats['checkpoint_step'] = train_stats['steps']
-                    train_stats['best_loss'] = train_stats['epoch_loss']
-                    self.set_stats(stats)
-                    self.save() # save all
-                else:
-                    train_stats['loaded_step'] = train_stats['checkpoint_step'] = train_stats['steps']
-                    train_stats['epoch_loss'] = loss
-                    self.load()
 
-            stats['loss'] = loss
-            self.set_stats(stats)
-            
-        else:
-            loss = loss.item()
-            stats['loss'] = loss
-            self.set_stats(stats)
-        
+
+              
+        self.stats = stats
+    
         output['stats'] = self.munch2dict(stats)
 
         return output
@@ -345,7 +348,7 @@ class TransformerModel(c.Model):
             self.load(keys=['config']) 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
-        
+        config['model_name'] = config['model']
         self.model_path = config['model_path'] = config['model'] = self.shortcuts.get(config['model'], config['model'])
 
         self.set_tokenizer(config.tokenizer)
@@ -358,7 +361,6 @@ class TransformerModel(c.Model):
         model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
         
         
-        self.print(model.__dict__['_modules'])
         # assert False
         config.model_size = self.get_model_size(model)
         config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
@@ -392,7 +394,7 @@ class TransformerModel(c.Model):
             self.print(f'model_kwargs: {model_kwargs}')
        
         self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
-        c.print(self.model.config)
+        # c.print(self.model.config.__dict__)
         
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
@@ -410,8 +412,12 @@ class TransformerModel(c.Model):
         self.set_finetune(config.finetune) 
           
         if config.load:
-            self.load() 
+            self.load(keys=['model', 'optimizer']) 
+        if config.reset_stats:
+            self.reset_stats()
         self.config = config
+        
+        
 
 
     def set_params(params:dict = None):
@@ -602,6 +608,9 @@ class TransformerModel(c.Model):
             print("Async function call timed out.")
             if retries > 0:
                 return cls.get_sample(timeout=timeout, retries=retries-1, *args, **kwargs)
+    
+    
+    
     @classmethod
     def resolve_model(cls, model, **kwargs):      
         if isinstance(model, str):
@@ -621,25 +630,20 @@ class TransformerModel(c.Model):
         
         return model
                 
-    
-    @classmethod
-    def test(cls, *args,**kwargs):
-        kwargs['batch_size'] = 4
-        kwargs['sequence_length'] = 32
-    
+
     @classmethod
     def learn(cls, model = 'gpt125m', 
              topk:int=512 ,
              dataset:str = 'dataset.bittensor',
              num_batches = 1000,
-             batch_delay = 0.0,
+             batch_delay = 1,
              sequence_length : int = 256,
-             batch_size: int = 8,
+             batch_size: int = 32,
              autocast : bool = True,
              train: bool= True,
              map_logits : bool = False,
              map_tokens : bool = False,
-             timeout : int= 6,
+             timeout : int= 8,
              remote:bool = False,
              **kwargs
              ):
@@ -670,6 +674,8 @@ class TransformerModel(c.Model):
                 
             )
             
+            cls.sleep(batch_delay)
+            
             output = model.forward(**sample)
             cls.print('STATS: ',output.get('stats', output))
 
@@ -677,12 +683,45 @@ class TransformerModel(c.Model):
           
     test = evaluate = learn
     
+    @property
+    def tag(self):
+        if self.config.get('tag', None) == None:
+            self.config['tag'] = 'base'
+            
+        return  self.config['tag']
+       
+    
+    def resolve_state_path(self, tag=None):
+        tag = tag if tag != None else self.tag
+        path = self.config.model+'_'+tag
+        path = self.resolve_path(path)
+        return path
+    
+    @tag.setter
+    def tag(self, tag):
+        self.config['tag'] = tag
+        
     @classmethod
-    def train_fleet(cls, model = 'model.gptj', network='local', **kwargs):
+    def train_fleet(cls, 
+                    model = 'model.gptj', 
+                    network='local',
+                    skip = None,
+                    remote=True,
+                    **kwargs):
         models = c.modules(model, network=network)
+        if isinstance(skip, str):
+            skip = [skip]
+        elif skip == None:
+            skip = []
+        else:
+            raise ValueError(f"Skip must be a string or None, got {skip}")
+        
         for m in models:
             cls.print(f"Training {m}")
-            cls.learn(model=m, **kwargs)
+            if any([m.startswith(s) for s in skip]):
+                cls.print(f"Skipping {m}")
+                continue
+            cls.learn(model=m, remote=True, **kwargs)
         
           
     # @classmethod
@@ -720,10 +759,10 @@ class TransformerModel(c.Model):
     #         sample['return_keys'] = ['stats']
     #         results = cls.call(selected_models, fn='forward', **sample)
     #         stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
-    #         print_keys = ['epoch_loss', 'best_loss',  'steps']
+    #         print_keys = ['epoch_loss', 'best_epoch_loss',  'steps']
     #         print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
     #         print_stats = pd.DataFrame(print_stats)
-    #         print_stats = print_stats.sort_values(by=['best_loss'])
+    #         print_stats = print_stats.sort_values(by=['best_epoch_loss'])
     #         cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
     
     # train_fleet = learn_fleet
@@ -801,14 +840,23 @@ class TransformerModel(c.Model):
     def deploy_fleet(cls, 
                      *tags, 
                      model = 'gptj',
+                     max_models = None,
                      **kwargs
                      ) -> List[str]:
-        
+
         c.update()
         if len(tags) == 0:
         
-            tags = ['alice', 'bob', 'chris', 'dan', 'elon', 'frank', 'greg', 'huck' ]
+            tags = ['base','alice', 'bob', 'chris', 'dan', 'eve', 'frank', 'gina', 'harry', 'ian', 'jane', 'kate', 'larry', 'mike', 'nancy', 'olivia', 'peter', 'quinn', 'rob', 'sarah', 'tom', 'ursula', 'victor', 'wanda', 'xavier', 'yolanda', 'zach']
+            
+        
+        if max_models is None:
+            max_models = len(cls.gpus())
+        tags = tags[:max_models]
+        
+        print(f'deploying {tags} on {cls.gpus()}')
         tag_seperator = kwargs.get('tag_seperator', '::')
+        
         free_gpu_memory = cls.free_gpu_memory()
         models = [ model+tag_seperator+t for t in tags]
         deployed_models = cls.deploy(*models, **kwargs)
@@ -853,22 +901,23 @@ class TransformerModel(c.Model):
                mode:str = 'pm2',
                free_gpu_memory: dict = None,
                refresh = False,
-               tag_seperator:str = '::',     
-               **kwargs):
-        
-        
-        if update:
-            cls.update(network='local')
-        tag = kwargs.get('tag', None)
-        assert len(models) > 0
-
-        if free_gpu_memory == None:
-            free_gpu_memory = cls.free_gpu_memory()
+               tag_seperator:str = '::',    
+               **kwargs
+              ):
         
         config = cls.get_config(kwargs=kwargs)
         
-        
-        
+        if refresh:
+            for model in models:
+                cls.delete(model)
+          
+        if update:
+            cls.update(network='local')
+            
+        tag = kwargs.get('tag', None)
+        assert len(models) > 0
+        if free_gpu_memory == None:
+            free_gpu_memory = cls.free_gpu_memory()
         deployed_models = {}
         for model in models:
             if tag_seperator in model:
@@ -891,7 +940,6 @@ class TransformerModel(c.Model):
                                                 free_gpu_memory=free_gpu_memory,
                                                 saturate=True)
     
-            cls.print(max_gpu_memory)
             for k,v in max_gpu_memory.items():
                 free_gpu_memory[k]-= v
                 free_gpu_memory[k] = max(0, free_gpu_memory[k])
@@ -919,7 +967,8 @@ class TransformerModel(c.Model):
         self = cls(model='opt2.7b')
         
         
-    
+
+        
 
         
 if __name__ == "__main__":

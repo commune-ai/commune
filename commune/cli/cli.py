@@ -34,6 +34,7 @@ class CLI(commune.Module):
             module_list = self.module_list()
             functions = self.functions(args[0], include_module=True)
             module_options = (list(namespace.values()) + list(namespace.keys()))
+            args[0] = self.resolve_shortcut(args[0])
             candidates = dict(
                             functions=[f for f in functions if f == args[0]],
                             modules=[m for m in module_list if m == args[0]],
@@ -71,4 +72,30 @@ class CLI(commune.Module):
 
 
         self.print(result)
+<<<<<<< HEAD
     
+=======
+    
+    def catch_ip(self):
+        result = None
+        if len(args[0].split(':')) == 2:
+            # commune module:fn args kwargs 
+            module_fn = args.pop(0)
+            module, fn = module_fn.split(':')
+            module = commune.connect(module)
+            result = module.remote_call(fn, *args,**kwargs)
+            
+            
+        return result
+    
+    shortcuts = {
+        'bt': 'bittensor'
+    }
+    @classmethod
+    def resolve_shortcut(cls, name):
+        if name in cls.shortcuts:
+            return cls.shortcuts[name]
+        else:
+            return name
+        
+>>>>>>> 758dc93f3be3d40e17565818920947469eeee88f

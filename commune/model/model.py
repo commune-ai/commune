@@ -77,6 +77,9 @@ class Model( nn.Module, commune.Module):
         self.config['stats'] = stats
         self.save(keys=['config'])
     
+    def reset_stats(self):
+        self.stats = {}
+    
     def set_stats(self, stats: dict = None,):
         if stats == None:
             stats = {}
@@ -158,6 +161,38 @@ class Model( nn.Module, commune.Module):
             torch.cuda.empty_cache()
         return result
 
+
+    
+    # def process_forward_locals(self, locals):
+    #     kwargs = self.locals2kwargs(locals)
+        
+    #     # import ipdb; ipdb.set_trace()
+    #     no_grad = kwargs.pop('no_grad', True)
+    #     autocast = kwargs.pop('autocast', True)
+    #     empty_cache = kwargs.pop('empty_cache', True)
+    #     train = kwargs['train'] = kwargs.get('train', False)
+
+    #     # set the model to train mode
+    #     if train:
+    #         no_grad = False
+    #         if self.training == False:
+    #             self.train()
+    #             self.training = True
+    #     else:
+    #         no_grad = True
+            
+    #     if no_grad == True:
+    #         # need to set no_grad to false to run forward ,or it will recurse  forever
+    #         kwargs['no_grad'] = False
+    #         with torch.no_grad():
+    #             return self.forward(**kwargs)
+    #     if autocast == True:
+    #         kwargs['autocast'] = False
+    #         with torch.cuda.amp.autocast():
+    #             return self.forward(**kwargs)
+            
+       
+
     def _forward(self, **kwargs):
         raise NotImplementedError
     @property
@@ -194,7 +229,6 @@ class Model( nn.Module, commune.Module):
     def resolve_tag(self, tag):
         if tag == None:
             tag = self.tag
-        print(f'tag: {tag}')
         return tag
 
     def save(self, 
@@ -203,7 +237,7 @@ class Model( nn.Module, commune.Module):
              verbose:bool = False,
              keys = None):
         tag = self.resolve_tag(tag)
-        path = self.resolve_path(tag)
+        path = self.resolve_state_path(tag)
 
         model_state_dict = self.state_dict()
         
@@ -232,8 +266,6 @@ class Model( nn.Module, commune.Module):
         
         for k in keys:
             torch.save(state_dict[k], state_path_dict[k])        
-            if verbose:
-                self.print(f'Saving {k} to {state_path_dict[k]}')
 
         return path
     
@@ -267,6 +299,11 @@ class Model( nn.Module, commune.Module):
         return pd.DataFrame(stats).T
 
     
+    def resolve_state_path(self, tag=None):
+        tag = tag if tag != None else self.tag
+        path = self.resolve_path(tag)
+        return path
+    
     def load(self, tag=None, 
              keys:List[str] = None, 
              map_location: str = None,
@@ -275,7 +312,7 @@ class Model( nn.Module, commune.Module):
         
         map_location = map_location if map_location else self.device
         tag = tag if tag != None else self.tag
-        path = self.resolve_path(tag)
+        path = self.resolve_state_path(tag)
         if not os.path.exists(path):
             self.print(f'Couldnt find {path}')
             return 
@@ -305,6 +342,17 @@ class Model( nn.Module, commune.Module):
     def update_state_dict(self, state_dict:dict):
         assert isinstance(state_dict, dict), f'state_dict must be a dict, got {type(state_dict)}'
         state_dict = self.state_dict()
+        state_dict.update(state_dict)
+        self.load_state_dict(state_dict)
+        
+        
+        
+    def get_state_dict(self, keys=None):
+
+        assert isinstance(state_dict, dict), f'state_dict must be a dict, got {type(state_dict)}'
+        state_dict = self.state_dict()
+        if keys == None:
+            keys = state_dict.keys()
         state_dict.update(state_dict)
         self.load_state_dict(state_dict)
         
@@ -384,6 +432,7 @@ class Model( nn.Module, commune.Module):
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
         return commune.resolve_device(device=device)
+
 
 
         

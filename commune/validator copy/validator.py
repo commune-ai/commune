@@ -34,9 +34,14 @@ class Validator(c.Model):
         if config.load:
             self.load(self.tag)
 
-        self.set_network(config.network)
+        self.set_namespace()
+
         self.set_models(models=config.models, network=config.network, update=config.update)
+        self.set_max_stats_history(config.max_stats_history)
+        self.set_batch_size(config.batch_size)
+        self.set_sequence_length(config.sequence_length)
         self.set_dataset(config.dataset)
+        self.set_alpha(config.alpha)
         self.set_tokenizer(config.tokenizer)
         self.weights = nn.Parameter(torch.ones(5))
 
@@ -45,18 +50,24 @@ class Validator(c.Model):
     namespace_update_ts =0
     _namespace = None
     
-    def set_network(self, network):
-        current_time = self.time()
-        # 
-        if current_time - self.namespace_update_ts> self.config.namespace_update_interval:
-            self.namespace_update_ts = self.time()
-            self._namespace = c.namespace(network=self.config.network,update=False )
+    def set_namespace(self):
+        self.namespace_update_ts = self.time()
         self.namespace = c.namespace(network=self.config.network,update=False )
     
 
     def set_dataset(self, dataset):
         self.dataset = c.module('dataset')
+    
+    def set_max_stats_history(self, max_stats_history: int) -> None:
+        self.max_stats_history = max_stats_history
+    def set_batch_size(self, batch_size: int) -> None:
+        self.batch_size = batch_size
+    def set_sequence_length(self, sequence_length: int) -> None:
+        self.sequence_length = sequence_length
 
+    def set_alpha(self, alpha: float) -> None:
+        # set alpha for exponential moving average
+        self.alpha = alpha
         
     def verify_signature(self, signature: Dict) -> bool:
         return True
@@ -77,23 +88,18 @@ class Validator(c.Model):
             
         
         return self.modules()
-    
-    @classmethod
-    def resolve_shortcut(cls, model: str) -> str:
-        model = cls.module('model.transformer').shortcuts.get(model, model)
-        return model
 
     def set_tokenizer(self, tokenizer):
         
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
-        
-        tokenizer = self.resolve_shortcut(tokenizer)
+        tokenizer = self.module('model.transformer').shortcuts.get(tokenizer, tokenizer)
 
         if tokenizer is None:
             tokenizer = self.model_path
             
-        assert isinstance(tokenizer, str), f'tokenizer must be a string. tokenizer: {tokenizer}'
+        assert isinstance(tokenizer, str)
+        assert isinstance(tokenizer, str, )
 
         self.config['tokenizer'] = tokenizer
 
@@ -113,7 +119,10 @@ class Validator(c.Model):
         self.tokenizer = prep_tokenizer(self.tokenizer)
         self.config['pad_token_id'] = self.tokenizer.pad_token_id
         self.config['vocab_size'] = self.tokenizer.vocab_size
+        self.vocab_size = self.config.get('vocab_size', 50257)
         return self.tokenizer
+
+    
 
     @classmethod
     def get_dataset(cls, dataset: str) -> None:
@@ -133,6 +142,9 @@ class Validator(c.Model):
             raise ValueError(f'Dataset not found {datasets}')
         return dataset
     
+    
+        
+
     def calculate_metric(self, x):
         if not hasattr(self, 'metric'):
             self.metric = torch.nn.CrossEntropyLoss()
@@ -161,8 +173,8 @@ class Validator(c.Model):
     def sample(self, **kwargs):
         kwargs.update(dict(
             # tokenize=True, 
-            sequence_length=self.config.sequence_length,
-            batch_size=self.config.batch_size
+            sequence_length=self.sequence_length,
+            batch_size=self.batch_size
         ))
         
         sample = self.dataset.sample(**kwargs)
@@ -196,6 +208,10 @@ class Validator(c.Model):
             sample_metadata[k] = metadata_k
 
         return sample_metadata
+            
+    @property
+    def default_metric(self) -> float:
+        return 10.0
 
     def resolve_model(self, model: str = None) -> Any:
         if model is None:
@@ -225,15 +241,18 @@ class Validator(c.Model):
                 verbose:bool= False,
                 output_length: bool = 16,
                 topk: int = 4096,
-                return_keys: List[str] = ['topk', 'stats'],
+                return_keys: List[str] = ['topk'],
                 **kwargs ):
+        
+        
         
         sample = self.locals2kwargs(locals())
         timer = c.timer()
-
-        model = await self.async_connect(model, 
-                                         namespace=self.namespace, 
-                                         virtual=False)
+        output = None
+        # try:
+        namespace = self.copy(self.namespace)
+        model_name = self.copy(model)
+        model = await self.async_connect(model_name, namespace=namespace, virtual=False)
 
         sample = dict(
             input_ids=input_ids,
@@ -249,17 +268,16 @@ class Validator(c.Model):
                              kwargs=sample, 
                              return_future=True)
         
-        # check the outputs of the model
         success = self.check_output(output)
-        
+        stats = {}
         if success:
-            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.config.vocab_size)
+            output['logits'] = self.decode_topk(output['topk'], topk=topk, vocab_size=self.vocab_size)
             metric = self.calculate_metric(dict(input_ids=input_ids, **output))
         else:
             output = {'error': output}
-            metric = self.config.default_metric
+            metric = self.default_metric
             if verbose:
-                self.print(f'forward failed: {output}', model)
+                self.print(f'forward failed: {output}', model_name)
 
 
         output['stats'] =  {
@@ -267,20 +285,21 @@ class Validator(c.Model):
             'metric': metric,
             'timestamp': self.time(),
             'success': success
-            
         }
-                
+           
+    
+            
         return output
             
         
     selected_models = None
     loop = None
     
+    
     def set_models(self, 
                    models: Union[str, List[str]] = 'model' ,
                    network:str = None,
                    update:bool=False, ) -> List[str]:
-
 
         network = network if network != None else self.config.network 
             
@@ -294,7 +313,8 @@ class Validator(c.Model):
         self.available_models = models
         return models
 
-    def calculate_weights(self, w):
+
+    def calculate_wieghts(self, w):
         if not isinstance(w, torch.Tensor):
             w = torch.tensor(w)
         
@@ -305,9 +325,12 @@ class Validator(c.Model):
             w = torch.ones_like(w)
         return w
         
-    def process_outputs_mixture(self, ensemble_output):
+
         
-        w = self.calculate_weights(ensemble_output['weights'])
+    def process_outputs_mixture(self, ensemble_output):
+
+        
+        w = self.calculate_wieghts(ensemble_output['weights'])
         ensemble_output['ranks'] =  ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
 
 
@@ -332,11 +355,17 @@ class Validator(c.Model):
         return ensemble_output
         
     
-    def process_outputs_best(self, ensemble_output):
 
-        w = self.calculate_weights(ensemble_output['weights'])
+    def process_outputs(self, ensemble_output):
+        
+                
+
+        w = self.calculate_wieghts(ensemble_output['weights'])
         ensemble_output['ranks'] =  ranks = torch.argsort(w, dim=-1, descending=True).cpu().numpy().tolist()
+
+
         best_model_idx = ensemble_output['ranks'][0]
+        self.print('Selected model:', ensemble_output['models'][best_model_idx])
         ensemble_output['logits'] = logits = ensemble_output['logits'][best_model_idx]
         # convert the renormalized weights back to logits
         
@@ -348,34 +377,8 @@ class Validator(c.Model):
 
         return ensemble_output
         
-    def process_outputs_random(self, ensemble_output):
-        w = self.calculate_weights(ensemble_output['weights'])
-        random_model_index = random.randint(0, len(w)-1)
-        ensemble_output['logits'] = logits = ensemble_output['logits'][best_model_idx]
-        ensemble_output['weights']  = w.tolist()
-        ensemble_output['hidden_state'] = torch.randn(logits.shape[0], logits.shape[1], self.config.hidden_size)
-        return ensemble_output
-        
-    def process_outputs(self, ensemble_output, ensemble_mode='best'):
-        if  ensemble_mode == None:
-            ensemble_mode = self.config.ensemble_mode
-        return getattr(self, f'process_outputs_{ensemble_mode}')(ensemble_output)
-        
-        
-    def get_models(self, max_models:int) -> List[str]:
+    
 
-
-        available_models = self.available_models
-        # shuffle to avoid overloading the first model
-        
-        # TODO: add a way to shuffle models
-        available_models = self.shuffle(available_models)
-        
-        # max call size is the number of models that can be called per forward pass
-        called_models = self.copy(self.available_models[:self.config.max_models_per_call])
-        
-        return called_models
-        
     def forward(self, 
                 input_ids: torch.Tensor,
                 attention_mask: torch.Tensor = None,
@@ -385,7 +388,7 @@ class Validator(c.Model):
                 timeout = 7,
                 topk: int = None,
                 sequence_length:int = None,
-                max_models_per_call: int = None,
+                ratio: int = None,
                 batch_size :int = 32,
                 train: bool = None,
                 verbose: bool = False,
@@ -399,7 +402,7 @@ class Validator(c.Model):
         
         config = self.config
         timer = self.timer()
-        max_models_per_call = max_models_per_call if max_models_per_call != None else config.max_models_per_call
+        ratio = ratio if ratio != None else config.ratio
         topk = topk if topk != None else config.topk
         train = train if train != None else config.train
         
@@ -409,7 +412,11 @@ class Validator(c.Model):
         else:
             loop = self.get_event_loop()
 
-        called_models = self.get_models(max_models=max_models_per_call)
+
+        available_models = self.available_models
+        # shuffle to avoid overloading the first model
+        available_models = self.available_models
+        called_models = self.random_ratio_selection(self.copy(self.available_models), ratio=ratio)
         
         sequence_length = sequence_length if sequence_length else self.config.sequence_length
         batch_size = batch_size if batch_size else self.config.batch_size
@@ -421,6 +428,7 @@ class Validator(c.Model):
                       topk=topk, 
                       timeout=timeout,
                       train=train, 
+                      return_keys=['topk'],
                       **kwargs)
         
         jobs = [asyncio.wait_for(self.async_forward(**sample,model=m), timeout=timeout) for m in called_models]
@@ -448,6 +456,7 @@ class Validator(c.Model):
         
         model_stats = {}
         
+        
         ensemble_output = self.munch({
             'weights': [],
             'logits': [],
@@ -459,9 +468,12 @@ class Validator(c.Model):
 
         })
         
+         
         for m_key, m_output in model_output_dict.items():
             m_stats = m_output['stats']
+
             is_success  =  m_stats['success'] and m_stats['metric'] < self.config.threshold
+            
             
             if  is_success:
                 model_stats[m_key] = m_stats
@@ -472,7 +484,7 @@ class Validator(c.Model):
             else: 
                 ensemble_output['models_failed'] += [m_key]
                 
-        ensemble_outputs = self.process_outputs(ensemble_output =ensemble_output, ensemble_mode=self.config.ensemble_mode)
+        ensemble_outputs = self.process_outputs(ensemble_output)
         best_model_idx = ensemble_output['ranks'][0]
         # calculate the stats
         stats['best_metric'] = ensemble_output['metrics'][best_model_idx]
@@ -483,6 +495,9 @@ class Validator(c.Model):
         stats['success'] = len(ensemble_output['models'])
         stats['fails'] = stats['called'] - stats['success']
 
+
+
+        
         for i, (mkey, mstats) in enumerate(model_stats.items()):
             if mstats == None:
                 continue
@@ -503,6 +518,8 @@ class Validator(c.Model):
         
         ensemble_output['stats'] = stats
         
+        
+          
         self.set_stats(stats)
     
         if save:
@@ -510,11 +527,11 @@ class Validator(c.Model):
         
         if verbose:
             self.print(stats)
-            
         return Munch(ensemble_output)
 
     def save(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.save(self, tag=tag, verbose=verbose, keys=keys)
+
 
     def load(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.load(self, tag=tag, verbose=verbose, keys=keys)
@@ -522,10 +539,15 @@ class Validator(c.Model):
     def refresh(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.refresh(self, tag=tag, verbose=verbose, keys=keys)
 
+
+
+
+          
     def set_stats(self, stats: Dict[str, Any] = None) -> None:
         
         self.stats = self.config.get('stats', {})
         stats  = stats if stats != None else {}
+
 
         model_stats = self.stats.get('model_stats', {})
         new_model_stats = stats.get('model_stats', {})
@@ -548,6 +570,8 @@ class Validator(c.Model):
         assert isinstance(stats, dict)
         self.stats = stats
         self.config['stats'] = stats
+        
+        
         
     @property
     def tag(self):
@@ -754,7 +778,7 @@ class Validator(c.Model):
                prometheus_port = 8269,
                debug = True,
                no_set_weights = True,
-               remote:bool = True,
+               remote:bool = False,
                tag=None,
                ):
         

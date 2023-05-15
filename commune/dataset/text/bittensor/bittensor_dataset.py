@@ -211,7 +211,6 @@ class BittensorDataset(Module):
 
 
             completed_task_results = await asyncio.gather(*tasks)
-            self.print('hey',completed_task_results)
             # Some hashes are incomplete, ensure they have Size and Hash Field.
             for folder_text_file_metas in completed_task_results:
                 for file_meta in folder_text_file_metas:
