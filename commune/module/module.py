@@ -1357,10 +1357,24 @@ class Module:
         path = cls.resolve_path(path=path, extension='json', root=root)
 
         return rm_json(path )
+    
+    @classmethod
+    def rmdir(cls, path, root:bool = False):
+        import shutil
+        return shutil.rmtree(path)
 
-    def rm(cls, *args, mode='json', **kwargs):
-        fn = getattr(cls, f'rm_{mode}')
-        return fn(*args, **kwargs)
+    @classmethod
+    def isdir(cls, path, root:bool = False):
+        return os.path.isdir(path)
+    
+    @classmethod
+    def rm(cls, path, root:bool = False):
+        path = cls.resolve_path(path=path, extension=None, root=root)
+        cls.print(path)
+        assert os.path.exists(path)
+        if os.path.isdir(path):
+            return cls.rmdir(path)
+        return os.remove(path)
     @classmethod
     def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
         
@@ -1412,7 +1426,7 @@ class Module:
     
        
     @classmethod
-    def bittensor(cls, *args, **kwargs):
+    def bt(cls, *args, **kwargs):
         return cls.get_module('bittensor')(*args, **kwargs)
     @classmethod
     def __str__(cls):
@@ -3304,6 +3318,10 @@ class Module:
         return available_gpus
     
     @classmethod
+    def num_gpus(cls):
+        return len(cls.gpus())
+    
+    @classmethod
     def cuda_available(cls) -> bool:
         import torch
         return torch.cuda.is_available()
@@ -3927,13 +3945,12 @@ class Module:
                               *args, **kwargs):
         if isinstance(modules, str) or modules == None:
             modules = cls.modules(modules)
+        print(modules)
         jobs = []
         for m in modules:
-            job = cls.async_call(m, fn, *args, **kwargs)
+            job = cls.async_call(module=m, fn=fn, *args, **kwargs)
             jobs.append(job)
         
-        
-            
         responses = await asyncio.gather(*jobs)
         
         if success_only:
@@ -4293,7 +4310,7 @@ class Module:
     @classmethod
     def add_peers(cls, *peer_addresses, **kwargs): 
         if len(peer_addresses) == 0:
-            peer_address = cls.boot_peers()
+            peer_addresses = cls.boot_peers()
             
         if len(peer_addresses) == 1 and isinstance(peer_addresses[0], list):
             peer_addresses = peer_addresses[0]
@@ -4301,6 +4318,8 @@ class Module:
         for peer_address in peer_addresses:
             job = cls.async_add_peer(peer_address, **kwargs)
             jobs += [job]
+            
+        print(jobs)
         loop = cls.get_event_loop()
         return loop.run_until_complete(asyncio.gather(*jobs))
     
@@ -4672,7 +4691,7 @@ class Module:
         if gpu_memory is None:
             reserved_gpu_memory = {}
         else:
-            reserved_gpu_memory =cls.reserved_pus()
+            reserved_gpu_memory =cls.reserved_gpus()
             for  gpu, memory in gpu_memory.items():
                 memory = cls.resolve_memory(memory)
     
@@ -4681,6 +4700,7 @@ class Module:
                         memory = reserved_gpu_memory[gpu]
                     reserved_gpu_memory[gpu] -= memory
                 
+        cls.print(f'unreserving {gpu_memory}')
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         return cls.reserved_gpus()
@@ -4755,7 +4775,7 @@ class Module:
     
     @classmethod
     def tags(cls):
-        return ['alice', 'bob', 'chris', 'dan', 'fam', 'greg', 'elon']
+        return ['alice', 'bob', 'chris', 'dan', 'fam', 'greg', 'elon', 'huck']
     
     @classmethod
     def rand_tag(cls):
@@ -4852,9 +4872,39 @@ class Module:
         return cls.module('model.transformer').learn(*args, **kwargs)
         
     @classmethod
-    def miner(cls,*args, **kwargs):
+    def mine(cls,*args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
-        return cls.module('validator').miner(*args, **kwargs)
+        return cls.module('bittensor').mine(*args, **kwargs)
+    
+    @classmethod
+    def train_fleet(cls, *args, **kwargs):
+        kwargs['remote'] = kwargs.get('remote', True)
+        return cls.module('model.transformer').train_fleet(*args, **kwargs)
+    
+    @classmethod
+    def miners(cls, prefix='miner'):
+        return cls.pm2_list(prefix)
+    
+    
+    @classmethod
+    def shuffle(cls, x:list)->list:
+        import random
+        random.shuffle(x)
+        return x
+    
+
+    @classmethod
+    def pull(cls):
+        return cls.cmd('git pull')
+    
+    @classmethod
+    def commit(cls, msg='update'):
+        return cls.cmd(f'git add; git commit -m "{msg}"; git push;')
+    
+    @classmethod
+    def make_pull(cls):
+        return cls.cmd('make pull')
+    
     
 if __name__ == "__main__":
     Module.run()

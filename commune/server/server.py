@@ -50,6 +50,7 @@ class Server(ServerServicer, Serializer, commune.Module):
             whitelist_functions: List[str] = [],
             blacklist_functions: List[str ] = [],
             loop: 'AscynioLoop' = None,
+            exceptions_to_raise = ['CUDA out of memory',  'PYTORCH_CUDA_ALLOC_CONF'],
             subspace = None,
 
 
@@ -86,16 +87,16 @@ class Server(ServerServicer, Serializer, commune.Module):
                         thread_pool=thread_pool,
                         max_workers=max_workers,
                         maximum_concurrent_rpcs=maximum_concurrent_rpcs,
-                        compression=compression,) 
+                        compression=compression)
+        
+         
         self.timeout = timeout
         self.verbose = verbose
         self.module = module
         self.authenticate = authenticate
+        self.exceptions_to_raise = exceptions_to_raise
 
-        
-        
-    
-    
+
     def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
         if loop == None:
             try:
@@ -226,6 +227,9 @@ class Server(ServerServicer, Serializer, commune.Module):
             
         except Exception as ex:
             output_data = str(ex)
+            if any([rex in output_data for rex in self.exceptions_to_raise]):
+                raise(ex)
+                self.stop()
             
             if verbose:
                 commune.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')

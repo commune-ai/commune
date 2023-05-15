@@ -631,6 +631,9 @@ class Subtensor:
                 requirements[str(tuple[0].value)] = tuple[1].value
         else:
             return {}
+        
+    def get_burn(self, block: Optional[int] = None, netuid=3, ) -> Optional[float]:
+        return self.query_subtensor( 'Burn', block, [netuid] ).value
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
         subnets = []
