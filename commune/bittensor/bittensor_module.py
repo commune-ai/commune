@@ -315,10 +315,11 @@ class BittensorModule(c.Module):
      
         return cls.wallets()
     
+    @classmethod
     def coldkey_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkey'
-    
+    get_coldkey_path = coldkey_path
     @classmethod
     def coldkeypub_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
@@ -353,8 +354,9 @@ class BittensorModule(c.Module):
         return  [os.path.basename(p)for p in cls.ls(cls.wallets_path)]
 
         
+    @classmethod
     def coldkey_exists(cls, wallet='default'):
-        return [os.path.basename(p)for p in cls.ls(cls.wallets_path)]
+        return os.path.exists(cls.get_coldkey_path(wallet))
     
     @classmethod
     def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
@@ -662,10 +664,11 @@ class BittensorModule(c.Module):
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = True) :
-        
-        if not overwrite:
-            assert not cls.coldkey_exists(name), f'Wallet {name} already exists.'
         wallet = bittensor.wallet(name=name)
+        if not overwrite:
+            if cls.coldkey_exists(name):
+                return wallet
+        
         if mnemonic is None:
             wallet.create_new_coldkey(use_password=use_password, overwrite=overwrite)
         else:
@@ -1156,7 +1159,7 @@ class BittensorModule(c.Module):
                     netuid=3,
                     network='finney',
                     refresh: bool = False,
-                    burned_register=True, 
+                    burned_register=False, 
                     ensure_registration=False,
                     max_fee=2.0): 
         
@@ -1201,7 +1204,21 @@ class BittensorModule(c.Module):
             
     @classmethod
     def miners(cls, prefix='miner'):
-        return cls.pm2_list(prefix)    
+        return cls.pm2_list(prefix) 
+    
+    @classmethod
+    def wallet2miner(cls, wallet=None):
+        wallet2miner = {}
+        for m in cls.miners():
+            wallet2miner[m.split('::')[1]] = m
+            
+        if wallet in wallet2miner:
+            return wallet2miner[wallet]
+        return wallet2miner
+            
+    @classmethod
+    def get_miner(cls, wallet):
+        return cls.wallet2miner(wallet)
     @classmethod
     def kill_miners(cls, prefix='miner'):
         return cls.kill(prefix)    
