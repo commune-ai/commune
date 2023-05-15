@@ -13,7 +13,7 @@ import time
 import streamlit as st
 
 class BittensorModule(c.Module):
-    default_wallet = 'ensemble'
+    default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     
     def __init__(self,
@@ -962,7 +962,9 @@ class BittensorModule(c.Module):
     burn_reg_many = burned_register_many
         
     @classmethod
-    def burned_register_coldkey(cls, coldkey, max_wallets = None,  sleep_interval=3, **kwargs):
+    def burned_register_coldkey(cls, coldkey = default_coldkey,
+                                sleep_interval=3,
+                                **kwargs):
         
         wallets = cls.unregistered(coldkey)
         if max_wallets == None:
@@ -1005,7 +1007,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def address(cls, wallet = default_wallet):
+    def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
         return wallet.coldkey.ss58_address
         
@@ -1235,7 +1237,7 @@ class BittensorModule(c.Module):
 
     
     @classmethod
-    def mlogs(cls, wallet, name='miner', network='finney', netuid=3):
+    def logs(cls, wallet, name='miner', network='finney', netuid=3):
         return c.logs(f'miner::{wallet}::{network}::{netuid}')
 
 
