@@ -159,6 +159,24 @@ class BittensorModule(c.Module):
         return wallet2neuron
     
     
+    
+    @classmethod
+    def wallet2stats(cls, *args, columns = ['incentive', 'trust'], sigdigs=3, **kwargs):
+        import pandas as pd
+        wallet2neuron = cls.wallet2neuron(*args, **kwargs)
+        rows = []
+        for w, n in wallet2neuron.items():
+            row = {c: cls.round(getattr(n, c), sigdigs) for c in columns}
+            row['wallet'] = w
+            rows.append(row)
+        df = pd.DataFrame(rows)
+        df = df.set_index('wallet')
+        return df
+    
+    
+    stats = w2s = wallet2stats
+    
+    
     @classmethod
     def wallet2axon(cls, *args, **kwargs):
 
