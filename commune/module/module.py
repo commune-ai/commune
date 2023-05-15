@@ -1369,7 +1369,8 @@ class Module:
     
     @classmethod
     def rm(cls, path, root:bool = False):
-        path = cls.resolve_path(path=path, extension=None, root=root)
+        if not os.path.exists(path):
+            path = cls.resolve_path(path=path, extension=None, root=root)
         cls.print(path)
         assert os.path.exists(path)
         if os.path.isdir(path):
@@ -3488,7 +3489,7 @@ class Module:
         from accelerate import init_empty_weights
         
         kwargs['trust_remote_code'] = trust_remote_code
-        model = cls.shortcuts.get(model, model)
+        model = cls.module('model.transformer').shortcuts.get(model, model)
 
         if isinstance(model, str):
             if verbose:
@@ -4870,6 +4871,22 @@ class Module:
         except ValueError:
             return False
         
+        
+    @classmethod
+    def mv(cls, path1, path2):
+        import shutil
+        shutil.move(path1, path2)
+        return path2
+
+        
+        
+    @classmethod
+    def cp(cls, path1, path2):
+        import shutil
+        shutil.copy(path1, path2)
+        return path2
+    
+    
     @classmethod
     def get_sample_schema(cls, x:dict) -> dict:
         import torch

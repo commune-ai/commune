@@ -260,6 +260,8 @@ class Huggingface(commune.Module):
         
         return asset_paths
     
+    model_assets = get_model_assets
+    
     @classmethod
     def get_model_config(cls, model_name):
         snapshots = cls.get_model_assets(model_name) 
