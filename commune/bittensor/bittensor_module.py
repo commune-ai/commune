@@ -315,15 +315,6 @@ class BittensorModule(c.Module):
      
         return cls.wallets()
     
-    @classmethod
-<<<<<<< HEAD
-    def rm_wallets(cls, *wallets, **kwargs):
-        for w in wallets:
-            cls.rm_wallet(w, **kwargs)
-            
-        return cls.wallets()
-            
-=======
     def coldkey_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkey'
@@ -333,11 +324,14 @@ class BittensorModule(c.Module):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkeypub.txt'
     
-    
+    def rm_wallets(cls, *wallets, **kwargs):
+        for w in wallets:
+            cls.rm_wallet(w, **kwargs)
+            
+        return cls.wallets()
     @classmethod
     def wallet_path(cls, wallet):
         return cls.get_wallet_path(wallet)
->>>>>>> 77eaf23ebbff1632cbed75956a8c99ac745211cd
     
     @classmethod
     def rm_coldkey(cls, coldkey):
