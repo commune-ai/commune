@@ -317,6 +317,14 @@ class BittensorModule(c.Module):
         return cls.wallets()
     
     @classmethod
+    def rm_wallets(cls, *wallets, **kwargs):
+        for w in wallets:
+            cls.rm_wallet(w, **kwargs)
+            
+        return cls.wallets()
+            
+    
+    @classmethod
     def rm_coldkey(cls, coldkey):
         
         assert coldkey in cls.coldkeys(), f'Coldkey {coldkey} not found in {cls.coldkeys()}'
