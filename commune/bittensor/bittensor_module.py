@@ -1098,6 +1098,36 @@ class BittensorModule(c.Module):
                config=config,
                netuid=netuid).run()
 
+
+    @classmethod
+    def ensure_registration(cls, 
+                            
+                            wallet, 
+                            burn_reg = False,
+                            subtensor = None, 
+                            netuid = None, 
+                            sleep_interval=2):
+            # wait for registration
+            while not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
+                # burn registration
+                
+                if burn_reg:
+                    cls.burned_register(
+                        wallet = wallet,
+                        netuid = netuid,
+                        wait_for_inclusion = False,
+                        wait_for_finalization = True,
+                        prompt = False,
+                        subtensor = subtensor,
+                        max_fee = max_fee,
+                    )
+                    
+                c.sleep(sleep_interval)
+                
+                cls.print(f'Pending Registration {wallet} Waiting 2s ...')
+                
+        
+
     @classmethod
     def miner_fleet(cls, name='ensemble', 
                     hotkeys=[i+1 for i in range(8)],
@@ -1123,6 +1153,7 @@ class BittensorModule(c.Module):
                 # wait for registration
                 while not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
                     # burn registration
+                    
                     if burned_register:
                         cls.burned_register(
                             wallet = wallet,
