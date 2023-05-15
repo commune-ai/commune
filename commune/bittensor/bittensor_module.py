@@ -1270,21 +1270,24 @@ class BittensorModule(c.Module):
         
         hotkeys = cls.hotkeys(coldkey)
         cls.address(coldkey)
-        hotkeys = sorted(map(int, cls.hotkeys(coldkey)))
+        hotkeys =  cls.hotkeys(coldkey)
         wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
         
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
         coldkey_json = cls.coldkey_json(coldkey)
         
-        coldkey_map = {
-            'name': coldkey,
-            'address': coldkey_json['ss58Address'],
-            'mnemonic': coldkey_json['secretPhrase'],
-            'hotkeys': hotkey_map
-        }
         
-        return coldkey_map
+        
+        coldkey_info = []
+        
+        template = 'btcli regen_coldkeypub --ss58 {coldkey_ss58} --wallet.name {coldkey} btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
+        for hk, hk_mnemonic in hotkey_map.items():
+            info = template.format(coldkey_ss58=coldkey_json['ss58Address'],mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
+            cls.print(info, '\n')
+            
+            coldkey_info.append(info)
+        # return coldkey_info
 
     
     @classmethod
