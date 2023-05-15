@@ -13,8 +13,7 @@ import time
 import streamlit as st
 
 class BittensorModule(c.Module):
-    default_wallet = default_coldkey = 'ensemble'
-    
+    default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     
     def __init__(self,
@@ -341,13 +340,17 @@ class BittensorModule(c.Module):
     def coldkey_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkey'
-    
+    get_coldkey_path = coldkey_path
     @classmethod
     def coldkeypub_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkeypub.txt'
     
-    
+    def rm_wallets(cls, *wallets, **kwargs):
+        for w in wallets:
+            cls.rm_wallet(w, **kwargs)
+            
+        return cls.wallets()
     @classmethod
     def wallet_path(cls, wallet):
         return cls.wallet2path().get(wallet)
@@ -372,8 +375,9 @@ class BittensorModule(c.Module):
         return  [os.path.basename(p)for p in cls.ls(cls.wallets_path)]
 
         
+    @classmethod
     def coldkey_exists(cls, wallet='default'):
-        return [os.path.basename(p)for p in cls.ls(cls.wallets_path)]
+        return os.path.exists(cls.get_coldkey_path(wallet))
     
     @classmethod
     def list_wallets(cls, registered=True, unregistered=True, output_wallet:bool = True):
@@ -681,10 +685,11 @@ class BittensorModule(c.Module):
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = True) :
-        
-        if not overwrite:
-            assert not cls.coldkey_exists(name), f'Wallet {name} already exists.'
         wallet = bittensor.wallet(name=name)
+        if not overwrite:
+            if cls.coldkey_exists(name):
+                return wallet
+        
         if mnemonic is None:
             wallet.create_new_coldkey(use_password=use_password, overwrite=overwrite)
         else:
@@ -978,7 +983,9 @@ class BittensorModule(c.Module):
     burn_reg_many = burned_register_many
         
     @classmethod
-    def burned_register_coldkey(cls, coldkey, max_wallets = None,  sleep_interval=3, **kwargs):
+    def burned_register_coldkey(cls, coldkey = default_coldkey,
+                                sleep_interval=3,
+                                **kwargs):
         
         wallets = cls.unregistered(coldkey)
         if max_wallets == None:
@@ -1021,7 +1028,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def address(cls, wallet = default_wallet):
+    def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
         return wallet.coldkey.ss58_address
         
@@ -1176,9 +1183,9 @@ class BittensorModule(c.Module):
                     netuid=3,
                     network='finney',
                     refresh: bool = False,
-                    burned_register=True, 
-                    ensure_registration=True,
-                    max_fee=3.0): 
+                    burned_register=False, 
+                    ensure_registration=False,
+                    max_fee=2.0): 
         
         
         wallets = [f'{name}.{hotkey}' for hotkey in hotkeys]
@@ -1222,7 +1229,21 @@ class BittensorModule(c.Module):
             
     @classmethod
     def miners(cls, prefix='miner'):
-        return cls.pm2_list(prefix)    
+        return cls.pm2_list(prefix) 
+    
+    @classmethod
+    def wallet2miner(cls, wallet=None):
+        wallet2miner = {}
+        for m in cls.miners():
+            wallet2miner[m.split('::')[1]] = m
+            
+        if wallet in wallet2miner:
+            return wallet2miner[wallet]
+        return wallet2miner
+            
+    @classmethod
+    def get_miner(cls, wallet):
+        return cls.wallet2miner(wallet)
     @classmethod
     def kill_miners(cls, prefix='miner'):
         return cls.kill(prefix)    
@@ -1239,7 +1260,7 @@ class BittensorModule(c.Module):
 
     
     @classmethod
-    def mlogs(cls, wallet, name='miner', network='finney', netuid=3):
+    def logs(cls, wallet, name='miner', network='finney', netuid=3):
         return c.logs(f'miner::{wallet}::{network}::{netuid}')
 
 
@@ -1294,21 +1315,24 @@ class BittensorModule(c.Module):
         
         hotkeys = cls.hotkeys(coldkey)
         cls.address(coldkey)
-        hotkeys = sorted(map(int, cls.hotkeys(coldkey)))
+        hotkeys =  cls.hotkeys(coldkey)
         wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
         
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
         coldkey_json = cls.coldkey_json(coldkey)
         
-        coldkey_map = {
-            'name': coldkey,
-            'address': coldkey_json['ss58Address'],
-            'mnemonic': coldkey_json['secretPhrase'],
-            'hotkeys': hotkey_map
-        }
         
-        return coldkey_map
+        
+        coldkey_info = []
+        
+        template = 'btcli regen_coldkeypub --ss58 {coldkey_ss58} --wallet.name {coldkey} btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
+        for hk, hk_mnemonic in hotkey_map.items():
+            info = template.format(coldkey_ss58=coldkey_json['ss58Address'],mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
+            cls.print(info, '\n')
+            
+            coldkey_info.append(info)
+        # return coldkey_info
 
     
     @classmethod
