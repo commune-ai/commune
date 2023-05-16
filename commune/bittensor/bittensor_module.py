@@ -175,7 +175,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def wallet2stats(cls, *args, columns = ['incentive', 'trust'], sigdigs=3, **kwargs):
+    def stats(cls, *args, columns = ['incentive', 'trust', 'stake'], sigdigs=3, **kwargs):
         import pandas as pd
         wallet2neuron = cls.wallet2neuron(*args, **kwargs)
         rows = []
@@ -187,9 +187,10 @@ class BittensorModule(c.Module):
         df = df.set_index('wallet')
         return df
     
-    
-    stats = w2s = wallet2stats
-    
+    @classmethod
+    def get_stake(cls, wallet, **kwargs):
+        neuron = cls.get_neuron(wallet=wallet, **kwargs)
+        return neuron.stake
     
     @classmethod
     def wallet2axon(cls, *args, **kwargs):
@@ -296,7 +297,7 @@ class BittensorModule(c.Module):
                     
                 
                 if search is not None:
-                    if search not in wallet:
+                    if not wallet.startswith(search):
                         continue
                     
                 wallets.append(wallet)
@@ -321,9 +322,9 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def unregistered_hotkeys(cls, wallet=default_coldkey,  subtensor='finney', netuid:int=None):
-        return [w.split('.')[-1] for w in cls.unregistered_wallets(search=wallet, subtensor=subtensor, netuid=netuid)]
-    
+    def unregistered_hotkeys(cls, coldkey=default_coldkey,  subtensor='finney', netuid:int=None):
+        return [w.split('.')[-1] for w in cls.unregistered_wallets(search=coldkey, subtensor=subtensor, netuid=netuid)]
+    unreged_hotkeys = unreged_hks = unregistered_hotkeys
     @classmethod
     def wallet2path(cls, search = None):
         wallets = cls.wallets()
@@ -900,7 +901,7 @@ class BittensorModule(c.Module):
             if type(v) in [int, float]:
                 cols[i % num_columns].metric(label=k, value=v)
                 
-    default_model_name = os.path.expanduser('~/models/gpt-j-6B-vR')
+    default_model_name = os.path.expanduser('~/fish_model')
     def streamlit_neuron_metrics(self, num_columns=3):
         if not self.registered:
             st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
@@ -988,19 +989,20 @@ class BittensorModule(c.Module):
             wait_for_finalization: bool = True,
             prompt: bool = False,
             subtensor = None,
-            max_fee = 2.0,
+            max_fee = 1.0,
             wait_for_fee = True
         ):
         wallet = cls.get_wallet(wallet)
         netuid = cls.get_netuid(netuid)
         subtensor = cls.get_subtensor(subtensor)
         fee = cls.burn_fee(subtensor=subtensor)
-        if wait_for_fee:
-            while fee > max_fee:
-                cls.print(f'fee {fee} is too high, max_fee is {max_fee}')
-                time.sleep(1)
-                fee = cls.burn_fee(subtensor=subtensor)
-        assert fee < max_fee, f'fee {fee} is too high, max_fee is {max_fee}'
+        while fee >= max_fee:
+            cls.print(f'fee {fee} is too high, max_fee is {max_fee}')
+            time.sleep(1)
+            fee = cls.burn_fee(subtensor=subtensor)
+            if wallet.is_registered(netuid=netuid, subtensor=subtensor):
+                cls.print(f'wallet {wallet} is already registered on {netuid}')
+                return True
         subtensor.burned_register(
             wallet = wallet,
             netuid = netuid,
@@ -1185,14 +1187,14 @@ class BittensorModule(c.Module):
                 cls.print(f'Pending Registration {wallet} Waiting 2s ...')
             cls.print(f'{wallet} is registered on {subtensor} {netuid}!')
     @classmethod
-    def burn_reg_unreged(cls, **kwargs):
+    def burn_reg_unreged(cls, time_sleep= 10, **kwargs):
         for w in cls.unreged():
             cls.burned_register(w, **kwargs)
         
         
 
     @classmethod
-    def mine_fleet(cls, name='ensemble', 
+    def fleet(cls, name='ensemble', 
                     hotkeys = None,
                     remote=True,
                     netuid=3,
@@ -1224,6 +1226,7 @@ class BittensorModule(c.Module):
                                          netuid=netuid,
                                          burned_register=burned_register,
                                          max_fee=max_fee)
+                burned_register = False # only burn register for first wallet
                 
             device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
             free_gpu_memory[device] -= model_size
@@ -1247,7 +1250,8 @@ class BittensorModule(c.Module):
                          device=device, 
                         port=axon_port,
                         prometheus_port = prometheus_port,
-                         burned_register=burned_register)
+                         burned_register=burned_register,
+                         max_fee=max_fee)
             
             # self.mine(wallet=wallet, remote=remote, tag=tag)
             
@@ -1400,7 +1404,7 @@ class BittensorModule(c.Module):
                 cls.rename_wallet(wallet, f'{ck}.Hot{hk}')
     @classmethod
     def local_node(cls):
-        return cls.cmd('sudo docker compose up -d', cwd=f'{cls.repo_path}/subspace', verbose=True)
+        return cls.cmd('docker-compose up -d', cwd=f'{cls.repo_path}/subtensor', verbose=True)
 if __name__ == "__main__":
     BittensorModule.run()
 
