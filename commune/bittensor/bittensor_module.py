@@ -1320,7 +1320,7 @@ class BittensorModule(c.Module):
     def unstake(
         cls,
         amount: float = None,
-        wallet = default_wallet, 
+        wallet = default_coldkey, 
         wait_for_inclusion:bool = True, 
         wait_for_finalization:bool = False,
         prompt: bool = False,
