@@ -1340,7 +1340,17 @@ class BittensorModule(c.Module):
                         prompt=prompt, 
                         subtensor=subtensor)
     unstake_ck = unstake_coldkey
+    
+    
+    @classmethod
+    def set_pool_address(cls, pool_address):
+        cls.put('pool_address', pool_address)
+        cls.print(f'Set pool address to {pool_address}')
         
+    @classmethod
+    def pool_address(cls):
+        return cls.get('pool_address')
+    
     @classmethod
     def unstake2pool(cls,
                      pool_address:str = None,
@@ -1349,7 +1359,9 @@ class BittensorModule(c.Module):
                      sleep = 60
                      ):
         
-        print(cls.get('pool_address'), None)
+        if pool_address == None:
+            pool_address = cls.pool_address()
+
         assert pool_address != None, 'Must specify pool address.'
         for i in range(loops):
             
