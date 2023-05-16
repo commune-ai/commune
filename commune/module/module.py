@@ -827,6 +827,35 @@ class Module:
                 raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
         return port
     
+    @classmethod
+    def free_ports(cls, ip='0.0.0.0') -> List[int]:
+        free_ports = []
+        for port in range(*cls.port_range()): 
+            if cls.port_available(port=port, ip=ip):
+                free_ports += [port]
+                
+        return free_ports
+    
+    @classmethod
+    def random_port(cls):
+        return cls.choice(cls.free_ports())
+    
+    @classmethod
+    def ports(cls, ip='0.0.0.0') -> List[int]:
+        ports = []
+        for port in range(*cls.port_range()): 
+            ports += [port]
+                
+        return ports
+    
+    @classmethod
+    def used_ports(cls, ip='0.0.0.0') -> List[int]:
+        used_ports = []
+        for port in range(*cls.port_range()): 
+            if not cls.port_available(port=port, ip=ip):
+                used_ports += [port]
+                
+        return used_ports
     
     @classmethod
     def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None) -> int:
@@ -849,18 +878,8 @@ class Module:
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
     get_available_port = free_port
+
     
-    @classmethod
-    def free_ports(cls, num_ports=1, **kwargs):
-        '''
-        This function returns a list of free ports
-        '''
-        free_ports = []
-        for i in range(num_ports):
-            kwargs['avoid_ports'] = free_ports
-            free_ports.append(cls.free_port(**kwargs))
-        
-        return free_ports
     def kwargs2attributes(self, kwargs:dict, ignore_error:bool = False):
         for k,v in kwargs.items():
             if k != 'self': # skip the self
@@ -1809,6 +1828,15 @@ class Module:
     @classmethod
     def server_exists(cls, name:str) -> bool:
         return bool(name in cls.servers())
+    
+    @classmethod
+    def get_port(cls, port:int = None)->int:
+        port = port if port is not None else cls.free_port()
+        while cls.port_used(port):
+            port += 1   
+        return port 
+    
+    resolve_port = get_port
     
     @classmethod
     def exists(cls, name:str, **kwargs) -> bool:
@@ -4279,6 +4307,7 @@ class Module:
     def port_range(cls):
         return cls.get_port_range()
     
+    # ports = port_range
     @classmethod
     def resolve_port_range(cls, port_range: list = None) -> list:
         return cls.get_port_range(port_range)

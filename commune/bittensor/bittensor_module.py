@@ -716,23 +716,32 @@ class BittensorModule(c.Module):
            
     @classmethod
     def add_keys(cls, name='ensemble',
-                      hotkeys=[i+1 + 8 for i in range(8)] , 
+                      hotkeys=[i+1 for i in range(16)] , 
                       use_password: bool=False,
                       overwrite:bool = False):
         
         cls.add_coldkey(name=name, use_password=use_password, overwrite=overwrite)
-        
         for hotkey in hotkeys:
             cls.add_hotkey(coldkey=name, hotkey=hotkey, use_password=use_password, overwrite=overwrite)
 
         
 
+    @classmethod
+    def setup(cls, network='local'):
+        if network == 'local':
+            cls.local_node()
+        cls.add_keys()
+        cls.fleet(network=network)
             
     @classmethod 
     def add_coldkey (cls,name,
                        mnemonic:str = None,
                        use_password=False,
-                       overwrite:bool = True) :
+                       overwrite:bool = False) :
+        
+        if cls.coldkey_exists(name):
+            cls.print(f'Coldkey {name} already exists', color='yellow')
+            return name
         wallet = bittensor.wallet(name=name)
         if not overwrite:
             if cls.coldkey_exists(name):
@@ -799,7 +808,11 @@ class BittensorModule(c.Module):
         hotkey= str(hotkey)
         coldkey= str(coldkey)
         assert coldkey in cls.coldkeys()
-
+        wallet = f'{coldkey}.{hotkey}'
+        if cls.wallet_exists(wallet):
+            if not overwrite:
+                cls.print(f'Wallet {wallet} already exists.', color='yellow')
+                return wallet
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         if mnemonic is None:
             wallet.create_new_hotkey(use_password=use_password, overwrite=overwrite)
@@ -912,7 +925,6 @@ class BittensorModule(c.Module):
             if type(v) in [int, float]:
                 cols[i % num_columns].metric(label=k, value=v)
                 
-    default_model_name = os.path.expanduser('~/fish_model')
     
     def streamlit_neuron_metrics(self, num_columns=3):
         if not self.registered:
@@ -1094,13 +1106,13 @@ class BittensorModule(c.Module):
         print(cmd)
         return cls.cmd(cmd)
     
-    default_model_name = os.path.expanduser('~/models/gpt-j-6B-vR')
+    default_model_name = os.path.expanduser('~/fish_model')
 
     @classmethod
     def mine(cls, 
                wallet='ensemble.5',
                model_name:str= default_model_name,
-               network = 'finney',
+               network = 'local',
                netuid=3,
                port = None,
                device = None,
@@ -1114,10 +1126,17 @@ class BittensorModule(c.Module):
                burned_register = False,
                max_fee = 2.0,
                ):
+
         if tag == None:
-            tag = f'{wallet}::{network}::{netuid}'
+            if network in ['local', 'finney']:
+                tag = f'{wallet}::finney::{netuid}'
+            else:
+                tag = f'{wallet}::{network}::{netuid}'
+            kwargs['tag'] = tag
+            
+        kwargs = cls.locals2kwargs(locals())
+        
         if remote:
-            kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
@@ -1144,20 +1163,18 @@ class BittensorModule(c.Module):
                                     netuid=netuid,
                                     max_fee=max_fee,
                                     burned_register=burned_register, 
-                                    sleep_interval=sleep_interval)
+                                    sleep_interval=sleep_interval,
+                                    display_kwargs=kwargs)
                         
 
         # enseure ports are free
         # axon port
-        port = port if port is not None else cls.free_port()
-        config.axon.port = port
-        while cls.port_used(config.axon.port):
-            config.axon.port += 1    
-            
+    
+    
+        config.axon.port = cls.resolve_port(port)
         # ensure prometheus port
         config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None else prometheus_port         
-        while cls.port_used(config.prometheus.port):
-            config.prometheus.port += 1
+        config.axon.port = cls.resolve_port(config.axon.port)
             
             
         # neuron things
@@ -1190,7 +1207,8 @@ class BittensorModule(c.Module):
                             burned_register = False,
                             netuid = 3, 
                             max_fee = 2.0,
-                            sleep_interval=2):
+                            sleep_interval=60,
+                            display_kwargs=None):
             # wait for registration
             while not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
                 # burn registration
@@ -1209,6 +1227,8 @@ class BittensorModule(c.Module):
                 c.sleep(sleep_interval)
                 
                 cls.print(f'Pending Registration {wallet} Waiting 2s ...')
+                if display_kwargs:
+                    cls.print(display_kwargs)
             cls.print(f'{wallet} is registered on {subtensor} {netuid}!')
     @classmethod
     def burn_reg_unreged(cls, time_sleep= 10, **kwargs):
@@ -1216,13 +1236,12 @@ class BittensorModule(c.Module):
             cls.burned_register(w, **kwargs)
         
         
-
     @classmethod
-    def fleet(cls, name='ensemble', 
+    def fleet(cls, name=default_coldkey, 
                     hotkeys = None,
                     remote=True,
                     netuid=3,
-                    network='finney',
+                    network='local',
                     model_name = default_model_name,
                     refresh: bool = True,
                     burned_register=False, 
@@ -1256,7 +1275,7 @@ class BittensorModule(c.Module):
             free_gpu_memory[device] -= model_size
             assert free_gpu_memory[device] > 0, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
             assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
-            tag = f'{wallet}::{network}::{netuid}'
+            tag = f'{wallet}::{subtensor.network}::{netuid}'
             miner_name = f'miner::{tag}'
             axon_port = cls.free_port()
             while cls.port_used(axon_port) or axon_port in axon_ports:
@@ -1273,6 +1292,7 @@ class BittensorModule(c.Module):
                          tag=tag, 
                          device=device, 
                         port=axon_port,
+                        network=network,
                         prometheus_port = prometheus_port,
                          burned_register=burned_register,
                          max_fee=max_fee)
@@ -1310,7 +1330,13 @@ class BittensorModule(c.Module):
     def kill_miner(cls, wallet):
         return cls.kill_miners(cls.w2m(wallet))
 
-    
+    @classmethod
+    def kill(cls, wallet):
+        return cls.kill_miners(cls.w2m(wallet))
+
+    @classmethod
+    def restart(cls, wallet):
+        return c.restart(cls.w2m(wallet))
     @classmethod
     def block(cls, subtensor='finney'):
         return cls.get_subtensor(subtensor).get_current_block()
