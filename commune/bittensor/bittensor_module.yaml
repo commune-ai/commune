@@ -1,1 +1,4 @@
 module: BittensorModule
+network: finney
+netuid: 3
+wallet: ensemble
