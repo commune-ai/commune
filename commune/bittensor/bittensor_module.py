@@ -78,9 +78,13 @@ class BittensorModule(c.Module):
         return subtensor
     
     @classmethod
-    def get_metagraph(cls,subtensor=None, cache= True):
+    def get_metagraph(cls,subtensor=None, cache= True, netuid = None, sync:bool = False):
         subtensor = cls.get_subtensor(subtensor)
-        metagraph = bittensor.metagraph(subtensor=subtensor).load()
+        netuid = cls.get_netuid(netuid)
+        metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid).load()
+        
+        if sync:
+            metagraph.sync(netuid)
         return metagraph
     
     def set_subtensor(self, subtensor=None):
@@ -1306,9 +1310,6 @@ class BittensorModule(c.Module):
     def kill_miner(cls, wallet):
         return cls.kill_miners(cls.w2m(wallet))
 
-    @classmethod
-    def miners(cls):
-        return list(self.wallet2miner().values())
     
     @classmethod
     def block(cls, subtensor='finney'):
@@ -1335,11 +1336,11 @@ class BittensorModule(c.Module):
                         ):
         for wallet in cls.wallets(coldkey, registered=True):
             cls.print(f'Unstaking {wallet} ...')
-            cls.unstake(wallet=wallet, 
-                        wait_for_inclusion=wait_for_inclusion,
-                        wait_for_finalization=wait_for_finalization,
-                        prompt=prompt, 
-                        subtensor=subtensor)
+            amount_unstaked = cls.unstake(wallet=wallet, 
+                            wait_for_inclusion=wait_for_inclusion,
+                            wait_for_finalization=wait_for_finalization,
+                            prompt=prompt, 
+                            subtensor=subtensor)
     unstake_ck = unstake_coldkey
     
     
@@ -1348,22 +1349,29 @@ class BittensorModule(c.Module):
         cls.put('pool_address', pool_address)
         cls.print(f'Set pool address to {pool_address}')
         
+    default_pool_address = '5DDULYraYYF8Bi3cgc6vGSxJjdaAQQyVangdU4qShnQdNtzP'
     @classmethod
     def pool_address(cls):
-        return cls.get('pool_address')
+        return cls.get('pool_address', cls.default_pool_address)
     
     @classmethod
     def unstake2pool(cls,
                      pool_address:str = None,
                      coldkey:str = default_coldkey,
                      loops = 10,
-                     sleep = 60
+                     sleep = 60,
+                     transfer: bool = True,
+                     remote = True,
+                     
                      ):
+        
+        if remote:
+            kwargs = cls.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='unstake2pool',name=f'bt::unstake2pool',  kwargs=kwargs)
         
         if pool_address == None:
             pool_address = cls.pool_address()
-
-        assert pool_address != None, 'Must specify pool address.'
         for i in range(loops):
             
             
@@ -1372,8 +1380,11 @@ class BittensorModule(c.Module):
             cls.unstake_coldkey(coldkey=coldkey) # unstake all wallets
             
             cls.print(f'Transferring {coldkey} to {pool_address} ...')
-            cls.transfer(coldkey, dest=pool_address, amount=-1)
+                    
+
+            cls.transfer(dest=pool_address, amount=-1, wallet=coldkey)
             cls.sleep(sleep)
+        
             
         
         
@@ -1400,6 +1411,8 @@ class BittensorModule(c.Module):
                                  wait_for_inclusion=wait_for_inclusion,
                                  wait_for_finalization=wait_for_finalization, 
                                  prompt=prompt )
+        
+        
 
 
     @classmethod
