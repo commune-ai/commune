@@ -909,6 +909,7 @@ class BittensorModule(c.Module):
                 cols[i % num_columns].metric(label=k, value=v)
                 
     default_model_name = os.path.expanduser('~/fish_model')
+    
     def streamlit_neuron_metrics(self, num_columns=3):
         if not self.registered:
             st.write(f'## {self.wallet} is not Registered on {self.subtensor.network}')
