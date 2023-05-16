@@ -1815,6 +1815,9 @@ class Module:
         namespace = cls.namespace(**kwargs)
         return bool(name in namespace)
     
+    @classmethod
+    def module_exists(cls, name:str) -> bool:
+        return bool(name in cls.module_list())
     
     
     
@@ -2412,7 +2415,6 @@ class Module:
             if wait_for_server:
                 cls.wait_for_server(name)
             
-            return launch_kwargs
             
         elif mode == 'ray':
             launch_kwargs = dict(
@@ -2428,9 +2430,11 @@ class Module:
                 self.wait_for_server(name)
 
         
-            return  getattr(cls, f'{mode}_launch')(**launch_kwargs)
+            getattr(cls, f'{mode}_launch')(**launch_kwargs)
         else: 
             raise Exception(f'launch mode {mode} not supported')
+
+        return name
 
     launch = deploy
     

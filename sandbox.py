@@ -1,3 +1,4 @@
 import commune as c
 
-c.print(c.module_list('server'))
+bt = c.connect('bittensor')
+c.print(bt.ss58())
