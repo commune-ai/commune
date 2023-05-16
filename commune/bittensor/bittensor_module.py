@@ -1082,7 +1082,7 @@ class BittensorModule(c.Module):
     def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
         return wallet.coldkey.ss58_address
-        
+    ss58 = address
     @classmethod
     def score(cls, wallet='collective.0'):
         cmd = f"grep Loss ~/.pm2/logs/{wallet}.log"+ " | awk -F\| {'print $10'} | awk {'print $2'} | awk '{for(i=1;i<=NF;i++) {sum[i] += $i; sumsq[i] += ($i)^2}} END {for (i=1;i<=NF;i++) {printf \"%f +/- %f \", sum[i]/NR, sqrt((sumsq[i]-sum[i]^2/NR)/NR)}}'"
