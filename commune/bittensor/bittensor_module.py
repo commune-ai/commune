@@ -1043,15 +1043,21 @@ class BittensorModule(c.Module):
     
     @classmethod
     def transfer(cls, 
-                amount: Union[float, bittensor.Balance] , 
                 dest:str,
+                amount: Union[float, bittensor.Balance], 
                 wallet = default_coldkey,
                 wait_for_inclusion: bool = False,
                 wait_for_finalization: bool = True,
                 subtensor: 'bittensor.Subtensor' = None,
-                prompt: bool = False,):
+                prompt: bool = False,
+                gas_fee: bool = 0.0001):
         wallet = cls.get_wallet(wallet)
         balance = cls.get_balance(wallet)
+        
+        print(f'balance {balance} amount {amount}')
+        if amount == -1:
+            amount = balance - gas_fee*1e9
+            
         assert balance >= amount, f'balance {balance} is less than amount {amount}'
         wallet.transfer( 
             dest=dest,
