@@ -142,6 +142,20 @@ class BittensorModule(c.Module):
         return neuron_info
     
     @classmethod
+    def miner_stats(cls, wallet=None, netuid: int = None, subtensor=None):
+        wallet = cls.get_wallet(wallet)
+        netuid = cls.get_netuid(netuid)
+        subtensor = cls.get_subtensor(subtensor)
+        neuron_info = wallet.get_neuron(subtensor=subtensor, netuid=netuid)
+        neuron_stats = {}
+        
+        for k, v in neuron_info.__dict__.items():
+            if type(v) in [int, float, str]:
+                neuron_stats[k] = v
+            
+        return neuron_stats
+    
+    @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True
         wallet2neuron = {}
@@ -1180,18 +1194,21 @@ class BittensorModule(c.Module):
 
     @classmethod
     def mine_fleet(cls, name='ensemble', 
+                    hotkeys = None,
                     remote=True,
                     netuid=3,
                     network='finney',
                     model_name = default_model_name,
-                    refresh: bool = False,
+                    refresh: bool = True,
                     burned_register=False, 
                     ensure_registration=False,
-                    max_fee=2.0): 
+                    max_fee=1.3): 
         
         
-    
-        wallets = cls.unreged(name)
+        if hotkeys == None:
+            wallets = cls.unreged(name)
+        else:
+            wallets  = [f'{name}.{h}' for h in hotkeys]
         
         gpus = cls.gpus()
         subtensor = cls.get_subtensor(network)

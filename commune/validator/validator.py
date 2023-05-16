@@ -34,7 +34,6 @@ class Validator(c.Model):
         if config.load:
             self.load(self.tag)
 
-        self.set_network(config.network)
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_dataset(config.dataset)
         self.set_tokenizer(config.tokenizer)
@@ -44,14 +43,6 @@ class Validator(c.Model):
 
     namespace_update_ts =0
     _namespace = None
-    
-    def set_network(self, network):
-        current_time = self.time()
-        # 
-        if current_time - self.namespace_update_ts> self.config.namespace_update_interval:
-            self.namespace_update_ts = self.time()
-            self._namespace = c.namespace(network=self.config.network,update=False )
-        self.namespace = c.namespace(network=self.config.network,update=False )
     
 
     def set_dataset(self, dataset):
@@ -277,12 +268,14 @@ class Validator(c.Model):
     loop = None
     
     def set_models(self, 
-                   models: Union[str, List[str]] = 'model' ,
+                   models: Union[str, List[str]] = None ,
                    network:str = None,
                    update:bool=False, ) -> List[str]:
 
-
+        models = models if models != None else self.config.models
         network = network if network != None else self.config.network 
+        
+        self.namespace = c.namespace(network=network, update=update)
             
         if isinstance(models, list):
             for m in models:
@@ -291,7 +284,7 @@ class Validator(c.Model):
         elif isinstance(models, str):    
             models = [m for m in self.namespace.keys() if m.startswith(models)]
             
-        self.available_models = models
+        self.models = models
         return models
 
     def calculate_weights(self, w):
@@ -365,14 +358,13 @@ class Validator(c.Model):
     def get_models(self, max_models:int) -> List[str]:
 
 
-        available_models = self.available_models
+        
         # shuffle to avoid overloading the first model
         
         # TODO: add a way to shuffle models
-        available_models = self.shuffle(available_models)
-        
+        models = self.shuffle(self.models)
         # max call size is the number of models that can be called per forward pass
-        called_models = self.copy(self.available_models[:self.config.max_models_per_call])
+        called_models = self.copy(models[:self.config.max_models_per_call])
         
         return called_models
         
@@ -392,6 +384,7 @@ class Validator(c.Model):
                 retries: int = 4,
                 tag = None,
                 save = True,
+                return_keys = ['logits', 'hidden_state', 'topk'],
                 **kwargs ):
         
         
@@ -437,7 +430,7 @@ class Validator(c.Model):
             
         
         stats = {
-                'models_available': len(available_models),
+                'models_available': len(self.models),
                 'models_called':len(called_models),
                 'models_failed': [],
                 'inference_time': timer.seconds,
@@ -508,10 +501,28 @@ class Validator(c.Model):
         if save:
             self.save(tag=tag)
         
-        if verbose:
-            self.print(stats)
+        if 'topk' in return_keys:
+            ensemble_output['topk'] = self.encode_topk(ensemble_output['logits'], topk=topk)
             
-        return Munch(ensemble_output)
+        ensemble_output = {k:ensemble_output[k] for k in return_keys}
+        
+        return ensemble_outputs
+
+    @staticmethod
+    def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
+        """ Returns topk tokens/probabilities given unnormalized logits as input. """
+
+        #import ipdb; ipdb.set_trace()
+
+        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
+        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
+
+        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
+
+        topk_values = probs.gather( index=topk_indices, dim=-1)
+        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
+        return encoded_probs  # [batch_size, sequence_len, topk + topk]
 
     def save(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.save(self, tag=tag, verbose=verbose, keys=keys)
@@ -792,7 +803,7 @@ class Validator(c.Model):
         
         # server_class = bittensor.neurons.core_server.server
         server_class = cls.import_object('commune.bittensor.neuron.core_server.server')
-        server = server_class(model=model, config=config)
+        server = server_class(model=model, config=config, tokenizer=model.tokenizer)
         bittensor.utils.version_checking()
     
         coldkey, hotkey = wallet.split('.')
