@@ -21,8 +21,9 @@ class BittensorModule(c.Module):
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] = 'finney',
                 netuid: int = 3,
+                config = None,
                 ):
-        
+        self.set_config(config)
         self.set_subtensor(subtensor=network)
         self.set_netuid(netuid=netuid)
         
@@ -1039,9 +1040,9 @@ class BittensorModule(c.Module):
     
     @classmethod
     def transfer(cls, 
-                 wallet,
-                dest:str,
                 amount: Union[float, bittensor.Balance] , 
+                dest:str,
+                wallet = default_coldkey,
                 wait_for_inclusion: bool = False,
                 wait_for_finalization: bool = True,
                 subtensor: 'bittensor.Subtensor' = None,
@@ -1113,13 +1114,19 @@ class BittensorModule(c.Module):
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         
-        cls.ensure_registration(wallet=wallet, 
-                                 subtensor=subtensor, 
-                                 netuid=netuid,
-                                 max_fee=max_fee,
-                                 burned_register=burned_register, 
-                                 sleep_interval=sleep_interval)
-                    
+        if wallet.is_registered(subtensor=subtensor, netuid=netuid):
+            cls.print(f'wallet {wallet} is already registered')
+            neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
+            port = neuron.axon_info.port
+            prometheus_port = neuron.prometheus_info.port
+        else:
+            cls.ensure_registration(wallet=wallet, 
+                                    subtensor=subtensor, 
+                                    netuid=netuid,
+                                    max_fee=max_fee,
+                                    burned_register=burned_register, 
+                                    sleep_interval=sleep_interval)
+                        
 
         # enseure ports are free
         # axon port
