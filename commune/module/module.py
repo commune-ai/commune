@@ -2198,9 +2198,18 @@ class Module:
     def peer_info(self) -> Dict[str, Any]:
         self.info()
     @classmethod
-    def schema(cls, *args,  **kwargs): 
-        function_schema_map = cls.get_function_schema_map(*args, **kwargs)
-        return {k:v for k,v in function_schema_map.items()}
+    def schema(cls, *args,  **kwargs):
+        schema = {}
+        if len(args) >= 1:
+            for arg in args:
+                if hasattr(cls, arg):
+                    fn = arg
+                    schema[fn] = cls.function_schema(fn)
+                
+        if len(schema) > 0:
+            return schema
+        else:
+            return cls.function_schema_map(*args, **kwargs)
     
     @classmethod
     def get_function_schema_map(cls,
@@ -2247,7 +2256,8 @@ class Module:
     
     def function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
         function_schema_map = {}
-        for fn in cls.functions(include_module=include_module):
+        functions = cls.functions(include_module=include_module)
+        for fn in functions:
             if not include_hidden:
                 if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
                     continue
@@ -2255,16 +2265,14 @@ class Module:
                 function_schema_map[fn] = {}
                 fn_schema = {}
                 for fn_k, fn_v in getattr(cls, fn ).__annotations__.items():
-                    
                     fn_v = str(fn_v)
-                    
                     if fn_v == inspect._empty:
                         fn_schema[fn_k]= 'Any'
                     elif fn_v.startswith('<class'):
                         fn_schema[fn_k] = fn_v.split("'")[1]
                     else:
                         fn_schema[fn_k] = fn_v
-                                        
+                                      
                 function_schema_map[fn] = {
                     'schema': fn_schema,
                     'docs': getattr(cls, fn ).__doc__
@@ -2291,12 +2299,12 @@ class Module:
             'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
         }
         return module_schema
-    
-    def function_schema(self, fn:str)->dict:
+    @classmethod
+    def function_schema(cls, fn:str)->dict:
         '''
         Get function schema of function in cls
         '''
-        fn = getattr(self, fn)
+        fn = getattr(cls, fn)
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
 
@@ -2567,13 +2575,26 @@ class Module:
         output_list = []
         pm2_list = cls.pm2_list()
         kill_list = []
-        for module in pm2_list:
-            if module.startswith(name):
-                if verbose:
-                    cls.print(f'Killing {module}', color='red')
-                output_str = cls.run_command(f"pm2 delete {module}", verbose=False)
-                kill_list.append(module)
-        return kill_list
+        
+        # check if exact match, if so kill it, if not kill all that start with name
+        exact_match = any([name == module for module in pm2_list])
+        
+        if exact_match:
+            # kill exact match
+            if verbose:
+                cls.print(f'Killing {name}', color='red')
+            cls.run_command(f"pm2 delete {name}", verbose=False)
+            kill_list.append(name)
+            return kill_list
+        else:
+            # kill all modules that start with name
+            for module in pm2_list:
+                if module.startswith(name):
+                    if verbose:
+                        cls.print(f'Killing {module}', color='red')
+                    cls.run_command(f"pm2 delete {module}", verbose=False)
+                    kill_list.append(module)
+            return kill_list
     @classmethod
     def pm2_restart(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()
