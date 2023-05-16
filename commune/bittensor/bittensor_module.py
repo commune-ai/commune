@@ -1114,13 +1114,19 @@ class BittensorModule(c.Module):
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         
-        cls.ensure_registration(wallet=wallet, 
-                                 subtensor=subtensor, 
-                                 netuid=netuid,
-                                 max_fee=max_fee,
-                                 burned_register=burned_register, 
-                                 sleep_interval=sleep_interval)
-                    
+        if wallet.is_registered(subtensor=subtensor, netuid=netuid):
+            cls.print(f'wallet {wallet} is already registered')
+            neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
+            port = neuron.axon_info.port
+            prometheus_port = neuron.prometheus_info.port
+        else:
+            cls.ensure_registration(wallet=wallet, 
+                                    subtensor=subtensor, 
+                                    netuid=netuid,
+                                    max_fee=max_fee,
+                                    burned_register=burned_register, 
+                                    sleep_interval=sleep_interval)
+                        
 
         # enseure ports are free
         # axon port
