@@ -1470,20 +1470,20 @@ class BittensorModule(c.Module):
         
         
         
-        coldkey_info = []
+        coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
         
-        template = 'btcli regen_coldkeypub --ss58 {coldkey_ss58} --wallet.name {coldkey} btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
+        template = 'btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
         for hk, hk_mnemonic in hotkey_map.items():
-            info = template.format(coldkey_ss58=coldkey_json['ss58Address'],mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
-            cls.print(info, '\n')
+            info = template.format(mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
             
             coldkey_info.append(info)
             
-            
+        coldkey_info_text = '\n'.join(coldkey_info)
+        cls.print(coldkey_info_text, color='green')
         if path is not None:
-            cls.put_text(path, '\n'.join(coldkey_info))
+            cls.put_text(path, coldkey_info_text)
         # return coldkey_info
-
+    mems = coldkey_info
     
     @classmethod
     def wallet_json(cls, wallet):

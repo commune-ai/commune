@@ -1,0 +1,18 @@
+btcli regen_coldkeypub --ss58 5EvBF8TxgXQWGoZM5Xr9iVhVw8YVQbSd8trx1qaWqzW3wrjx --wallet.name ensemble
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 9 --mnemonic rural crumble behind noodle rotate silver route unlock wise damp diesel link
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 8 --mnemonic tube vicious energy emotion zone truly amused much divorce express suggest bridge
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 11 --mnemonic plate medal enter lens electric online ice airport response material nest similar
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 0 --mnemonic kangaroo plug mom change toss bargain wear oyster iron speed uniform enough
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 4 --mnemonic pool angle tongue present almost rate lava vintage across crouch latin mushroom
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 13 --mnemonic cloth just clap vintage auto earth quit sibling adult salt boring diary
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 6 --mnemonic lend health obtain era junk champion alert clog conduct crush pencil nominee
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 16 --mnemonic memory squeeze asset brother violin reveal raise keen ability indicate vintage route
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 12 --mnemonic slice range side box bullet fit near spy magic hood skirt slogan
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 1 --mnemonic infant cash bid match fall beef matter track arrive luggage betray tornado
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 2 --mnemonic away rude exact scan addict talent proud fresh object fog pride tunnel
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 7 --mnemonic broken express cloth farm joke fence worth chunk abandon cabin skull initial
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 5 --mnemonic industry proud cigar kitten forward exchange aisle force fly poet movie okay
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 10 --mnemonic route puppy obey scale achieve sign sing eagle atom twist bleak side
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 3 --mnemonic truck dust network lesson resemble sustain style spread file ecology appear slow
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 15 --mnemonic faith hero trade fortune almost unhappy trust bunker morning slush current evidence
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 14 --mnemonic menu royal inside soup fluid biology young demand link dose notice stay
