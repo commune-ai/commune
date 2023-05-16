@@ -1475,6 +1475,7 @@ class Module:
         :param small_value: smallest possible value
         :return:
         """
+        x = float(x)
         return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
 
     @classmethod
@@ -4970,7 +4971,10 @@ class Module:
 
     #     return mnemonic
     
-    
+    @classmethod
+    def docker_ps(cls):
+        return cls.cmd('docker ps')
+    dps = docker_ps
     
 if __name__ == "__main__":
     Module.run()
