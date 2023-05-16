@@ -782,7 +782,7 @@ class Module:
         elif path.startswith('~/'):
             return os.path.expanduser(path)
         elif path.startswith('./'):
-            return path.replace('./', cls.pwd + '/')
+            return os.path.abspath(path)
         else:
             if tmp_dir not in path:
                 path = os.path.join(tmp_dir, path)
@@ -1319,10 +1319,11 @@ class Module:
     
     
     @classmethod
-    async def async_put_json(cls, path:str, 
+    async def async_put_json(cls, 
+                 path:str, 
                  data:Dict, 
                  meta = None,
-                 root: bool = False, 
+                 root: bool = False,
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json
@@ -4512,18 +4513,28 @@ class Module:
         return file_contents
 
     @classmethod
-    def put_text(cls, path:str, text:str) -> None:
+    def put_text(cls, path:str, text:str, root=False) -> None:
         # Get the absolute path of the file
-        path = os.path.abspath(path)
+        path = cls.resolve_path(path, root=root)
 
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
+            
+            
+    @classmethod
+    def add_text(cls, path:str, text:str, root=False) -> None:
+        # Get the absolute path of the file
+        path = cls.resolve_path(path, root=root)
+        # Write the text to the file
+        with open(path, 'w') as file:
+            file.write(text)
+            
 
     @classmethod
-    def get_text(cls, path:str) -> None:
+    def get_text(cls, path:str, root=False) -> None:
         # Get the absolute path of the file
-        path = os.path.abspath(path)
+        path = cls.resolve_path(path, root=root)
 
         # Read the contents of the file
         with open(path, 'r') as file:

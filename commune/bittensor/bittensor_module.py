@@ -191,6 +191,7 @@ class BittensorModule(c.Module):
     @classmethod
     def get_stake(cls, wallet, **kwargs):
         neuron = cls.get_neuron(wallet=wallet, **kwargs)
+        
         return neuron.stake
     
     @classmethod
@@ -1305,26 +1306,28 @@ class BittensorModule(c.Module):
 
 
     @classmethod
-    def unstake_all(cls, coldkey):
-        
-        assert coldkey in cls.coldkeys()
-        hotkeys = cls.hotkeys(wallet)
-        for hotkey in hotkeys:
-            wallet = f'{wallet}.{hotkey}'
-            balance = cls.get_balance(wallet)
+    def unstake_coldkey(cls, 
+                        coldkey = default_coldkey,
+                        wait_for_inclusion = True,
+                        wait_for_finalization = False,
+                        prompt = False,
+                        subtensor = None
+                        ):
+        for wallet in cls.wallets(coldkey, registered=True):
+            cls.print(f'Unstaking {wallet} ...')
             cls.unstake(wallet=wallet, 
-                        amount=balance,
                         wait_for_inclusion=wait_for_inclusion,
                         wait_for_finalization=wait_for_finalization,
                         prompt=prompt, 
                         subtensor=subtensor)
+    unstake_ck = unstake_coldkey
             
 
     @classmethod
     def unstake(
         cls,
-        amount: float = None,
-        wallet = default_wallet, 
+        wallet , 
+        amount: float = None ,
         wait_for_inclusion:bool = True, 
         wait_for_finalization:bool = False,
         prompt: bool = False,
@@ -1350,7 +1353,10 @@ class BittensorModule(c.Module):
         
         
     @classmethod
-    def coldkey_info(cls, coldkey=default_coldkey, unreged = False):
+    def coldkey_info(cls,
+                     coldkey=default_coldkey, 
+                     unreged = False,
+                     path = None):
         
         if unreged:
             hotkeys = cls.unregistered_hotkeys(coldkey) 
@@ -1377,6 +1383,10 @@ class BittensorModule(c.Module):
             cls.print(info, '\n')
             
             coldkey_info.append(info)
+            
+            
+        if path is not None:
+            cls.put_text(path, '\n'.join(coldkey_info))
         # return coldkey_info
 
     
