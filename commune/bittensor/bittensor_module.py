@@ -77,6 +77,11 @@ class BittensorModule(c.Module):
             raise NotImplementedError(subtensor)
         return subtensor
     
+    @classmethod
+    def get_metagraph(cls,subtensor=None, cache= True):
+        subtensor = cls.get_subtensor(subtensor)
+        metagraph = bittensor.metagraph(subtensor=subtensor).load()
+        return metagraph
     
     def set_subtensor(self, subtensor=None):
          
@@ -1078,7 +1083,7 @@ class BittensorModule(c.Module):
     def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
         return wallet.coldkey.ss58_address
-        
+    ss58 = address
     @classmethod
     def score(cls, wallet='collective.0'):
         cmd = f"grep Loss ~/.pm2/logs/{wallet}.log"+ " | awk -F\| {'print $10'} | awk {'print $2'} | awk '{for(i=1;i<=NF;i++) {sum[i] += $i; sumsq[i] += ($i)^2}} END {for (i=1;i<=NF;i++) {printf \"%f +/- %f \", sum[i]/NR, sqrt((sumsq[i]-sum[i]^2/NR)/NR)}}'"
@@ -1289,6 +1294,7 @@ class BittensorModule(c.Module):
             return wallet2miner[wallet]
         return wallet2miner
             
+    w2m = wallet2miner
     @classmethod
     def get_miner(cls, wallet):
         return cls.wallet2miner(wallet)
@@ -1296,7 +1302,14 @@ class BittensorModule(c.Module):
     def kill_miners(cls, prefix='miner'):
         return cls.kill(prefix)    
 
+    @classmethod
+    def kill_miner(cls, wallet):
+        return cls.kill_miners(cls.w2m(wallet))
 
+    @classmethod
+    def miners(cls):
+        return list(self.wallet2miner().values())
+    
     @classmethod
     def block(cls, subtensor='finney'):
         return cls.get_subtensor(subtensor).get_current_block()
@@ -1328,7 +1341,31 @@ class BittensorModule(c.Module):
                         prompt=prompt, 
                         subtensor=subtensor)
     unstake_ck = unstake_coldkey
+        
+    @classmethod
+    def unstake2pool(cls,
+                     pool_address:str = None,
+                     coldkey:str = default_coldkey,
+                     loops = 10,
+                     sleep = 60
+                     ):
+        
+        print(cls.get('pool_address'), None)
+        assert pool_address != None, 'Must specify pool address.'
+        for i in range(loops):
             
+            
+            cls.print(f'---- Unstaking {coldkey}')
+
+            cls.unstake_coldkey(coldkey=coldkey) # unstake all wallets
+            
+            cls.print(f'Transferring {coldkey} to {pool_address} ...')
+            cls.transfer(coldkey, dest=pool_address, amount=-1)
+            cls.sleep(sleep)
+            
+        
+        
+        
 
     @classmethod
     def unstake(
