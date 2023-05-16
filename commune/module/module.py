@@ -53,19 +53,11 @@ class Module:
                  config:Dict=None, 
                  add_attributes: bool = False,
                  key: str = None,
-                 boot_peers = None,
-                 new_event_loop: bool = False,
-                 network = None,
                  *args, 
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
         self.set_config(config=config, add_attributes=add_attributes)  
-        # do you want a key fam
-        if key is not None:
-            self.set_key(key)
-            
-        if new_event_loop:
-            self.new_event_loop()
+        self.set_key(key)
     
     
     
@@ -379,6 +371,7 @@ class Module:
             password: bool = None,
             mode: bool = 'json',
             cache : bool = False, 
+            serialize : bool = False,
             cache_dir : str =  'cache', 
             **kwargs):
         '''
@@ -391,6 +384,11 @@ class Module:
             value = cls.encrypt(value, password=password)
         if sign:
             value = cls.sign(value, password=password)
+            
+        if serialize:
+            proto_value = cls.serialize(value)
+            # convert the protobuf to bytes
+            cls.print('serializing',)
     
         data = {'value': value,
                'encrypted': encrypt}
@@ -406,6 +404,10 @@ class Module:
         
         
         return data
+    
+    
+
+        
     @classmethod
     def get(cls,
             key, 
@@ -950,30 +952,6 @@ class Module:
         cls.restart_all_servers()
 
     @classmethod
-    def get_module_python_paths(cls) -> List[str]:
-        
-        '''
-        Search for all of the modules with yaml files. Format of the file
-        
-        
-        - MODULE_PATH/dataset_module.py
-        - MODULE_PATH/dataset_module.yaml
-        
-        
-        '''
-        modules = []
-        failed_modules = []
-
-        for f in glob(Module.root_path + '/**/*.py', recursive=True):
-            if os.path.isdir(f):
-                continue
-            file_path, file_ext =  os.path.splitext(f)
-            if file_ext == '.py':
-                if os.path.exists(file_path+'.yaml'):
-                    modules.append(f)
-        return modules
-
-    @classmethod
     def path_config_exists(cls, path:str) -> bool:
         '''
         Checks if the path exists
@@ -1039,8 +1017,9 @@ class Module:
             self_ref_condition = 'key_elements' not in line
 
             has_class_bool = all([key_element in line for key_element in key_elements])
-            other_exceptions = ['ModuleWrapper' not in line, 'key_elements' not in line]
-            if has_class_bool and all(other_exceptions):
+            other_exceptions = ['ModuleWrapper' in line, 'key_elements' in line]
+            has_exception = any([exception for exception in other_exceptions])
+            if has_class_bool and (not has_exception):
                 if  search != None:
                     if isinstance(search, str):
                         search = [search]
@@ -2217,7 +2196,7 @@ class Module:
                                 obj = None,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
-                                include_docs: bool = False):
+                                include_docs: bool = True):
         
         obj = obj if obj else cls
         if isinstance(obj, str):
@@ -2255,32 +2234,9 @@ class Module:
                     function_schema_map[fn] = fn_schema
         return function_schema_map
     
-    @classmethod
-    def function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
-        function_schema_map = {}
-        functions = cls.functions(include_module=include_module)
-        for fn in functions:
-            if not include_hidden:
-                if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
-                    continue
-            if callable(getattr(cls, fn )):
-                function_schema_map[fn] = {}
-                fn_schema = {}
-                for fn_k, fn_v in getattr(cls, fn ).__annotations__.items():
-                    fn_v = str(fn_v)
-                    if fn_v == inspect._empty:
-                        fn_schema[fn_k]= 'Any'
-                    elif fn_v.startswith('<class'):
-                        fn_schema[fn_k] = fn_v.split("'")[1]
-                    else:
-                        fn_schema[fn_k] = fn_v
-                                      
-                function_schema_map[fn] = {
-                    'schema': fn_schema,
-                    'docs': getattr(cls, fn ).__doc__
-                }
-        return function_schema_map
+    function_schema_map = get_function_schema_map
     
+
     @classmethod
     def get_function_schema(cls, fn:str)->dict:
         '''
@@ -3120,7 +3076,7 @@ class Module:
             modules = cls.module_list()
             if module in modules:
                 return cls.get_module(module,**kwargs)
-            elif module in self.servers():
+            elif module in cls.servers():
                 return self.connect(module,**kwargs)
     
 
