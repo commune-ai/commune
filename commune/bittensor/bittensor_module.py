@@ -1310,10 +1310,10 @@ class BittensorModule(c.Module):
             
 
     @classmethod
-    def unstake (
+    def unstake(
         cls,
-        wallet,
-        amount: float = None, 
+        amount: float = None,
+        wallet = default_wallet, 
         wait_for_inclusion:bool = True, 
         wait_for_finalization:bool = False,
         prompt: bool = False,
@@ -1321,7 +1321,6 @@ class BittensorModule(c.Module):
     ) -> bool:
         """ Removes stake into the wallet coldkey from the specified hotkey uid."""
         subtensor = cls.get_subtensor(subtensor)
-
         
         wallet = cls.get_wallet(wallet)
         wallet.hotkey.ss58_address
