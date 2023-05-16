@@ -2255,6 +2255,7 @@ class Module:
                     function_schema_map[fn] = fn_schema
         return function_schema_map
     
+    @classmethod
     def function_schema_map(cls, include_hidden:bool = False, include_module:bool = False):
         function_schema_map = {}
         functions = cls.functions(include_module=include_module)
