@@ -1521,7 +1521,7 @@ class BittensorModule(c.Module):
                 cls.rename_wallet(wallet, f'{ck}.Hot{hk}')
     @classmethod
     def local_node(cls):
-        return cls.cmd('docker-compose up -d', cwd=f'{cls.repo_path}/subtensor', verbose=True)
+        return cls.cmd('sudo docker-compose up -d', cwd=f'{cls.repo_path}/subtensor', verbose=True)
 if __name__ == "__main__":
     BittensorModule.run()
 
