@@ -504,7 +504,11 @@ class Module:
 
                 
         if isinstance(config, str) or config == None:
-            config = cls.load_config(path=config)
+            try:
+                config = cls.load_config(path=config)
+            except FileNotFoundError as e:
+                cls.print(f'config not found at {config}, loading default config')
+                config = {}
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
             default_config = cls.load_config()
@@ -1197,7 +1201,7 @@ class Module:
                 if has_config:
                     modules.append(f)
                 else:
-                    f_classes = cls.find_python_classes(f, search=['commune.Module'])
+                    f_classes = cls.find_python_classes(f, search=['commune.Module', 'c.Module'])
                     
                     if len(f_classes) > 0:
                         modules.append(f)

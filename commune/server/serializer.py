@@ -87,30 +87,6 @@ class Serializer(commune.Module):
     def deserialize_bytes(self, data: bytes, metadata:dict) -> DataBlock:
         return data
 
-
-    def dict2munch(self,x:dict, recursive:bool=True)-> Munch:
-        '''
-        Turn dictionary into Munch
-        '''
-        if isinstance(x, dict):
-            for k,v in x.items():
-                if isinstance(v, dict) and recursive:
-                    x[k] = self.dict2munch(v)
-            x = Munch(x)
-        return x 
-
-    def munch2dict(self,x:Munch, recursive:bool=True)-> dict:
-        '''
-        Turn dictionary into Munch
-        '''
-        if isinstance(x, Munch):
-            x = dict(x)
-            for k,v in x.items():
-                if isinstance(v, Munch) and recursive:
-                    x[k] = self.munch2dict(v)
-
-        return x 
-
     def serialize_munch(self, data: dict, metadata:dict) -> DataBlock:
         data=self.munch2dict(data)
         data = self.dict2bytes(data=data)

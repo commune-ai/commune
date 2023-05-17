@@ -225,7 +225,10 @@ class Client( Serializer, commune.Module):
         timeout: int = None,
         results_only = True,
         verbose=False,
-        **kwargs
+        fn = None,
+        args = None,
+        kwargs = None,
+        **added_kwargs
     ) :
         if timeout == None:
             timeout = self.timeout
@@ -236,6 +239,15 @@ class Client( Serializer, commune.Module):
         # the deepcopy is a hack to get around the fact that the data is being modified in place LOL
         kwargs, data, metadata = deepcopy(kwargs), deepcopy(data), deepcopy(metadata)
         
+        
+        kwargs = kwargs if kwargs else {}
+        args = args if args else []
+        data.update({
+            'fn' : fn,
+            'args' : list(args),
+            'kwargs': kwargs,
+            
+        })
         data.update(kwargs)
 
         fn = data.get('fn', None)
