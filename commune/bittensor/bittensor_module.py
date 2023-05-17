@@ -1124,6 +1124,7 @@ class BittensorModule(c.Module):
                sleep_interval = 2,
                autocast = True,
                burned_register = False,
+               logging:bool = True,
                max_fee = 2.0,
                ):
 
@@ -1186,6 +1187,8 @@ class BittensorModule(c.Module):
 
         model_name = model_name if model_name is not None else cls.default_model_name
         model_size = cls.get_model_size(model_name)
+        
+        # memory is indexed by device
         free_gpu_memory = cls.free_gpu_memory()
         if free_gpu_memory[device] < model_size:
             device = cls.most_free_gpu()
@@ -1193,7 +1196,8 @@ class BittensorModule(c.Module):
             
         config.neuron.device = f'cuda:{device}'
         config.neuron.model_name = model_name
-        
+        if logging:
+            config.logging.debug = logging
         cls.print(config)
         bittensor.neurons.core_server.neuron(
                wallet=wallet,
