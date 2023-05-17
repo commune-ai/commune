@@ -811,21 +811,23 @@ class Module:
                 
                 
         return available_ports
-    @classmethod
-    def resolve_port(cls, port:int=None, find_available:bool = True):
+    # @classmethod
+    # def resolve_port(cls, port:int=None, find_available:bool = True):
         
-        '''
+    #     '''
         
-        Resolves the port and finds one that is available
-        '''
-        port = port if port else cls.get_available_port()
-        port_used = cls.port_used(port)
-        if port_used:
-            if find_available:
-                port = cls.get_available_port()
-            else:
-                raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
-        return port
+    #     Resolves the port and finds one that is available
+    #     '''
+    #     port = port if port else cls.get_available_port()
+    #     port_used = cls.port_used(port)
+    #     if port_used:
+    #         if find_available:
+    #             port = cls.get_available_port()
+    #         else:
+    #             raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
+        
+    #     cls.print(port, 'bro')
+    #     return port
     
     @classmethod
     def free_ports(cls, ip='0.0.0.0') -> List[int]:
@@ -1831,7 +1833,7 @@ class Module:
     
     @classmethod
     def get_port(cls, port:int = None)->int:
-        port = port if port is not None else cls.free_port()
+        port = port if port is not None and port != 0 else cls.free_port()
         while cls.port_used(port):
             port += 1   
         return port 
