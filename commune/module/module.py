@@ -373,6 +373,7 @@ class Module:
             cache : bool = False, 
             serialize : bool = False,
             cache_dir : str =  'cache', 
+            timestamp : bool = False,
             **kwargs):
         '''
         Puts a value in the config
@@ -393,6 +394,9 @@ class Module:
         data = {'value': value,
                'encrypted': encrypt}
 
+        if timestamp:
+            data['timestamp'] = time.time()
+            
         if cache:
             path = cache_dir+'/'+key
         else:
