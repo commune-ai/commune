@@ -1306,19 +1306,26 @@ class BittensorModule(c.Module):
             # self.mine(wallet=wallet, remote=remote, tag=tag)
             
     @classmethod
-    def miners(cls, prefix='miner'):
-        return cls.pm2_list(prefix) 
+    def miners(cls, *args, **kwargs):
+        return list(cls.wallet2miner(*args, **kwargs).keys())
     
     @classmethod
-    def wallet2miner(cls, wallet=None, unreged=False):
+    def wallet2miner(cls, wallet=None, unreged=False, reged=False, prefix='miner'):
         wallet2miner = {}
         if unreged:
-            unreged_wallets = cls.unreged()
+            filter_wallets = cls.unreged()
+        elif reged:
+            filter_wallets = cls.reged()
         else:
-            unreged_wallets = []
-        for m in cls.miners():
+            filter_wallets = []
             
-            wallet2miner[m.split('::')[1]] = m
+            
+        for m in cls.pm2_list(prefix):
+            
+            wallet_name = m.split('::')[1]
+            if len(filter_wallets) > 0 and wallet_name not in filter_wallets:
+                continue
+            wallet2miner[wallet_name] = m
             
         if wallet in wallet2miner:
             return wallet2miner[wallet]
@@ -1330,15 +1337,15 @@ class BittensorModule(c.Module):
         return cls.wallet2miner(wallet)
     @classmethod
     def kill_miners(cls, prefix='miner'):
-        return cls.kill(prefix)    
+        return c.kill(prefix)    
 
     @classmethod
     def kill_miner(cls, wallet):
-        return cls.kill_miners(cls.w2m(wallet))
+        return c.kill(cls.w2m(wallet))
 
     @classmethod
     def kill(cls, wallet):
-        return cls.kill_miners(cls.w2m(wallet))
+        return c.kill(cls.w2m(wallet))
 
     @classmethod
     def restart(cls, wallet):
