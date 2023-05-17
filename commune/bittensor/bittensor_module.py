@@ -1127,15 +1127,16 @@ class BittensorModule(c.Module):
                max_fee = 2.0,
                ):
 
+
+            
+        kwargs = cls.locals2kwargs(locals())
+    
         if tag == None:
             if network in ['local', 'finney']:
                 tag = f'{wallet}::finney::{netuid}'
             else:
                 tag = f'{wallet}::{network}::{netuid}'
             kwargs['tag'] = tag
-            
-        kwargs = cls.locals2kwargs(locals())
-        
         if remote:
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
@@ -1169,13 +1170,14 @@ class BittensorModule(c.Module):
 
         # enseure ports are free
         # axon port
-    
+            
     
         config.axon.port = cls.resolve_port(port)
         # ensure prometheus port
-        config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None else prometheus_port         
-        config.axon.port = cls.resolve_port(config.axon.port)
-            
+        config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None or prometheus_port==0 else prometheus_port         
+        config.prometheus.port = cls.resolve_port(config.prometheus.port)
+        print(f'config.prometheus.port {config.prometheus.port}')
+        print(f'config.axon.port {config.axon.port}')
             
         # neuron things
         config.neuron.autocast = autocast  
