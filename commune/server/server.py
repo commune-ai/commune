@@ -311,6 +311,7 @@ class Server(ServerServicer, Serializer, commune.Module):
         if hasattr(self, 'server'):
             self.stop()
 
+    
     @property
     def id(self) -> str:
         return f'{self.__class__.name}(endpoint={self.endpoint}, model={self.model_name})'
