@@ -1109,6 +1109,33 @@ class BittensorModule(c.Module):
     default_model_name = os.path.expanduser('~/fish_model')
 
     @classmethod
+    def server_class(cls, *args, **kwargs):
+        return cls.module('bittensor.miner.server')
+    
+    @classmethod
+    def deploy_servers(cls, model_name=default_model_name, num_servers=2):
+        free_gpu_memory = cls.free_gpu_memory()
+        server_class = cls.server_class()
+        
+        model_size_bytes = cls.get_model_size(model_name)
+
+        for i in range(num_servers):
+            gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
+            free_gpu_memory[gpu] = model_size_bytes
+            
+            cls.print(f'deploying server {i} on gpu {gpu}')
+            kwargs = {
+                'model_name': model_name,
+                'device': f'cuda:{gpu}',
+            }
+            c.deploy(module='bittensor.miner.server', kwargs=kwargs, name=f'server::{model_name}::{i}')
+        
+    
+    @classmethod
+    def neuron(cls, *args, **kwargs):
+        return cls.mdoule('bittensor.miner.neuron')(*args, **kwargs)
+
+    @classmethod
     def mine(cls, 
                wallet='ensemble.5',
                model_name:str= default_model_name,

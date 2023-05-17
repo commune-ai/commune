@@ -217,7 +217,7 @@ class Server(ServerServicer, Serializer, commune.Module):
             success = True
 
         except RuntimeError as ex:
-            commune.print(f'Exception in server: {ex}', 'red')
+            commune.print(f'Exception in server: {ex}', color= 'red')
             if "There is no current event loop in thread" in str(ex):
                 if verbose:
                     commune.print(f'SETTING NEW ANSYNCIO LOOP', color='yellow')

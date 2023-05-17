@@ -15,7 +15,7 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 
 from loguru import logger; logger = logger.opt(colors=True)
 import commune as c
-class server(torch.nn.Module, c.Module):
+class server(c.Module,torch.nn.Module):
     def __init__(self, 
                 config: 'bittensor.config' = None,
                 pretrained: bool = None,
@@ -27,6 +27,7 @@ class server(torch.nn.Module, c.Module):
                 tokenizer = None,
                 mapping_function = None,
                 token_remap = None,
+                device = None,
                 checking= None):
         r"""" Creates a server that serves up a pretrained miner on the bittensor network
         Args:
@@ -57,10 +58,12 @@ class server(torch.nn.Module, c.Module):
         if config == None: config = server.config()
         self.config = config;print(config)
         self.std_tokenizer = bittensor.tokenizer()
-        self.device = config.neuron.device
+        
+        self.device = device if device != None else config.neuron.device
 
         #setting up pretrained model
         self.model_name = model_name if model_name != None else config.neuron.model_name
+        
         self.pretrained = pretrained if pretrained != None else config.neuron.pretrained
         if self.pretrained == True:
             self.pre_model = model if model != None else AutoModelForCausalLM.from_pretrained(self.model_name)
@@ -126,6 +129,7 @@ class server(torch.nn.Module, c.Module):
         # -- keeps track of gradients applied
         self.backward_gradients_count = 0 
         self.remote_losses = [] 
+        
         self.to(self.device)
 
     def set_fine_tuning_params(self) -> Tuple[bool, str]:
