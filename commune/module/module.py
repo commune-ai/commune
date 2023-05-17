@@ -2068,6 +2068,7 @@ class Module:
         if wait_for_server:
             cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
         
+    serve_module = serve
     @classmethod
     def functions(cls, search = None, include_module=False):
         functions = cls.get_functions(include_module=include_module)  
