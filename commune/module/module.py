@@ -2026,6 +2026,7 @@ class Module:
         module_name = name
 
         '''check if the server exists'''
+        cls.print(f'Checking if server {module_name} exists {self}')
         if self.server_exists(module_name): 
             if replace:
                 if verbose:
@@ -3946,10 +3947,8 @@ class Module:
             modules = module
             jobs = []
             for m in modules:
-                if isinstance(m, str):
-                    job = cls.async_call(f'{m}.{fn}', *args, **kwargs)
-                else:
-                    job = cls.async_call(m, fn, *args, **kwargs)
+                print(m, fn, args, kwargs)
+                job = cls.async_call(m, fn, *args, **kwargs)
                 jobs.append(job)
             results = await asyncio.gather(*jobs)
             return dict(zip(modules, results))
@@ -3975,24 +3974,33 @@ class Module:
     cpool = call_pool
     @classmethod
     async def async_call_pool(cls,
-                              modules = None, 
+                              modules, 
                               fn = 'address',
-                              success_only =  True,
-                              *args, **kwargs):
+                              *args, n=3, **kwargs):
+        
+        args = args or []
+        kwargs = kwargs or {}
+        
         if isinstance(modules, str) or modules == None:
             modules = cls.modules(modules)
-        print(modules)
+            
+        modules = cls.shuffle(modules)[:n]
+        assert isinstance(modules, list), 'modules must be a list'
+        cls.print(f'Calling {fn} on {len(modules)} modules', color='green')
         jobs = []
         for m in modules:
-            job = cls.async_call(module=m, fn=fn, *args, **kwargs)
+            job = cls.async_call(m, fn, *args, **kwargs)
             jobs.append(job)
         
         responses = await asyncio.gather(*jobs)
         
-        if success_only:
-            responses = [r for r in responses if cls.is_success(r)]
-
-        return responses
+        is_error = lambda r: isinstance(r, dict) and 'error' in r
+        successes  = [r for r in responses if not is_error(r)]
+        errors = [r for r in responses if is_error(r)]
+        
+        if len(successes) == 0:
+            cls.print(f'ERRORS {errors}', color='red')
+        return successes[0]
     
     @classmethod
     def call(cls,  *args, loop=None, **kwargs) -> None:

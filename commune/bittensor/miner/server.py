@@ -6,7 +6,7 @@ from torch import nn
 import torch.nn.functional as F
 from types import SimpleNamespace
 from typing import Tuple, Optional
-
+import os
 import transformers
 from transformers import AutoModel,AutoTokenizer,AutoConfig, AutoModelForCausalLM
 from torch.nn.utils.rnn import pad_sequence
@@ -15,7 +15,58 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 
 from loguru import logger; logger = logger.opt(colors=True)
 import commune as c
+
+
+
+shortcuts =  {
+    # 0-1B models
+    'gpt125m': 'EleutherAI/gpt-neo-125m',
+
+    # 1-3B models
+    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+    'opt1.3b': 'facebook/opt-1.3b',
+    'opt2.7b': 'facebook/opt-2.7b',
+    # 'gpt3btuning' : ''
+
+    # 0-7B models
+    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+    'gptj': 'EleutherAI/gpt-j-6b',
+    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
+    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
+    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+    'opt6.7b': 'facebook/opt-6.7b',
+    'llama': 'decapoda-research/llama-7b-hf',
+    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
+    # # > 7B models
+    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+    'gptneox': 'EleutherAI/gpt-neox-20b',
+    'gpt20b': 'EleutherAI/gpt-neox-20b',
+    'opt13b': 'facebook/opt-13b',
+    'gpt13b': 'cerebras/Cerebras-GPT-13B',
+    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
+    'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
+    'fish': os.path.expanduser('~/fish_model'),
+    
+        }
+
+
+
+
 class server(c.Module,torch.nn.Module):
+    shortcuts = shortcuts
     def __init__(self, 
                 config: 'bittensor.config' = None,
                 pretrained: bool = None,
@@ -56,14 +107,18 @@ class server(c.Module,torch.nn.Module):
         """
         torch.nn.Module.__init__(self)
         if config == None: config = server.config()
-        self.config = config;print(config)
+        
+        if isinstance(config, dict):
+            config = c.munch(config)
+        self.config = config;c.print(config)
         self.std_tokenizer = bittensor.tokenizer()
         
         self.device = device if device != None else config.neuron.device
 
         #setting up pretrained model
-        self.model_name = model_name if model_name != None else config.neuron.model_name
-        
+        model_name = model_name if model_name != None else config.neuron.model_name
+        self.model_name  = self.shortcuts.get(model_name , model_name )
+
         self.pretrained = pretrained if pretrained != None else config.neuron.pretrained
         if self.pretrained == True:
             self.pre_model = model if model != None else AutoModelForCausalLM.from_pretrained(self.model_name)
@@ -99,7 +154,7 @@ class server(c.Module,torch.nn.Module):
 
         if self.config.neuron.autocast and self.device[:4] == 'cuda':
             self.pre_model.half()
-
+        self.pre_model.to(self.device)
         #parameters of the models
         self.final_dim =  bittensor.__network_dim__
         self.pre_dimension = self.pre_model.config.hidden_size
@@ -130,7 +185,7 @@ class server(c.Module,torch.nn.Module):
         self.backward_gradients_count = 0 
         self.remote_losses = [] 
         
-        self.to(self.device)
+        
 
     def set_fine_tuning_params(self) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
@@ -462,7 +517,7 @@ class server(c.Module,torch.nn.Module):
             message = f'Loss: {original_loss:.2f}'
 
             _model_output.loss = original_loss
-            return [message, _model_output, topk_tensor]
+            return [message, self.munch({}), topk_tensor]
 
         if self.config.neuron.remote_train:
             return _forward()  # track gradients for training

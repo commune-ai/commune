@@ -10,6 +10,8 @@ import commune as c
 
 c.new_event_loop()
 sample = c.module('dataset').sample()
-model = c.connect('server')
-print(model.encode_forward_causallmnext(sample['input_ids']))
-print(sample)
+# model = c.connect('server')
+# print(model.encode_forward_causallmnext(sample['input_ids']))
+# print(sample)
+
+print(c.call_pool('server', 'encode_forward_causallmnext', sample['input_ids'], timeout=3))

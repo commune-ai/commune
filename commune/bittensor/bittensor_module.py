@@ -1106,39 +1106,92 @@ class BittensorModule(c.Module):
         print(cmd)
         return cls.cmd(cmd)
     
-    default_model_name = os.path.expanduser('~/fish_model')
+    default_model_name = 'server'
 
     @classmethod
     def server_class(cls, *args, **kwargs):
         return cls.module('bittensor.miner.server')
     
     @classmethod
-    def deploy_servers(cls, model_name=default_model_name, num_servers=2):
+    def server(cls, *args, **kwargs):
+        return cls.server_class(*args, **kwargs)
+    
+    @classmethod
+    def neuron_class(cls, *args, **kwargs):
+        return cls.module('bittensor.miner.server')
+    
+    @classmethod
+    def deploy_servers(cls, num_servers=3):
+        return cls.server_class.deploy_servers()
+    @classmethod
+    def deploy_server(cls, 
+                      name= None,
+                       model_name='fish',
+                       tag = 0,
+                       device = None,
+                       refresh=True,
+                       free_gpu_memory = None,):
         free_gpu_memory = cls.free_gpu_memory()
         server_class = cls.server_class()
         
-        model_size_bytes = cls.get_model_size(model_name)
-
-        for i in range(num_servers):
-            gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-            free_gpu_memory[gpu] = model_size_bytes
+        config = server_class.config()
+        config.neuron.model_name = model_name
+        config.neuron.tag = tag
+        config.neuron.autocast = True
+        if device == None:
+            if torch.cuda.is_available():
             
-            cls.print(f'deploying server {i} on gpu {gpu}')
-            kwargs = {
-                'model_name': model_name,
-                'device': f'cuda:{gpu}',
-            }
-            c.deploy(module='bittensor.miner.server', kwargs=kwargs, name=f'server::{model_name}::{i}')
+                gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
+                device = f'cuda:{gpu}'
+            else :
+                device = 'cpu'
+            
+        config.neuron.device = device
+        config.neuron.local_train = False
+        assert isinstance(tag, int), f'tag {tag} is not an int'
         
+        if name == None:
+            name = f'server::{model_name}::{tag}'
+            
+        cls.print(f'deploying server {tag} on gpu {device}')
+
+        server_class.deploy( kwargs=dict(config=config), name=name)
+        
+    @classmethod
+    def add_servers(cls, n = 3, prefix='server'):
+        tag = 0
+        deployed_names =  []
+        free_gpu_memory = cls.free_gpu_memory()
+        
+        for i in range(n):
+            gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
+            device = f'cuda:{gpu}'
+            free_gpu_memory[gpu] = 0
+            name = f'{prefix}::{tag}'
+            while cls.module_exists(name) :
+                tag+=1
+                name = f'{prefix}::{tag}'
+                if name in deployed_names:
+                    continue
+                break
+            
+            cls.deploy_server(name=name, device=device)
+            deployed_names.append(name)
+    # add_server = deploy_server
     
     @classmethod
     def neuron(cls, *args, **kwargs):
-        return cls.mdoule('bittensor.miner.neuron')(*args, **kwargs)
+        return cls.module('bittensor.miner.neuron')(*args, **kwargs)
+
+    @classmethod
+    def mine_many(cls, *hotkeys, coldkey=default_coldkey, **kwargs):
+        for hk in hotkeys:
+            cls.mine(wallet=f'{coldkey}.{hk}', **kwargs)
 
     @classmethod
     def mine(cls, 
                wallet='ensemble.5',
-               model_name:str= default_model_name,
+               model_name:str= 'server',
                network = 'local',
                netuid=3,
                port = None,
@@ -1146,7 +1199,7 @@ class BittensorModule(c.Module):
                prometheus_port = None,
                debug = True,
                no_set_weights = True,
-               remote:bool = False,
+               remote:bool = True,
                tag=None,
                sleep_interval = 2,
                autocast = True,
@@ -1213,20 +1266,15 @@ class BittensorModule(c.Module):
             device = cls.most_free_gpu()
 
         model_name = model_name if model_name is not None else cls.default_model_name
-        model_size = cls.get_model_size(model_name)
-        
-        # memory is indexed by device
-        free_gpu_memory = cls.free_gpu_memory()
-        if free_gpu_memory[device] < model_size:
-            device = cls.most_free_gpu()
-        assert free_gpu_memory[device] > model_size, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
-            
+
         config.neuron.device = f'cuda:{device}'
-        config.neuron.model_name = model_name
+        
         if logging:
             config.logging.debug = logging
-        cls.print(config)
-        bittensor.neurons.core_server.neuron(
+            
+        # cls.print(config)
+        cls.neuron(
+               model = model_name,
                wallet=wallet,
                subtensor=subtensor,
                config=config,
@@ -1269,6 +1317,8 @@ class BittensorModule(c.Module):
             cls.burned_register(w, **kwargs)
         
         
+
+    reserved_ports = []
     @classmethod
     def fleet(cls, name=default_coldkey, 
                     hotkeys = None,
@@ -1279,42 +1329,56 @@ class BittensorModule(c.Module):
                     refresh: bool = True,
                     burned_register=False, 
                     ensure_registration=False,
+                    device = 'cpu',
+                    ensure_gpus = False,
                     max_fee=1.3): 
         
         
         if hotkeys == None:
-            wallets = cls.unreged(name)
+            wallets = cls.reged(name)
         else:
             wallets  = [f'{name}.{h}' for h in hotkeys]
         
         gpus = cls.gpus()
         subtensor = cls.get_subtensor(network)
-        model_size = cls.get_model_size(model_name)
-        free_gpu_memory = cls.free_gpu_memory()
         
-        axon_ports = []
+        if ensure_gpus:
+            model_size = cls.get_model_size(model_name)
+            free_gpu_memory = cls.free_gpu_memory()
+            
         for i, wallet in enumerate(wallets):
             
             assert cls.wallet_exists(wallet), f'Wallet {wallet} does not exist.'
-            if ensure_registration:
-                cls.ensure_registration(wallet,
-                                         subtensor=subtensor, 
-                                         netuid=netuid,
-                                         burned_register=burned_register,
-                                         max_fee=max_fee)
-                burned_register = False # only burn register for first wallet
+            
+            if cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
+                cls.print(f'{wallet} is already registered on {subtensor} {netuid}!')
+                neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
+                axon_port = neuron.axon_info.port
+                prometheus_port = neuron.prometheus_info.port
+            else:
+                # ensure registration
+                if ensure_registration:
+                    cls.ensure_registration(wallet,
+                                            subtensor=subtensor, 
+                                            netuid=netuid,
+                                            burned_register=burned_register,
+                                            max_fee=max_fee)
+                    burned_register = False # only burn register for first wallet
+                axon_port = cls.free_port()
+                while cls.port_used(axon_port) or axon_port in cls.reserved_ports:
+                    axon_port += 1
+                cls.reserved_ports.append(axon_port)
+                prometheus_port = axon_port - 1000
                 
-            device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-            free_gpu_memory[device] -= model_size
-            assert free_gpu_memory[device] > 0, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
-            assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
+            if ensure_gpus:
+                device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
+                free_gpu_memory[device] -= model_size
+                assert free_gpu_memory[device] > 0, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
+                assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
+            
+            
             tag = f'{wallet}::{subtensor.network}::{netuid}'
             miner_name = f'miner::{tag}'
-            axon_port = cls.free_port()
-            while cls.port_used(axon_port) or axon_port in axon_ports:
-                axon_port += 1
-            axon_ports.append(axon_port)
-            prometheus_port = axon_port - 1000
             if miner_name in cls.miners() and not refresh:
                 cls.print(f'{miner_name} is already running. Skipping ...')
                 continue
@@ -1330,8 +1394,7 @@ class BittensorModule(c.Module):
                          burned_register=burned_register,
                          max_fee=max_fee)
             
-            # self.mine(wallet=wallet, remote=remote, tag=tag)
-            
+        cls.reserved_ports = []
     @classmethod
     def miners(cls, *args, **kwargs):
         return list(cls.wallet2miner(*args, **kwargs).keys())
@@ -1367,12 +1430,17 @@ class BittensorModule(c.Module):
         return c.kill(prefix)    
 
     @classmethod
-    def kill_miner(cls, wallet):
-        return c.kill(cls.w2m(wallet))
-
-    @classmethod
-    def kill(cls, wallet):
-        return c.kill(cls.w2m(wallet))
+    def kill(cls, *wallet):
+        w2m = cls.wallet2miner()
+        for w in wallet:
+            if w in w2m:
+                cls.print(f'Killing {w}')
+                c.kill(w2m[w])
+            else:
+                cls.print(f'Miner {w} not found.')
+    # @classmethod
+    # def kill(cls, wallet):
+    #     return c.kill(cls.w2m(wallet))
 
     @classmethod
     def restart(cls, wallet):
@@ -1541,6 +1609,16 @@ class BittensorModule(c.Module):
         return cls.get_json(path)
     
     
+    @classmethod
+    def servers_online(cls):
+        return 
+    
+    servers = servers_online
+    @classmethod
+    def servers(cls, **kwargs):
+
+        return c.modules('server')
+
     
     @classmethod
     async def async_wallet_json(cls, wallet):
