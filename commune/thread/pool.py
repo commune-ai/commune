@@ -99,7 +99,7 @@ class ThreadPool(_base.Executor, c.Module):
 
 
         self.max_workers = max_workers
-        self._work_queue = queue.PriorityQueue(maxsize = maxsize)
+        self.queue = queue.PriorityQueue(maxsize = maxsize)
         self._idle_semaphore = threading.Semaphore(0)
         self._threads = set()
         self._broken = False
@@ -110,7 +110,7 @@ class ThreadPool(_base.Executor, c.Module):
 
     @property
     def is_empty(self):
-        return self._work_queue.empty()
+        return self.queue.empty()
 
     def submit(self, fn, *args, **kwargs):
         with self._shutdown_lock:
@@ -134,7 +134,7 @@ class ThreadPool(_base.Executor, c.Module):
 
             f = _base.Future()
             task = Task(f, fn, start_time, args, kwargs)
-            self._work_queue.put((-float(priority + eplison), task), block=False)
+            self.queue.put((-float(priority + eplison), task), block=False)
             self._adjust_thread_count()
             return f
     submit.__doc__ = _base.Executor.submit.__doc__
@@ -147,7 +147,7 @@ class ThreadPool(_base.Executor, c.Module):
 
         # When the executor gets lost, the weakref callback will wake up
         # the worker threads.
-        def weakref_cb(_, q=self._work_queue):
+        def weakref_cb(_, q=self.queue):
             q.put(NULL_ENTRY)
 
         num_threads = len(self._threads)
@@ -156,24 +156,11 @@ class ThreadPool(_base.Executor, c.Module):
                                      num_threads)
             t = threading.Thread(name=thread_name, target= self.worker_loop,
                                  args=(weakref.ref(self, weakref_cb),
-                                       self._work_queue))
+                                       self.queue))
             t.daemon = True
             t.start()
             self._threads.add(t)
-            _threads_queues[t] = self._work_queue
-
-    def _initializer_failed(self):
-        with self._shutdown_lock:
-            self._broken = ('A thread initializer failed, the thread pool '
-                            'is not usable anymore')
-            # Drain work queue and mark pending futures failed
-            while True:
-                try:
-                    work_item = self._work_queue.get_nowait()
-                except queue.Empty:
-                    break
-                if work_item is not None:
-                    work_item.future.set_exception(BrokenThreadPool(self._broken))
+            _threads_queues[t] = self.queue
 
 
     @staticmethod
@@ -211,7 +198,7 @@ class ThreadPool(_base.Executor, c.Module):
     def shutdown(self, wait=True):
         with self._shutdown_lock:
             self._shutdown = True
-            self._work_queue.put(NULL_ENTRY)
+            self.queue.put(NULL_ENTRY)
         
         if wait:
             for t in self._threads:
@@ -223,6 +210,10 @@ class ThreadPool(_base.Executor, c.Module):
 
 
     shutdown.__doc__ = _base.Executor.shutdown.__doc__
+    
+    
+if __name__ == "__main__":
+    ThreadPool.run()
     
     
     

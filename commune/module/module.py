@@ -2075,14 +2075,7 @@ class Module:
         self.set_key(key)
             
         # serve the server
-        try:
-            server.serve(wait_for_termination=wait_for_termination,register=True)
-        except Exception as e:
-            cls.deregister_server(server.name)
-            raise e
-        finally:
-            cls.deregister_server(server.name)
-        
+        server.serve(wait_for_termination=wait_for_termination,register=True)
         if wait_for_server:
             cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
         

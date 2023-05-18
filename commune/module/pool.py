@@ -13,18 +13,28 @@ import commune
 from concurrent.futures import ThreadPoolExecutor
 import commune
 
-
-
-
-class ClientPool (commune.Module):
+class ModulePool (commune.Module):
     """ Manages a pool of grpc connections as clients
     """
-    def __init__(self, config, **kwargs):
-        self.set_config(config=config, kwargs=kwargs)
+    def __init__(
+        self, 
+        modules,
+        max_active_clients = 20,
+        
+    ):
+        
+        self.add_modules(modules)
+        self.max_active_clients = self.max_active_clients
+        
+        self.client_stats = {}
+        if modules == None:
+            modules = self.modules()
+        self.cull_mutex = Lock()
+        self.total_requests = 0
 
 
     def __str__(self):
-        return "ClientPool({},{})".format(len(self.clients), self.max_active_clients)
+        return "ModulePool({},{})".format(len(self.clients), self.max_active_clients)
 
     def __repr__(self):
         return self.__str__()
@@ -35,10 +45,9 @@ class ClientPool (commune.Module):
 
     def forward (
             self, 
-            modules: List [str ] = None,
             args = None,
             kwargs = None, 
-            timeout: int,
+            modules: List [str ] = None,
             min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
         r""" Forward tensor inputs to endpoints.
@@ -71,9 +80,7 @@ class ClientPool (commune.Module):
         """
 
         loop = self.get_event_loop()
-        return loop.run_until_complete ( 
-            self.async_forward(kwargs=kwargs) 
-        )
+        return loop.run_until_complete (self.async_forward(kwargs=kwargs) )
 
 
 

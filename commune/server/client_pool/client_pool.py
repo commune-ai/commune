@@ -18,11 +18,13 @@ class ClientPool (commune.Module):
     """
     def __init__(
         self, 
-        modules = None,
+        modules,
         max_active_clients = 20,
         
     ):
-        self.max_active_clients = self.config.max_active_clients
+        
+        self.add_modules(modules)
+        self.max_active_clients = self.max_active_clients
         
         self.client_stats = {}
         if modules == None:
@@ -43,11 +45,9 @@ class ClientPool (commune.Module):
 
     def forward (
             self, 
+            modules: List [str ] = None,
             args = None,
             kwargs = None, 
-            
-            modules: List [str ] = None,
-
             timeout: int,
             min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
@@ -86,7 +86,12 @@ class ClientPool (commune.Module):
         )
 
 
-
+    def add_module(self, module):
+        if module in self.pool:
+            return module
+        
+        self.pool[module] = commune.connect(module)
+         
     async def async_forward (
             self, 
             fn: None,

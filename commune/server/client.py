@@ -21,7 +21,8 @@ from .serializer import Serializer
 
 
 class VirtualModule:
-    def __init__(self, module: str ='ReactAgentModule', include_hiddden: bool = False):
+    def __init__(self, module: str ='ReactAgentModule',
+                 include_hiddden: bool = False):
 
         self.synced_attributes = []
         '''
@@ -68,11 +69,11 @@ class VirtualModule:
             
             
 
+
+    protected_attributes = ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes']
     def __getattr__(self, key):
 
-        if key in ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes'] :
-            return getattr(self, key)
-        elif key in self.synced_attributes:
+        if key in self.protected_attributes or key in self.synced_attributes :
             return getattr(self, key)
         else:
             return  self.module_client(fn='getattr', args=[key])
