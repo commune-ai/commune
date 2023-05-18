@@ -26,7 +26,7 @@ import bittensor
 import os
 import sys
 
-from .nucleus_impl import server
+from .server import server
 from prometheus_client import Counter, Gauge, Histogram, Summary, Info, CollectorRegistry
 from threading import Lock
 from loguru import logger; logger = logger.opt(colors=True)
@@ -149,7 +149,7 @@ class neuron(c.Module):
 
         self.mutex = Lock()
         
-        if isinstance(model, str):
+        if isinstance(model, str) or isinstance(model, list):
             self.model = model
         else:
             self.model = server(config = config).to(config.neuron.device) if model == None else model
@@ -582,18 +582,32 @@ class neuron(c.Module):
         with self.mutex:
             message, model_output, logits = self.model.encode_forward_causallm(inputs_x.to(self.model.device), model_output=model_output)
         return message, model_output, logits
-
-    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor, synapse, model_output=None):
+    
+    
+    def resolve_model(self, model):
         
-        if isinstance(self.model, str):
-            model = c.connect(self.model)
-        else:
-            model = self.model
+        self.new_event_loop()
+
             
+        return model
+
+    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor, synapse, model_output=None, max_trials=3):
+        model = self.resolve_model(self.model)
+
         with self.mutex:
-            message, model_output, topk_token_phrases = model.encode_forward_causallmnext(inputs_x,
-                                                                                        topk=synapse.topk,
-                                                                                        model_output=model_output)
+            
+            if isinstance(self.model, str):
+                response  = c.call_pool(self.model,inputs_x,topk=synapse.topk,model_output=model_output, n=5)[0]
+            else:
+                response  = model.encode_forward_causallmnext(inputs_x,topk=synapse.topk,model_output=model_output)[0]
+                
+
+            if len(response) == 3:
+                
+                message, model_output, topk_token_phrases = response
+            else:
+                return self.forward_casual_lm_next(inputs_x=inputs_x, synapse=synapse, model_output=model_output, max_trials=max_trials-1)
+            
         # topk_token_phrases: [sum_b(sum_k(len(phrase_k) + 1)_b)] contains topk token phrases and probabilities
         #   Compacted 1-D tensor >= batch_size * (2 * topk + 1)
         return message, model_output, topk_token_phrases
