@@ -874,7 +874,7 @@ class Module:
         return used_ports
     
     @classmethod
-    def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None, reserve:bool = False) -> int:
+    def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None, reserve:bool = False, random_selection:bool = True) -> int:
         
         '''
         
@@ -886,7 +886,8 @@ class Module:
         
         reserved_ports = cls.reserved_ports()
         # return only when the port is available
-        ports = cls.shuffle(list(range(*port_range)))
+        if random_selection:
+            ports = cls.shuffle(list(range(*port_range)))
         for port in ports: 
             if port in reserved_ports:
                 continue
@@ -2070,19 +2071,17 @@ class Module:
         
         self.config['info'] = self.info()
         
-        
-        # register the server
-        server_info = cls.register_server(name=module_name, 
-                                          context=context,
-                                          ip=self.default_ip,
-                                          port=self.port,
-                                          network=network)
 
- 
         self.set_key(key)
             
         # serve the server
-        server.serve(wait_for_termination=wait_for_termination)
+        try:
+            server.serve(wait_for_termination=wait_for_termination,register=True)
+        except Exception as e:
+            cls.deregister_server(server.name)
+            raise e
+        finally:
+            cls.deregister_server(server.name)
         
         if wait_for_server:
             cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
