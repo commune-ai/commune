@@ -37,6 +37,7 @@ class Server(ServerServicer, Serializer, commune.Module):
     def __init__(
             self,
             module: Union['Module', object]= None,
+            name = None,
             ip: Optional[str] = None,
             port: Optional[int] = None,
             max_workers: Optional[int] = 10, 
@@ -88,8 +89,10 @@ class Server(ServerServicer, Serializer, commune.Module):
                         max_workers=max_workers,
                         maximum_concurrent_rpcs=maximum_concurrent_rpcs,
                         compression=compression)
-        
-         
+        if name == None:
+            if not hasattr(module, 'module_name'):
+                name = str(module)
+        self.name = name
         self.timeout = timeout
         self.verbose = verbose
         self.module = module
@@ -361,7 +364,8 @@ class Server(ServerServicer, Serializer, commune.Module):
         def print_serve_status():
             text = f'{str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
             commune.print(text, color='green')
-
+            
+        commune.unreserve_port(self.port)
         while True:
             if not wait_for_termination:
                 break

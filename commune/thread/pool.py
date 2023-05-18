@@ -17,6 +17,7 @@ import threading
 import weakref
 import time
 from loguru import logger
+import commune as c
 
 # Workers are created as daemon threads. This is done to allow the interpreter
 # to exit when there are still idle threads in a ThreadPoolExecutor's thread
@@ -35,7 +36,7 @@ from loguru import logger
 _threads_queues = weakref.WeakKeyDictionary()
 _shutdown = False
 
-class _WorkItem(object):
+class Task:
     def __init__(self, 
                  future, 
                  fn, 
@@ -43,6 +44,7 @@ class _WorkItem(object):
                  args:list,
                  kwargs:dict):
         self.future = future
+        
         self.fn = fn
         self.start_time = start_time
         self.args = args
@@ -63,9 +65,7 @@ class _WorkItem(object):
             self = None
         else:
             self.future.set_result(result)
-
-
-NULL_ENTRY = (sys.maxsize, _WorkItem(None, None, time.time(), (), {}))
+NULL_ENTRY = (sys.maxsize, Task(None, None, time.time(), (), {}))
 
 
 class BrokenThreadPool(_base.BrokenExecutor):
@@ -74,20 +74,21 @@ class BrokenThreadPool(_base.BrokenExecutor):
     """
 
 
-class PriorityThreadPoolExecutor(_base.Executor):
+class ThreadPool(_base.Executor, c.Module):
     """ Base threadpool executor with a priority queue 
     """
     # Used to assign unique thread names when thread_name_prefix is not supplied.
     _counter = itertools.count().__next__
 
-    def __init__(self, maxsize = -1, max_workers=None, thread_name_prefix='', initargs=()):
+    def __init__(self, maxsize = -1,
+                 max_workers=None, 
+                 thread_name_prefix=''):
         """Initializes a new ThreadPoolExecutor instance.
         Args:
             max_workers: The maximum number of threads that can be used to
                 execute the given calls.
             thread_name_prefix: An optional name prefix to give our threads.
             initializer: An callable used to initialize worker threads.
-            initargs: A tuple of arguments to pass to the initializer.
         """
         if max_workers is None:
             # Use this number because ThreadPoolExecutor is often
@@ -96,8 +97,6 @@ class PriorityThreadPoolExecutor(_base.Executor):
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
 
-        if initializer is not None and not callable(initializer):
-            raise TypeError("initializer must be a callable")
 
         self.max_workers = max_workers
         self._work_queue = queue.PriorityQueue(maxsize = maxsize)
@@ -108,8 +107,6 @@ class PriorityThreadPoolExecutor(_base.Executor):
         self._shutdown_lock = threading.Lock()
         self._thread_name_prefix = (thread_name_prefix or
                                     ("ThreadPoolExecutor-%d" % self._counter()))
-        self._initializer = 
-        self._initargs = initargs
 
     @property
     def is_empty(self):
@@ -136,8 +133,8 @@ class PriorityThreadPoolExecutor(_base.Executor):
             
 
             f = _base.Future()
-            w = _WorkItem(f, fn, start_time, args, kwargs)
-            self._work_queue.put((-float(priority + eplison), w), block=False)
+            task = Task(f, fn, start_time, args, kwargs)
+            self._work_queue.put((-float(priority + eplison), task), block=False)
             self._adjust_thread_count()
             return f
     submit.__doc__ = _base.Executor.submit.__doc__
@@ -157,7 +154,7 @@ class PriorityThreadPoolExecutor(_base.Executor):
         if num_threads < self.max_workers:
             thread_name = '%s_%d' % (self._thread_name_prefix or self,
                                      num_threads)
-            t = threading.Thread(name=thread_name, target=self.worker_loop,
+            t = threading.Thread(name=thread_name, target= self.worker_loop,
                                  args=(weakref.ref(self, weakref_cb),
                                        self._work_queue))
             t.daemon = True
@@ -208,7 +205,7 @@ class PriorityThreadPoolExecutor(_base.Executor):
                     return
                 del executor
         except BaseException:
-            logger.error('work_item', work_item)
+            logger.error('work_item',item)
             _base.LOGGER.critical('Exception in worker', exc_info=True)
 
     def shutdown(self, wait=True):
