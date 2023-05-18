@@ -353,7 +353,8 @@ class Server(ServerServicer, Serializer, commune.Module):
     def serve(self,
               wait_for_termination:bool=False,
               update_period:int = 10, 
-              verbose:bool= True):
+              verbose:bool= True,
+              register=True):
         '''
         Serve the server and loop it until termination.
         '''
@@ -365,15 +366,30 @@ class Server(ServerServicer, Serializer, commune.Module):
             text = f'{str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
             commune.print(text, color='green')
             
+        
+        # register the server
+        if register:
+            commune.register_server(name=self.name, 
+                                          ip=self.ip,
+                                          port=self.port)
+
+ 
         commune.unreserve_port(self.port)
-        while True:
-            if not wait_for_termination:
-                break
-            lifetime_seconds += update_period
-            if verbose:
-                print_serve_status()
-                
-                time.sleep(update_period)
+        
+        
+        try:
+            while True:
+                if not wait_for_termination:
+                    break
+                lifetime_seconds += update_period
+                if verbose:
+                    print_serve_status()
+                    
+                    time.sleep(update_period)
+                    
+        except Exception as e:
+            commune.deregister_server(name=self.name)
+            raise e
         
         
 
