@@ -50,7 +50,7 @@ all:
       ansible_port: 12000
 
     a6000x8_p13000:
-      # ssh endless@162.157.13.236 -p 9999
+      # ssh commune@162.157.13.236 -p2000
       ansible_user: endless
       ansible_host: 162.157.13.236
       ansible_port: 13000

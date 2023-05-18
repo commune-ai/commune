@@ -33,4 +33,7 @@ psutil
 munch
 ansible
 
+# bittensor
+bittensor
+
 
