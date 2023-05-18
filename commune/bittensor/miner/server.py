@@ -113,7 +113,7 @@ class server(c.Module,torch.nn.Module):
         self.config = config;c.print(config)
         self.std_tokenizer = bittensor.tokenizer()
         
-        self.device = device if device != None else config.neuron.device
+        
 
         #setting up pretrained model
         model_name = model_name if model_name != None else config.neuron.model_name
@@ -152,8 +152,29 @@ class server(c.Module,torch.nn.Module):
         else:
             self.pre_model.eval()
 
+
+        device = device if device != None else config.neuron.device
+        
+        if 'cuda' in device:
+            gpu = int(device.split(':')[1]) if device.split(':')[1] != '' else 0
+            free_gpu_memory = self.free_gpu_memory()
+            model_size = self.get_model_size(self.model_name )
+            if free_gpu_memory[gpu] < model_size:
+                gpu = cls.most_free_gpu()
+                assert free_gpu_memory[gpu] > model_size, "Not enough free memory on any GPU to load model. Try reducing the batch size."
+            device = f'cuda:{gpu}'
+        else:
+            device = 'cpu'
+            
+        self.device = device
+                
+        
+
+
         if self.config.neuron.autocast and self.device[:4] == 'cuda':
             self.pre_model.half()
+            
+            
         self.pre_model.to(self.device)
         #parameters of the models
         self.final_dim =  bittensor.__network_dim__
