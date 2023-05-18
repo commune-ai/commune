@@ -1,0 +1,17 @@
+btcli regen_coldkey --ss58 5CMSkrBrMZo6zfWvtPR5tKNcgQiqcg7EC24ju8ti7XaF78rK --wallet.name ensemble --mnemonic ritual pioneer razor wasp chase thrive south slide vital trim blue mercy
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 6 --mnemonic actual gesture praise stadium skin design recall report peanut more junk awesome
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 7 --mnemonic power place paddle notice gravity weekend expand dinner shield box eyebrow jacket
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 15 --mnemonic bullet have spawn degree auto urge axis slice execute judge empty action
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 14 --mnemonic balcony butter decorate media depart vast more harbor emerge genuine horror spin
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 12 --mnemonic fence upper era pencil turn symbol horror enjoy anchor foam pair drum
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 11 --mnemonic eager monitor toilet couple area shoe alpha school surge lounge lawsuit daughter
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 5 --mnemonic gaze fog kit decorate acid cry globe aerobic venue process razor outer
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 10 --mnemonic doctor hybrid lesson island beef job prevent pencil plastic robust square hunt
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 13 --mnemonic glad rocket critic vocal blast plunge across surprise battle need couple bottom
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 2 --mnemonic snack ugly wear caution frame choice maple pear blue lake twice strike
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 16 --mnemonic spike wheat copy marriage dish protect prison ready case narrow hat palace
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 4 --mnemonic nerve medal host clever enough flip exist almost proof unusual tomato drama
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 3 --mnemonic argue force icon olympic ticket despair twice hood pave list under pupil
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 9 --mnemonic unit report cause suggest also rare concert inform frame secret coffee issue
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 8 --mnemonic peanut execute anxiety dance balcony dream point educate weapon dry impulse chest
+btcli regen_hotkey --wallet.name ensemble --wallet.hotkey 1 --mnemonic marble burst legend scene social alien marine stereo calm aunt pencil scout

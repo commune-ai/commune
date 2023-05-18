@@ -14,19 +14,21 @@ import asyncio
 from copy import deepcopy
 from munch import Munch
 
+import commune as c
 from commune.server.proto import DataBlock
 from commune.utils.dict import dict_put, dict_get
-import commune
+
 import json
 
 if os.getenv('USE_STREAMLIT'):
     import streamlit as st
 
-class Serializer(commune.Module):
+class Serializer(c.Module):
     r""" Bittensor base serialization object for converting between DataBlock and their
     various python tensor equivalents. i.e. torch.Tensor or tensorflow.Tensor
     """
 
+    @classmethod
     def serialize (self, data: object, metadata:dict) -> DataBlock:
         data_type = self.get_str_type(data)
         sub_blocks = []
@@ -50,7 +52,7 @@ class Serializer(commune.Module):
         return DataBlock(data=data_bytes, metadata = metadata_bytes, blocks=sub_blocks)
 
 
-
+    @classmethod
     def deserialize(self, proto: DataBlock) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
@@ -72,37 +74,70 @@ class Serializer(commune.Module):
     ################ BIG DICT LAND ############################
     """
 
+    @classmethod
     def serialize_dict(self, data: dict, metadata:dict) -> DataBlock:
         data = self.dict2bytes(data=data)
         return  data,  metadata
 
 
+    @classmethod
     def deserialize_dict(self, data: bytes, metadata:dict) -> DataBlock:
         data = self.bytes2dict(data=data)
         return data
 
+    @classmethod
     def serialize_bytes(self, data: dict, metadata:dict) -> DataBlock:
         return  data,  metadata
     
+    @classmethod
     def deserialize_bytes(self, data: bytes, metadata:dict) -> DataBlock:
         return data
 
+
+    @classmethod
+    def dict2munch(self,x:dict, recursive:bool=True)-> Munch:
+        '''
+        Turn dictionary into Munch
+        '''
+        if isinstance(x, dict):
+            for k,v in x.items():
+                if isinstance(v, dict) and recursive:
+                    x[k] = self.dict2munch(v)
+            x = Munch(x)
+        return x 
+
+    @classmethod
+    def munch2dict(self,x:Munch, recursive:bool=True)-> dict:
+        '''
+        Turn dictionary into Munch
+        '''
+        if isinstance(x, Munch):
+            x = dict(x)
+            for k,v in x.items():
+                if isinstance(v, Munch) and recursive:
+                    x[k] = self.munch2dict(v)
+
+        return x 
+
+    @classmethod
     def serialize_munch(self, data: dict, metadata:dict) -> DataBlock:
         data=self.munch2dict(data)
         data = self.dict2bytes(data=data)
         return  data,  metadata
 
+    @classmethod
     def deserialize_munch(self, data: bytes, metadata:dict) -> DataBlock:
         data = self.bytes2dict(data=data)
         data = self.dict2munch(data)
         return data
 
-
+    @classmethod
     def dict2bytes(self, data:dict) -> bytes:
         data_json_str = json.dumps(data)
         data_json_bytes = msgpack.packb(data_json_str)
         return data_json_bytes
 
+    @classmethod
     def bytes2dict(self, data:bytes) -> dict:
         json_object_bytes = msgpack.unpackb(data)
         return json.loads(json_object_bytes)
@@ -112,6 +147,7 @@ class Serializer(commune.Module):
     """
     ################ BIG TORCH LAND ############################
     """
+    @classmethod
     def torch2bytes(self, data:torch.Tensor)-> bytes:
         if data.requires_grad:
             data = data.detach()
@@ -121,6 +157,7 @@ class Serializer(commune.Module):
         return data_buffer
 
 
+    @classmethod
     def bytes2torch(self, data:bytes, shape:list, dtype:str, requires_grad:bool=False) -> torch.Tensor:
         numpy_object = msgpack.unpackb(data, object_hook=msgpack_numpy.decode).copy()
 
@@ -134,6 +171,7 @@ class Serializer(commune.Module):
         return torch_object
 
 
+    @classmethod
     def serialize_torch(self, data: torch.Tensor, metadata:dict) -> DataBlock:
 
         metadata['dtype'] = str(data.dtype)
@@ -142,6 +180,7 @@ class Serializer(commune.Module):
         data = self.torch2bytes(data=data)
         return  data,  metadata
 
+    @classmethod
     def deserialize_torch(self, data: bytes, metadata: dict) -> torch.Tensor:
 
         dtype = metadata['dtype']
@@ -157,6 +196,8 @@ class Serializer(commune.Module):
 
         return data
 
+
+    @classmethod
     def get_str_type(self, data):
         data_type = str(type(data)).split("'")[1]
         if data_type in ['munch.Munch', 'Munch']:
@@ -218,5 +259,5 @@ class Serializer(commune.Module):
                 
                 
 if __name__ == "__main__":
-    Serializer.run()
+    Serializer.test_deserialize()
 

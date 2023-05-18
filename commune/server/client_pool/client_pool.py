@@ -17,13 +17,16 @@ class ClientPool (commune.Module):
     """ Manages a pool of grpc connections as clients
     """
     def __init__(
-        self, **kwargs
+        self, 
+        modules = None,
+        max_active_clients = 20,
+        
     ):
-        self.set_config(kwargs=kwargs)
         self.max_active_clients = self.config.max_active_clients
-        self.client_modules = self.modules()
-        self.clients = {}
-        self.stats = {}
+        
+        self.client_stats = {}
+        if modules == None:
+            modules = self.modules()
         self.cull_mutex = Lock()
         self.total_requests = 0
 
@@ -38,13 +41,13 @@ class ClientPool (commune.Module):
         for client in self.clients:
             client.__del__()
 
-    def get_total_requests(self):
-        return self.total_requests
-
     def forward (
             self, 
-            modules: List [str ] = None,
+            args = None,
             kwargs = None, 
+            
+            modules: List [str ] = None,
+
             timeout: int,
             min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:

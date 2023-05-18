@@ -32,18 +32,16 @@ class CLI(commune.Module):
  
 
             module_list = self.module_list()
-            functions = self.functions(args[0], include_module=True)
+            functions = list(set(self.module.functions()  + self.module.get_attributes()))
             module_options = (list(namespace.values()) + list(namespace.keys()))
             args[0] = self.resolve_shortcut(args[0])
+            
             candidates = dict(
-                            functions=[f for f in functions if f == args[0]],
+                            functions=[f for f in functions if f == args[0]] ,
                             modules=[m for m in module_list if m == args[0]],
                             servers=[s for s in module_options if args[0] == s],
             )
             
-   
-            # fn_obj = getattr(module, fn)
-
             if len(candidates['functions'])>0:
                 module = self.module
                 fn = fn if fn != None else  args.pop(0)
@@ -89,7 +87,8 @@ class CLI(commune.Module):
         return result
     
     shortcuts = {
-        'bt': 'bittensor'
+        'bt': 'bittensor',
+        'hf': 'huggingface'
     }
     @classmethod
     def resolve_shortcut(cls, name):
