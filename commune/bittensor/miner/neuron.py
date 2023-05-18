@@ -591,23 +591,22 @@ class neuron(c.Module):
             
         return model
 
-    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor, synapse, model_output=None, max_trials=3):
-        model = self.resolve_model(self.model)
+    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor, synapse, model_output=None, max_trials=3, n=1, timeout=4):
 
         with self.mutex:
             
             if isinstance(self.model, str):
-                response  = c.call_pool(self.model,inputs_x,topk=synapse.topk,model_output=model_output, n=5)[0]
+                self.new_event_loop()
+                model = self.connect(self.model)
             else:
-                response  = model.encode_forward_causallmnext(inputs_x,topk=synapse.topk,model_output=model_output)[0]
+                model = self.model
+                
+            response  = model.encode_forward_causallmnext(inputs_x,topk=synapse.topk,model_output=model_output)
+
                 
 
-            if len(response) == 3:
-                
-                message, model_output, topk_token_phrases = response
-            else:
-                return self.forward_casual_lm_next(inputs_x=inputs_x, synapse=synapse, model_output=model_output, max_trials=max_trials-1)
-            
+            message, model_output, topk_token_phrases = response
+
         # topk_token_phrases: [sum_b(sum_k(len(phrase_k) + 1)_b)] contains topk token phrases and probabilities
         #   Compacted 1-D tensor >= batch_size * (2 * topk + 1)
         return message, model_output, topk_token_phrases

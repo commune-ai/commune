@@ -1123,6 +1123,13 @@ class BittensorModule(c.Module):
     @classmethod
     def deploy_servers(cls, num_servers=3):
         return cls.server_class.deploy_servers()
+    
+    @classmethod
+    def server_fleet(cls, model='server'):
+        for gpu in cls.gpus():
+            device = f'cuda:{gpu}'
+            cls.deploy_server(device=device, tag=gpu)
+    
     @classmethod
     def deploy_server(cls, 
                       name= None,
@@ -1148,7 +1155,6 @@ class BittensorModule(c.Module):
             
         config.neuron.device = device
         config.neuron.local_train = False
-        assert isinstance(tag, int), f'tag {tag} is not an int'
         
         if name == None:
             name = f'server::{model_name}::{tag}'
@@ -1158,7 +1164,10 @@ class BittensorModule(c.Module):
         server_class.deploy( kwargs=dict(config=config), name=name)
         
     @classmethod
-    def add_servers(cls, n = 3, prefix='server'):
+    def add_servers(cls, 
+                    model = 'fish',
+                    n = 3,
+                    prefix='server'):
         tag = 0
         deployed_names =  []
         free_gpu_memory = cls.free_gpu_memory()
@@ -1167,15 +1176,12 @@ class BittensorModule(c.Module):
             gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
             device = f'cuda:{gpu}'
             free_gpu_memory[gpu] = 0
-            name = f'{prefix}::{tag}'
-            while cls.module_exists(name) :
+            name = f'{prefix}::{model}::{tag}'
+            while cls.module_exists(name) or name in deployed_names :
                 tag+=1
-                name = f'{prefix}::{tag}'
-                if name in deployed_names:
-                    continue
-                break
-            
-            cls.deploy_server(name=name, device=device)
+                name = f'{prefix}::{model}::{tag}'
+            c.print(f'deploying server {name} on gpu {device}')
+            cls.deploy_server(name=name, device=device, model_name=model)
             deployed_names.append(name)
     # add_server = deploy_server
     

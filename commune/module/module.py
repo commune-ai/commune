@@ -963,8 +963,10 @@ class Module:
             
     
     @classmethod
-    def kill_all(cls):
-        cls.kill_all_servers()
+    def kill_all(cls, search):
+        for module in cls.modules():
+            if search in module:
+                cls.kill(module)
 
 
     @classmethod
@@ -3503,6 +3505,17 @@ class Module:
         return next(model.parameters()).device
     
     
+    @classmethod
+    def update_loop(cls, period=20, remote=True):
+        if remote:
+            return cls.remote_fn('update_loop', kwargs=dict(period=period, remote=False), name='update_loop')
+        while True:
+            cls.print('Updating...', color='yellow')
+            modules = cls.modules()
+            cls.print(f'Modules (n): {modules}', color='cyan')
+            cls.print(modules, color='purple')
+            cls.update()
+            cls.sleep(period)
     def model_size(self, **kwargs ):
         return self.get_model_size(model=self, **kwargs)
     
