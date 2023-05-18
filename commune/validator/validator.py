@@ -34,7 +34,6 @@ class Validator(c.Model):
         if config.load:
             self.load(self.tag)
 
-        self.set_network(config.network)
         self.set_models(models=config.models, network=config.network, update=config.update)
         self.set_dataset(config.dataset)
         self.set_tokenizer(config.tokenizer)
@@ -44,14 +43,6 @@ class Validator(c.Model):
 
     namespace_update_ts =0
     _namespace = None
-    
-    def set_network(self, network):
-        current_time = self.time()
-        # 
-        if current_time - self.namespace_update_ts> self.config.namespace_update_interval:
-            self.namespace_update_ts = self.time()
-            self._namespace = c.namespace(network=self.config.network,update=False )
-        self.namespace = c.namespace(network=self.config.network,update=False )
     
 
     def set_dataset(self, dataset):
@@ -277,12 +268,14 @@ class Validator(c.Model):
     loop = None
     
     def set_models(self, 
-                   models: Union[str, List[str]] = 'model' ,
+                   models: Union[str, List[str]] = None ,
                    network:str = None,
                    update:bool=False, ) -> List[str]:
 
-
+        models = models if models != None else self.config.models
         network = network if network != None else self.config.network 
+        
+        self.namespace = c.namespace(network=network, update=update)
             
         if isinstance(models, list):
             for m in models:
@@ -291,7 +284,7 @@ class Validator(c.Model):
         elif isinstance(models, str):    
             models = [m for m in self.namespace.keys() if m.startswith(models)]
             
-        self.available_models = models
+        self.models = models
         return models
 
     def calculate_weights(self, w):
@@ -365,14 +358,13 @@ class Validator(c.Model):
     def get_models(self, max_models:int) -> List[str]:
 
 
-        available_models = self.available_models
+        
         # shuffle to avoid overloading the first model
         
         # TODO: add a way to shuffle models
-        available_models = self.shuffle(available_models)
-        
+        models = self.shuffle(self.models)
         # max call size is the number of models that can be called per forward pass
-        called_models = self.copy(self.available_models[:self.config.max_models_per_call])
+        called_models = self.copy(models[:self.config.max_models_per_call])
         
         return called_models
         
@@ -392,6 +384,7 @@ class Validator(c.Model):
                 retries: int = 4,
                 tag = None,
                 save = True,
+                return_keys = ['logits', 'hidden_state', 'topk'],
                 **kwargs ):
         
         
@@ -437,7 +430,7 @@ class Validator(c.Model):
             
         
         stats = {
-                'models_available': len(available_models),
+                'models_available': len(self.models),
                 'models_called':len(called_models),
                 'models_failed': [],
                 'inference_time': timer.seconds,
@@ -508,10 +501,28 @@ class Validator(c.Model):
         if save:
             self.save(tag=tag)
         
-        if verbose:
-            self.print(stats)
+        if 'topk' in return_keys:
+            ensemble_output['topk'] = self.encode_topk(ensemble_output['logits'], topk=topk)
             
-        return Munch(ensemble_output)
+        ensemble_output = {k:ensemble_output[k] for k in return_keys}
+        
+        return ensemble_outputs
+
+    @staticmethod
+    def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
+        """ Returns topk tokens/probabilities given unnormalized logits as input. """
+
+        #import ipdb; ipdb.set_trace()
+
+        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
+        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
+
+        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
+
+        topk_values = probs.gather( index=topk_indices, dim=-1)
+        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
+        return encoded_probs  # [batch_size, sequence_len, topk + topk]
 
     def save(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.save(self, tag=tag, verbose=verbose, keys=keys)
@@ -743,76 +754,118 @@ class Validator(c.Model):
         return cls.remote_fn(fn='miner',name='miner',  kwargs=kwargs)
     
     
-    
     @classmethod
-    def miner(cls, 
-               model =  None,
+    def mine(cls, 
                wallet='collective.0',
+               model:str= 'validator',
                network = 'finney',
                netuid=3,
-               port = 9269,
-               prometheus_port = 8269,
+               port = None,
+               device = None,
+               prometheus_port = None,
                debug = True,
                no_set_weights = True,
-               remote:bool = True,
+               remote:bool = False,
                tag=None,
+               sleep_interval = 2,
+               autocast = True,
+               burned_register = False,
+               max_fee = 2.0,
                ):
-        
         if tag == None:
             tag = f'{wallet}::{network}::{netuid}'
         if remote:
             kwargs = cls.locals2kwargs(locals())
             kwargs['remote'] = False
-            return cls.remote_fn(fn='miner',name=f'miner::{wallet}',  kwargs=kwargs)
+            return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
-        
-        if model == None:
-            model = cls(tag=tag)
-        elif isinstance(model, str):
-            model = c.module(model)()
-        else:
-            raise ValueError(f'Invalid model type: {type(model)}')
-        
-
-        assert not cls.port_used(port), f'Port {port} is already in use.'
-  
-        
         config = bittensor.neurons.core_server.neuron.config()
+        # model things
         config.neuron.no_set_weights = no_set_weights
-        config.axon.port = port 
-        config.prometheus.port = config.axon.prometheus['port'] = prometheus_port if prometheus_port is not None else cls.free_port()
-        config.netuid = netuid
-        config.logging.debug = debug
-        config.neuron.pretrained = False
         
-        
-        
-        model = cls()
+        # network
         subtensor = bittensor.subtensor(network=network)
-        
-        # server_class = bittensor.neurons.core_server.server
-        server_class = cls.import_object('commune.bittensor.neuron.core_server.server')
-        server = server_class(model=model, config=config)
         bittensor.utils.version_checking()
     
+        # wallet
         coldkey, hotkey = wallet.split('.')
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         
-        import time
-        sleep_interval = 2
-        while not wallet.is_registered(subtensor= subtensor, netuid=  netuid):
-            time.sleep(sleep_interval)
-            cls.print(f'Pending Registration {wallet} Waiting {sleep_interval}s ...')
+        if wallet.is_registered(subtensor=subtensor, netuid=netuid):
+            cls.print(f'wallet {wallet} is already registered')
+            neuron = c.module('bittensor').get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
+            port = neuron.axon_info.port
+            prometheus_port = neuron.prometheus_info.port
+        else:
+            cls.ensure_registration(wallet=wallet, 
+                                    subtensor=subtensor, 
+                                    netuid=netuid,
+                                    max_fee=max_fee,
+                                    burned_register=burned_register, 
+                                    sleep_interval=sleep_interval)
+                        
+
+        # enseure ports are free
+        # axon port
+        port = port if port is not None else cls.free_port()
+        config.axon.port = port
+        while cls.port_used(config.axon.port):
+            config.axon.port += 1    
             
-        cls.print(f'Wallet {wallet} is registered on {network}')
+        # ensure prometheus port
+        config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None else prometheus_port         
+        while cls.port_used(config.prometheus.port):
+            config.prometheus.port += 1
+            
+            
+        # neuron things
+        config.neuron.autocast = autocast  
+        if device is None:
+            device = cls.most_free_gpu()
+
+
+        if cls.module_exists(model):
+            module =  cls.module(model)
+            neuron = module.neuron(wallet=wallet, subtensor=subtensor, config=config, netuid=netuid)
+        else:
+            model_size = cls.get_model_size(model)
+            free_gpu_memory = cls.free_gpu_memory()
+            if free_gpu_memory[device] < model_size:
+                device = cls.most_free_gpu()
+            assert free_gpu_memory[device] > model_size, f'Not enough memory on device {device} to load model {model} of size {model_size}'
+            config.neuron.device = f'cuda:{device}'
+            config.neuron.model = model
+        
+            neuron = bittensor.neurons.core_server.neuron(wallet=wallet,
+                                                        subtensor=subtensor,
+                                                        config=config,
+                                                        netuid=netuid)
+            
+        neuron.run()
+                                                
+
+ 
              
              
-        bittensor.neurons.core_server.neuron(model=server, 
+        
+
+
+    @classmethod
+    def neuron(cls, config, wallet, subtensor, netuid=3, **kwargs):
+       
+        # server_class = bittensor.neurons.core_server.server
+        server_class = cls.import_object('commune.bittensor.neuron.core_server.server')
+        model = cls(**kwargs)
+        server = server_class(model=model, config=config, tokenizer=model.tokenizer)
+        bittensor.utils.version_checking()
+        
+        neuron = bittensor.neurons.core_server.neuron(model=server, 
                wallet=wallet,
                subtensor=subtensor,
                config=config,
-               netuid=netuid).run()
-
+               netuid=netuid)
+        
+        return neuron
 
 
 

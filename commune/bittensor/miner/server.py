@@ -5,8 +5,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from types import SimpleNamespace
-from typing import Tuple, Optional, Union
-
+from typing import Tuple, Optional
+import os
 import transformers
 from transformers import AutoModel,AutoTokenizer,AutoConfig, AutoModelForCausalLM
 from torch.nn.utils.rnn import pad_sequence
@@ -14,8 +14,59 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
     translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases
 
 from loguru import logger; logger = logger.opt(colors=True)
+import commune as c
 
-class server(torch.nn.Module):
+
+
+shortcuts =  {
+    # 0-1B models
+    'gpt125m': 'EleutherAI/gpt-neo-125m',
+
+    # 1-3B models
+    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+    'opt1.3b': 'facebook/opt-1.3b',
+    'opt2.7b': 'facebook/opt-2.7b',
+    # 'gpt3btuning' : ''
+
+    # 0-7B models
+    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+    'gptj': 'EleutherAI/gpt-j-6b',
+    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
+    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
+    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+    'opt6.7b': 'facebook/opt-6.7b',
+    'llama': 'decapoda-research/llama-7b-hf',
+    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
+    # # > 7B models
+    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+    'gptneox': 'EleutherAI/gpt-neox-20b',
+    'gpt20b': 'EleutherAI/gpt-neox-20b',
+    'opt13b': 'facebook/opt-13b',
+    'gpt13b': 'cerebras/Cerebras-GPT-13B',
+    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
+    'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
+    'fish': os.path.expanduser('~/fish_model'),
+    
+        }
+
+
+
+
+class server(c.Module,torch.nn.Module):
+    shortcuts = shortcuts
     def __init__(self, 
                 config: 'bittensor.config' = None,
                 pretrained: bool = None,
@@ -27,6 +78,7 @@ class server(torch.nn.Module):
                 tokenizer = None,
                 mapping_function = None,
                 token_remap = None,
+                device = None,
                 checking= None):
         r"""" Creates a server that serves up a pretrained miner on the bittensor network
         Args:
@@ -53,35 +105,80 @@ class server(torch.nn.Module):
                 token_remap (:obj:Callable, `optional`):
                     Custom function that maps between tokenizers (defaults to self.remapping_token)
         """
-        super(server, self).__init__()
-        self.model = model if model else None
+        torch.nn.Module.__init__(self)
         if config == None: config = server.config()
-        self.config = config
-        self.device = config.neuron.device
-        self.pretrained = pretrained if pretrained else config.neuron.pretrained
+        
+        if isinstance(config, dict):
+            config = c.munch(config)
+        self.config = config;c.print(config)
+        self.std_tokenizer = bittensor.tokenizer()
+        
+        
 
         #setting up pretrained model
+        model_name = model_name if model_name != None else config.neuron.model_name
+        self.model_name  = self.shortcuts.get(model_name , model_name )
 
-        self.set_model(model=model, model_name=model_name, tokenizer=tokenizer)
-        self.std_tokenizer = bittensor.tokenizer()
+        self.pretrained = pretrained if pretrained != None else config.neuron.pretrained
+        if self.pretrained == True:
+            self.pre_model = model if model != None else AutoModelForCausalLM.from_pretrained(self.model_name)
+            self.tokenizer = tokenizer
+            if tokenizer is None:
+                try:
+                    self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                except ValueError:  # when fast not available as in https://github.com/huggingface/tokenizers/pull/1005
+                    self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=False)
+
+        elif self.pretrained == False:
+            model_config = AutoConfig.from_pretrained(self.model_name)
+            model_config.vocab_size= bittensor.__vocab_size__
+            self.pre_model = model if model != None else AutoModel.from_config(model_config)
+            self.tokenizer = bittensor.tokenizer()
+
+        # Define PAD Token = EOS Token (GPT2 generate convention, when PAD Token is None)
+        # https://github.com/huggingface/transformers/blob/49c8c67fb815a277405f84dea4a66353e19fb347/tests/models/gpt2/test_modeling_gpt2.py#L532
+        if self.pre_model.config.pad_token_id is None and self.pre_model.config.eos_token_id is not None:
+            self.pre_model.config.pad_token_id = self.pre_model.config.eos_token_id
+
         self.tokenizer = prep_tokenizer(self.tokenizer, self.std_tokenizer)
         self.to_translation_map = get_translation_map(self.tokenizer, self.std_tokenizer)
         self.from_translation_map = get_translation_map(self.std_tokenizer, self.tokenizer)
         self.split_map_cache = {}
 
         if self.config.neuron.local_train or self.config.neuron.remote_train:
-            self.model.train()
-            self.set_finetune()
+            self.pre_model.train()
+            self.set_fine_tuning_params()
 
         else:
-            self.model.eval()
+            self.pre_model.eval()
+
+
+        device = device if device != None else config.neuron.device
+        
+        if 'cuda' in device:
+            gpu = int(device.split(':')[1]) if device.split(':')[1] != '' else 0
+            free_gpu_memory = self.free_gpu_memory()
+            model_size = self.get_model_size(self.model_name )
+            if free_gpu_memory[gpu] < model_size:
+                gpu = cls.most_free_gpu()
+                assert free_gpu_memory[gpu] > model_size, "Not enough free memory on any GPU to load model. Try reducing the batch size."
+            device = f'cuda:{gpu}'
+        else:
+            device = 'cpu'
+            
+        self.device = device
+                
+        
+
 
         if self.config.neuron.autocast and self.device[:4] == 'cuda':
-            self.model.half()
-
+            self.pre_model.half()
+            
+            
+        self.pre_model.to(self.device)
         #parameters of the models
         self.final_dim =  bittensor.__network_dim__
-        self.pre_dimension = self.model.config.hidden_size if hasattr(self.model.config, 'hidden_size') else None
+        self.pre_dimension = self.pre_model.config.hidden_size
         self.padding = padding if padding != None else config.neuron.padding
         self.interpolate = interpolate if interpolate != None else config.neuron.interpolate
         self.inter_degree = inter_degree if inter_degree != None else config.neuron.inter_degree
@@ -89,10 +186,11 @@ class server(torch.nn.Module):
         self.mapping_function= mapping_function
         self.token_remap = token_remap if token_remap is not None else self.remapping_token
 
-        # for a linear padding you need the pre_dimension to be valid as self.model.config.hidden_size
-        if self.config.neuron.padding == False and self.pre_dimension:
+
+        if self.config.neuron.padding == False:
             self.mapping = torch.nn.Linear( self.pre_dimension, self.final_dim)
 
+        self.decoder = torch.nn.Linear( self.final_dim, bittensor.__vocab_size__ , bias=False)
         self.loss_fct = torch.nn.CrossEntropyLoss()
         
         self.outputs_cache = None
@@ -107,40 +205,10 @@ class server(torch.nn.Module):
         # -- keeps track of gradients applied
         self.backward_gradients_count = 0 
         self.remote_losses = [] 
-
-
-    def set_model(self, model:str, model_name:str = None, tokenizer: str = None):
         
-        self.model_name = model_name if model_name != None else self.config.neuron.model_name
+        
 
-        # if model is "grpc::model_path"
-
-        if self.pretrained == True:
-            self.model = model if model  else AutoModelForCausalLM.from_pretrained(self.model_name)
-            
-            tokenizer = model.tokenizer if hasattr(self.model, 'tokenizer') else tokenizer
-            
-            if tokenizer is None:
-                try:
-                    tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-                except ValueError:  # when fast not available as in https://github.com/huggingface/tokenizers/pull/1005
-                    tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=False)
-
-        elif self.pretrained == False:
-            model_config = AutoConfig.from_pretrained(self.model_name)
-            model_config.vocab_size= bittensor.__vocab_size__
-            self.model = model if model != None else AutoModel.from_config(model_config)
-            tokenizer = bittensor.tokenizer()
-
-        # Define PAD Token = EOS Token (GPT2 generate convention, when PAD Token is None)
-        # https://github.com/huggingface/transformers/blob/49c8c67fb815a277405f84dea4a66353e19fb347/tests/models/gpt2/test_modeling_gpt2.py#L532
-        if self.model.config.pad_token_id is None and self.model.config.eos_token_id is not None:
-            self.model.config.pad_token_id = self.model.config.eos_token_id
-
-        self.tokenizer = tokenizer
-
-
-    def set_finetune(self) -> Tuple[bool, str]:
+    def set_fine_tuning_params(self) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):
@@ -178,7 +246,7 @@ class server(torch.nn.Module):
             return None     
 
         if self.config.neuron.finetune.layer_name == None:
-            last_layer_name = find_last_layer(self.model)
+            last_layer_name = find_last_layer(self.pre_model)
         else:
             last_layer_name = self.config.neuron.finetune.layer_name
 
@@ -190,7 +258,7 @@ class server(torch.nn.Module):
 
         logger.success(f'Set to finetune layer {last_layer_name} and onwards')
         
-        for name, param in self.model.named_parameters():
+        for name, param in self.pre_model.named_parameters():
             if last_layer_name in name or reached_last_layer == True:
                 param.requires_grad = True
                 reached_last_layer = True
@@ -251,14 +319,14 @@ class server(torch.nn.Module):
                     Decoded predictions of the next token in the sentence.
 
         """
-        message, model_output, decoded_targets = self._forward(inputs, tokenizer)
+        message, model_output, decoded_targets = self.local_forward(inputs, tokenizer)
         shift_logits = decoded_targets[..., :-1, :].contiguous()
         shift_labels = inputs[..., 1:].contiguous()
         loss = self.loss_fct( shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1) )
 
         return loss, decoded_targets
 
-    def _forward(self, token_batch, tokenizer=None, encode_len=bittensor.__network_dim__, model_output = None):
+    def local_forward(self, token_batch, tokenizer=None, encode_len=bittensor.__network_dim__, model_output = None):
         r""" Forward pass through the pretrained model and possible mappings between hidden units.
              The response tensor should be the hidden units computed using the local context and
              with shape: [batch_size, sequence_len, __vocab_size__].
@@ -283,15 +351,16 @@ class server(torch.nn.Module):
         tokens = self.token_remap(token_batch, std_tokenizer=tokenizer, return_offsets_mapping=True)  # remap to server tokenizer
         if model_output == None:
             if self.config.neuron.local_train:
-                model_output = self.model(input_ids=tokens['input_ids'],
+                model_output = self.pre_model(input_ids=tokens['input_ids'],
                                                 attention_mask=tokens['attention_mask'],
                                                 output_hidden_states=True)
             else:
                 with torch.no_grad():
-                    model_output = self.model(input_ids=tokens['input_ids'],
+                    model_output = self.pre_model(input_ids=tokens['input_ids'],
                                                     attention_mask=tokens['attention_mask'],
                                                     output_hidden_states=True)
 
+            self.model_output_check(model_output)
         return None, model_output, model_output.logits
     
     def encode_forward(self,inputs,tokenizer=None, model_output = None):
@@ -313,23 +382,24 @@ class server(torch.nn.Module):
                 encoded_hidden (:type:`torch.Tensor`, `required`)
                     The hidden layer output as a torch tensor of shape [batch_size, sequence_len, __network_dim__ ]
         """
-        # transformers.set_seed(0)
-        # transformers.enable_full_determinism(0)
+        transformers.set_seed(0)
+        transformers.enable_full_determinism(0)
 
         sen_len = inputs.size()
         tokens = self.token_remap(inputs, tokenizer)  # remap to server tokenizer
 
         if model_output == None:
             if self.config.neuron.remote_train:
-                model_output = self.model(input_ids=tokens['input_ids'],
+                model_output = self.pre_model(input_ids=tokens['input_ids'],
                                                 attention_mask=tokens['attention_mask'],
                                                 output_hidden_states=True)
             else:
                 with torch.no_grad():
-                    model_output = self.model(input_ids=tokens['input_ids'],
+                    model_output = self.pre_model(input_ids=tokens['input_ids'],
                                                     attention_mask=tokens['attention_mask'],
                                                     output_hidden_states=True)
 
+        self.model_output_check(model_output)
         pre_hidden = model_output.hidden_states[-1]
 
         if self.interpolate and sen_len[1] != pre_hidden.size()[1]:
@@ -376,14 +446,13 @@ class server(torch.nn.Module):
         tokens = self.token_remap(token_batch, std_tokenizer=tokenizer, return_offsets_mapping=True)  # remap to server tokenizer
 
         def _forward(_model_output=model_output):
-            
             if _model_output is None:
                 # transformer models like gerpt2 typically perform worse with left-side attention mask, so turning it off
-                _model_output = self.model(input_ids=tokens['input_ids'],
+                _model_output = self.pre_model(input_ids=tokens['input_ids'],
                                                 #attention_mask=tokens['attention_mask'],
                                                output_hidden_states=True)
+                self.model_output_check(_model_output)
             pre_logits = _model_output.logits  # [batch_size, sequence_len, self.tokenizer.vocab_len]
-
             probs_std = translate_logits_to_probs_std(pre_logits,
                                                       tokens['offset_mapping'], tokens['offset_mapping_std'],
                                                       self.tokenizer, self.std_tokenizer,
@@ -392,7 +461,6 @@ class server(torch.nn.Module):
                                                       tokens['input_ids'], token_batch)
             probs_std = probs_std.to(self.device)
             logits_std = torch.log(probs_std + 1e-40)
-
             #removing the loss calculation for stablity testing
             original_loss = self.get_loss_fct(pre_logits, tokens['input_ids']).item()
             translated_loss = self.get_loss_fct(logits_std, token_batch).item()
@@ -406,7 +474,7 @@ class server(torch.nn.Module):
         with torch.no_grad():
             return _forward()  # no gradients
 
-    def encode_forward_causallmnext(self, token_batch, std_tokenizer=None, topk: int = 4096, model_output=None, **kwargs):
+    def encode_forward_causallmnext(self, token_batch, std_tokenizer=None, topk: int = 4096, model_output=None):
         r"""
         Forward pass through the pretrained model and select topk tokenizer logits and retokenize with std_tokenizer,
         then compact new token phrases and probabilities
@@ -441,56 +509,62 @@ class server(torch.nn.Module):
                       [prob_floor_b=1, ignore_index, ..., ignore_index]],
                      [...]]
         """
-        # transformers.set_seed(0)
-        # transformers.enable_full_determinism(0)
+        transformers.set_seed(0)
+        transformers.enable_full_determinism(0)
         
         if std_tokenizer is None:
             std_tokenizer = self.std_tokenizer
-
+        token_batch = token_batch.to(self.device)
         tokens = self.token_remap(token_batch, std_tokenizer)
+        for k, v in tokens.items():
+            if isinstance(v, torch.Tensor):
+                tokens[k] = v.to(self.device)
 
         def _forward(_model_output=model_output):
             if _model_output is None:
-                _model_output = self.model(input_ids=tokens['input_ids'],
+                _model_output = self.pre_model(input_ids=tokens['input_ids'],
                                                attention_mask=tokens['attention_mask'],
-                                               output_hidden_states=True, **kwargs)
-
-            
+                                               output_hidden_states=True)
+                self.model_output_check(_model_output)
             # model_output.logits: [batch_size, sequence_len, server_vocab_size]
-            
-            if hasattr(_model_output, 'topk'):
-                assert hasattr(_model_output, 'topk')
-                if len(_model_output.topk.shape) == 4:
-                    topk_tensor = _model_output.topk[:, -1 , :,  :]
-                
-                elif len(_model_output.topk.shape) == 3:
-                    topk_tensor = _model_output.topk
-                else:
-                    raise NotImplementedError(len(_model_output.topk.shape))
-                # difficult to have relay calculate loss as we do not know the future GT
-                message = 'Relay Enabled'
-                
-            elif hasattr(_model_output, 'logits') and getattr(_model_output, 'logits') != None:
-                last_logits = _model_output.logits[:, -1, :]  # [batch_size] server prediction of continuation, right-aligned
+            last_logits = _model_output.logits[:, -1, :]  # [batch_size] server prediction of continuation, right-aligned
 
-                # Select topk tokenizer logits and retokenize with std_tokenizer,
-                # then compact new token phrases and probabilities into 1-D tensor
-                topk_tensor = topk_token_phrases(last_logits, self.tokenizer, topk=topk)  # [batch_size, (topk + 1), max_len]
+            # Select topk tokenizer logits and retokenize with std_tokenizer,
+            # then compact new token phrases and probabilities into 1-D tensor
+            topk_tensor = topk_token_phrases(last_logits, self.tokenizer, topk=topk)  # [batch_size, (topk + 1), max_len]
 
-                original_loss = self.get_loss_fct(_model_output.logits.to(self.device), tokens['input_ids'][:, -_model_output.logits.shape[1]:].to(self.device)).item()
-                message = f'Loss: {original_loss:.2f}'
-                _model_output.loss = original_loss
-            else:
-                raise ValueError('model_output must have either logits or topk attribute')
+            original_loss = self.get_loss_fct(_model_output.logits, tokens['input_ids']).item()
 
-                
-            return message, _model_output, topk_tensor
+            message = f'Loss: {original_loss:.2f}'
+
+            _model_output.loss = original_loss
+            return [message, self.munch({}), topk_tensor]
 
         if self.config.neuron.remote_train:
             return _forward()  # track gradients for training
 
         with torch.no_grad():
             return _forward()  # no gradients
+
+    def model_output_check(self, model_output: transformers.modeling_outputs.CausalLMOutputWithPast):
+        """
+            Verify the model has been ran correctly with valid output.
+
+            Args:
+                model_output (:obj:`transformers.modeling_outputs.CausalLMOutputWithPast`, required):
+                    The output of transformers AutoModel.
+
+            Returns:
+                check_status (:type: `bool`):
+                    True if the model_output is valid.
+        """
+        if hasattr(model_output, 'hidden_states') and model_output.hidden_states[-1].isnan().sum() > 0:
+            raise ValueError("Got nan value from model last hidden state. If you are using cuda with autocast, try remove setting --neuron.autocast.")
+
+        if model_output.logits.isnan().sum() > 0:
+            raise ValueError("Got nan value from model logits. If you are using cuda with autocast, try remove setting --neuron.autocast.")
+
+        return True
 
     def get_loss_fct(self, logits: torch.FloatTensor, labels: torch.LongTensor) -> torch.FloatTensor:
         """
@@ -507,7 +581,6 @@ class server(torch.nn.Module):
         """
         shift_logits = logits[..., :-1, :].contiguous()
         shift_labels = labels[..., 1:].contiguous()
-        
         loss = self.loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
         return loss
@@ -515,13 +588,16 @@ class server(torch.nn.Module):
     def check(self):
         r"""Checks the server settings
         """
+        assert self.tokenizer.name_or_path == self.pre_model.name_or_path, 'incorrect model ({}) and tokenizer ({})'.format(self.pre_model.name_or_path,self.tokenizer.name_or_path)
         if self.interpolate == False:
             assert self.mapping_function != None, 'Incorrect Settings; needs atleast one mapping function for sequence length changes'
 
     def save(self, path):
         try:
             state_dict = {
-                'pretrained_model': self.model.state_dict(), 
+                'model': self.pretrained,
+                'pretrained_model': self.pre_model.state_dict(), 
+                'decoder': self.decoder.state_dict(),
                 'best_loss': self.best_loss,
                 'best_remote_loss': self.best_remote_loss,
             }
@@ -536,7 +612,8 @@ class server(torch.nn.Module):
         try:
             state_dict=  torch.load("{}/model.torch".format( path ))
             if self.pretrained == state_dict['model']:
-                self.model.load_state_dict(state_dict['pretrained_model'], strict=False)
+                self.pre_model.load_state_dict(state_dict['pretrained_model'], strict=False)
+                self.decoder.load_state_dict(state_dict['decoder'])
                 if self.padding == False:
                     self.mapping.load_state_dict(state_dict['mapping'])
                 self.best_loss = state_dict['best_loss']
@@ -557,7 +634,7 @@ class server(torch.nn.Module):
         parser.add_argument('--neuron.momentum', type=float, help='optimizer momentum.', default=0.8)
         parser.add_argument('--neuron.clip_gradients', type=float, help='Implement gradient clipping to avoid exploding loss on smaller architectures.', default=1.0)
         parser.add_argument('--neuron.device', type=str, help='miner default training device cpu/cuda', default=("cuda" if torch.cuda.is_available() else "cpu"))
-        parser.add_argument('--neuron.model_name', type=str, help='pretrained model from hugging face',default='EleutherAI/gpt-j-6b')
+        parser.add_argument('--neuron.model_name', type=str, help='pretrained model from hugging face',default='gpt2')
         parser.add_argument('--neuron.pretrained', action='store_false', help='if the model should be pretrained',default=True)
         parser.add_argument('--neuron.padding', action='store_false', help='To pad out final dimensions',default=True)
         parser.add_argument('--neuron.interpolate', action='store_false', help='To interpolate between sentence length',default=True)
@@ -583,6 +660,9 @@ class server(torch.nn.Module):
         parser.add_argument('--neuron.disable_blacklist', action='store_true', help='Turns off blacklisting', default=False)
         parser.add_argument('--neuron.disable_priority', action='store_true', help='Turns off priority threadpool', default=False)
         parser.add_argument('--neuron.num_remote_loss', type=int, help='Number of past remote loss to keep in stat.', default=20)
+        parser.add_argument('--neuron.max_batch_size', type=int, help='The maximum batch size for forward requests.', default=-1)
+        parser.add_argument('--neuron.max_sequence_len', type=int, help='The maximum sequence length for forward requests.', default=-1)
+        parser.add_argument('--neuron.blacklist.hotkeys', type=str, required=False, nargs='*', action='store', help='To blacklist certain hotkeys', default=[])
 
         # Synapse Arguements
         parser.add_argument('--neuron.lasthidden', action='store_false', help='To turn off last hidden synapse', default=True)
@@ -593,8 +673,9 @@ class server(torch.nn.Module):
         parser.add_argument('--neuron.causallm_stake',  type = float, help='the amount of stake to run causallm synapse',default=0)
         parser.add_argument('--neuron.causallmnext_stake', type=float, help='the amount of stake to run causallmnext synapse', default=0)
         parser.add_argument('--neuron.seq2seq_stake',  type = float, help='the amount of stake to run seq2seq synapse',default=0)
-        parser.add_argument('--neuron.wait_until_registered', action='store_true', help='loop until the key is registered',default=True)
 
+        # Netuid Arg
+        parser.add_argument('--netuid', type=int , help='Subnet netuid', default=1)
 
         bittensor.wallet.add_args( parser )
         bittensor.axon.add_args( parser )
@@ -606,3 +687,15 @@ class server(torch.nn.Module):
         bittensor.metagraph.add_args( parser )
         bittensor.prometheus.add_args( parser )
         return bittensor.config( parser )
+
+    @classmethod
+    def test(cls):
+        dataset = c.module('dataset')
+        sample = dataset.sample()
+        self = cls()
+        sample = self.encode_forward_causallmnext(sample['input_ids'])
+        cls.print('passed')
+if __name__ == "__main__":
+    r""" Main entry point into the miner CLI.
+    """
+    server.run()

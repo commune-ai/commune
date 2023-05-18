@@ -21,12 +21,13 @@ Example:
     $ import neurons
     $ neurons.text.core_server.neuron().run()
 """
-import commune
+
 import bittensor
 import os
 import sys
 
-from .nucleus_impl import server
+from .server import server
+from prometheus_client import Counter, Gauge, Histogram, Summary, Info, CollectorRegistry
 from threading import Lock
 from loguru import logger; logger = logger.opt(colors=True)
 import time
@@ -44,8 +45,9 @@ from torch.nn.utils import clip_grad_norm_
 from rich import print
 from rich.console import Console
 from rich.style import Style
+import commune as c
 
-class neuron:
+class neuron(c.Module):
     r"""
     Creates a bittensor neuron that specializes in the serving. The template server miner
     serves a NLP model from huggingface on the bittensor network. By default, the model does 
@@ -133,7 +135,13 @@ class neuron:
             logging_dir = config.neuron.full_path,
         )
 
-
+        # --- Setup prometheus summaries.
+        # These will not be posted if the user passes --prometheus.level OFF
+        registry = CollectorRegistry()
+        self.prometheus_counters = Counter('neuron_counters', 'Counter sumamries for the running server-miner.', ['neuron_counters_name'], registry=registry)
+        self.prometheus_guages = Gauge('neuron_guages', 'Guage sumamries for the running server-miner.', ['neuron_guages_name'], registry=registry)
+        self.prometheus_info = Info('neuron_info', "Info sumamries for the running server-miner.", registry=registry)
+        self.config.to_prometheus()
 
         if self.config.netuid == None and self.config.subtensor.network != 'nakamoto':
             subtensor = bittensor.subtensor(config = config) if subtensor == None else subtensor
@@ -148,7 +156,7 @@ class neuron:
 
         self.config.neuron.max_batch_size = self.subtensor.validator_batch_size(netuid=self.config.netuid) if self.config.neuron.max_batch_size == -1 else self.config.neuron.max_batch_size
         self.config.neuron.max_sequence_len = self.subtensor.validator_sequence_length(netuid=self.config.netuid) if self.config.neuron.max_sequence_len == -1 else self.config.neuron.max_sequence_len
-        
+
         if axon == None:
             axon = bittensor.axon(
                 config = config,
@@ -164,8 +172,15 @@ class neuron:
             )
         self.axon = axon
         self.query_data = {}
-        commune.print(config)
         
+        # Init prometheus.
+        # By default we pick the prometheus port to be axon.port - 1000 so that we can match port to server.
+        bittensor.prometheus ( 
+            config = config,
+            wallet = self.wallet,
+            netuid = self.config.netuid,
+            port = config.prometheus.port if config.axon.port == bittensor.defaults.axon.port else config.axon.port - 1000
+        )
 
         # Verify subnet exists
         if self.config.subtensor.network != 'nakamoto' and not self.subtensor.subnet_exists( netuid = self.config.netuid ):
@@ -187,6 +202,7 @@ class neuron:
         bittensor.dataset.check_config( config )
         bittensor.axon.check_config( config )
         bittensor.wandb.check_config( config )
+        bittensor.prometheus.check_config( config )
         full_path = os.path.expanduser('{}/{}/{}/netuid{}/{}'.format( config.logging.logging_dir, config.wallet.get('name', bittensor.defaults.wallet.name), config.wallet.get('hotkey', bittensor.defaults.wallet.hotkey), config.netuid, config.neuron.name ))
         config.neuron.full_path = os.path.expanduser(full_path)
         if not os.path.exists(config.neuron.full_path):
@@ -208,7 +224,16 @@ class neuron:
             momentum = self.config.neuron.momentum,
         )
 
-
+        self.prometheus_guages.labels( 'model_size_params' ).set( sum(p.numel() for p in self.model.parameters()) )
+        self.prometheus_guages.labels( 'model_size_bytes' ).set( sum(p.element_size() * p.nelement() for p in self.model.parameters()) )
+        self.prometheus_info.info ({
+            'type': "core_server",
+            'uid': str(self.metagraph.hotkeys.index( self.wallet.hotkey.ss58_address )),
+            'netuid': self.config.netuid,
+            'network': self.config.subtensor.network,
+            'coldkey': str(self.wallet.coldkeypub.ss58_address),
+            'hotkey': str(self.wallet.hotkey.ss58_address),
+        })
 
         # Create our axon server and subscribe it to the network.
         self.axon.start().serve(subtensor=self.subtensor)
@@ -327,6 +352,14 @@ class neuron:
                 wandb.log( { **data, **wandb_info_axon, **local_data }, step = current_block )
                 wandb.log( { 'stats': wandb.Table( dataframe = df ) }, step = current_block )
 
+            # === Prometheus logging.
+            self.prometheus_guages.labels("stake").set( nn.stake )
+            self.prometheus_guages.labels("rank").set( nn.rank )
+            self.prometheus_guages.labels("trust").set( nn.trust )
+            self.prometheus_guages.labels("consensus").set( nn.consensus )
+            self.prometheus_guages.labels("validator_trust").set( nn.validator_trust )
+            self.prometheus_guages.labels("incentive").set( nn.incentive )
+            self.prometheus_guages.labels("emission").set( nn.emission )
 
             print(f"[white not bold]{datetime.now():%Y-%m-%d %H:%M:%S}[/white not bold]{' ' * 4} | "
                 f"{f'[magenta dim not bold]#{current_block}[/magenta dim not bold]'.center(16 + len('[magenta dim not bold][/magenta dim not bold]'))} | "
@@ -393,7 +426,13 @@ class neuron:
 
         """
         ## Uid that sent the request
-        incoming_uid = self.metagraph.hotkeys.index(hotkey)
+        try:
+            incoming_uid = self.metagraph.hotkeys.index(hotkey)
+        except Exception as e:
+            if self.config.neuron.blacklist_allow_non_registered:
+                return False
+            return True
+
         batch_size, sequence_len  =  inputs_x[0].size()
         if synapse.synapse_type == bittensor.proto.Synapse.SynapseType.TEXT_LAST_HIDDEN_STATE:
             if self.metagraph.S[incoming_uid] < self.config.neuron.lasthidden_stake \
@@ -565,7 +604,8 @@ class neuron:
                 if self.config.neuron.blacklist_allow_non_registered:
                     return False
 
- 
+                self.prometheus_counters.labels("blacklisted.registration").inc()
+
                 raise Exception('Registration blacklist')
 
         # Check for stake
@@ -573,6 +613,7 @@ class neuron:
             # Check stake.
             uid = self.metagraph.hotkeys.index(pubkey)
             if self.metagraph.S[uid].item() < self.config.neuron.blacklist.stake:
+                self.prometheus_counters.labels("blacklisted.stake").inc()
 
                 raise Exception('Stake blacklist')
             return False
@@ -588,6 +629,7 @@ class neuron:
                     timecheck[pubkey] = current_time
                 else:
                     timecheck[pubkey] = current_time
+                    self.prometheus_counters.labels("blacklisted.time").inc()
 
                     raise Exception('Time blacklist')
             else:
@@ -608,9 +650,10 @@ class neuron:
             time_check()
             stake_check()      
             hotkey_check()      
-            return False
-        except Exception as e:
-            return True
+            return False, None
+        except Exception as error:
+            self.prometheus_counters.labels("blacklisted").inc()
+            return True, error
 
     def get_neuron(self):
         if self.subtensor.network == 'nakamoto':
