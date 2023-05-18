@@ -70,21 +70,8 @@ class CLI(commune.Module):
 
 
         self.print(result)
-<<<<<<< HEAD
     
-=======
-    
-    def catch_ip(self):
-        result = None
-        if len(args[0].split(':')) == 2:
-            # commune module:fn args kwargs 
-            module_fn = args.pop(0)
-            module, fn = module_fn.split(':')
-            module = commune.connect(module)
-            result = module.remote_call(fn, *args,**kwargs)
-            
-            
-        return result
+
     
     shortcuts = {
         'bt': 'bittensor',
@@ -97,4 +84,3 @@ class CLI(commune.Module):
         else:
             return name
         
->>>>>>> 758dc93f3be3d40e17565818920947469eeee88f

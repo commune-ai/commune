@@ -723,9 +723,10 @@ class Module:
     
         return module_list
 
-    @staticmethod
-    def port_used(port: int, ip: str = '0.0.0.0', timeout: int = 1):
+    @classmethod
+    def port_used(cls, port: int, ip: str = '0.0.0.0', timeout: int = 1):
         import socket
+        
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             # Set the socket timeout
             sock.settimeout(timeout)
@@ -737,6 +738,9 @@ class Module:
             except socket.error:
                 return False
     
+    @classmethod
+    def port_free(cls, *args, **kwargs) -> bool:
+        return not cls.port_used(*args, **kwargs)
 
     @classmethod
     def port_available(cls, port:int, ip:str ='0.0.0.0'):
@@ -844,6 +848,8 @@ class Module:
             if cls.port_available(port=port, ip=ip):
                 free_ports += [port]
                 
+        
+                
         return free_ports
     
     @classmethod
@@ -868,7 +874,7 @@ class Module:
         return used_ports
     
     @classmethod
-    def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None) -> int:
+    def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None, reserve:bool = False) -> int:
         
         '''
         
@@ -878,13 +884,21 @@ class Module:
         port_range = cls.resolve_port_range(port_range)
         ip = ip if ip else cls.default_ip
         
+        reserved_ports = cls.reserved_ports()
         # return only when the port is available
-        for port in range(*port_range): 
+        ports = cls.shuffle(list(range(*port_range)))
+        for port in ports: 
+            if port in reserved_ports:
+                continue
             if port in avoid_ports:
                 continue
             if cls.port_available(port=port, ip=ip):
+                if reserve:
+                    cls.reserve_port(port)
                 return port
+            
     
+
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
 
     get_available_port = free_port
@@ -1980,8 +1994,7 @@ class Module:
               name:str=None, 
               ip:str=None, 
               port:int=None ,
-              network: 'Network' = None,
-              netuid= None,
+              network:str = None,
               context= '',
               key = None,
               tag:str=None, 
@@ -1993,6 +2006,7 @@ class Module:
               wait_for_server_timeout:int = 30,
               wait_for_server_sleep_interval: int = 1,
               verbose = False,
+              reserve_port = True,
               *args, 
               **kwargs ):
         '''
@@ -2001,7 +2015,8 @@ class Module:
         # we want to make sure that the module is loco
         cls.update(network='local')
     
-
+        if port == None:
+            port = cls.free_port(reserve=reserve_port)
         if module == None:
             self = cls(*args, **kwargs)
         elif isinstance(module, str):
@@ -2044,7 +2059,8 @@ class Module:
 
         server = Server(ip=ip, 
                         port=port,
-                        module = self )
+                        module = self,
+                        name= module_name)
         
         # register the server
         self.server_info = server.info
@@ -2060,8 +2076,7 @@ class Module:
                                           context=context,
                                           ip=self.default_ip,
                                           port=self.port,
-                                          network=network,
-                                          netuid=netuid)
+                                          network=network)
 
  
         self.set_key(key)
@@ -4181,17 +4196,63 @@ class Module:
         self.users.pop(key, None)
         
     @classmethod
-    def deploy_fleet(cls, modules=None):
-        if isinstance(modules, str):
-            modules = [modules]
-        modules = modules if modules else ['model.transformer', 'dataset.text.huggingface', 'dataset.text.bittensor']
-            
- 
-        for module in modules:
-            
-            module_class = cls.get_module(module)
-            assert hasattr(module_class,'deploy_fleet'), f'{module} does not have a deploy_fleet method'
-            cls.get_module(module).deploy_fleet()
+    def reserve_port(cls,port:int = None, var_path='reserved_ports' ):
+        if port == None:
+            port = cls.free_port()
+        reserved_ports =  cls.get(var_path, {})
+        reserved_ports[str(port)] = {'time': cls.time()}
+        cls.put(var_path, reserved_ports)
+        return {'success':f'reserved port {port}'}
+    
+    
+    resport = reserve_port
+    
+    @classmethod
+    def reserved_ports(cls,  var_path='reserved_ports'):
+        return list(map(int, cls.get(var_path, {}).keys()))
+    resports = reserved_ports
+
+    
+    @classmethod
+    def unreserve_port(cls,port:int, 
+                       var_path='reserved_ports' ,
+                       verboe:bool = True):
+        reserved_ports =  cls.get(var_path, {})
+        
+        port_info = reserved_ports.pop(port,None)
+        if port_info == None:
+            port_info = reserved_ports.pop(str(port),None)
+        
+        if port_info != None:
+        
+            cls.put(var_path, reserved_ports)
+                
+            return {'msg': 'port removed', 'port': port}
+        else:
+            return {'msg': f'port {port} doesnt exisst, so your good'}
+
+    unresport = unreserve_port
+    
+    @classmethod
+    def unreserve_ports(cls, *ports, **kwargs):
+        reserved_ports = cls.reserved_ports()
+        if len(ports) == 0:
+            ports = reserved_ports
+        for port in ports:
+            if port in reserved_ports:
+                cls.print(f'unreserving {port}')
+                cls.unreserve_port(port, **kwargs)
+            else:
+                cls.print(f'{port} already unreserved')
+
+    unresports = unreserve_ports
+    @classmethod
+    def fleet(cls, *tags, **kwargs):
+        for tag in tags: 
+            cls.deploy(tag=tag, **kwargs)
+        
+        
+        
     # # ARRAY2BYTES
     # @classmethod
     # def array2bytes(self, data: np.array) -> bytes:
