@@ -33,6 +33,23 @@ class ModulePool (commune.Module):
         self.total_requests = 0
 
 
+    def add_module(self, module):
+        if not hasattr(self,'pool'):
+            self.pool = {}
+            
+        self.pool = commune.connect(module)
+        
+        
+        
+    def add_modules(cls, modules):
+        if isinstance(modules, str):
+            modules = cls.modules(modules)
+            
+        assert 
+        
+            
+
+
     def __str__(self):
         return "ModulePool({},{})".format(len(self.clients), self.max_active_clients)
 
@@ -174,4 +191,8 @@ class ModulePool (commune.Module):
             self.clients[ client.endpoint.hotkey ] = client
             
         return client
+    
+    @classmethod
+    def test(cls, **kwargs):
+        return cls(modules='module')
     

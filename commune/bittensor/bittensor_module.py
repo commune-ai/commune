@@ -375,6 +375,16 @@ class BittensorModule(c.Module):
     
     
     @classmethod
+    def rename_coldkey(cls, coldkey1, coldkey2):
+        coldkey1_path = cls.coldkey_dir_path(coldkey1)
+        cls.print(coldkey1_path)
+        assert os.path.isdir(coldkey1_path)
+        coldkey2_path = os.path.dirname(coldkey1_path) + '/'+ coldkey2
+       
+        cls.print(f'moving {coldkey1} -> {coldkey2}')
+        cls.mv(coldkey1_path,coldkey2_path)
+    
+    @classmethod
     def rename_wallet(cls, wallet1, wallet2):
         wallet1_path = cls.get_wallet_path(wallet1)
         wallet2_path = cls.get_wallet_path(wallet2)
@@ -388,6 +398,11 @@ class BittensorModule(c.Module):
     def coldkey_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkey'
+    
+    
+    @classmethod
+    def coldkey_dir_path(cls, coldkey):
+        return os.path.dirname(cls.coldkey_path(coldkey))
     get_coldkey_path = coldkey_path
     @classmethod
     def coldkeypub_path(cls, coldkey):
@@ -407,7 +422,7 @@ class BittensorModule(c.Module):
     def rm_coldkey(cls, coldkey):
         
         assert coldkey in cls.coldkeys(), f'Coldkey {coldkey} not found in {cls.coldkeys()}'
-        coldkey_path = cls.coldkey_path(coldkey)
+        coldkey_path = cls.coldkey_dir_path(coldkey)
         assert os.path.exists(coldkey_path), f'Coldkey path {coldkey_path} does not exist'
         return cls.rm(coldkey_path)
     
