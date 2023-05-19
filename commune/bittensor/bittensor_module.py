@@ -13,7 +13,7 @@ import time
 import streamlit as st
 
 class BittensorModule(c.Module):
-    default_coldkey = 'ensemble'
+    default_coldkey = 'commune'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     
     def __init__(self,
@@ -381,7 +381,7 @@ class BittensorModule(c.Module):
         assert os.path.isdir(coldkey1_path)
         coldkey2_path = os.path.dirname(coldkey1_path) + '/'+ coldkey2
        
-        cls.print(f'moving {coldkey1} -> {coldkey2}')
+        cls.print(f'moving {coldkey1} ({coldkey1_path}) -> {coldkey2} ({coldkey2_path})')
         cls.mv(coldkey1_path,coldkey2_path)
     
     @classmethod
@@ -455,7 +455,7 @@ class BittensorModule(c.Module):
     @classmethod
     def wallet_exists(cls, wallet:str):
         wallets = cls.wallets()
-        return bool(wallet and wallets)
+        return bool(wallet in wallets)
     
     @classmethod
     def hotkey_exists(cls, coldkey:str, hotkey:str) -> bool:
@@ -730,7 +730,7 @@ class BittensorModule(c.Module):
            
            
     @classmethod
-    def add_keys(cls, name='ensemble',
+    def add_keys(cls, name='commune',
                       hotkeys=[i+1 for i in range(16)] , 
                       use_password: bool=False,
                       overwrite:bool = False):
@@ -754,7 +754,7 @@ class BittensorModule(c.Module):
                        use_password=False,
                        overwrite:bool = False) :
         
-        if cls.coldkey_exists(name):
+        if cls.coldkey_exists(name) and not overwrite:
             cls.print(f'Coldkey {name} already exists', color='yellow')
             return name
         wallet = bittensor.wallet(name=name)
@@ -1014,7 +1014,7 @@ class BittensorModule(c.Module):
         
         self.streamlit_neuron_metrics()
     @classmethod
-    def balance(cls, wallet='ensemble'):
+    def balance(cls, wallet='commune'):
         wallet = cls.get_wallet(wallet)
         return wallet.balance 
     
@@ -1648,7 +1648,7 @@ class BittensorModule(c.Module):
     
     @classmethod
     def sandbox(cls):
-        for wallet in cls.wallets('ensemble'):
+        for wallet in cls.wallets('commune'):
             if '.Hot' not in wallet:
                 ck, hk = wallet.split('.')
                 cls.rename_wallet(wallet, f'{ck}.Hot{hk}')
