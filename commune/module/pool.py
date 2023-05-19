@@ -12,10 +12,13 @@ import concurrent
 import commune
 from concurrent.futures import ThreadPoolExecutor
 import commune
-
+import asyncio
 class ModulePool (commune.Module):
     """ Manages a pool of grpc connections as clients
     """
+    
+
+    
     def __init__(
         self, 
         modules,
@@ -26,41 +29,46 @@ class ModulePool (commune.Module):
         self.add_modules(modules)
         self.max_active_clients = self.max_active_clients
         self.client_stats = {}
-        if modules == None:
-            modules = self.modules()
         self.cull_mutex = Lock()
         self.total_requests = 0
         
-    def add_module(self, module:str)-> str:
-        if not hasattr(self, 'pool'):
-            self.pool = {}
-        self.pool[module] = commune.connect(module)
+        
+    def add_module(self, *args, **kwargs)-> str:
+        loop = self.get_event_loop()
+        return loop.run_until_complete(self.async_add_module( *args, **kwargs))
+        
+    async def async_add_module(self, module:str = None, timeout=3)-> str:
+        if not hasattr(self, 'modules'):
+            self.modules = {}
+        self.modules[module] = await commune.async_connect(module, timeout=timeout)
         return module
     
-    def has_module(self, module:str)->bool:
-        return bool(module in self.pool)
-    
-    
-    def get_module(self, module:str):
-        if self.has_module(module):
-            return self.pool[module]
-        
     
     def add_modules(self, modules:list):
-        if isinstance(modules, str):
-            modules = self.modules(modules)
         
-        assert modules
+        return asyncio.gather(*[self.async_add_module(m) for m in self.modules])
+          
         
-    def forward(module, fn, *args, **kwargs):
-        
-        
-        
-        
-        
-        
-            
+    
+    def has_module(self, module:str)->bool:
+        return bool(module in self.modules)
+    
+    def get_module(self, module:str):
+        if not self.has_module(module):
+            self.add_module(module)
+        return self.modules[module]
 
+    async def async_get_module( self, 
+                               module = None,
+                               timeout=1, 
+                               retrials=2) -> 'commune.Client':
+        
+        if module not in self.moddules :
+            self.async_add_module(module)
+            
+        return self.module[ module ]
+        
+    
 
     def __str__(self):
         return "ModulePool({},{})".format(len(self.clients), self.max_active_clients)
@@ -79,34 +87,6 @@ class ModulePool (commune.Module):
             modules: List [str ] = None,
             min_successes: int = None,
         ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
-        r""" Forward tensor inputs to endpoints.
-
-            Args:
-                endpoints (:obj:`List[ bittensor.Endpoint ]` of shape :obj:`(num_endpoints)`, `required`):
-                    List of remote endpoints which match length of inputs. Tensors from x are sent forward to these endpoints.
-
-                synapses (:obj:`List[ 'bittensor.Synapse' ]` of shape :obj:`(num_synapses)`, `required`):
-                    Bittensor synapse objects with arguments. Each corresponds to a synapse function on the axon.
-                    Responses are packed in this ordering. 
-
-                inputs (:obj:`List[torch.Tensor]` of shape :obj:`(num_endpoints * [shape])`, `required`):
-                    TODO(const): Allow multiple tensors.
-                    List of tensors to send to corresponsing endpoints. Tensors are of arbitrary type and shape depending on the
-                    modality.
-
-                timeout (int):
-                    Request timeout.
-
-            Returns:
-                forward_outputs (:obj:`List[ List[ torch.FloatTensor ]]` of shape :obj:`(num_endpoints * (num_synapses * (shape)))`, `required`):
-                    Output encodings of tensors produced by remote endpoints. Non-responses are zeroes of common shape.
-
-                forward_codes (:obj:`List[ List[bittensor.proto.ReturnCodes] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
-                    dendrite backward call return ops.
-
-                forward_times (:obj:`List[ List [float] ]` of shape :obj:`(num_endpoints * ( num_synapses ))`, `required`):
-                    dendrite backward call times
-        """
 
         loop = self.get_event_loop()
         return loop.run_until_complete (self.async_forward(kwargs=kwargs) )
@@ -126,7 +106,7 @@ class ModulePool (commune.Module):
         
     
     
-        client = await self.async_get_clients( module )
+        client = await self.async_get_module( module )
 
 
         kwargs = {} if kwargs == None else kwargs
@@ -167,9 +147,6 @@ class ModulePool (commune.Module):
 
         return outputs
 
-
-
-
     def check_clients( self ):
         r""" Destroys clients based on QPS until there are no more than max_active_clients.
         """
@@ -177,34 +154,8 @@ class ModulePool (commune.Module):
             # ---- Finally: Kill clients over max allowed ----
             if len(self.clients) > self.max_active_clients:
                 c = list(self.clients.keys())[0]
-                self.clients.pop(c, None)
-                    
+                self.clients.pop(c, None)   
 
-
-    async def async_get_client( self, 
-                               module = None,
-                               timeout=1 ) -> 'commune.Client':
-        r""" Finds or creates a client TCP connection associated with the passed Neuron Endpoint
-            Returns
-                client: (`commune.Client`):
-                    client with tcp connection endpoint at endpoint.ip:endpoint.port
-        """
-        # ---- Find the active client for this endpoint ----
-        
-        modules = self.modules(module)
-        
-        
-        if module == None:
-            client = self.choice(self.clients.values())
-        if module in self.clients :
-            client = self.clients[module]
-        else:
-            client = await self.async_connect(module, timeout=timeout)
-            self.clients[ client.endpoint.hotkey ] = client
-            
-        return client
-    
     @classmethod
     def test(cls, **kwargs):
         return cls(modules='module')
-    
