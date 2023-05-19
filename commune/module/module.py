@@ -3432,6 +3432,8 @@ class Module:
         if return_tuple:
             return most_available_gpu_tuples[0]
         return most_available_gpu_tuples[0][0]
+    
+    
     most_free_gpu = least_used_gpu
     
     @classmethod
@@ -3575,6 +3577,8 @@ class Module:
         # get the size of the model by initializing an empty model
         if isinstance(model, str):
             model = cls.get_empty_model(model)
+            
+            model = cls.module('model').shortcuts().get(model, model)
             
         params = {}
         size_in_bytes = 0 
@@ -4255,10 +4259,10 @@ class Module:
                        root:bool = True):
         output ={}
         reserved_ports =  cls.get(var_path, {}, root=root)
-        
+        print(ports)
         if len(ports) == 0:
             reserved_ports = {}
-        elif len(ports) == 0 and isinstance(ports[0],list):
+        elif len(ports) == 1 and isinstance(ports[0],list):
             reserved_ports = ports[0]
         else:
             reserved_ports = {rp:v for rp,v in reserved_ports.items() if rp not in ports}
