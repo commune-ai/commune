@@ -4296,11 +4296,26 @@ class Module:
 
     
     @classmethod
-    def serialize(cls, data, metadata=None, **kwargs) -> 'Serializer':
+    def serialize(cls, data, metadata=None,to_json = False, **kwargs):
         metadata = metadata or {}
         if not isinstance(data, dict):
             data = dict(value=data)
-        return cls.serializer().serialize(data=data, metadata=metadata ,**kwargs)
+        proto_data =  cls.serializer().serialize(data=data, metadata=metadata ,**kwargs)
+        if to_json:
+            proto_data = cls.proto2json(proto_data)
+            
+        return proto_data
+
+    @classmethod
+    def proto2json(cls, data):
+        from google.protobuf.json_format import MessageToJson
+        return MessageToJson(data)
+
+
+    @classmethod
+    def json2prot(cls, data):
+        from google.protobuf.json_format import JsonToMessage
+        return JsonToMessage(data)
 
     @classmethod
     def copy(cls, data: Any) -> Any:
