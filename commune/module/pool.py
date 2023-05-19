@@ -22,30 +22,42 @@ class ModulePool (commune.Module):
         max_active_clients = 20,
         
     ):
-        
+        self.pool = {}
         self.add_modules(modules)
         self.max_active_clients = self.max_active_clients
-        
         self.client_stats = {}
         if modules == None:
             modules = self.modules()
         self.cull_mutex = Lock()
         self.total_requests = 0
-
-
-    def add_module(self, module):
-        if not hasattr(self,'pool'):
+        
+    def add_module(self, module:str)-> str:
+        if not hasattr(self, 'pool'):
             self.pool = {}
-            
-        self.pool = commune.connect(module)
+        self.pool[module] = commune.connect(module)
+        return module
+    
+    def has_module(self, module:str)->bool:
+        return bool(module in self.pool)
+    
+    
+    def get_module(self, module:str):
+        if self.has_module(module):
+            return self.pool[module]
         
-        
-        
-    def add_modules(cls, modules):
+    
+    def add_modules(self, modules:list):
         if isinstance(modules, str):
-            modules = cls.modules(modules)
-            
-        assert 
+            modules = self.modules(modules)
+        
+        assert modules
+        
+    def forward(module, fn, *args, **kwargs):
+        
+        
+        
+        
+        
         
             
 
