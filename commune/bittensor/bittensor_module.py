@@ -1593,7 +1593,9 @@ class BittensorModule(c.Module):
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
                      unreged = False,
-                     path = None):
+                     path = None,
+                     miners_only = True,
+                     coldkeypub= False):
         
         if unreged:
             hotkeys = cls.unregistered_hotkeys(coldkey) 
@@ -1608,14 +1610,20 @@ class BittensorModule(c.Module):
         coldkey_json = cls.coldkey_json(coldkey)
         if coldkey_json == None:
             coldkey_json = cls.coldkeypub_json(coldkey)
+        
+        if coldkeypub:
+            coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
+        else:
+            coldkey_info = [f"btcli regen_coldkey --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey} --mnemonic {coldkey_json['secretPhrase']}"]
             
-        
-        
-        
-        coldkey_info = [f"btcli regen_coldkey --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey} --mnemonic {coldkey_json['secretPhrase']}"]
-        
+        miners = cls.miners()
         template = 'btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
         for hk, hk_mnemonic in hotkey_map.items():
+            wallet = f'{coldkey}.{hk}'
+            
+            if wallet not in miners and miners_only:
+                continue
+                
             info = template.format(mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
             
             coldkey_info.append(info)
@@ -1625,6 +1633,7 @@ class BittensorModule(c.Module):
         if path is not None:
             cls.put_text(path, coldkey_info_text)
         # return coldkey_info
+        
     mems = coldkey_info
     
     @classmethod
