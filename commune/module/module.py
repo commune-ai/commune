@@ -1122,7 +1122,6 @@ class Module:
         if path == None:
             path = og_path
         
-        print(path)
         return cls.import_object(path)
 
     @classmethod
