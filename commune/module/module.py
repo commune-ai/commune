@@ -823,33 +823,28 @@ class Module:
                 
                 
         return available_ports
-    # @classmethod
-    # def resolve_port(cls, port:int=None, find_available:bool = True):
+    @classmethod
+    def resolve_port(cls, port:int=None):
         
-    #     '''
+        '''
         
-    #     Resolves the port and finds one that is available
-    #     '''
-    #     port = port if port else cls.get_available_port()
-    #     port_used = cls.port_used(port)
-    #     if port_used:
-    #         if find_available:
-    #             port = cls.get_available_port()
-    #         else:
-    #             raise Exception(f"Port: {port} is already in use, try , {cls.get_available_ports()}")
-        
-    #     cls.print(port, 'bro')
-    #     return port
+        Resolves the port and finds one that is available
+        '''
+        if port == None or port == 0:
+            port = cls.free_port(port)
+            
+        if cls.port_used(port):
+            port = cls.free_port(port)
+            
+        return port
     
     @classmethod
-    def free_ports(cls, ip='0.0.0.0') -> List[int]:
+    def free_ports(cls, n=10 ) -> List[int]:
         free_ports = []
-        for port in range(*cls.port_range()): 
-            if cls.port_available(port=port, ip=ip):
-                free_ports += [port]
-                
-        
-                
+        for i in range(n):
+            free_ports += [cls.free_port(reserve=True, random_selection=False)]
+            
+        cls.unreserve_ports(free_ports)    
         return free_ports
     
     @classmethod
@@ -874,30 +869,47 @@ class Module:
         return used_ports
     
     @classmethod
-    def free_port(cls, port_range: List[int] = None , ip:str =None, avoid_ports = None, reserve:bool = False, random_selection:bool = True) -> int:
+    def free_port(cls, 
+                  ports = None,
+                  port_range: List[int] = None , 
+                  ip:str =None, 
+                  avoid_ports = None,
+                  reserve:bool = False, 
+                  random_selection:bool = True) -> int:
         
         '''
         
         Get an availabldefe port within the {port_range} [start_port, end_poort] and {ip}
         '''
         avoid_ports = avoid_ports if avoid_ports else []
-        port_range = cls.resolve_port_range(port_range)
-        ip = ip if ip else cls.default_ip
         
+        if ports == None:
+            port_range = cls.resolve_port_range(port_range)
+            ports = list(range(*port_range))
+            
+            
+            
+        ip = ip if ip else cls.default_ip
+
+        if random_selection:
+            ports = cls.shuffle(ports)
+            
         reserved_ports = cls.reserved_ports()
         # return only when the port is available
-        if random_selection:
-            ports = cls.shuffle(list(range(*port_range)))
+        
+        port = None
         for port in ports: 
             if port in reserved_ports:
                 continue
             if port in avoid_ports:
                 continue
+            
             if cls.port_available(port=port, ip=ip):
                 if reserve:
                     cls.reserve_port(port)
                 return port
-            
+        
+    
     
 
         raise Exception(f'ports {port_range[0]} to {port_range[1]} are occupied, change the port_range to encompase more ports')
@@ -4188,13 +4200,13 @@ class Module:
         self.users.pop(key, None)
         
     @classmethod
-    def reserve_port(cls,port:int = None, var_path='reserved_ports' ):
+    def reserve_port(cls,port:int = None, var_path='reserved_ports' , root=True):
         if port == None:
             port = cls.free_port()
-        reserved_ports =  cls.get(var_path, {})
+        reserved_ports =  cls.get(var_path, {}, root=root)
         reserved_ports[str(port)] = {'time': cls.time()}
-        cls.put(var_path, reserved_ports)
-        return {'success':f'reserved port {port}'}
+        cls.put(var_path, reserved_ports, root=root)
+        return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
     
     
     resport = reserve_port
@@ -4208,35 +4220,47 @@ class Module:
     @classmethod
     def unreserve_port(cls,port:int, 
                        var_path='reserved_ports' ,
-                       verboe:bool = True):
-        reserved_ports =  cls.get(var_path, {})
+                       verbose:bool = True, 
+                       root:bool = True):
+        reserved_ports =  cls.get(var_path, {}, root=True)
         
         port_info = reserved_ports.pop(port,None)
         if port_info == None:
             port_info = reserved_ports.pop(str(port),None)
         
+        output = {}
         if port_info != None:
-        
-            cls.put(var_path, reserved_ports)
-                
-            return {'msg': 'port removed', 'port': port}
+            cls.put(var_path, reserved_ports, root=True)
+            output['msg'] = 'port removed'
         else:
-            return {'msg': f'port {port} doesnt exisst, so your good'}
+            output['msg'] =  f'port {port} doesnt exist, so your good'
 
+        output['reserved'] =  cls.reserved_ports()
+        return output
+    
+    
+    
     unresport = unreserve_port
     
     @classmethod
-    def unreserve_ports(cls, *ports, **kwargs):
-        reserved_ports = cls.reserved_ports()
+    def unreserve_ports(cls,*ports, 
+                       var_path='reserved_ports' ,
+                       verbose:bool = True, 
+                       root:bool = True):
+        output ={}
+        reserved_ports =  cls.get(var_path, {}, root=root)
+        
         if len(ports) == 0:
-            ports = reserved_ports
-        for port in ports:
-            if port in reserved_ports:
-                cls.print(f'unreserving {port}')
-                cls.unreserve_port(port, **kwargs)
-            else:
-                cls.print(f'{port} already unreserved')
+            reserved_ports = {}
+        else:
+            reserved_ports = {rp:v for rp,v in reserved_ports.items() if rp not in ports}
+        
 
+        cls.put(var_path, reserved_ports, root=root)
+        output['reserved'] =  cls.reserved_ports()
+        return output
+    
+    
     unresports = unreserve_ports
     @classmethod
     def fleet(cls, *tags, **kwargs):

@@ -13,8 +13,9 @@ import time
 import streamlit as st
 
 class BittensorModule(c.Module):
-    default_coldkey = 'commune'
+    default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
+    default_model_name = os.path.expanduser('~/fish_model')
     
     def __init__(self,
 
@@ -1121,7 +1122,6 @@ class BittensorModule(c.Module):
         print(cmd)
         return cls.cmd(cmd)
     
-    default_model_name = 'server'
 
     @classmethod
     def server_class(cls, *args, **kwargs):
@@ -1201,8 +1201,11 @@ class BittensorModule(c.Module):
     # add_server = deploy_server
     
     @classmethod
-    def neuron(cls, *args, **kwargs):
-        return cls.module('bittensor.miner.neuron')(*args, **kwargs)
+    def neuron(cls, *args, mode='commune', **kwargs):
+        if mode == 'vanilla':
+            return bittensor.neurons.core_server.neuron(*args, **kwargs)
+        else:
+            return cls.module('bittensor.miner.neuron')(*args, **kwargs)
 
     @classmethod
     def mine_many(cls, *hotkeys, coldkey=default_coldkey, **kwargs):
@@ -1243,6 +1246,7 @@ class BittensorModule(c.Module):
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
+        cls.print(kwargs)
         config = bittensor.neurons.core_server.neuron.config()
         # model things
         config.neuron.no_set_weights = no_set_weights
@@ -1272,23 +1276,16 @@ class BittensorModule(c.Module):
 
         # enseure ports are free
         # axon port
-            
-    
         config.axon.port = cls.resolve_port(port)
-        # ensure prometheus port
-        config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None or prometheus_port==0 else prometheus_port         
-        config.prometheus.port = cls.resolve_port(config.prometheus.port)
-        print(f'config.prometheus.port {config.prometheus.port}')
-        print(f'config.axon.port {config.axon.port}')
-            
+        config.prometheus.port = cls.resolve_port(prometheus_port)
         # neuron things
         config.neuron.autocast = autocast  
-        if device is None:
-            device = cls.most_free_gpu()
-
+        device = cls.most_free_gpu() if device == None else device
+        if not str(device).startswith('cuda:'):
+            device = f'cuda:{device}'
+        config.neuron.device = device
         model_name = model_name if model_name is not None else cls.default_model_name
 
-        config.neuron.device = f'cuda:{device}'
         
         if logging:
             config.logging.debug = logging
@@ -1339,24 +1336,23 @@ class BittensorModule(c.Module):
         
         
 
-    reserved_ports = []
     @classmethod
     def fleet(cls, name=default_coldkey, 
                     hotkeys = None,
                     remote=True,
                     netuid=3,
-                    network='local',
+                    network='finney',
                     model_name = default_model_name,
                     refresh: bool = True,
-                    burned_register=False, 
+                    burned_register=True, 
                     ensure_registration=False,
                     device = 'cpu',
-                    ensure_gpus = False,
-                    max_fee=1.3): 
+                    ensure_gpus = True,
+                    max_fee=1.1): 
         
         
         if hotkeys == None:
-            wallets = cls.reged(name)
+            wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
         else:
             wallets  = [f'{name}.{h}' for h in hotkeys]
         
@@ -1367,7 +1363,16 @@ class BittensorModule(c.Module):
             model_size = cls.get_model_size(model_name)
             free_gpu_memory = cls.free_gpu_memory()
             
+        reserved_ports = []
         for i, wallet in enumerate(wallets):
+            
+            tag = f'{wallet}::{subtensor.network}::{netuid}'
+            miner_name = f'miner::{tag}'
+            
+            if miner_name in cls.miners() and not refresh:
+                cls.print(f'{miner_name} is already running. Skipping ...')
+                continue
+            
             
             assert cls.wallet_exists(wallet), f'Wallet {wallet} does not exist.'
             
@@ -1385,11 +1390,10 @@ class BittensorModule(c.Module):
                                             burned_register=burned_register,
                                             max_fee=max_fee)
                     burned_register = False # only burn register for first wallet
-                axon_port = cls.free_port()
-                while cls.port_used(axon_port) or axon_port in cls.reserved_ports:
-                    axon_port += 1
-                cls.reserved_ports.append(axon_port)
-                prometheus_port = axon_port - 1000
+                axon_port = cls.free_port(reserve=True)
+                prometheus_port = cls.free_port(reserve=True)
+                
+                reserved_ports += [axon_port, prometheus_port]
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
@@ -1398,24 +1402,20 @@ class BittensorModule(c.Module):
                 assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
             
             
-            tag = f'{wallet}::{subtensor.network}::{netuid}'
-            miner_name = f'miner::{tag}'
-            if miner_name in cls.miners() and not refresh:
-                cls.print(f'{miner_name} is already running. Skipping ...')
-                continue
-            else:
-                cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
-                cls.mine(wallet=wallet,
-                         remote=remote, 
-                         tag=tag, 
-                         device=device, 
+            
+
+            cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
+            cls.mine(wallet=wallet,
+                        remote=remote, 
+                        tag=tag, 
+                        device=device, 
                         port=axon_port,
                         network=network,
                         prometheus_port = prometheus_port,
-                         burned_register=burned_register,
-                         max_fee=max_fee)
-            
-        cls.reserved_ports = []
+                        burned_register=burned_register,
+                        max_fee=max_fee)
+        
+        cls.unreserve_ports(reserved_ports)
     @classmethod
     def miners(cls, *args, **kwargs):
         return list(cls.wallet2miner(*args, **kwargs).keys())
