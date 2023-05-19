@@ -1159,6 +1159,10 @@ class Module:
         return modules
     
     @classmethod
+    def has_modules(cls, *args, **kwargs):
+        
+    
+    @classmethod
     def valid_module(cls,module,**kwargs ):
         modules = cls.modules(module, **kwargs)
         print(modules)

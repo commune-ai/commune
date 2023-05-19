@@ -1284,19 +1284,30 @@ class BittensorModule(c.Module):
         if not str(device).startswith('cuda:'):
             device = f'cuda:{device}'
         config.neuron.device = device
-        model_name = model_name if model_name is not None else cls.default_model_name
-
-        
+        model_name = model_name if model_name is not None else cls.default_model_name 
+        model_shortcuts = c.module('model').shortcuts()
         if logging:
             config.logging.debug = logging
             
-        # cls.print(config)
-        cls.neuron(
-               model = model_name,
-               wallet=wallet,
-               subtensor=subtensor,
-               config=config,
-               netuid=netuid).run()
+        if model_name in model_shortcuts:
+            
+            config.neuron.model_name = model_name
+            neuron = bittensor.neurons.core_server.neuron(config=config, 
+                                                wallet=wallet,
+                                                subtensor=subtensor,
+                                                netuid=netuid)
+        
+        else:
+            assert len(c.modules(model_name))>0
+            # cls.print(config)
+            neuron = cls.neuron(
+                model = model_name,
+                wallet=wallet,
+                subtensor=subtensor,
+                config=config,
+                netuid=netuid)
+            
+        neuron.run()
 
 
     @classmethod
