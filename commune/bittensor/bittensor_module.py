@@ -15,7 +15,7 @@ import streamlit as st
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
-    default_model_name = os.path.expanduser('~/fish_model')
+    default_model_name = 'server'
     
     def __init__(self,
 
@@ -1215,7 +1215,7 @@ class BittensorModule(c.Module):
     @classmethod
     def mine(cls, 
                wallet='ensemble.5',
-               model_name:str= 'server',
+               model_name:str= default_model_name,
                network = 'local',
                netuid=3,
                port = None,
@@ -1344,13 +1344,14 @@ class BittensorModule(c.Module):
                     network='finney',
                     model_name = default_model_name,
                     refresh: bool = True,
-                    burned_register=True, 
+                    burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
-                    ensure_gpus = True,
+                    ensure_gpus = False,
                     max_fee=1.1): 
+    
         
-        
+        # address = cls.address(name)
         if hotkeys == None:
             wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
         else:
@@ -1392,7 +1393,6 @@ class BittensorModule(c.Module):
                     burned_register = False # only burn register for first wallet
                 axon_port = cls.free_port(reserve=True)
                 prometheus_port = cls.free_port(reserve=True)
-                
                 reserved_ports += [axon_port, prometheus_port]
                 
             if ensure_gpus:
@@ -1415,7 +1415,7 @@ class BittensorModule(c.Module):
                         burned_register=burned_register,
                         max_fee=max_fee)
         
-        cls.unreserve_ports(reserved_ports)
+        cls.unreserve_ports(*reserved_ports)
     @classmethod
     def miners(cls, *args, **kwargs):
         return list(cls.wallet2miner(*args, **kwargs).keys())
