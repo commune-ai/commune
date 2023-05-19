@@ -5,7 +5,6 @@ import math
 from typing import Tuple, List, Union
 from threading import Lock
 import streamlit as st
-import torch
 import asyncio
 from loguru import logger
 import concurrent
@@ -13,6 +12,7 @@ import commune
 from concurrent.futures import ThreadPoolExecutor
 import commune
 import asyncio
+
 class ModulePool (commune.Module):
     """ Manages a pool of grpc connections as clients
     """
@@ -21,13 +21,12 @@ class ModulePool (commune.Module):
     
     def __init__(
         self, 
-        modules,
-        max_active_clients = 20,
+        modules = None,
+        max_clients:int = 20,
         
     ):
-        self.pool = {}
+        self.max_clients = max_clients
         self.add_modules(modules)
-        self.max_active_clients = self.max_active_clients
         self.client_stats = {}
         self.cull_mutex = Lock()
         self.total_requests = 0
@@ -45,8 +44,10 @@ class ModulePool (commune.Module):
     
     
     def add_modules(self, modules:list):
-        
-        return asyncio.gather(*[self.async_add_module(m) for m in self.modules])
+        if modules == None:
+            modules = commune.modules()
+            
+        return asyncio.gather(*[self.async_add_module(m) for m in modules])
           
         
     
@@ -71,7 +72,7 @@ class ModulePool (commune.Module):
     
 
     def __str__(self):
-        return "ModulePool({},{})".format(len(self.clients), self.max_active_clients)
+        return "ModulePool({},{})".format(len(self.clients), self.max_)
 
     def __repr__(self):
         return self.__str__()
@@ -86,7 +87,7 @@ class ModulePool (commune.Module):
             kwargs = None, 
             modules: List [str ] = None,
             min_successes: int = None,
-        ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
+        )  :
 
         loop = self.get_event_loop()
         return loop.run_until_complete (self.async_forward(kwargs=kwargs) )
@@ -101,7 +102,7 @@ class ModulePool (commune.Module):
             kwargs = None,
             timeout: int = 2,
             min_successes: int = 2,
-        ) -> Tuple[List[torch.Tensor], List[int], List[float]]:
+        ) :
         # Init clients.
         
     
@@ -148,14 +149,18 @@ class ModulePool (commune.Module):
         return outputs
 
     def check_clients( self ):
-        r""" Destroys clients based on QPS until there are no more than max_active_clients.
+        r""" Destroys clients based on QPS until there are no more than max_clients.
         """
         with self.cull_mutex:
             # ---- Finally: Kill clients over max allowed ----
-            if len(self.clients) > self.max_active_clients:
+            if len(self.clients) > self.max_clients:
                 c = list(self.clients.keys())[0]
                 self.clients.pop(c, None)   
 
     @classmethod
     def test(cls, **kwargs):
         return cls(modules='module')
+    
+    
+if __name__ == '__main__':
+    ModulePool.run()
