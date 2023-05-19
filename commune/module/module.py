@@ -1160,6 +1160,7 @@ class Module:
     
     @classmethod
     def has_modules(cls, *args, **kwargs):
+        return bool(len(cls.modules(*args, **kwargs)) > 0)
         
     
     @classmethod
