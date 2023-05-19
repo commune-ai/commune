@@ -875,7 +875,7 @@ class Module:
                   ip:str =None, 
                   avoid_ports = None,
                   reserve:bool = False, 
-                  random_selection:bool = True) -> int:
+                  random_selection:bool = False) -> int:
         
         '''
         
@@ -4206,6 +4206,7 @@ class Module:
         reserved_ports =  cls.get(var_path, {}, root=root)
         reserved_ports[str(port)] = {'time': cls.time()}
         cls.put(var_path, reserved_ports, root=root)
+        cls.print(f'reserving {port}')
         return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
     
     
@@ -4213,7 +4214,7 @@ class Module:
     
     @classmethod
     def reserved_ports(cls,  var_path='reserved_ports'):
-        return list(map(int, cls.get(var_path, {}).keys()))
+        return list(map(int, cls.get(var_path, {}, root=True).keys()))
     resports = reserved_ports
 
     
@@ -4252,6 +4253,8 @@ class Module:
         
         if len(ports) == 0:
             reserved_ports = {}
+        elif len(ports) == 0 and isinstance(ports[0],list):
+            reserved_ports = ports[0]
         else:
             reserved_ports = {rp:v for rp,v in reserved_ports.items() if rp not in ports}
         

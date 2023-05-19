@@ -221,10 +221,11 @@ class Client( Serializer, commune.Module):
 
     async def async_forward(
         self, 
+        data = None,
+        metadata: dict = None,
         fn = None,
         args = None,
         kwargs = None,
-        metadata: dict = None,
         timeout: int = None,
         results_only = True,
         verbose=False,
