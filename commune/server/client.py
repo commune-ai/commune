@@ -221,28 +221,24 @@ class Client( Serializer, commune.Module):
 
     async def async_forward(
         self, 
-        data: object = None, 
+        fn = None,
+        args = None,
+        kwargs = None,
         metadata: dict = None,
         timeout: int = None,
         results_only = True,
         verbose=False,
-        fn = None,
-        args = None,
-        kwargs = None,
         **added_kwargs
     ) :
         if timeout == None:
             timeout = self.timeout
             
+
+        kwargs = kwargs if kwargs else {}
+        args = args if args else []
         data = data if data else {}
         metadata = metadata if metadata else {}
         
-        # the deepcopy is a hack to get around the fact that the data is being modified in place LOL
-        kwargs, data, metadata = deepcopy(kwargs), deepcopy(data), deepcopy(metadata)
-        
-        
-        kwargs = kwargs if kwargs else {}
-        args = args if args else []
         data.update({
             'fn' : fn,
             'args' : list(args),
@@ -336,9 +332,6 @@ class Client( Serializer, commune.Module):
             'bro': torch.ones(10,10),
             'fam': torch.zeros(10,10)
         }
-
-        st.write(module.forward(data=data))
-
 
     def virtual(self):
         self.set_server_functions()

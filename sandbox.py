@@ -1,6 +1,8 @@
-import commune as c
 
-c.print(c.module_list())
+from google.protobuf.json_format import MessageToJson
+# import commune as c
+
+# c.print(c.module_list())
 # # bt = c.module('bittensor')
 # # print(bt.get_metagraph())
 
