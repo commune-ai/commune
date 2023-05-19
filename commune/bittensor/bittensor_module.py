@@ -15,7 +15,7 @@ import streamlit as st
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
-    default_model_name = 'server'
+    default_model_name = 'fish'
     
     def __init__(self,
 
@@ -1201,7 +1201,7 @@ class BittensorModule(c.Module):
     # add_server = deploy_server
     
     @classmethod
-    def neuron(cls, *args, mode=default_coldkey, **kwargs):
+    def neuron(cls, *args, mode=None, **kwargs):
         if mode == 'vanilla':
             return bittensor.neurons.core_server.neuron(*args, **kwargs)
         else:
@@ -1284,6 +1284,8 @@ class BittensorModule(c.Module):
         if not str(device).startswith('cuda:'):
             device = f'cuda:{device}'
         config.neuron.device = device
+        
+        
         model_name = model_name if model_name is not None else cls.default_model_name 
         model_shortcuts = c.module('model').shortcuts()
         if logging:
@@ -1291,7 +1293,7 @@ class BittensorModule(c.Module):
             
         if model_name in model_shortcuts:
             
-            config.neuron.model_name = model_name
+            config.neuron.model_name = model_shortcuts[model_name]
             neuron = bittensor.neurons.core_server.neuron(config=config, 
                                                 wallet=wallet,
                                                 subtensor=subtensor,
@@ -1349,16 +1351,16 @@ class BittensorModule(c.Module):
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = None,
+                    hotkeys = list(range(1,9)),
                     remote=True,
                     netuid=3,
                     network='finney',
                     model_name = default_model_name,
                     refresh: bool = True,
-                    burned_register=False, 
+                    burned_register=True, 
                     ensure_registration=False,
                     device = 'cpu',
-                    ensure_gpus = False,
+                    ensure_gpus = True,
                     max_fee=1.1): 
     
         
