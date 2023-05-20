@@ -1595,7 +1595,7 @@ class BittensorModule(c.Module):
                      unreged = False,
                      path = None,
                      miners_only = True,
-                     coldkeypub= False):
+                     coldkeypub= True):
         
         if unreged:
             hotkeys = cls.unregistered_hotkeys(coldkey) 
