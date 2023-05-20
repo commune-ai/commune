@@ -1,7 +1,3 @@
 max_active_clients: 100
-<<<<<<< HEAD
 modules: dataset
 max_staleness: 10
-=======
-modules: dataset
->>>>>>> a90651fe8be3e7470b7de775ce348e4d3c26b73f
