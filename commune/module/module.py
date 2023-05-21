@@ -4655,13 +4655,21 @@ class Module:
             
 
     @classmethod
-    def get_text(cls, path:str, root=False) -> None:
+    def get_text(cls, path:str, root=False, last_lines=-1, first_lines=-1) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
 
         # Read the contents of the file
         with open(path, 'r') as file:
             content =  file.read()
+            
+            
+        if last_lines > 0:
+            content = '\n'.join(content.split('\n')[:-last_lines])
+        if first_lines > 0:
+            content = '\n'.join(content.split('\n')[:first_lines])
+            
+            
             
         return content
 
@@ -5130,6 +5138,9 @@ class Module:
     def docker_ps(cls):
         return cls.cmd('docker ps')
     dps = docker_ps
+    
+    
+    
     
 if __name__ == "__main__":
     Module.run()
