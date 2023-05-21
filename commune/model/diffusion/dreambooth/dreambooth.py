@@ -60,12 +60,9 @@ from diffusers.optimization import get_scheduler
 from diffusers.utils import TEXT_ENCODER_TARGET_MODULES, check_min_version, is_wandb_available
 from diffusers.utils.import_utils import is_xformers_available
 from commune.model.diffusion.dreambooth.dataset import PromptDataset, DreamBoothDataset 
-
 # Will error if the minimal version of diffusers is not installed. Remove at your own risks.
 check_min_version("0.17.0.dev0")
-
 logger = get_logger(__name__)
-
 
 
 import commune as c
@@ -87,6 +84,67 @@ class Dreambooth(c.Module):
         prompt_embeds = prompt_embeds[0]
 
         return prompt_embeds
+
+
+
+    # create custom saving & loading hooks so that `self.accelerator.save_state(...)` serializes in a nice format
+    def save_model_hook(self, models, weights, output_dir):
+        config = self.__config_file__
+        # there are only two options here. Either are just the unet attn processor layers
+        # or there are the unet and text encoder atten layers
+        unet_lora_layers_to_save = None
+        text_encoder_lora_layers_to_save = None
+
+        if config.train_text_encoder:
+            text_encoder_keys = self.accelerator.unwrap_model(self.text_encoder_lora_layers).state_dict().keys()
+        unet_keys = self.accelerator.unwrap_model(self.unet_lora_layers).state_dict().keys()
+
+        for model in models:
+            state_dict = model.state_dict()
+
+            if (
+                self.text_encoder_lora_layers is not None
+                and text_encoder_keys is not None
+                and state_dict.keys() == text_encoder_keys
+            ):
+                # text encoder
+                text_encoder_lora_layers_to_save = state_dict
+            elif state_dict.keys() == unet_keys:
+                # unet
+                unet_lora_layers_to_save = state_dict
+
+            # make sure to pop weight so that corresponding model is not saved again
+            weights.pop()
+
+        LoraLoaderMixin.save_lora_weights(
+            output_dir,
+            unet_lora_layers=unet_lora_layers_to_save,
+            text_encoder_lora_layers=text_encoder_lora_layers_to_save,
+        )
+
+    def load_model_hook(self, models, input_dir):
+        # Note we DON'T pass the unet and text encoder here an purpose
+        # so that the we don't accidentally override the LoRA layers of
+        # unet_lora_layers and text_encoder_lora_layers which are stored in `models`
+        # with new torch.nn.Modules / weights. We simply use the pipeline class as
+        # an easy way to load the lora checkpoints
+        config = self.config
+        temp_pipeline = DiffusionPipeline.from_pretrained(
+            config.pretrained_model_name_or_path,
+            revision=config.revision,
+            torch_dtype=self.weight_dtype,
+        )
+        temp_pipeline.load_lora_weights(input_dir)
+
+        # load lora weights into models
+        models[0].load_state_dict(AttnProcsLayers(temp_pipeline.unet.attn_processors).state_dict())
+        if len(models) > 1:
+            models[1].load_state_dict(AttnProcsLayers(temp_pipeline.text_encoder_lora_attn_procs).state_dict())
+
+        # delete temporary pipeline and pop models
+        del temp_pipeline
+        for _ in range(len(models)):
+            models.pop()
 
 
     def set_tokenizer(self, config):
@@ -111,7 +169,7 @@ class Dreambooth(c.Module):
         cur_class_images = len(list(class_images_dir.iterdir()))
 
         if cur_class_images < config.num_class_images:
-            torch_dtype = torch.float16 if accelerator.device.type == "cuda" else torch.float32
+            torch_dtype = torch.float16 if self.accelerator.device.type == "cuda" else torch.float32
             if config.prior_generation_precision == "fp32":
                 torch_dtype = torch.float32
             elif config.prior_generation_precision == "fp16":
@@ -132,11 +190,11 @@ class Dreambooth(c.Module):
             sample_dataset = PromptDataset(config.class_prompt, num_new_images)
             sample_dataloader = torch.utils.data.DataLoader(sample_dataset, batch_size=config.sample_batch_size)
 
-            sample_dataloader = accelerator.prepare(sample_dataloader)
-            pipeline.to(accelerator.device)
+            sample_dataloader = self.accelerator.prepare(sample_dataloader)
+            pipeline.to(self.accelerator.device)
 
             for example in tqdm(
-                sample_dataloader, desc="Generating class images", disable=not accelerator.is_local_main_process
+                sample_dataloader, desc="Generating class images", disable=not self.accelerator.is_local_main_process
             ):
                 images = pipeline(example["prompt"]).images
 
@@ -155,14 +213,14 @@ class Dreambooth(c.Module):
     def set_model(self, config):
         logging_dir = Path(config.output_dir, self.config.logging_dir)
 
-        accelerator_project_config = ProjectConfiguration(total_limit=config.checkpoints_total_limit)
+        self.accelerator_project_config = ProjectConfiguration(total_limit=config.checkpoints_total_limit)
 
-        accelerator = Accelerator(
+        self.accelerator = Accelerator(
             gradient_accumulation_steps=config.gradient_accumulation_steps,
             mixed_precision=config.mixed_precision,
             log_with=config.report_to,
             logging_dir=logging_dir,
-            project_config=accelerator_project_config,
+            project_config=self.accelerator_project_config,
         )
 
         if config.report_to == "wandb":
@@ -173,7 +231,7 @@ class Dreambooth(c.Module):
         # Currently, it's not possible to do gradient accumulation when training two models with accelerate.accumulate
         # This will be enabled soon in accelerate. For now, we don't allow gradient accumulation when training two models.
         # TODO (sayakpaul): Remove this check when gradient accumulation with two models is enabled in accelerate.
-        if config.train_text_encoder and config.gradient_accumulation_steps > 1 and accelerator.num_processes > 1:
+        if config.train_text_encoder and config.gradient_accumulation_steps > 1 and self.accelerator.num_processes > 1:
             raise ValueError(
                 "Gradient accumulation is not supported when training the text encoder in distributed training. "
                 "Please set gradient_accumulation_steps to 1. This feature will be supported in the future."
@@ -185,10 +243,10 @@ class Dreambooth(c.Module):
             datefmt="%m/%d/%Y %H:%M:%S",
             level=logging.INFO,
         )
-        logger.info(accelerator.state, main_process_only=False)
+        logger.info(self.accelerator.state, main_process_only=False)
         
         
-        if accelerator.is_local_main_process:
+        if self.accelerator.is_local_main_process:
             transformers.utils.logging.set_verbosity_warning()
             diffusers.utils.logging.set_verbosity_info()
         else:
@@ -205,7 +263,7 @@ class Dreambooth(c.Module):
         
         
         # Handle the repository creation
-        if accelerator.is_main_process:
+        if self.accelerator.is_main_process:
             if config.output_dir is not None:
                 os.makedirs(config.output_dir, exist_ok=True)
 
@@ -219,10 +277,10 @@ class Dreambooth(c.Module):
 
         # Load scheduler and models
         self.noise_scheduler = DDPMScheduler.from_pretrained(config.pretrained_model_name_or_path, subfolder="scheduler")
-        self.text_encoder = text_encoder_cls.from_pretrained(
+        text_encoder = text_encoder_cls.from_pretrained(
             config.pretrained_model_name_or_path, subfolder="text_encoder", revision=config.revision
         )
-        self.text_encoder.requires_grad_(False)
+        text_encoder.requires_grad_(False)
         try:
             vae = AutoencoderKL.from_pretrained(
                 config.pretrained_model_name_or_path, subfolder="vae", revision=config.revision
@@ -238,23 +296,26 @@ class Dreambooth(c.Module):
             config.pretrained_model_name_or_path, subfolder="unet", revision=config.revision
         )
         unet.requires_grad_(False)
+        
+        
+        
 
         
     
 
         # For mixed precision training we cast the text_encoder and vae weights to half-precision
         # as these models are only used for inference, keeping weights in full precision is not required.
-        weight_dtype = torch.float32
-        if accelerator.mixed_precision == "fp16":
-            weight_dtype = torch.float16
-        elif accelerator.mixed_precision == "bf16":
-            weight_dtype = torch.bfloat16
+        self.weight_dtype = torch.float32
+        if self.accelerator.mixed_precision == "fp16":
+            self.weight_dtype = torch.float16
+        elif self.accelerator.mixed_precision == "bf16":
+            self.weight_dtype = torch.bfloat16
 
         # Move unet, vae and text_encoder to device and cast to weight_dtype
-        unet.to(accelerator.device, dtype=weight_dtype)
-        if vae is not None:
-            vae.to(accelerator.device, dtype=weight_dtype)
-        text_encoder.to(accelerator.device, dtype=weight_dtype)
+        self.unet.to(self.accelerator.device, dtype=self.weight_dtype)
+        if self.vae is not None:
+            self.vae.to(self.accelerator.device, dtype=self.weight_dtype)
+        self.text_encoder.to(self.accelerator.device, dtype=self.weight_dtype)
 
         if config.enable_xformers_memory_efficient_attention:
             if is_xformers_available():
@@ -265,7 +326,7 @@ class Dreambooth(c.Module):
                     logger.warn(
                         "xFormers 0.0.16 cannot be used for training in some GPUs. If you observe problems during training, please update xFormers to at least 0.0.17. See https://huggingface.co/docs/diffusers/main/en/optimization/xformers for more details."
                     )
-                unet.enable_xformers_memory_efficient_attention()
+                self.unet.enable_xformers_memory_efficient_attention()
             else:
                 raise ValueError("xformers is not available. Make sure it is installed correctly")
 
@@ -284,7 +345,7 @@ class Dreambooth(c.Module):
 
         # Set correct lora layers
         unet_lora_attn_procs = {}
-        for name, attn_processor in unet.attn_processors.items():
+        for name, attn_processor in self.unet.attn_processors.items():
             cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
             if name.startswith("mid_block"):
                 hidden_size = unet.config.block_out_channels[-1]
@@ -326,65 +387,8 @@ class Dreambooth(c.Module):
             text_encoder = temp_pipeline.text_encoder
             del temp_pipeline
 
-        # create custom saving & loading hooks so that `accelerator.save_state(...)` serializes in a nice format
-        def save_model_hook(models, weights, output_dir):
-            # there are only two options here. Either are just the unet attn processor layers
-            # or there are the unet and text encoder atten layers
-            unet_lora_layers_to_save = None
-            text_encoder_lora_layers_to_save = None
-
-            if config.train_text_encoder:
-                text_encoder_keys = accelerator.unwrap_model(text_encoder_lora_layers).state_dict().keys()
-            unet_keys = accelerator.unwrap_model(unet_lora_layers).state_dict().keys()
-
-            for model in models:
-                state_dict = model.state_dict()
-
-                if (
-                    text_encoder_lora_layers is not None
-                    and text_encoder_keys is not None
-                    and state_dict.keys() == text_encoder_keys
-                ):
-                    # text encoder
-                    text_encoder_lora_layers_to_save = state_dict
-                elif state_dict.keys() == unet_keys:
-                    # unet
-                    unet_lora_layers_to_save = state_dict
-
-                # make sure to pop weight so that corresponding model is not saved again
-                weights.pop()
-
-            LoraLoaderMixin.save_lora_weights(
-                output_dir,
-                unet_lora_layers=unet_lora_layers_to_save,
-                text_encoder_lora_layers=text_encoder_lora_layers_to_save,
-            )
-
-        def load_model_hook(models, input_dir):
-            # Note we DON'T pass the unet and text encoder here an purpose
-            # so that the we don't accidentally override the LoRA layers of
-            # unet_lora_layers and text_encoder_lora_layers which are stored in `models`
-            # with new torch.nn.Modules / weights. We simply use the pipeline class as
-            # an easy way to load the lora checkpoints
-            temp_pipeline = DiffusionPipeline.from_pretrained(
-                config.pretrained_model_name_or_path,
-                revision=config.revision,
-                torch_dtype=weight_dtype,
-            )
-            temp_pipeline.load_lora_weights(input_dir)
-
-            # load lora weights into models
-            models[0].load_state_dict(AttnProcsLayers(temp_pipeline.unet.attn_processors).state_dict())
-            if len(models) > 1:
-                models[1].load_state_dict(AttnProcsLayers(temp_pipeline.text_encoder_lora_attn_procs).state_dict())
-
-            # delete temporary pipeline and pop models
-            del temp_pipeline
-            for _ in range(len(models)):
-                models.pop()
-
-        accelerator.register_save_state_pre_hook(save_model_hook)
-        accelerator.register_load_state_pre_hook(load_model_hook)
+        self.accelerator.register_save_state_pre_hook(self.save_model_hook)
+        self.accelerator.register_load_state_pre_hook(self.load_model_hook)
 
         # Enable TF32 for faster training on Ampere GPUs,
         # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
@@ -393,7 +397,7 @@ class Dreambooth(c.Module):
 
         if config.scale_lr:
             config.learning_rate = (
-                config.learning_rate * config.gradient_accumulation_steps * config.train_batch_size * accelerator.num_processes
+                config.learning_rate * config.gradient_accumulation_steps * config.train_batch_size * self.accelerator.num_processes
             )
 
         # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
@@ -415,7 +419,7 @@ class Dreambooth(c.Module):
             if config.train_text_encoder
             else unet_lora_layers.parameters()
         )
-        optimizer = optimizer_class(
+        self.optimizer = optimizer_class(
             params_to_optimize,
             lr=config.learning_rate,
             betas=(config.adam_beta1, config.adam_beta2),
@@ -448,9 +452,25 @@ class Dreambooth(c.Module):
             validation_prompt_encoder_hidden_states = None
             validation_prompt_negative_prompt_embeds = None
             pre_computed_instance_prompt_encoder_hidden_states = None
+            
+        self.pre_computed_encoder_hidden_states = pre_computed_encoder_hidden_states
+        self.validation_prompt_encoder_hidden_states = validation_prompt_encoder_hidden_states
+        self.validation_prompt_negative_prompt_embeds = validation_prompt_negative_prompt_embeds
+        self.pre_computed_instance_prompt_encoder_hidden_states = pre_computed_instance_prompt_encoder_hidden_states
 
 
-    def main(config):
+
+        self.unet = unet
+        self.text_encoder = text_encoder
+        self.vae = vae
+
+    def resolve_config(self, config):
+        return self.config if config == None else config
+
+
+    def main(self, config = None):
+        
+        config = self.resolve_config(config)
 
 
         # Dataset and DataLoaders creation:
@@ -460,11 +480,11 @@ class Dreambooth(c.Module):
             class_data_root=config.class_data_dir if config.with_prior_preservation else None,
             class_prompt=config.class_prompt,
             class_num=config.num_class_images,
-            tokenizer=tokenizer,
+            tokenizer=self.tokenizer,
             size=config.resolution,
             center_crop=config.center_crop,
-            encoder_hidden_states=pre_computed_encoder_hidden_states,
-            instance_prompt_encoder_hidden_states=pre_computed_instance_prompt_encoder_hidden_states,
+            encoder_hidden_states=self.pre_computed_encoder_hidden_states,
+            instance_prompt_encoder_hidden_states=self.pre_computed_instance_prompt_encoder_hidden_states,
             tokenizer_max_length=config.tokenizer_max_length,
         )
 
@@ -472,7 +492,7 @@ class Dreambooth(c.Module):
             train_dataset,
             batch_size=config.train_batch_size,
             shuffle=True,
-            collate_fn=lambda examples: collate_fn(examples, config.with_prior_preservation),
+            collate_fn=lambda examples: self.collate_fn(examples, config.with_prior_preservation),
             num_workers=config.dataloader_num_workers,
         )
 
@@ -492,13 +512,13 @@ class Dreambooth(c.Module):
             power=config.lr_power,
         )
 
-        # Prepare everything with our `accelerator`.
+        # Prepare everything with our `self.accelerator`.
         if config.train_text_encoder:
-            unet_lora_layers, text_encoder_lora_layers, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            unet_lora_layers, text_encoder_lora_layers, optimizer, train_dataloader, lr_scheduler = self.accelerator.prepare(
                 unet_lora_layers, text_encoder_lora_layers, optimizer, train_dataloader, lr_scheduler
             )
         else:
-            unet_lora_layers, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+            unet_lora_layers, optimizer, train_dataloader, lr_scheduler = self.accelerator.prepare(
                 unet_lora_layers, optimizer, train_dataloader, lr_scheduler
             )
 
@@ -511,11 +531,11 @@ class Dreambooth(c.Module):
 
         # We need to initialize the trackers we use, and also store our configuration.
         # The trackers initializes automatically on the main process.
-        if accelerator.is_main_process:
-            accelerator.init_trackers("dreambooth-lora", config=vars(config))
+        if self.accelerator.is_main_process:
+            self.accelerator.init_trackers("dreambooth-lora", config=vars(config))
 
         # Train!
-        total_batch_size = config.train_batch_size * accelerator.num_processes * config.gradient_accumulation_steps
+        total_batch_size = config.train_batch_size * self.accelerator.num_processes * config.gradient_accumulation_steps
 
         logger.info("***** Running training *****")
         logger.info(f"  Num examples = {len(train_dataset)}")
@@ -540,13 +560,13 @@ class Dreambooth(c.Module):
                 path = dirs[-1] if len(dirs) > 0 else None
 
             if path is None:
-                accelerator.print(
+                self.accelerator.print(
                     f"Checkpoint '{config.resume_from_checkpoint}' does not exist. Starting a new training run."
                 )
                 config.resume_from_checkpoint = None
             else:
-                accelerator.print(f"Resuming from checkpoint {path}")
-                accelerator.load_state(os.path.join(config.output_dir, path))
+                self.accelerator.print(f"Resuming from checkpoint {path}")
+                self.accelerator.load_state(os.path.join(config.output_dir, path))
                 global_step = int(path.split("-")[1])
 
                 resume_global_step = global_step * config.gradient_accumulation_steps
@@ -554,13 +574,13 @@ class Dreambooth(c.Module):
                 resume_step = resume_global_step % (num_update_steps_per_epoch * config.gradient_accumulation_steps)
 
         # Only show the progress bar once on each machine.
-        progress_bar = tqdm(range(global_step, config.max_train_steps), disable=not accelerator.is_local_main_process)
+        progress_bar = tqdm(range(global_step, config.max_train_steps), disable=not self.accelerator.is_local_main_process)
         progress_bar.set_description("Steps")
 
         for epoch in range(first_epoch, config.num_train_epochs):
-            unet.train()
+            self.unet.train()
             if config.train_text_encoder:
-                text_encoder.train()
+                self.text_encoder.train()
             for step, batch in enumerate(train_dataloader):
                 # Skip steps until we reach the resumed step
                 if config.resume_from_checkpoint and epoch == first_epoch and step < resume_step:
@@ -568,13 +588,13 @@ class Dreambooth(c.Module):
                         progress_bar.update(1)
                     continue
 
-                with accelerator.accumulate(unet):
-                    pixel_values = batch["pixel_values"].to(dtype=weight_dtype)
+                with self.accelerator.accumulate(unet):
+                    pixel_values = batch["pixel_values"].to(dtype=self.weight_dtype)
 
-                    if vae is not None:
+                    if self.vae is not None:
                         # Convert images to latent space
-                        model_input = vae.encode(pixel_values).latent_dist.sample()
-                        model_input = model_input * vae.config.scaling_factor
+                        model_input = self.vae.encode(pixel_values).latent_dist.sample()
+                        model_input = model_input * self.vae.config.scaling_factor
                     else:
                         model_input = pixel_values
 
@@ -583,27 +603,26 @@ class Dreambooth(c.Module):
                     bsz = model_input.shape[0]
                     # Sample a random timestep for each image
                     timesteps = torch.randint(
-                        0, noise_scheduler.config.num_train_timesteps, (bsz,), device=model_input.device
+                        0, self.noise_scheduler.config.num_train_timesteps, (bsz,), device=model_input.device
                     )
                     timesteps = timesteps.long()
 
                     # Add noise to the model input according to the noise magnitude at each timestep
                     # (this is the forward diffusion process)
-                    noisy_model_input = noise_scheduler.add_noise(model_input, noise, timesteps)
+                    noisy_model_input = self.noise_scheduler.add_noise(model_input, noise, timesteps)
 
                     # Get the text embedding for conditioning
                     if config.pre_compute_text_embeddings:
                         encoder_hidden_states = batch["input_ids"]
                     else:
-                        encoder_hidden_states = encode_prompt(
-                            text_encoder,
+                        encoder_hidden_states = self.encode_prompt(
                             batch["input_ids"],
                             batch["attention_mask"],
                             text_encoder_use_attention_mask=config.text_encoder_use_attention_mask,
                         )
 
                     # Predict the noise residual
-                    model_pred = unet(noisy_model_input, timesteps, encoder_hidden_states).sample
+                    model_pred = self.unet(noisy_model_input, timesteps, encoder_hidden_states).sample
 
                     # if model predicts variance, throw away the prediction. we will only train on the
                     # simplified training objective. This means that all schedulers using the fine tuned
@@ -612,12 +631,12 @@ class Dreambooth(c.Module):
                         model_pred, _ = torch.chunk(model_pred, 2, dim=1)
 
                     # Get the target for loss depending on the prediction type
-                    if noise_scheduler.config.prediction_type == "epsilon":
+                    if self.noise_scheduler.config.prediction_type == "epsilon":
                         target = noise
-                    elif noise_scheduler.config.prediction_type == "v_prediction":
-                        target = noise_scheduler.get_velocity(model_input, noise, timesteps)
+                    elif self.noise_scheduler.config.prediction_type == "v_prediction":
+                        target = self.noise_scheduler.get_velocity(model_input, noise, timesteps)
                     else:
-                        raise ValueError(f"Unknown prediction type {noise_scheduler.config.prediction_type}")
+                        raise ValueError(f"Unknown prediction type {self.noise_scheduler.config.prediction_type}")
 
                     if config.with_prior_preservation:
                         # Chunk the noise and model_pred into two parts and compute the loss on each part separately.
@@ -635,37 +654,37 @@ class Dreambooth(c.Module):
                     else:
                         loss = F.mse_loss(model_pred.float(), target.float(), reduction="mean")
 
-                    accelerator.backward(loss)
-                    if accelerator.sync_gradients:
+                    self.accelerator.backward(loss)
+                    if self.accelerator.sync_gradients:
                         params_to_clip = (
                             itertools.chain(unet_lora_layers.parameters(), text_encoder_lora_layers.parameters())
                             if config.train_text_encoder
                             else unet_lora_layers.parameters()
                         )
-                        accelerator.clip_grad_norm_(params_to_clip, config.max_grad_norm)
-                    optimizer.step()
-                    lr_scheduler.step()
-                    optimizer.zero_grad()
+                        self.accelerator.clip_grad_norm_(params_to_clip, config.max_grad_norm)
+                    self.optimizer.step()
+                    self.lr_scheduler.step()
+                    self.optimizer.zero_grad()
 
-                # Checks if the accelerator has performed an optimization step behind the scenes
-                if accelerator.sync_gradients:
+                # Checks if the self.accelerator has performed an optimization step behind the scenes
+                if self.accelerator.sync_gradients:
                     progress_bar.update(1)
                     global_step += 1
 
-                    if accelerator.is_main_process:
+                    if self.accelerator.is_main_process:
                         if global_step % config.checkpointing_steps == 0:
                             save_path = os.path.join(config.output_dir, f"checkpoint-{global_step}")
-                            accelerator.save_state(save_path)
+                            self.accelerator.save_state(save_path)
                             logger.info(f"Saved state to {save_path}")
 
                 logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0]}
                 progress_bar.set_postfix(**logs)
-                accelerator.log(logs, step=global_step)
+                self.accelerator.log(logs, step=global_step)
 
                 if global_step >= config.max_train_steps:
                     break
 
-            if accelerator.is_main_process:
+            if self.accelerator.is_main_process:
                 if config.validation_prompt is not None and epoch % config.validation_epochs == 0:
                     logger.info(
                         f"Running validation... \n Generating {config.num_validation_images} images with prompt:"
@@ -674,10 +693,10 @@ class Dreambooth(c.Module):
                     # create pipeline
                     pipeline = DiffusionPipeline.from_pretrained(
                         config.pretrained_model_name_or_path,
-                        unet=accelerator.unwrap_model(unet),
-                        text_encoder=None if config.pre_compute_text_embeddings else accelerator.unwrap_model(text_encoder),
+                        unet=self.accelerator.unwrap_model(unet),
+                        text_encoder=None if config.pre_compute_text_embeddings else self.accelerator.unwrap_model(text_encoder),
                         revision=config.revision,
-                        torch_dtype=weight_dtype,
+                        torch_dtype=self.weight_dtype,
                     )
 
                     # We train on the simplified learning objective. If we were previously predicting a variance, we need the scheduler to ignore it
@@ -695,11 +714,11 @@ class Dreambooth(c.Module):
                         pipeline.scheduler.config, **scheduler_config
                     )
 
-                    pipeline = pipeline.to(accelerator.device)
+                    pipeline = pipeline.to(self.accelerator.device)
                     pipeline.set_progress_bar_config(disable=True)
 
                     # run inference
-                    generator = torch.Generator(device=accelerator.device).manual_seed(config.seed) if config.seed else None
+                    generator = torch.Generator(device=self.accelerator.device).manual_seed(config.seed) if config.seed else None
                     if config.pre_compute_text_embeddings:
                         pipeline_config = {
                             "prompt_embeds": validation_prompt_encoder_hidden_states,
@@ -711,7 +730,7 @@ class Dreambooth(c.Module):
                         pipeline(**pipeline_config, generator=generator).images[0] for _ in range(config.num_validation_images)
                     ]
 
-                    for tracker in accelerator.trackers:
+                    for tracker in self.accelerator.trackers:
                         if tracker.name == "tensorboard":
                             np_images = np.stack([np.asarray(img) for img in images])
                             tracker.writer.add_images("validation", np_images, epoch, dataformats="NHWC")
@@ -729,14 +748,14 @@ class Dreambooth(c.Module):
                     torch.cuda.empty_cache()
 
         # Save the lora layers
-        accelerator.wait_for_everyone()
-        if accelerator.is_main_process:
+        self.accelerator.wait_for_everyone()
+        if self.accelerator.is_main_process:
             unet = unet.to(torch.float32)
-            unet_lora_layers = accelerator.unwrap_model(unet_lora_layers)
+            unet_lora_layers = self.accelerator.unwrap_model(unet_lora_layers)
 
             if text_encoder is not None:
                 text_encoder = text_encoder.to(torch.float32)
-                text_encoder_lora_layers = accelerator.unwrap_model(text_encoder_lora_layers)
+                text_encoder_lora_layers = self.accelerator.unwrap_model(text_encoder_lora_layers)
 
             LoraLoaderMixin.save_lora_weights(
                 save_directory=config.output_dir,
@@ -747,7 +766,7 @@ class Dreambooth(c.Module):
             # Final inference
             # Load previous pipeline
             pipeline = DiffusionPipeline.from_pretrained(
-                config.pretrained_model_name_or_path, revision=config.revision, torch_dtype=weight_dtype
+                config.pretrained_model_name_or_path, revision=config.revision, torch_dtype=self.weight_dtype
             )
 
             # We train on the simplified learning objective. If we were previously predicting a variance, we need the scheduler to ignore it
@@ -763,7 +782,7 @@ class Dreambooth(c.Module):
 
             pipeline.scheduler = DPMSolverMultistepScheduler.from_config(pipeline.scheduler.config, **scheduler_config)
 
-            pipeline = pipeline.to(accelerator.device)
+            pipeline = pipeline.to(self.accelerator.device)
 
             # load attention processors
             pipeline.load_lora_weights(config.output_dir)
@@ -771,13 +790,13 @@ class Dreambooth(c.Module):
             # run inference
             images = []
             if config.validation_prompt and config.num_validation_images > 0:
-                generator = torch.Generator(device=accelerator.device).manual_seed(config.seed) if config.seed else None
+                generator = torch.Generator(device=self.accelerator.device).manual_seed(config.seed) if config.seed else None
                 images = [
                     pipeline(config.validation_prompt, num_inference_steps=25, generator=generator).images[0]
                     for _ in range(config.num_validation_images)
                 ]
 
-                for tracker in accelerator.trackers:
+                for tracker in self.accelerator.trackers:
                     if tracker.name == "tensorboard":
                         np_images = np.stack([np.asarray(img) for img in images])
                         tracker.writer.add_images("test", np_images, epoch, dataformats="NHWC")
@@ -792,7 +811,7 @@ class Dreambooth(c.Module):
                         )
 
             if config.push_to_hub:
-                save_model_card(
+                self.save_model_card(
                     repo_id,
                     images=images,
                     base_model=config.pretrained_model_name_or_path,
@@ -807,10 +826,10 @@ class Dreambooth(c.Module):
                     ignore_patterns=["step_*", "epoch_*"],
                 )
 
-        accelerator.end_training()
+        self.accelerator.end_training()
 
 
-
+    @staticmethod
     def collate_fn(examples, with_prior_preservation=False):
         has_attention_mask = "instance_attention_mask" in examples[0]
 
@@ -845,6 +864,7 @@ class Dreambooth(c.Module):
 
 
 
+    @staticmethod
     def save_model_card(repo_id: str, images=None, base_model=str, train_text_encoder=False, prompt=str, repo_folder=None):
         img_str = ""
         for i, image in enumerate(images):
@@ -878,6 +898,7 @@ class Dreambooth(c.Module):
             f.write(yaml + model_card)
 
 
+    @staticmethod
     def import_model_class_from_model_name_or_path(pretrained_model_name_or_path: str, revision: str):
         text_encoder_config = PretrainedConfig.from_pretrained(
             pretrained_model_name_or_path,
@@ -902,18 +923,18 @@ class Dreambooth(c.Module):
             raise ValueError(f"{model_class} is not supported.")
 
 
+    
+    def compute_text_embeddings(self,  prompt:str):
+        config = self.config
+        with torch.no_grad():
+            text_inputs = self.tokenize_prompt(prompt, tokenizer_max_length=config.tokenizer_max_length)
+            prompt_embeds = self.encode_prompt(
+                text_inputs.input_ids,
+                text_inputs.attention_mask,
+                text_encoder_use_attention_mask=config.text_encoder_use_attention_mask,
+            )
 
-        def compute_text_embeddings(self,  prompt:str):
-            with torch.no_grad():
-                text_inputs = self.tokenize_prompt(prompt, tokenizer_max_length=config.tokenizer_max_length)
-                prompt_embeds = self.encode_prompt(
-                    text_encoder,
-                    text_inputs.input_ids,
-                    text_inputs.attention_mask,
-                    text_encoder_use_attention_mask=config.text_encoder_use_attention_mask,
-                )
-
-            return prompt_embeds
-
+        return prompt_embeds
 
 if __name__ == "__main__":
+    Dreambooth.run()
