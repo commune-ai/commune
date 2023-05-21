@@ -15,7 +15,7 @@ import streamlit as st
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
-    default_model_name = 'fish'
+    default_model_name = 'vr'
     
     def __init__(self,
 
@@ -1287,7 +1287,7 @@ class BittensorModule(c.Module):
         
         
         model_name = model_name if model_name is not None else cls.default_model_name 
-        model_shortcuts = c.module('model').shortcuts()
+        model_shortcuts = cls.shortcuts
         if logging:
             config.logging.debug = logging
             
@@ -1351,7 +1351,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = list(range(1,9)),
+                    hotkeys = None,
                     remote=True,
                     netuid=3,
                     network='finney',
@@ -1360,15 +1360,19 @@ class BittensorModule(c.Module):
                     burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
+                    n = None,
                     ensure_gpus = True,
                     max_fee=1.1): 
     
         
         # address = cls.address(name)
         if hotkeys == None:
-            wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
+            wallets = [f'{name}.{h}' for h in cls.unreged_hotkeys(name)]
         else:
             wallets  = [f'{name}.{h}' for h in hotkeys]
+            
+        n = n if n != None else len(wallets)
+        assert isinstance(n,int) and n > 0 and n <= len(wallets)
         
         gpus = cls.gpus()
         subtensor = cls.get_subtensor(network)
@@ -1378,7 +1382,12 @@ class BittensorModule(c.Module):
             free_gpu_memory = cls.free_gpu_memory()
             
         reserved_ports = []
+        
+        deloyed_miners = 0
         for i, wallet in enumerate(wallets):
+            
+
+            
             
             tag = f'{wallet}::{subtensor.network}::{netuid}'
             miner_name = f'miner::{tag}'
@@ -1427,6 +1436,11 @@ class BittensorModule(c.Module):
                         prometheus_port = prometheus_port,
                         burned_register=burned_register,
                         max_fee=max_fee)
+            
+            n -= 1 
+            if n <= 0:
+                cls.print('Max miners reached')
+                break
         
         cls.unreserve_ports(reserved_ports)
     @classmethod
@@ -1723,6 +1737,7 @@ class BittensorModule(c.Module):
         'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
         'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
         'fish': os.path.expanduser('~/fish_model'),
+        'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
         
             }
 
