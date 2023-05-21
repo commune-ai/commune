@@ -237,7 +237,7 @@ class Client( Serializer, commune.Module):
         data = data if data else {}
         metadata = metadata if metadata else {}
         
-        # the deepcopy is a hack to get around the fact that the data is being modified in place LOL
+        # the deepcopy is a hack to get around the fact that the data is being modiced in place LOL
         kwargs, data, metadata = deepcopy(kwargs), deepcopy(data), deepcopy(metadata)
         
         

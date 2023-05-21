@@ -23,6 +23,8 @@ import torch
 import ray
 
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline, LMSDiscreteScheduler
+from diffusers import DiffusionPipeline
+
 
 class DiffuserModule(Module):
 
