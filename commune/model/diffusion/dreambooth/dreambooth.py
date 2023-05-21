@@ -69,27 +69,11 @@ import commune as c
 class Dreambooth(c.Module):
 
 
-    def encode_prompt(self, input_ids, attention_mask, text_encoder_use_attention_mask=None):
-        text_input_ids = input_ids.to(self.text_encoder.device)
-
-        if text_encoder_use_attention_mask:
-            attention_mask = attention_mask.to(self.text_encoder.device)
-        else:
-            attention_mask = None
-
-        prompt_embeds = self.text_encoder(
-            text_input_ids,
-            attention_mask=attention_mask,
-        )
-        prompt_embeds = prompt_embeds[0]
-
-        return prompt_embeds
-
 
 
     # create custom saving & loading hooks so that `self.accelerator.save_state(...)` serializes in a nice format
     def save_model_hook(self, models, weights, output_dir):
-        config = self.__config_file__
+        config = self.config
         # there are only two options here. Either are just the unet attn processor layers
         # or there are the unet and text encoder atten layers
         unet_lora_layers_to_save = None
@@ -162,7 +146,8 @@ class Dreambooth(c.Module):
         self.tokenizer = tokenizer
 
 
-    def prior_preservation(self, config):
+    def prior_preservation(self, config=None):
+        config = self.resolve_config(config)
         class_images_dir = Path(config.class_data_dir)
         if not class_images_dir.exists():
             class_images_dir.mkdir(parents=True)
@@ -207,10 +192,61 @@ class Dreambooth(c.Module):
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-        
-        
 
-    def set_model(self, config):
+    def set_unet(self, config):
+        unet = UNet2DConditionModel.from_pretrained(
+            config.pretrained_model_name_or_path, subfolder="unet", revision=config.revision
+        )
+        unet.requires_grad_(False)
+    
+            # Set correct lora layers
+        unet_lora_attn_procs = {}
+        for name, attn_processor in unet.attn_processors.items():
+            cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
+            if name.startswith("mid_block"):
+                hidden_size = unet.config.block_out_channels[-1]
+            elif name.startswith("up_blocks"):
+                block_id = int(name[len("up_blocks.")])
+                hidden_size = list(reversed(unet.config.block_out_channels))[block_id]
+            elif name.startswith("down_blocks"):
+                block_id = int(name[len("down_blocks.")])
+                hidden_size = unet.config.block_out_channels[block_id]
+
+            if isinstance(attn_processor, (AttnAddedKVProcessor, SlicedAttnAddedKVProcessor, AttnAddedKVProcessor2_0)):
+                lora_attn_processor_class = LoRAAttnAddedKVProcessor
+            else:
+                lora_attn_processor_class = LoRAAttnProcessor
+
+            unet_lora_attn_procs[name] = lora_attn_processor_class(
+                hidden_size=hidden_size, cross_attention_dim=cross_attention_dim
+            )
+
+        unet.set_attn_processor(unet_lora_attn_procs)
+        unet_lora_layers = AttnProcsLayers(unet.attn_processors)
+
+
+
+        # Move unet, vae and text_encoder to device and cast to weight_dtype
+        unet.to(self.accelerator.device, dtype=self.weight_dtype)
+        if config.enable_xformers_memory_efficient_attention:
+            if is_xformers_available():
+                import xformers
+
+                xformers_version = version.parse(xformers.__version__)
+                if xformers_version == version.parse("0.0.16"):
+                    logger.warn(
+                        "xFormers 0.0.16 cannot be used for training in some GPUs. If you observe problems during training, please update xFormers to at least 0.0.17. See https://huggingface.co/docs/diffusers/main/en/optimization/xformers for more details."
+                    )
+                unet.enable_xformers_memory_efficient_attention()
+            else:
+                raise ValueError("xformers is not available. Make sure it is installed correctly")
+
+        self.unet_lora_layers = unet_lora_layers
+        self.unet = unet 
+        
+        
+        
+    def set_accelerator(self,config):
         logging_dir = Path(config.output_dir, self.config.logging_dir)
 
         self.accelerator_project_config = ProjectConfiguration(total_limit=config.checkpoints_total_limit)
@@ -222,6 +258,7 @@ class Dreambooth(c.Module):
             logging_dir=logging_dir,
             project_config=self.accelerator_project_config,
         )
+
 
         if config.report_to == "wandb":
             if not is_wandb_available():
@@ -255,11 +292,8 @@ class Dreambooth(c.Module):
 
         # If passed along, set the training seed now.
         if config.seed is not None:
-            set_seed(config.seed)
-
-        # Generate class images if prior preservation is enabled.
-        if config.with_prior_preservation:
-            self.prior_preservation(config)
+            set_seed(config.seed)  
+        
         
         
         # Handle the repository creation
@@ -271,38 +305,8 @@ class Dreambooth(c.Module):
                 repo_id = create_repo(
                     repo_id=config.hub_model_id or Path(config.output_dir).name, exist_ok=True, token=config.hub_token
                 ).repo_id
-
-        # import correct text encoder class
-        text_encoder_cls = self.import_model_class_from_model_name_or_path(config.pretrained_model_name_or_path, config.revision)
-
-        # Load scheduler and models
-        self.noise_scheduler = DDPMScheduler.from_pretrained(config.pretrained_model_name_or_path, subfolder="scheduler")
-        text_encoder = text_encoder_cls.from_pretrained(
-            config.pretrained_model_name_or_path, subfolder="text_encoder", revision=config.revision
-        )
-        text_encoder.requires_grad_(False)
-        try:
-            vae = AutoencoderKL.from_pretrained(
-                config.pretrained_model_name_or_path, subfolder="vae", revision=config.revision
-            )
-            vae.requires_grad_(False)
-        except OSError:
-            # IF does not have a VAE so let's just set it to None
-            # We don't have to error out here
-            vae = None
-            
-    
-        unet = UNet2DConditionModel.from_pretrained(
-            config.pretrained_model_name_or_path, subfolder="unet", revision=config.revision
-        )
-        unet.requires_grad_(False)
         
         
-        
-
-        
-    
-
         # For mixed precision training we cast the text_encoder and vae weights to half-precision
         # as these models are only used for inference, keeping weights in full precision is not required.
         self.weight_dtype = torch.float32
@@ -311,64 +315,26 @@ class Dreambooth(c.Module):
         elif self.accelerator.mixed_precision == "bf16":
             self.weight_dtype = torch.bfloat16
 
-        # Move unet, vae and text_encoder to device and cast to weight_dtype
-        self.unet.to(self.accelerator.device, dtype=self.weight_dtype)
-        if self.vae is not None:
-            self.vae.to(self.accelerator.device, dtype=self.weight_dtype)
-        self.text_encoder.to(self.accelerator.device, dtype=self.weight_dtype)
 
-        if config.enable_xformers_memory_efficient_attention:
-            if is_xformers_available():
-                import xformers
+    def set_noise_schedular(self, config):
+        self.noise_scheduler = DDPMScheduler.from_pretrained(config.pretrained_model_name_or_path, subfolder="scheduler")
 
-                xformers_version = version.parse(xformers.__version__)
-                if xformers_version == version.parse("0.0.16"):
-                    logger.warn(
-                        "xFormers 0.0.16 cannot be used for training in some GPUs. If you observe problems during training, please update xFormers to at least 0.0.17. See https://huggingface.co/docs/diffusers/main/en/optimization/xformers for more details."
-                    )
-                self.unet.enable_xformers_memory_efficient_attention()
-            else:
-                raise ValueError("xformers is not available. Make sure it is installed correctly")
 
-        # now we will add new LoRA weights to the attention layers
-        # It's important to realize here how many attention weights will be added and of which sizes
-        # The sizes of the attention layers consist only of two different variables:
-        # 1) - the "hidden_size", which is increased according to `unet.config.block_out_channels`.
-        # 2) - the "cross attention size", which is set to `unet.config.cross_attention_dim`.
+        
+    def set_text_encoder(self,config):
+        # import correct text encoder class
+        self.set_tokenizer(config)
+        text_encoder_cls = self.import_model_class_from_model_name_or_path(config.pretrained_model_name_or_path, config.revision)
 
-        # Let's first see how many attention processors we will have to set.
-        # For Stable Diffusion, it should be equal to:
-        # - down blocks (2x attention layers) * (2x transformer layers) * (3x down blocks) = 12
-        # - mid blocks (2x attention layers) * (1x transformer layers) * (1x mid blocks) = 2
-        # - up blocks (2x attention layers) * (3x transformer layers) * (3x down blocks) = 18
-        # => 32 layers
+        # Load scheduler and models
+        text_encoder = text_encoder_cls.from_pretrained(
+            config.pretrained_model_name_or_path, subfolder="text_encoder", revision=config.revision
+        )
+        text_encoder.requires_grad_(False)
+        text_encoder.to(self.accelerator.device, dtype=self.weight_dtype)
 
-        # Set correct lora layers
-        unet_lora_attn_procs = {}
-        for name, attn_processor in self.unet.attn_processors.items():
-            cross_attention_dim = None if name.endswith("attn1.processor") else unet.config.cross_attention_dim
-            if name.startswith("mid_block"):
-                hidden_size = unet.config.block_out_channels[-1]
-            elif name.startswith("up_blocks"):
-                block_id = int(name[len("up_blocks.")])
-                hidden_size = list(reversed(unet.config.block_out_channels))[block_id]
-            elif name.startswith("down_blocks"):
-                block_id = int(name[len("down_blocks.")])
-                hidden_size = unet.config.block_out_channels[block_id]
 
-            if isinstance(attn_processor, (AttnAddedKVProcessor, SlicedAttnAddedKVProcessor, AttnAddedKVProcessor2_0)):
-                lora_attn_processor_class = LoRAAttnAddedKVProcessor
-            else:
-                lora_attn_processor_class = LoRAAttnProcessor
-
-            unet_lora_attn_procs[name] = lora_attn_processor_class(
-                hidden_size=hidden_size, cross_attention_dim=cross_attention_dim
-            )
-
-        unet.set_attn_processor(unet_lora_attn_procs)
-        unet_lora_layers = AttnProcsLayers(unet.attn_processors)
-
-        # The text encoder comes from 🤗 transformers, so we cannot directly modify it.
+       # The text encoder comes from 🤗 transformers, so we cannot directly modify it.
         # So, instead, we monkey-patch the forward calls of its attention-blocks. For this,
         # we first load a dummy pipeline with the text encoder and then do the monkey-patching.
         text_encoder_lora_layers = None
@@ -387,45 +353,6 @@ class Dreambooth(c.Module):
             text_encoder = temp_pipeline.text_encoder
             del temp_pipeline
 
-        self.accelerator.register_save_state_pre_hook(self.save_model_hook)
-        self.accelerator.register_load_state_pre_hook(self.load_model_hook)
-
-        # Enable TF32 for faster training on Ampere GPUs,
-        # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
-        if config.allow_tf32:
-            torch.backends.cuda.matmul.allow_tf32 = True
-
-        if config.scale_lr:
-            config.learning_rate = (
-                config.learning_rate * config.gradient_accumulation_steps * config.train_batch_size * self.accelerator.num_processes
-            )
-
-        # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
-        if config.use_8bit_adam:
-            try:
-                import bitsandbytes as bnb
-            except ImportError:
-                raise ImportError(
-                    "To use 8-bit Adam, please install the bitsandbytes library: `pip install bitsandbytes`."
-                )
-
-            optimizer_class = bnb.optim.AdamW8bit
-        else:
-            optimizer_class = torch.optim.AdamW
-
-        # Optimizer creation
-        params_to_optimize = (
-            itertools.chain(unet_lora_layers.parameters(), text_encoder_lora_layers.parameters())
-            if config.train_text_encoder
-            else unet_lora_layers.parameters()
-        )
-        self.optimizer = optimizer_class(
-            params_to_optimize,
-            lr=config.learning_rate,
-            betas=(config.adam_beta1, config.adam_beta2),
-            weight_decay=config.adam_weight_decay,
-            eps=config.adam_epsilon,
-        )
 
         if config.pre_compute_text_embeddings:
 
@@ -442,8 +369,8 @@ class Dreambooth(c.Module):
             else:
                 pre_computed_instance_prompt_encoder_hidden_states = None
 
-            text_encoder = None
-            tokenizer = None
+            self.text_encoder = None
+            self.tokenizer = None
 
             gc.collect()
             torch.cuda.empty_cache()
@@ -457,24 +384,75 @@ class Dreambooth(c.Module):
         self.validation_prompt_encoder_hidden_states = validation_prompt_encoder_hidden_states
         self.validation_prompt_negative_prompt_embeds = validation_prompt_negative_prompt_embeds
         self.pre_computed_instance_prompt_encoder_hidden_states = pre_computed_instance_prompt_encoder_hidden_states
-
-
-
-        self.unet = unet
+        self.text_encoder_lora_layers = text_encoder_lora_layers
         self.text_encoder = text_encoder
+        
+        
+
+
+
+
+    def encode_prompt(self, input_ids, attention_mask, text_encoder_use_attention_mask=None):
+        text_input_ids = input_ids.to(self.text_encoder.device)
+
+        if text_encoder_use_attention_mask:
+            attention_mask = attention_mask.to(self.text_encoder.device)
+        else:
+            attention_mask = None
+
+        prompt_embeds = self.text_encoder(
+            text_input_ids,
+            attention_mask=attention_mask,
+        )
+        prompt_embeds = prompt_embeds[0]
+
+        return prompt_embeds
+
+
+    def set_vae(self, config):
+
+        try:
+            vae = AutoencoderKL.from_pretrained(
+                config.pretrained_model_name_or_path, subfolder="vae", revision=config.revision
+            )
+            vae.requires_grad_(False)
+        except OSError:
+            # IF does not have a VAE so let's just set it to None
+            # We don't have to error out here
+            vae = None
+            
+    
+
+        if vae is not None:
+            vae.to(self.accelerator.device, dtype=self.weight_dtype)
+
         self.vae = vae
+
+    def set_model(self, config):
+        self.set_accelerator(config)
+        self.set_unet(config)
+        self.set_text_encoder(config)
+        self.set_vae(config)
+        self.set_noise_schedular(config)
+
+
+        self.accelerator.register_save_state_pre_hook(self.save_model_hook)
+        self.accelerator.register_load_state_pre_hook(self.load_model_hook)
+        # Generate class images if prior preservation is enabled.
+        if config.with_prior_preservation:
+            self.prior_preservation(config)
+        
+
 
     def resolve_config(self, config):
         return self.config if config == None else config
 
 
-    def main(self, config = None):
-        
+    def set_dataset(self, config):
+
         config = self.resolve_config(config)
-
-
         # Dataset and DataLoaders creation:
-        train_dataset = DreamBoothDataset(
+        self.dataset = DreamBoothDataset(
             instance_data_root=config.instance_data_dir,
             instance_prompt=config.instance_prompt,
             class_data_root=config.class_data_dir if config.with_prior_preservation else None,
@@ -488,42 +466,95 @@ class Dreambooth(c.Module):
             tokenizer_max_length=config.tokenizer_max_length,
         )
 
-        train_dataloader = torch.utils.data.DataLoader(
-            train_dataset,
+        self.dataloader = torch.utils.data.DataLoader(
+            self.dataset,
             batch_size=config.train_batch_size,
             shuffle=True,
             collate_fn=lambda examples: self.collate_fn(examples, config.with_prior_preservation),
             num_workers=config.dataloader_num_workers,
         )
 
-        # Scheduler and math around the number of training steps.
-        overrode_max_train_steps = False
-        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / config.gradient_accumulation_steps)
-        if config.max_train_steps is None:
-            config.max_train_steps = config.num_train_epochs * num_update_steps_per_epoch
-            overrode_max_train_steps = True
 
-        lr_scheduler = get_scheduler(
+
+    def set_optimizer(self, config):
+
+        # Use 8-bit Adam for lower memory usage or to fine-tune the model in 16GB GPUs
+        if config.use_8bit_adam:
+            try:
+                import bitsandbytes as bnb
+            except ImportError:
+                raise ImportError(
+                    "To use 8-bit Adam, please install the bitsandbytes library: `pip install bitsandbytes`."
+                )
+
+            optimizer_class = bnb.optim.AdamW8bit
+        else:
+            optimizer_class = torch.optim.AdamW
+
+        # Optimizer creation
+        params_to_optimize = (
+            itertools.chain(self.unet_lora_layers.parameters(), self.text_encoder_lora_layers.parameters())
+            if config.train_text_encoder
+            else self.unet_lora_layers.parameters()
+        )
+        
+        
+        # Enable TF32 for faster training on Ampere GPUs,
+        # cf https://pytorch.org/docs/stable/notes/cuda.html#tensorfloat-32-tf32-on-ampere-devices
+        if config.allow_tf32:
+            torch.backends.cuda.matmul.allow_tf32 = True
+
+        if config.scale_lr:
+            config.learning_rate = (
+                config.learning_rate * config.gradient_accumulation_steps * config.train_batch_size * self.accelerator.num_processes
+            )
+
+        
+        self.optimizer = optimizer_class(
+            params_to_optimize,
+            lr=config.learning_rate,
+            betas=(config.adam_beta1, config.adam_beta2),
+            weight_decay=config.adam_weight_decay,
+            eps=config.adam_epsilon,
+        )
+
+        
+        self.lr_scheduler = get_scheduler(
             config.lr_scheduler,
-            optimizer=optimizer,
+            optimizer=self.optimizer,
             num_warmup_steps=config.lr_warmup_steps * config.gradient_accumulation_steps,
             num_training_steps=config.max_train_steps * config.gradient_accumulation_steps,
             num_cycles=config.lr_num_cycles,
             power=config.lr_power,
         )
 
+
+
+
+    def main(self, config = None):
+        
+        config = self.resolve_config(config)
+    
+        # Scheduler and math around the number of training steps.
+        overrode_max_train_steps = False
+        num_update_steps_per_epoch = math.ceil(len(self.dataloader) / config.gradient_accumulation_steps)
+        
+        if config.max_train_steps is None:
+            config.max_train_steps = config.num_train_epochs * num_update_steps_per_epoch
+            overrode_max_train_steps = True
+
         # Prepare everything with our `self.accelerator`.
         if config.train_text_encoder:
-            unet_lora_layers, text_encoder_lora_layers, optimizer, train_dataloader, lr_scheduler = self.accelerator.prepare(
-                unet_lora_layers, text_encoder_lora_layers, optimizer, train_dataloader, lr_scheduler
+            unet_lora_layers, text_encoder_lora_layers, optimizer, self.dataloader, lr_scheduler = self.accelerator.prepare(
+                unet_lora_layers, text_encoder_lora_layers, self.optimizer, self.dataloader, self.lr_scheduler
             )
         else:
-            unet_lora_layers, optimizer, train_dataloader, lr_scheduler = self.accelerator.prepare(
-                unet_lora_layers, optimizer, train_dataloader, lr_scheduler
+            unet_lora_layers, optimizer, self.dataloader, lr_scheduler = self.accelerator.prepare(
+                unet_lora_layers, optimizer, self.dataloader, lr_scheduler
             )
 
         # We need to recalculate our total training steps as the size of the training dataloader may have changed.
-        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / config.gradient_accumulation_steps)
+        num_update_steps_per_epoch = math.ceil(len(self.dataloader) / config.gradient_accumulation_steps)
         if overrode_max_train_steps:
             config.max_train_steps = config.num_train_epochs * num_update_steps_per_epoch
         # Afterwards we recalculate our number of training epochs
@@ -538,8 +569,8 @@ class Dreambooth(c.Module):
         total_batch_size = config.train_batch_size * self.accelerator.num_processes * config.gradient_accumulation_steps
 
         logger.info("***** Running training *****")
-        logger.info(f"  Num examples = {len(train_dataset)}")
-        logger.info(f"  Num batches each epoch = {len(train_dataloader)}")
+        logger.info(f"  Num examples = {len(self.dataset)}")
+        logger.info(f"  Num batches each epoch = {len(self.dataloader)}")
         logger.info(f"  Num Epochs = {config.num_train_epochs}")
         logger.info(f"  Instantaneous batch size per device = {config.train_batch_size}")
         logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
@@ -581,14 +612,14 @@ class Dreambooth(c.Module):
             self.unet.train()
             if config.train_text_encoder:
                 self.text_encoder.train()
-            for step, batch in enumerate(train_dataloader):
+            for step, batch in enumerate(self.dataloader):
                 # Skip steps until we reach the resumed step
                 if config.resume_from_checkpoint and epoch == first_epoch and step < resume_step:
                     if step % config.gradient_accumulation_steps == 0:
                         progress_bar.update(1)
                     continue
 
-                with self.accelerator.accumulate(unet):
+                with self.accelerator.accumulate(self.unet):
                     pixel_values = batch["pixel_values"].to(dtype=self.weight_dtype)
 
                     if self.vae is not None:
@@ -598,18 +629,19 @@ class Dreambooth(c.Module):
                     else:
                         model_input = pixel_values
 
-                    # Sample noise that we'll add to the latents
-                    noise = torch.randn_like(model_input)
-                    bsz = model_input.shape[0]
+
                     # Sample a random timestep for each image
                     timesteps = torch.randint(
-                        0, self.noise_scheduler.config.num_train_timesteps, (bsz,), device=model_input.device
+                        0, self.noise_scheduler.config.num_train_timesteps, (model_input.shape[0],), device=model_input.device
                     )
                     timesteps = timesteps.long()
 
                     # Add noise to the model input according to the noise magnitude at each timestep
                     # (this is the forward diffusion process)
+                    # Sample noise that we'll add to the latents
+                    noise = torch.randn_like(model_input)
                     noisy_model_input = self.noise_scheduler.add_noise(model_input, noise, timesteps)
+                    
 
                     # Get the text embedding for conditioning
                     if config.pre_compute_text_embeddings:
@@ -693,7 +725,7 @@ class Dreambooth(c.Module):
                     # create pipeline
                     pipeline = DiffusionPipeline.from_pretrained(
                         config.pretrained_model_name_or_path,
-                        unet=self.accelerator.unwrap_model(unet),
+                        unet=self.accelerator.unwrap_model(self.unet),
                         text_encoder=None if config.pre_compute_text_embeddings else self.accelerator.unwrap_model(text_encoder),
                         revision=config.revision,
                         torch_dtype=self.weight_dtype,
@@ -750,11 +782,11 @@ class Dreambooth(c.Module):
         # Save the lora layers
         self.accelerator.wait_for_everyone()
         if self.accelerator.is_main_process:
-            unet = unet.to(torch.float32)
+            self.unet = self.unet.to(torch.float32)
             unet_lora_layers = self.accelerator.unwrap_model(unet_lora_layers)
 
             if text_encoder is not None:
-                text_encoder = text_encoder.to(torch.float32)
+                self.text_encoder = self.text_encoder.to(torch.float32)
                 text_encoder_lora_layers = self.accelerator.unwrap_model(text_encoder_lora_layers)
 
             LoraLoaderMixin.save_lora_weights(
