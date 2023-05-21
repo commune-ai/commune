@@ -3957,19 +3957,21 @@ class Module:
         print(cls.module_cache, k, v)
         return v
 
-        
+    @classmethod
+    def call(cls,  *args, loop=None, **kwargs) -> None:
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_call(*args, **kwargs))
+    
     @classmethod
     async def async_call(cls,
                          module,
                          fn,
                          *args,
                          **kwargs) -> None:
-
         
         if isinstance(module, str) and fn == None:
+            
             module, fn = '.'.join(module.split('.')[:-1]),  module.split('.')[-1],
-            
-            
             pool_mode = False
             
             while module.endswith('.'):
@@ -4040,11 +4042,7 @@ class Module:
             cls.print(f'ERRORS {errors}', color='red')
         return successes[0]
     
-    @classmethod
-    def call(cls,  *args, loop=None, **kwargs) -> None:
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_call(*args, **kwargs))
-    
+
     @classmethod
     def resolve_fn_module(cls, fn, module=None ) -> str:
     

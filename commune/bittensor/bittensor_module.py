@@ -1216,7 +1216,7 @@ class BittensorModule(c.Module):
     def mine(cls, 
                wallet='ensemble.5',
                model_name:str= default_model_name,
-               network = 'local',
+               network = 'finney',
                netuid=3,
                port = None,
                device = None,
@@ -1357,7 +1357,7 @@ class BittensorModule(c.Module):
                     network='finney',
                     model_name = default_model_name,
                     refresh: bool = True,
-                    burned_register=True, 
+                    burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
                     ensure_gpus = True,
@@ -1428,7 +1428,7 @@ class BittensorModule(c.Module):
                         burned_register=burned_register,
                         max_fee=max_fee)
         
-        cls.unreserve_ports(*reserved_ports)
+        cls.unreserve_ports(reserved_ports)
     @classmethod
     def miners(cls, *args, **kwargs):
         return list(cls.wallet2miner(*args, **kwargs).keys())
@@ -1633,6 +1633,8 @@ class BittensorModule(c.Module):
         if path is not None:
             cls.put_text(path, coldkey_info_text)
         # return coldkey_info
+        
+        return coldkey_info_text
         
     mems = coldkey_info
     
