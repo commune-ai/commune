@@ -4259,18 +4259,14 @@ class Module:
                        root:bool = True):
         output ={}
         reserved_ports =  cls.get(var_path, {}, root=root)
-        print(ports)
         if len(ports) == 0:
-            reserved_ports = {}
+            ports = list(reserved_ports.keys())
         elif len(ports) == 1 and isinstance(ports[0],list):
-            reserved_ports = ports[0]
-        else:
-            reserved_ports = {rp:v for rp,v in reserved_ports.items() if rp not in ports}
-        
-
+            ports = ports[0]
+        ports = list(map(str, ports))
+        reserved_ports = {rp:v for rp,v in reserved_ports.items() if int(rp) not in  ports}
         cls.put(var_path, reserved_ports, root=root)
-        output['reserved'] =  cls.reserved_ports()
-        return output
+        return cls.reserved_ports()
     
     
     unresports = unreserve_ports
