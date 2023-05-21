@@ -3320,6 +3320,24 @@ class Module:
     def ip_version(cls, *args, **kwargs):
         return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
     
+    
+    @classmethod
+    def pip_list(cls, lib=None):
+        pip_list =  cls.cmd(f'pip list').split('\n')
+        
+        if lib != None:
+            pip_list = [l for l in pip_list if l.startswith(lib)]
+
+        return pip_list
+    
+    @classmethod
+    def version(cls, lib:str):
+        lines = [l for l in cls.cmd(f'pip list').split('\n') if l.startswith(lib)]
+        if len(lines)>0:
+            return lines[0].split('         ')[1].strip()
+        else:
+            return f'No Library Found {lib}'
+    
     @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
         return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)

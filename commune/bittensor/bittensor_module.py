@@ -1351,7 +1351,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = None,
+                    hotkeys = list(range(1,9)),
                     remote=True,
                     netuid=3,
                     network='finney',
@@ -1361,21 +1361,30 @@ class BittensorModule(c.Module):
                     ensure_registration=False,
                     device = 'cpu',
                     n = None,
+                    unreged = True,
                     ensure_gpus = True,
                     max_fee=1.1): 
     
         
         # address = cls.address(name)
         if hotkeys == None:
-            wallets = [f'{name}.{h}' for h in cls.unreged_hotkeys(name)]
+            wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
         else:
             wallets  = [f'{name}.{h}' for h in hotkeys]
+            
+            
+        
             
         n = n if n != None else len(wallets)
         assert isinstance(n,int) and n > 0 and n <= len(wallets)
         
         gpus = cls.gpus()
         subtensor = cls.get_subtensor(network)
+        
+        
+        if unreged:
+            unreged_wallets = cls.unregistered_wallets(subtensor=subtensor, netuid=netuid)
+            wallets = [w for w in wallets if w in unreged_wallets]
         
         if ensure_gpus:
             model_size = cls.get_model_size(model_name)
