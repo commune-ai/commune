@@ -15,7 +15,7 @@ import streamlit as st
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
-    default_model_name = 'vr'
+    default_model_name = 'server'
     
     def __init__(self,
 
@@ -1390,7 +1390,7 @@ class BittensorModule(c.Module):
             model_size = cls.get_model_size(model_name)
             free_gpu_memory = cls.free_gpu_memory()
             
-        reserved_ports = []
+        avoid_ports = []
         
         deloyed_miners = 0
         for i, wallet in enumerate(wallets):
@@ -1422,9 +1422,11 @@ class BittensorModule(c.Module):
                                             burned_register=burned_register,
                                             max_fee=max_fee)
                     burned_register = False # only burn register for first wallet
-                axon_port = cls.free_port(reserve=True)
-                prometheus_port = cls.free_port(reserve=True)
-                reserved_ports += [axon_port, prometheus_port]
+                axon_port = cls.free_port(reserve=True, avoid_ports=avoid_ports)
+                prometheus_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
+                
+            
+            avoid_ports += [axon_port, prometheus_port]
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
@@ -1451,7 +1453,6 @@ class BittensorModule(c.Module):
                 cls.print('Max miners reached')
                 break
         
-        cls.unreserve_ports(reserved_ports)
     @classmethod
     def miners(cls, *args, **kwargs):
         return list(cls.wallet2miner(*args, **kwargs).keys())
