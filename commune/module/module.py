@@ -3320,6 +3320,24 @@ class Module:
     def ip_version(cls, *args, **kwargs):
         return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
     
+    
+    @classmethod
+    def pip_list(cls, lib=None):
+        pip_list =  cls.cmd(f'pip list').split('\n')
+        
+        if lib != None:
+            pip_list = [l for l in pip_list if l.startswith(lib)]
+
+        return pip_list
+    
+    @classmethod
+    def version(cls, lib:str):
+        lines = [l for l in cls.cmd(f'pip list').split('\n') if l.startswith(lib)]
+        if len(lines)>0:
+            return lines[0].split('         ')[1].strip()
+        else:
+            return f'No Library Found {lib}'
+    
     @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
         return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
@@ -3957,19 +3975,21 @@ class Module:
         print(cls.module_cache, k, v)
         return v
 
-        
+    @classmethod
+    def call(cls,  *args, loop=None, **kwargs) -> None:
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_call(*args, **kwargs))
+    
     @classmethod
     async def async_call(cls,
                          module,
                          fn,
                          *args,
                          **kwargs) -> None:
-
         
         if isinstance(module, str) and fn == None:
+            
             module, fn = '.'.join(module.split('.')[:-1]),  module.split('.')[-1],
-            
-            
             pool_mode = False
             
             while module.endswith('.'):
@@ -4040,11 +4060,7 @@ class Module:
             cls.print(f'ERRORS {errors}', color='red')
         return successes[0]
     
-    @classmethod
-    def call(cls,  *args, loop=None, **kwargs) -> None:
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_call(*args, **kwargs))
-    
+
     @classmethod
     def resolve_fn_module(cls, fn, module=None ) -> str:
     
@@ -4259,18 +4275,14 @@ class Module:
                        root:bool = True):
         output ={}
         reserved_ports =  cls.get(var_path, {}, root=root)
-        print(ports)
         if len(ports) == 0:
-            reserved_ports = {}
+            ports = list(reserved_ports.keys())
         elif len(ports) == 1 and isinstance(ports[0],list):
-            reserved_ports = ports[0]
-        else:
-            reserved_ports = {rp:v for rp,v in reserved_ports.items() if rp not in ports}
-        
-
+            ports = ports[0]
+        ports = list(map(str, ports))
+        reserved_ports = {rp:v for rp,v in reserved_ports.items() if int(rp) not in  ports}
         cls.put(var_path, reserved_ports, root=root)
-        output['reserved'] =  cls.reserved_ports()
-        return output
+        return cls.reserved_ports()
     
     
     unresports = unreserve_ports
@@ -4655,13 +4667,21 @@ class Module:
             
 
     @classmethod
-    def get_text(cls, path:str, root=False) -> None:
+    def get_text(cls, path:str, root=False, last_lines=-1, first_lines=-1) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
 
         # Read the contents of the file
         with open(path, 'r') as file:
             content =  file.read()
+            
+            
+        if last_lines > 0:
+            content = '\n'.join(content.split('\n')[:-last_lines])
+        if first_lines > 0:
+            content = '\n'.join(content.split('\n')[:first_lines])
+            
+            
             
         return content
 
@@ -5130,6 +5150,9 @@ class Module:
     def docker_ps(cls):
         return cls.cmd('docker ps')
     dps = docker_ps
+    
+    
+    
     
 if __name__ == "__main__":
     Module.run()

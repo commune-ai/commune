@@ -19,3 +19,5 @@ print(model.encode_forward_causallmnext(torch.tensor([[0,2,4,5,6]])))
 # # print(sample)
 
 # print(c.call_pool('server', 'encode_forward_causallmnext', sample['input_ids'], timeout=3))
+
+# 

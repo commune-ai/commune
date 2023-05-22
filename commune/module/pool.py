@@ -27,7 +27,7 @@ class ModulePool (commune.Module):
     ):
         self.max_clients = max_clients
         self.add_modules(modules)
-        self.client_stats = {}
+        
         self.cull_mutex = Lock()
         self.total_requests = 0
         
@@ -83,9 +83,10 @@ class ModulePool (commune.Module):
 
     def forward (
             self, 
-            args = None,
-            kwargs = None, 
-            modules: List [str ] = None,
+            fn:str,
+            args:list = None,
+            kwargs:dict = None, 
+            modules:list = None,
             min_successes: int = None,
         )  :
 
@@ -96,10 +97,10 @@ class ModulePool (commune.Module):
 
     async def async_forward (
             self, 
-            fn: None,
-            module = None,
-            args = None,
-            kwargs = None,
+            fn:str,
+            args:list = None,
+            kwargs:dict = None, 
+            modules:list = None,
             timeout: int = 2,
             min_successes: int = 2,
         ) :
@@ -147,15 +148,6 @@ class ModulePool (commune.Module):
                     outputs.append( response)
 
         return outputs
-
-    def check_clients( self ):
-        r""" Destroys clients based on QPS until there are no more than max_clients.
-        """
-        with self.cull_mutex:
-            # ---- Finally: Kill clients over max allowed ----
-            if len(self.clients) > self.max_clients:
-                c = list(self.clients.keys())[0]
-                self.clients.pop(c, None)   
 
     @classmethod
     def test(cls, **kwargs):
