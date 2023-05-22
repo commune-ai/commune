@@ -1292,10 +1292,10 @@ class BittensorModule(c.Module):
             config.logging.debug = logging
             
         if model_name in model_shortcuts:
-            
+            config.neuron.pretrained = True
             config.neuron.model_name = model_shortcuts[model_name]
-            neuron = bittensor.neurons.core_server.neuron(config=config, 
-                                                wallet=wallet,
+            neuron = cls.neuron(config=config, 
+                                     wallet=wallet,
                                                 subtensor=subtensor,
                                                 netuid=netuid)
         

@@ -591,7 +591,7 @@ class neuron(c.Module):
             
         return model
 
-    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor, , model_output=None, max_trials=3, n=1, timeout=4):
+    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor,  model_output=None, max_trials=3, n=1, timeout=4):
 
         with self.mutex:
             
