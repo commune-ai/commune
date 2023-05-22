@@ -15,7 +15,7 @@ import streamlit as st
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
-    default_model_name = 'vr'
+    default_model_name = 'server'
     
     def __init__(self,
 
@@ -1394,7 +1394,7 @@ class BittensorModule(c.Module):
             model_size = cls.get_model_size(model_name)
             free_gpu_memory = cls.free_gpu_memory()
             
-        reserved_ports = []
+        avoid_ports = []
         
         deloyed_miners = 0
         for i, wallet in enumerate(wallets):
@@ -1426,9 +1426,11 @@ class BittensorModule(c.Module):
                                             burned_register=burned_register,
                                             max_fee=max_fee)
                     burned_register = False # only burn register for first wallet
-                axon_port = cls.free_port(reserve=True)
-                prometheus_port = cls.free_port(reserve=True)
-                reserved_ports += [axon_port, prometheus_port]
+                axon_port = cls.free_port(reserve=True, avoid_ports=avoid_ports)
+                prometheus_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
+                
+            
+            avoid_ports += [axon_port, prometheus_port]
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
@@ -1455,7 +1457,6 @@ class BittensorModule(c.Module):
                 cls.print('Max miners reached')
                 break
         
-        cls.unreserve_ports(reserved_ports)
     @classmethod
     def miners(cls, *args, **kwargs):
         return list(cls.wallet2miner(*args, **kwargs).keys())
@@ -1516,10 +1517,40 @@ class BittensorModule(c.Module):
         return subtensor.query_subtensor('Burn', None, [3]).value/1e9
 
     
+
     @classmethod
-    def logs(cls, wallet, name='miner', network='finney', netuid=3):
+    def logs(cls, *arg, **kwargs):
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_logs(*arg, **kwargs))
+
+    @classmethod
+    async def async_logs(cls, wallet, network='finney', netuid=3):
         return c.logs(f'miner::{wallet}::{network}::{netuid}')
 
+    @classmethod
+    def miner2logs(cls,  network='finney', netuid=3, verbose:bool = True):
+        
+        miners = cls.miners()
+        jobs = []
+        for miner in miners:
+            jobs += [cls.async_logs(wallet=miner, network=network, netuid=netuid)]
+            
+        
+        loop = cls.get_event_loop()
+        miner_logs = loop.run_until_complete(asyncio.gather(*jobs))
+        
+        miner2logs = dict(zip(miners, miner_logs))
+        
+        if verbose:
+            for miner, logs in miner2logs.items():
+                cls.print(f'ENSEMBLE {miner} \n', color='purple')
+                cls.print( logs, '\n\n')
+            
+        else:
+            return miner2logs
+
+
+    check_miners = miner2logs
 
     @classmethod
     def unstake_coldkey(cls, 
@@ -1619,7 +1650,7 @@ class BittensorModule(c.Module):
     @classmethod
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
-                     unreged = False,
+                     unreged = True,
                      path = None,
                      miners_only = False,
                      coldkeypub= True):
