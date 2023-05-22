@@ -71,6 +71,7 @@ shortcuts =  {
     'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
     'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
     'fish': os.path.expanduser('~/fish_model'),
+    'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
     
         }
 
