@@ -57,7 +57,7 @@ class Module:
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
         self.set_config(config=config, add_attributes=add_attributes)  
-        self.set_key(key)
+        # self.set_key(key)
     
     
     
@@ -1070,7 +1070,9 @@ class Module:
         python_script = cls.get_text(path)
         class_names  = []
         lines = python_script.split('\n')
+        
         for line in lines:
+
             key_elements = ['class ', '(', '):']
             self_ref_condition = 'key_elements' not in line
 
@@ -1112,6 +1114,11 @@ class Module:
         object_path = cls.path2objectpath(path)
         return cls.import_object(object_path)
 
+    @classmethod
+    def simple2objectpath(cls, path:str) -> str:
+        path = cls.simple2path(path)
+        object_path = cls.path2objectpath(path)
+        return object_path
     @classmethod
     def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
         
@@ -2655,10 +2662,16 @@ class Module:
             cls.print(stdout,color='green')
         return stdout
 
-
+    pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str,verbose=True):
-        return cls.run_command(f"pm2 logs {module}", verbose=verbose)
+    def pm2_logs(cls, module:str,verbose=True, mode='local'):
+        if mode == 'local':
+            path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
+            return cls.get_text(path, last_bytes=1000 )
+        elif mode == 'cmd':
+            return cls.run_command(f"pm2 logs {module}", verbose=verbose)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
 
     @classmethod
     def argparse(cls, verbose: bool = False):
@@ -4665,24 +4678,29 @@ class Module:
         with open(path, 'w') as file:
             file.write(text)
             
-
     @classmethod
-    def get_text(cls, path:str, root=False, last_lines=-1, first_lines=-1) -> None:
+    def get_text(cls, path: str, root=False, last_bytes=-1, first_bytes=-1) -> str:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
-
         # Read the contents of the file
-        with open(path, 'r') as file:
-            content =  file.read()
-            
-            
-        if last_lines > 0:
-            content = '\n'.join(content.split('\n')[:-last_lines])
-        if first_lines > 0:
-            content = '\n'.join(content.split('\n')[:first_lines])
-            
-            
-            
+        with open(path, 'rb') as file:
+            # Move to the beginning of the file
+
+            content = ''
+            if last_bytes > 0:
+                file.seek(0, 2)
+                file_size = file.tell()  # Get the file size
+                # Move to the position to read the last bytes
+                file.seek(max(file_size - last_bytes, 0), 0)
+                content = file.read(last_bytes).decode()
+            elif first_bytes > 0:
+                # Move back to the beginning of the file
+                file.seek(0, 0)
+                content = file.read(first_bytes).decode()
+                
+            else:
+                content = file.read().decode()
+
         return content
 
 
