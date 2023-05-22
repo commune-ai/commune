@@ -1295,9 +1295,9 @@ class BittensorModule(c.Module):
             config.neuron.pretrained = True
             config.neuron.model_name = model_shortcuts[model_name]
             neuron = cls.neuron(config=config, 
-                                     wallet=wallet,
-                                                subtensor=subtensor,
-                                                netuid=netuid)
+                                wallet=wallet,
+                                subtensor=subtensor,
+                                netuid=netuid)
         
         else:
             assert len(c.modules(model_name))>0
@@ -1617,7 +1617,7 @@ class BittensorModule(c.Module):
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
-                     miners_only = True,
+                     miners_only = False,
                      coldkeypub= True):
         
         if unreged:

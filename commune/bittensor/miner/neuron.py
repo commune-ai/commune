@@ -591,7 +591,7 @@ class neuron(c.Module):
             
         return model
 
-    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor,  model_output=None, max_trials=3, n=1, timeout=4):
+    def forward_casual_lm_next(self,inputs_x: torch.FloatTensor, synapse, model_output=None, max_trials=3, n=1, timeout=4):
 
         with self.mutex:
             
@@ -600,17 +600,16 @@ class neuron(c.Module):
                 model = self.connect(self.model)
             else:
                 model = self.model
-                
+            
                 
             for i in range(max_trials):
                 
-                response  = model.encode_forward_causallmnext(inputs_x,topk=synapse.topk,model_output=model_output)
                 try:
+                    response  = model.encode_forward_causallmnext(inputs_x,topk=synapse.topk,model_output=model_output)
                     message, model_output, topk_token_phrases = response
                     return message, model_output, topk_token_phrases
                 except Exception as e:
                     print(f'Failed, trying again trial: {i}/{max_trials} from error {e}')
-                    
 
         # topk_token_phrases: [sum_b(sum_k(len(phrase_k) + 1)_b)] contains topk token phrases and probabilities
         #   Compacted 1-D tensor >= batch_size * (2 * topk + 1)
