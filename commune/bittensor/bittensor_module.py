@@ -1357,7 +1357,7 @@ class BittensorModule(c.Module):
                     network='finney',
                     model_name = default_model_name,
                     refresh: bool = True,
-                    burned_register=True, 
+                    burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
                     ensure_gpus = True,
@@ -1592,7 +1592,7 @@ class BittensorModule(c.Module):
     @classmethod
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
-                     unreged = False,
+                     unreged = True,
                      path = None,
                      miners_only = True,
                      coldkeypub= True):
