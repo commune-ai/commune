@@ -1512,10 +1512,40 @@ class BittensorModule(c.Module):
         return subtensor.query_subtensor('Burn', None, [3]).value/1e9
 
     
+
     @classmethod
-    def logs(cls, wallet, name='miner', network='finney', netuid=3):
+    def logs(cls, *arg, **kwargs):
+        loop = cls.get_event_loop()
+        return loop.run_until_complete(cls.async_logs(*arg, **kwargs))
+
+    @classmethod
+    async def async_logs(cls, wallet, network='finney', netuid=3):
         return c.logs(f'miner::{wallet}::{network}::{netuid}')
 
+    @classmethod
+    def miner2logs(cls,  network='finney', netuid=3, verbose:bool = True):
+        
+        miners = cls.miners()
+        jobs = []
+        for miner in miners:
+            jobs += [cls.async_logs(wallet=miner, network=network, netuid=netuid)]
+            
+        
+        loop = cls.get_event_loop()
+        miner_logs = loop.run_until_complete(asyncio.gather(*jobs))
+        
+        miner2logs = dict(zip(miners, miner_logs))
+        
+        if verbose:
+            for miner, logs in miner2logs.items():
+                cls.print(f'ENSEMBLE {miner} \n', color='purple')
+                cls.print( logs, '\n\n')
+            
+        else:
+            return miner2logs
+
+
+    check_miners = miner2logs
 
     @classmethod
     def unstake_coldkey(cls, 
