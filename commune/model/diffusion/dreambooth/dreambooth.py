@@ -67,9 +67,13 @@ logger = get_logger(__name__)
 
 import commune as c
 class Dreambooth(c.Module):
-
-
-
+    
+    def __init__(self, config=None): 
+        c.Module.__init__(self, config)
+        self.set_model(config)
+        self.set_dataset(config)
+        
+        
 
     # create custom saving & loading hooks so that `self.accelerator.save_state(...)` serializes in a nice format
     def save_model_hook(self, models, weights, output_dir):
@@ -435,13 +439,14 @@ class Dreambooth(c.Module):
         self.set_vae(config)
         self.set_noise_schedular(config)
 
-
         self.accelerator.register_save_state_pre_hook(self.save_model_hook)
         self.accelerator.register_load_state_pre_hook(self.load_model_hook)
         # Generate class images if prior preservation is enabled.
         if config.with_prior_preservation:
             self.prior_preservation(config)
         
+        self.set_optimizer(config)
+
 
 
     def resolve_config(self, config):
@@ -531,7 +536,7 @@ class Dreambooth(c.Module):
 
 
 
-    def main(self, config = None):
+    def train(self, config = None):
         
         config = self.resolve_config(config)
     
