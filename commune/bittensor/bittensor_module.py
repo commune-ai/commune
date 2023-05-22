@@ -1135,9 +1135,9 @@ class BittensorModule(c.Module):
     def neuron_class(cls, *args, **kwargs):
         return cls.module('bittensor.miner.server')
     
-    @classmethod
-    def deploy_servers(cls, num_servers=3):
-        return cls.server_class.deploy_servers()
+    # @classmethod
+    # def deploy_servers(cls, num_servers=3):
+    #     return cls.server_class.deploy_servers()
     
     @classmethod
     def server_fleet(cls, model='server'):
@@ -1148,16 +1148,17 @@ class BittensorModule(c.Module):
     @classmethod
     def deploy_server(cls, 
                       name= None,
-                       model_name='fish',
+                       model_name='vr',
                        tag = 0,
                        device = None,
                        refresh=True,
                        free_gpu_memory = None,):
         free_gpu_memory = cls.free_gpu_memory()
         server_class = cls.server_class()
-        
+
+
         config = server_class.config()
-        config.neuron.model_name = model_name
+        config.neuron.model_name = cls.shortcuts.get(model_name, model_name)
         config.neuron.tag = tag
         config.neuron.autocast = True
         if device == None:
@@ -1178,8 +1179,11 @@ class BittensorModule(c.Module):
 
         server_class.deploy( kwargs=dict(config=config), name=name)
         
+    add_server = deploy_server
+    
+    
     @classmethod
-    def add_servers(cls, 
+    def deploy_servers(cls, 
                     model = 'fish',
                     n = 3,
                     prefix='server'):
@@ -1198,7 +1202,7 @@ class BittensorModule(c.Module):
             c.print(f'deploying server {name} on gpu {device}')
             cls.deploy_server(name=name, device=device, model_name=model)
             deployed_names.append(name)
-    # add_server = deploy_server
+    add_servers = deploy_servers
     
     @classmethod
     def neuron(cls, *args, mode=None, **kwargs):
