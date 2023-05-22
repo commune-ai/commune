@@ -69,7 +69,8 @@ class CLI(commune.Module):
             result = result(*args, **kwargs)
 
 
-        self.print(result)
+        if result != None:
+            self.print(result)
     
 
     

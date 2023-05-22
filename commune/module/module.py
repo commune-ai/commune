@@ -1097,7 +1097,6 @@ class Module:
     @classmethod
     def path2objectpath(cls, path:str) -> str:
         object_name = cls.find_python_classes(path)
-        print(object_name)
         if len(object_name) == 0:
             return None
         object_name = object_name[-1]
@@ -2663,10 +2662,16 @@ class Module:
             cls.print(stdout,color='green')
         return stdout
 
-
+    pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str,verbose=True):
-        return cls.run_command(f"pm2 logs {module}", verbose=verbose)
+    def pm2_logs(cls, module:str,verbose=True, mode='local'):
+        if mode == 'local':
+            path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
+            return cls.get_text(path, last_bytes=1000 )
+        elif mode == 'cmd':
+            return cls.run_command(f"pm2 logs {module}", verbose=verbose)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
 
     @classmethod
     def argparse(cls, verbose: bool = False):
@@ -4677,14 +4682,14 @@ class Module:
     def get_text(cls, path: str, root=False, last_bytes=-1, first_bytes=-1) -> str:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
-
         # Read the contents of the file
         with open(path, 'rb') as file:
             # Move to the beginning of the file
-            # file.seek(0, 2)
-            file_size = file.tell()  # Get the file size
+
             content = ''
             if last_bytes > 0:
+                file.seek(0, 2)
+                file_size = file.tell()  # Get the file size
                 # Move to the position to read the last bytes
                 file.seek(max(file_size - last_bytes, 0), 0)
                 content = file.read(last_bytes).decode()
