@@ -2664,7 +2664,7 @@ class Module:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str,verbose=True, mode='local'):
+    def pm2_logs(cls, module:str,verbose=True, mode='cmd'):
         if mode == 'local':
             path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
             return cls.get_text(path, last_bytes=1000 )
@@ -4293,7 +4293,8 @@ class Module:
         elif len(ports) == 1 and isinstance(ports[0],list):
             ports = ports[0]
         ports = list(map(str, ports))
-        reserved_ports = {rp:v for rp,v in reserved_ports.items() if int(rp) not in  ports}
+        reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
+        cls.print(reserved_ports)
         cls.put(var_path, reserved_ports, root=root)
         return cls.reserved_ports()
     
