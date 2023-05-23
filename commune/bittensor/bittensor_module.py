@@ -1525,7 +1525,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     async def async_logs(cls, wallet, network='finney', netuid=3):
-        return c.logs(f'miner::{wallet}::{network}::{netuid}')
+        return c.logs(f'miner::{wallet}::{network}::{netuid}', mode='local')
 
     @classmethod
     def miner2logs(cls,  network='finney', netuid=3, verbose:bool = True):

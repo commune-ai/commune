@@ -160,7 +160,7 @@ class server(c.Module,torch.nn.Module):
             free_gpu_memory = self.free_gpu_memory()
             model_size = self.get_model_size(self.model_name )
             if free_gpu_memory[gpu] < model_size:
-                gpu = cls.most_free_gpu()
+                gpu = self.most_free_gpu()
                 assert free_gpu_memory[gpu] > model_size, "Not enough free memory on any GPU to load model. Try reducing the batch size."
             device = f'cuda:{gpu}'
         else:
@@ -538,6 +538,9 @@ class server(c.Module,torch.nn.Module):
             message = f'Loss: {original_loss:.2f}'
 
             _model_output.loss = original_loss
+            
+            #  empty cache to avoid OOM
+            torch.cuda.empty_cache()
             return [message, self.munch({}), topk_tensor]
 
         if self.config.neuron.remote_train:
