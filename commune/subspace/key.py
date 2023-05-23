@@ -42,7 +42,7 @@ from substrateinterface.utils.encrypted_json import decode_pair_from_encrypted_j
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
 import ed25519_zebra
-
+import commune as c
 __all__ = ['Keypair', 'KeypairType', 'MnemonicLanguageCode']
 
 
@@ -78,12 +78,13 @@ class MnemonicLanguageCode:
     JAPANESE = 'ja'
     KOREAN = 'ko'
     SPANISH = 'es'
-import commune
 
-class Keypair(commune.Module):
 
+class Keypair(c.Module):
+    default_path = 'default'
     def __init__(self, 
-                 key: str = None,
+                 seed: str = None,
+                 path : str = 'default',
                  ss58_address: str = None,
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None,
@@ -94,11 +95,11 @@ class Keypair(commune.Module):
                  uri: str = None,
                  derive_path : str = None,
                  crypto_type: int = 'sr25519'):
-        params = locals()
-        params.pop('self')
+        params = self.locals2kwargs(locals())
         self.set_params(**params)
     def set_params(self, 
-                 key: str = None,
+                 seed: str = None,
+                 path : str = None,
                  ss58_address: str = None,
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None,
@@ -121,18 +122,15 @@ class Keypair(commune.Module):
         seed_hex: hex string of seed
         crypto_type: Use 'sr25519' or 'ed25519' cryptography for generating the Keypair
         """
-        if key == None and ss58_address == None \
+        if seed == None and ss58_address == None \
             and public_key == None and private_key == None \
             and seed_hex == None and mnemonic == None and uri == None:
             mnemonic = self.generate_mnemonic()
             
-        if key:
-            if isinstance(key, str):
-                seed_hex = self.hash(key)
-            password = seed_hex
-        if password:
-            self.password = password
-            
+        if seed:
+            if isinstance(seed, str):
+                seed_hex = self.hash(seed)
+
         if seed_hex != None: 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
             self.__dict__.update(kwargs)
@@ -190,6 +188,12 @@ class Keypair(commune.Module):
             if not self.ss58_address:
                 self.ss58_address = ss58_encode(self.public_key, ss58_format=self.ss58_format)
 
+
+        if password == None:
+            password = self.hash(self.private_key)
+        
+        self.path = path
+            
     @property
     def address(self) -> str:
         return self.ss58_address
@@ -685,40 +689,15 @@ class Keypair(commune.Module):
             return '<Keypair (address={})>'.format(self.ss58_address)
         else:
             return '<Keypair (public_key=0x{})>'.format(self.public_key.hex())
-
-
-        
-    def set_aes_key(self, password: str = None):
-
-        if password == None:
-            password = self.password
-        self.aes_seed = self.hash(self.password)
-        
-        # get the AES key module and create an instance for encryption
-        aes_key = commune.get_module('crypto.key.aes')
-        self.aes_key = aes_key(self.aes_seed)
-        
-    
-    def encrypt(self, data: Union[str, bytes], password:str = None) -> bytes:
-        aes_key = self.resolve_aes_key(password)
-        return aes_key.encrypt(data)
-    
-            
-        # return cls.create_from_uri(uri)
-    
-    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        try:
-            aes_key = self.resolve_aes_key(password)
-            return aes_key.decrypt(data)
-        except UnicodeDecodeError:
-            raise Exception("Incorrect password, try again")
-    
     
     def resolve_password(self, password: str = None) -> str:
         
         if password == None:
+            if password == None: 
+                return None
             if hasattr(self, 'password') and self.password != None:
                 return self.password
+
             
             elif  self.private_key != None:
                 if type(self.private_key) is str:
@@ -733,25 +712,29 @@ class Keypair(commune.Module):
             
         assert isinstance(password, str), "Password must be a string"
         
-        password = self.hash(password)
+        self.password = password
         return password
     
-    def resolve_aes_key(self, password: str = None) -> 'commune.crypto.key.aes':
+    def resolve_aes_key(self, password: str = None) -> 'c.crypto.key.aes':
         
         password = self.resolve_password(password)
-        key = commune.get_key(password, mode='aes')
+        key = c.get_key(password, mode='aes')
         return key
             
     
     def state_dict(self, password: str = None, encrypt: bool = False ) -> dict:
         from copy import deepcopy
-        state_dict = {'data': {}, 'encrypted': encrypt}   
+        state_dict = {'data': {}}   
         state_dict['data'] =self.__dict__ 
 
         for k,v in state_dict['data'].items():
             if type(v)  in [bytes]:
                 state_dict['data'][k] = v.hex()
-
+        password = self.resolve_password(password)
+        if password == None:
+            encrypt = False
+        state_dict['encrypt'] = encrypt 
+        self.print(state_dict)
         if encrypt:
             state_dict['data'] = self.encrypt(data=json.dumps(state_dict['data']), password=password)
             
@@ -777,28 +760,47 @@ class Keypair(commune.Module):
             state = state['data']
         self.set_params(**state)
            
-    default_path = 'default'
     def save(self, path: str = None,  
              password: str = None,
              encrypt: bool = True,
-             override: bool = False):
-        if path == None:
-            oath = self.default_path
+             override: bool = True):
+        path = self.resolve_key_path(path)
         if override == False:
             assert self.file_exists(path) == False, "Path already exists, set override=True to override"
         state = self.state_dict(password=password, encrypt=encrypt)
         self.put_json(path, state)
 
-    def delete(self, path: str ):
-        return self.rn_json(path)
+    def resolve_key_path(self, path):
+        if path == None: 
+            path = self.path
+        return path
+
+    def resolve_key_path(self, path):
+        if path == None: 
+            path = self.path
+        return path
+
+
+    @classmethod
+    def ls_keys(cls):
+        return [os.path.splitext(os.path.basename(p))[0] for p in cls.ls()]
+        
+    @classmethod
+    def delete(cls, path: str ):
+        cls.rm_json(path)
+        return cls.ls_keys()
     def load(self, path: str = None, password: str = None):
+        path = self.resolve_key_path(path)
         state = self.get_json(path)
         self.load_state_dict(state=state, password=password)
         
-    def ls_keys(self):
-
-        return [os.path.basename(path).replace('.json', '') for path in self.ls('keys')]
+    @classmethod
+    def from_path(cls, path: str , password: str = None):
+        self = cls(path=path)
+        self.load(password=password)
+        return self.__dict__
         
+
     def load_from_dict(self, state: dict, password: str = None):
         encrypted = state.get('encrypted', False)
         if 'data' in state:
@@ -810,14 +812,14 @@ class Keypair(commune.Module):
         self.set_params(**state)
 
     @classmethod
-    def sandbox(cls):
-        self =  cls('bro')
+    def test(cls):
+        self =  cls('bro', path='broooooo')
         self2 = cls('bro23')
         import json
         print(self.address)
-        state= self2.state_dict(encrypt=True)
-        self.rm_json('test.bro')
-        # self.load('test.bro')
+        # self.rm_json('test.bro')
+        self.save()
+        self.load()
         print(self.ls_keys())
         print(self.address)
         
