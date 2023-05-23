@@ -4,7 +4,6 @@ uvicorn
 fastapi
 # web3
 substrate-interface
-web3
 # ml
 torch
 datasets
