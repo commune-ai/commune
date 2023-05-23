@@ -14,16 +14,17 @@ accelerate
 #visual tools
 streamlit
 plotly
+gradio
 # ray
 # ray[default]
 # ray[tune]
 #logging
 loguru
 rich
-#asyncio
 aiofiles
 aiohttp
 nest_asyncio
+
 #misc
 msgpack_numpy
 ansible
@@ -31,8 +32,7 @@ retry
 psutil
 munch
 ansible
-
 # bittensor
-# bittensor
+bittensor==4.0.1
 
 

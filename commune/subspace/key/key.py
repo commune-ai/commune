@@ -690,7 +690,8 @@ class Keypair(commune.Module):
         
     def set_aes_key(self, password: str = None):
 
-        self.password = password
+        if password == None:
+            password = self.password
         self.aes_seed = self.hash(self.password)
         
         # get the AES key module and create an instance for encryption

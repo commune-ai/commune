@@ -1659,7 +1659,7 @@ class BittensorModule(c.Module):
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
-                     miners_only = False,
+                     miners_only = True,
                      coldkeypub= True):
         
         if unreged:
@@ -1673,7 +1673,7 @@ class BittensorModule(c.Module):
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
         coldkey_json = cls.coldkey_json(coldkey)
-        if coldkey_json == None:
+        if 'ss58Address' not in coldkey_json:
             coldkey_json = cls.coldkeypub_json(coldkey)
         
         if coldkeypub:
@@ -1700,7 +1700,7 @@ class BittensorModule(c.Module):
         # return coldkey_info
         
         return coldkey_info_text
-        
+    
     mems = coldkey_info
     
     @classmethod
