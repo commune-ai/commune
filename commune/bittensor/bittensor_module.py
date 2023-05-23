@@ -1185,20 +1185,27 @@ class BittensorModule(c.Module):
     @classmethod
     def deploy_servers(cls, 
                     model = 'fish',
-                    n = 3,
+                    n = None,
+                    refresh:bool = True,
                     prefix='server'):
         tag = 0
         deployed_names =  []
         free_gpu_memory = cls.free_gpu_memory()
+        if n == None:
+            n = c.num_gpus()
         
-        for i in range(n):
+        for tag in range(n):
+            name = f'{prefix}::{model}::{tag}'
+            if cls.module_exists(name):
+                if refresh:
+                    cls.kill(name)
+                else:
+                    continue
+        for tag in range(n):
+            name = f'{prefix}::{model}::{tag}'  
             gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
             device = f'cuda:{gpu}'
             free_gpu_memory[gpu] = 0
-            name = f'{prefix}::{model}::{tag}'
-            while cls.module_exists(name) or name in deployed_names :
-                tag+=1
-                name = f'{prefix}::{model}::{tag}'
             c.print(f'deploying server {name} on gpu {device}')
             cls.deploy_server(name=name, device=device, model_name=model)
             deployed_names.append(name)
