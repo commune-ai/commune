@@ -3,15 +3,16 @@ import openai
 import os
 import torch
 from typing import Union, List, Any, Dict
-import commune
-# class OpenAILLM(commune.Module):
-prompt = """
+import commune as c
+import json
+# class OpenAILLM(c.Module):
+default_prompt = """
 Predict the topk percent for the next token 
 params:(tokenizer={tokenizer}, k={k}, text: {text}) 
 Output a dict of (token:str, score:int) and do it for 100 tokens.
 """
 
-class OpenAILLM(commune.Module):
+class OpenAILLM(c.Module):
     def __init__(self,
                  model: str = "text-davinci-003",
                 temperature: float=0.9,
@@ -21,108 +22,82 @@ class OpenAILLM(commune.Module):
                 presence_penalty: float=0.0,
                 tokenizer: str = None,
                 prompt: str = None,
-                key: str = 'OPENAI_API_KEY'
+                api: str = 'OPENAI_API_KEY'
                 ):
-        self.set_key(key)
-        self.set_params(locals())
+        self.set_api(api)
+        self.set_prompt(prompt)
+        self.set_tokenizer(tokenizer)
+     
+    
+    def set_api(self, api: str = None) -> None:
+        openai.api_key = os.getenv(api, None)
         
-        
-    def set_params(self, params: dict):
-        assert isinstance(params, dict), "params must be a dict."
-        param_keys = ['model', 'temperature', 'max_tokens', 'top_p', 'frequency_penalty', 'presence_penalty']
-        
-        self.set_prompt(params.pop('prompt'))
-        self.set_tokenizer(params.pop('tokenizer'))
-        self.params = {}
-        for key in param_keys:
-            self.params[key] = params[key]
-        
-        
-            
-        
-            
-        
-        
-        
-        
-    def set_key(self, key: str = None) -> None:
-        openai.api_key = os.getenv(key, None)
-        
-        if isinstance(key, str) and openai.api_key is None:
-            openai.api_key = key
+        if isinstance(api, str) and openai.api_key is None:
+            openai.api_key = api
         assert openai.api_key is not None, "OpenAI API key not found."
-            
+
+    def forward(self,prompt:str=None,
+                params: dict = None,
+                return_text: bool = False,
+                verbose: bool = True,
+                **kwargs) -> str:
         
-    # @classmethod
-    # def install_env(cls):
-    #     cls.cmd("pip install openai")
-
-
-
-
-
-    def forward(self,prompt=None,
-            params: dict = None,
-            return_dict: bool = False,
-            return_text_only: bool = True,
-            **kwargs
-    ) -> str:
+        
         if 'input_ids' in kwargs: 
             kwargs['text'] = self.decode_tokens(kwargs.pop('input_ids'))
         prompt  = prompt if prompt != None else self.prompt
-        
-        print(prompt)
-
         prompt = prompt.format(**kwargs)
-        
         params = params if params != None else self.params
-
-        commune.print(f"Running OpenAI LLM with params: {params}", 'purple')
-        commune.print(f" PROMPT: {prompt}", 'yellow')
+        if verbose:
+            c.print(f'Running OpenAI LLM with params:', params, color='purple')
+            c.print(f" PROMPT: {prompt}", color='yellow')
+        
         response = openai.Completion.create(
             prompt=prompt, 
             **params
         )
         output_text = response['choices'][0]['text']
-        commune.print('Result: '+output_text, 'green')
         
-        if return_text_only:
+        if verbose:
+            c.print('Result: ', output_text, 'green')
+        if return_text:
             return output_text
-        
-        
-        if return_dict: 
-            return json.loads(text.replace("'", '"'))
 
-        return response
+        return {'text': output_text}
     
-    @property
-    def prompt(self):
-        if hasattr(self, '_prompt'):
-            return self._prompt
+    
+    def set_prompt(self, prompt: str):
         
-        prompt = """
-        
-        Hello
-        
+        if prompt == None:
+            prompt = self.prompt
+        self.prompt = prompt
+        assert isinstance(self.prompt, str), "Prompt must be a string"
+        self.prompt_variables = self.get_prompt_variables(self.prompt)
+    
+    prompt = """
+        Predict the topk percent for the next token 
+        params:(tokenizer={tokenizer}, k={k}, text: {text}) 
+        Output a dict of (token:str, score:int) and do it for 100 tokens.
         """
         
-        return prompt
+    @staticmethod   
+    def get_prompt_variables(prompt):
+        variables = []
+        tokens = prompt.split('{')
+        for token in tokens:
+            if '}' in token:
+                variables.append(token.split('}')[0])
+        return variables
     
-    
-    @prompt.setter
-    def prompt(self, prompt: str):
-        self._prompt = prompt
         
-    def set_prompt(self, prompt: str):
-        self.prompt = prompt
-    
 
     @classmethod
-    def test(cls, params:dict):
+    def test(cls, **params:dict):
         
         
         
-        model = OpenAILLM(**params)
+        model = cls(**params)
+        cls.print(model.__dict__)
          
 
     def set_tokenizer(self, tokenizer: str):
