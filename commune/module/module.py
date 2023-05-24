@@ -15,7 +15,7 @@ import asyncio
 
 
 
-class Module:
+class c:
     
     # port range for servers
     default_port_range = [50050, 50150] 
@@ -3925,8 +3925,7 @@ class Module:
             return cls.get_module('bittensor').get_wallet(*args, **kwargs)
         elif mode == 'subspace':
             kwargs['mode'] = mode
-            raise cls.get_key(*args, **kwargs)
-            # return self.get_module('subspace').get_wallet(*args, **kwargs)  
+            raise c.get_key(*args, **kwargs)
                
     
     @classmethod
@@ -3967,7 +3966,7 @@ class Module:
                 password= 'fuckthirdparties',
                 ignore_error: bool = True) -> Any:
         password = cls.resolve_password(password)
-        key = cls.get_key(mode='aes', key=password)
+        key = c.get_key(mode='aes', key=password)
         print(data)
         data = key.decrypt(data)
         if isinstance(data, str):
@@ -3987,7 +3986,7 @@ class Module:
         password = cls.resolve_password(password)
         data = cls.python2str(data)
         assert isinstance(password, str),  f'{password}'
-        key = cls.get_key(mode='aes', key=password)
+        key = c.get_key(mode='aes', key=password)
         return key.encrypt(data)
     
     module_cache = {}
@@ -5190,7 +5189,7 @@ class Module:
     dps = docker_ps
     
     
-    
+Module = c
     
 if __name__ == "__main__":
     Module.run()
