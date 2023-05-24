@@ -788,6 +788,7 @@ class Keypair(c.Module):
   
         '''
         
+        assert self.key_exists(path), f'{path} doesnt exist'
         path = self.resolve_key_path(path)
         state = self.get_json(path)
 
