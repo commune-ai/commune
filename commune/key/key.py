@@ -753,12 +753,6 @@ class Keypair(c.Module):
             path = self.path
         return path
 
-    def resolve_key_path(self, path):
-        if path == None: 
-            path = self.path
-        return path
-
-
     @classmethod
     def ls_keys(cls):
         return [os.path.splitext(os.path.basename(p))[0] for p in cls.ls()]
@@ -778,6 +772,18 @@ class Keypair(c.Module):
         return {'success': True, 'keys': keys, 'message': f'{path} removed'}
     
     
+        
+    @classmethod
+    def mv_key(cls, path1: str, path2:str ):
+        if cls.key_exists(path1) == False:
+            return {'success': False, 'message': f'{path1} doesnt exist'}
+        cls.get_key(path1)
+        cls.rm_json(path2)
+        keys = cls.ls_keys()
+        
+        return {'success': True, 'keys': keys, 'message': f'{path} removed'}
+    
+    
     def is_encrypted(self, path: str = None, state = None):
         path = self.resolve_key_path(path)
         if state == None:
@@ -786,8 +792,8 @@ class Keypair(c.Module):
         encrypted = state.get('encrypted', False)
         return  
         
-    
-    def load(self, path: str = None, password: str = None):
+    @classmethod
+    def load_key(cls, path: str = None, password: str = None):
         
         '''
         
@@ -799,23 +805,27 @@ class Keypair(c.Module):
   
         '''
         
-        assert self.key_exists(path), f'{path} doesnt exist'
-        path = self.resolve_key_path(path)
-        state = self.get_json(path)
+        assert cls.key_exists(path), f'{path} doesnt exist'
+        state = cls.get_json(path)
 
         encrypted = state.get('encrypted', False)
         
         if 'data' in state:
             if encrypted == True:
-                state = self.decrypt(data=state['data'], password=password)
+                state = cls.decrypt(data=state['data'], password=password)
             else:
                 state = state['data']
             
             
         if isinstance(state, str):
             state = json.loads(state)
+        state['load'] = False
+        return cls(**state).__dict__
             
-        self.set_params(**state,load=False)
+            
+    def load(self, path:str, password: str = None):
+        params = self.load_key(path=path, password=password)
+        self.set_params(**params)
       
     @classmethod
     def from_path(cls, path: str , password: str = None):
@@ -823,19 +833,8 @@ class Keypair(c.Module):
         self.load(password=password)
         return self.__dict__
         
-
-    def load_from_dict(self, state: dict, password: str = None):
-        encrypted = state.get('encrypted', False)
-        if 'data' in state:
-            state = state['data']
-        if encrypted:
-            state = self.decrypt(data=state, password=password)
-        if type(state) in [str]:
-            state = json.loads(state)
-        self.set_params(**state)
-
     @classmethod
-    def test(cls, n=100):
+    def test(cls, n=10):
         
         for i in range(n):
             cls.print(i)
