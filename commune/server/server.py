@@ -13,7 +13,7 @@ from loguru import logger
 import sys
 import os
 import asyncio
-import commune
+import commune as c
 from commune.server.interceptor import ServerInterceptor
 from commune.server.serializer import Serializer
 from commune.server.proto import ServerServicer
@@ -25,7 +25,7 @@ if os.getenv('USE_STREAMLIT'):
 from munch import Munch
 
 
-class Server(ServerServicer, Serializer, commune.Module):
+class Server(ServerServicer, Serializer, c.Module):
     """ The factory class for commune.Server object
     The Server is a grpc server for the commune network which opens up communication between it and other neurons.
     The server protocol is defined in commune.proto and describes the manner in which forward and backwards requests
@@ -48,8 +48,8 @@ class Server(ServerServicer, Serializer, commune.Module):
             compression:Optional[str] = None,
             server: Optional['grpc._Server'] = None,
             verbose: bool = True,
-            whitelist_functions: List[str] = [],
-            blacklist_functions: List[str ] = [],
+            whitelist: List[str] = None,
+            blacklist: List[str ] = None,
             loop: 'AscynioLoop' = None,
             exceptions_to_raise = ['CUDA out of memory',  'PYTORCH_CUDA_ALLOC_CONF'],
             subspace = None,
@@ -88,7 +88,9 @@ class Server(ServerServicer, Serializer, commune.Module):
                         thread_pool=thread_pool,
                         max_workers=max_workers,
                         maximum_concurrent_rpcs=maximum_concurrent_rpcs,
-                        compression=compression)
+                        compression=compression,
+                        whitelist=whitelist,
+                        blacklist=blacklist)
         if name == None:
             if not hasattr(module, 'module_name'):
                 name = str(module)
@@ -98,8 +100,9 @@ class Server(ServerServicer, Serializer, commune.Module):
         self.module = module
         self.authenticate = authenticate
         self.exceptions_to_raise = exceptions_to_raise
-
-
+        
+        c.print(self.info)
+        
     def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
         if loop == None:
             try:
@@ -109,15 +112,15 @@ class Server(ServerServicer, Serializer, commune.Module):
                 asyncio.set_event_loop(loop)
         self.loop = loop
     
-    def add_whitelist_functions(self, functions: List[str]):
-        if not hasattr(self, 'whitelist_functions'):
-            self.whitelist_functions = []
-        commune.print(f'Adding whitelist functions: {functions}',color='purple')
-        self.whitelist_functions += functions
-    def add_blacklist_functions(self, functions: List[str]):
-        if not hasattr(self, 'blacklist_functions'):
-            self.blacklist_functions = []
-        self.blacklist_functions += functions
+    def set_whitelist(self, functions: List[str]):
+        if functions == None:
+            functions = []
+        self.whitelist = list(set(functions + c.helper_functions))
+        
+    def set_blacklist(self, functions: List[str]):
+        if functions == None:
+            functions = []
+        self.blacklist = list(set(functions))
         
     def set_thread_pool(self, thread_pool: 'ThreadPoolExecutor' = None, max_workers: int = 10) -> 'ThreadPoolExecutor':
         if thread_pool == None:
@@ -133,10 +136,15 @@ class Server(ServerServicer, Serializer, commune.Module):
                    thread_pool: 'ThreadPoolExecutor' = None,
                    max_workers:int = 1 ,
                    maximum_concurrent_rpcs: int = 400,
-                   compression: str  = '' ) -> 'Server':
+                   compression: str  = '',
+                   whitelist=None,
+                   blacklist=None) -> 'Server':
+                
+        self.set_whitelist(whitelist)
+        self.set_blacklist(blacklist)
         
-        ip = ip if ip != None else self.default_ip
-        port = commune.resolve_port(port)
+        self.ip = ip = ip if ip != None else self.default_ip
+        self.port = port = c.resolve_port(port)
         while not self.port_available(ip=ip, port=port):
             port = self.get_available_port(ip=ip)
             is_port_available =  self.port_available(ip=ip, port=port)
@@ -153,17 +161,17 @@ class Server(ServerServicer, Serializer, commune.Module):
         
         # set the server compression algorithm
         self.server = server
-        commune.server.grpc.add_ServerServicer_to_server( self, server )
+        c.server.grpc.add_ServerServicer_to_server( self, server )
         self.full_address = str( ip ) + ":" + str( port )
         self.server.add_insecure_port( self.full_address )
     
-        self.ip = commune.external_ip()
+        self.ip = c.external_ip()
         self.port = port
         
         # whether or not the server is running
         self.started = False
         self.init_stats()
-        
+
 
         return self.server
     
@@ -201,7 +209,7 @@ class Server(ServerServicer, Serializer, commune.Module):
         output_data = {}
         
         
-        t = commune.timer()
+        t = c.timer()
         success = False
         
         try:
@@ -210,20 +218,27 @@ class Server(ServerServicer, Serializer, commune.Module):
             fn_kwargs = data.get('kwargs', {})
             fn_args = data.get('args', [])
             
-            # assert fn in self.whitelist_functions, f'Function {data["fn"]} not in whitelist'
-            # assert fn not in self.blacklist_functions, f'Function {data["fn"]} in blacklist'
+            if fn == 'getattr':
+                if 'k' in fn_kwargs:
+                    k = fn_kwargs['k']
+                elif len(fn_args) > 0:
+                    k = fn_args[0]
+                assert k in self.whitelist, f'Function {k} not in whitelist, while using getattr'
+            
+            assert fn in self.whitelist, f'Function {data["fn"]} not in whitelist'
+            assert fn not in self.blacklist, f'Function {data["fn"]} in blacklist'
             
             if verbose:
-                commune.print('Calling Function: '+fn, color='cyan')
+                c.print('Calling Function: '+fn, color='cyan')
             output_data = getattr(self.module, fn)(*fn_args,**fn_kwargs)
             
             success = True
 
         except RuntimeError as ex:
-            commune.print(f'Exception in server: {ex}', color= 'red')
+            c.print(f'Exception in server: {ex}', color= 'red')
             if "There is no current event loop in thread" in str(ex):
                 if verbose:
-                    commune.print(f'SETTING NEW ANSYNCIO LOOP', color='yellow')
+                    c.print(f'SETTING NEW ANSYNCIO LOOP', color='yellow')
                 self.loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self.loop)
                 return self.__call__(data=data, metadata=metadata)
@@ -235,7 +250,7 @@ class Server(ServerServicer, Serializer, commune.Module):
                 self.stop()
             
             if verbose:
-                commune.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')
+                c.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')
         
 
         sample_info ={
@@ -244,7 +259,7 @@ class Server(ServerServicer, Serializer, commune.Module):
             'out_bytes': sys.getsizeof(output_data),
             'auth': data.get('auth', None),
             'fn': fn,
-            'timestamp': commune.time(),
+            'timestamp': c.time(),
             'success': success
             }
         
@@ -287,7 +302,7 @@ class Server(ServerServicer, Serializer, commune.Module):
                     grpc server context.
             
             Returns:
-                response (commune.proto.DataBlock): 
+                response (c.proto.DataBlock): 
                     proto response carring the nucleus forward output or None under failure.
         """
 
@@ -295,15 +310,15 @@ class Server(ServerServicer, Serializer, commune.Module):
 
 
         
-        deserialize_timer = commune.timer()
+        deserialize_timer = c.timer()
         request = self.deserialize(request)
         self.stats['time']['deserialize'] = deserialize_timer.seconds
         
-        forward_timer = commune.timer()
+        forward_timer = c.timer()
         response = self(**request)
         self.stats['time']['module'] = forward_timer.seconds
         
-        serializer_timer = commune.timer()
+        serializer_timer = c.timer()
         response = self.serialize(**response)
         self.stats['time']['serialize'] = serializer_timer.seconds
         return response
@@ -364,17 +379,17 @@ class Server(ServerServicer, Serializer, commune.Module):
         
         def print_serve_status():
             text = f'{str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
-            commune.print(text, color='green')
+            c.print(text, color='green')
             
         
         # register the server
         if register:
-            commune.register_server(name=self.name, 
+            c.register_server(name=self.name, 
                                           ip=self.ip,
                                           port=self.port)
 
  
-        commune.unreserve_port(self.port)
+        c.unreserve_port(self.port)
         
         
         try:
@@ -388,7 +403,7 @@ class Server(ServerServicer, Serializer, commune.Module):
                     time.sleep(update_period)
                     
         except Exception as e:
-            commune.deregister_server(name=self.name)
+            c.deregister_server(name=self.name)
             raise e
         
         
@@ -413,10 +428,12 @@ class Server(ServerServicer, Serializer, commune.Module):
 
         return self
 
+
     def stop(self) -> 'Server':
         r""" Stop the axon grpc server.
         """
         if self.server != None:
+            print('stopping server', self.server.__dict__)
             self.server.stop( grace = 1 )
             logger.success("Server Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
         self.started = False
@@ -455,7 +472,7 @@ class Server(ServerServicer, Serializer, commune.Module):
         checks if a port is available
         '''
 
-        return not commune.port_used(port=port, ip=ip)
+        return not c.port_used(port=port, ip=ip)
 
     @classmethod
     def test_server(cls):
@@ -471,7 +488,7 @@ class Server(ServerServicer, Serializer, commune.Module):
             modules[module.port] = module
         
         
-        commune.Client()
+        c.Client()
         module.stop()
 
 
@@ -484,6 +501,8 @@ class Server(ServerServicer, Serializer, commune.Module):
             ip=self.ip,
             port= self.port,
             address = self.endpoint,
+            whitelist=self.whitelist,
+            blacklist=self.blacklist,
         )
         
         
