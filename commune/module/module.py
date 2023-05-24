@@ -13,8 +13,6 @@ import sys
 import argparse
 import asyncio
 
-
-
 class c:
     
     # port range for servers
@@ -3830,6 +3828,10 @@ class c:
         kwargs = {}
         parsing_kwargs = False
         for arg in argv:
+            # TODO fix exception with  "="
+            # if any([arg.startswith(_) for _ in ['"', "'"]]):
+            #     assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
+            #     args.append(cls.determine_type(arg))
             if '=' in arg:
                 parsing_kwargs = True
                 key, value = arg.split('=', 1)
@@ -3962,12 +3964,11 @@ class c:
         return password
     
     @classmethod
-    def decrypt(cls, data: str,
-                password= 'fuckthirdparties',
+    def decrypt(cls, 
+                data: str,
+                password= default_password,
                 ignore_error: bool = True) -> Any:
-        password = cls.resolve_password(password)
         key = c.get_key(mode='aes', key=password)
-        print(data)
         data = key.decrypt(data)
         if isinstance(data, str):
             data = cls.str2python(data)

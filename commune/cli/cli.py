@@ -1,69 +1,69 @@
 
 
-import argparse
-import commune
-from typing import List, Optional
-import json
+import commune as c
 
 
-class CLI(commune.Module):
+class CLI(c.Module):
     """
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
+    # 
+    default_fn = 'help'
     def __init__(
             self,
-            config: commune.Config = None,
+            config: c.Config = None,
 
         ) :
-        commune.new_event_loop(True)
-        self.module = commune.Module()
+        c.new_event_loop(True)
+        self.module = c.Module()
         args, kwargs = self.parse_args()
 
         
 
-        module_list = commune.module_list()
+        module_list = c.module_list()
 
         fn = None
         module = None
         if len(args)> 0:
-    
-            namespace = self.namespace(update=False)
             
- 
+            
 
             module_list = self.module_list()
             functions = list(set(self.module.functions()  + self.module.get_attributes()))
-            module_options = (list(namespace.values()) + list(namespace.keys()))
+        
+
             args[0] = self.resolve_shortcut(args[0])
             
-            candidates = dict(
-                            functions=[f for f in functions if f == args[0]] ,
-                            modules=[m for m in module_list if m == args[0]],
-                            servers=[s for s in module_options if args[0] == s],
-            )
+            if args[0] in functions:
+                module = c.Module
+                fn = args.pop(0)
+            else:
             
-            if len(candidates['functions'])>0:
-                module = self.module
-                fn = fn if fn != None else  args.pop(0)
-                fn = candidates['functions'][0]
-            elif len(candidates['modules'])>0:
-                if module == None:
-                    module = args.pop(0)
-                else:
-                    args.pop(0)
-                fn = fn if fn != None else args.pop(0)
-                module = commune.module(module)
-            elif len(candidates['servers'])>0:
-                if module == None:
-                    module = args.pop(0)
-                else:
-                    args.pop(0)
-                fn = fn if fn != None else args.pop(0)
-                module = commune.connect(module)
+                module_list = c.module_list()
+                
+                if args[0] in module_list:
 
+                    module = args.pop(0)
+                    module = c.module(module)
+                else:
+                    
+                        
+                    namespace = self.namespace(update=False)
+                    if args[0] in namespace:
+                        module = args.pop(0)
+                        module = c.connect(module)
+
+                    else: 
+                        raise Exception(f'No module, function or server found for {args[0]}')
+            
+        if fn == None:
+            if len(args) == 0:
+                fn = self.default_fn 
             else: 
-                raise Exception(f'No module, function or server found for {args[0]}')
-        
+                fn = args.pop(0)
+                
+                
+                
         result = getattr(module, fn)
         if callable(result):
             result = result(*args, **kwargs)
