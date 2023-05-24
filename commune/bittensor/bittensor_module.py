@@ -165,6 +165,8 @@ class BittensorModule(c.Module):
             
         return neuron_stats
     
+    def whitelist(self):
+        return ['miners', 'wallets', 'check_miners']
     @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True
@@ -1566,9 +1568,12 @@ class BittensorModule(c.Module):
                         coldkey = default_coldkey,
                         wait_for_inclusion = True,
                         wait_for_finalization = False,
+                        sleep = 10,
                         prompt = False,
                         subtensor = None
                         ):
+        wallets = cls.wallets(coldkey, registered=True)
+        wallets = cls.shuffle(wallets)
         for wallet in cls.wallets(coldkey, registered=True):
             cls.print(f'Unstaking {wallet} ...')
             amount_unstaked = cls.unstake(wallet=wallet, 
@@ -1576,6 +1581,7 @@ class BittensorModule(c.Module):
                             wait_for_finalization=wait_for_finalization,
                             prompt=prompt, 
                             subtensor=subtensor)
+            cls.sleep(sleep)
     unstake_ck = unstake_coldkey
     
     
@@ -1593,7 +1599,9 @@ class BittensorModule(c.Module):
     def unstake2pool(cls,
                      pool_address:str = None,
                      coldkey:str = default_coldkey,
-                     loops = 10,
+                     loops = 20,
+                     sleep_between_call = 20,
+                     unstake_sleep = 20,
                      sleep = 60,
                      transfer: bool = True,
                      remote = True,
@@ -1612,8 +1620,9 @@ class BittensorModule(c.Module):
             
             cls.print(f'---- Unstaking {coldkey}')
 
-            cls.unstake_coldkey(coldkey=coldkey) # unstake all wallets
+            cls.unstake_coldkey(coldkey=coldkey, sleep=unstake_sleep) # unstake all wallets
             
+            cls.sleep(sleep_between_call)
             cls.print(f'Transferring {coldkey} to {pool_address} ...')
                     
 
