@@ -69,7 +69,7 @@ class CLI(c.Module):
             result = result(*args, **kwargs)
 
 
-        if result != None:
+        if not isinstance(result, type(None)):
             self.print(result)
     
 
