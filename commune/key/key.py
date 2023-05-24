@@ -212,13 +212,18 @@ class Keypair(c.Module):
     
       
     @property
-    def address(self) -> str:
+    def ss58(self) -> str:
         return self.ss58_address
     
+    address = ss58
+    
     @classmethod
-    def add(cls, path, password=None, **kwargs):
-        self = cls(path=path, password=password, **kwargs)
-        return path
+    def add_key(cls, path, password=None, save=True, load=False, refresh=False,  **kwargs):
+        
+        self = cls(path=path, password=password, save=save, load=load,refresh=refresh, **kwargs)
+        
+        keys = cls.ls_keys()
+        return {'success': True, 'message': f'Key {path} added', 'keys': keys}
         
     @classmethod
     def get_key(cls, path, password=None, **kwargs):
@@ -758,13 +763,19 @@ class Keypair(c.Module):
     def ls_keys(cls):
         return [os.path.splitext(os.path.basename(p))[0] for p in cls.ls()]
         
+    @classmethod
     def key_exists(cls, key:str)-> bool:
         return key in cls.ls_keys()
         
     @classmethod
-    def delete(cls, path: str ):
+    def rm_key(cls, path: str ):
+        if cls.key_exists(path) == False:
+            return {'success': False, 'message': f'{path} doesnt exist'}
+        
         cls.rm_json(path)
-        return cls.ls_keys()
+        keys = cls.ls_keys()
+        
+        return {'success': True, 'keys': keys, 'message': f'{path} removed'}
     
     
     def is_encrypted(self, path: str = None, state = None):
@@ -824,16 +835,17 @@ class Keypair(c.Module):
         self.set_params(**state)
 
     @classmethod
-    def test(cls):
-        self =  cls('bro', path='bro', load=False)
-        self2 = cls('bro23')
-        import json
-        print(self.address)
-        # self.rm_json('test.bro')
-        self.save(password='bro')
-        self.load(password='bro')
-        print(self.ls_keys())
-        print(self.address)
+    def test(cls, n=100):
+        
+        for i in range(n):
+            cls.print(i)
+            name = f'bro{i}'
+            cls.add_key(name)
+            assert cls.key_exists(name) == True, 'Key doesnt exist'
+            cls.rm_key(name)
+            assert cls.key_exists(name) == False, 'Key doesnt exist'
+        
+        return {'success': True, 'message': 'Keypair test passed'}
         
 
 if __name__ == '__main__':
