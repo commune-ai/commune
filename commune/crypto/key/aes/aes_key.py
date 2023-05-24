@@ -10,8 +10,9 @@ import time
 import commune
 class AESKey(commune.Module):
 
-    def __init__(self, key): 
+    def __init__(self, key ): 
         self.bs = AES.block_size
+        print('AESKey', key)
         self.key = hashlib.sha256(key.encode()).digest()
 
     def encrypt(self, data, return_string = True):
@@ -29,7 +30,10 @@ class AESKey(commune.Module):
         enc = base64.b64decode(enc)
         iv = enc[:AES.block_size]
         cipher = AES.new(self.key, AES.MODE_CBC, iv)
-        decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+        try:
+            decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+        except UnicodeDecodeError as e:
+            raise Exception('Bro, use another password, this one aint working')
         return self.str2python(decrypted_data)
 
     def _pad(self, s):

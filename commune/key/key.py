@@ -84,8 +84,8 @@ class MnemonicLanguageCode:
 class Keypair(c.Module):
     default_path = 'default'
     def __init__(self,
-                 path : str = 'default', 
                  seed: str = None,
+                 path : str = 'default', 
                  ss58_address: str = None,
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None,
@@ -217,9 +217,15 @@ class Keypair(c.Module):
     
     @classmethod
     def add(cls, path, password=None, **kwargs):
-        self = cls(path=path, password=None, **kwargs)
+        self = cls(path=path, password=password, **kwargs)
         return path
         
+    @classmethod
+    def get_key(cls, path, password=None, **kwargs):
+        self = cls(path=path, password=password, **kwargs)
+        return self.__dict__
+    
+
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
         """
@@ -761,6 +767,15 @@ class Keypair(c.Module):
         return cls.ls_keys()
     
     
+    def is_encrypted(self, path: str = None, state = None):
+        path = self.resolve_key_path(path)
+        if state == None:
+            state = self.get_json(path)
+
+        encrypted = state.get('encrypted', False)
+        return  
+        
+    
     def load(self, path: str = None, password: str = None):
         
         '''
@@ -783,6 +798,7 @@ class Keypair(c.Module):
                 state = self.decrypt(data=state['data'], password=password)
             else:
                 state = state['data']
+            
             
         if isinstance(state, str):
             state = json.loads(state)
@@ -808,13 +824,13 @@ class Keypair(c.Module):
 
     @classmethod
     def test(cls):
-        self =  cls('bro', path='broooooo')
+        self =  cls('bro', path='bro', load=False)
         self2 = cls('bro23')
         import json
         print(self.address)
         # self.rm_json('test.bro')
         self.save(password='bro')
-        self.load(password='brodf')
+        self.load(password='bro')
         print(self.ls_keys())
         print(self.address)
         

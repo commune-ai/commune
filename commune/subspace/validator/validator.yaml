@@ -1,4 +1,39 @@
-module: Validator
-dataset: dataset
-tokenizer: gpt2
-network:  local
+
+
+network: global # global or local network
+
+
+# DATASET
+dataset:
+  name: dataset.bittensor
+  batch_size: 32 # batch size
+  sequence_length: 256 # sequence length
+
+models: 
+  models:
+  network: global # global or local network
+  name: model.gptj # model name
+tokenizer: gptj
+
+adapter: # adapter config ()
+  hidden_size : 512 # hidden size of the adapter
+
+modules_per_call: 3 # number of modules to call per forward call
+default_metric: 12 # 12 is the default metric for gptj
+load: False # if true, load the dataset
+save: True # if true, save the dataset
+update: True # if true, update the dataset
+refresh: True # if true, refresh the dataset
+stats: {} # if true, print the stats
+max_stats_history: 100
+namespace_update_interval: 100
+
+alpha: 0.1
+ma_keys: ['metric', 'weights']
+
+topk: 4096 
+
+new_loop_per_forward: True # if true, create a new loop for each forward call (useful for debugging)
+optimizer: 
+  lr: 0.0001
+

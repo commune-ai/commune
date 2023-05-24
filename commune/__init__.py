@@ -19,7 +19,7 @@ for k,v in Module.__dict__.items():
 for f in Module.get_class_methods():
     globals()[f] = getattr(Module, f)
     
-key = Module.key
+# key = Module.key
 address = Module.address
 user = Module.user
 def signin(usr: str, pwd: str):
