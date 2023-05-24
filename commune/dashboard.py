@@ -310,7 +310,6 @@ class Dashboard(commune.Module):
                 self.a = a
                 self.b = b
                 
-        st.write(commune.is_module(bro))
         st.write(str(type(commune)) == "<class 'module'>")
         st.write()
         pass

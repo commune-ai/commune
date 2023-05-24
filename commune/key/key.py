@@ -99,10 +99,14 @@ class Keypair(c.Module):
                  refresh: bool = False,
                  save: bool = True,
                  load: bool = True,
+                 **kwargs
                  ):
         params = self.locals2kwargs(locals())
         self.set_params(**params)
         
+    # @classmethod
+    # def whitelist(cls):
+    #     return ['ls_keys']
         
     def set_params(self, 
                  path : str = None,
@@ -119,7 +123,8 @@ class Keypair(c.Module):
                  refresh: bool = False, 
                  save: bool = False,
                  load: bool = False,            
-                 crypto_type: int = 'sr25519'):
+                 crypto_type: int = 'sr25519',
+                 **kwargs):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
         mnemonic or URI containing soft and hard derivation paths. With these Keypairs data can be signed and verified
@@ -215,10 +220,19 @@ class Keypair(c.Module):
     def ss58(self) -> str:
         return self.ss58_address
     
-    address = ss58
+    # address = ss58
     
     @classmethod
     def add_key(cls, path, password=None, save=True, load=False, refresh=False,  **kwargs):
+        
+        self = cls(path=path, password=password, save=save, load=load,refresh=refresh, **kwargs)
+        
+        keys = cls.ls_keys()
+        return {'success': True, 'message': f'Key {path} added', 'keys': keys}
+        
+        
+    @classmethod
+    def encrypt_key(cls, path, password=None, save=True, load=False, refresh=False,  **kwargs):
         
         self = cls(path=path, password=password, save=save, load=load,refresh=refresh, **kwargs)
         
@@ -784,13 +798,11 @@ class Keypair(c.Module):
         return {'success': True, 'keys': keys, 'message': f'{path} removed'}
     
     
-    def is_encrypted(self, path: str = None, state = None):
-        path = self.resolve_key_path(path)
-        if state == None:
-            state = self.get_json(path)
-
+    @classmethod
+    def key_encrypted(cls, path: str = None, state = None):
+        state = cls.get_json(path)
         encrypted = state.get('encrypted', False)
-        return  
+        return  encrypted
         
     @classmethod
     def load_key(cls, path: str = None, password: str = None):

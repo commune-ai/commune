@@ -306,7 +306,6 @@ class Dashboard(commune.Module):
         
     def streamlit_playground(self):
    
-        st.write(commune.is_module(bro))
         st.write(str(type(commune)) == "<class 'module'>")
         st.write()
         pass
