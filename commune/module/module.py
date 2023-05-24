@@ -2704,12 +2704,14 @@ class c:
         return args
 
     @classmethod
-    def run(cls): 
-        args = cls.argparse()
-        if args.function == '__init__':
-            return cls(*args.args, **args.kwargs) 
-        else:
+    def run(cls, __name__:str = None, verbose:bool = True) -> Any: 
+        if __name__ == '__main__' or __name__ == None:
+            args = cls.argparse()
             return getattr(cls, args.function)(*args.args, **args.kwargs)     
+        else:
+            if verbose:
+                c.print(f'Not running {__name__} because __name__ is not __main__', color='red')
+            return None
        
     
     @classmethod
