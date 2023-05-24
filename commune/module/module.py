@@ -3697,6 +3697,8 @@ class c:
               console: Console = None,
               **kwargs):
         if verbose:
+            if color == 'random':
+                color = cls.random_color()
             if color:
                 kwargs['style'] = color
             console = cls.resolve_console(console)
@@ -4992,12 +4994,17 @@ class c:
         import random
         assert isinstance(options, list)
         return random.choice(options)
-
+    
+    @classmethod
+    def colors(cls):
+        return ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'bright_black', 'bright_red', 'bright_green', 'bright_yellow', 'bright_blue', 'bright_magenta', 'bright_cyan', 'bright_white']
+    colours = colors
     @classmethod
     def random_color(cls):
         import random
         return random.choice(cls.colors())
 
+    random_colour = random_color
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
@@ -5137,6 +5144,10 @@ class c:
     @classmethod
     def miners(cls, prefix='miner'):
         return cls.pm2_list(prefix)
+    
+    @classmethod
+    def check_miners(cls, *args, module='bittensor', **kwargs):
+        return cls.module(module).check_miners( *args, **kwargs)
     
     
     @classmethod
