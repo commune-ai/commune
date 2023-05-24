@@ -263,9 +263,6 @@ class Validator(c.Model):
                 
         return output
             
-        
-    selected_models = None
-    loop = None
     
     def set_models(self, 
                    models: Union[str, List[str]],
@@ -745,126 +742,7 @@ class Validator(c.Model):
         )
         st.plotly_chart(fig)
       
-    @classmethod
-    def run_miner(cls, remote = True, **kwargs):  
-        return cls.remote_fn(fn='miner',name='miner',  kwargs=kwargs)
-    
-    
-    @classmethod
-    def mine(cls, 
-               wallet='collective.0',
-               model:str= 'validator',
-               network = 'finney',
-               netuid=3,
-               port = None,
-               device = None,
-               prometheus_port = None,
-               debug = True,
-               no_set_weights = True,
-               remote:bool = False,
-               tag=None,
-               sleep_interval = 2,
-               autocast = True,
-               burned_register = False,
-               max_fee = 2.0,
-               ):
-        if tag == None:
-            tag = f'{wallet}::{network}::{netuid}'
-        if remote:
-            kwargs = cls.locals2kwargs(locals())
-            kwargs['remote'] = False
-            return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
-            
-        config = bittensor.neurons.core_server.neuron.config()
-        # model things
-        config.neuron.no_set_weights = no_set_weights
-        
-        # network
-        subtensor = bittensor.subtensor(network=network)
-        bittensor.utils.version_checking()
-    
-        # wallet
-        coldkey, hotkey = wallet.split('.')
-        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
-        
-        if wallet.is_registered(subtensor=subtensor, netuid=netuid):
-            cls.print(f'wallet {wallet} is already registered')
-            neuron = c.module('bittensor').get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
-            port = neuron.axon_info.port
-            prometheus_port = neuron.prometheus_info.port
-        else:
-            cls.ensure_registration(wallet=wallet, 
-                                    subtensor=subtensor, 
-                                    netuid=netuid,
-                                    max_fee=max_fee,
-                                    burned_register=burned_register, 
-                                    sleep_interval=sleep_interval)
-                        
-
-        # enseure ports are free
-        # axon port
-        port = port if port is not None else cls.free_port()
-        config.axon.port = port
-        while cls.port_used(config.axon.port):
-            config.axon.port += 1    
-            
-        # ensure prometheus port
-        config.prometheus.port =  config.axon.port - 1000 if prometheus_port is None else prometheus_port         
-        while cls.port_used(config.prometheus.port):
-            config.prometheus.port += 1
-            
-            
-        # neuron things
-        config.neuron.autocast = autocast  
-        if device is None:
-            device = cls.most_free_gpu()
-
-
-        if cls.module_exists(model):
-            module =  cls.module(model)
-            neuron = module.neuron(wallet=wallet, subtensor=subtensor, config=config, netuid=netuid)
-        else:
-            model_size = cls.get_model_size(model)
-            free_gpu_memory = cls.free_gpu_memory()
-            if free_gpu_memory[device] < model_size:
-                device = cls.most_free_gpu()
-            assert free_gpu_memory[device] > model_size, f'Not enough memory on device {device} to load model {model} of size {model_size}'
-            config.neuron.device = f'cuda:{device}'
-            config.neuron.model = model
-        
-            neuron = bittensor.neurons.core_server.neuron(wallet=wallet,
-                                                        subtensor=subtensor,
-                                                        config=config,
-                                                        netuid=netuid)
-            
-        neuron.run()
-                                                
-
- 
-             
-             
-        
-
-
-    @classmethod
-    def neuron(cls, config, wallet, subtensor, netuid=3, **kwargs):
-       
-        # server_class = bittensor.neurons.core_server.server
-        server_class = cls.import_object('commune.bittensor.neuron.core_server.server')
-        model = cls(**kwargs)
-        server = server_class(model=model, config=config, tokenizer=model.tokenizer)
-        bittensor.utils.version_checking()
-        
-        neuron = bittensor.neurons.core_server.neuron(model=server, 
-               wallet=wallet,
-               subtensor=subtensor,
-               config=config,
-               netuid=netuid)
-        
-        return neuron
-
-
-
+  
 
 if __name__ == '__main__':
     Validator.run()

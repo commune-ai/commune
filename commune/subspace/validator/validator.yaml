@@ -10,7 +10,7 @@ dataset:
   sequence_length: 256 # sequence length
 
 models: 
-  models:
+  update: 
   network: global # global or local network
   name: model.gptj # model name
 tokenizer: gptj
