@@ -17,17 +17,13 @@ from bittensor.utils.tokenizer_utils import prep_tokenizer, get_translation_map,
 from torch import nn
 
 
-
-
-class Validator(c.Model):
+class Validator(c.Module):
 
     def __init__(self, 
                  **kwargs
                  ):
-        self.init_model()
         config = self.set_config(kwargs=kwargs)
-
-
+        
         if config.refresh:
             self.refresh(self.tag)
             config.load = False
