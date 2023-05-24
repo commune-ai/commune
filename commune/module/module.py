@@ -26,7 +26,7 @@ class Module:
     default_ip = '0.0.0.0'
     
     address = None
-    key = None
+    # key = None
     # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
@@ -1019,7 +1019,7 @@ class Module:
                 return True
         return False
     @classmethod
-    def path2simple(cls, path:str) -> str:
+    def path2simple(cls, path:str, compress:bool = True) -> str:
 
         # does the config exist
 
@@ -1032,8 +1032,26 @@ class Module:
         
         
         simple_path = simple_path.replace('/', '.')[1:]
-
+        if compress:
+            simple_path = cls.compress_name(simple_path, seperator='.')
         return simple_path
+    
+    @staticmethod
+    def compress_name( name, seperator='.'):
+        '''
+        
+        '''
+        chunks = name.split(seperator)
+        new_chunks = []
+        for i, chunk in enumerate(chunks):
+            if len(new_chunks)>0:
+                if new_chunks[-1] == chunks[i]:
+                    continue
+            new_chunks.append(chunk)
+            
+        return seperator.join(new_chunks)
+    
+    
     @classmethod
     def path2localpath(cls, path:str) -> str:
         local_path = path.replace(cls.repo_path, cls.root_dir)
@@ -3968,6 +3986,7 @@ class Module:
     def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect') -> bytes:
         password = cls.resolve_password(password)
         data = cls.python2str(data)
+        assert isinstance(password, str),  f'{password}'
         key = cls.get_key(mode='aes', key=password)
         return key.encrypt(data)
     
