@@ -1550,8 +1550,10 @@ class BittensorModule(c.Module):
         
         if verbose:
             for miner, logs in miner2logs.items():
-                cls.print(f'ENSEMBLE {miner} \n', color='purple')
-                cls.print( logs, '\n\n')
+                pad = 100*'-'
+                color = cls.random_color()
+                cls.print(pad,f'\n{miner}\n', pad, color=color)
+                cls.print( logs, '\n\n', color=color)
             
         else:
             return miner2logs
