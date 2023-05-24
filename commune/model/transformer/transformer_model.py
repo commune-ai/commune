@@ -74,10 +74,9 @@ shortcuts =  {
     'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
     
         }
-
-
 from torch import nn
-class TransformerModel(c.Model):
+Model = c.module('model')
+class TransformerModel(Model):
     shortcuts = shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
     default_tag = 'base'
@@ -119,7 +118,7 @@ class TransformerModel(c.Model):
         
         # check if loss is nan
         if torch.isnan(loss):
-            self.print('Loss is nan, skipping backward pass')
+            c.print('Loss is nan, skipping backward pass')
             train = False
             loss = torch.tensor(10)
             raise Exception('Loss is nan, skipping backward pass')
@@ -967,14 +966,6 @@ class TransformerModel(c.Model):
     @classmethod
     def sandbox(cls):
         self = cls(model='opt2.7b')
-        
-        
-
-        
-
-        
-if __name__ == "__main__":
     
-    TransformerModel.run()
 
-
+TransformerModel.run(__name__)
