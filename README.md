@@ -1,10 +1,25 @@
-Commune is a framework that provides developers with a set of tools to prevent them from reinventing the wheel. The design of Commune is maximally unopinionated, with some minor assumptions about the class. To use Commune, you need to wrap your Python class with `commune.Module`.
+# COMMUNE
+## Our Salvation from the AI Overlords (Zucks)
+
+This is a sample README file for your project.
+
+## Social Media and Communication
+
+- Twitter: [@communeaidotorg](https://twitter.com/communeaidotorg)
+- Discord: [commune.ai](https://discord.gg/wuT9GRJw)
+
+## Description
+
+Provide a brief description of your project here.
+
+
+Commune is a protocol that provides developers with a set of tools to prevent them from reinventing the wheel. The design of Commune is maximally unopinionated, with some minor assumptions about the class. To use Commune, you need to wrap your Python class with `commune.Module`.
 
 ## Setup
 
 To use Commune, you need to follow these steps:
 
-1. Clone the Commune repository from Github:
+1. Clone the Commune repository from GitHub:
 ```
 git clone https://github.com/commune-ai/commune.git
 ```
@@ -88,12 +103,12 @@ model = model_class()
 model_class.launch(name='model.text')
 ```
 
-{image of module filesystem}
+[Insert image of module filesystem]
 
 # Subspace
 
 Subspace is a blockchain that Commune uses for several purposes:
 
 - **DNS for Python**: Decentralized Name Service for deployed objects.
-- **Evaluating Performance through Voting**: Stake-weighted voting system for users to evaluate each other instead of self-reported networks. This provides users with an idea of the "best" models.
-- **Subnets**: The ability for
+- **Evaluating Performance through Voting**: Stake-weighted voting system for users to evaluate each other instead of self-reported networks. This provides users with
+
