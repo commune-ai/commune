@@ -1568,20 +1568,25 @@ class BittensorModule(c.Module):
                         coldkey = default_coldkey,
                         wait_for_inclusion = True,
                         wait_for_finalization = False,
-                        sleep = 10,
                         prompt = False,
-                        subtensor = None
+                        subtensor = None, 
+                        min_stake = 0.1
                         ):
         wallets = cls.wallets(coldkey, registered=True)
         wallets = cls.shuffle(wallets)
         for wallet in cls.wallets(coldkey, registered=True):
             cls.print(f'Unstaking {wallet} ...')
-            amount_unstaked = cls.unstake(wallet=wallet, 
-                            wait_for_inclusion=wait_for_inclusion,
-                            wait_for_finalization=wait_for_finalization,
-                            prompt=prompt, 
-                            subtensor=subtensor)
-            cls.sleep(sleep)
+            stake = cls.get_stake(wallet)
+            if stake >= min_stake:
+                
+                amount_unstaked = cls.unstake(wallet=wallet, 
+                                wait_for_inclusion=wait_for_inclusion,
+                                wait_for_finalization=wait_for_finalization,
+                                prompt=prompt, 
+                                subtensor=subtensor)
+            else:
+                cls.print(f'Not enough stake {stake} to unstake {wallet}, min_stake: {min_stake}')
+                
     unstake_ck = unstake_coldkey
     
     
@@ -1600,10 +1605,9 @@ class BittensorModule(c.Module):
                      pool_address:str = None,
                      coldkey:str = default_coldkey,
                      loops = 20,
-                     sleep_between_call = 20,
-                     unstake_sleep = 20,
-                     sleep = 60,
                      transfer: bool = True,
+                     min_balance: float = 0.1,
+                     min_stake: float = 0.1,
                      remote = True,
                      
                      ):
@@ -1620,13 +1624,15 @@ class BittensorModule(c.Module):
             
             cls.print(f'---- Unstaking {coldkey}')
 
-            cls.unstake_coldkey(coldkey=coldkey, sleep=unstake_sleep) # unstake all wallets
-            
-            cls.sleep(sleep_between_call)
-            cls.print(f'Transferring {coldkey} to {pool_address} ...')
-                    
-
-            cls.transfer(dest=pool_address, amount=-1, wallet=coldkey)
+            cls.unstake_coldkey(coldkey=coldkey, min_stake=min_stake) # unstake all wallets
+                                
+            if float(cls.get_balance(coldkey)) > min_balance:
+                cls.print(f'Transferring {coldkey} to {pool_address} ...')
+                cls.transfer(dest=pool_address, amount=-1, wallet=coldkey, min_balance=min_balance)
+            else:
+                cls.print(f'Not enough balance to transfer {coldkey} to {pool_address} ({min_balance}), skipping transfer.')
+                
+                
             cls.sleep(sleep)
         
             
@@ -1648,7 +1654,6 @@ class BittensorModule(c.Module):
         subtensor = cls.get_subtensor(subtensor)
         
         wallet = cls.get_wallet(wallet)
-        wallet.hotkey.ss58_address
         return subtensor.unstake( wallet=wallet, 
                                  hotkey_ss58=wallet.hotkey.ss58_address, 
                                  amount=amount,
