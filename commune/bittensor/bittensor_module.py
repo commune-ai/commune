@@ -366,16 +366,7 @@ class BittensorModule(c.Module):
         assert wallet in wallet2path, f'Wallet {wallet} not found in {wallet2path.keys()}'
         cls.rm(wallet2path[wallet])
      
-        return cls.wallets()
-    
-    @classmethod
-    def rm_wallet(cls, wallet):
-        wallet2path = cls.wallet2path()
-        assert wallet in wallet2path, f'Wallet {wallet} not found in {wallet2path.keys()}'
-        cls.mv(wallet2path[wallet], wallet2path[wallet] + '.rm')
-        cls.rm(wallet2path[wallet])
-        return cls.wallets()
-    
+        return {'wallets': cls.wallets(), 'msg': f'wallet {wallet} removed'}
     
     @classmethod
     def rename_coldkey(cls, coldkey1, coldkey2):
@@ -428,6 +419,8 @@ class BittensorModule(c.Module):
         coldkey_path = cls.coldkey_dir_path(coldkey)
         assert os.path.exists(coldkey_path), f'Coldkey path {coldkey_path} does not exist'
         return cls.rm(coldkey_path)
+    
+        return {'msg': f'Coldkey {coldkey} removed', 'coldkeys': cls.coldkeys()}
     
     @classmethod
     def hotkeys(cls, wallet='default'):
@@ -812,14 +805,14 @@ class BittensorModule(c.Module):
       
       
     @classmethod
-    def add_hotkeys(cls, coldkey=default_coldkey, hotkeys:list = list(range(9,17)), **kwargs):
+    def add_hotkeys(cls, hotkeys:list = list(range(8)), coldkey=default_coldkey, **kwargs):
         for hk in hotkeys:
             cls.add_hotkey(coldkey=coldkey, hotkey=hk, **kwargs)  
         
 
     @classmethod 
-    def add_hotkey (cls, coldkey,
-                        hotkey,
+    def add_hotkey (cls, hotkey,
+                        coldkey = default_coldkey,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = False) :
@@ -839,17 +832,17 @@ class BittensorModule(c.Module):
         return wallet
     
     @classmethod 
-    def regen_hotkey (cls,name = 'default.default',
+    def regen_hotkey (cls,
+                      hotkey:str,
+                      coldkey:str =default_coldkey,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = True) :
         
         
         assert len(name.split('.')) == 2, 'name must be of the form coldkey.hotkey'
-        wallet = bittensor.wallet(name=name, hotkey=hotkey)
-        
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
         wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
-            
         return wallet
     
           
@@ -1324,6 +1317,62 @@ class BittensorModule(c.Module):
             
         neuron.run()
 
+    @classmethod
+    def validator_neuron(cls, modality='text.prompting'):
+        return c.import_object(f'commune.bittensor.neurons.{modality}.validators.core.neuron')
+    @classmethod
+    def validator(cls,
+               wallet=f'{default_coldkey}.vali',
+               network = 'finney',
+               netuid=1,
+               device = None,
+               debug = True,
+               remote:bool = True,
+               tag=None,
+               sleep_interval = 2,
+               autocast = True,
+               burned_register = False,
+               logging:bool = True,
+               max_fee = 2.0,
+               modality='text.prompting'
+               ):
+        kwargs = cls.locals2kwargs(locals())
+    
+        if tag == None:
+            if network in ['local', 'finney']:
+                tag = f'{wallet}::finney::{netuid}'
+            else:
+                tag = f'{wallet}::{network}::{netuid}'
+            kwargs['tag'] = tag
+        if remote:
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='validator',name=f'validator::{tag}',  kwargs=kwargs)
+        
+        subtensor = bittensor.subtensor(network=network)    
+        coldkey, hotkey = wallet.split('.')
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        bittensor.utils.version_checking()
+
+        cls.ensure_registration(wallet=wallet, 
+                                subtensor=subtensor, 
+                                netuid=netuid,
+                                max_fee=max_fee,
+                                burned_register=burned_register, 
+                                sleep_interval=sleep_interval,
+                                display_kwargs=kwargs)
+        
+        validator_neuron = cls.validator_neuron(modality=modality)
+        config = validator_neuron.config()
+            
+        device = cls.most_free_gpu() if device == None else device
+        if not str(device).startswith('cuda:'):
+            device = f'cuda:{device}'
+        config.neuron.device = device
+        
+        validator_neuron(config=config, 
+                            wallet=wallet,
+                            subtensor=subtensor,
+                            netuid=netuid).run()
 
     @classmethod
     def ensure_registration(cls, 
@@ -1471,6 +1520,31 @@ class BittensorModule(c.Module):
         return list(cls.wallet2miner(*args, **kwargs).keys())
     
     @classmethod
+    def validators(cls, *args, **kwargs):
+        return list(cls.wallet2validator(*args, **kwargs).keys())
+        
+    @classmethod
+    def wallet2validator(cls, wallet=None, unreged=False, reged=False, prefix='validator'):
+        wallet2miner = {}
+        if unreged:
+            filter_wallets = cls.unreged()
+        elif reged:
+            filter_wallets = cls.reged()
+        else:
+            filter_wallets = []
+            
+        for m in cls.pm2_list(prefix):
+            
+            wallet_name = m.split('::')[1]
+            if len(filter_wallets) > 0 and wallet_name not in filter_wallets:
+                continue
+            wallet2miner[wallet_name] = m
+            
+        if wallet in wallet2miner:
+            return wallet2miner[wallet]
+        return wallet2miner
+     
+    @classmethod
     def wallet2miner(cls, wallet=None, unreged=False, reged=False, prefix='miner'):
         wallet2miner = {}
         if unreged:
@@ -1484,6 +1558,8 @@ class BittensorModule(c.Module):
         for m in cls.pm2_list(prefix):
             
             wallet_name = m.split('::')[1]
+            if m.split('::')[0] != prefix:
+                continue
             if len(filter_wallets) > 0 and wallet_name not in filter_wallets:
                 continue
             wallet2miner[wallet_name] = m
@@ -1491,7 +1567,7 @@ class BittensorModule(c.Module):
         if wallet in wallet2miner:
             return wallet2miner[wallet]
         return wallet2miner
-            
+          
     w2m = wallet2miner
     @classmethod
     def get_miner(cls, wallet):
@@ -1533,8 +1609,9 @@ class BittensorModule(c.Module):
         return loop.run_until_complete(cls.async_logs(*arg, **kwargs))
 
     @classmethod
-    async def async_logs(cls, wallet, network='finney', netuid=3):
-        return c.logs(f'miner::{wallet}::{network}::{netuid}', mode='local')
+    async def async_logs(cls, wallet, network='finney', netuid=3, mode='miner'):
+        
+        return c.logs(f'{miner}::{wallet}::{network}::{netuid}', mode='local')
 
     @classmethod
     def miner2logs(cls,  network='finney', netuid=3, verbose:bool = True):
@@ -1675,22 +1752,25 @@ class BittensorModule(c.Module):
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
-                     miners_only = True,
+                     hotkeys= None,
+                     miners_only = False,
                      coldkeypub= True):
         
-        if unreged:
-            hotkeys = cls.unregistered_hotkeys(coldkey) 
-            wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
-
-        else:
-            hotkeys =  cls.hotkeys(coldkey)
-            wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
+        if hotkeys == None:
+            if unreged:
+                hotkeys = cls.unregistered_hotkeys(coldkey) 
+            else:
+                hotkeys =  cls.hotkeys(coldkey)
+        
+        wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
         
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
-        coldkey_json = cls.coldkey_json(coldkey)
+        coldkey_json = cls.coldkeypub_json(coldkey)
+        
         if 'ss58Address' not in coldkey_json:
-            coldkey_json = cls.coldkeypub_json(coldkey)
+            coldkey_json = cls.coldkey_json(coldkey)
+            
         
         if coldkeypub:
             coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
@@ -1710,7 +1790,6 @@ class BittensorModule(c.Module):
             coldkey_info.append(info)
             
         coldkey_info_text = '\n'.join(coldkey_info)
-        cls.print(coldkey_info_text, color='green')
         if path is not None:
             cls.put_text(path, coldkey_info_text)
         # return coldkey_info
@@ -1728,7 +1807,8 @@ class BittensorModule(c.Module):
     @classmethod
     def coldkey_json(cls, coldkey):
         path = cls.coldkey_path(coldkey)
-        return cls.get_json(path)
+        coldkey_json = cls.get_json(path, {})
+        return coldkey_json
     @classmethod
     def coldkeypub_json(cls, coldkey):
         path = cls.coldkeypub_path(coldkey)
