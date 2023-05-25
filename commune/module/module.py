@@ -5260,7 +5260,28 @@ class c:
         return cls.cmd('docker ps')
     dps = docker_ps
     
-    
+
+    @classmethod
+    def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
+        authorized_keys_file = os.path.expanduser(authorized_keys_file)
+        with open(os.path.expanduser(authorized_keys_file), 'a') as auth_keys_file:
+            auth_keys_file.write(public_key)
+            auth_keys_file.write('\n')
+            
+        cls.print('Added the key fam')
+
+    @staticmethod
+    def get_public_key_from_file(public_key_file='~/.ssh/id_rsa.pub'):
+        public_key_file = os.path.expanduser(public_key_file)
+        with open(public_key_file, 'r') as key_file:
+            public_key_data = key_file.read().strip()
+
+        # Extract the public key from the data
+        public_key = None
+        if public_key_data.startswith("ssh-rsa"):
+            public_key = public_key_data
+
+        return public_key
 Module = c
 Module.run(__name__)
     
