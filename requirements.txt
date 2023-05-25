@@ -32,7 +32,3 @@ retry
 psutil
 munch
 ansible
-# bittensor
-bittensor==4.0.1
-
-
