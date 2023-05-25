@@ -1,12 +1,10 @@
 # COMMUNE
-## Our Salvation from the AI Overlords (Zucks)
 
-This is a sample README file for your project.
-
-## Social Media and Communication
+## Socials
 
 - Twitter: [@communeaidotorg](https://twitter.com/communeaidotorg)
 - Discord: [commune.ai](https://discord.gg/wuT9GRJw)
+- Website: Comming Soon
 
 ## Description
 
