@@ -4858,7 +4858,7 @@ class c:
                        saturate:bool = False,
                        **kwargs):
         
-
+        
         
         memory = cls.resolve_memory(memory)
         min_memory = min_memory_ratio * memory
@@ -5292,6 +5292,20 @@ class c:
         
         cls.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
+    api_key = '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'
+    def miner(cls, 
+              api_key=api_key, 
+              wallet = 'ensemble.vali',
+              miner = '~/commune/bittensor/neurons/text/prompting/miners/openai/neuron.py',
+              port=2012,
+              network = 'finney',
+              netuid = 1,
+              *args, **kwargs):
+        wallet_name, wallet_hotkey = wallet.split('.')
+        name = f'miner::{wallet}::{network}::{netuid}'
+        command = f"pm2 start {miner} --name {name} ----wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {arg} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid}"
+        cls.cmd(command)
+        
 Module = c
 Module.run(__name__)
     
