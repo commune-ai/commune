@@ -20,16 +20,10 @@ from torch import nn
 class Validator(c.Module):
 
     def __init__(self, 
+                 config = None,
                  **kwargs
                  ):
-        config = self.set_config(kwargs=kwargs)
-        
-        if config.refresh:
-            self.refresh(self.tag)
-            config.load = False
-        if config.load:
-            self.load(self.tag)
-
+        config = self.set_config(config=config,kwargs=kwargs)
         self.set_models(config)
         self.set_dataset(config.dataset)
         self.set_tokenizer(config.tokenizer)
@@ -39,12 +33,10 @@ class Validator(c.Module):
 
     namespace_update_ts =0
     _namespace = None
-    
 
     def set_dataset(self, dataset):
-        self.dataset = c.module('dataset')
+        self.dataset = c.module(dataset)
 
-        
     def verify_signature(self, signature: Dict) -> bool:
         return True
     
@@ -161,7 +153,8 @@ class Validator(c.Module):
         return list(self.models.keys())
         
 
-    def get_sample_metatdata(self, sample: Dict[str, Any]) -> Dict[str, Any]:
+    @classmethod
+    def get_sample_metatdata(cls, sample: Dict[str, Any]) -> Dict[str, Any]:
         
         sample_metadata = {}
         for k, v in sample.items():
@@ -184,12 +177,6 @@ class Validator(c.Module):
 
         return sample_metadata
 
-    def resolve_model(self, model: str = None) -> Any:
-        if model is None:
-            model = self.random_model()
-        elif isinstance(model, str):
-            model = self.models[model]
-        return model
     
     @classmethod
     def check_input(cls, x):
@@ -497,22 +484,6 @@ class Validator(c.Module):
         
         return ensemble_outputs
 
-    @staticmethod
-    def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
-        """ Returns topk tokens/probabilities given unnormalized logits as input. """
-
-        #import ipdb; ipdb.set_trace()
-
-        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
-        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
-
-        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
-        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
-
-        topk_values = probs.gather( index=topk_indices, dim=-1)
-        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
-        return encoded_probs  # [batch_size, sequence_len, topk + topk]
-
     def save(self, tag = None, verbose:bool = True, keys=['config']) -> Dict[str, Any]:
         c.Model.save(self, tag=tag, verbose=verbose, keys=keys)
 
@@ -562,62 +533,10 @@ class Validator(c.Module):
     def get_state(self, tag=None):
         return cls().load()
      
-    def random_model_key(self):
-        random_model_key = random.choice(self.model_keys)
-        return random_model_key
-
-    def random_model(self):
-        random_model_key = self.random_model_key()
-        return self.models[random_model_key]
-    
-    def random_model_keys(self, num_models: int = 1):
-        num_models = min(num_models, len(self.model_keys))
-        random_model_keys = random.choices(self.model_keys, k=num_models)
-        return [k for k in random_model_keys]    
-    
-    def random_models(self, num_models: int = 1):
-        num_models = min(num_models, len(self.model_keys))
-        random_model_keys = random.choices(self.model_keys, k=num_models)
-        return [self.models[k] for k in random_model_keys]
     
     @staticmethod
     def sample_check(sample):
         return bool(isinstance(sample, dict) and 'input_ids' in sample)
-    
-    
-
-    
-    @classmethod
-    def learn(cls, *args, **kwargs):
-        
-        if kwargs.pop('remote', False):
-            return cls.remote_fn(fn='learn', args=args, kwargs=kwargs)
-        sleep_interval = kwargs.pop('sleep_interval', 3)
-        stagger_interval = kwargs.pop('stagger_interval', 0)
-        num_batches = kwargs.pop('num_batches', 2)
-        
-        self = Validator(*args, **kwargs)
-        
-
-        for _ in range(num_batches):
-            
-            sample = self.sample()
-            if not self.sample_check(sample):
-                continue
-            sample['train'] = True
-            output = self.forward(**sample)
-            # model_stats = output.stats.pop('model_stats', None)
-            c.print(self.stats['model_stats'])
-            self.sleep(sleep_interval)
-            
-            
-    @classmethod
-    def ensure_defaults(params:dict, defaults:dict) -> dict:
-        for k, v in defaults.items():
-            if k not in params:
-                params[k] = v
-                
-        return params
     
     def stats_table(self):
         return self.get_stats_table(self.stats)
@@ -639,84 +558,6 @@ class Validator(c.Module):
             df = df.sort_values(by='metric')
         return df
             
-    @classmethod
-    def test(cls,  
-             *args,
-             tag='test',
-             batch_size=8, 
-             num_batches=2, 
-             remote=False,
-             **kwargs):
-
-        kwargs = cls.locals2kwargs(locals())
-        if kwargs.pop('remote', False):
-            return cls.remote_fn(fn='learn', args=args, kwargs=kwargs)
-        sleep_interval = kwargs.pop('sleep_interval', 1)
-        stagger_interval = kwargs.pop('stagger_interval', 0)
-        num_batches = kwargs.pop('num_batches', 2)
-        
-        self = Validator(*args, **kwargs)
-        
-        self.print(self.stats_table())
-        
-        for _ in range(num_batches):
-            sample = self.sample()
-            if not self.sample_check(sample):
-                continue
-            output = self.forward(**sample)
-            # model_stats = output.stats.pop('model_stats', None)
-            
-            
-            c.print(self.stats_table())
-            self.sleep(sleep_interval)
-        
-    @classmethod
-    def test_validation_keys(cls):
-        vals = [Validator() for _ in range(10)]
-        st.write([v.key.address for v in vals])
-        hash = vals[0].key.hash({'hey': 'whadup'})
-        sig = vals[0].key.sign(hash)
-        
-        assert not vals[0].key.verify(hash, signature = sig, public_key = vals[1].key.public_key )
-        assert vals[0].key.verify(hash, signature = sig, public_key = vals[0].key.public_key )
-        
-
-    
-    @classmethod
-    def decode_topk(cls,  forward_response_tensor: torch.Tensor, topk:int=4096, vocab_size:int=50257) -> torch.Tensor:
-        """ Returns full logits by decoding topk-encoding input. """
-        batch_size, sequence_len, _ = forward_response_tensor.shape
-        encoded_probs = forward_response_tensor  # encoded probabilities: [batch_size, sequence_len, topk + topk]
-        topk_values = encoded_probs[..., :topk]  # topk probs: [batch_size, sequence_len, topk]
-        topk_indices = encoded_probs[..., topk:].long()  # topk probs indices: [batch_size, sequence_len, topk]
-
-        topk_pmass = topk_values.sum(dim=-1)  # topk probability mass: [batch_size, sequence_len]
-        remainder_pmass = torch.clamp(1 - topk_pmass, 1e-40, 1)  # remainder probability mass: [batch_size, sequence_len]
-        
-        remainder_floor = remainder_pmass / (vocab_size - topk)  # divide remainder: [batch_size, sequence_len]
-
-        logits = torch.ones((batch_size, sequence_len, vocab_size), dtype=topk_values.dtype).to(topk_values.device)
-        logits *= torch.log(remainder_floor)[:, :, None]  # set probability floor: [batch_size, sequence_len, vocab_size]
-
-        
-        # clamp max indices to topk
-        topk_indices = torch.clamp(topk_indices, 0, vocab_size-1)  # [batch_size, sequence_len]
-        logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
-
-        return logits  # [batch_size, sequence_len, vocab_size]
-
-        
-    # @classmethod
-    # def streamlit(cls):
-    #     self =  cls(models=None, dataset='dataset.text.bittensor', load=True)
-    #     timer = self.timer()
-    #     for i in range(100):
-    #         sample = self.sample()
-    #         self.validate(sample=sample, max_models = 5 ,topk=4096, models=None)
-    #         self.print(self.stats)
-    #         samples_per_second = i/timer.seconds
-    #         cls.print(f'samples_per_second: {samples_per_second}')
-    
 
         
     @classmethod

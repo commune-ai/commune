@@ -14,3 +14,6 @@
 [submodule "trl"]
 	path = trl
 	url = https://github.com/lvwerra/trl
+[submodule "transformers"]
+	path = transformers
+	url = https://github.com/huggingface/transformers.git

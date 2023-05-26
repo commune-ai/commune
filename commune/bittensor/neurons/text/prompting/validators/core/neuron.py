@@ -127,16 +127,16 @@ class neuron:
         cls.add_args( parser )
         return bt.config( parser )
     
-    def __init__( self ):      
-        self.config = neuron.config()
+    def __init__( self , config=None, wallet=None, subtensor=None, metagraph=None, netuid=None):      
+        self.config = neuron.config() if config == None else config
         self.check_config( self.config )
         bt.logging( config = self.config, logging_dir = self.config.neuron.full_path )
         print( self.config )
         
-        self.subtensor = bt.subtensor ( config = self.config )
+        self.subtensor = bt.subtensor ( config = self.config ) if subtensor == None else subtensor
         self.device = torch.device( self.config.neuron.device )
-        self.wallet = bt.wallet ( config = self.config )
-        self.metagraph = bt.metagraph( netuid = self.config.netuid, network = self.subtensor.network )
+        self.wallet = bt.wallet ( config = self.config ) if wallet == None else wallet
+        self.metagraph = bt.metagraph( netuid = self.config.netuid, network = self.subtensor.network ) if metagraph == None else metagraph
         self.wallet.create_if_non_existent()
         self.wallet.reregister( subtensor = self.subtensor, netuid = self.config.netuid )
         self.uid = self.wallet.get_uid( subtensor = self.subtensor, netuid = self.config.netuid )

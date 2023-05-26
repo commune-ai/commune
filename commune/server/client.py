@@ -16,7 +16,7 @@ import os
 import random
 import asyncio
 from copy import deepcopy
-import commune
+import commune as c
 from .serializer import Serializer
 
 
@@ -34,7 +34,7 @@ class VirtualModule:
         '''
         if isinstance(module, str):
             import commune
-            self.module_client = commune.connect(module)
+            self.module_client = c.connect(module)
             self.success = self.module_client.success
         else:
             self.module_client = module
@@ -80,7 +80,7 @@ class VirtualModule:
 
 
 
-class Client( Serializer, commune.Module):
+class Client( Serializer, c.Module):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
     """
     default_ip = '0.0.0.0'
@@ -95,6 +95,7 @@ class Client( Serializer, commune.Module):
             loop: 'Loop' = None,
             key: 'Key' = None,
             network : 'Network' = None,
+            stats = None,
         ):
         self.set_network(network)     
         self.set_client(ip =ip,
@@ -102,7 +103,23 @@ class Client( Serializer, commune.Module):
                         max_processes = max_processes,
                         timeout = timeout,
                         loop = loop)
+        self.set_stats(stats)
         
+    def set_stats(self, stats=None): 
+        if stats is None:     
+            stats = {
+                'fn': {},
+                'count': 0,
+                'timestamp': c.time(),
+                'calls': 0,
+                'successes': 0,
+                'errors': 0,
+                
+                
+            }
+        assert isinstance(stats, dict), f"stats must be a dict, not {type(stats)}"
+        self.stats = stats
+        return stats
     
     def set_event_loop(self, loop: 'asyncio.EventLoop') -> None:
         try:
@@ -134,7 +151,7 @@ class Client( Serializer, commune.Module):
             timeout:int = 20,
             loop: 'asycnio.EventLoop' = None
             ):
-        # if ip == commune.external_ip():
+        # if ip == c.external_ip():
         #     ip = '0.0.0.0'
         from commune.server.proto  import ServerStub
         # hopeful the only tuple i output, tehe
@@ -157,6 +174,7 @@ class Client( Serializer, commune.Module):
         self.semaphore = threading.Semaphore(max_processes)
         self.state_dict = _common.CYGRPC_CONNECTIVITY_STATE_TO_CHANNEL_CONNECTIVITY
         self.timeout = timeout
+        self.timestamp = c.time()
         
 
         self.sync_the_async(loop=self.loop)
@@ -219,6 +237,7 @@ class Client( Serializer, commune.Module):
     def sign(self):
         return 'signature'
 
+    default_fn_stats = {'errors':0, 'calls':0, 'latency':0, 'latency_serial':0, 'latency_fn':0, 'latency_deserial':0}
     async def async_forward(
         self, 
         data = None,
@@ -252,51 +271,48 @@ class Client( Serializer, commune.Module):
         random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
         if verbose:
             self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color=random_color)
-        stats = {
-            'time': {}
-        }
+        
+        
+        fn_stats = self.stats['fn'].get(fn, self.default_fn_stats)
+
+
         try:
             # Serialize the request
-            t = commune.timer()
+            t = c.timer()
             grpc_request = self.serialize(data=data, metadata=metadata)
-            stats['time']['serial'] = t.seconds
+            fn_stats['latency_serial'] = t.seconds
             
             # Send the request
-            t = commune.timer()
+            t = c.timer()
             asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
             response = await asyncio_future
-            stats['time']['fn'] = t.seconds
+            fn_stats['latency_fn'] = t.seconds
             
             
             # Deserialize the response
-            t = commune.timer()
+            t = c.timer()
             response = self.deserialize(response)
-            stats['time']['deserial'] = t.seconds
-   
-   
-        except grpc.RpcError as rpc_error_call:
-            response = {'error': str(rpc_error_call)}
-            # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
-
-        # =======================
-        # ==== Timeout Error ====
-        # =======================
-        except asyncio.TimeoutError:
-            response = {'error': str(rpc_error_call)}
-            # commune.print(f"Timeout Error: {response}", verbose=verbose,color='red')
-    
-        # ====================================
-        # ==== Handle GRPC Unknown Errors ====
-        # ====================================
+            fn_stats['latency_deserial'] =  t.seconds
+            fn_stats['latency'] = fn_stats['latency_serial'] + fn_stats['latency_fn'] + fn_stats['latency_deserial']
+            fn_stats['calls'] = fn_stats.get('calls', 0) + 1
+            fn_stats['last_called'] = self.time()
+            self.stats['successes'] += 1
+            
         except Exception as e:
             response = {'error': str(e)}
+            fn_stats['errors'] = fn_stats['errors'] + 1
+            self.stats['errors'] += 1
             
         if verbose:
             self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), time: {stats['time']} ",color=random_color)
              
         if results_only:
             response = response.get('data', {}).get('result', response)
-                         
+        
+        self.stats['calls'] += 1
+        self.stats['last_called'] = c.time()
+        self.stats['fn'][fn] = fn_stats
+        
         
         return  response
     

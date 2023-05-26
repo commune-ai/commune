@@ -4,7 +4,9 @@ import threading
 import multiprocessing
 import asyncio
 class Pool(c.Module):
-    def __init__(self, fn = None, **kwargs):
+    def __init__(self, 
+                 modules = None
+                 **kwargs):
 
     
         self.run_loop = True
