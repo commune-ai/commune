@@ -1,21 +1,23 @@
-import commune
+import commune as c
 import torch
 
-# Define a new class that inherits from commune.Module
-config = dict(
-    
-)
-class VectorStore(commune.Module):
-    def __init__(self, config = None):
+class VectorStore(c.Module):
+    def __init__(self, 
+                 model='model'
+                 ):
         self.k2index = {}
         self.index2k = {}
         self.vectors = []
         self.example_vector = None
-        self.set_config(config)
+        self.set_model(model)
+        # self.set_config(config)
 
-    def set_model(self, model):
-        assert hasattr(model, 'encode')
-        self.model = model
+    def set_model(self, model='model'):
+        self.model = c.connect(model)
+        
+        
+    def deploy_model(cls, model,*args, **kwargs):
+        return c.deploy()
         
     def encode(self, text:str, **kwargs):
         return self.model.embed(text, **kwargs)
@@ -59,17 +61,19 @@ class VectorStore(commune.Module):
         del self.vectors[last_idx]
         del self.k2index[k]
 
-        
-    def search(self, query, top_k=10):
-        query_vector = torch.tensor(query)
-        similarities = torch.einsum('ij,kj->i', query_vector, self.vectors)
-        indices = similarities.argsort(descending=True)[:top_k]
-        results = {}
+
+
+
+    def search(self, query, top_k=10, chunks=1):
+        query_vector = torch.tensor(query)  # Convert the query into a tensor (assuming it's a vector representation)
+        similarities = torch.einsum('ij,kj->i', query_vector, self.vectors)  # Compute the similarity scores between the query and stored vectors
+        indices = similarities.argsort(descending=True)[:top_k]  # Sort the similarity scores and retrieve the indices of the top-k results
+        results = {}  # Create an empty dictionary to store the results
         for idx in indices:
-            key = self.index2k[idx]
-            score = similarities[idx].item()
-            results[key] = score
-        return results
+            key = self.index2k[idx]  # Retrieve the key corresponding to the index
+            score = similarities[idx].item()  # Retrieve the similarity score for the corresponding index
+            results[key] = score  # Store the key-score pair in the results dictionary
+        return results  # Return the dictionary of results
 
 
     @classmethod
