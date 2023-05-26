@@ -240,6 +240,7 @@ class c:
         return load_yaml(path)
 
 
+
     @classmethod
     def fn_code_map(cls, module=None)-> Dict[str, str]:
         module = module if module else cls
@@ -1794,7 +1795,8 @@ class c:
             if local_namespace == None:
                 local_namespace = cls.get_json('local_namespace', {}, root=True)
                 
-        local_namespace = {k:v for k,v in local_namespace.items()}
+        external_ip = cls.external_ip()
+        local_namespace = {k:v.replace(external_ip, cls.default_ip) for k,v in local_namespace.items()}
         return local_namespace
 
         
@@ -2024,10 +2026,6 @@ class c:
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
         module_names = list(namespace.values())
-        # module_addresses =  cls.call_pool(modules=module_names, fn='address', namespace=namespace)
-        
-
-        # namespace = {k:v for k,v in namespace.items() if k in connected_module_map}
         return namespace
     
     
@@ -2322,21 +2320,11 @@ class c:
         self.info()
     @classmethod
     def schema(cls, *args,  **kwargs):
-        schema = {}
-        if len(args) >= 1:
-            for arg in args:
-                if hasattr(cls, arg):
-                    fn = arg
-                    schema[fn] = cls.function_schema(fn)
-                
-        if len(schema) > 0:
-            return schema
-        else:
-            return cls.function_schema_map(*args, **kwargs)
-    
+        return cls.get_function_schema_map(*args, **kwargs)
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
+                                include_code : bool = True,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
                                 include_docs: bool = True):
@@ -2371,7 +2359,8 @@ class c:
                 if include_docs:         
                     function_schema_map[fn] = {
                         'schema': fn_schema,
-                        'docs': getattr(obj, fn ).__doc__
+                        'docs': getattr(obj, fn ).__doc__ ,
+                        'code': inspect.getsource(getattr(obj, fn )),
                     }
                 else:
                     function_schema_map[fn] = fn_schema
@@ -4379,7 +4368,10 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls, *tags, **kwargs):
+    def fleet(cls, *tags, n=1, **kwargs):
+        if len(tags) == 0:
+            tags = list(range(n))
+            
         for tag in tags: 
             cls.deploy(tag=tag, **kwargs)
         

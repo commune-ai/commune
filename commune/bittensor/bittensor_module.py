@@ -201,10 +201,11 @@ class BittensorModule(c.Module):
         return df
     
     @classmethod
-    def get_stake(cls, wallet, **kwargs):
+    def get_stake(cls, hotkey, coldkey = default_coldkey, **kwargs):
+        wallet = cls.get_wallet(f'{coldkey}.{hotkey}')
         neuron = cls.get_neuron(wallet=wallet, **kwargs)
         
-        return neuron.stake
+        return neuron
     
     @classmethod
     def wallet2axon(cls, *args, **kwargs):
@@ -724,7 +725,33 @@ class BittensorModule(c.Module):
                 cls.get_wallet(wallet)
                 cls.create_wallet(coldkey=ck, hotkey=hk, coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)   
            
-           
+    #################
+    #### Staking ####
+    #################
+    @classmethod
+    def stake(
+        cls, 
+        hotkey:str,
+        coldkey = default_coldkey,
+        hotkey_ss58: Optional[str] = None,
+        amount: Union['Balance', float] = None, 
+        wait_for_inclusion: bool = True,
+        wait_for_finalization: bool = False,
+        prompt: bool = False,
+        subtensor = None
+    ) -> bool:
+        """ Adds the specified amount of stake to passed hotkey uid. """
+        wallet = cls.get_wallet(f'{coldkey}.{hotkey}')
+        subtensor = cls.get_subtensor(subtensor)
+        return subtensor.add_stake( 
+            wallet = wallet,
+            hotkey_ss58 = hotkey_ss58, 
+            amount = amount, 
+            wait_for_inclusion = wait_for_inclusion,
+            wait_for_finalization = wait_for_finalization, 
+            prompt = prompt
+        )
+
     @classmethod
     def add_keys(cls, name=default_coldkey,
                       hotkeys=[i+1 for i in range(16)] , 
@@ -1207,11 +1234,12 @@ class BittensorModule(c.Module):
     add_servers = deploy_servers
     
     @classmethod
-    def neuron(cls, *args, mode=None, **kwargs):
-        if mode == 'vanilla':
-            return bittensor.neurons.core_server.neuron(*args, **kwargs)
-        else:
-            return cls.module('bittensor.miner.neuron')(*args, **kwargs)
+    def neuron(cls, *args, mode=None, netuid=3, **kwargs):
+        
+        if netuid == 3:
+            neuron =  cls.module('bittensor.miner.neuron')(*args, **kwargs)
+        elif netuid == 1:
+            neuron = cls.import_object('commune.bittensor.neurons.neurons.text.prompting')(*args, **kwargs)
 
     @classmethod
     def mine_many(cls, *hotkeys, coldkey=default_coldkey, **kwargs):
@@ -1220,10 +1248,10 @@ class BittensorModule(c.Module):
 
     @classmethod
     def mine(cls, 
-               wallet='ensemble.5',
+               wallet='ensemble.vali',
                model_name:str= default_model_name,
                network = 'finney',
-               netuid=3,
+               netuid=1,
                port = None,
                device = None,
                prometheus_port = None,
@@ -1236,6 +1264,7 @@ class BittensorModule(c.Module):
                burned_register = False,
                logging:bool = True,
                max_fee = 2.0,
+               refresh_ports = True
                ):
 
 
@@ -1253,23 +1282,32 @@ class BittensorModule(c.Module):
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
         cls.print(kwargs)
-        config = bittensor.neurons.core_server.neuron.config()
+        if netuid == 1:
+            neuron_class = c.import_object('commune.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
+            config = neuron_class.config()
+        else:
+            config = cls.neuron_class().config()
         # model things
         config.neuron.no_set_weights = no_set_weights
         
         # network
-        subtensor = bittensor.subtensor(network=network)
+        subtensor = bittensor.subtensor(network=network, config=config)
         bittensor.utils.version_checking()
+        
     
         # wallet
         coldkey, hotkey = wallet.split('.')
-        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey, config=config)
         
         if wallet.is_registered(subtensor=subtensor, netuid=netuid):
             cls.print(f'wallet {wallet} is already registered')
             neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
-            port = neuron.axon_info.port
-            prometheus_port = neuron.prometheus_info.port
+            if not refresh_ports:
+                port = neuron.axon_info.port
+                prometheus_port = neuron.prometheus_info.port
+            # port = neuron.axon_info.port
+            # prometheus_port = neuron.prometheus_info.port
         else:
             cls.ensure_registration(wallet=wallet, 
                                     subtensor=subtensor, 
@@ -1282,39 +1320,46 @@ class BittensorModule(c.Module):
 
         # enseure ports are free
         # axon port
+        
+
         config.axon.port = cls.resolve_port(port)
-        config.prometheus.port = cls.resolve_port(prometheus_port)
+        # config.prometheus.port = cls.resolve_port(prometheus_port)
         # neuron things
-        config.neuron.autocast = autocast  
+        cls.print(config)
+
         device = cls.most_free_gpu() if device == None else device
         if not str(device).startswith('cuda:'):
             device = f'cuda:{device}'
         config.neuron.device = device
-        
-        
-        model_name = model_name if model_name is not None else cls.default_model_name 
-        model_shortcuts = cls.shortcuts
-        if logging:
-            config.logging.debug = logging
+        config.logging.debug = logging
+        if netuid == 1:
+            neuron_class(wallet=wallet, subtensor=subtensor, config=config).run()
+        if netuid == 3:
+            config.neuron.autocast = autocast  
+            model_name = model_name if model_name is not None else cls.default_model_name 
+            model_shortcuts = cls.shortcuts
+            if model_name in model_shortcuts:
+                config.neuron.pretrained = True
+                config.neuron.model_name = model_shortcuts[model_name]
+                neuron = cls.neuron(config=config, 
+                                    wallet=wallet,
+                                    subtensor=subtensor,
+                                    netuid=netuid)
             
-        if model_name in model_shortcuts:
-            config.neuron.pretrained = True
-            config.neuron.model_name = model_shortcuts[model_name]
-            neuron = cls.neuron(config=config, 
-                                wallet=wallet,
-                                subtensor=subtensor,
-                                netuid=netuid)
-        
+            else:
+                assert len(c.modules(model_name))>0
+                # cls.print(config)
+                neuron = cls.neuron(
+                    model = model_name,
+                    wallet=wallet,
+                    subtensor=subtensor,
+                    config=config,
+                    netuid=netuid)
         else:
-            assert len(c.modules(model_name))>0
-            # cls.print(config)
-            neuron = cls.neuron(
-                model = model_name,
-                wallet=wallet,
-                subtensor=subtensor,
-                config=config,
-                netuid=netuid)
+            raise ValueError(f'netuid {netuid} not supported')
+    
             
+
         neuron.run()
 
     @classmethod
@@ -1609,9 +1654,17 @@ class BittensorModule(c.Module):
         return loop.run_until_complete(cls.async_logs(*arg, **kwargs))
 
     @classmethod
-    async def async_logs(cls, wallet, network='finney', netuid=3, mode='miner'):
-        
-        return c.logs(f'{miner}::{wallet}::{network}::{netuid}', mode='local')
+    async def async_logs(cls, wallet, network='finney', netuid=3):
+        processes = c.pm2ls(wallet)
+        logs_dict = {}
+        for p in processes:
+            if any([p.startswith(k) for k in ['miner', 'validator'] ]):
+                logs_dict[p.split('::')[0]] = c.logs(p, mode='local')
+            
+        if len(logs_dict) == 1:
+            return list(logs_dict.values())[0]
+            
+        return logs_dict
 
     @classmethod
     def miner2logs(cls,  network='finney', netuid=3, verbose:bool = True):

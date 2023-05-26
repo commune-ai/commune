@@ -249,6 +249,7 @@ class TransformerModel(Model):
         sample = self.tokenize(text)
         kwargs.update(sample)
         return self.forward(**kwargs)['hidden_states']
+    embed = encode
     def process_outputs(self, stats:dict, sample:dict, output:dict):
         
         loss = output['loss']
@@ -373,10 +374,9 @@ class TransformerModel(Model):
                                             max_gpu_ratio=config.max_gpu_ratio,
                                             reserve=config.reserve_gpus)
     
-    
-        config.max_memory = {k:free_gpu_memory[k] for k,v in config.max_memory.items()}
+        if config.device_map == None:
 
-        config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
         
         verbose = config.verbose
         
@@ -939,7 +939,7 @@ class TransformerModel(Model):
             max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
                                                 max_gpu_ratio=config.max_gpu_ratio ,
                                                 free_gpu_memory=free_gpu_memory,
-                                                saturate=True)
+                                                saturate=False)
     
             for k,v in max_gpu_memory.items():
                 free_gpu_memory[k]-= v

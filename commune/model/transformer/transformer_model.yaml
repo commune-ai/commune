@@ -4,6 +4,7 @@ tokenizer: null
 save: true # save on epoch 
 device: null
 stats: null
+device_map: auto
 epoch_length: 500
 accumulate_grad_batches: 1
 patience_epochs: 10

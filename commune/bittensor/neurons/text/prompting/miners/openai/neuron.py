@@ -20,16 +20,19 @@ import openai
 import argparse
 import bittensor
 from typing import List, Dict
+import os
 
 class OpenAIMiner( bittensor.BasePromptingMiner ):
 
     @classmethod
     def check_config( cls, config: 'bittensor.Config' ):
         assert config.openai.api_key != None, 'the miner requires passing --openai.api_key as an argument of the config.'
+        config.openai.api_key = os.getenv(config.openai.api_key, config.openai.api_key)
+
 
     @classmethod
     def add_args( cls, parser: argparse.ArgumentParser ):
-        parser.add_argument('--openai.api_key', type=str, help='openai api key')
+        parser.add_argument('--openai.api_key', type=str, help='openai api key', default='OPENAI_API_KEY')
         parser.add_argument('--openai.suffix', type=str, default=None, help="The suffix that comes after a completion of inserted text.")
         parser.add_argument('--openai.max_tokens', type=int, default=256, help="The maximum number of tokens to generate in the completion.")
         parser.add_argument('--openai.temperature', type=float, default=0.7, help="Sampling temperature to use, between 0 and 2.")
@@ -41,9 +44,8 @@ class OpenAIMiner( bittensor.BasePromptingMiner ):
 
     def backward( self, messages: List[Dict[str, str]], response: str, rewards: torch.FloatTensor ) -> str: pass
 
-    def __init__( self ):
-        super( OpenAIMiner, self ).__init__()
-        print ( self.config )
+    def __init__( self , config: 'bittensor.Config' = None, **kwargs):
+        super( OpenAIMiner, self ).__init__(config=config, **kwargs)
         openai.api_key = self.config.openai.api_key
 
     def forward( self, messages: List[Dict[str, str]]  ) -> str:
