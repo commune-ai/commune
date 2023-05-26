@@ -18,6 +18,9 @@ class c:
     # port range for servers
     default_port_range = [50050, 50150] 
     
+    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
+                    'info', 'ip', 'address','ip_address', 'info', 'schema',
+                    'module_name', 'modules', 'help']
     user = None
     
     # default ip
@@ -44,6 +47,26 @@ class c:
         boot_peers = config.get('boot_peers', [])
         return boot_peers
         
+        
+    @classmethod
+    def add_root_path(cls, root_path:str):
+        root_paths = self.getc('root_paths', [])
+        if root_path not in root_paths:
+            root_paths.append(root_path)
+        else: 
+            c.print(f'root_path {root_path} already exists')
+        
+        
+        return {'root_paths': root_paths}
+    
+    
+    @classmethod
+    def get_root_paths(cls):
+        root_paths = self.getc('root_paths', [cls.root_path])
+        if cls.root_path not in root_paths:
+            cls.add_root_path(cls.root_path)
+
+        return {'root_paths': root_paths}
         
     
         
@@ -1191,10 +1214,14 @@ class c:
             
         module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
         return module_tree
+    
+    tree = module_tree
+    leaves = lsm = module_list
     @classmethod
     def list_modules(cls, search=None):
         modules = list(cls.module_tree(search).keys())
         return modules
+    
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
         modules = list(cls.namespace(*args, **kwargs).keys())
@@ -1709,6 +1736,13 @@ class c:
             port2module[port] = name
         return port2module
     port2name = port2module
+    
+    @classmethod
+    def module2port(cls, *args, **kwargs):
+        port2module = cls.port2module(*args, **kwargs)
+        return {v:k for k,v in port2module.items()}
+    name2port = m2p = module2port
+    
 
     @classmethod
     def address2module(cls, *args, **kwargs):
@@ -2321,6 +2355,8 @@ class c:
     @classmethod
     def schema(cls, *args,  **kwargs):
         return cls.get_function_schema_map(*args, **kwargs)
+    
+    help = schema
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
@@ -3754,10 +3790,7 @@ class c:
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
     
-    
-    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
-                        'info', 'ip', 'address','ip_address', 'info', 'schema',
-                        'module_name', 'modules']
+
     
     def whitelist(self, mode='sudo') -> List[str]:
         if self.is_root():
@@ -4154,7 +4187,11 @@ class c:
         print(key, 'KEY')
         return key  
                 
-                
+    @classmethod  
+    def keys(cls, *args, **kwargs):
+        return c.module('key').keys(*args, **kwargs)
+    
+    
     def set_key(self, *args, **kwargs) -> None:
         # set the key
         if hasattr(args[0], 'public_key') and hasattr(args[0], 'address'):
@@ -5292,19 +5329,22 @@ class c:
         
         cls.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
-    api_key = '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'
+    @classmethod
     def miner(cls, 
-              api_key=api_key, 
+              api_key = None, 
               wallet = 'ensemble.vali',
               miner = '~/commune/bittensor/neurons/text/prompting/miners/openai/neuron.py',
               port=2012,
               network = 'finney',
               netuid = 1,
               *args, **kwargs):
+        miner = os.path.expanduser(miner)
+        api_key = api_key or os.environ.get('OPENAI_API_KEY')
         wallet_name, wallet_hotkey = wallet.split('.')
         name = f'miner::{wallet}::{network}::{netuid}'
-        command = f"pm2 start {miner} --name {name} ----wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {arg} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid}"
+        command = f"pm2 start {miner} --name {name} --interpreter python3 -- --wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {api_key} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid} --logging.debug"
         cls.cmd(command)
+        cls.print({'msg': f"Started miner {name} on port {port}"})
         
 Module = c
 Module.run(__name__)

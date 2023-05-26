@@ -242,7 +242,7 @@ class Keypair(c.Module):
     @classmethod
     def get_key(cls, path, password=None, **kwargs):
         self = cls(path=path, password=password, **kwargs)
-        return self.__dict__
+        return self
     
 
     @classmethod
@@ -576,7 +576,7 @@ class Keypair(c.Module):
     def sign(self, 
              data: Union[ScaleBytes, bytes, str],
              crypto_type = 'sr25519',
-             return_dict=False) -> bytes:
+             return_dict=True) -> bytes:
         """
         Creates a signature for given data
         Parameters
@@ -594,6 +594,7 @@ class Keypair(c.Module):
         elif type(data) is str:
             data = data.encode()
 
+        c.print(self.__dict__)
         if not self.private_key:
             raise ConfigurationError('No private key set to create signatures')
 
@@ -740,7 +741,7 @@ class Keypair(c.Module):
             
     
     def state_dict(self, password: str = None ) -> dict:
-        state_dict = {'data': self.__dict__, 'encrypted': False}   
+        state_dict = c.copy({'data': self.__dict__, 'encrypted': False}   )
         for k,v in state_dict['data'].items():
             if type(v)  in [bytes]:
                 state_dict['data'][k] = v.hex()
@@ -770,7 +771,7 @@ class Keypair(c.Module):
     @classmethod
     def ls_keys(cls):
         return [os.path.splitext(os.path.basename(p))[0] for p in cls.ls()]
-        
+    keys = ls_keys
     @classmethod
     def key_exists(cls, key:str)-> bool:
         return key in cls.ls_keys()
@@ -846,7 +847,7 @@ class Keypair(c.Module):
         return self.__dict__
         
     @classmethod
-    def test(cls, n=10):
+    def test(cls, n=10,data='bro'):
         
         for i in range(n):
             cls.print(i)
@@ -855,6 +856,10 @@ class Keypair(c.Module):
             assert cls.key_exists(name) == True, 'Key doesnt exist'
             cls.rm_key(name)
             assert cls.key_exists(name) == False, 'Key doesnt exist'
+            key = cls.get_key(name)
+            sig = key.sign(data, return_dict=True)
+            assert key.verify(sig), 'Signature doesnt verify'
+            
         
         return {'success': True, 'message': 'Keypair test passed'}
         
