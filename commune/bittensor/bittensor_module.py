@@ -16,6 +16,7 @@ class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
+    default_netuid = 1
     
     def __init__(self,
 
@@ -132,7 +133,6 @@ class BittensorModule(c.Module):
         if netuid is None:
             netuid = self.netuid
         return netuid
-    default_netuid = 3
     @classmethod
     def get_netuid(cls, netuid: int = None) -> int:
         if netuid is None:
