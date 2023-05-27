@@ -21,12 +21,12 @@ class BittensorModule(c.Module):
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                network: Union[bittensor.subtensor, str] = 'finney',
+                subtensor: Union[bittensor.subtensor, str] = 'finney',
                 netuid: int = default_netuid,
                 config = None,
                 ):
         self.set_config(config)
-        self.set_subtensor(subtensor=network)
+        self.set_subtensor(subtensor=subtensor)
         self.set_netuid(netuid=netuid)
         
     @classmethod
