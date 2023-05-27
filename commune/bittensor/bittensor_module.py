@@ -1240,6 +1240,8 @@ class BittensorModule(c.Module):
             neuron =  cls.module('bittensor.miner.neuron')(*args, **kwargs)
         elif netuid == 1:
             neuron = cls.import_object('commune.bittensor.neurons.neurons.text.prompting')(*args, **kwargs)
+            
+        return neuron
 
     @classmethod
     def mine_many(cls, *hotkeys, coldkey=default_coldkey, **kwargs):
@@ -1251,7 +1253,7 @@ class BittensorModule(c.Module):
                wallet='ensemble.vali',
                model_name:str= default_model_name,
                network = 'finney',
-               netuid=1,
+               netuid=3,
                port = None,
                device = None,
                prometheus_port = None,
@@ -1264,7 +1266,7 @@ class BittensorModule(c.Module):
                burned_register = False,
                logging:bool = True,
                max_fee = 2.0,
-               refresh_ports = True
+               refresh_ports = False
                ):
 
 
@@ -1289,6 +1291,7 @@ class BittensorModule(c.Module):
             config = cls.neuron_class().config()
         # model things
         config.neuron.no_set_weights = no_set_weights
+        config.netuid = netuid 
         
         # network
         subtensor = bittensor.subtensor(network=network, config=config)
@@ -1321,9 +1324,9 @@ class BittensorModule(c.Module):
         # enseure ports are free
         # axon port
         
-
-        config.axon.port = cls.resolve_port(port)
-        # config.prometheus.port = cls.resolve_port(prometheus_port)
+        config.axon.port = cls.resolve_port(port, )
+        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        
         # neuron things
         cls.print(config)
 
