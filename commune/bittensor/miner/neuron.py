@@ -202,10 +202,12 @@ class neuron(c.Module):
         bittensor.logging.check_config( config )
         bittensor.wallet.check_config( config )
         bittensor.subtensor.check_config( config )
-        bittensor.metagraph.check_config( config )
+        if hasattr(bittensor, 'metagraph') and hasattr(config, 'metagraph'):
+            bittensor.metagraph.check_config( config )
         bittensor.dataset.check_config( config )
         bittensor.axon.check_config( config )
-        # bittensor.wandb.check_config( config )
+        if hasattr(bittensor, 'wandb') and hasattr(config, 'wandb'):
+            bittensor.wandb.check_config( config )
         bittensor.prometheus.check_config( config )
         full_path = os.path.expanduser('{}/{}/{}/netuid{}/{}'.format( config.logging.logging_dir, config.wallet.get('name', bittensor.defaults.wallet.name), config.wallet.get('hotkey', bittensor.defaults.wallet.hotkey), config.netuid, config.neuron.name ))
         config.neuron.full_path = os.path.expanduser(full_path)
@@ -255,7 +257,8 @@ class neuron(c.Module):
         # if not self.config.neuron.restart :
         #     self.model.load(self.config.neuron.full_path)
 
-        if self.config.wandb.api_key != 'default':
+
+        if hasattr(self.config, 'wandb') and self.config.wandb.api_key != 'default':
             # --- Init Wandb.
             bittensor.wandb(
                 config = self.config,
@@ -346,7 +349,7 @@ class neuron(c.Module):
                 'emission': nn.emission,
             }
             
-            if self.config.wandb.api_key != 'default':
+            if hasattr(self.config, 'wandb') and  self.config.wandb.api_key != 'default':
 
                 df = pandas.concat( [
                     bittensor.utils.indexed_values_to_dataframe( prefix = 'w_i_{}'.format(nn.uid), index = self.metagraph.uids, values = self.metagraph.W[:, uid] ),

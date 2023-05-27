@@ -1291,6 +1291,7 @@ class BittensorModule(c.Module):
             config = cls.neuron_class().config()
         # model things
         config.neuron.no_set_weights = no_set_weights
+        config.netuid = netuid 
         
         # network
         subtensor = bittensor.subtensor(network=network, config=config)
@@ -1323,8 +1324,8 @@ class BittensorModule(c.Module):
         # enseure ports are free
         # axon port
         
-        config.axon.port = cls.resolve_port(port)
-        config.prometheus.port = cls.resolve_port(prometheus_port)
+        config.axon.port = cls.resolve_port(port, )
+        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
         
         # neuron things
         cls.print(config)
