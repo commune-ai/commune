@@ -853,17 +853,17 @@ class c:
                 
         return available_ports
     @classmethod
-    def resolve_port(cls, port:int=None):
+    def resolve_port(cls, port:int=None, **kwargs):
         
         '''
         
         Resolves the port and finds one that is available
         '''
         if port == None or port == 0:
-            port = cls.free_port(port)
+            port = cls.free_port(port, **kwargs)
             
         if cls.port_used(port):
-            port = cls.free_port(port)
+            port = cls.free_port(port, **kwargs)
             
         return port
     
@@ -1963,8 +1963,8 @@ class c:
         return bool(name in cls.servers())
     
     @classmethod
-    def get_port(cls, port:int = None)->int:
-        port = port if port is not None and port != 0 else cls.free_port()
+    def get_port(cls, port:int = None, **kwargs)->int:
+        port = port if port is not None and port != 0 else cls.free_port(**kwargs)
         while cls.port_used(port):
             port += 1   
         return port 
