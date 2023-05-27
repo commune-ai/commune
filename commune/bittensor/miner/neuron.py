@@ -205,7 +205,7 @@ class neuron(c.Module):
         bittensor.metagraph.check_config( config )
         bittensor.dataset.check_config( config )
         bittensor.axon.check_config( config )
-        bittensor.wandb.check_config( config )
+        # bittensor.wandb.check_config( config )
         bittensor.prometheus.check_config( config )
         full_path = os.path.expanduser('{}/{}/{}/netuid{}/{}'.format( config.logging.logging_dir, config.wallet.get('name', bittensor.defaults.wallet.name), config.wallet.get('hotkey', bittensor.defaults.wallet.hotkey), config.netuid, config.neuron.name ))
         config.neuron.full_path = os.path.expanduser(full_path)
