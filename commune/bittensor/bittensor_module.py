@@ -1469,7 +1469,7 @@ class BittensorModule(c.Module):
                     device = 'cpu',
                     n = None,
                     unreged = True,
-                    ensure_gpus = True,
+                    ensure_gpus = False,
                     max_fee=1.1): 
     
         
