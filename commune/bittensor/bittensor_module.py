@@ -1811,9 +1811,10 @@ class BittensorModule(c.Module):
         
     @classmethod
     def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
-        cls.add_keys(overwrite=overwrite_keys)
-        cls.add_servers(refresh=refresh_servers)
-        cls.fleet(refresh=refresh_miners)
+        cls.add_keys(overwrite=overwrite_keys) # add keys job
+        cls.add_servers(refresh=refresh_servers) # add servers job
+        cls.fleet(refresh=refresh_miners) # fleet job
+        cls.unstake2pool() # unstake2pool job
     @classmethod
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
@@ -1872,7 +1873,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def coldkey_json(cls, coldkey):
+    def coldkey_json(cls, coldkey=default_coldkey):
         path = cls.coldkey_path(coldkey)
         coldkey_json = cls.get_json(path, {})
         return coldkey_json
