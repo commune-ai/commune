@@ -1930,12 +1930,12 @@ class c:
     @classmethod
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
+        if nest_asyncio:
+            cls.nest_asyncio()
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-  
-        if nest_asyncio:
-            cls.nest_asyncio()
+
 
         return loop
   
@@ -2337,7 +2337,6 @@ class c:
     def info(self, 
              include_schema: bool = False,
              include_namespace:bool = True) -> Dict[str, Any]:
-        function_schema_map = self.function_schema_map()
         whitelist = self.whitelist()
         blacklist = self.blacklist()
         fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
@@ -2355,6 +2354,8 @@ class c:
         if include_schema:
             info['schema'] = self.schema()
         return info
+    
+    help = info
 
 
 
@@ -2363,8 +2364,7 @@ class c:
     @classmethod
     def schema(cls, *args,  **kwargs):
         return cls.get_function_schema_map(*args, **kwargs)
-    
-    help = schema
+
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
@@ -3415,7 +3415,10 @@ class c:
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
-        nest_asyncio.apply()
+        try:
+            nest_asyncio.apply()
+        except RuntimeError as e:
+            pass
         
         
     # JUPYTER NOTEBOOKS
@@ -5306,11 +5309,16 @@ class c:
     @classmethod
     def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
-        with open(os.path.expanduser(authorized_keys_file), 'a') as auth_keys_file:
+        with open(authorized_keys_file, 'a') as auth_keys_file:
             auth_keys_file.write(public_key)
             auth_keys_file.write('\n')
             
         cls.print('Added the key fam')
+        
+    @classmethod
+    def ssh_authorized_keys(cls, authorized_keys_file:str='~/authorized_keys'):
+        authorized_keys_file = os.path.expanduser(authorized_keys_file)
+        return cls.get_text(authorized_keys_file)
 
     @staticmethod
     def get_public_key_from_file(public_key_file='~/.ssh/id_rsa.pub'):
