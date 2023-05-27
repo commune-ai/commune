@@ -1118,17 +1118,13 @@ class BittensorModule(c.Module):
                 gas_fee: bool = 0.0001):
         wallet = cls.get_wallet(wallet)
         balance = cls.get_balance(wallet)
-        
+        balance = balance - gas_fee
         if balance < min_balance:
-            cls.print(f'Not Enough Balance for Transfer --> Balance ({balance}) < min balance ({min_balance})')
+            cls.print(f'Not Enough Balance for Transfer --> Balance ({balance}) < min balance ({min_balance})', color='red')
             return None
         else:
             cls.print(f'Enough Balance for Transfer --> Balance ({balance}) > min balance ({min_balance})')
-        
-        print(f'balance {balance} amount {amount}')
-        if amount == -1:
-            amount = balance - gas_fee*1e9
-            
+                    
         assert balance >= amount, f'balance {balance} is less than amount {amount}'
         wallet.transfer( 
             dest=dest,
