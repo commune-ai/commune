@@ -16,13 +16,13 @@ class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
-    default_netuid = 1
+    default_netuid = 3
     
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] = 'finney',
-                netuid: int = 3,
+                netuid: int = default_netuid,
                 config = None,
                 ):
         self.set_config(config)
@@ -202,10 +202,14 @@ class BittensorModule(c.Module):
     
     @classmethod
     def get_stake(cls, hotkey, coldkey = default_coldkey, **kwargs):
-        wallet = cls.get_wallet(f'{coldkey}.{hotkey}')
+        if hotkey in cls.wallets():
+            wallet = hotkey
+        else:
+            wallet = f'{coldkey}.{hotkey}'
+        wallet = cls.get_wallet(wallet)
         neuron = cls.get_neuron(wallet=wallet, **kwargs)
         
-        return neuron
+        return float(neuron.stake)
     
     @classmethod
     def wallet2axon(cls, *args, **kwargs):
@@ -1110,9 +1114,16 @@ class BittensorModule(c.Module):
                 wait_for_finalization: bool = True,
                 subtensor: 'bittensor.Subtensor' = None,
                 prompt: bool = False,
+                min_balance= 0.1,
                 gas_fee: bool = 0.0001):
         wallet = cls.get_wallet(wallet)
         balance = cls.get_balance(wallet)
+        
+        if balance < min_balance:
+            cls.print(f'Not Enough Balance for Transfer --> Balance ({balance}) < min balance ({min_balance})')
+            return None
+        else:
+            cls.print(f'Enough Balance for Transfer --> Balance ({balance}) > min balance ({min_balance})')
         
         print(f'balance {balance} amount {amount}')
         if amount == -1:
@@ -1130,7 +1141,7 @@ class BittensorModule(c.Module):
     @classmethod
     def get_balance(self, wallet):
         wallet = self.get_wallet(wallet)
-        return wallet.balance
+        return float(wallet.balance)
     
     
     @classmethod
@@ -1705,15 +1716,14 @@ class BittensorModule(c.Module):
                         subtensor = None, 
                         min_stake = 0.1
                         ):
-        wallets = cls.wallets(coldkey, registered=True)
-        wallets = cls.shuffle(wallets)
+
         for wallet in cls.wallets(coldkey, registered=True):
             cls.print(f'Unstaking {wallet} ...')
             stake = cls.get_stake(wallet)
             if stake >= min_stake:
-                
+                cls.print(f'Unstaking {wallet} Stake/MinStake ({stake}>{min_stake})')
                 amount_unstaked = cls.unstake(wallet=wallet, 
-                                wait_for_inclusion=wait_for_inclusion,
+                                wait_for_inclusion=True,
                                 wait_for_finalization=wait_for_finalization,
                                 prompt=prompt, 
                                 subtensor=subtensor)
@@ -1742,6 +1752,7 @@ class BittensorModule(c.Module):
                      min_balance: float = 0.1,
                      min_stake: float = 0.1,
                      remote = True,
+                     sleep = 1,
                      
                      ):
         
@@ -1755,16 +1766,16 @@ class BittensorModule(c.Module):
         for i in range(loops):
             
             
-            cls.print(f'---- Unstaking {coldkey}')
+            cls.print(f'-YOOO- Unstaking {coldkey}')
+            
 
             cls.unstake_coldkey(coldkey=coldkey, min_stake=min_stake) # unstake all wallets
                                 
-            if float(cls.get_balance(coldkey)) > min_balance:
-                cls.print(f'Transferring {coldkey} to {pool_address} ...')
-                cls.transfer(dest=pool_address, amount=-1, wallet=coldkey, min_balance=min_balance)
+            if pool_address == cls.address(coldkey):
+                cls.print(f'Coldkey {coldkey} is equal to {pool_address}, skipping transfer')
             else:
-                cls.print(f'Not enough balance to transfer {coldkey} to {pool_address} ({min_balance}), skipping transfer.')
-                
+                cls.transfer(dest=pool_address, amount=-1, wallet=coldkey, min_balance=min_balance)
+
                 
             cls.sleep(sleep)
         
