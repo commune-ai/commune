@@ -166,7 +166,7 @@ class BittensorModule(c.Module):
         return neuron_stats
     
     def whitelist(self):
-        return ['miners', 'wallets', 'check_miners']
+        return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats']
     @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True

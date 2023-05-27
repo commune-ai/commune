@@ -631,7 +631,15 @@ class c:
         module_filepath = module.filepath()
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
 
-
+    @staticmethod
+    def st_sidebar(fn):
+        import streamlit as st
+        
+        def wrapper(*args, **kwargs):
+            with st.sidebar:
+                return fn(*args, **kwargs)
+        
+        return wrapper
 
 
     @classmethod
@@ -2786,7 +2794,10 @@ class c:
     def run(cls, name:str = None, verbose:bool = False) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
             args = cls.argparse()
-            return getattr(cls, args.function)(*args.args, **args.kwargs)     
+            if args.function == '__init__':
+                return cls(*args.args, **args.kwargs)     
+            else:
+                return getattr(cls, args.function)(*args.args, **args.kwargs)     
        
     
     @classmethod
@@ -5346,6 +5357,59 @@ class c:
         cls.cmd(command)
         cls.print({'msg': f"Started miner {name} on port {port}"})
         
+
+    @staticmethod
+    def df2json(dataframe):
+        
+        """
+        Convert a pandas DataFrame to JSON format.
+        
+        Args:
+            dataframe (pandas.DataFrame): The DataFrame to be converted.
+            
+        Returns:
+            str: JSON representation of the DataFrame.
+        """
+        import pandas as pd
+        import json
+        json_data = dataframe.to_json(orient='records')
+        return json_data
+
+    @classmethod
+    def pd(cls):
+        return cls.import_module('pandas')
+
+    @classmethod
+    def df(cls, *args, **kwargs):
+        df =  cls.import_object('pandas.DataFrame')
+        if len(args) > 0 or len(kwargs) > 0:
+            df = df(*args, **kwargs)
+        return df
+
+    @classmethod
+    def st(cls):
+        return cls.import_module('streamlit')
+    @classmethod
+    def torch(cls):
+        return cls.import_module('torch')
+
+    @staticmethod
+    def json2df(json_data):
+        """
+        Convert JSON data to a pandas DataFrame.
+        
+        Args:
+            json_data (str): JSON data representing a DataFrame.
+            
+        Returns:
+            pandas.DataFrame: DataFrame created from the JSON data.
+        """
+                
+        import pandas as pd
+        import json
+        dataframe = pd.read_json(json_data)
+        return dataframe
+
 Module = c
 Module.run(__name__)
     
