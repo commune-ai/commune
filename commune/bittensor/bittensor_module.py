@@ -1203,8 +1203,6 @@ class BittensorModule(c.Module):
         
         if name == None:
             name = f'server::{model_name}::{tag}'
-        if verbose:
-            cls.print(f'deploying server {name} on gpu {device}')
 
         server_class.deploy( kwargs=dict(config=config), name=name)
         
