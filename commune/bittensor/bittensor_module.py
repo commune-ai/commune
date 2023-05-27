@@ -1136,7 +1136,7 @@ class BittensorModule(c.Module):
     @classmethod
     def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
-        return wallet.coldkey.ss58_address
+        return wallet.coldkeypub.ss58_address
     ss58 = address
     @classmethod
     def score(cls, wallet='collective.0'):
@@ -1802,14 +1802,18 @@ class BittensorModule(c.Module):
         self = cls(network='local')
         cls.pritn(self.reged(subtensor='local'))
         
-        
+    @classmethod
+    def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
+        cls.add_keys(overwrite=overwrite_keys)
+        cls.add_servers(refresh=refresh_servers)
+        cls.fleet(refresh=refresh_miners)
     @classmethod
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
                      hotkeys= None,
-                     miners_only = False,
+                     miners_only = True,
                      coldkeypub= True):
         
         if hotkeys == None:
