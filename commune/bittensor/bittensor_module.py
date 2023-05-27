@@ -1136,7 +1136,7 @@ class BittensorModule(c.Module):
     @classmethod
     def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
-        return wallet.coldkey.ss58_address
+        return wallet.coldkeypub.ss58_address
     ss58 = address
     @classmethod
     def score(cls, wallet='collective.0'):
@@ -1196,8 +1196,8 @@ class BittensorModule(c.Module):
         
         if name == None:
             name = f'server::{model_name}::{tag}'
-            
-        cls.print(f'deploying server {tag} on gpu {device}')
+        if verbose:
+            cls.print(f'deploying server {name} on gpu {device}')
 
         server_class.deploy( kwargs=dict(config=config), name=name)
         
