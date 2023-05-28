@@ -17,6 +17,10 @@ class c:
     root_module_class = 'c'
     # port range for servers
     default_port_range = [50050, 50150] 
+    
+    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
+                    'info', 'ip', 'address','ip_address', 'info', 'schema',
+                    'module_name', 'modules', 'help']
     user = None
     # default ip
     default_ip = '0.0.0.0'
@@ -36,10 +40,30 @@ class c:
     
     @classmethod
     def boot_peers(cls) -> List[str]: 
-        config = Module.get_config()
+        config = c.get_config()
         boot_peers = config.get('boot_peers', [])
         return boot_peers
         
+        
+    @classmethod
+    def add_root_path(cls, root_path:str):
+        root_paths = self.getc('root_paths', [])
+        if root_path not in root_paths:
+            root_paths.append(root_path)
+        else: 
+            c.print(f'root_path {root_path} already exists')
+        
+        
+        return {'root_paths': root_paths}
+    
+    
+    @classmethod
+    def get_root_paths(cls):
+        root_paths = self.getc('root_paths', [cls.root_path])
+        if cls.root_path not in root_paths:
+            cls.add_root_path(cls.root_path)
+
+        return {'root_paths': root_paths}
         
     
         
@@ -56,7 +80,7 @@ class c:
     
     
     def init(self, *args, **kwargs):
-        Module.__init__(self, *args, **kwargs)
+        c.__init__(self, *args, **kwargs)
     
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
@@ -331,7 +355,7 @@ class c:
             
         if path is None:
             if root:
-                path = Module.__config_file__()
+                path = c.__config_file__()
             else:
                 path = cls.__config_file__()
         assert isinstance(path, str)
@@ -605,7 +629,15 @@ class c:
         module_filepath = module.filepath()
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
 
-
+    @staticmethod
+    def st_sidebar(fn):
+        import streamlit as st
+        
+        def wrapper(*args, **kwargs):
+            with st.sidebar:
+                return fn(*args, **kwargs)
+        
+        return wrapper
 
 
     @classmethod
@@ -791,7 +823,7 @@ class c:
         
         '''
         
-        tmp_dir = Module.tmp_dir() if root else cls.tmp_dir()
+        tmp_dir = c.tmp_dir() if root else cls.tmp_dir()
         
         
         if path.startswith('/'):
@@ -827,17 +859,17 @@ class c:
                 
         return available_ports
     @classmethod
-    def resolve_port(cls, port:int=None):
+    def resolve_port(cls, port:int=None, **kwargs):
         
         '''
         
         Resolves the port and finds one that is available
         '''
         if port == None or port == 0:
-            port = cls.free_port(port)
+            port = cls.free_port(port, **kwargs)
             
         if cls.port_used(port):
-            port = cls.free_port(port)
+            port = cls.free_port(port, **kwargs)
             
         return port
     
@@ -1188,10 +1220,14 @@ class c:
             
         module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
         return module_tree
+    
+    tree = module_tree
+    leaves = lsm = module_list
     @classmethod
     def list_modules(cls, search=None):
         modules = list(cls.module_tree(search).keys())
         return modules
+    
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
         modules = list(cls.namespace(*args, **kwargs).keys())
@@ -1231,7 +1267,7 @@ class c:
         return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
-        return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
+        return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
 
     
     @staticmethod
@@ -1266,7 +1302,7 @@ class c:
         modules = []
         failed_modules = []
 
-        for f in glob(Module.root_path + '/**/*.py', recursive=True):
+        for f in glob(c.root_path + '/**/*.py', recursive=True):
             if os.path.isdir(f):
                 continue
             file_path, file_ext =  os.path.splitext(f)
@@ -1288,13 +1324,13 @@ class c:
         return cls.get_module('dashboard')(*args, **kwargs)
     @staticmethod
     def get_module_config_paths() -> List[str]:
-        return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
+        return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
 
 
     @classmethod
     def is_parent(cls, parent=None):
-        parent = Module if parrent == None else parent
-        return bool(parent in cls.get_parents(child))
+        parent = c if parent == None else parent
+        return bool(parent in cls.get_parents(cls))
 
     @classmethod
     def run_python(cls, path:str, interpreter:str='python3'):
@@ -1520,18 +1556,7 @@ class c:
     def get_server_info(cls,name:str) -> Dict:
         return cls.local_namespace().get(name, {})
 
-    @classmethod
-    def connect(cls, *args, **kwargs):
-        
-        return_future = kwargs.pop('return_future', False)
-        loop = kwargs.get('loop', cls.get_event_loop())
-        future = cls.async_connect(*args, **kwargs)
-        if return_future:
-            return future
-        else:
-            
-            return loop.run_until_complete(future)
-        
+
     @classmethod
     def root_module(cls, name:str='module',
                     timeout:int = 100, 
@@ -1592,6 +1617,19 @@ class c:
         if return_dict:
             return dict(zip(modules, module_clients))
         return module_clients
+
+    @classmethod
+    def connect(cls, *args, **kwargs):
+        
+        return_future = kwargs.pop('return_future', False)
+        loop = kwargs.get('loop', cls.get_event_loop())
+        future = cls.async_connect(*args, **kwargs)
+        if return_future:
+            return future
+        else:
+            
+            return loop.run_until_complete(future)
+        
     @classmethod
     async def async_connect(cls, 
                 name:str=None, 
@@ -1608,12 +1646,11 @@ class c:
     
         if (name == None and ip == None and port == None):
             return cls.root_module()
-            
+        
         if wait_for_server:
             cls.wait_for_server(name)
-        
-        if namespace == None :
-            namespace = cls.namespace(network, update=False)
+            
+        namespace = cls.namespace(network, update=False)
         namespace = cls.copy(namespace)
 
         # local namespace  
@@ -1630,14 +1667,14 @@ class c:
             else:
                 modules = list(namespace.keys())
                 module_addresses = list(namespace.values())
-                for n in modules + module_addresses:
-                    if name == n:
+                for module_candidate in modules + module_addresses:
+                    if name == module_candidate:
                         # we found the module
-                        found_modules = [n]
+                        found_modules = [module_candidate]
                         break
-                    elif name in n:
+                    elif module_candidate.startswith(name):
                         # get all the modules lol
-                        found_modules += [n]
+                        found_modules += [module_candidate]
                         
             if len(found_modules)>0:
                 name = cls.choice(found_modules)
@@ -1650,15 +1687,13 @@ class c:
             
 
             port = int(name.split(':')[-1])
-
-                
             ip = name.split(':')[0]
 
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        client= cls.get_client(ip=ip, port=port, virtual=virtual)
         if verbose:
-            cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-        client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
+            cls.print(f'Successful Connection to {name} on {ip}:{port}', color='yellow')
         
         return client
     @classmethod
@@ -1706,6 +1741,13 @@ class c:
             port2module[port] = name
         return port2module
     port2name = port2module
+    
+    @classmethod
+    def module2port(cls, *args, **kwargs):
+        port2module = cls.port2module(*args, **kwargs)
+        return {v:k for k,v in port2module.items()}
+    name2port = m2p = module2port
+    
 
     @classmethod
     def address2module(cls, *args, **kwargs):
@@ -1885,12 +1927,12 @@ class c:
     @classmethod
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
+        if nest_asyncio:
+            cls.nest_asyncio()
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-  
-        if nest_asyncio:
-            cls.nest_asyncio()
+
 
         return loop
   
@@ -1926,8 +1968,8 @@ class c:
         return bool(name in cls.servers())
     
     @classmethod
-    def get_port(cls, port:int = None)->int:
-        port = port if port is not None and port != 0 else cls.free_port()
+    def get_port(cls, port:int = None, **kwargs)->int:
+        port = port if port is not None and port != 0 else cls.free_port(**kwargs)
         while cls.port_used(port):
             port += 1   
         return port 
@@ -2176,7 +2218,7 @@ class c:
         functions = get_functions(obj=obj)
         
         if not include_module:
-            module_functions = get_functions(obj=Module)
+            module_functions = get_functions(obj=c)
             new_functions = []
             for f in functions:
                 if f == '__init__':
@@ -2265,19 +2307,8 @@ class c:
     def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
         if isinstance(peer, str):
             peer = cls.connect(peer)
-        
-        function_schema_map = peer.function_schema_map()
-        server_info = peer.server_info
-        info  = dict(
-            module_name = peer.module_name,
-            server_info = peer.server_info,
-            function_schema = function_schema_map,
-            intro =function_schema_map.get('__init__', 'No Intro Available'),
-            examples =function_schema_map.get('examples', 'No Examples Available'),
-            public_ip =  server_info if not isinstance(server_info, dict) else server_info['external_ip'] + ':' + str(server_info['port']) ,
-
-        )
-        
+            
+        info = peer.info()
         return info
     
     
@@ -2291,8 +2322,7 @@ class c:
         
     def info(self, 
              include_schema: bool = False,
-             include_namespace:bool = True) -> Dict[str, Any]:
-        function_schema_map = self.function_schema_map()
+             include_namespace:bool = False) -> Dict[str, Any]:
         whitelist = self.whitelist()
         blacklist = self.blacklist()
         fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
@@ -2310,6 +2340,8 @@ class c:
         if include_schema:
             info['schema'] = self.schema()
         return info
+    
+    help = info
 
 
 
@@ -2318,6 +2350,7 @@ class c:
     @classmethod
     def schema(cls, *args,  **kwargs):
         return cls.get_function_schema_map(*args, **kwargs)
+
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
@@ -2747,7 +2780,10 @@ class c:
     def run(cls, name:str = None, verbose:bool = False) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
             args = cls.argparse()
-            return getattr(cls, args.function)(*args.args, **args.kwargs)     
+            if args.function == '__init__':
+                return cls(*args.args, **args.kwargs)     
+            else:
+                return getattr(cls, args.function)(*args.args, **args.kwargs)     
        
     
     @classmethod
@@ -3199,19 +3235,19 @@ class c:
     
     
     @classmethod
-    def module(cls,module: Any = None ,**kwargs):
+    def module(cls,module: Any = None ,*args, **kwargs):
         '''
         Wraps a python class as a module
         '''
         
         if module is None:
-            return cls.root_module()
+            return c.root_module()
         if isinstance(module, str):
-            modules = cls.module_list()
+            modules = c.module_list()
             if module in modules:
-                return cls.get_module(module,**kwargs)
+                return c.get_module(module,**kwargs)
             elif module in cls.servers():
-                return self.connect(module,**kwargs)
+                return c.connect(module,**kwargs)
     
 
         # serve the module if the bool is True
@@ -3220,13 +3256,9 @@ class c:
         
         
         
-        class ModuleWrapper(Module):
-            default_module_name = str(module_class)
+        class ModuleWrapper(c):
             def __init__(self, module): 
-                Module.__init__(self, *args, **kwargs) 
-                self.module.default_module_name = str(module_class)
-                # self.module.server_exists = False
-                # merge the inner module into the wrappers
+                c.__init__(self, *args, **kwargs) 
                 self.merge(self.module)
                 
             @classmethod
@@ -3249,7 +3281,8 @@ class c:
             @classmethod
             def functions(cls):
                 return cls.get_functions(module)
-            # class Module(Module):
+
+
         if is_class:
             return ModuleWrapper
         else:
@@ -3274,7 +3307,7 @@ class c:
         '''
         assert isinstance(new_attributes, dict), f'locals must be a dictionary but is a {type(locals)}'
         self.__dict__.update(new_attributes)
-
+        
     @staticmethod
     def get_template_args( template:str) -> List[str]:
         '''
@@ -3360,8 +3393,13 @@ class c:
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
-        nest_asyncio.apply()
-    
+        try:
+            nest_asyncio.apply()
+        except RuntimeError as e:
+            cls.print('Broooo, nest-asyncio doesnt work fam')
+            pass
+        
+        
     # JUPYTER NOTEBOOKS
     @classmethod
     def jupyter(cls):
@@ -3745,21 +3783,20 @@ class c:
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
     
-    
-    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
-                        'info', 'ip', 'address','ip_address', 'info', 'schema',
-                        'module_name', 'modules']
-    
     def whitelist(self, mode='sudo') -> List[str]:
         if self.is_root():
             return self.helper_functions
         else:
-            return self.fns() + self.attributes()
+            return self.fns() + self.attributes() 
         
+    def role2whitelist(self, role='bro') -> Dict:
+        return {self.default_role: self.whitelist()}
+        
+    def role2blacklist(self, role='foe') -> Dict:
+        return {'foe': []}
     
     def blacklist(self, mode='sudo') -> List[str]:
         return []
-    black_fns = blacklist
 
     @classmethod
     def error(cls, *args, **kwargs):
@@ -4145,7 +4182,11 @@ class c:
         print(key, 'KEY')
         return key  
                 
-                
+    @classmethod  
+    def keys(cls, *args, **kwargs):
+        return c.module('key').keys(*args, **kwargs)
+    
+    
     def set_key(self, *args, **kwargs) -> None:
         # set the key
         if hasattr(args[0], 'public_key') and hasattr(args[0], 'address'):
@@ -4537,7 +4578,9 @@ class c:
     # def ansible(cls, *args, fn='shell', **kwargs):
     #     ansible_module = cls.get_module('ansible')()
     #     return getattr(ansible_module, fn)(*args, **kwargs)
-        
+    
+    
+    
     @classmethod
     def add_peer(cls, *args, **kwargs)-> List:
         loop = cls.get_event_loop()
@@ -4545,6 +4588,49 @@ class c:
         
         return peer
     
+    
+    @classmethod
+    async def async_add_peer(cls, 
+                             peer_address,
+                             network = 'local',
+                             timeout:int=1,
+                             verbose:bool = True):
+        
+        peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
+
+
+        peer_info = await cls.async_call(module=peer_address, 
+                                              fn='info',
+                                              include_namespace=True, 
+                                              timeout=timeout, 
+                                              network=network)
+        
+        #  add each peer to the registry
+
+        if 'error' in peer_info:
+            if verbose:
+                cls.print(f'Error adding peer {peer_address} due to {peer_info["error"]}',color='red')
+            return None    
+        else:
+            if verbose:
+                cls.print(f'Successfully added peer {peer_address}', color='green')
+        
+            
+        assert isinstance(peer_info, dict)
+        assert 'address' in peer_info
+        assert 'namespace' in peer_info
+        
+        peer_ip = ':'.join(peer_info['address'].split(':')[:-1])
+        peer_port = int(peer_info['address'].split(':')[-1])
+        
+        # relace default local ip with external_ip
+        peer_info['namespace'] = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_info['namespace'].items()}
+
+        peer_registry[peer_address] = peer_info
+            
+        await cls.async_put_json('peer_registry', peer_registry, root=True)
+        
+        return peer_registry
     
     
     
@@ -4579,41 +4665,7 @@ class c:
         peers = loop.run_until_complete(asyncio.gather(*jobs))
         peers = [peer for peer in peers if peer != None]
         return {'added_peers': peers, 'msg': f'Added {len(peers)} peers'}
-    
-    @classmethod
-    async def async_add_peer(cls, 
-                             peer_address,
-                             verbose:bool = True,
-                             timeout:int=1):
-        
-        peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
-
-        peer_namespace = await cls.async_call(module=peer_address, fn='namespace', timeout=timeout, network='local')
-        
-        #  add each peer to the registry
-
-        if 'error' in peer_namespace:
-            if verbose:
-                cls.print(f'Error adding peer {peer_address}',color='red')
-            return None    
-        else:
-            if verbose:
-                cls.print(f'Successfully added peer {peer_address}', color='green')
-                  
-        peer_ip = ':'.join(peer_address.split(':')[:-1])
-        peer_port = int(peer_address.split(':')[-1])
-        
-        peer_namespace = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_namespace.items()}
-
-        peer_registry[peer_address] = dict(name=None, 
-                                            namespace=peer_namespace,
-                                            address = peer_address)
-            
-        await cls.async_put_json('peer_registry', peer_registry, root=True)
-        
-        return peer_registry
-    
 
     @staticmethod
     def is_number(value):
@@ -4628,7 +4680,7 @@ class c:
     
     @classmethod
     def rm_peer(cls, peer_address: str):
-        peer_registry = Module.get_json('peer_registry', default={})
+        peer_registry = c.get_json('peer_registry', default={})
         result = peer_registry.pop(peer_address, None) 
         if result != None:
             result = peer_address      
@@ -4679,7 +4731,7 @@ class c:
             if peers == None:
                 peers = cls.peers()
             cls.add_peers(peers)
-        return Module.get_json('peer_registry', default={})
+        return c.get_json('peer_registry', default={})
     
     
 
@@ -5249,11 +5301,16 @@ class c:
     @classmethod
     def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
-        with open(os.path.expanduser(authorized_keys_file), 'a') as auth_keys_file:
+        with open(authorized_keys_file, 'a') as auth_keys_file:
             auth_keys_file.write(public_key)
             auth_keys_file.write('\n')
             
         cls.print('Added the key fam')
+        
+    @classmethod
+    def ssh_authorized_keys(cls, authorized_keys_file:str='~/authorized_keys'):
+        authorized_keys_file = os.path.expanduser(authorized_keys_file)
+        return cls.get_text(authorized_keys_file)
 
     @staticmethod
     def get_public_key_from_file(public_key_file='~/.ssh/id_rsa.pub'):
@@ -5283,24 +5340,80 @@ class c:
         
         cls.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
-    api_key = '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'
+    @classmethod
     def miner(cls, 
-              api_key=api_key, 
+              api_key = None, 
               wallet = 'ensemble.vali',
               miner = '~/commune/bittensor/neurons/text/prompting/miners/openai/neuron.py',
               port=2012,
               network = 'finney',
               netuid = 1,
               *args, **kwargs):
+        miner = os.path.expanduser(miner)
+        api_key = api_key or os.environ.get('OPENAI_API_KEY')
         wallet_name, wallet_hotkey = wallet.split('.')
         name = f'miner::{wallet}::{network}::{netuid}'
-        command = f"pm2 start {miner} --name {name} ----wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {arg} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid}"
+        command = f"pm2 start {miner} --name {name} --interpreter python3 -- --wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {api_key} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid} --logging.debug"
         cls.cmd(command)
+        cls.print({'msg': f"Started miner {name} on port {port}"})
         
         
     @staticmethod
     def reverse_map(x):
         return {v:k for k,v in x.items()}
+
+    @staticmethod
+    def df2json(dataframe):
+        
+        """
+        Convert a pandas DataFrame to JSON format.
+        
+        Args:
+            dataframe (pandas.DataFrame): The DataFrame to be converted.
+            
+        Returns:
+            str: JSON representation of the DataFrame.
+        """
+        import pandas as pd
+        import json
+        json_data = dataframe.to_json(orient='records')
+        return json_data
+
+    @classmethod
+    def pd(cls):
+        return cls.import_module('pandas')
+
+    @classmethod
+    def df(cls, *args, **kwargs):
+        df =  cls.import_object('pandas.DataFrame')
+        if len(args) > 0 or len(kwargs) > 0:
+            df = df(*args, **kwargs)
+        return df
+
+    @classmethod
+    def st(cls):
+        return cls.import_module('streamlit')
+    @classmethod
+    def torch(cls):
+        return cls.import_module('torch')
+
+    @staticmethod
+    def json2df(json_data):
+        """
+        Convert JSON data to a pandas DataFrame.
+        
+        Args:
+            json_data (str): JSON data representing a DataFrame.
+            
+        Returns:
+            pandas.DataFrame: DataFrame created from the JSON data.
+        """
+                
+        import pandas as pd
+        import json
+        dataframe = pd.read_json(json_data)
+        return dataframe
+
 Module = c
 Module.run(__name__)
     

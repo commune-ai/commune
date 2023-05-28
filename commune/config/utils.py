@@ -2,7 +2,6 @@ import os
 import sys
 import re
 import yaml
-import torch
 import argparse
 
 
@@ -56,23 +55,6 @@ def parse_config(path=None, tag='!ENV'):
     loader.add_constructor(tag, constructor_env_variables)
     with open(path) as conf_data:
         return yaml.load(conf_data, Loader=loader)
-
-def resolve_devices(cfg, device):
-    '''
-    :param cfg: dictionary from yaml file
-    :param device: string (cuda or cpu supported for now (TODO multi-gpu support))
-    :return:
-        cfg: dictionary from yaml file
-    '''
-    # Resolve Devices with Config
-    from commune.utils.dict import string_replace
-    if (not torch.cuda.is_available()) and \
-            ('cuda' in device) :
-        cfg = string_replace(cfg=cfg,
-                                          old_str=device,
-                                          new_str="cpu")
-    return cfg
-
 
 
 def dict_fn_local_copy(input,context={}):

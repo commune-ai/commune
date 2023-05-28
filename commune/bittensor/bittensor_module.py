@@ -16,16 +16,17 @@ class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
+    default_netuid = 3
     
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                network: Union[bittensor.subtensor, str] = 'finney',
-                netuid: int = 3,
+                subtensor: Union[bittensor.subtensor, str] = 'finney',
+                netuid: int = default_netuid,
                 config = None,
                 ):
         self.set_config(config)
-        self.set_subtensor(subtensor=network)
+        self.set_subtensor(subtensor=subtensor)
         self.set_netuid(netuid=netuid)
         
     @classmethod
@@ -132,7 +133,6 @@ class BittensorModule(c.Module):
         if netuid is None:
             netuid = self.netuid
         return netuid
-    default_netuid = 3
     @classmethod
     def get_netuid(cls, netuid: int = None) -> int:
         if netuid is None:
@@ -166,7 +166,7 @@ class BittensorModule(c.Module):
         return neuron_stats
     
     def whitelist(self):
-        return ['miners', 'wallets', 'check_miners']
+        return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats']
     @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True
@@ -202,10 +202,14 @@ class BittensorModule(c.Module):
     
     @classmethod
     def get_stake(cls, hotkey, coldkey = default_coldkey, **kwargs):
-        wallet = cls.get_wallet(f'{coldkey}.{hotkey}')
+        if hotkey in cls.wallets():
+            wallet = hotkey
+        else:
+            wallet = f'{coldkey}.{hotkey}'
+        wallet = cls.get_wallet(wallet)
         neuron = cls.get_neuron(wallet=wallet, **kwargs)
         
-        return neuron
+        return float(neuron.stake)
     
     @classmethod
     def wallet2axon(cls, *args, **kwargs):
@@ -1110,14 +1114,17 @@ class BittensorModule(c.Module):
                 wait_for_finalization: bool = True,
                 subtensor: 'bittensor.Subtensor' = None,
                 prompt: bool = False,
+                min_balance= 0.1,
                 gas_fee: bool = 0.0001):
         wallet = cls.get_wallet(wallet)
         balance = cls.get_balance(wallet)
-        
-        print(f'balance {balance} amount {amount}')
-        if amount == -1:
-            amount = balance - gas_fee*1e9
-            
+        balance = balance - gas_fee
+        if balance < min_balance:
+            cls.print(f'Not Enough Balance for Transfer --> Balance ({balance}) < min balance ({min_balance})', color='red')
+            return None
+        else:
+            cls.print(f'Enough Balance for Transfer --> Balance ({balance}) > min balance ({min_balance})')
+                    
         assert balance >= amount, f'balance {balance} is less than amount {amount}'
         wallet.transfer( 
             dest=dest,
@@ -1130,13 +1137,13 @@ class BittensorModule(c.Module):
     @classmethod
     def get_balance(self, wallet):
         wallet = self.get_wallet(wallet)
-        return wallet.balance
+        return float(wallet.balance)
     
     
     @classmethod
     def address(cls, wallet = default_coldkey):
         wallet = cls.get_wallet(wallet)
-        return wallet.coldkey.ss58_address
+        return wallet.coldkeypub.ss58_address
     ss58 = address
     @classmethod
     def score(cls, wallet='collective.0'):
@@ -1196,8 +1203,6 @@ class BittensorModule(c.Module):
         
         if name == None:
             name = f'server::{model_name}::{tag}'
-            
-        cls.print(f'deploying server {tag} on gpu {device}')
 
         server_class.deploy( kwargs=dict(config=config), name=name)
         
@@ -1240,6 +1245,8 @@ class BittensorModule(c.Module):
             neuron =  cls.module('bittensor.miner.neuron')(*args, **kwargs)
         elif netuid == 1:
             neuron = cls.import_object('commune.bittensor.neurons.neurons.text.prompting')(*args, **kwargs)
+            
+        return neuron
 
     @classmethod
     def mine_many(cls, *hotkeys, coldkey=default_coldkey, **kwargs):
@@ -1251,7 +1258,7 @@ class BittensorModule(c.Module):
                wallet='ensemble.vali',
                model_name:str= default_model_name,
                network = 'finney',
-               netuid=1,
+               netuid=3,
                port = None,
                device = None,
                prometheus_port = None,
@@ -1264,7 +1271,7 @@ class BittensorModule(c.Module):
                burned_register = False,
                logging:bool = True,
                max_fee = 2.0,
-               refresh_ports = True
+               refresh_ports = False
                ):
 
 
@@ -1289,6 +1296,7 @@ class BittensorModule(c.Module):
             config = cls.neuron_class().config()
         # model things
         config.neuron.no_set_weights = no_set_weights
+        config.netuid = netuid 
         
         # network
         subtensor = bittensor.subtensor(network=network, config=config)
@@ -1321,9 +1329,9 @@ class BittensorModule(c.Module):
         # enseure ports are free
         # axon port
         
-
-        config.axon.port = cls.resolve_port(port)
-        # config.prometheus.port = cls.resolve_port(prometheus_port)
+        config.axon.port = cls.resolve_port(port, )
+        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        
         # neuron things
         cls.print(config)
 
@@ -1469,7 +1477,7 @@ class BittensorModule(c.Module):
                     device = 'cpu',
                     n = None,
                     unreged = True,
-                    ensure_gpus = True,
+                    ensure_gpus = False,
                     max_fee=1.1): 
     
         
@@ -1702,15 +1710,14 @@ class BittensorModule(c.Module):
                         subtensor = None, 
                         min_stake = 0.1
                         ):
-        wallets = cls.wallets(coldkey, registered=True)
-        wallets = cls.shuffle(wallets)
+
         for wallet in cls.wallets(coldkey, registered=True):
             cls.print(f'Unstaking {wallet} ...')
             stake = cls.get_stake(wallet)
             if stake >= min_stake:
-                
+                cls.print(f'Unstaking {wallet} Stake/MinStake ({stake}>{min_stake})')
                 amount_unstaked = cls.unstake(wallet=wallet, 
-                                wait_for_inclusion=wait_for_inclusion,
+                                wait_for_inclusion=True,
                                 wait_for_finalization=wait_for_finalization,
                                 prompt=prompt, 
                                 subtensor=subtensor)
@@ -1739,6 +1746,7 @@ class BittensorModule(c.Module):
                      min_balance: float = 0.1,
                      min_stake: float = 0.1,
                      remote = True,
+                     sleep = 1,
                      
                      ):
         
@@ -1752,16 +1760,16 @@ class BittensorModule(c.Module):
         for i in range(loops):
             
             
-            cls.print(f'---- Unstaking {coldkey}')
+            cls.print(f'-YOOO- Unstaking {coldkey}')
+            
 
             cls.unstake_coldkey(coldkey=coldkey, min_stake=min_stake) # unstake all wallets
                                 
-            if float(cls.get_balance(coldkey)) > min_balance:
-                cls.print(f'Transferring {coldkey} to {pool_address} ...')
-                cls.transfer(dest=pool_address, amount=-1, wallet=coldkey, min_balance=min_balance)
+            if pool_address == cls.address(coldkey):
+                cls.print(f'Coldkey {coldkey} is equal to {pool_address}, skipping transfer')
             else:
-                cls.print(f'Not enough balance to transfer {coldkey} to {pool_address} ({min_balance}), skipping transfer.')
-                
+                cls.transfer(dest=pool_address, amount=-1, wallet=coldkey, min_balance=min_balance)
+
                 
             cls.sleep(sleep)
         
@@ -1799,14 +1807,19 @@ class BittensorModule(c.Module):
         self = cls(network='local')
         cls.pritn(self.reged(subtensor='local'))
         
-        
+    @classmethod
+    def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
+        cls.add_keys(overwrite=overwrite_keys) # add keys job
+        cls.add_servers(refresh=refresh_servers) # add servers job
+        cls.fleet(refresh=refresh_miners) # fleet job
+        cls.unstake2pool() # unstake2pool job
     @classmethod
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
                      hotkeys= None,
-                     miners_only = False,
+                     miners_only = True,
                      coldkeypub= True):
         
         if hotkeys == None:
@@ -1858,7 +1871,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def coldkey_json(cls, coldkey):
+    def coldkey_json(cls, coldkey=default_coldkey):
         path = cls.coldkey_path(coldkey)
         coldkey_json = cls.get_json(path, {})
         return coldkey_json
