@@ -1,0 +1,5 @@
+network: commune
+name: Alice
+role: bob
+name2address: {}
+users: {}

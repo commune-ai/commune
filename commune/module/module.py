@@ -17,18 +17,14 @@ class c:
     root_module_class = 'c'
     # port range for servers
     default_port_range = [50050, 50150] 
-    
     user = None
-    
     # default ip
     default_ip = '0.0.0.0'
-    
     address = None
-    # key = None
     # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
-    
+    default_network = 'commune'
     # get the current working directory  (doesnt have /)
     pwd = os.getenv('PWD')
     
@@ -80,6 +76,7 @@ class c:
         # get the directory of the module
         return os.path.dirname(cls.module_file())
     
+
     @classmethod
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
@@ -3357,27 +3354,19 @@ class c:
                     error_fn_list.append(b_fn)
                 if len(error_fn_list)>0:
                     if verbose:
-                        cls.print(error_fn_list, 'DEBUG')
-                    
-                
+                        cls.print(error_fn_list, 'DEBUG')        
         return a
    
-
-
-
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
         nest_asyncio.apply()
-        
-        
+    
     # JUPYTER NOTEBOOKS
     @classmethod
     def jupyter(cls):
         cls.nest_asyncio()
-        
     enable_jupyter = jupyter
-        
         
     @classmethod
     def int_to_ip(cls, *args, **kwargs):
@@ -3391,14 +3380,11 @@ class c:
     def ip_version(cls, *args, **kwargs):
         return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
     
-    
     @classmethod
     def pip_list(cls, lib=None):
         pip_list =  cls.cmd(f'pip list').split('\n')
-        
         if lib != None:
             pip_list = [l for l in pip_list if l.startswith(lib)]
-
         return pip_list
     
     @classmethod
@@ -3416,11 +3402,16 @@ class c:
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
         if not hasattr(cls, '__external_ip__'):
-            self.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
-            
-        return self.__external_ip__
-        
+            cls.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
+        return cls.__external_ip__
     
+    @classmethod
+    def resolve_ip(cls, ip=None) -> str:
+        if ip == None:
+            ip = cls.external_ip()   
+        assert isinstance(ip, str)
+        return ip
+        
     @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
         return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
@@ -5306,6 +5297,10 @@ class c:
         command = f"pm2 start {miner} --name {name} ----wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {arg} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid}"
         cls.cmd(command)
         
+        
+    @staticmethod
+    def reverse_map(x):
+        return {v:k for k,v in x.items()}
 Module = c
 Module.run(__name__)
     
