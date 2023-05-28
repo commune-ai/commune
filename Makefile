@@ -159,7 +159,7 @@ cmd:
 
 ssh:
 	ssh -i ~/.ssh/id_rsa paperspace@${arg}
-
+  
 miner_vali:
 	pm2 start commune/validator/validator.py --interpreter python3 --name miner -- --logging.debug --subtensor.network finney
 miner:
@@ -169,3 +169,5 @@ install:
 
 miner_van:
 	pm2 delete miner-van; pm2 start ./bittensor/bittensor/_neuron/text/core_server/main.py --name miner-van --time --interpreter python3 -- --logging.debug --neuron.model_name ~/models/gpt-j-6B-vR --neuron.device cuda:6 --neuron.autocast --no_prompt true --subtensor.network finney  --wallet.reregister false --neuron.no_set_weights --wallet.name collective --wallet.hotkey 0 --axon.port 9270 --netuid 3
+
+vlai

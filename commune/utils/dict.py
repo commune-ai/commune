@@ -9,7 +9,6 @@ import numpy as np
 from contextlib import contextmanager
 from typing import Dict, List, Union, Any, Tuple, Callable, Optional
 from importlib import import_module
-import torch
 import pickle
 import math
 from typing import Union
@@ -431,7 +430,6 @@ def dict_merge(*args):
 
 async def async_get_json(path, return_type='dict', handle_error=True, default_return = {}):
     from commune.utils.asyncio import async_read, sync_wrapper
-    import torch
     
     try:  
         
@@ -447,13 +445,14 @@ async def async_get_json(path, return_type='dict', handle_error=True, default_re
     elif return_type in ['pandas', 'pd']:
         data = pd.DataFrame(data)
     elif return_type in ['torch']:
-        torch.tensor
+        raise NotImplemented('Torch Not Implemented')
     return data
 
 
 read_json = load_json = get_json = sync_wrapper(async_get_json)
 
 async def async_put_json( path, data):
+    
     from commune.utils.asyncio import  async_write
     # Directly from dictionary
     path = ensure_path(path)
@@ -462,8 +461,7 @@ async def async_put_json( path, data):
         json_str = json.dumps(data)
     elif data_type in [pd.DataFrame]:
         json_str = json.dumps(data.to_dict())
-    elif data_type in [torch.Tensor]:
-        json_str = json.dumps(data.tolist())
+
     elif data_type in [np.ndarray]:
         json_str = json.dumps(data.tolist())
     elif data_type in [np.float32, np.float64, np.float16]:
@@ -481,7 +479,6 @@ put_json = save_json = sync_wrapper(async_put_json)
 
 async def async_get_yaml(path:str, return_type:str='dict', handle_error: bool = False):
     from commune.utils.asyncio import async_read
-    import torch
     
     try:  
         
@@ -497,7 +494,7 @@ async def async_get_yaml(path:str, return_type:str='dict', handle_error: bool = 
     elif return_type in ['pandas', 'pd']:
         data = pd.DataFrame(data)
     elif return_type in ['torch']:
-        torch.tensor
+        raise NotImplemented('Torch not implemented')
     return data
 
 read_yaml = load_yaml = get_yaml = sync_wrapper(async_get_yaml)
