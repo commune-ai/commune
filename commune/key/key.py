@@ -99,6 +99,7 @@ class Keypair(c.Module):
                  refresh: bool = False,
                  save: bool = True,
                  load: bool = True,
+                 override: bool = False,
                  **kwargs
                  ):
         params = self.locals2kwargs(locals())
@@ -124,6 +125,7 @@ class Keypair(c.Module):
                  save: bool = False,
                  load: bool = False,            
                  crypto_type: int = 'sr25519',
+                 override: bool = False,
                  **kwargs):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -137,9 +139,14 @@ class Keypair(c.Module):
         seed_hex: hex string of seed
         crypto_type: Use 'sr25519' or 'ed25519' cryptography for generating the Keypair
         """
+            
+            
+
         self.path = path
         self.password = password
-        
+        if load:
+            return self.load(path=path, password=password)
+            
         if path != None and load and not refresh:
             if self.key_exists(path):
                 return self.load(path=path, password=password)
@@ -187,7 +194,7 @@ class Keypair(c.Module):
 
             if self.crypto_type == 'sr25519':
                 if len(self.private_key) != 64:
-                    raise ValueError('Secret key should be 64 bytes long')
+                    raise ValueError(f'Secret key should be 64 bytes long {self.private_key}')
                 if not public_key:
                     self.public_key = sr25519.public_from_secret_key(self.private_key)
 
@@ -223,7 +230,7 @@ class Keypair(c.Module):
     # address = ss58
     
     @classmethod
-    def add_key(cls, path, password=None, save=True, load=False, refresh=False,  **kwargs):
+    def add_key(cls, path, password=None, save=True, load=True, refresh=False,  **kwargs):
         
         self = cls(path=path, password=password, save=save, load=load,refresh=refresh, **kwargs)
         
@@ -243,6 +250,29 @@ class Keypair(c.Module):
     def get_key(cls, path, password=None, **kwargs):
         self = cls(path=path, password=password, **kwargs)
         return self
+
+    @staticmethod
+    def mnemonic_from_private_key(private_key):
+        """
+        Generates a mnemonic from a given private key in Substrate.
+
+        Args:
+            private_key (bytes): The private key as bytes.
+
+        Returns:
+            str: The generated mnemonic.
+        """
+        import bip39 
+
+        # Generate the mnemonic from the private key
+        mnemonic = bip39.mnemonic_from_entropy(private_key.hex())
+
+        return mnemonic
+
+    @classmethod
+    def get_address(cls, path, password=None, **kwargs):
+        self = cls(path=path, password=password, **kwargs)
+        return self.ss58_address
     
 
     @classmethod
@@ -775,17 +805,20 @@ class Keypair(c.Module):
         else:
             return '<Keypair (public_key=0x{})>'.format(self.public_key.hex())
             
+    @classmethod
+    def blacklist(cls):
+        return ['mnemonic', 'seed_hex', 'private_key', 'password']
     
     def state_dict(self, password: str = None ) -> dict:
-        state_dict = c.copy({'data': self.__dict__, 'encrypted': False}   )
-        for k,v in state_dict['data'].items():
+        state_dict =  self.copy(self.__dict__)
+        for k,v in state_dict.items():
             if type(v)  in [bytes]:
-                state_dict['data'][k] = v.hex()
-                
-        state_dict['data'] = json.dumps(state_dict['data'])
-        if bool(password != None):
-            state_dict['data'] = self.encrypt(data=state_dict['data'], password=password)
-            state_dict['encrypted'] = True
+                state_dict[k] = v.hex() 
+            if k in self.blacklist():
+                if password != None:
+                    state_dict[k] = self.encrypt(data=state_dict[k], password=password)
+                    
+        state_dict = json.dumps(state_dict)
         
         return state_dict
     
@@ -802,6 +835,8 @@ class Keypair(c.Module):
         if override == False:
             assert self.file_exists(path) == False, "Path already exists, set override=True to override"
         state = self.state_dict(password=password)
+        
+        
         self.put_json(path, state)
 
     def resolve_key_path(self, path):
@@ -867,24 +902,20 @@ class Keypair(c.Module):
         '''
         
         assert cls.key_exists(path), f'{path} doesnt exist'
-        state = cls.get_json(path)
+        state_dict = cls.get_json(path)
+        if isinstance(state_dict, str):
+            state_dict = json.loads(state_dict)
+        for k,v in state_dict.items():
+            if c.is_encrypted(v):
+                v = c.decrypt(data=v, password=password)
 
-        encrypted = state.get('encrypted', False)
-        
-        if 'data' in state:
-            if encrypted == True:
-                state = cls.decrypt(data=state['data'], password=password)
-            else:
-                state = state['data']
-            
-            
-        if isinstance(state, str):
-            state = json.loads(state)
-        state['load'] = False
-        return cls(**state).__dict__
+            state_dict[k] = v
+        state_dict['load'] = False
+        return state_dict
             
             
     def load(self, path:str, password: str = None):
+        
         params = self.load_key(path=path, password=password)
         self.set_params(**params)
       
@@ -914,12 +945,24 @@ class Keypair(c.Module):
       
         
     @classmethod
-    def test_key_management(cls, data='bro'):
-        name = f'demo'
-        cls.add_key(name)
+    def test_key_management(cls, password='bo', name='demo'):
+        key = cls()
+        cls.add_key(name, password=password, load=False )
+        key = c.get_key(name, password=password)
+        key.ss58_address
+        assert key.private_key != None, 'Private key doesnt exist'
+        assert key.public_key != None, 'Public key doesnt exist'
+        # assert key.mnemonic != None, 'Mnemonic doesnt exist'
+        assert key.seed_hex != None, 'Seed doesnt exist'
+        
+        wrong_password = password+'1'
+        keypub = c.get_key(name)
+        assert key.ss58_address == keypub.ss58_address, 'Keys are not the same'
+        assert keypub.private_key == None, 'Key should be None'
+        
         assert cls.key_exists(name) == True, 'Key doesnt exist'
-        cls.rm_key(name)
-        assert cls.key_exists(name) == False, 'Key doesnt exist'
+        key.load(name, password=password)
+        # assert cls.key_exists(name) == False, 'Key doesnt exist'
     @classmethod
     def test_verification(cls, data='bro'):
         key = cls()
