@@ -71,10 +71,11 @@ class c:
                  config:Dict=None, 
                  add_attributes: bool = False,
                  key: str = None,
+                 save_config:bool = False,
                  *args, 
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, add_attributes=add_attributes)  
+        self.set_config(config=config, add_attributes=add_attributes, save_config=save_config)  
         # self.set_key(key)
     
     
@@ -386,26 +387,24 @@ class c:
             password: bool = None,
             include_timestamp : bool = True,
             mode: bool = 'json',
-            key = None,
             **kwargs):
         '''
         Puts a value in the config
         '''
         encrypt =  password != None
         if encrypt:
-            value = cls.encrypt(value, password=password, return_dict=True)
+            data = cls.encrypt(v, password=password, return_dict=True)
         else:
             data = {'data': v,
                 'encrypted': encrypt}
 
         if include_timestamp:
-            data['timestamp'] = c.time()
+            data['timestamp'] = c.timestamp()
             
-        path = key
 
         
         # default json 
-        getattr(cls,f'put_{mode}')(path, data, **kwargs)
+        getattr(cls,f'put_{mode}')(k, data, **kwargs)
         
         
         return data
@@ -425,20 +424,13 @@ class c:
         Puts a value in sthe config
         '''
         kwargs['default'] = default
-        
-        if mode == 'json':
-            data  = cls.get_json(key,**kwargs)
-        else:
-            data = getattr(cls, f'get_{mode}')(key, **kwargs)
-     
+        data = getattr(cls, f'get_{mode}')(key, **kwargs)
         if data == None: 
             data = {}
-
         encrypted = c.is_encrypted(data)
         if encrypted:
             data = cls.decrypt(data, password=password)
             
-        data = data.get('data', default)
         return data
     
     @classmethod
@@ -449,28 +441,23 @@ class c:
         config = config or self.config
         return list(config.keys())
     
+    
     @classmethod
-    def putc(cls, key, value = None, password=None) -> Munch:
+    def mutc(cls, k, v, password:str=None, new_password:str=None):
+        old_v = cls.getc(k, password=password)
+        password = password if new_password == None else new_password
+        v = cls.put_v(old_v, password=password)
+    @classmethod
+    def putc(cls, k, v, password=None) -> Munch:
         '''
         Saves the config to a yaml file
         '''
         config = cls.config()
-        if value == None:
-            value = cls.dict_get(config, key)
         if password:
-            value = cls.encrypt(value, password=password, return_dict=True)
-        cls.dict_put(config, key, value)
+            v = cls.decrypt(v, password=password)
+
+        cls.dict_put(config, k, v)
         cls.save_config(config=config)
-        
-    @classmethod
-    def is_encryptedc(cls, key) -> Munch:
-        '''
-        Saves the config to a yaml file
-        '''
-        value = c.getc(key)
-        return c.is_encrypted(value)
-        
-    
    
     setc = putc
       
@@ -492,18 +479,7 @@ class c:
             data = c.decrypt(data, password=password)
             
         return data
-    
-    @classmethod  
-    def replacec(cls, key, value,  password=None) -> Any:
-        '''
-        Saves the config to a yaml file
-        '''
-        
-        value = cls.getc(key, password=password)
-        cls.putc(key, value, password=password)
-            
-        return data
-    
+
     
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
@@ -527,7 +503,6 @@ class c:
 
         return config
     
-    put_config = save_config
     
     def config_exists(self, path:str=None) -> bool:
         '''
@@ -585,11 +560,14 @@ class c:
 
 
 
+
+
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict={},
                    to_munch: bool = True,
-                   add_attributes: bool = False) -> Munch:
+                   add_attributes: bool = False,
+                   save_config:bool = False) -> Munch:
         '''
         Set the config as well as its local params
         '''
@@ -602,6 +580,9 @@ class c:
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
+        
+        if save_config:
+            self.save_config(config=config)
         
         
         return self.config
@@ -1452,11 +1433,10 @@ class c:
     @classmethod
     def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
         import torch
-        
-        
         path = cls.resolve_path(path=path, extension='pt', root=root)
         torch.save(data, path)
         return path
+    
     @classmethod
     def get_torch(cls,path:str, root:bool = False, **kwargs):
         import torch
@@ -2374,7 +2354,7 @@ class c:
             info['schema'] = self.schema()
         return info
     
-    help = info
+
 
 
 
@@ -2383,14 +2363,14 @@ class c:
     @classmethod
     def schema(cls, *args,  **kwargs):
         return cls.get_function_schema_map(*args, **kwargs)
-
+    help = schema
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
-                                include_code : bool = True,
+                                include_code : bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
-                                include_docs: bool = True):
+                                include_docs: bool = False):
         
         obj = obj if obj else cls
         if isinstance(obj, str):
@@ -2423,8 +2403,9 @@ class c:
                     function_schema_map[fn] = {
                         'schema': fn_schema,
                         'docs': getattr(obj, fn ).__doc__ ,
-                        'code': inspect.getsource(getattr(obj, fn )),
                     }
+                    if include_code:
+                        function_schema_map[fn]['code'] = inspect.getsource(getattr(obj, fn ))
                 else:
                     function_schema_map[fn] = fn_schema
         return function_schema_map
@@ -4301,6 +4282,16 @@ class c:
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
+    @classmethod
+    def auth_data(cls, data: dict, network = None) -> dict:
+        network = network if network else cls.default_network
+        
+        {
+            'timestamp': cls.timestamp(),
+            'network': network
+        else:
+            data = {'timestamp': cls.timestamp()}
+        return data
 
       
     def authenticate(self, data, staleness: int = 60, ) -> bool:
@@ -4602,7 +4593,7 @@ class c:
         assert port_range[0] < port_range[1], 'Port range must be a list of integers'
                 
         data = dict(port_range =port_range)
-        cls.put_json('port_range', data, root=True)
+        c.putc('port_range', data)
         cls.port_range = data['port_range']
         return data['port_range']
     
@@ -4612,11 +4603,9 @@ class c:
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
 
-        if not cls.file_exists('port_range', root=True):
-            cls.set_port_range(port_range)
             
         if port_range == None:
-            port_range = cls.get_json('port_range', root=True)['port_range']
+            port_range = c.getc('port_range', default=cls.default_port_range)
             
         if len(port_range) == 0:
             port_range = cls.default_port_range
