@@ -618,8 +618,18 @@ class Keypair(c.Module):
                 'ss58_address': self.ss58_address,
             }
         return signature
-
-    def verify(self, data: Union[ScaleBytes, bytes, str],
+    
+    
+    @classmethod
+    def get_signer(cls, auth:dict, return_ss58:bool = True) -> str:
+        assert cls.verify(auth)
+        
+        if return_ss58:
+            return ss58_encode(auth['public_key'])
+        return auth['public_key']
+        
+    @classmethod
+    def verify(cls, data: Union[ScaleBytes, bytes, str],
                signature: Union[bytes, str] = None,
                public_key: str = None,
                crypto_type:str = 'sr25519', 
@@ -641,16 +651,18 @@ class Keypair(c.Module):
             assert 'data' in data, "If no signature is provided, data should be a dict with 'data' key"
             assert 'signature' in data
             assert 'public_key' in data
+            
             public_key = data['public_key']
             signature = data['signature']
             data = data['data']
         if isinstance(signature, str):
             signature = bytes.fromhex(signature)
-            
-        data = self.python2str(data)
-        
-        if public_key == None:
-            public_key = self.public_key.hex()
+        if isinstance(public_key, str):
+            public_key = bytes.fromhex(public_key)
+        data = c.python2str(data)
+        assert public_key != None
+        import streamlit as st
+        st.write(public_key)
             
         if type(data) is ScaleBytes:
             data = bytes(data.data)
@@ -676,7 +688,7 @@ class Keypair(c.Module):
         else:
             raise ConfigurationError("Crypto type not supported")
 
-        verified = crypto_verify_fn(signature, data, self.public_key)
+        verified = crypto_verify_fn(signature, data, public_key)
 
         if not verified:
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
@@ -684,6 +696,18 @@ class Keypair(c.Module):
             verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', self.public_key)
 
         return verified
+
+
+    
+    def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        password = password if password !=None else self.private_key
+        encrypted_data = c.encrypt(data=data, password=password)
+        return encrypted_data
+
+    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        password = password if password !=None else self.private_key
+        encrypted_data = c.decrypt(data=data, password=password)
+        return encrypted_data
 
     def encrypt_message(
         self, message: Union[bytes, str], recipient_public_key: bytes, nonce: bytes = secrets.token_bytes(24),
@@ -801,6 +825,13 @@ class Keypair(c.Module):
     
     @classmethod
     def key_encrypted(cls, path: str = None, state = None):
+        state = cls.get_json(path)
+        encrypted = state.get('encrypted', False)
+        return  encrypted
+
+    
+    @classmethod
+    def encrypt_key(cls, path: str = None, state = None):
         state = cls.get_json(path)
         encrypted = state.get('encrypted', False)
         return  encrypted

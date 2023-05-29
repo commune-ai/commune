@@ -4,29 +4,11 @@ import streamlit as st
 
 # list keys
 
-
+api_key = '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'
+model = c.module('model.openai')(api=api_key)
+c.print(model)
+import json
+c.print(c.schema().keys())
+# c.print(json.loads(model.forward(text='What is the best form of python?')))
 # add key
 
-
-
-class Users(c.Module):
-    def __init__(self):
-        self.users  = []
-        self.keys = st.write(c.keys())
-
-    # @c.st_sidebar
-    def sidebar(self):
-
-        with st.form(key='my_form'):
-            st.write("Add a key")
-            key = st.text_input(label='Key')
-            submit_button = st.form_submit_button(label='Submit')
-        
-    @classmethod
-    def st(cls):
-        self = Users()
-        c.st_sidebar(self.sidebar)()
-        
-# Users.st()
-
-c.Module().info()

@@ -595,6 +595,15 @@ class c:
     def rm_key(cls, *args, **kwargs):
         return cls.module('key').rm_key(*args, **kwargs)
     
+    @classmethod
+    def key_encrypted(cls, *args, **kwargs):
+        return cls.module('key').key_encrypted(*args, **kwargs)
+        
+    
+    @classmethod
+    def encrypt_key(cls, *args, **kwargs):
+        return cls.module('key').key_encrypted(*args, **kwargs)
+        
 
     @classmethod
     def add_args( cls, config: dict , prefix: str = None , parser: argparse.ArgumentParser = None ):
@@ -1691,7 +1700,7 @@ class c:
 
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
-        client= cls.get_client(ip=ip, port=port, virtual=virtual)
+        client= cls.get_client(ip=ip, port=port, virtual=virtual, **kwargs)
         if verbose:
             cls.print(f'Successful Connection to {name} on {ip}:{port}', color='yellow')
         
@@ -3991,10 +4000,10 @@ class c:
                
     
     @classmethod
-    def get_key(cls, *args,mode='key', **kwargs) -> None:
+    def get_key(cls, *args,mode='commune', **kwargs) -> None:
 
 
-        if mode == 'key':
+        if mode == 'commune':
             module = cls.module('key')
         elif mode == 'subspace':
             module  = cls.module('subspace.key')
@@ -4007,10 +4016,14 @@ class c:
         else:
             raise ValueError('Invalid mode for key')
         
+        # run get_key if the function exists
         if hasattr(module, 'get_key'):
-            return module.get_key(*args, **kwargs)
+            key = module.get_key(*args, **kwargs)
         else:
-            return module(*args, **kwargs)
+            key = module(*args, **kwargs)
+            
+        cls.print(key.__dict__)
+        return key
         
             
     @classmethod
@@ -4059,20 +4072,13 @@ class c:
         return key.encrypt(data)
     
     module_cache = {}
-    module_cache_hits = {}
-    
-    
     @classmethod
     def put_cache(cls,k,v ):
         cls.module_cache[k] = v
     
     @classmethod
     def get_cache(cls,k, default=None, **kwargs):
-
         v = cls.module_cache.get(k, default)
-        if v != None:
-            cls.module_cache_hits[k] = cls.module_cache_hits.get(k,0) + 1
-        print(cls.module_cache, k, v)
         return v
 
     @classmethod
@@ -4173,13 +4179,10 @@ class c:
     
     def resolve_key(self, key: str) -> str:
         if key == None:
-            if getattr(self, 'key', None) == None:
-                self.set_key(key)
             key = self.key
-        elif isinstance(key, str):
-            key = self.get_key(key)
+        assert isinstance(key, str)
+        key = self.get_key(key)
             
-        print(key, 'KEY')
         return key  
                 
     @classmethod  
@@ -4209,7 +4212,7 @@ class c:
     
     @classmethod
     def verify(cls, data:dict ) -> bool:        
-        return key.verify(data)
+        return c.module('key').verify(data)
         
     
     def get_auth(self, 
@@ -5413,6 +5416,15 @@ class c:
         import json
         dataframe = pd.read_json(json_data)
         return dataframe
+    
+    @staticmethod
+    def ss58_encode(*args, **kwargs):
+        from scalecodec.utils.ss58 import ss58_encode, ss58_decode
+        return ss58_encode(*args, **kwargs)
+    @staticmethod
+    def ss58_decode(*args, **kwargs):
+        from scalecodec.utils.ss58 import  ss58_decode
+        return ss58_decode(*args, **kwargs)
 
 Module = c
 Module.run(__name__)
