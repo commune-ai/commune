@@ -13,9 +13,8 @@ class OpenAILLM(c.Module):
     
     
     def __init__(self,
-                 model: str = "text-davinci-003",
+                model: str = "text-davinci-003",
                 prompt: str = None,
-
                 temperature: float=0.9,
                 max_tokens: int=1000,
                 top_p: float=1.0,
@@ -25,10 +24,11 @@ class OpenAILLM(c.Module):
                 api: str = 'OPENAI_API_KEY',
                 stats:dict = None
                 ):
-        self.set_api(api)
+        self.set_llm(api=api)
         self.set_prompt(prompt)
         self.set_tokenizer(tokenizer)
         self.set_stats(stats)
+        self
         
         self.params  = dict(
                  model =model,
@@ -48,33 +48,44 @@ class OpenAILLM(c.Module):
         self.stats = stats 
         
     def set_api(self, api: str = None) -> None:
-        openai.api_key = os.getenv(api, None)
-        
-        if isinstance(api, str) and openai.api_key is None:
-            openai.api_key = api
-        assert openai.api_key is not None, "OpenAI API key not found."
+        openai.api_key = os.getenv(api, api)
 
-    prompt = """
-        Return the following response to the Question as a JSON Dictionary
-        Q (str):
-        {text}
-        A (JSON):
-        """
         
     def resolve_prompt(self, prompt=None, **kwargs):
         if prompt == None:
-            for var in self.prompt_variables:
-                assert var in kwargs
-            prompt = self.prompt.format(**kwargs)
+            prompt = self.prompt
+        for var in self.prompt_variables:
+            assert var in kwargs
+        assert isinstance(prompt, str)
+        prompt = prompt.format(**kwargs)
         return prompt
-    def forward(self,
-                *args,
-                **kwargs) -> str:
+    
+    
+    def resolve_params(self, params=None, **kwargs):
+        if params == None:
+            params = self.params
+        elif isinstance(params, dict):
+            params = {**params, **kwargs}
+        return params
+    
         
-        prompt = self.resolve_prompt(*args, **kwargs)
+    prompt = """
+        Return the following response to the Question as a JSON Dictionary
+        Q (str):
+        {x}
+        A (JSON):
+        """
+        
+    def forward(self,
+                text = None,
+                params = None,
+                prompt:str=None,
+                **kwargs) -> str:
+        params = self.resolve_params(params)
+        prompt = self.resolve_prompt(text=text, **kwargs)
         response = openai.Completion.create(
             prompt=prompt, 
-            **self.params
+            **params
         )
         
         

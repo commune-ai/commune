@@ -76,6 +76,7 @@ class AESKey(commune.Module):
     @classmethod
     def test_encrypt_decrypt_throughput(cls, key='dummy'):
         import streamlit as st
+        print(inspect.stack()[0][3])
         self = cls(key=key)
         test_object = [1,2,3,5]*1000000
         start_time = time.clock()
