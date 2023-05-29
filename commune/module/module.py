@@ -592,6 +592,7 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
+    # KEY LAND
     @classmethod
     def add_key(cls, *args, **kwargs):
         return cls.module('key').add_key(*args, **kwargs)
@@ -601,11 +602,10 @@ class c:
     @classmethod
     def rm_key(cls, *args, **kwargs):
         return cls.module('key').rm_key(*args, **kwargs)
-    
     @classmethod
     def key_encrypted(cls, *args, **kwargs):
         return cls.module('key').key_encrypted(*args, **kwargs)
-        
+
     
     @classmethod
     def encrypt_key(cls, *args, **kwargs):
@@ -4066,15 +4066,38 @@ class c:
         password = cls.python2str(password)
         assert isinstance(password, str), f'Password must be a string , not {type(password)}'
         return password
+
+
+    encrypted_prefix = 'AESKEY'
+    @classmethod
+    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect', prefix = encrypted_prefix) -> bytes:
+        password = cls.resolve_password(password)
+        data = cls.python2str(data)
+        
+
+        assert isinstance(password, str),  f'{password}'
+        key = c.module('key.aes')(key=password)
+        encrypted_data = key.encrypt(data)
+        if prefix != None:
+            encrypted_data = f'{prefix}::{encrypted_data}'
+        return encrypted_data
+    
     
     @classmethod
     def decrypt(cls, 
                 data: str,
                 password= None,
                 ignore_error: bool = True,
-                return_dict=True) -> Any:
+                prefix = encrypted_prefix,
+                verbose:bool = False) -> Any:
         password = cls.resolve_password(password)
         key = c.module('key.aes')(password)
+        
+        if isinstance(data, str):
+            if data.startswith(prefix):
+                data = data[len(prefix):]
+            else:
+                return {'error': 'data does not start with prefix'}
         if isinstance(data, Munch):
             data = c.munch2dict(data)
         if isinstance(data, dict):
@@ -4082,7 +4105,7 @@ class c:
         try:
             data = key.decrypt(data)
         except Exception as e:
-            return {'error': str(e) }
+            return None 
         if isinstance(data, str):
             data = cls.str2python(data)
             
@@ -4090,26 +4113,13 @@ class c:
     
             if ignore_error:
                 data = None
-                cls.print(f'Exception: Wrong Password, try another',color='red')
+                if verbose:
+                    cls.print(f'Exception: Wrong Password, try another',color='red')
             else:
                 raise Exception(f'could not decrypt data, try another pasword')
         
         return data
 
-    @classmethod
-    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect', return_dict= False) -> bytes:
-        password = cls.resolve_password(password)
-        data = cls.python2str(data)
-        assert isinstance(password, str),  f'{password}'
-        key = c.module('key.aes')(key=password)
-        encrypted_data = key.encrypt(data)
-        if return_dict:
-            return {
-                'data': encrypted_data,
-                'encrypted': True,
-            }
-        else:
-            return encrypted_data
     
     module_cache = {}
     @classmethod
@@ -4248,11 +4258,20 @@ class c:
         
     def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
-        return key.sign(data)    
+        return key.sign(data) 
+    
+       
     
     @classmethod
     def verify(cls, data:dict ) -> bool:        
         return c.module('key').verify(data)
+        
+    
+    @classmethod
+    def get_signer(cls, data:dict ) -> bool:        
+        return c.module('key').get_signer(data)
+    
+    
         
     
     def get_auth(self, 
@@ -4283,14 +4302,52 @@ class c:
         return cls(*args, **kwargs)
     
     @classmethod
-    def auth_data(cls, data: dict, network = None) -> dict:
+    def auth_data(cls, network = None, key = None) -> dict:
         network = network if network else cls.default_network
         
-        {
+        data = {
             'timestamp': cls.timestamp(),
             'network': network
-        else:
-            data = {'timestamp': cls.timestamp()}
+        }
+        
+        if key:
+            key = cls.get_key(key)
+            data = key.sign(data)
+        return data
+
+
+    @classmethod
+    def call_auth_data(cls, 
+                       module:str, 
+                       fn:str,
+                       args:list=None,
+                       kwargs:dict = None,
+                       network:str = None,
+                       key = None) -> dict:
+        network = network if network else cls.default_network
+        data = {
+            'network': network,
+            'module':module,
+            'fn': fn,
+            'args': args or [],
+            'kwargs': kwargs or {},
+            'timestamp': cls.timestamp(),
+        }
+        
+        if key:
+            key = cls.get_key(key)
+            data = key.sign(data)
+            
+        return data
+
+
+    @classmethod
+    def verify_call_auth(cls, auth) -> dict:
+        signer_address = cls.get_signer(auth)        
+        
+        if key:
+            key = cls.get_key(key)
+            data = key.sign(data)
         return data
 
       
@@ -4328,11 +4385,11 @@ class c:
         return True
         
     @classmethod
-    def is_encrypted(cls, data):
+    def is_encrypted(cls, data, prefix='AESKEY'):
         if isinstance(data, str):
-            path = data
-            data = cls.get_data(path)
-        if isinstance(data, dict):
+            if data.startswith(prefix):
+                return True
+        elif isinstance(data, dict):
             return bool(data.get('encrypted', False) == True)
         else:
             return False
