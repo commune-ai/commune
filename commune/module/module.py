@@ -47,7 +47,7 @@ class c:
         
     @classmethod
     def add_root_path(cls, root_path:str):
-        root_paths = self.getc('root_paths', [])
+        root_paths = c.getc('root_paths', [])
         if root_path not in root_paths:
             root_paths.append(root_path)
         else: 
@@ -59,7 +59,7 @@ class c:
     
     @classmethod
     def get_root_paths(cls):
-        root_paths = self.getc('root_paths', [cls.root_path])
+        root_paths = c.getc('root_paths', [cls.root_path])
         if cls.root_path not in root_paths:
             cls.add_root_path(cls.root_path)
 
@@ -381,43 +381,27 @@ class c:
     
     @classmethod
     def put(cls, 
-            key, 
-            value, 
-            encrypt:bool = False,
-            sign: bool = False,
+            k, 
+            v, 
             password: bool = None,
+            include_timestamp : bool = True,
             mode: bool = 'json',
-            cache : bool = False, 
-            serialize : bool = False,
-            cache_dir : str =  'cache', 
-            timestamp : bool = False,
+            key = None,
             **kwargs):
         '''
         Puts a value in the config
         '''
-        if password != None:
-            encrypt = True
-        
+        encrypt =  password != None
         if encrypt:
-            value = cls.encrypt(value, password=password)
-        if sign:
-            value = cls.sign(value, password=password)
-            
-        if serialize:
-            proto_value = cls.serialize(value)
-            # convert the protobuf to bytes
-            cls.print('serializing',)
-    
-        data = {'value': value,
-               'encrypted': encrypt}
-
-        if timestamp:
-            data['timestamp'] = time.time()
-            
-        if cache:
-            path = cache_dir+'/'+key
+            value = cls.encrypt(value, password=password, return_dict=True)
         else:
-            path = key
+            data = {'data': v,
+                'encrypted': encrypt}
+
+        if include_timestamp:
+            data['timestamp'] = c.time()
+            
+        path = key
 
         
         # default json 
@@ -449,14 +433,15 @@ class c:
      
         if data == None: 
             data = {}
-        
-        encrypted = data.get('encrypted', False)
-        data = data.get('value', default)
+
+        encrypted = c.is_encrypted(data)
         if encrypted:
             data = cls.decrypt(data, password=password)
+            
+        data = data.get('data', default)
         return data
     
-    
+    @classmethod
     def config_keys(self, config:Dict = None) -> List[str]:
         '''
         Returns the keys of the config
@@ -464,20 +449,61 @@ class c:
         config = config or self.config
         return list(config.keys())
     
-    def putc(self, key, value) -> Munch:
+    @classmethod
+    def putc(cls, key, value = None, password=None) -> Munch:
         '''
         Saves the config to a yaml file
         '''
-        config = self.config
-        self.dict_put(config, key, value)
-        self.set_config(config=config)
-    setc = putc
+        config = cls.config()
+        if value == None:
+            value = cls.dict_get(config, key)
+        if password:
+            value = cls.encrypt(value, password=password, return_dict=True)
+        cls.dict_put(config, key, value)
+        cls.save_config(config=config)
         
-    def getc(self, key) -> Any:
+    @classmethod
+    def is_encryptedc(cls, key) -> Munch:
         '''
         Saves the config to a yaml file
         '''
-        return self.dict_get(self.config, key)
+        value = c.getc(key)
+        return c.is_encrypted(value)
+        
+    
+   
+    setc = putc
+      
+    @classmethod
+    def popc(cls, key:str):
+        config = cls.config()
+        config.pop(key, None)
+        cls.save_config(config=config)
+        
+    @classmethod  
+    def getc(cls, key, password=None) -> Any:
+        '''
+        Saves the config to a yaml file
+        '''
+        
+        data = cls.dict_get(cls.config(), key)
+        if c.is_encrypted(data):
+            assert password != None, 'password must be provided to decrypt the data'
+            data = c.decrypt(data, password=password)
+            
+        return data
+    
+    @classmethod  
+    def replacec(cls, key, value,  password=None) -> Any:
+        '''
+        Saves the config to a yaml file
+        '''
+        
+        value = cls.getc(key, password=password)
+        cls.putc(key, value, password=password)
+            
+        return data
+    
     
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
@@ -551,7 +577,7 @@ class c:
         
         return config
 
-
+    config = get_config
 
     @classmethod
     def cfg(cls, *args, **kwargs):
@@ -987,7 +1013,7 @@ class c:
                 for conns in proc.connections(kind='inet'):
                     if conns.laddr.port == port:
                         proc.send_signal(signal.SIGKILL) # or SIGKILL
-                        print('KILLED')
+                        print(f'killed {port}')
             return port
         elif mode == 'bash':
             return cls.run_command('kill -9 $(lsof -ti:{port})')
@@ -1022,15 +1048,15 @@ class c:
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
 
-    @classmethod
-    def kill_all_servers(cls, verbose: bool = True):
+    @staticmethod
+    def kill_all_servers( verbose: bool = True):
         '''
         Kill all of the servers
         '''
-        for module in cls.servers():
+        for module in c.servers():
             if verbose:
-                cls.print(f'Killing {module}', color='red')
-            cls.kill_server(module)
+                c.print(f'Killing {module}', color='red')
+            c.kill_server(module)
             
     
     @classmethod
@@ -1251,7 +1277,6 @@ class c:
     @classmethod
     def valid_module(cls,module,**kwargs ):
         modules = cls.modules(module, **kwargs)
-        print(modules)
         return bool(len(modules) > 0)
     
     @classmethod
@@ -1499,7 +1524,6 @@ class c:
     def rm(cls, path, root:bool = False):
         if not os.path.exists(path):
             path = cls.resolve_path(path=path, extension=None, root=root)
-        cls.print(path)
         assert os.path.exists(path)
         if os.path.isdir(path):
             return cls.rmdir(path)
@@ -3833,9 +3857,26 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, *args, **kwargs):
-        self = cls(*args, **kwargs)
-               
+    def test(cls):
+        test_responses = {}
+        for fn in cls.fns():
+            test_response = {
+                'passed':False,
+                'response': None
+            }
+            
+            if fn.startswith('test_'):
+                try:
+            
+                    getattr(cls, fn)()
+                    test_response['passed'] = True
+                except Exception as e:
+                   test_response['passed'] = False
+                   test_response['response'] = str(e)
+                test_responses[fn] =test_response
+        
+        return test_responses
+       
                
     @classmethod
     def import_bittensor(cls):
@@ -4012,7 +4053,7 @@ class c:
         elif mode == 'evm':
             module = cls.module('web3.account.evm')
         elif  mode == 'aes':
-            module =  cls.module('crypto.key.aes')
+            module =  cls.module('key.aes')
         else:
             raise ValueError('Invalid mode for key')
         
@@ -4022,7 +4063,6 @@ class c:
         else:
             key = module(*args, **kwargs)
             
-        cls.print(key.__dict__)
         return key
         
             
@@ -4041,16 +4081,27 @@ class c:
         if password == None:
             password = cls.default_password
             
-        assert isinstance(password, str), 'Password must be a string'
+            
+        password = cls.python2str(password)
+        assert isinstance(password, str), f'Password must be a string , not {type(password)}'
         return password
     
     @classmethod
     def decrypt(cls, 
                 data: str,
-                password= default_password,
-                ignore_error: bool = True) -> Any:
-        key = c.get_key(mode='aes', key=password)
-        data = key.decrypt(data)
+                password= None,
+                ignore_error: bool = True,
+                return_dict=True) -> Any:
+        password = cls.resolve_password(password)
+        key = c.module('key.aes')(password)
+        if isinstance(data, Munch):
+            data = c.munch2dict(data)
+        if isinstance(data, dict):
+            data = data['data']
+        try:
+            data = key.decrypt(data)
+        except Exception as e:
+            return {'error': str(e) }
         if isinstance(data, str):
             data = cls.str2python(data)
             
@@ -4061,15 +4112,23 @@ class c:
                 cls.print(f'Exception: Wrong Password, try another',color='red')
             else:
                 raise Exception(f'could not decrypt data, try another pasword')
+        
         return data
 
     @classmethod
-    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect') -> bytes:
+    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect', return_dict= False) -> bytes:
         password = cls.resolve_password(password)
         data = cls.python2str(data)
         assert isinstance(password, str),  f'{password}'
-        key = c.get_key(mode='aes', key=password)
-        return key.encrypt(data)
+        key = c.module('key.aes')(key=password)
+        encrypted_data = key.encrypt(data)
+        if return_dict:
+            return {
+                'data': encrypted_data,
+                'encrypted': True,
+            }
+        else:
+            return encrypted_data
     
     module_cache = {}
     @classmethod
@@ -4283,7 +4342,7 @@ class c:
             path = data
             data = cls.get_data(path)
         if isinstance(data, dict):
-            return 'encrypted' in data and data['encrypted'] == True
+            return bool(data.get('encrypted', False) == True)
         else:
             return False
         

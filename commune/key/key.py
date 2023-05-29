@@ -594,7 +594,6 @@ class Keypair(c.Module):
         elif type(data) is str:
             data = data.encode()
 
-        c.print(self.__dict__)
         if not self.private_key:
             raise ConfigurationError('No private key set to create signatures')
 
@@ -621,12 +620,12 @@ class Keypair(c.Module):
     
     
     @classmethod
-    def get_signer(cls, auth:dict, return_ss58:bool = True) -> str:
-        assert cls.verify(auth)
+    def get_signer(cls, data:dict, return_ss58:bool = True) -> str:
+        assert cls.verify(data)
         
         if return_ss58:
-            return ss58_encode(auth['public_key'])
-        return auth['public_key']
+            return ss58_encode(data['public_key'])
+        return data['public_key']
         
     @classmethod
     def verify(cls, data: Union[ScaleBytes, bytes, str],
@@ -662,7 +661,6 @@ class Keypair(c.Module):
         data = c.python2str(data)
         assert public_key != None
         import streamlit as st
-        st.write(public_key)
             
         if type(data) is ScaleBytes:
             data = bytes(data.data)
@@ -698,17 +696,31 @@ class Keypair(c.Module):
         return verified
 
 
+
+    def resolve_encryption_password(self, password):
+        if password is None:
+            if self.private_key is None:
+                raise ConfigurationError("No private key set")
+            password = self.private_key.hex()
+        
+        assert type(password) is str, "Password should be a string"
+        return password
+    
     
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        password = password if password !=None else self.private_key
+        password = self.resolve_encryption_password(password)
         encrypted_data = c.encrypt(data=data, password=password)
         return encrypted_data
 
     def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        password = password if password !=None else self.private_key
+        password = self.resolve_encryption_password(password)
         encrypted_data = c.decrypt(data=data, password=password)
         return encrypted_data
 
+
+    def encrypt_key(cls, path):
+        key_state = cls.load_key(path)
+        cls.save_key()
     def encrypt_message(
         self, message: Union[bytes, str], recipient_public_key: bytes, nonce: bytes = secrets.token_bytes(24),
     ) -> bytes:
@@ -776,6 +788,11 @@ class Keypair(c.Module):
             state_dict['encrypted'] = True
         
         return state_dict
+    
+    @classmethod
+    def save_key(cls, *args, override=True,**kwargs):
+        self = cls(*args, **kwargs)
+        self.save(override=override)
      
     def save(self,
              path: str = None,  
@@ -877,22 +894,42 @@ class Keypair(c.Module):
         self.load(password=password)
         return self.__dict__
         
+        
     @classmethod
-    def test(cls, n=10,data='bro'):
+    def test_encryption(cls, data='bro'):
+        self =  cls()
+        enc_data = self.encrypt(data=data)
+        dec_data = self.decrypt(data=enc_data)
+        assert data == dec_data, 'Encryption doesnt work'
+        return {'passed': True, 'test': 'Test Encryption'}
+
+    @classmethod
+    def test_verification(cls, data='bro'):
+        key = cls()
+        enc_data = key.sign(data=data)
+        dec_data = key.verify(data=enc_data)
+        key.get_signer(data)
+        assert data == dec_data, 'Encryption doesnt work'
+        return {'passed': True, 'test': 'Test Verification'}
+      
         
-        for i in range(n):
-            cls.print(i)
-            name = f'bro{i}'
-            cls.add_key(name)
-            assert cls.key_exists(name) == True, 'Key doesnt exist'
-            cls.rm_key(name)
-            assert cls.key_exists(name) == False, 'Key doesnt exist'
-            key = cls.get_key(name)
-            sig = key.sign(data, return_dict=True)
-            assert key.verify(sig), 'Signature doesnt verify'
-            
+    @classmethod
+    def test_key_management(cls, data='bro'):
+        name = f'demo'
+        cls.add_key(name)
+        assert cls.key_exists(name) == True, 'Key doesnt exist'
+        cls.rm_key(name)
+        assert cls.key_exists(name) == False, 'Key doesnt exist'
+    @classmethod
+    def test_verification(cls, data='bro'):
+        key = cls()
+        sig = key.sign(data, return_dict=True)
+        assert key.verify(sig), 'Signature doesnt verify'
         
-        return {'success': True, 'message': 'Keypair test passed'}
+           
+                   
+                    
+                    
         
 
 if __name__ == '__main__':
