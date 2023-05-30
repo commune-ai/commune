@@ -10,43 +10,16 @@ class Dashboard(commune.Module):
         self.load_state()
 
     
-    def load_state(self):
-        self.local_namespace = commune.local_namespace()
-        self.servers = list(self.local_namespace.keys())
-        for peer in self.servers:
-            if peer not in self.local_namespace:
-                self.local_namespace[peer] = commune.connect(peer).server_stats
+    def load_state(self, ):
         
+        
+        self.namespace = commune.namespace()
+        self.servers = list(self.namespace().keys())
         self.module_tree = commune.module_tree()
-        self.module_list = ['module'] + list(self.module_tree.keys())
-        sorted(self.module_list)
+        self.module_list = commune.module_list()
         
-    
-       
-    @classmethod
-    def add_peer(cls, peer_address:str):
-        peer_registry = cls.get_json('peer_registry', default={})
-        peer=commune.connect(peer_address, timeout=1)
         
-        peer_local_namespace = peer.local_namespace()
-        st.write(peer_local_namespace)
-        peer_registry[peer_address] = peer_local_namespace
         
-        cls.put_json('peer_registry', peer_registry)
-    
-    @classmethod
-    def rm_peer(cls, peer_address: str):
-        peer_registry = cls.get_json('peer_registry', default={})
-        peer_registry.pop(peer_address, None)        
-        cls.put_json('peer_registry', peer_registry)
-       
-    @classmethod
-    def ls_peers(cls):
-        peer_registry = cls.get_json('peer_registry', default={})
-        return list(peer_registry.keys())
-      
-    def peers(self):
-        return list(self.get_json('peer_registry', default={}).keys())
 
     def streamlit_module_browser(self):
 
@@ -103,7 +76,7 @@ class Dashboard(commune.Module):
 
         
 
-        peer = st.text_input('Add a Peer', '0.0.0.0:9401')
+        peer = st.text_input('Add a Peer', self.peers()[0])
         cols = st.columns(3)
         add_peer_button = cols[0].button('add Peer')
         rm_peer_button = cols[2].button('rm peer')

@@ -14,6 +14,7 @@ import argparse
 import asyncio
 
 class c:
+    library_name = 'commune'
     root_module_class = 'c'
     # port range for servers
     default_port_range = [50050, 50150] 
@@ -162,9 +163,7 @@ class c:
     @classmethod
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
-        if not hasattr(cls, '_module_path'):
-            cls._module_path = cls.get_module_path(simple=simple)
-        return cls._module_path
+        return cls.get_module_path(simple=simple)
     
         
     @classmethod
@@ -1396,7 +1395,7 @@ class c:
    
     @classmethod
     def tmp_dir(cls):
-        return f'/tmp/{cls.__local_file__().replace(".py", "")}'
+        return os.path.expanduser(f'~/.{cls.library_name}/{cls.module_path()}')
 
     ############ JSON LAND ###############
 
@@ -4050,7 +4049,7 @@ class c:
     @classmethod
     def hash(cls, 
              data: Union[str, bytes], 
-             mode: str = 'keccak', 
+             mode: str = 'sha256', 
              **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
             cls.hash_module = cls.get_module('crypto.hash')()
@@ -4070,7 +4069,10 @@ class c:
 
     encrypted_prefix = 'AESKEY'
     @classmethod
-    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect', prefix = encrypted_prefix) -> bytes:
+    def encrypt(cls, 
+                data: Union[str, bytes],
+                password: str = 'bitconnect', 
+                prefix = encrypted_prefix) -> bytes:
         password = cls.resolve_password(password)
         data = cls.python2str(data)
         
@@ -4706,6 +4708,8 @@ class c:
         
         peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
+        if name == None:
+            name = 'Anon'
 
         peer_info = await cls.async_call(module=peer_address, 
                                               fn='info',

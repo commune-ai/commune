@@ -78,12 +78,7 @@ class Users(c.Module):
         else:
             raise NotImplementedError('you did not specify a legit user or address')
     
-    
-
-        
-        
-    
-    def user_from_auth(auth):
+    def user_from_auth(self, auth):
         address = self.verify(auth)
         name = auth.pop('name')
         self.users[name] 
@@ -107,7 +102,7 @@ class Users(c.Module):
             'role':  role,
             'network': network,
             'address': address,
-            **extra_fields
+            **kwargs
         }
         
         return self.users[name]

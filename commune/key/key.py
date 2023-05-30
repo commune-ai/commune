@@ -144,6 +144,8 @@ class Keypair(c.Module):
 
         self.path = path
         self.password = password
+
+        print(path,'bro')
         if load:
             return self.load(path=path, password=password)
             
@@ -158,10 +160,9 @@ class Keypair(c.Module):
             and seed_hex == None and mnemonic == None and uri == None:
             mnemonic = self.generate_mnemonic()
             
-        if seed:
+        if seed != None:
             if isinstance(seed, str):
                 seed_hex = self.hash(seed)
-
         if seed_hex != None: 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
             self.__dict__.update(kwargs)
@@ -219,6 +220,7 @@ class Keypair(c.Module):
             if not self.ss58_address:
                 self.ss58_address = ss58_encode(self.public_key, ss58_format=self.ss58_format)
         
+        c.print(self.ss58_address,  'BRO')
         if save:
             self.save(path=self.path, password=self.password)
     
@@ -230,12 +232,14 @@ class Keypair(c.Module):
     # address = ss58
     
     @classmethod
-    def add_key(cls, path, password=None, save=True, load=True, refresh=False,  **kwargs):
+    def add_key(cls, path, password=None, save=True, load=False, refresh=False,  **kwargs):
         
         self = cls(path=path, password=password, save=save, load=load,refresh=refresh, **kwargs)
         
         keys = cls.ls_keys()
-        return {'success': True, 'message': f'Key {path} added', 'keys': keys}
+        return {'success': True, 
+                'message': f'Key {path}::{self.ss58} added', 
+                'keys': keys}
         
         
     @classmethod
@@ -247,8 +251,8 @@ class Keypair(c.Module):
         return {'success': True, 'message': f'Key {path} added', 'keys': keys}
         
     @classmethod
-    def get_key(cls, path, password=None, **kwargs):
-        self = cls(path=path, password=password, **kwargs)
+    def get_key(cls, path, password=None, load=True, **kwargs):
+        self = cls(path=path, password=password, load=load, **kwargs)
         return self
 
     @staticmethod
@@ -270,9 +274,13 @@ class Keypair(c.Module):
         return mnemonic
 
     @classmethod
-    def get_address(cls, path, password=None, **kwargs):
-        self = cls(path=path, password=password, **kwargs)
+    def get_address(cls, path, **kwargs):
+        self = cls.get_key(path, load=True)
         return self.ss58_address
+    @classmethod
+    def key2address(cls):
+        return {k:cls.get_address(k) for k in cls.keys()}
+            
     
 
     @classmethod
@@ -822,10 +830,16 @@ class Keypair(c.Module):
         
         return state_dict
     
+    def lock(self, password: str=None) -> bytes:
+        if password == None:
+            password = self.password
+        assert password != None, "Password is required"
+        state_dict = self.state_dict(password=password)
+        return state_dict
     @classmethod
-    def save_key(cls, *args, override=True,**kwargs):
+    def save_key(cls, *args,**kwargs):
         self = cls(*args, **kwargs)
-        self.save(override=override)
+        self.save()
      
     def save(self,
              path: str = None,  
@@ -853,16 +867,28 @@ class Keypair(c.Module):
         return key in cls.ls_keys()
         
     @classmethod
-    def rm_key(cls, path: str ):
-        if cls.key_exists(path) == False:
-            return {'success': False, 'message': f'{path} doesnt exist'}
+    def rm_key(cls, key: str , verbose:bool = True):
+        if cls.key_exists(key) == False:
+            return {'success': False, 'message': f'{key} doesnt exist'}
         
-        cls.rm_json(path)
+        cls.rm_json(key)
         keys = cls.ls_keys()
+            
         
-        return {'success': True, 'keys': keys, 'message': f'{path} removed'}
+        return {'success': True, 'keys': keys, 'message': f'{key} removed'}
     
     
+    @classmethod
+    def rm_keys(cls, *keys):
+        results = []
+        for key in keys:
+            
+            results.append(cls.rm_key(key))
+        return results
+        
+    @classmethod
+    def rm_all_keys(cls):
+        return cls.rm_keys(*cls.keys())
         
     @classmethod
     def mv_key(cls, path1: str, path2:str ):
@@ -901,7 +927,9 @@ class Keypair(c.Module):
   
         '''
         
-        assert cls.key_exists(path), f'{path} doesnt exist'
+        if not cls.key_exists(path):
+            return {'success': False, 'message': f'{path} doesnt exist'}
+            
         state_dict = cls.get_json(path)
         if isinstance(state_dict, str):
             state_dict = json.loads(state_dict)
@@ -917,6 +945,7 @@ class Keypair(c.Module):
     def load(self, path:str, password: str = None):
         
         params = self.load_key(path=path, password=password)
+        c.print(params)
         self.set_params(**params)
       
     @classmethod
