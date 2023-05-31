@@ -1127,7 +1127,7 @@ class BittensorModule(c.Module):
         
         print(f'balance {balance} amount {amount}')
         if amount == -1:
-            amount = balance - gas_fee*1e9
+            amount = balance - gas_fee
             
         assert balance >= amount, f'balance {balance} is less than amount {amount}'
         wallet.transfer( 
