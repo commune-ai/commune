@@ -1073,6 +1073,15 @@ class c:
             simple_path = cls.compress_name(simple_path, seperator='.')
         return simple_path
     
+    @classmethod
+    def get_module_python_object_paths(cls):
+        module_python_paths = cls.get_module_python_paths()
+        module_python_object_paths = []
+        for path in module_python_paths:
+            module_python_object_paths  += [cls.root_dir+'.'+path.split(cls.root_dir)[-1][1:].replace('/', '.').replace('.py', '')]
+            
+        return module_python_object_paths
+            
     @staticmethod
     def compress_name( name, seperator='.'):
         '''
@@ -1313,6 +1322,7 @@ class c:
                 if has_config:
                     modules.append(f)
                 else:
+                    # FIX ME
                     f_classes = cls.find_python_classes(f, search=['commune.Module', 'c.Module'])
                     
                     if len(f_classes) > 0:
@@ -3813,8 +3823,8 @@ class c:
             return self.fns() + self.attributes()
         
     
-    def blacklist(self, mode='sudo') -> List[str]:
-        return []
+    def blacklist(self) -> List[str]:
+        return ['module_name']
     black_fns = blacklist
 
     @classmethod

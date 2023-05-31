@@ -1264,8 +1264,8 @@ class BittensorModule(c.Module):
                network = 'finney',
                netuid=3,
                port = None,
-               device = None,
                prometheus_port = None,
+                device = None,
                debug = True,
                no_set_weights = True,
                remote:bool = True,
@@ -1470,12 +1470,12 @@ class BittensorModule(c.Module):
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = list(range(1,9)),
+                    hotkeys = list(range(1,16)),
                     remote=True,
                     netuid=3,
                     network='finney',
                     model_name = default_model_name,
-                    refresh: bool = True,
+                    refresh: bool = False,
                     burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
@@ -1541,11 +1541,13 @@ class BittensorModule(c.Module):
                                             burned_register=burned_register,
                                             max_fee=max_fee)
                     burned_register = False # only burn register for first wallet
-                axon_port = cls.free_port(reserve=True, avoid_ports=avoid_ports)
+                axon_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
+                avoid_ports.append(axon_port)
                 prometheus_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
                 
             
             avoid_ports += [axon_port, prometheus_port]
+            avoid_ports = list(set(avoid_ports))
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)

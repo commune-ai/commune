@@ -25,14 +25,14 @@ class App(c.Module):
         params = model_config
         info = params.pop('info')
         
-        with st.expander('## Stats')
+        with st.expander('## Stats'):
             st.write(stats)
         
-        with st.expander('## Params')
+        with st.expander('## Params'):
             st.write(params)
             
             
-        with st.expander('## Info')
+        with st.expander('## Info'):
             st.write(info)
         st.write(info)
         
