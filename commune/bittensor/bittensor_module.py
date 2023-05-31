@@ -1553,11 +1553,7 @@ class BittensorModule(c.Module):
                 
             
             avoid_ports += [axon_port, prometheus_port]
-<<<<<<< HEAD
             avoid_ports = list(set(avoid_ports)) # avoid duplicates, though htat shouldnt matter
-=======
-            avoid_ports = list(set(avoid_ports))
->>>>>>> 4a102d9e9c8dc3c68c544af4c306e7c03c59ccc3
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
