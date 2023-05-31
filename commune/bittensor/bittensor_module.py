@@ -1125,7 +1125,11 @@ class BittensorModule(c.Module):
             return None
         else:
             cls.print(f'Enough Balance for Transfer --> Balance ({balance}) > min balance ({min_balance})')
-                    
+        
+        print(f'balance {balance} amount {amount}')
+        if amount == -1:
+            amount = balance - gas_fee
+            
         assert balance >= amount, f'balance {balance} is less than amount {amount}'
         wallet.transfer( 
             dest=dest,
@@ -1261,8 +1265,8 @@ class BittensorModule(c.Module):
                network = 'finney',
                netuid=3,
                port = None,
-               device = None,
                prometheus_port = None,
+                device = None,
                debug = True,
                no_set_weights = True,
                remote:bool = True,
@@ -1472,12 +1476,12 @@ class BittensorModule(c.Module):
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = list(range(1,9)),
+                    hotkeys = list(range(1,16)),
                     remote=True,
                     netuid=3,
                     network='finney',
                     model_name = default_model_name,
-                    refresh: bool = True,
+                    refresh: bool = False,
                     burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
@@ -1549,7 +1553,11 @@ class BittensorModule(c.Module):
                 
             
             avoid_ports += [axon_port, prometheus_port]
+<<<<<<< HEAD
             avoid_ports = list(set(avoid_ports)) # avoid duplicates, though htat shouldnt matter
+=======
+            avoid_ports = list(set(avoid_ports))
+>>>>>>> 4a102d9e9c8dc3c68c544af4c306e7c03c59ccc3
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
