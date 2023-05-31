@@ -116,16 +116,20 @@ class DendriteModel(torch.nn.Module, commune.Module):
             
             commune.print(f'Responses from Server Codes: {response[1]}', color='yellow')
         
+
+        
+        
         response_tensors = []
         success_count = 1
         code_count_dict = {}
         max_responses = max_responses if max_responses else num_endpoints
-        
         for i in range(len(response[1])):
             # st.write(response[1][i][0])
             
             # assume the codes are all the same for the endpoint (not a super safe assumption but good for now)
             code  = response[1][i][0]
+            
+            
             
             if code in code_count_dict:
                 code_count_dict[code] += 1
