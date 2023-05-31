@@ -631,7 +631,15 @@ class c:
         module_filepath = module.filepath()
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
 
-
+    @staticmethod
+    def st_sidebar(fn):
+        import streamlit as st
+        
+        def wrapper(*args, **kwargs):
+            with st.sidebar:
+                return fn(*args, **kwargs)
+        
+        return wrapper
 
 
     @classmethod
@@ -1922,12 +1930,12 @@ class c:
     @classmethod
     def new_event_loop(cls, nest_asyncio:bool = True) -> 'asyncio.AbstractEventLoop':
         import asyncio
+        if nest_asyncio:
+            cls.nest_asyncio()
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-  
-        if nest_asyncio:
-            cls.nest_asyncio()
+
 
         return loop
   
@@ -2329,7 +2337,6 @@ class c:
     def info(self, 
              include_schema: bool = False,
              include_namespace:bool = True) -> Dict[str, Any]:
-        function_schema_map = self.function_schema_map()
         whitelist = self.whitelist()
         blacklist = self.blacklist()
         fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
@@ -2347,6 +2354,8 @@ class c:
         if include_schema:
             info['schema'] = self.schema()
         return info
+    
+    help = info
 
 
 
@@ -2355,8 +2364,7 @@ class c:
     @classmethod
     def schema(cls, *args,  **kwargs):
         return cls.get_function_schema_map(*args, **kwargs)
-    
-    help = schema
+
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
@@ -2786,7 +2794,10 @@ class c:
     def run(cls, name:str = None, verbose:bool = False) -> Any: 
         if name == '__main__' or name == None or name == cls.__name__:
             args = cls.argparse()
-            return getattr(cls, args.function)(*args.args, **args.kwargs)     
+            if args.function == '__init__':
+                return cls(*args.args, **args.kwargs)     
+            else:
+                return getattr(cls, args.function)(*args.args, **args.kwargs)     
        
     
     @classmethod
@@ -3404,7 +3415,10 @@ class c:
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
-        nest_asyncio.apply()
+        try:
+            nest_asyncio.apply()
+        except RuntimeError as e:
+            pass
         
         
     # JUPYTER NOTEBOOKS
@@ -5295,11 +5309,16 @@ class c:
     @classmethod
     def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
-        with open(os.path.expanduser(authorized_keys_file), 'a') as auth_keys_file:
+        with open(authorized_keys_file, 'a') as auth_keys_file:
             auth_keys_file.write(public_key)
             auth_keys_file.write('\n')
             
         cls.print('Added the key fam')
+        
+    @classmethod
+    def ssh_authorized_keys(cls, authorized_keys_file:str='~/authorized_keys'):
+        authorized_keys_file = os.path.expanduser(authorized_keys_file)
+        return cls.get_text(authorized_keys_file)
 
     @staticmethod
     def get_public_key_from_file(public_key_file='~/.ssh/id_rsa.pub'):
@@ -5346,6 +5365,59 @@ class c:
         cls.cmd(command)
         cls.print({'msg': f"Started miner {name} on port {port}"})
         
+
+    @staticmethod
+    def df2json(dataframe):
+        
+        """
+        Convert a pandas DataFrame to JSON format.
+        
+        Args:
+            dataframe (pandas.DataFrame): The DataFrame to be converted.
+            
+        Returns:
+            str: JSON representation of the DataFrame.
+        """
+        import pandas as pd
+        import json
+        json_data = dataframe.to_json(orient='records')
+        return json_data
+
+    @classmethod
+    def pd(cls):
+        return cls.import_module('pandas')
+
+    @classmethod
+    def df(cls, *args, **kwargs):
+        df =  cls.import_object('pandas.DataFrame')
+        if len(args) > 0 or len(kwargs) > 0:
+            df = df(*args, **kwargs)
+        return df
+
+    @classmethod
+    def st(cls):
+        return cls.import_module('streamlit')
+    @classmethod
+    def torch(cls):
+        return cls.import_module('torch')
+
+    @staticmethod
+    def json2df(json_data):
+        """
+        Convert JSON data to a pandas DataFrame.
+        
+        Args:
+            json_data (str): JSON data representing a DataFrame.
+            
+        Returns:
+            pandas.DataFrame: DataFrame created from the JSON data.
+        """
+                
+        import pandas as pd
+        import json
+        dataframe = pd.read_json(json_data)
+        return dataframe
+
 Module = c
 Module.run(__name__)
     

@@ -21,12 +21,12 @@ class BittensorModule(c.Module):
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                network: Union[bittensor.subtensor, str] = 'finney',
+                subtensor: Union[bittensor.subtensor, str] = 'finney',
                 netuid: int = default_netuid,
                 config = None,
                 ):
         self.set_config(config)
-        self.set_subtensor(subtensor=network)
+        self.set_subtensor(subtensor=subtensor)
         self.set_netuid(netuid=netuid)
         
     @classmethod
@@ -166,7 +166,7 @@ class BittensorModule(c.Module):
         return neuron_stats
     
     def whitelist(self):
-        return ['miners', 'wallets', 'check_miners']
+        return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats']
     @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True
@@ -1118,9 +1118,9 @@ class BittensorModule(c.Module):
                 gas_fee: bool = 0.0001):
         wallet = cls.get_wallet(wallet)
         balance = cls.get_balance(wallet)
-        
+        balance = balance - gas_fee
         if balance < min_balance:
-            cls.print(f'Not Enough Balance for Transfer --> Balance ({balance}) < min balance ({min_balance})')
+            cls.print(f'Not Enough Balance for Transfer --> Balance ({balance}) < min balance ({min_balance})', color='red')
             return None
         else:
             cls.print(f'Enough Balance for Transfer --> Balance ({balance}) > min balance ({min_balance})')
@@ -1207,8 +1207,6 @@ class BittensorModule(c.Module):
         
         if name == None:
             name = f'server::{model_name}::{tag}'
-        if verbose:
-            cls.print(f'deploying server {name} on gpu {device}')
 
         server_class.deploy( kwargs=dict(config=config), name=name)
         
@@ -1813,14 +1811,19 @@ class BittensorModule(c.Module):
         self = cls(network='local')
         cls.pritn(self.reged(subtensor='local'))
         
-        
+    @classmethod
+    def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
+        cls.add_keys(overwrite=overwrite_keys) # add keys job
+        cls.add_servers(refresh=refresh_servers) # add servers job
+        cls.fleet(refresh=refresh_miners) # fleet job
+        cls.unstake2pool() # unstake2pool job
     @classmethod
     def coldkey_info(cls,
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
                      hotkeys= None,
-                     miners_only = False,
+                     miners_only = True,
                      coldkeypub= True):
         
         if hotkeys == None:
@@ -1872,7 +1875,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def coldkey_json(cls, coldkey):
+    def coldkey_json(cls, coldkey=default_coldkey):
         path = cls.coldkey_path(coldkey)
         coldkey_json = cls.get_json(path, {})
         return coldkey_json
