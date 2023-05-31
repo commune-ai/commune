@@ -912,7 +912,7 @@ class c:
                   ip:str =None, 
                   avoid_ports = None,
                   reserve:bool = False, 
-                  random_selection:bool = False) -> int:
+                  random_selection:bool = True) -> int:
         
         '''
         
@@ -5366,23 +5366,6 @@ class c:
         cls.print({'msg': f"Started miner {name} on port {port}"})
         
 
-    @staticmethod
-    def df2json(dataframe):
-        
-        """
-        Convert a pandas DataFrame to JSON format.
-        
-        Args:
-            dataframe (pandas.DataFrame): The DataFrame to be converted.
-            
-        Returns:
-            str: JSON representation of the DataFrame.
-        """
-        import pandas as pd
-        import json
-        json_data = dataframe.to_json(orient='records')
-        return json_data
-
     @classmethod
     def pd(cls):
         return cls.import_module('pandas')
@@ -5401,6 +5384,24 @@ class c:
     def torch(cls):
         return cls.import_module('torch')
 
+
+    @staticmethod
+    def df2json(dataframe):
+        
+        """
+        Convert a pandas DataFrame to JSON format.
+        
+        Args:
+            dataframe (pandas.DataFrame): The DataFrame to be converted.
+            
+        Returns:
+            str: JSON representation of the DataFrame.
+        """
+        import pandas as pd
+        import json
+        json_data = dataframe.to_json(orient='records')
+        return json_data
+
     @staticmethod
     def json2df(json_data):
         """
@@ -5417,6 +5418,9 @@ class c:
         import json
         dataframe = pd.read_json(json_data)
         return dataframe
+
+
+    # github stuff
 
 Module = c
 Module.run(__name__)
