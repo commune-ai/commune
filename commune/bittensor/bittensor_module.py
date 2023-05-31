@@ -28,6 +28,7 @@ class BittensorModule(c.Module):
         self.set_config(config)
         self.set_subtensor(subtensor=subtensor)
         self.set_netuid(netuid=netuid)
+        self.set_wallet(wallet)
         
     @classmethod
     def network_options(cls):
@@ -99,7 +100,6 @@ class BittensorModule(c.Module):
     def set_wallet(self, wallet=None)-> bittensor.Wallet:
         ''' Sets the wallet for the module.'''
         self.wallet = self.get_wallet(wallet)
-        self.wallet.create(False, False)
         return self.wallet
     
     @classmethod
@@ -488,6 +488,7 @@ class BittensorModule(c.Module):
     @property
     def registered(self):
         return self.is_registered(wallet=self.wallet, netuid=self.netuid, subtensor=self.subtensor)
+    
     def sync(self, netuid=None):
         netuid = self.resolve_netuid(netuid)
         return self.metagraph.sync(netuid=netuid)
@@ -906,12 +907,11 @@ class BittensorModule(c.Module):
                         cls, 
                         wallet='default.default',
                         network: str = 'test',
-                        netuid: Union[int, List[int]] = 3,
+                        netuid: Union[int, List[int]] = None,
                         dev_id: Union[int, List[int]] = None, 
                         create: bool = True,                        
                         **kwargs
                         ):
-
         self = cls(wallet=wallet,netuid=netuid, network=network)
         # self.sync()
         self.register(dev_id=dev_id, **kwargs)
@@ -950,6 +950,7 @@ class BittensorModule(c.Module):
             
 
         st.metric(label='Balance', value=int(self.balance)/1e9)
+
 
 
     @staticmethod
@@ -1329,8 +1330,13 @@ class BittensorModule(c.Module):
         # enseure ports are free
         # axon port
         
-        config.axon.port = cls.resolve_port(port, )
-        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        config.axon.port = cls.resolve_port(port)
+        
+        # while  config.axon.port <=  2024 and config.axon.port < 2099:
+        config.axon.port = cls.free_port()
+        config.prometheus.port = config.axon.port + 10
+        
+        
         
         # neuron things
         cls.print(config)
@@ -1537,11 +1543,13 @@ class BittensorModule(c.Module):
                                             burned_register=burned_register,
                                             max_fee=max_fee)
                     burned_register = False # only burn register for first wallet
-                axon_port = cls.free_port(reserve=True, avoid_ports=avoid_ports)
+                axon_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
+                avoid_ports.append(axon_port)
                 prometheus_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
                 
             
             avoid_ports += [axon_port, prometheus_port]
+            avoid_ports = list(set(avoid_ports)) # avoid duplicates, though htat shouldnt matter
                 
             if ensure_gpus:
                 device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
@@ -1908,6 +1916,7 @@ class BittensorModule(c.Module):
         return cls.cmd('sudo docker-compose up -d', cwd=f'{cls.repo_path}/subtensor', verbose=True)
     
     
+
 
     shortcuts =  {
         # 0-1B models
