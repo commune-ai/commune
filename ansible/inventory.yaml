@@ -13,53 +13,53 @@ all:
 
 
     a6000x8_p9000:
-      # ssh endless@162.157.13.236 -p 9000
+      # ssh endless@0.0.0.0 -p 9000
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 9000
     
     a6000x8_p9201:
-      # ssh endless@162.157.13.236 -p 9201
+      # ssh endless@0.0.0.0 -p 9201
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 9201
 
       
     a6000x8_p9401:
-      # ssh endless@162.157.13.236 -p 9401
+      # ssh endless@0.0.0.0 -p 9401
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 9401
 
     a4000x8_p9401:
-      # ssh endless@162.157.13.236 -p 9999
+      # ssh endless@0.0.0.0 -p 9999
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 9999
 
 
     a6000x8_p11000:
-      # ssh endless@162.157.13.236 -p 9999
+      # ssh endless@0.0.0.0 -p 9999
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 11000
     a6000x8_p12000:
-      # ssh endless@162.157.13.236 -p 9999
+      # ssh endless@0.0.0.0 -p 9999
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 12000
 
     a6000x8_p13000:
-      # ssh commune@162.157.13.236 -p2000
+      # ssh commune@0.0.0.0 -p2000
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 13000
 
 
     storage:
-      # ssh endless@162.157.13.236 -p 9999
+      # ssh endless@0.0.0.0 -p 9999
       ansible_user: endless
-      ansible_host: 162.157.13.236
+      ansible_host: 0.0.0.0
       ansible_port: 17601
 
 

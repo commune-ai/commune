@@ -49,9 +49,9 @@ class VectorStore(c.Module):
         return model
         
 
-    def embed(self, text:str, model=None **kwargs):
+    def embed(self, text:str, model=None, **kwargs):
         model = self.resolve_model(model)
-        return self.model.embed(text, **kwargs)
+        vectors = self.model.embed(text, **kwargs)
     
     def add_vector(self, k, v , verbose=True):
     

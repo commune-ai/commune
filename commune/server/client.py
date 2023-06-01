@@ -189,6 +189,9 @@ class Client( Serializer, c.Module):
             self.server_functions += ['root_address', 'namespace']
         else:
             self.success = False
+
+    def get_server_info(self):
+        self.server_info = self.forward(fn='info')
         
     
     @property
@@ -317,6 +320,8 @@ class Client( Serializer, c.Module):
         return  response
     
     async_call = async_forward
+    
+    
     
     
 
