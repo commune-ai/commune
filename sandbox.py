@@ -1,6 +1,4 @@
 import commune as c
+import torch
 
-module = c.connect('bittensor')
-c.print(module.info())
-
-# model.forward(sample['input_ids'])
+c.print(c.module('bittensor')().top_neurons())
