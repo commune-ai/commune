@@ -39,6 +39,9 @@ class BittensorModule(c.Module):
     
     
     def set_netuid(self, netuid: int = None):
+        if netuid == None:
+            netuid = self.default_netuid
+            
         assert isinstance(netuid, int)
         self.netuid = netuid
         return self.netuid
@@ -104,7 +107,8 @@ class BittensorModule(c.Module):
     
     @classmethod
     def get_wallet(cls, wallet:Union[str, bittensor.wallet]='ensemble.1') -> bittensor.wallet:
-        
+        if wallet is None:
+            wallet =cls.default_coldkey
         if isinstance(wallet, str):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
@@ -166,7 +170,7 @@ class BittensorModule(c.Module):
         return neuron_stats
     
     def whitelist(self):
-        return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats']
+        return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats', 'mems','servers', 'add_server']
     @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True
@@ -901,20 +905,49 @@ class BittensorModule(c.Module):
             return wallet.regenerate_hotkey(mnemonic=mnemonic, use_password=hotkey_use_password, overwrite=overwrite)
         else:
             return  wallet.create(coldkey_use_password=coldkey_use_password, hotkey_use_password=hotkey_use_password)     
-                 
+         
+         
+    @classmethod
+    def register_wallet_params(cls, wallet_name:str, params:dict):
+        registered_info = cls.get('registered_info', {})
+        registered_info[wallet_name] = params
+        cls.put('registered_info', registered_info)   
+        
+    @classmethod
+    def unregister_wallet_params(cls, wallet_name:str):
+        registered_info = cls.get('registered_info', {})
+        if wallet_name in registered_info:
+            registered_info.pop(wallet_name)
+        cls.put('registered_info', registered_info)  
+        
+    @classmethod
+    def registered_wallet_params(cls):
+        return cls.get('registered_info', {})
+        
     @classmethod
     def register_wallet(
                         cls, 
                         wallet='default.default',
-                        network: str = 'test',
-                        netuid: Union[int, List[int]] = None,
+                        subtensor: str = 'finney',
+                        netuid: Union[int, List[int]] = default_netuid,
                         dev_id: Union[int, List[int]] = None, 
                         create: bool = True,                        
                         **kwargs
                         ):
-        self = cls(wallet=wallet,netuid=netuid, network=network)
+        params = c.locals2kwargs(locals())
+        
+        
+        self = cls(wallet=wallet,netuid=netuid, subtensor=subtensor)
         # self.sync()
-        self.register(dev_id=dev_id, **kwargs)
+        wallet_name = c.copy(wallet)
+        cls.register_wallet_params(wallet_name=wallet_name, params=params)
+        try:
+            self.register(dev_id=dev_id, **kwargs)
+        except Exception as e:
+            c.print(e, color='red')
+        finally:
+            cls.unregister_wallet_params(wallet_name=wallet_name)
+    
 
     @classmethod  
     def sandbox(cls):
@@ -1707,8 +1740,7 @@ class BittensorModule(c.Module):
                 cls.print(pad,f'\n{miner}\n', pad, color=color)
                 cls.print( logs, '\n\n', color=color)
             
-        else:
-            return miner2logs
+        return miner2logs
 
 
     check_miners = miner2logs
@@ -1826,13 +1858,13 @@ class BittensorModule(c.Module):
         cls.fleet(refresh=refresh_miners) # fleet job
         cls.unstake2pool() # unstake2pool job
     @classmethod
-    def coldkey_info(cls,
+    def mems(cls,
                      coldkey=default_coldkey, 
                      unreged = True,
                      path = None,
                      hotkeys= None,
-                     miners_only = True,
-                     coldkeypub= True):
+                     miners_only = True):
+        coldkeypub = True # prevents seeing the private key of the coldkey
         
         if hotkeys == None:
             if unreged:
@@ -1874,7 +1906,6 @@ class BittensorModule(c.Module):
         
         return coldkey_info_text
     
-    mems = coldkey_info
     
     @classmethod
     def wallet_json(cls, wallet):

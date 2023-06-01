@@ -1,6 +1,6 @@
 import commune as c
 
-sample = c.connect('dataset')
-model = c.module('model.dendrite')
+module = c.connect('bittensor')
+c.print(module.info())
 
-model.forward(sample['input_ids'])
+# model.forward(sample['input_ids'])
