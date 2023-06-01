@@ -753,6 +753,7 @@ class c:
         object_name = key.split('.')[-1]
         if verbose:
             cls.print(f'Importing {object_name} from {module}')
+        c.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -1176,6 +1177,9 @@ class c:
 
     @classmethod
     def path2objectpath(cls, path:str) -> str:
+        if path.endswith('module/module.py'):
+            return 'commune.Module'
+            
         object_name = cls.find_python_classes(path)
         if len(object_name) == 0:
             return None
@@ -1231,9 +1235,11 @@ class c:
             module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
 
         elif mode == 'object':
-            module_tree = {cls.path2object(f):f for f in cls.get_module_python_paths()}
+            module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
             
         module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
+        
+
         return module_tree
     
     tree = module_tree
@@ -2273,7 +2279,8 @@ class c:
         function_signature = cls.get_function_signature_map(obj=obj,include_module=include_module)
         for fn_name, fn in function_signature.items():
             default_value_map[fn_name] = {}
-
+            if fn_name in ['self', 'cls']:
+                continue
             for var_name, var in fn.items():
                 if len(var.split('=')) == 1:
                     var_type = var
@@ -2369,18 +2376,18 @@ class c:
                                 include_code : bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
+                                include_default:bool = True,
                                 include_docs: bool = False):
         
         obj = obj if obj else cls
         if isinstance(obj, str):
             obj = cls.module(obj)
         function_schema_map = {}
+        
         for fn in cls.get_functions(obj, include_module=include_module):
-            # if not include_hidden:
-            #     if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
-            #         if fn != '__init__':
-            #             continue
-            
+
+            if include_default:
+                fn_default_map = cls.get_function_default_map(obj=obj, include_module=include_module)
             if callable(getattr(obj, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
@@ -2397,15 +2404,16 @@ class c:
                         fn_schema[fn_k] = fn_v.split("'")[1]
                     else:
                         fn_schema[fn_k] = fn_v
-                               
+                              
+                function_schema_map[fn]['schema'] = fn_schema
                 if include_docs:         
-                    function_schema_map[fn] = {
-                        'schema': fn_schema,
-                        'docs': getattr(obj, fn ).__doc__ ,
-                    }
-                    if include_code:
-                        function_schema_map[fn]['code'] = inspect.getsource(getattr(obj, fn ))
-                else:
+                    function_schema_map[fn]['docs']: getattr(obj, fn ).__doc__ 
+                if include_code:
+                    function_schema_map[fn]['code'] = inspect.getsource(getattr(obj, fn ))
+                    
+                if include_default:
+                    function_schema_map[fn]['default'] = fn_default_map.get(fn, 'NA')
+                if len(function_schema_map[fn]) == 1:
                     function_schema_map[fn] = fn_schema
         return function_schema_map
     
@@ -3259,8 +3267,8 @@ class c:
             modules = c.module_list()
             if module in modules:
                 return c.get_module(module,**kwargs)
-            elif module in cls.servers():
-                return c.connect(module,**kwargs)
+            # elif module in cls.servers():
+            #     return c.connect(module,**kwargs)
     
 
         # serve the module if the bool is True
@@ -3465,8 +3473,12 @@ class c:
         
     @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
-        return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
-
+        try:
+            return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
+        except Exception as e:
+            c.print(e, color='red')
+            return cls.default_ip
+            
     @classmethod
     def public_ip(cls, *args, **kwargs):
         return cls.get_public_ip(*args, **kwargs)

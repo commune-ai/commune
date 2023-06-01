@@ -964,6 +964,14 @@ class Keypair(c.Module):
         return {'passed': True, 'test': 'Test Encryption'}
 
     @classmethod
+    def test_seed(cls, data='bro'):
+        self =  cls()
+        enc_data = self.encrypt(data=data)
+        dec_data = self.decrypt(data=enc_data)
+        assert data == dec_data, 'Encryption doesnt work'
+        return {'passed': True, 'test': 'Test Encryption'}
+
+    @classmethod
     def test_verification(cls, data='bro'):
         key = cls()
         enc_data = key.sign(data=data)

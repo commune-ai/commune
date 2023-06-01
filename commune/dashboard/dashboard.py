@@ -1,40 +1,31 @@
-import commune
+import commune as c
 import streamlit as st 
 from typing import List, Dict, Union, Any 
 
-class Dashboard(commune.Module):
+class Dashboard(c.Module):
 
     def __init__(self, config=None):
         self.set_config(config)
-        self.public_ip = commune.external_ip()
+        self.public_ip = c.external_ip()
         self.load_state()
 
     
     def load_state(self, ):
         
         
-        self.namespace = commune.namespace()
-        self.servers = list(self.namespace().keys())
-        self.module_tree = commune.module_tree()
-        self.module_list = commune.module_list()
+        self.namespace = c.namespace()
+        self.servers = list(self.namespace.keys())
+        self.module_tree = c.module_tree()
+        self.module_list = c.module_list()
         
         
         
 
     def streamlit_module_browser(self):
 
-        module_list =  self.module_list
-        
-   
-        
-        self.module_info = dict(
-            path = commune.simple2path(self.selected_module),
-            config = commune.simple2config(self.selected_module),
-            module = commune.simple2object(self.selected_module),
-        )
-        self.module_name = self.module_info['config']['module']
-        
+
         st.write(f'## {self.module_name} ({self.selected_module})')
+        
         
         self.streamlit_launcher()
         
@@ -54,24 +45,20 @@ class Dashboard(commune.Module):
     def streamlit_sidebar(self):
         with st.sidebar:  
                       
-            self.selected_module = st.selectbox('Module List',self.module_list, 0)   
+            self.selected_module = st.selectbox('Module List',self.module_list, 0)
         
-                
-            self.streamlit_peers()
-
             with st.expander('Module Tree'):
-                st.write(self.module_list)
+                st.write(c.module_list())
             with st.expander('Servers'):
-                st.write(self.servers)
+                st.write(c.servers())
             with st.expander('Peers'):
-                st.write(self.peers())
+                st.write(c.peers())
             
             self.update_button = st.button('Update', False)
 
             if self.update_button:
                 self.load_state()
                 
-            
     def streamlit_peers(self):
 
         
@@ -93,7 +80,7 @@ class Dashboard(commune.Module):
     def streamlit_server_info(self):
         
         
-        for peer_name, peer_info in self.local_namespace.items():
+        for peer_name, peer_info in self.namespace.items():
             with st.expander(peer_name, True):
                 peer_info['address']=  f'{peer_info["ip"]}:{peer_info["port"]}'
                 st.write(peer_info)
@@ -108,7 +95,7 @@ class Dashboard(commune.Module):
  
     def function_call(self, module:str, fn_name: str = '__init__' ):
         
-        module = commune.connect(module)
+        module = c.connect(module)
         peer_info = module.peer_info()
         
         # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
@@ -191,7 +178,7 @@ class Dashboard(commune.Module):
                 kwargs = kwargs,
             )
             st.write(launch_kwargs)
-            commune.launch(**launch_kwargs)
+            c.launch(**launch_kwargs)
             
     
     def streamlit_launcher(self):
@@ -275,11 +262,11 @@ class Dashboard(commune.Module):
                 kwargs = kwargs,
             )
             st.write(launch_kwargs)
-            commune.launch(**launch_kwargs)
+            c.launch(**launch_kwargs)
         
     def streamlit_playground(self):
    
-        st.write(str(type(commune)) == "<class 'module'>")
+        st.write(str(type(c)) == "<class 'module'>")
         st.write()
         pass
   
@@ -363,7 +350,7 @@ class Dashboard(commune.Module):
         st.plotly_chart(fig, use_container_width=True)
 
         # with st.expander('GPUs'):
-        #     gpu_info = commune.gpu_map()
+        #     gpu_info = c.gpu_map()
             
         #     import plotly.graph_objects as go
         #     #culate the percentage of used and free memory for each GPU
@@ -405,9 +392,9 @@ class Dashboard(commune.Module):
         
     @classmethod
     def dashboard(cls):
-        commune.new_event_loop()
+        c.new_event_loop()
 
-        commune.nest_asyncio()
+        c.nest_asyncio()
         self = cls()
         st.set_page_config(layout="wide")
         
@@ -423,4 +410,4 @@ class Dashboard(commune.Module):
             self.streamlit_resource_browser()
 
 if __name__ == '__main__':
-    Dashboard.run()
+    Dashboard.streamlit_module_browser()
