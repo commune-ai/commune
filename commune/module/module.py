@@ -25,6 +25,7 @@ class c:
     
     # default ip
     default_ip = '0.0.0.0'
+    library_name = 'commune'
     
     address = None
     # key = None
@@ -50,23 +51,24 @@ class c:
         
     @classmethod
     def add_root_path(cls, root_path:str):
-        root_paths = self.getc('root_paths', [])
+        root_paths = c.getc('root_paths', [])
         if root_path not in root_paths:
             root_paths.append(root_path)
         else: 
-            c.print(f'root_path {root_path} already exists')
-        
-        
-        return {'root_paths': root_paths}
+            return {'msg': 'root_path already exists'}
+        c.putc('root_paths', root_paths)
+        return {'msg': 'success'}
     
     
     @classmethod
     def get_root_paths(cls):
-        root_paths = self.getc('root_paths', [cls.root_path])
-        if cls.root_path not in root_paths:
-            cls.add_root_path(cls.root_path)
+        root_paths = c.getc('root_paths', [c.root_path])
+        if c.root_path not in root_paths:
+            c.add_root_path(c.root_path)
+        root_paths  = list(set(root_paths))
 
-        return {'root_paths': root_paths}
+        return rot_paths
+    root_paths = get_root_paths
         
     
         
@@ -1313,7 +1315,7 @@ class c:
         modules = []
         failed_modules = []
 
-        for f in glob(Module.root_path + '/**/*.py', recursive=True):
+        for f in glob(c.root_path + '/**/*.py', recursive=True):
             if os.path.isdir(f):
                 continue
             file_path, file_ext =  os.path.splitext(f)
@@ -1393,7 +1395,7 @@ class c:
    
     @classmethod
     def tmp_dir(cls):
-        return f'/tmp/{cls.__local_file__().replace(".py", "")}'
+        return f'/tmp/{cls.library_name}/{cls.__local_file__().replace(".py", "")}'
 
     ############ JSON LAND ###############
 
@@ -2390,7 +2392,7 @@ class c:
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
-                                include_code : bool = True,
+                                include_code : bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
                                 include_docs: bool = True):
@@ -2728,15 +2730,16 @@ class c:
         return stdout
     
     @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = True):
+    def pm2_kill(cls, name:str, verbose:bool = True, pool_match:bool = False):
         output_list = []
         pm2_list = cls.pm2_list()
         kill_list = []
         
         # check if exact match, if so kill it, if not kill all that start with name
+
         exact_match = any([name == module for module in pm2_list])
         
-        if exact_match:
+        if exact_match and not pool_match:
             # kill exact match
             if verbose:
                 cls.print(f'Killing {name}', color='red')
@@ -3833,8 +3836,7 @@ class c:
             return self.helper_functions
         else:
             return self.fns() + self.attributes()
-        
-    
+            
     def blacklist(self) -> List[str]:
         return ['module_name']
     black_fns = blacklist
@@ -5113,7 +5115,6 @@ class c:
                     kwargs = None, 
                     tag = None,
                     tag_seperator= '::',
-                    prefix = 'fn',
                     name=None):
         
         if len(fn.split('.'))>1:
@@ -5123,7 +5124,10 @@ class c:
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         
+        
+
         if name == None:
+            prefix = cls.resolve_module(module).module_path()
             name = f'{prefix}{tag_seperator}{fn}'
     
         if tag != None:

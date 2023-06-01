@@ -14,20 +14,20 @@ import streamlit as st
 
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
+    default_network ='local'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
-    default_netuid = 3
+    default_netuid = 1
     
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                subtensor: Union[bittensor.subtensor, str] = 'finney',
+                subtensor: Union[bittensor.subtensor, str] =default_network,
                 netuid: int = default_netuid,
                 config = None,
                 ):
         self.set_config(config)
-        self.set_subtensor(subtensor=subtensor)
-        self.set_netuid(netuid=netuid)
+        self.set_subtensor(subtensor=subtensor, netuid=netuid)
         self.set_wallet(wallet)
         
     @classmethod
@@ -37,14 +37,6 @@ class BittensorModule(c.Module):
             
         return network_options
     
-    
-    def set_netuid(self, netuid: int = None):
-        if netuid == None:
-            netuid = self.default_netuid
-            
-        assert isinstance(netuid, int)
-        self.netuid = netuid
-        return self.netuid
     
     network2endpoint = {
         'test': 'wss://test.finney.opentensor.ai:443',
@@ -62,7 +54,7 @@ class BittensorModule(c.Module):
         return bool(':' in endpoint and cls.is_number(endpoint.split(':')[-1]))
       
     @classmethod
-    def get_subtensor(cls, subtensor:Union[str, bittensor.subtensor]='finney') -> bittensor.subtensor:
+    def get_subtensor(cls, subtensor:Union[str, bittensor.subtensor]='local') -> bittensor.subtensor:
         
         if  subtensor == None:
             subtensor = bittensor.subtensor()
@@ -84,19 +76,35 @@ class BittensorModule(c.Module):
         return subtensor
     
     @classmethod
-    def get_metagraph(cls,subtensor=None, cache= True, netuid = None, sync:bool = False):
+    def get_metagraph(cls,subtensor=None, 
+                      cache= True,
+                      netuid = None, 
+                      sync:bool = True,
+                      load:bool = True,
+                      save:bool = True,
+                      block:bool = None,):
         subtensor = cls.get_subtensor(subtensor)
         netuid = cls.get_netuid(netuid)
-        metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid).load()
+    
+        metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid)
+        if load:
+            metagraph.load()
+            save= sync = False
+            
         
         if sync:
-            metagraph.sync(netuid)
+            metagraph.sync( block=block)
+            
+        if save:
+            metagraph.save()
         return metagraph
     
-    def set_subtensor(self, subtensor=None):
+    meta = get_metagraph
+    
+    def set_subtensor(self, subtensor=None, netuid=None):
          
         self.subtensor = self.get_subtensor(subtensor)
-        self.metagraph = bittensor.metagraph(subtensor=self.subtensor).load()
+        self.metagraph = self.get_metagraph(subtensor=self.subtensor, netuid=netuid)
         
         return self.subtensor
         
@@ -169,8 +177,8 @@ class BittensorModule(c.Module):
             
         return neuron_stats
     
-    def whitelist(self):
-        return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats', 'mems','servers', 'add_server']
+    # def whitelist(self):
+    #     return ['miners', 'wallets', 'check_miners', 'reged','unreged', 'stats', 'mems','servers', 'add_server', 'top_neurons']
     @classmethod
     def wallet2neuron(cls, *args, **kwargs):
         kwargs['registered'] = True
@@ -306,7 +314,7 @@ class BittensorModule(c.Module):
         return wallet_list
     
     @classmethod
-    def wallets(cls, search = None, registered=False, subtensor='finney', netuid:int=None):
+    def wallets(cls, search = None, registered=False, subtensor=default_network, netuid:int=None):
         wallets = []
         if registered:
             subtensor = cls.get_subtensor(subtensor)
@@ -329,13 +337,13 @@ class BittensorModule(c.Module):
         return wallets
     
     @classmethod
-    def registered_wallets(cls, search=None,  subtensor='finney', netuid:int=None):
+    def registered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
         wallets =  cls.wallets(search=search,registered=True, subtensor=subtensor, netuid=netuid)
         return wallets
 
     reged = registered_wallets
     @classmethod
-    def unregistered_wallets(cls, search=None,  subtensor='finney', netuid:int=None):
+    def unregistered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
         wallets =  cls.wallets(search=search,registered=False, subtensor=subtensor, netuid=netuid)
         registered_wallets = cls.registered_wallets(search=search, subtensor=subtensor, netuid=netuid)
         unregistered_wallets = [w for w in wallets if w not in registered_wallets]
@@ -345,7 +353,7 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def unregistered_hotkeys(cls, coldkey=default_coldkey,  subtensor='finney', netuid:int=None):
+    def unregistered_hotkeys(cls, coldkey=default_coldkey,  subtensor=default_network, netuid:int=None):
         return [w.split('.')[-1] for w in cls.unregistered_wallets(search=coldkey, subtensor=subtensor, netuid=netuid)]
     unreged_hotkeys = unreged_hks = unregistered_hotkeys
     @classmethod
@@ -493,9 +501,57 @@ class BittensorModule(c.Module):
     def registered(self):
         return self.is_registered(wallet=self.wallet, netuid=self.netuid, subtensor=self.subtensor)
     
-    def sync(self, netuid=None):
-        netuid = self.resolve_netuid(netuid)
-        return self.metagraph.sync(netuid=netuid)
+    @classmethod
+    def sync(cls, subtensor= None, netuid: int = None, block =  None):
+        return cls.get_metagraph(netuid=netuid,
+                                  subtensor=subtensor,
+                                  block=block,
+                                  sync=True,
+                                  save=True)
+        
+        
+    @classmethod
+    def metagraph_staleness(cls, metagraph=None,
+                            subtensor=None, netuid=None):
+        if metagraph is None:
+            metagraph = cls.get_metagraph(netuid=netuid,
+                        subtensor=subtensor,
+                        load=True)
+            
+        current_block = cls.block(subtensor=subtensor)
+        block_staleness = current_block - metagraph.block
+        return block_staleness.item()
+    
+    @classmethod
+    def sync_loop(cls,subtensor= 'local', 
+                  netuid: int = None,
+                  block =  None, 
+                  remote=False,
+                  max_metagraph_staleness=10):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='sync_loop', kwargs=kwargs)
+        metagraph_block = 0
+        subtensor = cls.get_subtensor(subtensor)
+        netuid = cls.get_netuid(netuid)
+        prev_metagraph_staleness = 0
+        while True:
+            metagraph_staleness = cls.metagraph_staleness(subtensor=subtensor, netuid=netuid)
+            if metagraph_staleness > max_metagraph_staleness:
+                c.print(f'Block staleness {metagraph_staleness} > {max_metagraph_staleness} for {subtensor} {netuid}. Syncing')
+                metagraph = cls.get_metagraph(netuid=netuid,
+                                        subtensor=subtensor,
+                                        sync=True,
+                                        save=True)
+            else:
+                if prev_metagraph_staleness != metagraph_staleness:
+                    prev_metagraph_staleness = metagraph_staleness
+                    c.print(f'Block staleness {metagraph_staleness} < {max_metagraph_staleness} for {subtensor} {netuid}. Sleeping')
+                
+            
+        
+        
     
     def wait_until_registered(self, netuid: int = None, wallet: 'Wallet'=None, interval:int=60):
         seconds_waited = 0
@@ -512,7 +568,7 @@ class BittensorModule(c.Module):
     # def dashboard(cls):
         
     #     st.set_page_config(layout="wide")
-    #     self = cls(wallet='collective.0', network='finney')
+    #     self = cls(wallet='collective.0', network=default_network)
 
     #     with st.sidebar:
     #         self.streamlit_sidebar()
@@ -763,11 +819,13 @@ class BittensorModule(c.Module):
 
     @classmethod
     def add_keys(cls, name=default_coldkey,
+                      coldkey_ss58: Optional[str] = None,
                       hotkeys=None , 
                       n = 20,
                       use_password: bool=False,
                       overwrite:bool = False):
-
+        if coldkey_ss58:
+            cls.add_coldkeypub(name=name, ss58_address=coldkey_ss58_address, use_password=use_password, overwrite=overwrite)
         cls.add_coldkey(name=name, use_password=use_password, overwrite=overwrite)
         hotkeys = hotkeys if hotkeys!=None else list(range(n))
         for hotkey in hotkeys:
@@ -775,7 +833,12 @@ class BittensorModule(c.Module):
             
         return {'msg': f'Added {len(hotkeys)} hotkeys to {name}'}
 
-        
+    @classmethod
+    def switch_version(cls, version='4.0.1'):
+        version = str(version) 
+        if str(version) == '4':
+            version = '4.0.1'
+        return c.cmd(f'pip install bittensor=={version}')
 
     @classmethod
     def setup(cls, network='local'):
@@ -931,7 +994,7 @@ class BittensorModule(c.Module):
     def register_wallet(
                         cls, 
                         wallet='default.default',
-                        subtensor: str = 'finney',
+                        subtensor: str =default_network,
                         netuid: Union[int, List[int]] = default_netuid,
                         dev_id: Union[int, List[int]] = None, 
                         create: bool = True,                        
@@ -1299,7 +1362,7 @@ class BittensorModule(c.Module):
     def mine(cls, 
                wallet='ensemble.vali',
                model_name:str= default_model_name,
-               network = 'finney',
+               network =default_network,
                netuid=1,
                port = None,
                prometheus_port = None,
@@ -1423,7 +1486,7 @@ class BittensorModule(c.Module):
     @classmethod
     def validator(cls,
                wallet=f'{default_coldkey}.vali',
-               network = 'finney',
+               network =default_network,
                netuid=1,
                device = None,
                debug = True,
@@ -1477,7 +1540,7 @@ class BittensorModule(c.Module):
     @classmethod
     def ensure_registration(cls, 
                             wallet, 
-                            subtensor = 'finney', 
+                            subtensor =default_network, 
                             burned_register = False,
                             netuid = 3, 
                             max_fee = 2.0,
@@ -1516,7 +1579,7 @@ class BittensorModule(c.Module):
                     hotkeys = None,
                     remote=True,
                     netuid=3,
-                    network='finney',
+                    network=default_network,
                     model_name = default_model_name,
                     refresh: bool = True,
                     burned_register=False, 
@@ -1627,7 +1690,13 @@ class BittensorModule(c.Module):
         return list(cls.wallet2validator(*args, **kwargs).keys())
         
     @classmethod
-    def wallet2validator(cls, wallet=None, unreged=False, reged=False, prefix='validator'):
+    def wallet2validator(cls, 
+                         wallet=None,
+                         unreged=False, 
+                         reged=False,
+                         netuid=None,
+                         network =default_network,
+                         prefix='validator'):
         wallet2miner = {}
         if unreged:
             filter_wallets = cls.unreged()
@@ -1639,6 +1708,8 @@ class BittensorModule(c.Module):
         for m in cls.pm2_list(prefix):
             
             wallet_name = m.split('::')[1]
+            if netuid != None and m.split('::')[-1] != str(netuid):
+                continue
             if len(filter_wallets) > 0 and wallet_name not in filter_wallets:
                 continue
             wallet2miner[wallet_name] = m
@@ -1696,11 +1767,11 @@ class BittensorModule(c.Module):
     def restart(cls, wallet):
         return c.restart(cls.w2m(wallet))
     @classmethod
-    def block(cls, subtensor='finney'):
+    def block(cls, subtensor=default_network):
         return cls.get_subtensor(subtensor).get_current_block()
     
     @classmethod
-    def burn_fee(cls, subtensor='finney'):
+    def burn_fee(cls, subtensor=default_network):
         subtensor = cls.get_subtensor(subtensor)
         return subtensor.query_subtensor('Burn', None, [3]).value/1e9
 
@@ -1712,7 +1783,7 @@ class BittensorModule(c.Module):
         return loop.run_until_complete(cls.async_logs(*arg, **kwargs))
 
     @classmethod
-    async def async_logs(cls, wallet, network='finney', netuid=3):
+    async def async_logs(cls, wallet, network=default_network, netuid=3):
         processes = c.pm2ls(wallet)
         logs_dict = {}
         for p in processes:
@@ -1725,7 +1796,7 @@ class BittensorModule(c.Module):
         return logs_dict
 
     @classmethod
-    def miner2logs(cls,  network='finney', netuid=3, verbose:bool = True):
+    def miner2logs(cls,  network=default_network, netuid=3, verbose:bool = True):
         
         miners = cls.miners()
         jobs = []
@@ -1951,9 +2022,36 @@ class BittensorModule(c.Module):
             if '.Hot' not in wallet:
                 ck, hk = wallet.split('.')
                 cls.rename_wallet(wallet, f'{ck}.Hot{hk}')
+                
+                
+    @classmethod
+    def get_top_neurons(cls, k:int=10, netuid=None, subtensor=None, metagraph=None, **kwargs):
+
+        if metagraph == None:
+            metagraph = cls.get_metagraph(netuid=netuid, subtensor=subtensor, **kwargs)
+        
+        sorted_indices = torch.argsort(metagraph.incentive, descending=True)
+        top_nodes = sorted_indices[:k]
+        
+        return top_nodes
+    def top_neurons(self, k:int=10, ):
+        return self.get_top_neurons(metagraph=self.metagraph, k=k)
+
+    def incentive(self ):
+        return self.metagraph.incentive.data
+    
+    def uids(self):
+        return self.metagraph.uids.data
+    def dividends(self):
+        return self.metagraph.dividends.data
+    
+    
     @classmethod
     def local_node(cls):
         return cls.cmd('sudo docker-compose up -d', cwd=f'{cls.repo_path}/subtensor', verbose=True)
+    @classmethod
+    def build_node(cls):
+        return cls.cmd('sudo docker-compose build', cwd=f'{cls.repo_path}/subtensor', verbose=True)
     
     
 
@@ -2002,6 +2100,8 @@ class BittensorModule(c.Module):
         'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
         
             }
+    
+    
 
 
 if __name__ == "__main__":
