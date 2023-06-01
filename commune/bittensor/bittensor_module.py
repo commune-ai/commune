@@ -427,9 +427,9 @@ class BittensorModule(c.Module):
         assert coldkey in cls.coldkeys(), f'Coldkey {coldkey} not found in {cls.coldkeys()}'
         coldkey_path = cls.coldkey_dir_path(coldkey)
         assert os.path.exists(coldkey_path), f'Coldkey path {coldkey_path} does not exist'
-        return cls.rm(coldkey_path)
+        cls.rm(coldkey_path)
     
-        return {'msg': f'Coldkey {coldkey} removed', 'coldkeys': cls.coldkeys()}
+        return {'msg': f'Coldkey {coldkey} removed from {coldkey_path}', 'coldkeys': cls.coldkeys()}
     
     @classmethod
     def hotkeys(cls, wallet='default'):
@@ -763,13 +763,17 @@ class BittensorModule(c.Module):
 
     @classmethod
     def add_keys(cls, name=default_coldkey,
-                      hotkeys=[i+1 for i in range(16)] , 
+                      hotkeys=None , 
+                      n = 20,
                       use_password: bool=False,
                       overwrite:bool = False):
-        
+
         cls.add_coldkey(name=name, use_password=use_password, overwrite=overwrite)
+        hotkeys = hotkeys if hotkeys!=None else list(range(n))
         for hotkey in hotkeys:
             cls.add_hotkey(coldkey=name, hotkey=hotkey, use_password=use_password, overwrite=overwrite)
+            
+        return {'msg': f'Added {len(hotkeys)} hotkeys to {name}'}
 
         
 
@@ -798,8 +802,7 @@ class BittensorModule(c.Module):
             wallet.create_new_coldkey(use_password=use_password, overwrite=overwrite)
         else:
             wallet.regenerate_coldkey(mnemonic=mnemonic, use_password=use_password, overwrite=overwrite)
-        return wallet
-    
+        return {'msg': f'Coldkey {name} created', 'success': True}
             
     @classmethod 
     def add_coldkeypub (cls,name = 'default',
@@ -1219,7 +1222,8 @@ class BittensorModule(c.Module):
                        tag = 0,
                        device = None,
                        refresh=True,
-                       free_gpu_memory = None,):
+                       free_gpu_memory = None,
+                       authocast = True):
         free_gpu_memory = cls.free_gpu_memory()
         server_class = cls.server_class()
 
@@ -1227,7 +1231,7 @@ class BittensorModule(c.Module):
         config = server_class.config()
         config.neuron.model_name = cls.shortcuts.get(model_name, model_name)
         config.neuron.tag = tag
-        config.neuron.autocast = True
+        config.neuron.autocast = authocast
         if device == None:
             if torch.cuda.is_available():
             
@@ -1296,7 +1300,7 @@ class BittensorModule(c.Module):
                wallet='ensemble.vali',
                model_name:str= default_model_name,
                network = 'finney',
-               netuid=3,
+               netuid=1,
                port = None,
                prometheus_port = None,
                 device = None,
@@ -1509,17 +1513,17 @@ class BittensorModule(c.Module):
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = list(range(1,16)),
+                    hotkeys = None,
                     remote=True,
                     netuid=3,
                     network='finney',
                     model_name = default_model_name,
-                    refresh: bool = False,
+                    refresh: bool = True,
                     burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
                     n = None,
-                    unreged = True,
+                    unreged = False,
                     ensure_gpus = False,
                     max_fee=1.1): 
     
@@ -1601,6 +1605,7 @@ class BittensorModule(c.Module):
             cls.mine(wallet=wallet,
                         remote=remote, 
                         tag=tag, 
+                        netuid=netuid,
                         device=device, 
                         port=axon_port,
                         network=network,
