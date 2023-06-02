@@ -16,7 +16,7 @@ class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
-    default_netuid = 3
+    default_netuid = 1
     
     def __init__(self,
 
@@ -84,7 +84,7 @@ class BittensorModule(c.Module):
     def get_metagraph(cls,subtensor=None, cache= True, netuid = None, sync:bool = False):
         subtensor = cls.get_subtensor(subtensor)
         netuid = cls.get_netuid(netuid)
-        metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid).load()
+        metagraph = bittensor.metagraph(subtensor=subtensor).load()
         
         if sync:
             metagraph.sync(netuid)
@@ -1662,9 +1662,9 @@ class BittensorModule(c.Module):
         return cls.get_subtensor(subtensor).get_current_block()
     
     @classmethod
-    def burn_fee(cls, subtensor='finney'):
+    def burn_fee(cls, subtensor='finney', netuid=default_netuid):
         subtensor = cls.get_subtensor(subtensor)
-        return subtensor.query_subtensor('Burn', None, [3]).value/1e9
+        return subtensor.query_subtensor('Burn', None, [netuid]).value/1e9
 
     
 
