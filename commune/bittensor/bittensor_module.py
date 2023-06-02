@@ -13,7 +13,7 @@ import time
 import streamlit as st
 
 class BittensorModule(c.Module):
-    default_coldkey = 'ensemble'
+    default_coldkey = 'ens2000'
     default_network ='local'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
@@ -123,13 +123,14 @@ class BittensorModule(c.Module):
         if isinstance(wallet, str):
             if len(wallet.split('.')) == 2:
                 name, hotkey = wallet.split('.')
+                wallet =bittensor.wallet(name=name, hotkey=hotkey)
             elif len(wallet.split('.')) == 1:
                 name = wallet
-                hotkey = cls.hotkeys(name)[0]
+                wallet =bittensor.wallet(name=name)
             else:
                 raise NotImplementedError(wallet)
                 
-            wallet =bittensor.wallet(name=name, hotkey=hotkey)
+            
         elif isinstance(wallet, bittensor.Wallet):
             wallet = wallet
         else:
@@ -485,9 +486,9 @@ class BittensorModule(c.Module):
     
     
     
-    @property
-    def default_network(self):
-        return self.network_options()[0]
+    # @property
+    # def default_network(self):
+    #     return self.network_options()[0]
     
 
     @property
@@ -844,9 +845,8 @@ class BittensorModule(c.Module):
                        overwrite:bool = True) :
         
         wallet = bittensor.wallet(name=name)
-        wallet.regenerate_coldkeypub(ss58_address=ss58_address, use_password=use_password, overwrite=overwrite)
+        wallet.regenerate_coldkeypub(ss58_address=ss58_address, overwrite=overwrite)
         return name
-
 
     @classmethod
     def new_coldkey( cls, name,
@@ -1451,8 +1451,8 @@ class BittensorModule(c.Module):
         neuron.run()
 
     @classmethod
-    def validator_neuron(cls, modality='text.prompting'):
-        return c.import_object(f'commune.bittensor.neurons.{modality}.validators.core.neuron')
+    def validator_neuron(cls, mode='core', modality='text.prompting'):
+        return c.import_object(f'commune.bittensor.neurons.{modality}.validators.{mode}.neuron.neuron')
     @classmethod
     def validator(cls,
                wallet=f'{default_coldkey}.vali',
@@ -1467,10 +1467,11 @@ class BittensorModule(c.Module):
                burned_register = False,
                logging:bool = True,
                max_fee = 2.0,
-               modality='text.prompting'
+               modality='text.prompting', 
+               mode = 'relay'
                ):
         kwargs = cls.locals2kwargs(locals())
-    
+        c.print(kwargs)
         if tag == None:
             if network in ['local', 'finney']:
                 tag = f'{wallet}::finney::{netuid}'
@@ -1494,7 +1495,7 @@ class BittensorModule(c.Module):
                                 sleep_interval=sleep_interval,
                                 display_kwargs=kwargs)
         
-        validator_neuron = cls.validator_neuron(modality=modality)
+        validator_neuron = cls.validator_neuron(mode=mode, modality=modality)
         config = validator_neuron.config()
             
         device = cls.most_free_gpu() if device == None else device
@@ -1909,7 +1910,7 @@ class BittensorModule(c.Module):
                      unreged = True,
                      path = None,
                      hotkeys= None,
-                     miners_only = True):
+                     miners_only = False):
         coldkeypub = True # prevents seeing the private key of the coldkey
         
         if hotkeys == None:
