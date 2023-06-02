@@ -1,6 +1,12 @@
 import commune as c
+import torch
 
-sample = c.connect('dataset')
-model = c.module('model.dendrite')
+# meta = c.module('bittensor').get_metagraph(subtensor='local')
 
-model.forward(sample['input_ids'])
+
+
+top_uid_map = c.print(c.module('bittensor').get_top_uids())
+
+for uid, incentive in top_uid_map.items():
+    print(uid, incentive)
+
