@@ -86,7 +86,10 @@ class BittensorModule(c.Module):
         subtensor = cls.get_subtensor(subtensor)
         netuid = cls.get_netuid(netuid)
     
-        metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid)
+        try:
+            metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid)
+        except TypeError as e:
+            metagraph = bittensor.metagraph(netuid=netuid)
         if load:
             metagraph.load()
             save= sync = False
@@ -503,6 +506,7 @@ class BittensorModule(c.Module):
     
     @classmethod
     def sync(cls, subtensor= None, netuid: int = None, block =  None):
+        c.print('Syncing...')
         return cls.get_metagraph(netuid=netuid,
                                   subtensor=subtensor,
                                   block=block,
@@ -582,41 +586,7 @@ class BittensorModule(c.Module):
     #     # st.write(self.run_miner('fish', '100'))
 
     #     # self.streamlit_neuron_metrics()
-    
-
-    def run_miner(self, 
-                coldkey='fish',
-                hotkey='1', 
-                port=None,
-                subtensor = "194.163.191.101:9944",
-                interpreter='python3',
-                refresh: bool = False):
-        
-        name = f'miner_{coldkey}_{hotkey}'
-        
-        wallet = self.get_wallet(f'{coldkey}.{hotkey}')
-        neuron = self.get_neuron(wallet)
-        
      
-        
-        try:
-            import cubit
-        except ImportError:
-            c.run_command('pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl')
-        if port == None:
-            port = neuron.port
-    
-        
-        if refresh:
-            c.pm2_kill(name)
-            
-        
-        assert c.port_used(port) == False, f'Port {port} is already in use'
-        command_str = f"pm2 start c/model/client/model.py --name {name} --time --interpreter {interpreter} --  --logging.debug  --subtensor.chain_endpoint {subtensor} --wallet.name {coldkey} --wallet.hotkey {hotkey} --axon.port {port}"
-        # return c.run_command(command_str)
-        st.write(command_str)
-          
-          
           
     
     def ensure_env(self):
@@ -2025,18 +1995,26 @@ class BittensorModule(c.Module):
                 
                 
     @classmethod
-    def get_top_neurons(cls, k:int=10, netuid=None, subtensor=None, metagraph=None, **kwargs):
+    def get_top_uids(cls, k:int=100, 
+                     netuid=None,
+                     subtensor=None,
+                     metagraph=None, 
+                     return_dict=True,
+                     **kwargs):
 
         if metagraph == None:
             metagraph = cls.get_metagraph(netuid=netuid, subtensor=subtensor, **kwargs)
         
         sorted_indices = torch.argsort(metagraph.incentive, descending=True)
-        top_nodes = sorted_indices[:k]
+        top_uids = sorted_indices[:k]
+        if return_dict:
+            
+            top_uids = {uid: metagraph.incentive[uid].item() for i, uid in enumerate(top_uids.tolist())}
         
-        return top_nodes
-    def top_neurons(self, k:int=10, ):
-        return self.get_top_neurons(metagraph=self.metagraph, k=k)
-
+        return top_uids
+    
+    def top_uids(self,k=10):
+        self.get_top_uids(metagraph=self.metagraph,k=k)
     def incentive(self ):
         return self.metagraph.incentive.data
     

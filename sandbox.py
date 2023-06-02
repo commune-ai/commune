@@ -1,4 +1,12 @@
 import commune as c
 import torch
 
-c.print(c.module('bittensor')().top_neurons())
+# meta = c.module('bittensor').get_metagraph(subtensor='local')
+
+
+
+top_uid_map = c.print(c.module('bittensor').get_top_uids())
+
+for uid, incentive in top_uid_map.items():
+    print(uid, incentive)
+
