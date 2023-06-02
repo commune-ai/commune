@@ -30,8 +30,6 @@ import traceback
 from loguru import logger
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, Dict
-from reward import RewardModel
-from gating import GatingModel
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
