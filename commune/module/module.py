@@ -25,6 +25,7 @@ class c:
     
     # default ip
     default_ip = '0.0.0.0'
+    library_name = 'commune'
     
     address = None
     # key = None
@@ -50,23 +51,24 @@ class c:
         
     @classmethod
     def add_root_path(cls, root_path:str):
-        root_paths = self.getc('root_paths', [])
+        root_paths = c.getc('root_paths', [])
         if root_path not in root_paths:
             root_paths.append(root_path)
         else: 
-            c.print(f'root_path {root_path} already exists')
-        
-        
-        return {'root_paths': root_paths}
+            return {'msg': 'root_path already exists'}
+        c.putc('root_paths', root_paths)
+        return {'msg': 'success'}
     
     
     @classmethod
     def get_root_paths(cls):
-        root_paths = self.getc('root_paths', [cls.root_path])
-        if cls.root_path not in root_paths:
-            cls.add_root_path(cls.root_path)
+        root_paths = c.getc('root_paths', [c.root_path])
+        if c.root_path not in root_paths:
+            c.add_root_path(c.root_path)
+        root_paths  = list(set(root_paths))
 
-        return {'root_paths': root_paths}
+        return rot_paths
+    root_paths = get_root_paths
         
     
         
@@ -1313,7 +1315,7 @@ class c:
         modules = []
         failed_modules = []
 
-        for f in glob(Module.root_path + '/**/*.py', recursive=True):
+        for f in glob(c.root_path + '/**/*.py', recursive=True):
             if os.path.isdir(f):
                 continue
             file_path, file_ext =  os.path.splitext(f)
@@ -1393,7 +1395,7 @@ class c:
    
     @classmethod
     def tmp_dir(cls):
-        return f'/tmp/{cls.__local_file__().replace(".py", "")}'
+        return f'/tmp/{cls.library_name}/{cls.__local_file__().replace(".py", "")}'
 
     ############ JSON LAND ###############
 
@@ -1579,7 +1581,79 @@ class c:
         else:
             
             return loop.run_until_complete(future)
+       
+    @classmethod
+    async def async_connect(cls, 
+                name:str=None, 
+                ip:str=None, 
+                port:int=None , 
+                network : str = 'global',
+                namespace = None,
+                virtual:bool = True, 
+                wait_for_server:bool = False,
+                trials = 3, 
+                verbose: bool = False, 
+                ignore_error:bool = False,
+                **kwargs ):
+    
+        if (name == None and ip == None and port == None):
+            return cls.root_module()
+            
+        if wait_for_server:
+            cls.wait_for_server(name)
         
+        if namespace == None :
+            namespace = cls.namespace(network, update=False)
+        namespace = cls.copy(namespace)
+
+        # local namespace  
+
+
+
+        if isinstance(name, str):
+      
+            found_modules = []
+
+            if cls.is_address(name):
+                found_modules = [name]
+            
+            else:
+                modules = list(namespace.keys())
+                module_addresses = list(namespace.values())
+                for n in modules + module_addresses:
+                    if name == n:
+                        # we found the module
+                        found_modules = [n]
+                        break
+                    elif name in n:
+                        # get all the modules lol
+                        found_modules += [n]
+                      
+            if len(found_modules)>0:
+                name = cls.choice(found_modules)
+                name = namespace.get(name, name)
+                
+            else:
+                if ignore_error:
+                    return None
+                raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
+            
+
+            c.print('FOUND MODULES',name)  
+
+            port = int(name.split(':')[-1])
+
+                
+            ip = name.split(':')[0]
+
+        assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
+        assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        if verbose:
+            cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
+        client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
+        
+        return client
+     
     @classmethod
     def root_module(cls, name:str='module',
                     timeout:int = 100, 
@@ -1640,75 +1714,8 @@ class c:
         if return_dict:
             return dict(zip(modules, module_clients))
         return module_clients
-    @classmethod
-    async def async_connect(cls, 
-                name:str=None, 
-                ip:str=None, 
-                port:int=None , 
-                network : str = 'global',
-                namespace = None,
-                virtual:bool = True, 
-                wait_for_server:bool = False,
-                trials = 3, 
-                verbose: bool = False, 
-                ignore_error:bool = False,
-                **kwargs ):
+
     
-        if (name == None and ip == None and port == None):
-            return cls.root_module()
-            
-        if wait_for_server:
-            cls.wait_for_server(name)
-        
-        if namespace == None :
-            namespace = cls.namespace(network, update=False)
-        namespace = cls.copy(namespace)
-
-        # local namespace  
-
-
-
-        if isinstance(name, str):
-      
-            found_modules = []
-
-            if cls.is_address(name):
-                found_modules = [name]
-            
-            else:
-                modules = list(namespace.keys())
-                module_addresses = list(namespace.values())
-                for n in modules + module_addresses:
-                    if name == n:
-                        # we found the module
-                        found_modules = [n]
-                        break
-                    elif name in n:
-                        # get all the modules lol
-                        found_modules += [n]
-                        
-            if len(found_modules)>0:
-                name = cls.choice(found_modules)
-                name = namespace.get(name, name)
-                
-            else:
-                if ignore_error:
-                    return None
-                raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
-            
-
-            port = int(name.split(':')[-1])
-
-                
-            ip = name.split(':')[0]
-
-        assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
-        assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
-        if verbose:
-            cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-        client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
-        
-        return client
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
         client_class = cls.get_module('commune.server.client.Client')
@@ -1778,9 +1785,12 @@ class c:
                          verbose: bool = False, 
                          update:bool = False,
                          prefix:bool = 'R')-> dict:
+    
+        
+        remote_namespace = cls.get('remote_namespace', {})   
         
         peer_registry = cls.peer_registry(update=update)  
-        namespace = {}          
+        
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
             
             if isinstance(peer_info, dict):
@@ -1788,12 +1798,13 @@ class c:
                 peer_namespace = peer_info.get('namespace', None)
                 if isinstance(peer_namespace, dict):
                     for name, address in peer_namespace.items():
-                        namespace[name+seperator+peer_name] = address
+                        remote_namespace[name+seperator+peer_name] = address
                 else:
                     cls.print(f'Peer {peer_name} has no namespace', color='red')
+        
+        cls.put('remote_namespace', remote_namespace)
 
-
-        return namespace
+        return remote_namespace
         
         
     @staticmethod
@@ -2075,9 +2086,12 @@ class c:
 
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
+        
+        namespace.update(c.get('remote_modules', {}))
+        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
-        module_names = list(namespace.values())
+
         return namespace
     
     
@@ -2378,7 +2392,7 @@ class c:
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
-                                include_code : bool = True,
+                                include_code : bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
                                 include_docs: bool = True):
@@ -2716,15 +2730,16 @@ class c:
         return stdout
     
     @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = True):
+    def pm2_kill(cls, name:str, verbose:bool = True, pool_match:bool = False):
         output_list = []
         pm2_list = cls.pm2_list()
         kill_list = []
         
         # check if exact match, if so kill it, if not kill all that start with name
+
         exact_match = any([name == module for module in pm2_list])
         
-        if exact_match:
+        if exact_match and not pool_match:
             # kill exact match
             if verbose:
                 cls.print(f'Killing {name}', color='red')
@@ -3821,8 +3836,7 @@ class c:
             return self.helper_functions
         else:
             return self.fns() + self.attributes()
-        
-    
+            
     def blacklist(self) -> List[str]:
         return ['module_name']
     black_fns = blacklist
@@ -4615,6 +4629,30 @@ class c:
         
         return peer
     
+    @classmethod
+    def add_module(cls, module, cache_path='remote_modules'):
+        module = c.connect(module)
+        module_info = module.info
+        remote_modules = c.get(cache_path, {})
+        remote_modules[module] = address
+        c.put(cache_path, remote_modules)
+        return {'msg': module, 'address': address}
+    
+    @classmethod
+    def rm_module(cls, module, cache_path='remote_modules'):
+        remote_modules = c.get(cache_path, {})
+        if module in remote_modules:
+            remote_modules.pop(module)
+            c.put(cache_path, remote_modules)
+            return {'msg': 'Module removed', 'module': module}
+        
+        return {'msg': 'Module not found', 'module': module}
+
+    @classmethod
+    def remote_modules(cls, cache_path='remote_modules'):
+       
+        
+        return c.get(cache_path, {}) 
     
     
     
@@ -5077,7 +5115,6 @@ class c:
                     kwargs = None, 
                     tag = None,
                     tag_seperator= '::',
-                    prefix = 'fn',
                     name=None):
         
         if len(fn.split('.'))>1:
@@ -5087,7 +5124,10 @@ class c:
         kwargs = kwargs if kwargs else {}
         args = args if args else []
         
+        
+
         if name == None:
+            prefix = cls.resolve_module(module).module_path()
             name = f'{prefix}{tag_seperator}{fn}'
     
         if tag != None:

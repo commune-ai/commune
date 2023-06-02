@@ -30,8 +30,8 @@ import traceback
 from loguru import logger
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, Dict
-from .reward import RewardModel
-from .gating import GatingModel
+from reward import RewardModel
+from gating import GatingModel
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
@@ -127,7 +127,7 @@ class neuron:
         cls.add_args( parser )
         return bt.config( parser )
     
-    def __init__( self , config=None, wallet=None, subtensor=None, metagraph=None, netuid=None):      
+    def __init__( self, config = None, subtensor = None, wallet = None):      
         self.config = neuron.config() if config == None else config
         self.check_config( self.config )
         bt.logging( config = self.config, logging_dir = self.config.neuron.full_path )
@@ -136,7 +136,7 @@ class neuron:
         self.subtensor = bt.subtensor ( config = self.config ) if subtensor == None else subtensor
         self.device = torch.device( self.config.neuron.device )
         self.wallet = bt.wallet ( config = self.config ) if wallet == None else wallet
-        self.metagraph = bt.metagraph( netuid = self.config.netuid, network = self.subtensor.network ) if metagraph == None else metagraph
+        self.metagraph = bt.metagraph( netuid = self.config.netuid, network = self.subtensor.network )
         self.wallet.create_if_non_existent()
         self.wallet.reregister( subtensor = self.subtensor, netuid = self.config.netuid )
         self.uid = self.wallet.get_uid( subtensor = self.subtensor, netuid = self.config.netuid )
@@ -712,6 +712,8 @@ class neuron:
         for uid, hotkey in enumerate( self.hotkeys ):
             if hotkey != self.metagraph.hotkeys[ uid ]:
                 self.moving_averaged_scores[ uid ] = 0 #hotkey has been replaced
+            if self.metagraph.validator_permit[ uid ]:
+                self.moving_averaged_scores[ uid ] = 0 # hotkey has validation rights
         if len(self.hotkeys) < len(self.metagraph.hotkeys):
             new_moving_average  = torch.zeros((self.metagraph.n)).to( self.device )
             new_moving_average[:len(self.hotkeys)] = self.moving_averaged_scores
