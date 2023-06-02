@@ -1742,9 +1742,9 @@ class BittensorModule(c.Module):
         return cls.get_subtensor(subtensor).get_current_block()
     
     @classmethod
-    def burn_fee(cls, subtensor=default_network):
+    def burn_fee(cls, subtensor='finney', netuid=default_netuid):
         subtensor = cls.get_subtensor(subtensor)
-        return subtensor.query_subtensor('Burn', None, [3]).value/1e9
+        return subtensor.query_subtensor('Burn', None, [netuid]).value/1e9
 
     
 
