@@ -63,14 +63,13 @@ class CLI(c.Module):
                 fn = args.pop(0)
                 
                 
-                
-        result = getattr(module, fn)
-        if callable(result):
-            result = result(*args, **kwargs)
+        if module != None:
+            result = getattr(module, fn)
+            if callable(result):
+                result = result(*args, **kwargs)
 
-
-        if not isinstance(result, type(None)):
-            self.print(result)
+            if not isinstance(result, type(None)):
+                self.print(result)
     
 
     

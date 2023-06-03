@@ -28,7 +28,7 @@ setup(
     author_email='',
     license='MIT',
     install_requires=install_requires,
-    scripts=['bin/c'],
+    scripts=['bin/c', 'bin/commune'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
