@@ -1,7 +1,5 @@
 
-
 import commune as c
-
 
 class CLI(c.Module):
     """

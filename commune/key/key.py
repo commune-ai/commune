@@ -632,6 +632,7 @@ class Keypair(c.Module):
         elif type(data) is str:
             data = data.encode()
 
+        c.print(self.__dict__)
         if not self.private_key:
             raise ConfigurationError('No private key set to create signatures')
 

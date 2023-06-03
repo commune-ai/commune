@@ -391,6 +391,7 @@ class c:
         Puts a value in the config
         '''
         encrypt =  password != None
+        v = cls.copy(v)
         if encrypt:
             data = cls.encrypt(v, password=password, return_dict=True)
         else:
@@ -429,7 +430,8 @@ class c:
         encrypted = c.is_encrypted(data)
         if encrypted:
             data = cls.decrypt(data, password=password)
-            
+        if isinstance(data, dict):
+            data = data.get('data', data)
         return data
     
     @classmethod
@@ -926,7 +928,7 @@ class c:
                   ip:str =None, 
                   avoid_ports = None,
                   reserve:bool = False, 
-                  random_selection:bool = False) -> int:
+                  random_selection:bool = True) -> int:
         
         '''
         
@@ -1087,6 +1089,15 @@ class c:
             simple_path = cls.compress_name(simple_path, seperator='.')
         return simple_path
     
+    @classmethod
+    def get_module_python_object_paths(cls):
+        module_python_paths = cls.get_module_python_paths()
+        module_python_object_paths = []
+        for path in module_python_paths:
+            module_python_object_paths  += [cls.root_dir+'.'+path.split(cls.root_dir)[-1][1:].replace('/', '.').replace('.py', '')]
+            
+        return module_python_object_paths
+            
     @staticmethod
     def compress_name( name, seperator='.'):
         '''
@@ -1239,6 +1250,8 @@ class c:
             
         module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
         
+        if cls.root_module_class in module_tree:
+            module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
 
         return module_tree
     
@@ -1331,6 +1344,7 @@ class c:
                 if has_config:
                     modules.append(f)
                 else:
+                    # FIX ME
                     f_classes = cls.find_python_classes(f, search=['commune.Module', 'c.Module'])
                     
                     if len(f_classes) > 0:
@@ -1574,7 +1588,90 @@ class c:
     def get_server_info(cls,name:str) -> Dict:
         return cls.local_namespace().get(name, {})
 
+    @classmethod
+    def connect(cls, *args, **kwargs):
+        
+        return_future = kwargs.pop('return_future', False)
+        loop = kwargs.get('loop', cls.get_event_loop())
+        future = cls.async_connect(*args, **kwargs)
+        if return_future:
+            return future
+        else:
+            
+            return loop.run_until_complete(future)
+       
+    @classmethod
+    async def async_connect(cls, 
+                name:str=None, 
+                ip:str=None, 
+                port:int=None , 
+                network : str = 'global',
+                namespace = None,
+                virtual:bool = True, 
+                wait_for_server:bool = False,
+                trials = 3, 
+                verbose: bool = False, 
+                ignore_error:bool = False,
+                **kwargs ):
+    
+        if (name == None and ip == None and port == None):
+            return cls.root_module()
+            
+        if wait_for_server:
+            cls.wait_for_server(name)
+        
+        if namespace == None :
+            namespace = cls.namespace(network, update=False)
+        namespace = cls.copy(namespace)
 
+        # local namespace  
+
+
+
+        if isinstance(name, str):
+      
+            found_modules = []
+
+            if cls.is_address(name):
+                found_modules = [name]
+            
+            else:
+                modules = list(namespace.keys())
+                module_addresses = list(namespace.values())
+                for n in modules + module_addresses:
+                    if name == n:
+                        # we found the module
+                        found_modules = [n]
+                        break
+                    elif name in n:
+                        # get all the modules lol
+                        found_modules += [n]
+                      
+            if len(found_modules)>0:
+                name = cls.choice(found_modules)
+                name = namespace.get(name, name)
+                
+            else:
+                if ignore_error:
+                    return None
+                raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
+            
+
+            c.print('FOUND MODULES',name)  
+
+            port = int(name.split(':')[-1])
+
+                
+            ip = name.split(':')[0]
+
+        assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
+        assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        if verbose:
+            cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
+        client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
+        
+        return client
+     
     @classmethod
     def root_module(cls, name:str='module',
                     timeout:int = 100, 
@@ -1636,84 +1733,7 @@ class c:
             return dict(zip(modules, module_clients))
         return module_clients
 
-    @classmethod
-    def connect(cls, *args, **kwargs):
-        
-        return_future = kwargs.pop('return_future', False)
-        loop = kwargs.get('loop', cls.get_event_loop())
-        future = cls.async_connect(*args, **kwargs)
-        if return_future:
-            return future
-        else:
-            
-            return loop.run_until_complete(future)
-        
-    @classmethod
-    async def async_connect(cls, 
-                name:str=None, 
-                ip:str=None, 
-                port:int=None , 
-                network : str = 'global',
-                namespace = None,
-                virtual:bool = True, 
-                wait_for_server:bool = False,
-                trials = 3, 
-                verbose: bool = False, 
-                ignore_error:bool = False,
-                **kwargs ):
     
-        if (name == None and ip == None and port == None):
-            return cls.root_module()
-        
-        if wait_for_server:
-            cls.wait_for_server(name)
-            
-        namespace = cls.namespace(network, update=False)
-        namespace = cls.copy(namespace)
-
-        # local namespace  
-
-
-
-        if isinstance(name, str):
-      
-            found_modules = []
-
-            if cls.is_address(name):
-                found_modules = [name]
-            
-            else:
-                modules = list(namespace.keys())
-                module_addresses = list(namespace.values())
-                for module_candidate in modules + module_addresses:
-                    if name == module_candidate:
-                        # we found the module
-                        found_modules = [module_candidate]
-                        break
-                    elif module_candidate.startswith(name):
-                        # get all the modules lol
-                        found_modules += [module_candidate]
-                        
-            if len(found_modules)>0:
-                name = cls.choice(found_modules)
-                name = namespace.get(name, name)
-                
-            else:
-                if ignore_error:
-                    return None
-                raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
-            
-
-            port = int(name.split(':')[-1])
-            ip = name.split(':')[0]
-
-        assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
-        assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
-        client= cls.get_client(ip=ip, port=port, virtual=virtual, **kwargs)
-        if verbose:
-            cls.print(f'Successful Connection to {name} on {ip}:{port}', color='yellow')
-        
-        return client
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
         client_class = cls.get_module('commune.server.client.Client')
@@ -1783,9 +1803,14 @@ class c:
                          verbose: bool = False, 
                          update:bool = False,
                          prefix:bool = 'R')-> dict:
+    
+        if update:
+            remote_namespace = {}
+        else:
+            remote_namespace = c.get('remote_namespace', {})   
         
         peer_registry = cls.peer_registry(update=update)  
-        namespace = {}          
+        
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
             
             if isinstance(peer_info, dict):
@@ -1793,12 +1818,13 @@ class c:
                 peer_namespace = peer_info.get('namespace', None)
                 if isinstance(peer_namespace, dict):
                     for name, address in peer_namespace.items():
-                        namespace[name+seperator+peer_name] = address
+                        remote_namespace[name+seperator+peer_name] = address
                 else:
                     cls.print(f'Peer {peer_name} has no namespace', color='red')
+        
+        c.put('remote_namespace', remote_namespace)
 
-
-        return namespace
+        return remote_namespace
         
         
     @staticmethod
@@ -2080,9 +2106,12 @@ class c:
 
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
+        
+        # namespace.update(c.get('remote_modules', {}))
+        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
-        module_names = list(namespace.values())
+        print(f'namespace: {namespace}')
         return namespace
     
     
@@ -2341,7 +2370,7 @@ class c:
         
     def info(self, 
              include_schema: bool = False,
-             include_namespace:bool = False) -> Dict[str, Any]:
+             include_namespace:bool = True) -> Dict[str, Any]:
         whitelist = self.whitelist()
         blacklist = self.blacklist()
         fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
@@ -2360,7 +2389,7 @@ class c:
             info['schema'] = self.schema()
         return info
     
-
+    help = info
 
 
 
@@ -2369,7 +2398,6 @@ class c:
     @classmethod
     def schema(cls, *args,  **kwargs):
         return cls.get_function_schema_map(*args, **kwargs)
-    help = schema
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
@@ -3808,6 +3836,8 @@ class c:
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
     
+
+    
     def whitelist(self, mode='sudo') -> List[str]:
         if self.is_root():
             return self.helper_functions
@@ -3820,8 +3850,9 @@ class c:
     def role2blacklist(self, role='foe') -> Dict:
         return {'foe': []}
     
-    def blacklist(self, mode='sudo') -> List[str]:
-        return []
+    def blacklist(self) -> List[str]:
+        return ['module_name']
+    black_fns = blacklist
 
     @classmethod
     def error(cls, *args, **kwargs):
@@ -4664,7 +4695,7 @@ class c:
         assert port_range[0] < port_range[1], 'Port range must be a list of integers'
                 
         data = dict(port_range =port_range)
-        c.putc('port_range', data)
+        c.put('port_range', data)
         cls.port_range = data['port_range']
         return data['port_range']
     
@@ -4676,7 +4707,7 @@ class c:
 
             
         if port_range == None:
-            port_range = c.getc('port_range', default=cls.default_port_range)
+            port_range = c.get('port_range', default=cls.default_port_range)
             
         if len(port_range) == 0:
             port_range = cls.default_port_range
@@ -4710,6 +4741,30 @@ class c:
         
         return peer
     
+    @classmethod
+    def add_module(cls, module, cache_path='remote_modules'):
+        module = c.connect(module)
+        module_info = module.info
+        remote_modules = c.get(cache_path, {})
+        remote_modules[module] = address
+        c.put(cache_path, remote_modules)
+        return {'msg': module, 'address': address}
+    
+    @classmethod
+    def rm_module(cls, module, cache_path='remote_modules'):
+        remote_modules = c.get(cache_path, {})
+        if module in remote_modules:
+            remote_modules.pop(module)
+            c.put(cache_path, remote_modules)
+            return {'msg': 'Module removed', 'module': module}
+        
+        return {'msg': 'Module not found', 'module': module}
+
+    @classmethod
+    def remote_modules(cls, cache_path='remote_modules'):
+       
+        
+        return c.get(cache_path, {}) 
     
     @classmethod
     async def async_add_peer(cls, 
@@ -5485,23 +5540,6 @@ class c:
     @staticmethod
     def reverse_map(x):
         return {v:k for k,v in x.items()}
-
-    @staticmethod
-    def df2json(dataframe):
-        
-        """
-        Convert a pandas DataFrame to JSON format.
-        
-        Args:
-            dataframe (pandas.DataFrame): The DataFrame to be converted.
-            
-        Returns:
-            str: JSON representation of the DataFrame.
-        """
-        import pandas as pd
-        import json
-        json_data = dataframe.to_json(orient='records')
-        return json_data
 
     @classmethod
     def pd(cls):

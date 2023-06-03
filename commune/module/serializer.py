@@ -113,6 +113,7 @@ class Serializer(commune.Module):
     ################ BIG TORCH LAND ############################
     """
     def torch2bytes(self, data:torch.Tensor)-> bytes:
+        import torch
         if data.requires_grad:
             data = data.detach()
         torch_numpy = np.array(data.cpu().tolist())
