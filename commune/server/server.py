@@ -94,7 +94,6 @@ class Server(ServerServicer, Serializer, c.Module):
         self.authenticate = authenticate
         
         
-        self.set_module_info
         self.ip = ip = ip if ip != None else self.default_ip
         self.port = port = c.resolve_port(port)
         while not self.port_available(ip=ip, port=port):
@@ -125,7 +124,7 @@ class Server(ServerServicer, Serializer, c.Module):
         self.set_stats()
 
         self.exceptions_to_raise = exceptions_to_raise
-
+        self.set_module_info()
     def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
         if loop == None:
             loop = c.get_event_loop()
@@ -136,7 +135,7 @@ class Server(ServerServicer, Serializer, c.Module):
             functions = []
         self.whitelist = list(set(functions + c.helper_functions))
         
-    def get_module_info(self):
+    def set_module_info(self):
         self.module_info = self.module.info()
         self.allowed_functions = self.module_info['functions']
         self.allowed_attributes = self.module_info['attributes']
