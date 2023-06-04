@@ -15,7 +15,7 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
 # DEALINGS IN THE SOFTWARE.
-
+# Logging
 # Imports
 import torch
 import scalecodec
@@ -23,7 +23,7 @@ from retry import retry
 from typing import List, Dict, Union, Optional, Tuple
 from substrateinterface import SubstrateInterface
 from commune.subspace import Balance
-import commune
+import commune as c
 from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
@@ -33,16 +33,21 @@ from commune.subspace.utils import weight_utils
 from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo, custom_rpc_type_registry
 from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
 import streamlit as st
-# Logging
+import json
 from loguru import logger
 logger = logger.opt(colors=True)
-class Subspace(commune.Module):
+
+
+class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
 
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
-
+    network2url_map = {
+        'local': '127.0.0.1:9944',
+        'testnet': '162.157.13.236:9944'
+        }
     
     def __init__( 
         self, 
@@ -65,12 +70,6 @@ class Subspace(commune.Module):
         """
 
         self.set_network( network=network)
-
-
-    network2url_map = {
-        'local': '127.0.0.1:9944',
-        'testnet': '162.157.13.236:9944'
-        }
     @classmethod
     def network2url(cls, network:str) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
@@ -173,34 +172,11 @@ class Subspace(commune.Module):
         uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
         netuid: int = None,
-        key: 'commune.key' = None,
+        key: 'c.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
         prompt:bool = False,
     ) -> bool:
-        r""" Sets the given weights and values on chain for key hotkey account.
-        Args:
-            key (bittensor.key):
-                bittensor key object.
-            netuid (int):
-                netuid of the subent to set weights for.
-            uids (Union[torch.LongTensor, list]):
-                uint64 uids of destination neurons.
-            weights ( Union[torch.FloatTensor, list]):
-                weights to set which must floats and correspond to the passed uids.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true,
-                or returns false if the extrinsic fails to enter the block within the timeout.
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block.
-                If we did not wait for finalization / inclusion, the response is true.
-        """
         netuid = self.resolve_netuid(netuid)
         # First convert types.
         if isinstance( uids, list ):
@@ -216,7 +192,7 @@ class Subspace(commune.Module):
             if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/65535) for v in weight_vals], weight_uids) ):
                 return False
 
-        with commune.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
+        with c.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
             try:
                 with self.substrate as substrate:
                     call = substrate.compose_call(
@@ -234,28 +210,28 @@ class Subspace(commune.Module):
                     response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
                     # We only wait here if we expect finalization.
                     if not wait_for_finalization and not wait_for_inclusion:
-                        commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                        c.print(":white_heavy_check_mark: [green]Sent[/green]")
                         return True
 
                     response.process_events()
                     if response.is_success:
-                        commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                        c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                         logger.print(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
                         return True
                     else:
-                        commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                        commune.print(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
+                        c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                        c.print(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
                         return False
 
             except Exception as e:
-                commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-                commune.status(  'Set weights <red>Failed: </red>' + str(e) )
+                c.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
+                c.status(  'Set weights <red>Failed: </red>' + str(e) )
                 return False
 
         if response.is_success:
-            commune.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
+            c.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
             message = '<green>Success: </green>' + f'Set {len(uids)} weights, top 5 weights' + str(list(zip(uids.tolist()[:5], [round (w,4) for w in weights.tolist()[:5]] )))
-            commune.debug('Set weights:'.ljust(20) +  message)
+            c.debug('Set weights:'.ljust(20) +  message)
             return True
         
         return False
@@ -282,10 +258,10 @@ class Subspace(commune.Module):
     #### Registration ####
     ######################
 
-    def resolve_key(self, key: 'commune.Key') -> 'commune.Key':
+    def resolve_key(self, key: 'c.Key') -> 'c.Key':
         if key == None:
             if not hasattr(self, 'key'):
-                self.key = commune.key()
+                self.key = c.key()
             key = self.key
         
         return key
@@ -302,12 +278,13 @@ class Subspace(commune.Module):
     
     def register (
         self,
+        network = 'commune',
         name: str = None,
         context: str = b'',
         ip: str = None,
         port: int = None,
         netuid :int = None ,
-        key: 'commune.Key' = None,
+        key: 'c.Key' = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         prompt: bool = False,
@@ -319,7 +296,7 @@ class Subspace(commune.Module):
 
         r""" Registers the wallet to chain.
         Args:
-            netuid (int):
+            network (int):
                 The netuid of the subnet to register on.
             wait_for_inclusion (bool):
                 If set, waits for the extrinsic to enter a block before returning true, 
@@ -351,7 +328,7 @@ class Subspace(commune.Module):
         
         
         key = self.resolve_key(key)
-        netuid = self.resolve_netuid(netuid)
+        network = self.resolve_network(network)
         # if  self.is_key_registered(key=key, netuid=netuid):
         #     self.print(":cross_mark: [red]Failed[/red]: error: [bold white]key:[/bold white]{} is already registered on [bold white]subnet:{}[/bold white]".format(key, netuid))
 
@@ -370,7 +347,7 @@ class Subspace(commune.Module):
         context = context.encode('utf-8')
         
         if not self.subnet_exists( netuid ):
-            commune.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
+            c.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
             return False
 
 
@@ -378,7 +355,7 @@ class Subspace(commune.Module):
         # Attempt rolling registration.
         attempts = 1
         while True:
-            commune.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
+            c.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
 
 
             with self.substrate as substrate:
@@ -391,14 +368,14 @@ class Subspace(commune.Module):
                         'ip': ip,
                         'port': port,
                         'name': name,
-                        'context': context,
+                        'network': network,
                     } 
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
-                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
                     return True
                 
                 # process if registration successful, try again if pow is still valid
@@ -406,31 +383,31 @@ class Subspace(commune.Module):
                 if not response.is_success:
                     if 'key is already registered' in response.error_message:
                         # Error meant that the key is already registered.
-                        commune.print(f":white_heavy_check_mark: [green]Already Registered on [bold]subnet:{netuid}[/bold][/green]")
+                        c.print(f":white_heavy_check_mark: [green]Already Registered on [bold]subnet:{netuid}[/bold][/green]")
                         return True
 
-                    commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                    c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
                 
                 # Successful registration, final check for neuron and pubkey
                 else:
-                    commune.print(":satellite: Checking Balance...")
+                    c.print(":satellite: Checking Balance...")
                     is_registered = self.is_key_registered( key=key,netuid = netuid )
                     if is_registered:
-                        commune.print(":white_heavy_check_mark: [green]Registered[/green]")
+                        c.print(":white_heavy_check_mark: [green]Registered[/green]")
                         return True
                     else:
                         # neuron not found, try again
-                        commune.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
+                        c.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
                         continue
         
                 
             if attempts < max_allowed_attempts:
                 #Failed registration, retry pow
                 attempts += 1
-                commune.print( ":satellite: Failed registration, retrying pow ...({}/{})".format(attempts, max_allowed_attempts))
+                c.print( ":satellite: Failed registration, retrying pow ...({}/{})".format(attempts, max_allowed_attempts))
             else:
                 # Failed to register after max attempts.
-                commune.print( "[red]No more attempts.[/red]" )
+                c.print( "[red]No more attempts.[/red]" )
                 return False 
 
     ##################
@@ -443,7 +420,7 @@ class Subspace(commune.Module):
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         prompt: bool = False,
-        key: 'commune.Key' =  None,
+        key: 'c.Key' =  None,
         keep_alive: bool = True
     ) -> bool:
         key = self.resolve_key(key)
@@ -452,7 +429,7 @@ class Subspace(commune.Module):
         # Validate destination address.
         print(dest)
         if not is_valid_address_or_public_key( dest ):
-            commune.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
+            c.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
             return False
 
         if isinstance( dest, bytes):
@@ -466,12 +443,12 @@ class Subspace(commune.Module):
             transfer_balance = amount
 
         # Check balance.
-        with commune.status(":satellite: Checking Balance..."):
+        with c.status(":satellite: Checking Balance..."):
             account_balance = self.get_balance( key.ss58_address )
             # check existential deposit.
             existential_deposit = self.get_existential_deposit()
 
-        with commune.status(":satellite: Transferring..."):
+        with c.status(":satellite: Transferring..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='Balances',
@@ -485,7 +462,7 @@ class Subspace(commune.Module):
                 try:
                     payment_info = substrate.get_payment_info( call = call, keypair = key )
                 except Exception as e:
-                    commune.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
+                    c.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
                     payment_info = {
                         'partialFee': 2e7, # assume  0.02 Tao 
                     }
@@ -498,7 +475,7 @@ class Subspace(commune.Module):
 
         # Check if we have enough balance.
         if account_balance < (transfer_balance + fee + existential_deposit):
-            commune.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
+            c.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
             return False
 
         # Ask before moving on.
@@ -506,7 +483,7 @@ class Subspace(commune.Module):
             if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, key.ss58_address, dest, fee )):
                 return False
 
-        with commune.status(":satellite: Transferring..."):
+        with c.status(":satellite: Transferring..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='Balances',
@@ -521,22 +498,22 @@ class Subspace(commune.Module):
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
-                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
                     return True
 
                 # Otherwise continue with finalization.
                 response.process_events()
                 if response.is_success:
-                    commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                    c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                     block_hash = response.block_hash
-                    commune.print("[green]Block Hash: {}[/green]".format( block_hash ))
+                    c.print("[green]Block Hash: {}[/green]".format( block_hash ))
                 else:
-                    commune.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                    c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
         if response.is_success:
-            with commune.status(":satellite: Checking Balance..."):
+            with c.status(":satellite: Checking Balance..."):
                 new_balance = self.get_balance( key.ss58_address )
-                commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+                c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
                 return True
         
         return False
@@ -565,7 +542,7 @@ class Subspace(commune.Module):
         ip: str, 
         port: int, 
         netuid: int = None,
-        key: 'commune.Key' =  None,
+        key: 'c.Key' =  None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
@@ -606,7 +583,7 @@ class Subspace(commune.Module):
             'key': wallet.coldkeypub.ss58_address,
         }
 
-        with commune.info(":satellite: Checking Axon..."):
+        with c.info(":satellite: Checking Axon..."):
             neuron = self.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
             neuron_up_to_date = not neuron.is_null and params == {
                 'ip': ip_to_int(neuron.neuron_info.ip),
@@ -619,7 +596,7 @@ class Subspace(commune.Module):
         output['key'] = key.ss58_address
 
         if neuron_up_to_date:
-            commune.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
+            c.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
                                         f"[green not bold]- coldkey: [/green not bold][white not bold]{output['key']}[/white not bold] \n"
                                         f"[green not bold]- Status: [/green not bold] |"
                                         f"[green not bold] ip: [/green not bold][white not bold]{int_to_ip(output['ip'])}[/white not bold] |"
@@ -638,7 +615,7 @@ class Subspace(commune.Module):
             )):
                 return False
 
-        with commune.status(":satellite: Serving neuron on: [white]{}:{}[/white] ...".format(self.network, netuid)):
+        with c.status(":satellite: Serving neuron on: [white]{}:{}[/white] ...".format(self.network, netuid)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='SubspaceModule',
@@ -650,12 +627,12 @@ class Subspace(commune.Module):
                 if wait_for_inclusion or wait_for_finalization:
                     response.process_events()
                     if response.is_success:
-                        commune.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]{}[/bold white]'.format(
+                        c.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]{}[/bold white]'.format(
                             json.dumps(params, indent=4, sort_keys=True)
                         ))
                         return True
                     else:
-                        commune.print(':cross_mark: [green]Failed to Serve neuron[/green] error: {}'.format(response.error_message))
+                        c.print(':cross_mark: [green]Failed to Serve neuron[/green] error: {}'.format(response.error_message))
                         return False
                 else:
                     return True
@@ -665,14 +642,14 @@ class Subspace(commune.Module):
             self,
             key_ss58: Optional[str] = None,
             amount: Union[Balance, float] = None, 
-            key: 'commune.Key' = None,
+            key: 'c.Key' = None,
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
             prompt: bool = False,
         ) -> bool:
         r""" Adds the specified amount of stake to passed hotkey uid.
         Args:
-            wallet (commune.wallet):
+            wallet (c.wallet):
                 Bittensor wallet object.
             hotkey_ss58 (Optional[str]):
                 ss58 address of the hotkey account to stake to
@@ -705,7 +682,7 @@ class Subspace(commune.Module):
         # Get current stake
         old_stake = self.get_stake_for_key( key_ss58=key.ss58_address )
 
-        # Convert to commune.Balance
+        # Convert to c.Balance
         if amount == None:
             # Stake it all.
             staking_balance = Balance.from_token( old_balance.tao )
@@ -722,7 +699,7 @@ class Subspace(commune.Module):
 
         # Check enough to stake.
         if staking_balance > old_balance:
-            commune.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, wallet.name))
+            c.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, wallet.name))
             return False
                 
         # Ask before moving on.
@@ -731,7 +708,7 @@ class Subspace(commune.Module):
                 return False
 
         try:
-            with commune.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+            with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
 
                 with self.substrate as substrate:
                     call = substrate.compose_call(
@@ -749,27 +726,27 @@ class Subspace(commune.Module):
             if response: # If we successfully staked.
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
-                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
                     return True
 
-                commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
+                c.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
                     new_balance = self.get_balance( address = key.ss58_address )
                     block = self.get_current_block()
                     new_stake = self.get_stake_for_key(key.ss58_address,block=block) # Get current stake
 
-                    commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-                    commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                    c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                    c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
                     return True
             else:
-                commune.print(":cross_mark: [red]Failed[/red]: Error unknown.")
+                c.print(":cross_mark: [red]Failed[/red]: Error unknown.")
                 return False
 
         except NotRegisteredError as e:
-            commune.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
+            c.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
             return False
         except StakeError as e:
-            commune.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
+            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
             return False
 
 
@@ -779,14 +756,14 @@ class Subspace(commune.Module):
     def unstake (
             self,
             amount: Union[Balance, float] = None, 
-            key: 'commune.Key' = None,
+            key: 'c.Key' = None,
             wait_for_inclusion:bool = True, 
             wait_for_finalization:bool = False,
             prompt: bool = False,
         ) -> bool:
         r""" Removes stake into the wallet coldkey from the specified hotkey uid.
         Args:
-            wallet (commune.wallet):
+            wallet (c.wallet):
                 commune wallet object.
             key_ss58 (Optional[str]):
                 ss58 address of the hotkey to unstake from.
@@ -806,11 +783,11 @@ class Subspace(commune.Module):
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
-        with commune.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
+        with c.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
             old_balance = self.get_balance( key.ss58_address )        
             old_stake = self.get_stake_for_key( key_ss58 = key.ss58_address)
 
-        # Convert to commune.Balance
+        # Convert to c.Balance
         if amount == None:
             # Unstake it all.
             unstaking_balance = old_stake
@@ -822,7 +799,7 @@ class Subspace(commune.Module):
         # Check enough to unstake.
         stake_on_uid = old_stake
         if unstaking_balance > stake_on_uid:
-            commune.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from key: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.ss58_address))
+            c.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from key: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.ss58_address))
             return False
         
         # Ask before moving on.
@@ -832,7 +809,7 @@ class Subspace(commune.Module):
 
         
         try:
-            with commune.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
+            with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
 
                 with self.substrate as substrate:
@@ -856,25 +833,25 @@ class Subspace(commune.Module):
             if response: # If we successfully unstaked.
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
-                    commune.print(":white_heavy_check_mark: [green]Sent[/green]")
+                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
                     return True
 
-                commune.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                with commune.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
+                c.print(":white_heavy_check_mark: [green]Finalized[/green]")
+                with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
                     new_balance = self.get_balance( address = key.ss58_address )
                     new_stake = self.get_stake_for_key( key_ss58 = key.ss58_address ) # Get stake on hotkey.
-                    commune.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-                    commune.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                    c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+                    c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
                     return True
             else:
-                commune.print(":cross_mark: [red]Failed[/red]: Error unknown.")
+                c.print(":cross_mark: [red]Failed[/red]: Error unknown.")
                 return False
 
         except NotRegisteredError as e:
-            commune.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
+            c.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
             return False
         except StakeError as e:
-            commune.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
+            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
             return False
 
     ########################
@@ -970,10 +947,6 @@ class Subspace(commune.Module):
     #### Account functions ###
     ##########################
 
-    """ Returns the total stake held on a coldkey across all hotkeys including delegates"""
-    def get_total_stake_for_key( self, ss58_address: str, block: Optional[int] = None ) -> Optional['Balance']:
-        return Balance.from_nano( self.query_subspace( 'TotalKeyStake', block, [ss58_address] ).value )
-
     """ Returns the stake under a coldkey - hotkey pairing """
     def get_stake_for_key( self, key_ss58: str, block: Optional[int] = None ) -> Optional['Balance']:
         return Balance.from_nano( self.query_subspace( 'Stake', block, [key_ss58] ).value )
@@ -984,16 +957,7 @@ class Subspace(commune.Module):
 
     """ Returns the neuron information for this key account """
     def get_neuron_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
-        result = self.query_subspace( 'Axons', block, [key_ss58 ] )        
-        if result != None:
-            return AxonInfo(
-                ip = commune.utils.networking.ip_from_int( result.value.ip ),
-                port = result.value.port,
-            )
-        else:
-            return None
-
-
+        result = self.query_subspace( 'Neurons', block, [key_ss58] )        
     ###########################
     #### Global Parameters ####
     ###########################
@@ -1007,9 +971,6 @@ class Subspace(commune.Module):
         """
         return self.get_current_block()
 
-    def total_issuance (self, block: Optional[int] = None ) -> 'Balance':
-        return Balance.from_nano( self.query_subspace( 'TotalIssuance', block ).value )
-
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
@@ -1022,11 +983,11 @@ class Subspace(commune.Module):
 
     def subnet_exists( self, netuid: int = None, block: Optional[int] = None ) -> bool:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace( 'NetworksAdded', block, [netuid] ).value  
+        return self.query_subspace( 'SubnetN', block, [netuid] ).value  
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
         subnet_netuids = []
-        result = self.query_map_subspace( 'NetworksAdded', block )
+        result = self.query_map_subspace( 'SubnetN', block )
         if result.records:
             for netuid, exists in result:  
                 if exists:
@@ -1140,7 +1101,7 @@ class Subspace(commune.Module):
         return [self.neuron_for_uid( uid, netuid ) for uid, netuid in list(zip(uids, netuids))]
 
 
-    def neuron_for_wallet( self, key: 'commune.Key', netuid = int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
+    def neuron_for_wallet( self, key: 'c.Key', netuid = int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
         return self.get_neuron_for_pubkey_and_subnet ( key.ss58_address, netuid = netuid, block = block )
 
     def neuron_for_uid( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
@@ -1234,7 +1195,7 @@ class Subspace(commune.Module):
                     )
             result = make_substrate_call_with_retry()
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
-            commune.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+            c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
             return Balance(1000)
         return Balance( result.value['data']['free'] )
 
@@ -1298,7 +1259,7 @@ class Subspace(commune.Module):
                      keys: List[str]=['Alice', 'Bob', 'Chris', 'Sal', 'Billy', 'Jerome']):
         key_map = {}
         for k in keys:
-            key_map[k] = commune.key(k)
+            key_map[k] = c.key(k)
             
         return key_map
     @property
@@ -1354,7 +1315,7 @@ class Subspace(commune.Module):
         
         keys = cls.test_keys(['Alice', 'Billy', 'Bob'])
         for name, key in keys.items():
-            subspace.register(key=key, netuid=1, ip=commune.external_ip(), port=8000, name=name)
+            subspace.register(key=key, netuid=1, ip=c.external_ip(), port=8000, name=name)
             
         neurons = subspace.neurons(netuid=1)
         for key in keys.values():
@@ -1362,11 +1323,11 @@ class Subspace(commune.Module):
         
         # from substrateinterface import Keypair
 
-        # key = commune.key('Alice')
-        # st.write(subspace.get_balance(commune.key('Sal').public_key))
-        # subspace.transfer(key=key, dest=commune.key('Sal').public_key, amount=10000000)
+        # key = c.key('Alice')
+        # st.write(subspace.get_balance(c.key('Sal').public_key))
+        # subspace.transfer(key=key, dest=c.key('Sal').public_key, amount=10000000)
         
-        # keys = [commune.key(str(i)) for i in ['Sal', 'Billy', 'Alice', 'Bob', 'Jerome']]
+        # keys = [c.key(str(i)) for i in ['Sal', 'Billy', 'Alice', 'Bob', 'Jerome']]
         
         # subnets = subspace.get_subnets()
    
@@ -1381,12 +1342,12 @@ class Subspace(commune.Module):
     @classmethod
     def sandbox(cls):
         self = cls()
-        key = commune.key('fam5')
+        key = c.key('fam5')
         # # print(self.get_balance(key.public_key))
-        # # self.transfer(key=key, dest=commune.key('billy').public_key, amount=10000)
+        # # self.transfer(key=key, dest=c.key('billy').public_key, amount=10000)
 
         # self.register(key=key, 
-        #                 ip=commune.external_ip(), 
+        #                 ip=c.external_ip(), 
         #                 port=8000, 
         #                 name='fam5',
         #                 netuid=0,

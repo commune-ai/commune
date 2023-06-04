@@ -6,64 +6,97 @@ from typing import Union, List, Any, Dict
 import commune as c
 import json
 # class OpenAILLM(c.Module):
-default_prompt = """
-Predict the topk percent for the next token 
-params:(tokenizer={tokenizer}, k={k}, text: {text}) 
-Output a dict of (token:str, score:int) and do it for 100 tokens.
-"""
+
 
 class OpenAILLM(c.Module):
+    
+    
+    
     def __init__(self,
-                 model: str = "text-davinci-003",
+                model: str = "text-davinci-003",
+                prompt: str = None,
                 temperature: float=0.9,
-                max_tokens: int=10,
+                max_tokens: int=1000,
                 top_p: float=1.0,
                 frequency_penalty: float=0.0,
                 presence_penalty: float=0.0,
                 tokenizer: str = None,
-                prompt: str = None,
-                api: str = 'OPENAI_API_KEY'
+                api: str = 'OPENAI_API_KEY',
+                stats:dict = None
                 ):
-        self.set_api(api)
+        self.set_llm(api=api)
         self.set_prompt(prompt)
         self.set_tokenizer(tokenizer)
+        self.set_stats(stats)
+        self
+        
+        self.params  = dict(
+                 model =model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+                frequency_penalty=frequency_penalty,
+                presence_penalty=presence_penalty,
+        )
+        
+        
      
-    
+    def set_stats(self, stats):
+        if stats == None:
+            stats = {}
+        assert isinstance(stats, dict)
+        self.stats = stats 
+        
     def set_api(self, api: str = None) -> None:
-        openai.api_key = os.getenv(api, None)
-        
-        if isinstance(api, str) and openai.api_key is None:
-            openai.api_key = api
-        assert openai.api_key is not None, "OpenAI API key not found."
+        openai.api_key = os.getenv(api, api)
 
-    def forward(self,prompt:str=None,
-                params: dict = None,
-                return_text: bool = False,
-                verbose: bool = True,
-                **kwargs) -> str:
         
-        
-        if 'input_ids' in kwargs: 
-            kwargs['text'] = self.decode_tokens(kwargs.pop('input_ids'))
-        prompt  = prompt if prompt != None else self.prompt
+    def resolve_prompt(self, prompt=None, **kwargs):
+        if prompt == None:
+            prompt = self.prompt
+        for var in self.prompt_variables:
+            assert var in kwargs
+        assert isinstance(prompt, str)
         prompt = prompt.format(**kwargs)
-        params = params if params != None else self.params
-        if verbose:
-            c.print(f'Running OpenAI LLM with params:', params, color='purple')
-            c.print(f" PROMPT: {prompt}", color='yellow')
+        return prompt
+    
+    
+    def resolve_params(self, params=None, **kwargs):
+        if params == None:
+            params = self.params
+        elif isinstance(params, dict):
+            params = {**params, **kwargs}
+        return params
+    
         
+    prompt = """
+        Return the following response to the Question as a JSON Dictionary
+        Q (str):
+        {x}
+        A (JSON):
+        """
+        
+    def forward(self,
+                text = None,
+                params = None,
+                prompt:str=None,
+                text_only:bool = False,
+                **kwargs) -> str:
+        params = self.resolve_params(params)
+        prompt = self.resolve_prompt(text=text, **kwargs)
         response = openai.Completion.create(
             prompt=prompt, 
             **params
         )
-        output_text = response['choices'][0]['text']
         
-        if verbose:
-            c.print('Result: ', output_text, 'green')
-        if return_text:
-            return output_text
-
-        return {'text': output_text}
+        
+        # update token stats
+        for k,v in response['usage'].items():
+            self.stats[k] = self.stats.get(k, 0) + v
+        
+        if text_only:
+            return response['choices'][0]['text']
+        return response
     
     
     def set_prompt(self, prompt: str):
@@ -73,13 +106,7 @@ class OpenAILLM(c.Module):
         self.prompt = prompt
         assert isinstance(self.prompt, str), "Prompt must be a string"
         self.prompt_variables = self.get_prompt_variables(self.prompt)
-    
-    prompt = """
-        Predict the topk percent for the next token 
-        params:(tokenizer={tokenizer}, k={k}, text: {text}) 
-        Output a dict of (token:str, score:int) and do it for 100 tokens.
-        """
-        
+
     @staticmethod   
     def get_prompt_variables(prompt):
         variables = []

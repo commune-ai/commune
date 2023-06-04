@@ -22,7 +22,9 @@ class CLI(c.Module):
 
         fn = None
         module = None
-        if len(args)> 0:
+        if len(args) == 0:
+            result = c.schema()
+        elif len(args)> 0:
             
             
 
@@ -54,17 +56,20 @@ class CLI(c.Module):
                     else: 
                         raise Exception(f'No module, function or server found for {args[0]}')
             
-        if fn == None:
-            if len(args) == 0:
-                fn = self.default_fn 
-            else: 
-                fn = args.pop(0)
+            if fn == None:
+                if len(args) == 0:
+                    fn = self.default_fn 
+                else: 
+                    fn = args.pop(0)
+                    
+                    
+                    
+            result = getattr(module, fn)
+            if callable(result):
+                result = result(*args, **kwargs)
                 
-                
-                
-        result = getattr(module, fn)
-        if callable(result):
-            result = result(*args, **kwargs)
+        else:
+            raise Exception ('No module, function or server found for {args[0]}')
 
 
         if not isinstance(result, type(None)):

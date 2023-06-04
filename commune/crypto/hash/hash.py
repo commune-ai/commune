@@ -1,14 +1,15 @@
 
 
 import commune
-from web3.main import Web3
+
 
 class Hash(commune.Module):
 
     @classmethod
-    def hash(cls, x, mode: str='keccak',*args,**kwargs):
+    def hash(cls, x, mode: str='sha256',*args,**kwargs):
         x = cls.python2str(x)
         if mode == 'keccak':
+            from web3.main import Web3
             hash_output = Web3.keccak(text=x, *args, **kwargs)
         
             return hash_output.hex()

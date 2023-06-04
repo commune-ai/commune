@@ -11,42 +11,14 @@ class Dashboard(commune.Module):
 
     
     def load_state(self):
-        self.local_namespace = commune.local_namespace()
-        self.servers = list(self.local_namespace.keys())
-        for peer in self.servers:
-            if peer not in self.local_namespace:
-                self.local_namespace[peer] = commune.connect(peer).server_stats
-        
+        self.namespace = commune.namespace()
+        self.servers = list(self.namespace.keys())
         self.module_tree = commune.module_tree()
         self.module_list = ['module'] + list(self.module_tree.keys())
         sorted(self.module_list)
         
     
-       
-    @classmethod
-    def add_peer(cls, peer_address:str):
-        peer_registry = cls.get_json('peer_registry', default={})
-        peer=commune.connect(peer_address, timeout=1)
-        
-        peer_local_namespace = peer.local_namespace()
-        st.write(peer_local_namespace)
-        peer_registry[peer_address] = peer_local_namespace
-        
-        cls.put_json('peer_registry', peer_registry)
-    
-    @classmethod
-    def rm_peer(cls, peer_address: str):
-        peer_registry = cls.get_json('peer_registry', default={})
-        peer_registry.pop(peer_address, None)        
-        cls.put_json('peer_registry', peer_registry)
-       
-    @classmethod
-    def ls_peers(cls):
-        peer_registry = cls.get_json('peer_registry', default={})
-        return list(peer_registry.keys())
-      
-    def peers(self):
-        return list(self.get_json('peer_registry', default={}).keys())
+
 
     def streamlit_module_browser(self):
 
@@ -54,35 +26,25 @@ class Dashboard(commune.Module):
         
    
         
-        self.module_info = dict(
-            path = commune.simple2path(self.selected_module),
-            config = commune.simple2config(self.selected_module),
-            module = commune.simple2object(self.selected_module),
-        )
-        self.module_name = self.module_info['config']['module']
         
-        st.write(f'## {self.module_name} ({self.selected_module})')
+        st.write(f'## {self.module_name}')
         
         self.streamlit_launcher()
         
         
         with st.expander(f'Module Function Info', False):
-            st.write(self.module_info['function_info_map'])
+            st.write(self.module.schema)
    
 
-        # # st.write(function_map['__init__'])
-        # with st.expander('Module Function Schema',False):
-        #     st.write(function_map)
-        # with st.expander('Info'):
-        #     st.write(self.module_info)
             
 
     
     def streamlit_sidebar(self):
         with st.sidebar:  
                       
-            self.selected_module = st.selectbox('Module List',self.module_list, 0)   
-        
+            self.module_name = st.selectbox('Module List',self.module_list, 0)   
+            self.module = commune.module(self.module_name)
+
                 
             self.streamlit_peers()
 
@@ -120,7 +82,7 @@ class Dashboard(commune.Module):
     def streamlit_server_info(self):
         
         
-        for peer_name, peer_info in self.local_namespace.items():
+        for peer_name, peer_info in self.namespace.items():
             with st.expander(peer_name, True):
                 peer_info['address']=  f'{peer_info["ip"]}:{peer_info["port"]}'
                 st.write(peer_info)
@@ -138,10 +100,8 @@ class Dashboard(commune.Module):
         module = commune.connect(module)
         peer_info = module.peer_info()
         
-        # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
-        # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
-        function_info_map = self.module_info['function_info_map'] = self.module_info['module'].get_function_info_map(include_module=False)
-        fn_name = fn
+        function_info_map = self.module.function_info_map()
+        fn_name = fn_name
         fn_info = function_info_map[fn_name]
         
         kwargs = {}
@@ -151,7 +111,7 @@ class Dashboard(commune.Module):
         cols = st.columns([2,1,4,4])
         launch_col = cols[0]
         kwargs_cols = cols[2:]
-        
+        st.write(function_info_map)
         with launch_col:
        
             name = st.text_input('**Name**', self.module_name) 
@@ -165,11 +125,7 @@ class Dashboard(commune.Module):
             serve = True
             launch_button = st.button('Launch Module')  
             
-            
-        fn_info['default'].pop('self', None)
-        fn_info['default'].pop('cls', None)
         
-            
         # kwargs_cols[0].write('## Module Arguments')
         for i, (k,v) in enumerate(fn_info['default'].items()):
             
@@ -209,7 +165,7 @@ class Dashboard(commune.Module):
                 
                 
             launch_kwargs = dict(
-                module = self.selected_module,
+                module = self.module,
                 name = name,
                 tag = tag,
                 mode = mode,
@@ -224,9 +180,10 @@ class Dashboard(commune.Module):
     def streamlit_launcher(self):
         # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
         # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
-        function_info_map = self.module_info['function_info_map'] = self.module_info['module'].get_function_info_map(include_module=False)
+        module_schema = self.module.schema()
+        st.write(module_schema)
         fn_name = '__init__'
-        fn_info = function_info_map[fn_name]
+        fn_info = module_schema[fn_name]
         
         init_kwarg = {}
         cols = st.columns([3,1,6])
@@ -249,6 +206,7 @@ class Dashboard(commune.Module):
             serve = True
             launch_button = st.button('Launch Module')  
             
+        st.write(fn_info)
             
         fn_info['default'].pop('self', None)
         fn_info['default'].pop('cls', None)
@@ -293,7 +251,7 @@ class Dashboard(commune.Module):
                 
                 
             launch_kwargs = dict(
-                module = self.selected_module,
+                module = self.module,
                 name = name,
                 tag = tag,
                 mode = mode,
@@ -444,16 +402,8 @@ class Dashboard(commune.Module):
         
         self.streamlit_sidebar()
         tabs = st.tabs(['Module Launcher', 'Peers', 'Playground', 'Resources'])
-        with tabs[2]:
-            self.streamlit_playground()
-        with tabs[1]:
-            self.streamlit_server_info()
-        with tabs[0]:
-            self.streamlit_module_browser()
-        with tabs[3]:
-            self.streamlit_resource_browser()
 
-        
+        self.streamlit_module_browser()
 
 
         

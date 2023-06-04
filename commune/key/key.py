@@ -99,6 +99,7 @@ class Keypair(c.Module):
                  refresh: bool = False,
                  save: bool = True,
                  load: bool = True,
+                 override: bool = False,
                  **kwargs
                  ):
         params = self.locals2kwargs(locals())
@@ -124,6 +125,7 @@ class Keypair(c.Module):
                  save: bool = False,
                  load: bool = False,            
                  crypto_type: int = 'sr25519',
+                 override: bool = False,
                  **kwargs):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -137,9 +139,16 @@ class Keypair(c.Module):
         seed_hex: hex string of seed
         crypto_type: Use 'sr25519' or 'ed25519' cryptography for generating the Keypair
         """
+            
+            
+
         self.path = path
         self.password = password
-        
+
+        print(path,'bro')
+        if load:
+            return self.load(path=path, password=password)
+            
         if path != None and load and not refresh:
             if self.key_exists(path):
                 return self.load(path=path, password=password)
@@ -151,10 +160,9 @@ class Keypair(c.Module):
             and seed_hex == None and mnemonic == None and uri == None:
             mnemonic = self.generate_mnemonic()
             
-        if seed:
+        if seed != None:
             if isinstance(seed, str):
                 seed_hex = self.hash(seed)
-
         if seed_hex != None: 
             kwargs = self.create_from_seed(seed_hex, return_dict=True)
             self.__dict__.update(kwargs)
@@ -187,7 +195,7 @@ class Keypair(c.Module):
 
             if self.crypto_type == 'sr25519':
                 if len(self.private_key) != 64:
-                    raise ValueError('Secret key should be 64 bytes long')
+                    raise ValueError(f'Secret key should be 64 bytes long {self.private_key}')
                 if not public_key:
                     self.public_key = sr25519.public_from_secret_key(self.private_key)
 
@@ -212,6 +220,7 @@ class Keypair(c.Module):
             if not self.ss58_address:
                 self.ss58_address = ss58_encode(self.public_key, ss58_format=self.ss58_format)
         
+        c.print(self.ss58_address,  'BRO')
         if save:
             self.save(path=self.path, password=self.password)
     
@@ -228,7 +237,9 @@ class Keypair(c.Module):
         self = cls(path=path, password=password, save=save, load=load,refresh=refresh, **kwargs)
         
         keys = cls.ls_keys()
-        return {'success': True, 'message': f'Key {path} added', 'keys': keys}
+        return {'success': True, 
+                'message': f'Key {path}::{self.ss58} added', 
+                'keys': keys}
         
         
     @classmethod
@@ -240,9 +251,36 @@ class Keypair(c.Module):
         return {'success': True, 'message': f'Key {path} added', 'keys': keys}
         
     @classmethod
-    def get_key(cls, path, password=None, **kwargs):
-        self = cls(path=path, password=password, **kwargs)
+    def get_key(cls, path, password=None, load=True, **kwargs):
+        self = cls(path=path, password=password, load=load, **kwargs)
         return self
+
+    @staticmethod
+    def mnemonic_from_private_key(private_key):
+        """
+        Generates a mnemonic from a given private key in Substrate.
+
+        Args:
+            private_key (bytes): The private key as bytes.
+
+        Returns:
+            str: The generated mnemonic.
+        """
+        import bip39 
+
+        # Generate the mnemonic from the private key
+        mnemonic = bip39.mnemonic_from_entropy(private_key.hex())
+
+        return mnemonic
+
+    @classmethod
+    def get_address(cls, path, **kwargs):
+        self = cls.get_key(path, load=True)
+        return self.ss58_address
+    @classmethod
+    def key2address(cls):
+        return {k:cls.get_address(k) for k in cls.keys()}
+            
     
 
     @classmethod
@@ -618,8 +656,18 @@ class Keypair(c.Module):
                 'ss58_address': self.ss58_address,
             }
         return signature
-
-    def verify(self, data: Union[ScaleBytes, bytes, str],
+    
+    
+    @classmethod
+    def get_signer(cls, data:dict, return_ss58:bool = True) -> str:
+        assert cls.verify(data)
+        
+        if return_ss58:
+            return ss58_encode(data['public_key'])
+        return data['public_key']
+        
+    @classmethod
+    def verify(cls, data: Union[ScaleBytes, bytes, str],
                signature: Union[bytes, str] = None,
                public_key: str = None,
                crypto_type:str = 'sr25519', 
@@ -641,16 +689,17 @@ class Keypair(c.Module):
             assert 'data' in data, "If no signature is provided, data should be a dict with 'data' key"
             assert 'signature' in data
             assert 'public_key' in data
+            
             public_key = data['public_key']
             signature = data['signature']
             data = data['data']
         if isinstance(signature, str):
             signature = bytes.fromhex(signature)
-            
-        data = self.python2str(data)
-        
-        if public_key == None:
-            public_key = self.public_key.hex()
+        if isinstance(public_key, str):
+            public_key = bytes.fromhex(public_key)
+        data = c.python2str(data)
+        assert public_key != None
+        import streamlit as st
             
         if type(data) is ScaleBytes:
             data = bytes(data.data)
@@ -676,7 +725,7 @@ class Keypair(c.Module):
         else:
             raise ConfigurationError("Crypto type not supported")
 
-        verified = crypto_verify_fn(signature, data, self.public_key)
+        verified = crypto_verify_fn(signature, data, public_key)
 
         if not verified:
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
@@ -685,6 +734,32 @@ class Keypair(c.Module):
 
         return verified
 
+
+
+    def resolve_encryption_password(self, password):
+        if password is None:
+            if self.private_key is None:
+                raise ConfigurationError("No private key set")
+            password = self.private_key.hex()
+        
+        assert type(password) is str, "Password should be a string"
+        return password
+    
+    
+    def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        password = self.resolve_encryption_password(password)
+        encrypted_data = c.encrypt(data=data, password=password)
+        return encrypted_data
+
+    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        password = self.resolve_encryption_password(password)
+        encrypted_data = c.decrypt(data=data, password=password)
+        return encrypted_data
+
+
+    def encrypt_key(cls, path):
+        key_state = cls.load_key(path)
+        cls.save_key()
     def encrypt_message(
         self, message: Union[bytes, str], recipient_public_key: bytes, nonce: bytes = secrets.token_bytes(24),
     ) -> bytes:
@@ -739,19 +814,33 @@ class Keypair(c.Module):
         else:
             return '<Keypair (public_key=0x{})>'.format(self.public_key.hex())
             
+    @classmethod
+    def blacklist(cls):
+        return ['mnemonic', 'seed_hex', 'private_key', 'password']
     
     def state_dict(self, password: str = None ) -> dict:
-        state_dict = c.copy({'data': self.__dict__, 'encrypted': False}   )
-        for k,v in state_dict['data'].items():
+        state_dict =  self.copy(self.__dict__)
+        for k,v in state_dict.items():
             if type(v)  in [bytes]:
-                state_dict['data'][k] = v.hex()
-                
-        state_dict['data'] = json.dumps(state_dict['data'])
-        if bool(password != None):
-            state_dict['data'] = self.encrypt(data=state_dict['data'], password=password)
-            state_dict['encrypted'] = True
+                state_dict[k] = v.hex() 
+            if k in self.blacklist():
+                if password != None:
+                    state_dict[k] = self.encrypt(data=state_dict[k], password=password)
+                    
+        state_dict = json.dumps(state_dict)
         
         return state_dict
+    
+    def lock(self, password: str=None) -> bytes:
+        if password == None:
+            password = self.password
+        assert password != None, "Password is required"
+        state_dict = self.state_dict(password=password)
+        return state_dict
+    @classmethod
+    def save_key(cls, *args,**kwargs):
+        self = cls(*args, **kwargs)
+        self.save()
      
     def save(self,
              path: str = None,  
@@ -761,6 +850,8 @@ class Keypair(c.Module):
         if override == False:
             assert self.file_exists(path) == False, "Path already exists, set override=True to override"
         state = self.state_dict(password=password)
+        
+        
         self.put_json(path, state)
 
     def resolve_key_path(self, path):
@@ -777,16 +868,28 @@ class Keypair(c.Module):
         return key in cls.ls_keys()
         
     @classmethod
-    def rm_key(cls, path: str ):
-        if cls.key_exists(path) == False:
-            return {'success': False, 'message': f'{path} doesnt exist'}
+    def rm_key(cls, key: str , verbose:bool = True):
+        if cls.key_exists(key) == False:
+            return {'success': False, 'message': f'{key} doesnt exist'}
         
-        cls.rm_json(path)
+        cls.rm_json(key)
         keys = cls.ls_keys()
+            
         
-        return {'success': True, 'keys': keys, 'message': f'{path} removed'}
+        return {'success': True, 'keys': keys, 'message': f'{key} removed'}
     
     
+    @classmethod
+    def rm_keys(cls, *keys):
+        results = []
+        for key in keys:
+            
+            results.append(cls.rm_key(key))
+        return results
+        
+    @classmethod
+    def rm_all_keys(cls):
+        return cls.rm_keys(*cls.keys())
         
     @classmethod
     def mv_key(cls, path1: str, path2:str ):
@@ -804,6 +907,13 @@ class Keypair(c.Module):
         state = cls.get_json(path)
         encrypted = state.get('encrypted', False)
         return  encrypted
+
+    
+    @classmethod
+    def encrypt_key(cls, path: str = None, state = None):
+        state = cls.get_json(path)
+        encrypted = state.get('encrypted', False)
+        return  encrypted
         
     @classmethod
     def load_key(cls, path: str = None, password: str = None):
@@ -818,26 +928,25 @@ class Keypair(c.Module):
   
         '''
         
-        assert cls.key_exists(path), f'{path} doesnt exist'
-        state = cls.get_json(path)
+        if not cls.key_exists(path):
+            return {'success': False, 'message': f'{path} doesnt exist'}
+            
+        state_dict = cls.get_json(path)
+        if isinstance(state_dict, str):
+            state_dict = json.loads(state_dict)
+        for k,v in state_dict.items():
+            if c.is_encrypted(v):
+                v = c.decrypt(data=v, password=password)
 
-        encrypted = state.get('encrypted', False)
-        
-        if 'data' in state:
-            if encrypted == True:
-                state = cls.decrypt(data=state['data'], password=password)
-            else:
-                state = state['data']
-            
-            
-        if isinstance(state, str):
-            state = json.loads(state)
-        state['load'] = False
-        return cls(**state).__dict__
+            state_dict[k] = v
+        state_dict['load'] = False
+        return state_dict
             
             
     def load(self, path:str, password: str = None):
+        
         params = self.load_key(path=path, password=password)
+        c.print(params)
         self.set_params(**params)
       
     @classmethod
@@ -846,22 +955,62 @@ class Keypair(c.Module):
         self.load(password=password)
         return self.__dict__
         
+        
     @classmethod
-    def test(cls, n=10,data='bro'):
+    def test_encryption(cls, data='bro'):
+        self =  cls()
+        enc_data = self.encrypt(data=data)
+        dec_data = self.decrypt(data=enc_data)
+        assert data == dec_data, 'Encryption doesnt work'
+        return {'passed': True, 'test': 'Test Encryption'}
+
+    @classmethod
+    def test_seed(cls, data='bro'):
+        self =  cls()
+        enc_data = self.encrypt(data=data)
+        dec_data = self.decrypt(data=enc_data)
+        assert data == dec_data, 'Encryption doesnt work'
+        return {'passed': True, 'test': 'Test Encryption'}
+
+    @classmethod
+    def test_verification(cls, data='bro'):
+        key = cls()
+        enc_data = key.sign(data=data)
+        dec_data = key.verify(data=enc_data)
+        key.get_signer(data)
+        assert data == dec_data, 'Encryption doesnt work'
+        return {'passed': True, 'test': 'Test Verification'}
+      
         
-        for i in range(n):
-            cls.print(i)
-            name = f'bro{i}'
-            cls.add_key(name)
-            assert cls.key_exists(name) == True, 'Key doesnt exist'
-            cls.rm_key(name)
-            assert cls.key_exists(name) == False, 'Key doesnt exist'
-            key = cls.get_key(name)
-            sig = key.sign(data, return_dict=True)
-            assert key.verify(sig), 'Signature doesnt verify'
-            
+    @classmethod
+    def test_key_management(cls, password='bo', name='demo'):
+        key = cls()
+        cls.add_key(name, password=password, load=False )
+        key = c.get_key(name, password=password)
+        key.ss58_address
+        assert key.private_key != None, 'Private key doesnt exist'
+        assert key.public_key != None, 'Public key doesnt exist'
+        # assert key.mnemonic != None, 'Mnemonic doesnt exist'
+        assert key.seed_hex != None, 'Seed doesnt exist'
         
-        return {'success': True, 'message': 'Keypair test passed'}
+        wrong_password = password+'1'
+        keypub = c.get_key(name)
+        assert key.ss58_address == keypub.ss58_address, 'Keys are not the same'
+        assert keypub.private_key == None, 'Key should be None'
+        
+        assert cls.key_exists(name) == True, 'Key doesnt exist'
+        key.load(name, password=password)
+        # assert cls.key_exists(name) == False, 'Key doesnt exist'
+    @classmethod
+    def test_verification(cls, data='bro'):
+        key = cls()
+        sig = key.sign(data, return_dict=True)
+        assert key.verify(sig), 'Signature doesnt verify'
+        
+           
+                   
+                    
+                    
         
 
 if __name__ == '__main__':

@@ -14,37 +14,25 @@ import argparse
 import asyncio
 
 class c:
-    root_module_class = 'c'
-    # port range for servers
+    root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
-    
-    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
-                    'info', 'ip', 'address','ip_address', 'info', 'schema',
-                    'module_name', 'modules', 'help']
     user = None
-    
-    # default ip
     default_ip = '0.0.0.0'
-    library_name = 'commune'
-    
     address = None
-    # key = None
-    # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
-    
-    # get the current working directory  (doesnt have /)
+    library_name = root_dir = root_path.split('/')[-1]
+    default_network = 'commune'
     pwd = os.getenv('PWD')
-    
-    # get the root directory (default commune)
-    # Please note that this assumes that {root_dir}/module.py is where your module root is
-    root_dir = root_path.split('/')[-1]
     console = Console()
-    
+    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
+                'info', 'ip', 'address','ip_address', 'info', 'schema',
+                'module_name', 'modules', 'help']
+
     
     @classmethod
     def boot_peers(cls) -> List[str]: 
-        config = Module.get_config()
+        config = c.get_config()
         boot_peers = config.get('boot_peers', [])
         return boot_peers
         
@@ -62,10 +50,9 @@ class c:
     
     @classmethod
     def get_root_paths(cls):
-        root_paths = c.getc('root_paths', [c.root_path])
-        if c.root_path not in root_paths:
-            c.add_root_path(c.root_path)
-        root_paths  = list(set(root_paths))
+        root_paths = c.getc('root_paths', [cls.root_path])
+        if cls.root_path not in root_paths:
+            cls.add_root_path(cls.root_path)
 
         return rot_paths
     root_paths = get_root_paths
@@ -76,16 +63,17 @@ class c:
                  config:Dict=None, 
                  add_attributes: bool = False,
                  key: str = None,
+                 save_config:bool = False,
                  *args, 
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, add_attributes=add_attributes)  
+        self.set_config(config=config, add_attributes=add_attributes, save_config=save_config)  
         # self.set_key(key)
     
     
     
     def init(self, *args, **kwargs):
-        Module.__init__(self, *args, **kwargs)
+        c.__init__(self, *args, **kwargs)
     
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
@@ -105,6 +93,7 @@ class c:
         # get the directory of the module
         return os.path.dirname(cls.module_file())
     
+
     @classmethod
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
@@ -165,9 +154,7 @@ class c:
     @classmethod
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
-        if not hasattr(cls, '_module_path'):
-            cls._module_path = cls.get_module_path(simple=simple)
-        return cls._module_path
+        return cls.get_module_path(simple=simple)
     
         
     @classmethod
@@ -359,7 +346,7 @@ class c:
             
         if path is None:
             if root:
-                path = Module.__config_file__()
+                path = c.__config_file__()
             else:
                 path = cls.__config_file__()
         assert isinstance(path, str)
@@ -385,47 +372,30 @@ class c:
     
     @classmethod
     def put(cls, 
-            key, 
-            value, 
-            encrypt:bool = False,
-            sign: bool = False,
+            k, 
+            v, 
             password: bool = None,
+            include_timestamp : bool = True,
             mode: bool = 'json',
-            cache : bool = False, 
-            serialize : bool = False,
-            cache_dir : str =  'cache', 
-            timestamp : bool = False,
             **kwargs):
         '''
         Puts a value in the config
         '''
-        if password != None:
-            encrypt = True
-        
+        encrypt =  password != None
+        v = cls.copy(v)
         if encrypt:
-            value = cls.encrypt(value, password=password)
-        if sign:
-            value = cls.sign(value, password=password)
-            
-        if serialize:
-            proto_value = cls.serialize(value)
-            # convert the protobuf to bytes
-            cls.print('serializing',)
-    
-        data = {'value': value,
-               'encrypted': encrypt}
-
-        if timestamp:
-            data['timestamp'] = time.time()
-            
-        if cache:
-            path = cache_dir+'/'+key
+            data = cls.encrypt(v, password=password, return_dict=True)
         else:
-            path = key
+            data = {'data': v,
+                'encrypted': encrypt}
+
+        if include_timestamp:
+            data['timestamp'] = c.timestamp()
+            
 
         
         # default json 
-        getattr(cls,f'put_{mode}')(path, data, **kwargs)
+        getattr(cls,f'put_{mode}')(k, data, **kwargs)
         
         
         return data
@@ -445,22 +415,17 @@ class c:
         Puts a value in sthe config
         '''
         kwargs['default'] = default
-        
-        if mode == 'json':
-            data  = cls.get_json(key,**kwargs)
-        else:
-            data = getattr(cls, f'get_{mode}')(key, **kwargs)
-     
+        data = getattr(cls, f'get_{mode}')(key, **kwargs)
         if data == None: 
             data = {}
-        
-        encrypted = data.get('encrypted', False)
-        data = data.get('value', default)
+        encrypted = c.is_encrypted(data)
         if encrypted:
             data = cls.decrypt(data, password=password)
+        if isinstance(data, dict):
+            data = data.get('data', data)
         return data
     
-    
+    @classmethod
     def config_keys(self, config:Dict = None) -> List[str]:
         '''
         Returns the keys of the config
@@ -468,20 +433,45 @@ class c:
         config = config or self.config
         return list(config.keys())
     
-    def putc(self, key, value) -> Munch:
+    
+    @classmethod
+    def mutc(cls, k, v, password:str=None, new_password:str=None):
+        old_v = cls.getc(k, password=password)
+        password = password if new_password == None else new_password
+        v = cls.put_v(old_v, password=password)
+    @classmethod
+    def putc(cls, k, v, password=None) -> Munch:
         '''
         Saves the config to a yaml file
         '''
-        config = self.config
-        self.dict_put(config, key, value)
-        self.set_config(config=config)
+        config = cls.config()
+        if password:
+            v = cls.decrypt(v, password=password)
+
+        cls.dict_put(config, k, v)
+        cls.save_config(config=config)
+   
     setc = putc
+      
+    @classmethod
+    def popc(cls, key:str):
+        config = cls.config()
+        config.pop(key, None)
+        cls.save_config(config=config)
         
-    def getc(self, key) -> Any:
+    @classmethod  
+    def getc(cls, key, password=None) -> Any:
         '''
         Saves the config to a yaml file
         '''
-        return self.dict_get(self.config, key)
+        
+        data = cls.dict_get(cls.config(), key)
+        if c.is_encrypted(data):
+            assert password != None, 'password must be provided to decrypt the data'
+            data = c.decrypt(data, password=password)
+            
+        return data
+
     
     @classmethod
     def save_config(cls, config:Union[Munch, Dict]= None, path:str=None) -> Munch:
@@ -505,7 +495,6 @@ class c:
 
         return config
     
-    put_config = save_config
     
     def config_exists(self, path:str=None) -> bool:
         '''
@@ -555,7 +544,7 @@ class c:
         
         return config
 
-
+    config = get_config
 
     @classmethod
     def cfg(cls, *args, **kwargs):
@@ -563,11 +552,14 @@ class c:
 
 
 
+
+
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
                    kwargs:dict={},
                    to_munch: bool = True,
-                   add_attributes: bool = False) -> Munch:
+                   add_attributes: bool = False,
+                   save_config:bool = False) -> Munch:
         '''
         Set the config as well as its local params
         '''
@@ -581,6 +573,9 @@ class c:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
         
+        if save_config:
+            self.save_config(config=config)
+        
         
         return self.config
 
@@ -589,6 +584,7 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
+    # KEY LAND
     @classmethod
     def add_key(cls, *args, **kwargs):
         return cls.module('key').add_key(*args, **kwargs)
@@ -598,7 +594,15 @@ class c:
     @classmethod
     def rm_key(cls, *args, **kwargs):
         return cls.module('key').rm_key(*args, **kwargs)
+    @classmethod
+    def key_encrypted(cls, *args, **kwargs):
+        return cls.module('key').key_encrypted(*args, **kwargs)
+
     
+    @classmethod
+    def encrypt_key(cls, *args, **kwargs):
+        return cls.module('key').key_encrypted(*args, **kwargs)
+        
 
     @classmethod
     def add_args( cls, config: dict , prefix: str = None , parser: argparse.ArgumentParser = None ):
@@ -737,11 +741,12 @@ class c:
         
         '''
         from importlib import import_module
-
+        c.print(key)
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
         if verbose:
             cls.print(f'Importing {object_name} from {module}')
+        c.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -827,7 +832,7 @@ class c:
         
         '''
         
-        tmp_dir = Module.tmp_dir() if root else cls.tmp_dir()
+        tmp_dir = c.tmp_dir() if root else cls.tmp_dir()
         
         
         if path.startswith('/'):
@@ -982,7 +987,7 @@ class c:
                 for conns in proc.connections(kind='inet'):
                     if conns.laddr.port == port:
                         proc.send_signal(signal.SIGKILL) # or SIGKILL
-                        print('KILLED')
+                        print(f'killed {port}')
             return port
         elif mode == 'bash':
             return cls.run_command('kill -9 $(lsof -ti:{port})')
@@ -1017,15 +1022,15 @@ class c:
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
 
-    @classmethod
-    def kill_all_servers(cls, verbose: bool = True):
+    @staticmethod
+    def kill_all_servers( verbose: bool = True):
         '''
         Kill all of the servers
         '''
-        for module in cls.servers():
+        for module in c.servers():
             if verbose:
-                cls.print(f'Killing {module}', color='red')
-            cls.kill_server(module)
+                c.print(f'Killing {module}', color='red')
+            c.kill_server(module)
             
     
     @classmethod
@@ -1174,6 +1179,9 @@ class c:
 
     @classmethod
     def path2objectpath(cls, path:str) -> str:
+        if path.endswith('module/module.py'):
+            return 'commune.Module'
+            
         object_name = cls.find_python_classes(path)
         if len(object_name) == 0:
             return None
@@ -1201,24 +1209,8 @@ class c:
     def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
         
         og_path = path
-        try:
-            
-            path = cls.simple2path(path)
-            path = cls.path2objectpath(path)
-                
-            assert path is not None, f'Could not find path for {path}'
-            if verbose:
-                cls.print(f'Found {path}', verbose=verbose)
-        except Exception as e:
-            path = og_path
-            if handle_error:
-                cls.print(f'{e}', verbose=verbose)
-            else:
-                raise e
-            
-        if path == None:
-            path = og_path
-        
+        path = cls.simple2path(path)
+        path = cls.path2objectpath(path)
         return cls.import_object(path)
 
     @classmethod
@@ -1229,9 +1221,16 @@ class c:
             module_tree = {cls.path2simple(f):f for f in cls.get_module_python_paths()}
 
         elif mode == 'object':
-            module_tree = {cls.path2object(f):f for f in cls.get_module_python_paths()}
+            module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
             
         module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
+        
+        if cls.root_module_class in module_tree:
+            module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
+
+        for k in c.copy(list(module_tree.keys())):
+            if k.startswith('modules.'):
+                module_tree[k.replace('modules.', '')] = module_tree.pop(k)
         return module_tree
     
     tree = module_tree
@@ -1255,7 +1254,6 @@ class c:
     @classmethod
     def valid_module(cls,module,**kwargs ):
         modules = cls.modules(module, **kwargs)
-        print(modules)
         return bool(len(modules) > 0)
     
     @classmethod
@@ -1280,7 +1278,7 @@ class c:
         return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
-        return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
+        return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
 
     
     @staticmethod
@@ -1292,8 +1290,8 @@ class c:
         return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
     @classmethod
     def simple2path(cls, path) -> Dict[str, str]:
-        simple2path_map = cls.simple2path_map()
-        return simple2path_map[path]
+        module_tree = cls.module_tree()
+        return module_tree[path]
 
     @classmethod
     def path2simple_map(cls) -> Dict[str, str]:
@@ -1338,13 +1336,13 @@ class c:
         return cls.get_module('dashboard')(*args, **kwargs)
     @staticmethod
     def get_module_config_paths() -> List[str]:
-        return [f.replace('.py', '.yaml')for f in  Module.get_module_python_paths()]
+        return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
 
 
     @classmethod
     def is_parent(cls, parent=None):
-        parent = Module if parrent == None else parent
-        return bool(parent in cls.get_parents(child))
+        parent = c if parent == None else parent
+        return bool(parent in cls.get_parents(cls))
 
     @classmethod
     def run_python(cls, path:str, interpreter:str='python3'):
@@ -1395,7 +1393,7 @@ class c:
    
     @classmethod
     def tmp_dir(cls):
-        return f'/tmp/{cls.library_name}/{cls.__local_file__().replace(".py", "")}'
+        return os.path.expanduser(f'~/.{cls.library_name}/{cls.module_path()}')
 
     ############ JSON LAND ###############
 
@@ -1432,11 +1430,10 @@ class c:
     @classmethod
     def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
         import torch
-        
-        
         path = cls.resolve_path(path=path, extension='pt', root=root)
         torch.save(data, path)
         return path
+    
     @classmethod
     def get_torch(cls,path:str, root:bool = False, **kwargs):
         import torch
@@ -1504,7 +1501,6 @@ class c:
     def rm(cls, path, root:bool = False):
         if not os.path.exists(path):
             path = cls.resolve_path(path=path, extension=None, root=root)
-        cls.print(path)
         assert os.path.exists(path)
         if os.path.isdir(path):
             return cls.rmdir(path)
@@ -1716,7 +1712,7 @@ class c:
     
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
-        client_class = cls.get_module('commune.server.client.Client')
+        client_class = cls.import_object('commune.server.client.Client')
         client = client_class(*args, **kwargs)
         if virtual:
             return client.virtual()
@@ -1784,9 +1780,14 @@ class c:
                          update:bool = False,
                          prefix:bool = 'R')-> dict:
     
+        if update:
+            remote_namespace = {}
+        else:
+            remote_namespace = c.get('remote_namespace', {})   
         
-        remote_namespace = cls.get('remote_namespace', {})   
-        
+        remote_modules = c.get('remote_modules', {})
+        remote_namespace.update(remote_modules)
+
         peer_registry = cls.peer_registry(update=update)  
         
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
@@ -1800,7 +1801,9 @@ class c:
                 else:
                     cls.print(f'Peer {peer_name} has no namespace', color='red')
         
-        cls.put('remote_namespace', remote_namespace)
+        c.put('remote_namespace', remote_namespace)
+        
+        
 
         return remote_namespace
         
@@ -1857,7 +1860,7 @@ class c:
                 local_namespace = cls.get_json('local_namespace', {}, root=True)
                 
         external_ip = cls.external_ip()
-        local_namespace = {k:v.replace(external_ip, cls.default_ip) for k,v in local_namespace.items()}
+        local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
         return local_namespace
 
         
@@ -2085,11 +2088,11 @@ class c:
         namespace_fn = getattr(cls, f'{network}_namespace')
         namespace = namespace_fn(update=update, **kwargs)
         
-        namespace.update(c.get('remote_modules', {}))
+        # namespace.update(c.get('remote_modules', {}))
         
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
-
+        print(f'namespace: {namespace}')
         return namespace
     
     
@@ -2243,7 +2246,7 @@ class c:
         functions = get_functions(obj=obj)
         
         if not include_module:
-            module_functions = get_functions(obj=Module)
+            module_functions = get_functions(obj=c)
             new_functions = []
             for f in functions:
                 if f == '__init__':
@@ -2286,7 +2289,8 @@ class c:
         function_signature = cls.get_function_signature_map(obj=obj,include_module=include_module)
         for fn_name, fn in function_signature.items():
             default_value_map[fn_name] = {}
-
+            if fn_name in ['self', 'cls']:
+                continue
             for var_name, var in fn.items():
                 if len(var.split('=')) == 1:
                     var_type = var
@@ -2332,19 +2336,8 @@ class c:
     def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
         if isinstance(peer, str):
             peer = cls.connect(peer)
-        
-        function_schema_map = peer.function_schema_map()
-        server_info = peer.server_info
-        info  = dict(
-            module_name = peer.module_name,
-            server_info = peer.server_info,
-            function_schema = function_schema_map,
-            intro =function_schema_map.get('__init__', 'No Intro Available'),
-            examples =function_schema_map.get('examples', 'No Examples Available'),
-            public_ip =  server_info if not isinstance(server_info, dict) else server_info['external_ip'] + ':' + str(server_info['port']) ,
-
-        )
-        
+            
+        info = peer.info()
         return info
     
     
@@ -2384,27 +2377,30 @@ class c:
     def peer_info(self) -> Dict[str, Any]:
         self.info()
     @classmethod
-    def schema(cls, *args,  **kwargs):
-        return cls.get_function_schema_map(*args, **kwargs)
-
+    def schema(cls, search = None, *args,  **kwargs):
+        return {k: v for k,v in cls.get_function_schema_map(*args,search=search,**kwargs).items()}
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
+                                search = None,
                                 include_code : bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
-                                include_docs: bool = True):
+                                include_default:bool = False,
+                                include_docs: bool = False):
         
         obj = obj if obj else cls
         if isinstance(obj, str):
             obj = cls.module(obj)
         function_schema_map = {}
+        
         for fn in cls.get_functions(obj, include_module=include_module):
-            # if not include_hidden:
-            #     if (fn.startswith('__') and fn.endswith('__')) or fn.startswith('_'):
-            #         if fn != '__init__':
-            #             continue
-            
+                    
+            if search != None :
+                if search not in fn:
+                    continue
+            if include_default:
+                fn_default_map = cls.get_function_default_map(obj=obj, include_module=include_module)
             if callable(getattr(obj, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
@@ -2414,21 +2410,25 @@ class c:
                 
                 for fn_k, fn_v in obj_fn.__annotations__.items():
                     
+                    
                     fn_v = str(fn_v)  
+
                     if fn_v == inspect._empty:
                         fn_schema[fn_k]= 'Any'
                     elif fn_v.startswith('<class'):
                         fn_schema[fn_k] = fn_v.split("'")[1]
                     else:
                         fn_schema[fn_k] = fn_v
-                               
+                              
+                function_schema_map[fn]['schema'] = fn_schema
                 if include_docs:         
-                    function_schema_map[fn] = {
-                        'schema': fn_schema,
-                        'docs': getattr(obj, fn ).__doc__ ,
-                        'code': inspect.getsource(getattr(obj, fn )),
-                    }
-                else:
+                    function_schema_map[fn]['docs']: getattr(obj, fn ).__doc__ 
+                if include_code:
+                    function_schema_map[fn]['code'] = inspect.getsource(getattr(obj, fn ))
+                    
+                if include_default:
+                    function_schema_map[fn]['default'] = fn_default_map.get(fn, 'NA')
+                if len(function_schema_map[fn]) == 1:
                     function_schema_map[fn] = fn_schema
         return function_schema_map
     
@@ -2865,10 +2865,8 @@ class c:
     def get_self_methods(cls, obj=None) -> List[str]:
         from commune.utils.function import get_self_methods
         return get_self_methods(obj if obj else cls)
-        
-        
+           
     ## RAY LAND
-    
     @classmethod
     def ray_stop(cls):
         cls.run_command('ray stop')
@@ -3177,11 +3175,12 @@ class c:
     @classmethod
     def ray_context(cls):
         import ray
+        import ray
         return ray.runtime_context.get_runtime_context()
 
     @staticmethod
     def ray_objects( *args, **kwargs):
-
+        import ray
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
     @classmethod
@@ -3272,19 +3271,19 @@ class c:
     
     
     @classmethod
-    def module(cls,module: Any = None ,**kwargs):
+    def module(cls,module: Any = None ,*args, **kwargs):
         '''
         Wraps a python class as a module
         '''
         
         if module is None:
-            return cls.root_module()
+            return c.root_module()
         if isinstance(module, str):
-            modules = cls.module_list()
+            modules = c.module_list()
             if module in modules:
-                return cls.get_module(module,**kwargs)
-            elif module in cls.servers():
-                return self.connect(module,**kwargs)
+                return c.get_module(module,**kwargs)
+            # elif module in cls.servers():
+            #     return c.connect(module,**kwargs)
     
 
         # serve the module if the bool is True
@@ -3293,13 +3292,9 @@ class c:
         
         
         
-        class ModuleWrapper(Module):
-            default_module_name = str(module_class)
+        class ModuleWrapper(c):
             def __init__(self, module): 
-                Module.__init__(self, *args, **kwargs) 
-                self.module.default_module_name = str(module_class)
-                # self.module.server_exists = False
-                # merge the inner module into the wrappers
+                c.__init__(self, *args, **kwargs) 
                 self.merge(self.module)
                 
             @classmethod
@@ -3322,7 +3317,8 @@ class c:
             @classmethod
             def functions(cls):
                 return cls.get_functions(module)
-            # class Module(Module):
+
+
         if is_class:
             return ModuleWrapper
         else:
@@ -3347,7 +3343,7 @@ class c:
         '''
         assert isinstance(new_attributes, dict), f'locals must be a dictionary but is a {type(locals)}'
         self.__dict__.update(new_attributes)
-
+        
     @staticmethod
     def get_template_args( template:str) -> List[str]:
         '''
@@ -3427,20 +3423,16 @@ class c:
                     error_fn_list.append(b_fn)
                 if len(error_fn_list)>0:
                     if verbose:
-                        cls.print(error_fn_list, 'DEBUG')
-                    
-                
+                        cls.print(error_fn_list, 'DEBUG')        
         return a
    
-
-
-
     @classmethod
     def nest_asyncio(cls):
         import nest_asyncio
         try:
             nest_asyncio.apply()
         except RuntimeError as e:
+            cls.print('Broooo, nest-asyncio doesnt work fam')
             pass
         
         
@@ -3448,9 +3440,7 @@ class c:
     @classmethod
     def jupyter(cls):
         cls.nest_asyncio()
-        
     enable_jupyter = jupyter
-        
         
     @classmethod
     def int_to_ip(cls, *args, **kwargs):
@@ -3464,14 +3454,11 @@ class c:
     def ip_version(cls, *args, **kwargs):
         return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
     
-    
     @classmethod
     def pip_list(cls, lib=None):
         pip_list =  cls.cmd(f'pip list').split('\n')
-        
         if lib != None:
             pip_list = [l for l in pip_list if l.startswith(lib)]
-
         return pip_list
     
     @classmethod
@@ -3489,15 +3476,24 @@ class c:
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
         if not hasattr(cls, '__external_ip__'):
-            self.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
-            
-        return self.__external_ip__
-        
+            cls.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
+        return cls.__external_ip__
     
     @classmethod
+    def resolve_ip(cls, ip=None) -> str:
+        if ip == None:
+            ip = cls.external_ip()   
+        assert isinstance(ip, str)
+        return ip
+        
+    @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
-        return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
-
+        try:
+            return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
+        except Exception as e:
+            c.print(e, color='red')
+            return cls.default_ip
+            
     @classmethod
     def public_ip(cls, *args, **kwargs):
         return cls.get_public_ip(*args, **kwargs)
@@ -3833,8 +3829,14 @@ class c:
         if self.is_root():
             return self.helper_functions
         else:
-            return self.fns() + self.attributes()
-            
+            return self.fns() + self.attributes() 
+        
+    def role2whitelist(self, role='bro') -> Dict:
+        return {self.default_role: self.whitelist()}
+        
+    def role2blacklist(self, role='foe') -> Dict:
+        return {'foe': []}
+    
     def blacklist(self) -> List[str]:
         return ['module_name']
     black_fns = blacklist
@@ -3865,9 +3867,26 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, *args, **kwargs):
-        self = cls(*args, **kwargs)
-               
+    def test(cls):
+        test_responses = {}
+        for fn in cls.fns():
+            test_response = {
+                'passed':False,
+                'response': None
+            }
+            
+            if fn.startswith('test_'):
+                try:
+            
+                    getattr(cls, fn)()
+                    test_response['passed'] = True
+                except Exception as e:
+                   test_response['passed'] = False
+                   test_response['response'] = str(e)
+                test_responses[fn] =test_response
+        
+        return test_responses
+       
                
     @classmethod
     def import_bittensor(cls):
@@ -4032,10 +4051,10 @@ class c:
                
     
     @classmethod
-    def get_key(cls, *args,mode='key', **kwargs) -> None:
+    def get_key(cls, *args,mode='commune', **kwargs) -> None:
 
 
-        if mode == 'key':
+        if mode == 'commune':
             module = cls.module('key')
         elif mode == 'subspace':
             module  = cls.module('subspace.key')
@@ -4044,20 +4063,23 @@ class c:
         elif mode == 'evm':
             module = cls.module('web3.account.evm')
         elif  mode == 'aes':
-            module =  cls.module('crypto.key.aes')
+            module =  cls.module('key.aes')
         else:
             raise ValueError('Invalid mode for key')
         
+        # run get_key if the function exists
         if hasattr(module, 'get_key'):
-            return module.get_key(*args, **kwargs)
+            key = module.get_key(*args, **kwargs)
         else:
-            return module(*args, **kwargs)
+            key = module(*args, **kwargs)
+            
+        return key
         
             
     @classmethod
     def hash(cls, 
              data: Union[str, bytes], 
-             mode: str = 'keccak', 
+             mode: str = 'sha256', 
              **kwargs) -> bytes:
         if not hasattr(cls, 'hash_module'):
             cls.hash_module = cls.get_module('crypto.hash')()
@@ -4069,16 +4091,53 @@ class c:
         if password == None:
             password = cls.default_password
             
-        assert isinstance(password, str), 'Password must be a string'
+            
+        password = cls.python2str(password)
+        assert isinstance(password, str), f'Password must be a string , not {type(password)}'
         return password
+
+
+    encrypted_prefix = 'AESKEY'
+    @classmethod
+    def encrypt(cls, 
+                data: Union[str, bytes],
+                password: str = 'bitconnect', 
+                prefix = encrypted_prefix) -> bytes:
+        password = cls.resolve_password(password)
+        data = cls.python2str(data)
+        
+
+        assert isinstance(password, str),  f'{password}'
+        key = c.module('key.aes')(key=password)
+        encrypted_data = key.encrypt(data)
+        if prefix != None:
+            encrypted_data = f'{prefix}::{encrypted_data}'
+        return encrypted_data
+    
     
     @classmethod
     def decrypt(cls, 
                 data: str,
-                password= default_password,
-                ignore_error: bool = True) -> Any:
-        key = c.get_key(mode='aes', key=password)
-        data = key.decrypt(data)
+                password= None,
+                ignore_error: bool = True,
+                prefix = encrypted_prefix,
+                verbose:bool = False) -> Any:
+        password = cls.resolve_password(password)
+        key = c.module('key.aes')(password)
+        
+        if isinstance(data, str):
+            if data.startswith(prefix):
+                data = data[len(prefix):]
+            else:
+                return {'error': 'data does not start with prefix'}
+        if isinstance(data, Munch):
+            data = c.munch2dict(data)
+        if isinstance(data, dict):
+            data = data['data']
+        try:
+            data = key.decrypt(data)
+        except Exception as e:
+            return None 
         if isinstance(data, str):
             data = cls.str2python(data)
             
@@ -4086,34 +4145,22 @@ class c:
     
             if ignore_error:
                 data = None
-                cls.print(f'Exception: Wrong Password, try another',color='red')
+                if verbose:
+                    cls.print(f'Exception: Wrong Password, try another',color='red')
             else:
                 raise Exception(f'could not decrypt data, try another pasword')
+        
         return data
 
-    @classmethod
-    def encrypt(cls, data: Union[str, bytes], password: str = 'bitconnect') -> bytes:
-        password = cls.resolve_password(password)
-        data = cls.python2str(data)
-        assert isinstance(password, str),  f'{password}'
-        key = c.get_key(mode='aes', key=password)
-        return key.encrypt(data)
     
     module_cache = {}
-    module_cache_hits = {}
-    
-    
     @classmethod
     def put_cache(cls,k,v ):
         cls.module_cache[k] = v
     
     @classmethod
     def get_cache(cls,k, default=None, **kwargs):
-
         v = cls.module_cache.get(k, default)
-        if v != None:
-            cls.module_cache_hits[k] = cls.module_cache_hits.get(k,0) + 1
-        print(cls.module_cache, k, v)
         return v
 
     @classmethod
@@ -4214,13 +4261,10 @@ class c:
     
     def resolve_key(self, key: str) -> str:
         if key == None:
-            if getattr(self, 'key', None) == None:
-                self.set_key(key)
             key = self.key
-        elif isinstance(key, str):
-            key = self.get_key(key)
+        assert isinstance(key, str)
+        key = self.get_key(key)
             
-        print(key, 'KEY')
         return key  
                 
     @classmethod  
@@ -4246,11 +4290,20 @@ class c:
         
     def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
-        return key.sign(data)    
+        return key.sign(data) 
+    
+       
     
     @classmethod
     def verify(cls, data:dict ) -> bool:        
-        return key.verify(data)
+        return c.module('key').verify(data)
+        
+    
+    @classmethod
+    def get_signer(cls, data:dict ) -> bool:        
+        return c.module('key').get_signer(data)
+    
+    
         
     
     def get_auth(self, 
@@ -4280,6 +4333,54 @@ class c:
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
+    @classmethod
+    def auth_data(cls, network = None, key = None) -> dict:
+        network = network if network else cls.default_network
+        
+        data = {
+            'timestamp': cls.timestamp(),
+            'network': network
+        }
+        
+        if key:
+            key = cls.get_key(key)
+            data = key.sign(data)
+        return data
+
+
+    @classmethod
+    def call_auth_data(cls, 
+                       module:str, 
+                       fn:str,
+                       args:list=None,
+                       kwargs:dict = None,
+                       network:str = None,
+                       key = None) -> dict:
+        network = network if network else cls.default_network
+        data = {
+            'network': network,
+            'module':module,
+            'fn': fn,
+            'args': args or [],
+            'kwargs': kwargs or {},
+            'timestamp': cls.timestamp(),
+        }
+        
+        if key:
+            key = cls.get_key(key)
+            data = key.sign(data)
+            
+        return data
+
+
+    @classmethod
+    def verify_call_auth(cls, auth) -> dict:
+        signer_address = cls.get_signer(auth)        
+        
+        if key:
+            key = cls.get_key(key)
+            data = key.sign(data)
+        return data
 
       
     def authenticate(self, data, staleness: int = 60, ) -> bool:
@@ -4316,12 +4417,12 @@ class c:
         return True
         
     @classmethod
-    def is_encrypted(cls, data):
+    def is_encrypted(cls, data, prefix='AESKEY'):
         if isinstance(data, str):
-            path = data
-            data = cls.get_data(path)
-        if isinstance(data, dict):
-            return 'encrypted' in data and data['encrypted'] == True
+            if data.startswith(prefix):
+                return True
+        elif isinstance(data, dict):
+            return bool(data.get('encrypted', False) == True)
         else:
             return False
         
@@ -4581,7 +4682,7 @@ class c:
         assert port_range[0] < port_range[1], 'Port range must be a list of integers'
                 
         data = dict(port_range =port_range)
-        cls.put_json('port_range', data, root=True)
+        c.put('port_range', data)
         cls.port_range = data['port_range']
         return data['port_range']
     
@@ -4591,11 +4692,9 @@ class c:
     @classmethod
     def get_port_range(cls, port_range: list = None) -> list:
 
-        if not cls.file_exists('port_range', root=True):
-            cls.set_port_range(port_range)
             
         if port_range == None:
-            port_range = cls.get_json('port_range', root=True)['port_range']
+            port_range = c.get('port_range', default=cls.default_port_range)
             
         if len(port_range) == 0:
             port_range = cls.default_port_range
@@ -4619,7 +4718,9 @@ class c:
     # def ansible(cls, *args, fn='shell', **kwargs):
     #     ansible_module = cls.get_module('ansible')()
     #     return getattr(ansible_module, fn)(*args, **kwargs)
-        
+    
+    
+    
     @classmethod
     def add_peer(cls, *args, **kwargs)-> List:
         loop = cls.get_event_loop()
@@ -4628,13 +4729,16 @@ class c:
         return peer
     
     @classmethod
-    def add_module(cls, module, cache_path='remote_modules'):
+    def add_module(cls, module, cache_path='remote_modules', refresh = True):
         module = c.connect(module)
-        module_info = module.info
-        remote_modules = c.get(cache_path, {})
-        remote_modules[module] = address
+        module_info = module.info(include_namespace=False)
+        assert isinstance(module_info, dict), 'Module info must be a dictionary'
+        remote_modules = {} if refresh else c.get(cache_path, {})
+        remote_modules[ module_info['name']] = module_info['address']
         c.put(cache_path, remote_modules)
-        return {'msg': module, 'address': address}
+        return {'msg': module,
+                'address': module_info['address'], 
+                'module': module_info}
     
     @classmethod
     def rm_module(cls, module, cache_path='remote_modules'):
@@ -4651,6 +4755,51 @@ class c:
        
         
         return c.get(cache_path, {}) 
+    
+    @classmethod
+    async def async_add_peer(cls, 
+                             peer_address,
+                             network = 'local',
+                             timeout:int=1,
+                             verbose:bool = True):
+        
+        peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
+
+        if name == None:
+            name = 'Anon'
+
+        peer_info = await cls.async_call(module=peer_address, 
+                                              fn='info',
+                                              include_namespace=True, 
+                                              timeout=timeout, 
+                                              network=network)
+        
+        #  add each peer to the registry
+
+        if 'error' in peer_info:
+            if verbose:
+                cls.print(f'Error adding peer {peer_address} due to {peer_info["error"]}',color='red')
+            return None    
+        else:
+            if verbose:
+                cls.print(f'Successfully added peer {peer_address}', color='green')
+        
+            
+        assert isinstance(peer_info, dict)
+        assert 'address' in peer_info
+        assert 'namespace' in peer_info
+        
+        peer_ip = ':'.join(peer_info['address'].split(':')[:-1])
+        peer_port = int(peer_info['address'].split(':')[-1])
+        
+        # relace default local ip with external_ip
+        peer_info['namespace'] = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_info['namespace'].items()}
+
+        peer_registry[peer_address] = peer_info
+            
+        await cls.async_put_json('peer_registry', peer_registry, root=True)
+        
+        return peer_registry
     
     
     
@@ -4685,41 +4834,7 @@ class c:
         peers = loop.run_until_complete(asyncio.gather(*jobs))
         peers = [peer for peer in peers if peer != None]
         return {'added_peers': peers, 'msg': f'Added {len(peers)} peers'}
-    
-    @classmethod
-    async def async_add_peer(cls, 
-                             peer_address,
-                             verbose:bool = True,
-                             timeout:int=1):
-        
-        peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
-
-        peer_namespace = await cls.async_call(module=peer_address, fn='namespace', timeout=timeout, network='local')
-        
-        #  add each peer to the registry
-
-        if 'error' in peer_namespace:
-            if verbose:
-                cls.print(f'Error adding peer {peer_address}',color='red')
-            return None    
-        else:
-            if verbose:
-                cls.print(f'Successfully added peer {peer_address}', color='green')
-                  
-        peer_ip = ':'.join(peer_address.split(':')[:-1])
-        peer_port = int(peer_address.split(':')[-1])
-        
-        peer_namespace = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_namespace.items()}
-
-        peer_registry[peer_address] = dict(name=None, 
-                                            namespace=peer_namespace,
-                                            address = peer_address)
-            
-        await cls.async_put_json('peer_registry', peer_registry, root=True)
-        
-        return peer_registry
-    
 
     @staticmethod
     def is_number(value):
@@ -4734,7 +4849,7 @@ class c:
     
     @classmethod
     def rm_peer(cls, peer_address: str):
-        peer_registry = Module.get_json('peer_registry', default={})
+        peer_registry = c.get_json('peer_registry', default={})
         result = peer_registry.pop(peer_address, None) 
         if result != None:
             result = peer_address      
@@ -4785,7 +4900,7 @@ class c:
             if peers == None:
                 peers = cls.peers()
             cls.add_peers(peers)
-        return Module.get_json('peer_registry', default={})
+        return c.get_json('peer_registry', default={})
     
     
 
@@ -5413,6 +5528,10 @@ class c:
         cls.cmd(command)
         cls.print({'msg': f"Started miner {name} on port {port}"})
         
+        
+    @staticmethod
+    def reverse_map(x):
+        return {v:k for k,v in x.items()}
 
     @classmethod
     def pd(cls):
@@ -5432,24 +5551,6 @@ class c:
     def torch(cls):
         return cls.import_module('torch')
 
-
-    @staticmethod
-    def df2json(dataframe):
-        
-        """
-        Convert a pandas DataFrame to JSON format.
-        
-        Args:
-            dataframe (pandas.DataFrame): The DataFrame to be converted.
-            
-        Returns:
-            str: JSON representation of the DataFrame.
-        """
-        import pandas as pd
-        import json
-        json_data = dataframe.to_json(orient='records')
-        return json_data
-
     @staticmethod
     def json2df(json_data):
         """
@@ -5466,9 +5567,15 @@ class c:
         import json
         dataframe = pd.read_json(json_data)
         return dataframe
-
-
-    # github stuff
+    
+    @staticmethod
+    def ss58_encode(*args, **kwargs):
+        from scalecodec.utils.ss58 import ss58_encode, ss58_decode
+        return ss58_encode(*args, **kwargs)
+    @staticmethod
+    def ss58_decode(*args, **kwargs):
+        from scalecodec.utils.ss58 import  ss58_decode
+        return ss58_decode(*args, **kwargs)
 
 Module = c
 Module.run(__name__)
