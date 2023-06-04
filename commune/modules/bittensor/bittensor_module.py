@@ -1412,13 +1412,8 @@ class BittensorModule(c.Module):
         # enseure ports are free
         # axon port
         
-        config.axon.port = cls.resolve_port(port)
-        
-        # while  config.axon.port <=  2024 and config.axon.port < 2099:
-        config.axon.port = cls.free_port()
-        config.prometheus.port = config.axon.port + 10
-        
-        
+        config.axon.port = cls.resolve_port(port, )
+        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
         
         # neuron things
         cls.print(config)

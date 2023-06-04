@@ -36,7 +36,7 @@ class Server(ServerServicer, Serializer, c.Module):
 
     def __init__(
             self,
-            module: Union['Module', object]= None,
+            module: Union[c.Module, object]= None,
             name = None,
             ip: Optional[str] = None,
             port: Optional[int] = None,
@@ -50,9 +50,9 @@ class Server(ServerServicer, Serializer, c.Module):
             verbose: bool = True,
             whitelist: List[str] = None,
             blacklist: List[str ] = None,
-            loop: 'AscynioLoop' = None,
+            loop: 'asyncio.Loop' = None,
             exceptions_to_raise = ['CUDA out of memory',  'PYTORCH_CUDA_ALLOC_CONF'],
-            subspace = None,
+            network: 'Network' = None,
 
 
         ) -> 'Server':
@@ -81,16 +81,9 @@ class Server(ServerServicer, Serializer, c.Module):
 
 
 
-        self.set_event_loop(loop=loop)
-
-        self.set_server( ip=ip, 
-                        port=port, 
-                        thread_pool=thread_pool,
-                        max_workers=max_workers,
-                        maximum_concurrent_rpcs=maximum_concurrent_rpcs,
-                        compression=compression,
-                        whitelist=whitelist,
-                        blacklist=blacklist)
+        self.set_event_loop(loop)
+        
+        
         if name == None:
             if not hasattr(module, 'module_name'):
                 name = str(module)
@@ -99,8 +92,8 @@ class Server(ServerServicer, Serializer, c.Module):
         self.verbose = verbose
         self.module = module
         self.authenticate = authenticate
-        self.exceptions_to_raise = exceptions_to_raise
         
+<<<<<<< HEAD
         
     def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
         if loop == None:
@@ -141,6 +134,8 @@ class Server(ServerServicer, Serializer, c.Module):
                 
         self.set_whitelist(whitelist)
         self.set_blacklist(blacklist)
+=======
+>>>>>>> origin/newton
         
         self.ip = ip = ip if ip != None else self.default_ip
         self.port = port = c.resolve_port(port)
@@ -169,10 +164,63 @@ class Server(ServerServicer, Serializer, c.Module):
         
         # whether or not the server is running
         self.started = False
-        self.init_stats()
+        self.set_stats()
 
+        self.exceptions_to_raise = exceptions_to_raise
+        self.set_module_info()
+    def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
+        if loop == None:
+            loop = c.get_event_loop()
+        self.loop = loop
+    
+    def set_whitelist(self, functions: List[str]):
+        if functions == None:
+            functions = []
+        self.whitelist = list(set(functions + c.helper_functions))
+        
+    def set_module_info(self):
+        self.module_info = self.module.info()
+        self.allowed_functions = self.module_info['functions']
+        self.allowed_attributes = self.module_info['attributes']
+        
+        
+    def check_call(self, fn:str, args:list, kwargs:dict, user:dict):
+        passed = False
 
-        return self.server
+        if fn == 'getattr':
+            if len(args) == 1:
+                attribute = args[0]
+            elif 'k' in kwargs:
+                attribute = kwargs['k']
+            else:
+                raise Exception('you are falling {k} which is an attribute that is invalid')
+
+            # is it an allowed attribute
+            if attribute in self.allowed_attributes:
+                passed = True
+        else:
+
+            if  fn in self.allowed_functions:
+                passed = True
+        
+
+            
+                
+            
+            
+            
+        {'passed': False}
+        
+    def set_thread_pool(self, thread_pool: 'ThreadPoolExecutor' = None, max_workers: int = 10) -> 'ThreadPoolExecutor':
+        if thread_pool == None:
+            thread_pool = futures.ThreadPoolExecutor(max_workers=max_workers)
+        
+        self.thread_pool = thread_pool
+        return thread_pool
+    
+
+        
+
     
     @classmethod   
     def help(cls):
@@ -192,7 +240,7 @@ class Server(ServerServicer, Serializer, c.Module):
     
    
    
-    def init_stats(self):
+    def set_stats(self):
         self.stats = dict(
             call_count = 0,
             total_bytes = 0,
@@ -211,25 +259,16 @@ class Server(ServerServicer, Serializer, c.Module):
         t = c.timer()
         success = False
         
+        fn = data['fn']
+        kwargs = data.get('kwargs', {})
+        args = data.get('args', [])
+        user = data.get('user', [])
         try:
-            # self.module.authenticate(data)
-            fn = data['fn']
-            fn_kwargs = data.get('kwargs', {})
-            fn_args = data.get('args', [])
             
-            if fn == 'getattr':
-                if 'k' in fn_kwargs:
-                    k = fn_kwargs['k']
-                elif len(fn_args) > 0:
-                    k = fn_args[0]
-                assert k in self.whitelist, f'Function {k} not in whitelist, while using getattr'
-            
-            assert fn in self.whitelist, f'Function {data["fn"]} not in whitelist'
-            assert fn not in self.blacklist, f'Function {data["fn"]} in blacklist'
-            
-            if verbose:
-                c.print('Calling Function: '+fn, color='cyan')
-            output_data = getattr(self.module, fn)(*fn_args,**fn_kwargs)
+            self.check_call(fn=fn, args=args, kwargs=kwargs, user=user)
+
+            c.print('Calling Function: '+fn, color='cyan')
+            output_data = getattr(self.module, fn)(*args,**kwargs)
             
             success = True
 
@@ -256,17 +295,17 @@ class Server(ServerServicer, Serializer, c.Module):
             'latency': t.seconds,
             'in_bytes': sys.getsizeof(data),
             'out_bytes': sys.getsizeof(output_data),
-            'auth': data.get('auth', None),
+            'user': data.get('user', {}),
             'fn': fn,
             'timestamp': c.time(),
             'success': success
             }
         
-        
         # calculate bps (bytes per second) for upload and download
         sample_info['upload_bps'] = sample_info['in_bytes'] / sample_info['latency']
         sample_info['download_bps'] = sample_info['out_bytes'] / sample_info['latency']
         
+        c.print(sample_info)
         self.log_sample(sample_info)
         
         

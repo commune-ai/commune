@@ -1,1 +1,23 @@
-users: []
+name: Alice
+name2address: {}
+users:
+  bro:
+    network: commune
+    role: admin
+    ss58_address: 5EZjZ9VXnL5wK2e1Gtz3TcZhDuc175dtM2k2UkzTv3AahrGk
+  brod:
+    network: commune
+    role: admin
+    ss58_address: 5FxXvhHjA721XZUmy2Voz1CPEXrSFzVkrLTvVEuHpWmD4573
+  brod4:
+    network: commune
+    role: admin
+    ss58_address: 5HiduH4fVrSQQuh2tYNrEpqbrU5pT6kuWeyZTbTTThYomRqp
+  broddcfff:
+    network: commune
+    role: admin
+    ss58_address: 5GKfcSYVNw1w5ke7N527a1MrsKvHEnw8R88LiZ58A9MJMaQQ
+  fam:
+    network: commune
+    role: admin
+    ss58_address: 5GKnRY56UbXyssEbFYGG8YtzYBNjuni7QB645reXycBmeNdP

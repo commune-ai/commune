@@ -138,10 +138,10 @@ class neuron:
 
             
             bittensor.logging.info( 'block', self.subtensor.block )
-            bittensor.logging.info( f'blocks until epoch {blocks_until_epoch}/{epoch_length}' )
+            bittensor.logging.info( f'blocks until epoch {blocks_until_epoch} (epoch_length: {epoch_length})' )
 
             if blocks_until_epoch % (epoch_length//2) == 0  : 
-                bittensor.logging.trace( 'epoch()' )
+                bittensor.logging.trace( f'epoch FINITO({epoch_length})' )
 
                 # Update the last epoch block to the current epoch block.
                 last_epoch_block = self.subtensor.block
@@ -176,8 +176,7 @@ class neuron:
         """
         bittensor.logging.info( 'compute_weights()' )
 
-        if len(self.top_uids) == 0:
-            self.sync()
+        self.sync()
         
         uids = torch.tensor(list(map(int, self.top_uids.keys()))).long().to('cpu')
         weights = torch.tensor(list(map(int, self.top_uids.values()))) + 1e-10

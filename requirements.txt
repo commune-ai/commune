@@ -32,3 +32,5 @@ retry
 psutil
 munch
 ansible
+grpcio
+grpcio-tools
