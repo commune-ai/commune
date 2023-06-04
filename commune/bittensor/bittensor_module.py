@@ -92,8 +92,13 @@ class BittensorModule(c.Module):
         except TypeError as e:
             metagraph = bittensor.metagraph(netuid=netuid)
         if load:
-            metagraph.load()
-            save= sync = False
+            try:
+                metagraph.load()
+                save= sync = False
+            except FileNotFoundError as e:
+                c.print(e, color='red')
+                save = sync = True
+            
             
         
         if sync:
