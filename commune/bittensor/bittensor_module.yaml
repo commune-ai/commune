@@ -1,5 +1,5 @@
-module: BittensorModule
-network: finney
-netuid: 3
-coldkey: ensemble
+coldkey: mao
 model_name: server
+module: BittensorModule
+netuid: 1
+network: finney

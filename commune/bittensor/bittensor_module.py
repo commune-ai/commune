@@ -110,6 +110,18 @@ class BittensorModule(c.Module):
     
     meta = get_metagraph
     
+    @classmethod
+    def set_default(cls,**kwargs):
+        config = cls.config()
+        for key, value in kwargs.items():
+            if key in config:
+                assert isinstance(value, type(config[key])), f'Expected {key} to be of type {type(config[key])}, got {type(value)}'
+                config[key] = value
+                
+        cls.save_config(config)
+            
+            
+    
     def set_subtensor(self, subtensor=None, netuid=None):
          
         self.subtensor = self.get_subtensor(subtensor)
@@ -1326,7 +1338,7 @@ class BittensorModule(c.Module):
         
         if netuid == 3:
             neuron =  cls.module('bittensor.miner.neuron')(*args, **kwargs)
-        elif netuid == 1:
+        elif netuid in [1,11]:
             neuron = cls.import_object('commune.bittensor.neurons.neurons.text.prompting')(*args, **kwargs)
             
         return neuron
@@ -1341,7 +1353,7 @@ class BittensorModule(c.Module):
                wallet='ensemble.vali',
                model_name:str= default_model_name,
                network =default_network,
-               netuid=1,
+               netuid=default_netuid,
                port = None,
                prometheus_port = None,
                 device = None,
@@ -1372,7 +1384,7 @@ class BittensorModule(c.Module):
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
         cls.print(kwargs)
-        if netuid == 1:
+        if netuid in [1,11]:
             neuron_class = c.import_object('commune.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
             config = neuron_class.config()
         else:
@@ -1552,7 +1564,7 @@ class BittensorModule(c.Module):
     def fleet(cls, name=default_coldkey, 
                     hotkeys = None,
                     remote=True,
-                    netuid=3,
+                    netuid= default_netuid,
                     network=default_network,
                     model_name = default_model_name,
                     refresh: bool = True,
@@ -1593,10 +1605,7 @@ class BittensorModule(c.Module):
         
         deloyed_miners = 0
         for i, wallet in enumerate(wallets):
-            
-
-            
-            
+        
             tag = f'{wallet}::{subtensor.network}::{netuid}'
             miner_name = f'miner::{tag}'
             

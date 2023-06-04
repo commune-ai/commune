@@ -1,4 +1,3 @@
-
 import openai
 import os
 import torch
@@ -24,11 +23,12 @@ class OpenAILLM(c.Module):
                 api: str = 'OPENAI_API_KEY',
                 stats:dict = None
                 ):
-        self.set_llm(api=api)
+        
+        self.set_config(kwargs=c.locals2kwargs(locals()))
+        self.set_api(api=api)
         self.set_prompt(prompt)
         self.set_tokenizer(tokenizer)
         self.set_stats(stats)
-        self
         
         self.params  = dict(
                  model =model,
@@ -75,15 +75,23 @@ class OpenAILLM(c.Module):
         {x}
         A (JSON):
         """
+
         
     def forward(self,
-                text = None,
+                *args,
                 params = None,
                 prompt:str=None,
-                text_only:bool = False,
+                choice_idx:int = 0,
                 **kwargs) -> str:
+        if len(args) > 0 :
+            assert len(args) == len(self.prompt_variables), f"Number of arguments must match number of prompt variables: {self.prompt_variables}"
+            kwargs = dict(zip(self.prompt_variables, args))
+            
         params = self.resolve_params(params)
-        prompt = self.resolve_prompt(text=text, **kwargs)
+        if prompt == None:
+            prompt = self.resolve_prompt(**kwargs)
+        c.print(prompt)
+        c.print(openai)
         response = openai.Completion.create(
             prompt=prompt, 
             **params
@@ -94,9 +102,12 @@ class OpenAILLM(c.Module):
         for k,v in response['usage'].items():
             self.stats[k] = self.stats.get(k, 0) + v
         
-        if text_only:
-            return response['choices'][0]['text']
+        response =  response['choices'][choice_idx]['text']
+        if c.jsonable(response):
+            response = json.loads(response)
+            
         return response
+                
     
     
     def set_prompt(self, prompt: str):
@@ -167,14 +178,24 @@ class OpenAILLM(c.Module):
                          truncation=truncation, 
                          max_length=max_length)
     @classmethod
-    def example(cls):
+    def test(cls, question = '''
+            convert this into a yaml
+
+             model: str = "text-davinci-003",
+                prompt: str = None,
+                temperature: float=0.9,
+                max_tokens: int=1000,
+                top_p: float=1.0,
+                frequency_penalty: float=0.0,
+                presence_penalty: float=0.0,
+                tokenizer: str = None,
+                api: str = 'OPENAI_API_KEY',
+                stats:dict = None
+             '''):
         model = cls()
-        input_ids = model.encode_tokens('Hellow how is it going')['input_ids']
-        print(model.forward(input_ids=input_ids[0], tokenizer='gpt2', k=10))
+        print(model.forward(question))
             
 
-
-        return cls.test(cls.example_params())
 
 
 

@@ -30,6 +30,23 @@ class c:
                 'module_name', 'modules', 'help']
 
     
+        
+    def __init__(self, 
+                 config:Dict=None, 
+                 add_attributes: bool = False,
+                 key: str = None,
+                 save_config:bool = False,
+                 *args, 
+                 **kwargs):
+        # set the config of the module (avoid it by setting config=False)
+        self.set_config(config=config, add_attributes=add_attributes, save_config=save_config)  
+        # self.set_key(key)
+    
+    
+    
+    def init(self, *args, **kwargs):
+        c.__init__(self, *args, **kwargs)
+    
     @classmethod
     def boot_peers(cls) -> List[str]: 
         config = c.get_config()
@@ -57,24 +74,7 @@ class c:
         return rot_paths
     root_paths = get_root_paths
         
-    
-        
-    def __init__(self, 
-                 config:Dict=None, 
-                 add_attributes: bool = False,
-                 key: str = None,
-                 save_config:bool = False,
-                 *args, 
-                 **kwargs):
-        # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, add_attributes=add_attributes, save_config=save_config)  
-        # self.set_key(key)
-    
-    
-    
-    def init(self, *args, **kwargs):
-        c.__init__(self, *args, **kwargs)
-    
+
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     @classmethod
@@ -744,12 +744,10 @@ class c:
         
         '''
         from importlib import import_module
-        c.print(key)
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
         if verbose:
             cls.print(f'Importing {object_name} from {module}')
-        c.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -2110,7 +2108,6 @@ class c:
         
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
-        print(f'namespace: {namespace}')
         return namespace
     
     
@@ -2178,13 +2175,14 @@ class c:
         whitelist = whitelist if whitelist else self.whitelist()
         blacklist = blacklist if blacklist else self.blacklist()
     
-        c.print(f'whitelist {whitelist}, blacklist {blacklist}')
         # resolve the module id
         
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
         if name == None:
-            if hasattr(self, 'default_module_name'):
+            if hasattr(self, 'module_path'):
+                name = self.module_path()
+            elif hasattr(self, 'default_module_name'):
                 name = self.default_module_name()
             else:
                 name = self.__class__.__name__
@@ -2222,7 +2220,7 @@ class c:
         self.port = server.port
         self.address = self.ip_address = self.ip_addy =  server.address
         
-        if not hasattr(self, 'config'):
+        if (not hasattr(self, 'config')) or callable(self.config):
             self.config = cls.munch({})
             
         self.config['info'] = self.info()
@@ -3543,7 +3541,8 @@ class c:
         import os
         return  os.environ[key] 
 
-
+    env = get_env
+    
     
     ### GPU LAND
     
@@ -3781,6 +3780,7 @@ class c:
         import json
         state_dict = self.to_dict()
         assert isinstance(state_dict, dict), 'State dict must be a dictionary'
+        assert self.jsonable(state_dict), 'State dict must be jsonable'
         return json.dumps(state_dict)
     
     @classmethod
@@ -3873,7 +3873,8 @@ class c:
     def from_json(cls, json_str:str) -> 'Module':
         import json
         return cls.from_dict(json.loads(json_str))
-     
+    
+    
      
     @classmethod
     def status(cls, *args, **kwargs):
@@ -4037,16 +4038,14 @@ class c:
 
         return output_dict
     
-    
-    def is_json_serializable(self, value):
+    @staticmethod
+    def jsonable( value):
         import json
         try:
             json.dumps(value)
             return True
         except:
             return False
-            
-            
             
 
     def restart_module(self, module:str) -> None:
@@ -4289,6 +4288,9 @@ class c:
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
     
+    @staticmethod
+    def is_key(key):
+        return hasattr(args[0], 'public_key') and hasattr(args[0], 'address')
     
     def set_key(self, *args, **kwargs) -> None:
         # set the key
@@ -4320,9 +4322,6 @@ class c:
     @classmethod
     def get_signer(cls, data:dict ) -> bool:        
         return c.module('key').get_signer(data)
-    
-    
-        
     
     def get_auth(self, 
                  data:dict  = None, 
@@ -4715,7 +4714,6 @@ class c:
         if len(port_range) == 0:
             port_range = cls.default_port_range
         port_range = list(port_range)
-        c.print(port_range)
         assert isinstance(port_range, list), 'Port range must be a list'
         assert isinstance(port_range[0], int), 'Port range must be a list of integers'
         assert isinstance(port_range[1], int), 'Port range must be a list of integers'

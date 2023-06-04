@@ -85,7 +85,7 @@ class Keypair(c.Module):
     default_path = 'default'
     def __init__(self,
                  seed: str = None,
-                 path : str = 'default', 
+                 path: str = 'default', 
                  ss58_address: str = None,
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None,
@@ -94,10 +94,10 @@ class Keypair(c.Module):
                  mnemonic: str = None,
                  password: str = None,
                  uri: str = None,
-                 derive_path : str = None,
+                 derive_path: str = None,
                  crypto_type: int = 'sr25519',
                  refresh: bool = False,
-                 save: bool = True,
+                 save: bool = False,
                  load: bool = True,
                  override: bool = False,
                  **kwargs
@@ -144,8 +144,10 @@ class Keypair(c.Module):
 
         self.path = path
         self.password = password
+        
+        if seed != None or mnemonic != None or uri != None or private_key != None:
+            load = False
 
-        print(path,'bro')
         if load:
             return self.load(path=path, password=password)
             
