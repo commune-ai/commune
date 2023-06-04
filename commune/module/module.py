@@ -741,7 +741,7 @@ class c:
         
         '''
         from importlib import import_module
-
+        c.print(key)
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
         if verbose:
@@ -1209,24 +1209,8 @@ class c:
     def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
         
         og_path = path
-        try:
-            
-            path = cls.simple2path(path)
-            path = cls.path2objectpath(path)
-                
-            assert path is not None, f'Could not find path for {path}'
-            if verbose:
-                cls.print(f'Found {path}', verbose=verbose)
-        except Exception as e:
-            path = og_path
-            if handle_error:
-                cls.print(f'{e}', verbose=verbose)
-            else:
-                raise e
-            
-        if path == None:
-            path = og_path
-        
+        path = cls.simple2path(path)
+        path = cls.path2objectpath(path)
         return cls.import_object(path)
 
     @classmethod
@@ -1244,6 +1228,9 @@ class c:
         if cls.root_module_class in module_tree:
             module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
 
+        for k in c.copy(list(module_tree.keys())):
+            if k.startswith('modules.'):
+                module_tree[k.replace('modules.', '')] = module_tree.pop(k)
         return module_tree
     
     tree = module_tree
@@ -1303,8 +1290,8 @@ class c:
         return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
     @classmethod
     def simple2path(cls, path) -> Dict[str, str]:
-        simple2path_map = cls.simple2path_map()
-        return simple2path_map[path]
+        module_tree = cls.module_tree()
+        return module_tree[path]
 
     @classmethod
     def path2simple_map(cls) -> Dict[str, str]:
@@ -1727,7 +1714,7 @@ class c:
     
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
-        client_class = cls.get_module('commune.server.client.Client')
+        client_class = cls.import_object('commune.server.client.Client')
         client = client_class(*args, **kwargs)
         if virtual:
             return client.virtual()
@@ -1800,6 +1787,9 @@ class c:
         else:
             remote_namespace = c.get('remote_namespace', {})   
         
+        remote_modules = c.get('remote_modules', {})
+        remote_namespace.update(remote_modules)
+
         peer_registry = cls.peer_registry(update=update)  
         
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
@@ -1814,6 +1804,8 @@ class c:
                     cls.print(f'Peer {peer_name} has no namespace', color='red')
         
         c.put('remote_namespace', remote_namespace)
+        
+        
 
         return remote_namespace
         
@@ -4738,13 +4730,16 @@ class c:
         return peer
     
     @classmethod
-    def add_module(cls, module, cache_path='remote_modules'):
+    def add_module(cls, module, cache_path='remote_modules', refresh = True):
         module = c.connect(module)
-        module_info = module.info
-        remote_modules = c.get(cache_path, {})
-        remote_modules[module] = address
+        module_info = module.info(include_namespace=False)
+        assert isinstance(module_info, dict), 'Module info must be a dictionary'
+        remote_modules = {} if refresh else c.get(cache_path, {})
+        remote_modules[ module_info['name']] = module_info['address']
         c.put(cache_path, remote_modules)
-        return {'msg': module, 'address': address}
+        return {'msg': module,
+                'address': module_info['address'], 
+                'module': module_info}
     
     @classmethod
     def rm_module(cls, module, cache_path='remote_modules'):
