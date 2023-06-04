@@ -1,4 +1,5 @@
 module: BittensorModule
 network: finney
 netuid: 3
-wallet: ensemble
+coldkey: ensemble
+model_name: server
