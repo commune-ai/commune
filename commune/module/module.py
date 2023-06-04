@@ -154,8 +154,9 @@ class c:
     @classmethod
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
-        return cls.get_module_path(simple=simple)
-    
+        path = cls.get_module_path(simple=simple)
+        path = path.replace('modules.', '')
+        return path
         
     @classmethod
     def module_class(cls) -> str:
@@ -423,6 +424,8 @@ class c:
             data = cls.decrypt(data, password=password)
         if isinstance(data, dict):
             data = data.get('data', data)
+            
+            
         return data
     
     @classmethod
@@ -867,6 +870,20 @@ class c:
                 
                 
         return available_ports
+    available_ports = get_available_ports
+    
+    
+    @staticmethod
+    def scan_ports(host=None, start_port=1, end_port=50000):
+        if host == None:
+            host = c.external_ip()
+        import socket
+        open_ports = []
+        for port in range(start_port, end_port + 1):  # ports from start_port to end_port
+            if c.port_used(port=port, ip=host):
+                open_ports.append(port)
+        return open_ports
+
     @classmethod
     def resolve_port(cls, port:int=None, **kwargs):
         
@@ -1078,6 +1095,7 @@ class c:
         simple_path = simple_path.replace('/', '.')[1:]
         if compress:
             simple_path = cls.compress_name(simple_path, seperator='.')
+        simple_path.replace('modules.', '')
         return simple_path
     
     @classmethod
@@ -4681,10 +4699,8 @@ class c:
             assert isinstance(port, int), f'Port {port} range must be a list of integers'
         assert port_range[0] < port_range[1], 'Port range must be a list of integers'
                 
-        data = dict(port_range =port_range)
-        c.put('port_range', data)
-        cls.port_range = data['port_range']
-        return data['port_range']
+        c.put('port_range', port_range)
+        return port_range
     
     
     
@@ -4698,7 +4714,8 @@ class c:
             
         if len(port_range) == 0:
             port_range = cls.default_port_range
-            
+        port_range = list(port_range)
+        c.print(port_range)
         assert isinstance(port_range, list), 'Port range must be a list'
         assert isinstance(port_range[0], int), 'Port range must be a list of integers'
         assert isinstance(port_range[1], int), 'Port range must be a list of integers'
