@@ -15,7 +15,7 @@
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
 # DEALINGS IN THE SOFTWARE.
-
+# Logging
 # Imports
 import torch
 import scalecodec
@@ -33,16 +33,21 @@ from commune.subspace.utils import weight_utils
 from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo, custom_rpc_type_registry
 from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
 import streamlit as st
-# Logging
+import json
 from loguru import logger
 logger = logger.opt(colors=True)
+
+
 class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
 
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
-
+    network2url_map = {
+        'local': '127.0.0.1:9944',
+        'testnet': '162.157.13.236:9944'
+        }
     
     def __init__( 
         self, 
@@ -65,12 +70,6 @@ class Subspace(c.Module):
         """
 
         self.set_network( network=network)
-
-
-    network2url_map = {
-        'local': '127.0.0.1:9944',
-        'testnet': '162.157.13.236:9944'
-        }
     @classmethod
     def network2url(cls, network:str) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
@@ -178,29 +177,6 @@ class Subspace(c.Module):
         wait_for_finalization:bool = True,
         prompt:bool = False,
     ) -> bool:
-        r""" Sets the given weights and values on chain for key hotkey account.
-        Args:
-            key (bittensor.key):
-                bittensor key object.
-            netuid (int):
-                netuid of the subent to set weights for.
-            uids (Union[torch.LongTensor, list]):
-                uint64 uids of destination neurons.
-            weights ( Union[torch.FloatTensor, list]):
-                weights to set which must floats and correspond to the passed uids.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true,
-                or returns false if the extrinsic fails to enter the block within the timeout.
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block.
-                If we did not wait for finalization / inclusion, the response is true.
-        """
         netuid = self.resolve_netuid(netuid)
         # First convert types.
         if isinstance( uids, list ):
