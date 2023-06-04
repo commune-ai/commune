@@ -101,7 +101,6 @@ class Server(ServerServicer, Serializer, c.Module):
         self.authenticate = authenticate
         self.exceptions_to_raise = exceptions_to_raise
         
-        c.print(self.info)
         
     def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
         if loop == None:

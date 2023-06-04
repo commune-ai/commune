@@ -1639,8 +1639,6 @@ class c:
                 raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
             
 
-            c.print('FOUND MODULES',name)  
-
             port = int(name.split(':')[-1])
 
                 
