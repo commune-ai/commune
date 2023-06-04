@@ -14,7 +14,7 @@ import streamlit as st
 
 class BittensorModule(c.Module):
     default_coldkey = 'ensemble'
-    default_network ='local'
+    default_network ='finney'
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = 'server'
     default_netuid = 1
@@ -808,7 +808,9 @@ class BittensorModule(c.Module):
         version = str(version) 
         if str(version) == '4':
             version = '4.0.1'
-        return c.cmd(f'pip install bittensor=={version}')
+        elif str(version) == '5':
+            version = '5.1.0'
+        c.cmd(f'pip install bittensor=={version}', verbose=True)
 
     @classmethod
     def setup(cls, network='local'):
