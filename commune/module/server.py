@@ -53,6 +53,7 @@ class Server(ServerServicer, Serializer, c.Module):
             loop: 'asyncio.Loop' = None,
             exceptions_to_raise = ['CUDA out of memory',  'PYTORCH_CUDA_ALLOC_CONF'],
             network: 'Network' = None,
+            max_history  = 100,
 
 
         ) -> 'Server':
@@ -92,6 +93,7 @@ class Server(ServerServicer, Serializer, c.Module):
         self.verbose = verbose
         self.module = module
         self.authenticate = authenticate
+        self.max_history = max_history
         
         
         self.ip = ip = ip if ip != None else self.default_ip
@@ -220,6 +222,8 @@ class Server(ServerServicer, Serializer, c.Module):
         kwargs = data.get('kwargs', {})
         args = data.get('args', [])
         user = data.get('user', [])
+        
+        error_msg = None
         try:
             
             self.check_call(fn=fn, args=args, kwargs=kwargs, user=user)
@@ -244,8 +248,7 @@ class Server(ServerServicer, Serializer, c.Module):
                 raise(ex)
                 self.stop()
             
-            if verbose:
-                c.print(f'[bold]EXCEPTION[/bold]: {ex}', color='red')
+            c.print(f'EXCEPTION: {ex}', color='red')
         
 
         sample_info ={
@@ -259,8 +262,8 @@ class Server(ServerServicer, Serializer, c.Module):
             }
         
         # calculate bps (bytes per second) for upload and download
-        sample_info['upload_bps'] = sample_info['in_bytes'] / sample_info['latency']
-        sample_info['download_bps'] = sample_info['out_bytes'] / sample_info['latency']
+        sample_info['upload_bps'] = int(sample_info['in_bytes'] / sample_info['latency'])
+        sample_info['download_bps'] = int(sample_info['out_bytes'] / sample_info['latency'])
         
         c.print(sample_info)
         self.log_sample(sample_info)
@@ -270,7 +273,7 @@ class Server(ServerServicer, Serializer, c.Module):
         return {'data': {'result': output_data, 'info': sample_info }, 'metadata': metadata}
     
 
-    def log_sample(self, sample_info: dict, max_history: int = 100) -> None:
+    def log_sample(self, sample_info: dict) -> None:
             if not hasattr(self, 'stats'):
                 self.stats = {}
         
@@ -280,11 +283,10 @@ class Server(ServerServicer, Serializer, c.Module):
             self.stats['successes'] = self.stats.get('success', 0) + (1 if sample_info['success'] else 0)
             self.stats['errors'] = self.stats.get('errors', 0) + (1 if not sample_info['success'] else 0)
             self.stats['requests'] = self.stats.get('requests', 0) + 1
-            self.stats['history'] = self.stats.get('history', []) + [sample_info]
-            self.stats['most_recent'] = sample_info
-        
+            self.stats['history'] = self.stats.get('history', []) + [sample_info]  
             
-            if len(self.stats['history']) > max_history:
+            # keep history to a max      
+            if len(self.stats['history']) > self.max_history:
                 self.stats['history'].pop(0)
             
     def Forward(self, request: DataBlock, context: grpc.ServicerContext) -> DataBlock:
