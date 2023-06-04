@@ -80,6 +80,7 @@ class OpenAILLM(c.Module):
                 text = None,
                 params = None,
                 prompt:str=None,
+                text_only:bool = False,
                 **kwargs) -> str:
         params = self.resolve_params(params)
         prompt = self.resolve_prompt(text=text, **kwargs)
@@ -93,7 +94,7 @@ class OpenAILLM(c.Module):
         for k,v in response['usage'].items():
             self.stats[k] = self.stats.get(k, 0) + v
         
-        if return_text_only:
+        if text_only:
             return response['choices'][0]['text']
         return response
     

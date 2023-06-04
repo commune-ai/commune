@@ -14,30 +14,21 @@ import argparse
 import asyncio
 
 class c:
-    library_name = 'commune'
-    root_module_class = 'c'
-    # port range for servers
+    root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
-    
-    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
-                    'info', 'ip', 'address','ip_address', 'info', 'schema',
-                    'module_name', 'modules', 'help']
     user = None
-    # default ip
     default_ip = '0.0.0.0'
     address = None
-    # the root path of the module (assumes the module.py is in ./module/module.py)
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
+    library_name = root_dir = root_path.split('/')[-1]
     default_network = 'commune'
-    # get the current working directory  (doesnt have /)
     pwd = os.getenv('PWD')
-    
-    # get the root directory (default commune)
-    # Please note that this assumes that {root_dir}/module.py is where your module root is
-    root_dir = root_path.split('/')[-1]
     console = Console()
-    
+    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
+                'info', 'ip', 'address','ip_address', 'info', 'schema',
+                'module_name', 'modules', 'help']
+
     
     @classmethod
     def boot_peers(cls) -> List[str]: 
@@ -2396,15 +2387,16 @@ class c:
     def peer_info(self) -> Dict[str, Any]:
         self.info()
     @classmethod
-    def schema(cls, *args,  **kwargs):
-        return cls.get_function_schema_map(*args, **kwargs)
+    def schema(cls, search = None, *args,  **kwargs):
+        return {k: v for k,v in cls.get_function_schema_map(*args,search=search,**kwargs).items()}
     @classmethod
     def get_function_schema_map(cls,
                                 obj = None,
+                                search = None,
                                 include_code : bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
-                                include_default:bool = True,
+                                include_default:bool = False,
                                 include_docs: bool = False):
         
         obj = obj if obj else cls
@@ -2413,7 +2405,10 @@ class c:
         function_schema_map = {}
         
         for fn in cls.get_functions(obj, include_module=include_module):
-
+                    
+            if search != None :
+                if search not in fn:
+                    continue
             if include_default:
                 fn_default_map = cls.get_function_default_map(obj=obj, include_module=include_module)
             if callable(getattr(obj, fn )):
@@ -2425,7 +2420,9 @@ class c:
                 
                 for fn_k, fn_v in obj_fn.__annotations__.items():
                     
+                    
                     fn_v = str(fn_v)  
+
                     if fn_v == inspect._empty:
                         fn_schema[fn_k]= 'Any'
                     elif fn_v.startswith('<class'):
@@ -2877,10 +2874,8 @@ class c:
     def get_self_methods(cls, obj=None) -> List[str]:
         from commune.utils.function import get_self_methods
         return get_self_methods(obj if obj else cls)
-        
-        
+           
     ## RAY LAND
-    
     @classmethod
     def ray_stop(cls):
         cls.run_command('ray stop')
@@ -3189,11 +3184,12 @@ class c:
     @classmethod
     def ray_context(cls):
         import ray
+        import ray
         return ray.runtime_context.get_runtime_context()
 
     @staticmethod
     def ray_objects( *args, **kwargs):
-
+        import ray
         return ray.experimental.state.api.list_objects(*args, **kwargs)
     
     @classmethod
