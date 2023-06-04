@@ -26,12 +26,11 @@ import bittensor
 import argparse
 import bittensor as bt
 import traceback
+import commune as c
 
 from loguru import logger
 from types import SimpleNamespace
 from typing import List, Optional, Tuple, Dict
-from reward import RewardModel
-from gating import GatingModel
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
@@ -54,7 +53,7 @@ class neuron:
         parser.add_argument( '--neuron.device', type = str, help = 'Device to run the validator on.', default = "cuda" if torch.cuda.is_available() else "cpu" )
         parser.add_argument( '--neuron.epoch_length_override', type = int, help = 'Override the default timeout', default = -1 )
         parser.add_argument( '--neuron.max_network_delay', type=int, default = 20 )
-        parser.add_argument( '--neuron.topk', type=int, default = 100 )
+        parser.add_argument( '--neuron.topk', type=int, default = 50 )
         parser.add_argument( '--neuron.alpha', type=float, default = 0.5 )
 
     @classmethod
@@ -64,16 +63,15 @@ class neuron:
         bt.subtensor.add_args( parser )
         bt.logging.add_args( parser )
         bt.axon.add_args( parser )
-        GatingModel.add_args( parser )
         cls.add_args( parser )
         return bt.config( parser )
     
-    def __init__( self, config = None, subtensor = None, wallet = None):      
+    def __init__( self, config = None, subtensor = None, wallet = None, netuid=None):      
         self.config = neuron.config() if config == None else config
 
 
         self.check_config( self.config )
-        bt.logging( config = self.config, logging_dir = self.config.neuron.full_path )
+        bt.logging( config = self.config )
         print( self.config )
         
         self.subtensor = bt.subtensor ( config = self.config ) if subtensor == None else subtensor
@@ -96,8 +94,7 @@ class neuron:
         self.last_sync = self.subtensor.block
         self.dendrite_pool = bt.text_prompting_pool( keypair = self.wallet.hotkey, metagraph = self.metagraph )
         self.inference_pool = bt.text_prompting_pool( keypair = self.wallet.hotkey, metagraph = self.metagraph )
-        self.my_nominators = { nomin[0]: nomin[1] for nomin in delegates[0][0].nominators } if len(delegates) else {}
-        self.top_uids = self.update_top_uids()
+        self.top_uids = self.get_top_uids()
 
     def get_top_uids(self, k=None) -> Dict:
         if k == None:
@@ -105,7 +102,7 @@ class neuron:
         if not hasattr(self, 'bt'):
             self.bt = c.module('bittensor')
         
-        top_uids = self.bt.get_top_neurons(k=k, metagraph=self.metagraph, return_dict=True)
+        top_uids = self.bt.get_top_uids(k=k, metagraph=self.metagraph, return_dict=True)
         
         return top_uids
 
@@ -121,8 +118,14 @@ class neuron:
         self.last_sync = self.subtensor.block
         weights_set_for_epoch = False
         # Start an infinite loop for training.
+        last_epoch_set_block = 0
+        current_block = 0
         while True:
-
+            if current_block == self.subtensor.block:
+                continue
+            else:
+                current_block = self.subtensor.block
+            
             # Resync metagraph before returning. (sync every 15 min or ~75 blocks)
             if self.subtensor.block - self.last_sync > self.config.neuron.max_network_delay:
                 self.sync()
@@ -132,11 +135,13 @@ class neuron:
             epoch_length = self.subtensor.validator_epoch_length(self.config.netuid) if self.config.neuron.epoch_length_override == -1 else self.config.neuron.epoch_length_override
             blocks_until_epoch = epoch_length - ( self.subtensor.block - last_epoch_block )
             bittensor.logging.debug( 'blocks_until_epoch', blocks_until_epoch )
-            
 
-            if blocks_until_epoch % (epoch_length // 4) == 0: 
+            
+            bittensor.logging.info( 'block', self.subtensor.block )
+            bittensor.logging.info( f'blocks until epoch {blocks_until_epoch}/{epoch_length}' )
+
+            if blocks_until_epoch % (epoch_length//2) == 0  : 
                 bittensor.logging.trace( 'epoch()' )
-                bittensor.logging.info( 'block', self.subtensor.block )
 
                 # Update the last epoch block to the current epoch block.
                 last_epoch_block = self.subtensor.block
@@ -154,6 +159,7 @@ class neuron:
                     weights = weights,
                     wait_for_finalization = False,
                 )
+                last_epoch_set_block = self.subtensor.block
                 weights_set_for_epoch = True
 
 
@@ -173,21 +179,21 @@ class neuron:
         if len(self.top_uids) == 0:
             self.sync()
         
-        uids = torch.tensor(list(map(int, self.top_uids.keys()))).long()
-        weights = torch.tensor(list(map(int, self.top_uids.values()))) 
-        weights = weights / (weights.sum() + 1e-10)
+        uids = torch.tensor(list(map(int, self.top_uids.keys()))).long().to('cpu')
+        weights = torch.tensor(list(map(int, self.top_uids.values()))) + 1e-10
+        weights = weights / (weights.sum()).to('cpu')
      
-        # Process the raw weights to final_weights via subtensor limitations.
-        processed_weight_uids, processed_weights = bittensor.utils.weight_utils.process_weights_for_netuid(
-            uids = uids.to( "cpu" ),
-            weights = weights.to( "cpu" ),
-            netuid = self.config.netuid,
-            subtensor = self.subtensor,
-            metagraph = self.metagraph
-        )
-        bittensor.logging.trace( 'processed_weights', processed_weights )
-        bittensor.logging.trace( 'processed_weight_uids', processed_weight_uids )
-        return processed_weight_uids, processed_weights
+        # # Process the raw weights to final_weights via subtensor limitations.
+        # processed_weight_uids, processed_weights = bittensor.utils.weight_utils.process_weights_for_netuid(
+        #     uids = uids.to( "cpu" ),
+        #     weights = weights.to( "cpu" ),
+        #     netuid = self.config.netuid,
+        #     subtensor = self.subtensor,
+        #     metagraph = self.metagraph
+        # )
+        # bittensor.logging.trace( 'processed_weights', processed_weights )
+        # bittensor.logging.trace( 'processed_weight_uids', processed_weight_uids )
+        return uids, weights
 
 if __name__ == '__main__':
     bittensor.logging.info( 'neuron().train()' )
