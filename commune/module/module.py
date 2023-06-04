@@ -1870,7 +1870,7 @@ class c:
                 local_namespace = cls.get_json('local_namespace', {}, root=True)
                 
         external_ip = cls.external_ip()
-        local_namespace = {k:v.replace(external_ip, cls.default_ip) for k,v in local_namespace.items()}
+        local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
         return local_namespace
 
         

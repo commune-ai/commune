@@ -197,6 +197,6 @@ class Ansible(commune.Module):
             self.save_inventory()
             st.write(self.shell(command_text, inventory_group='selected'))
 if __name__ == '__main__':
-    Ansible.run()
+    Ansible.dashboard()
     
     
