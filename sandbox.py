@@ -2,10 +2,4 @@ import commune as c
 import torch
 
 # meta = c.module('bittensor').get_metagraph(subtensor='local')
-
-
-c.print(c.module('key')(seed='bro').__dict__)
-
-for uid, incentive in top_uid_map.items():
-    print(uid, incentive)
-
+c.call('model.diffusion', 'predict_txt2img', prompt='a photo of an astronaut riding a horse on mars', device='cuda')
