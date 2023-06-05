@@ -1604,14 +1604,14 @@ class BittensorModule(c.Module):
             free_gpu_memory = cls.free_gpu_memory()
             
         avoid_ports = []
-        
+        miners = cls.miners(netuid=netuid)
         deloyed_miners = 0
         for i, wallet in enumerate(wallets):
         
             tag = f'{wallet}::{subtensor.network}::{netuid}'
             miner_name = f'miner::{tag}'
             
-            if miner_name in cls.miners() and not refresh:
+            if miner_name in miners and not refresh:
                 cls.print(f'{miner_name} is already running. Skipping ...')
                 continue
             
@@ -1675,6 +1675,9 @@ class BittensorModule(c.Module):
         return list(cls.wallet2validator(*args, **kwargs).keys())
         
     @classmethod
+    def version(cls):
+        return c.version('bittensor')
+    @classmethod
     def wallet2validator(cls, 
                          wallet=None,
                          unreged=False, 
@@ -1704,18 +1707,20 @@ class BittensorModule(c.Module):
         return wallet2miner
      
     @classmethod
-    def wallet2miner(cls, wallet=None, unreged=False, reged=False, prefix='miner'):
+    def wallet2miner(cls, wallet=None, unreged=False, reged=False, prefix='miner', netuid=None):
         wallet2miner = {}
         if unreged:
-            filter_wallets = cls.unreged()
+            filter_wallets = cls.unreged(netuid=netuid)
         elif reged:
-            filter_wallets = cls.reged()
+            filter_wallets = cls.reged(netuid=netuid)
         else:
             filter_wallets = []
             
             
         for m in cls.pm2_list(prefix):
-            
+            miner_netuid = m.split('::')[-1]
+            if netuid != None and miner_netuid != str(netuid):
+                continue
             wallet_name = m.split('::')[1]
             if m.split('::')[0] != prefix:
                 continue
@@ -1949,13 +1954,16 @@ class BittensorModule(c.Module):
         else:
             coldkey_info = [f"btcli regen_coldkey --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey} --mnemonic {coldkey_json['secretPhrase']}"]
             
-        miners = cls.miners()
+        if miners_only:
+            miners = cls.miners(netuid=netuid)
+            
         template = 'btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
         for hk, hk_mnemonic in hotkey_map.items():
             wallet = f'{coldkey}.{hk}'
             
-            if wallet not in miners and miners_only:
-                continue
+            if miners_only:
+                if wallet not in miners :
+                    continue
                 
             info = template.format(mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
             
