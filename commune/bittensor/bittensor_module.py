@@ -431,11 +431,17 @@ class BittensorModule(c.Module):
     def coldkey_path(cls, coldkey):
         coldkey_path = os.path.join(cls.wallets_path, coldkey)
         return coldkey_path + '/coldkey'
+    @classmethod
+    def hotkey_path(cls, hotkey, coldkey=default_coldkey):
+        coldkey_path = os.path.join(cls.wallets_path, coldkey)
+        return coldkey_path + '/hotkeys/' + str(hotkey)
     
     
     @classmethod
     def coldkey_dir_path(cls, coldkey):
         return os.path.dirname(cls.coldkey_path(coldkey))
+    
+    
     get_coldkey_path = coldkey_path
     @classmethod
     def coldkeypub_path(cls, coldkey):
@@ -1980,6 +1986,15 @@ class BittensorModule(c.Module):
         path = cls.coldkey_path(coldkey)
         coldkey_json = cls.get_json(path, {})
         return coldkey_json
+    
+    @classmethod
+    def hotkey_json(cls, hotkey, coldkey=default_coldkey):
+        path = cls.hotkey_path(hotkey, coldkey)
+        coldkey_json = cls.get_json(path, {})
+        return coldkey_json
+    
+    
+
     @classmethod
     def coldkeypub_json(cls, coldkey):
         path = cls.coldkeypub_path(coldkey)
