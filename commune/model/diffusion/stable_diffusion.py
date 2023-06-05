@@ -20,7 +20,6 @@ class StableDiffusion:
                  **kwargs):
         image = pipe(prompt, **kwargs).images[0]
         return image   
-    
     @classmethod
     def test(cls):
         self = cls()
@@ -28,5 +27,5 @@ class StableDiffusion:
         print(output)
 
 if __name__ == "__main__":
-    StableDiffusion.test()
+    StableDiffusion.run()
     

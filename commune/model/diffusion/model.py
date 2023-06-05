@@ -207,7 +207,7 @@ class DiffuserModule(Module):
     @classmethod
     def gradio(cls):
 
-        self = cls.launch(module='model.diffusion', actor={'refresh': True, 'cpu': 2, 'gpu': 0.3, 'wrap':True})
+        self = cls.launch(module='model.diffusion')
 
         import gradio 
         functions, names = [], []
@@ -240,7 +240,7 @@ class DiffuserModule(Module):
     @staticmethod
     def streamlit():
         
-        module = Module.launch(module='commune.model.diffusion',actor={'refresh': False, 'cpus': 2, 'gpus': 0.5, 'wrap':True})
+        module = Module.launch(module='model.diffusion',actor={'refresh': False, 'cpus': 2, 'gpus': 0.5, 'wrap':True})
         with st.form('Prompt'):
             # text = st.input_text('Input Text', 'd')
             cols = st.columns([2,3])
@@ -267,5 +267,5 @@ if __name__ == '__main__':
 
     # DiffuserModule.ray_restart()
 
-    DiffuserModule.streamlit()
+    DiffuserModule.run()
     
