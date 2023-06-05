@@ -1270,8 +1270,8 @@ class BittensorModule(c.Module):
     
     @classmethod
     def deploy_server(cls, 
-                      name= None,
                        model_name='vr',
+                     name= None,
                        tag = 0,
                        device = None,
                        refresh=True,
