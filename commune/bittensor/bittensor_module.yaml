@@ -1,4 +1,4 @@
-coldkey: mao
+coldkey: ensemble
 model_name: server
 module: BittensorModule
 netuid: 1
