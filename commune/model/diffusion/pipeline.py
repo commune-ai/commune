@@ -11,5 +11,6 @@ class DiffisionPipeline(c.Module):
         self.pipeline = DiffusionPipeline.from_pretrained(model)
         self.merge(self.pipeline)
         
-
-DiffisionPipeline()
+    @classmethod
+    def test(cls):
+        cls()

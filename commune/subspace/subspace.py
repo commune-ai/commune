@@ -4,7 +4,6 @@ import scalecodec
 from retry import retry
 from typing import List, Dict, Union, Optional, Tuple
 from substrateinterface import SubstrateInterface
-from commune.subspace import Balance
 import commune as c
 from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
@@ -35,7 +34,7 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
-
+    token_decimals = 9
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
         'local': '127.0.0.1:9944',
@@ -259,14 +258,6 @@ class Subspace(c.Module):
                 If true, the call waits for confirmation from the user before proceeding.
             max_allowed_attempts (int):
                 Maximum number of attempts to register the wallet.
-            cuda (bool):
-                If true, the wallet should be registered using CUDA device(s).
-            dev_id (Union[List[int], int]):
-                The CUDA device id to use, or a list of device ids.
-            TPB (int):
-                The number of threads per block (CUDA).
-            num_processes (int):
-                The number of processes to use to register.
             update_interval (int):
                 The number of nonces to solve between updates.
             log_verbose (bool):
@@ -356,7 +347,7 @@ class Subspace(c.Module):
     def transfer(
         self,
         dest: str, 
-        amount: Union[Balance, float], 
+        amount: float , 
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         prompt: bool = False,
@@ -375,12 +366,7 @@ class Subspace(c.Module):
         if isinstance( dest, bytes):
             # Convert bytes to hex string.
             dest = "0x" + dest.hex()
-            
-        # Convert to Balance
-        if not isinstance(amount, Balance ):
-            transfer_balance = Balance.from_token( amount )
-        else:
-            transfer_balance = amount
+
 
         # Check balance.
         with c.status(":satellite: Checking Balance..."):
@@ -395,7 +381,7 @@ class Subspace(c.Module):
                     call_function='transfer',
                     call_params={
                         'dest': dest, 
-                        'value': transfer_balance.nano
+                        'value': transfer_balance * 10 ** self.token_decimals
                     }
                 )
 
@@ -404,14 +390,14 @@ class Subspace(c.Module):
                 except Exception as e:
                     c.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
                     payment_info = {
-                        'partialFee': 2e7, # assume  0.02 Tao 
+                        'partialFee': 2e7, # assume  0.02 joule 
                     }
 
-                fee = Balance.from_nano( payment_info['partialFee'] )
+                fee = payment_info['partialFee'] * 10 ** self.token_decimals
         
         if not keep_alive:
             # Check if the transfer should keep_alive the account
-            existential_deposit = Balance(0)
+            existential_deposit = 0
 
         # Check if we have enough balance.
         if account_balance < (transfer_balance + fee + existential_deposit):
@@ -458,6 +444,7 @@ class Subspace(c.Module):
         
         return False
 
+    def 
     def get_existential_deposit(
         self,
         block: Optional[int] = None,
@@ -472,7 +459,7 @@ class Subspace(c.Module):
         if result is None:
             return None
         
-        return Balance.from_nano(result.value)
+        return self.
 
     #################
     #### Serving ####
@@ -595,7 +582,7 @@ class Subspace(c.Module):
                 ss58 address of the hotkey account to stake to
                 defaults to the wallet's hotkey.
             amount (Union[Balance, float]):
-                Amount to stake as commune balance, or float interpreted as Tao.
+                Amount to stake as commune balance, or float interpreted as joule.
             wait_for_inclusion (bool):
                 If set, waits for the extrinsic to enter a block before returning true, 
                 or returns false if the extrinsic fails to enter the block within the timeout.   
@@ -625,7 +612,7 @@ class Subspace(c.Module):
         # Convert to c.Balance
         if amount == None:
             # Stake it all.
-            staking_balance = Balance.from_token( old_balance.tao )
+            staking_balance =  old_balance
         elif not isinstance(amount, Balance ):
             staking_balance = Balance.from_token( amount )
         else:
@@ -695,7 +682,7 @@ class Subspace(c.Module):
 
     def unstake (
             self,
-            amount: Union[Balance, float] = None, 
+            amount: float = None, 
             key: 'c.Key' = None,
             wait_for_inclusion:bool = True, 
             wait_for_finalization:bool = False,
@@ -709,7 +696,7 @@ class Subspace(c.Module):
                 ss58 address of the hotkey to unstake from.
                 by default, the wallet hotkey is used.
             amount (Union[Balance, float]):
-                Amount to stake as commune balance, or float interpreted as tao.
+                Amount to stake as commune balance, or float interpreted as joule.
             wait_for_inclusion (bool):
                 if set, waits for the extrinsic to enter a block before returning true, 
                 or returns false if the extrinsic fails to enter the block within the timeout.   
@@ -727,14 +714,8 @@ class Subspace(c.Module):
             old_balance = self.get_balance( key.ss58_address )        
             old_stake = self.get_stake_for_key( key_ss58 = key.ss58_address)
 
-        # Convert to c.Balance
-        if amount == None:
-            # Unstake it all.
-            unstaking_balance = old_stake
-        elif not isinstance(amount, Balance ):
-            unstaking_balance = Balance.from_token( amount )
-        else:
-            unstaking_balance = amount
+
+        unstaking_balance = amount
 
         # Check enough to unstake.
         stake_on_uid = old_stake
