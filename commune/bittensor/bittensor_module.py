@@ -1397,7 +1397,6 @@ class BittensorModule(c.Module):
         subtensor = bittensor.subtensor(network=network, config=config)
         bittensor.utils.version_checking()
         
-    
         # wallet
         coldkey, hotkey = wallet.split('.')
         
@@ -1425,7 +1424,8 @@ class BittensorModule(c.Module):
         # axon port
         
         config.axon.port = cls.resolve_port(port, )
-        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        if hasattr(config, 'prometheus'):
+            config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
         
         # neuron things
         cls.print(config)
@@ -1435,8 +1435,10 @@ class BittensorModule(c.Module):
             device = f'cuda:{device}'
         config.neuron.device = device
         config.logging.debug = logging
-        if netuid == 1:
-            neuron_class(wallet=wallet, subtensor=subtensor, config=config).run()
+        if netuid in [1,11]:
+            config.wallet.name = coldkey
+            config.wallet.hotkey = hotkey
+            neuron_class(config=config).run()
         if netuid == 3:
             config.neuron.autocast = autocast  
             model_name = model_name if model_name is not None else cls.default_model_name 
