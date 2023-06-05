@@ -39,18 +39,15 @@ custom_rpc_type_registry = {
                 ["max_allowed_uids", "Compact<u16>"],
                 ["blocks_since_last_step", "Compact<u64>"],
                 ["tempo", "Compact<u16>"],
-                ["emission_values", "Compact<u64>"],
             ]
         },
-        "NeuronInfo": {
+        "ModuleInfo": {
             "type": "struct",
             "type_mapping": [
                 ["key", "AccountId"],
                 ["uid", "Compact<u16>"],
                 ["netuid", "Compact<u16>"],
                 ["name", "Vec<u8>"],
-                ["context", "Vec<u8>"],
-
                 ["active", "bool"],
                 ["stake", "Vec<(AccountId, Compact<u64>)>"],
                 ["rank", "Compact<u16>"],
@@ -60,22 +57,14 @@ custom_rpc_type_registry = {
                 ["last_update", "Compact<u64>"],
                 ["weights", "Vec<(Compact<u16>, Compact<u16>)>"],
                 ["bonds", "Vec<(Compact<u16>, Compact<u16>)>"],
-                ["pruning_score", "Compact<u16>"]
             ],
         },
-        "AxonInfo": {
-            "type": "struct",
-            "type_mapping": [
-                ["block", "u64"],
-                ["ip", "u128"],
-                ["port", "u16"],
-            ],
-        },
+
     }   
 }
 
 class ChainDataType(Enum):
-    NeuronInfo = 1
+    ModuleInfo = 1
     SubnetInfo = 2
 # Constants
 NANOPERTOKEN = 1e9
@@ -107,15 +96,15 @@ def from_scale_encoding( vec_u8: List[int], type_name: ChainDataType, is_vec: bo
 
 # Dataclasses for chain data.
 @dataclass
-class NeuronInfo:
+class ModuleInfo:
     r"""
-    Dataclass for neuron metadata.
+    Dataclass for module metadata.
     """
     key: str
     uid: int
     netuid: int
     active: int    
-    # mapping of coldkey to amount staked to this Neuron
+    # mapping of coldkey to amount staked to this Module
     stake: Dict[str, Balance]
     rank: float
     emission: float
@@ -124,58 +113,55 @@ class NeuronInfo:
     last_update: int
     weights: List[List[int]]
     bonds: List[List[int]]
-    # axon_info: 'AxonInfo'
     pruning_score : int = 0
 
     @classmethod
-    def fix_decoded_values(cls, neuron_info_decoded: Any) -> 'NeuronInfo':
-        r""" Fixes the values of the NeuronInfo object.
+    def fix_decoded_values(cls, module_info_decoded: Any) -> 'ModuleInfo':
+        r""" Fixes the values of the ModuleInfo object.
         """
-        neuron_info_decoded['key'] = ss58_encode(neuron_info_decoded['key'], commune.subspace.__ss58_format__)
-        neuron_info_decoded['stake'] = { ss58_encode( key, commune.__ss58_format__): commune.subspace.Balance.from_nano(int(stake)) for key, stake in neuron_info_decoded['stake'] }
-        neuron_info_decoded['weights'] = [[int(weight[0]), int(weight[1])] for weight in neuron_info_decoded['weights']]
-        neuron_info_decoded['bonds'] = [[int(bond[0]), int(bond[1])] for bond in neuron_info_decoded['bonds']]
-        neuron_info_decoded['rank'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['rank'])
-        neuron_info_decoded['emission'] = neuron_info_decoded['emission'] / NANOPERTOKEN
-        neuron_info_decoded['incentive'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['incentive'])
-        neuron_info_decoded['dividends'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['dividends'])
-        neuron_info_decoded['pruning_score'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(neuron_info_decoded['pruning_score'])
+        module_info_decoded['key'] = ss58_encode(module_info_decoded['key'], commune.subspace.__ss58_format__)
+        module_info_decoded['stake'] = { ss58_encode( key, commune.__ss58_format__): commune.subspace.Balance.from_nano(int(stake)) for key, stake in module_info_decoded['stake'] }
+        module_info_decoded['weights'] = [[int(weight[0]), int(weight[1])] for weight in module_info_decoded['weights']]
+        module_info_decoded['bonds'] = [[int(bond[0]), int(bond[1])] for bond in module_info_decoded['bonds']]
+        module_info_decoded['rank'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(module_info_decoded['rank'])
+        module_info_decoded['emission'] = module_info_decoded['emission'] / NANOPERTOKEN
+        module_info_decoded['incentive'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(module_info_decoded['incentive'])
+        module_info_decoded['dividends'] = commune.subspace.utils.U16_NORMALIZED_FLOAT(module_info_decoded['dividends'])
 
-        # neuron_info_decoded['axon_info'] = AxonInfo.fix_decoded_values(neuron_info_decoded['axon_info'])
 
-        return cls(**neuron_info_decoded)
+        return cls(**module_info_decoded)
     
     @classmethod
-    def from_vec_u8(cls, vec_u8: List[int]) -> 'NeuronInfo':
-        r""" Returns a NeuronInfo object from a vec_u8.
+    def from_vec_u8(cls, vec_u8: List[int]) -> 'ModuleInfo':
+        r""" Returns a ModuleInfo object from a vec_u8.
         """
         if len(vec_u8) == 0:
-            return NeuronInfo._null_neuron()
+            return ModuleInfo._null_module()
         
-        decoded = from_scale_encoding(vec_u8, ChainDataType.NeuronInfo)
+        decoded = from_scale_encoding(vec_u8, ChainDataType.ModuleInfo)
         if decoded is None:
-            return NeuronInfo._null_neuron()
+            return ModuleInfo._null_module()
         
-        decoded = NeuronInfo.fix_decoded_values(decoded)
+        decoded = ModuleInfo.fix_decoded_values(decoded)
 
         return decoded
     
     @classmethod
-    def list_from_vec_u8(cls, vec_u8: List[int]) -> List['NeuronInfo']:
-        r""" Returns a list of NeuronInfo objects from a vec_u8.
+    def list_from_vec_u8(cls, vec_u8: List[int]) -> List['ModuleInfo']:
+        r""" Returns a list of ModuleInfo objects from a vec_u8.
         """
         
-        decoded_list = from_scale_encoding(vec_u8, ChainDataType.NeuronInfo, is_vec=True)
+        decoded_list = from_scale_encoding(vec_u8, ChainDataType.ModuleInfo, is_vec=True)
         if decoded_list is None:
             return []
 
-        decoded_list = [NeuronInfo.fix_decoded_values(decoded) for decoded in decoded_list]
+        decoded_list = [ModuleInfo.fix_decoded_values(decoded) for decoded in decoded_list]
         return decoded_list
 
 
     @staticmethod
-    def _null_neuron() -> 'NeuronInfo':
-        neuron = NeuronInfo(
+    def _null_module() -> 'ModuleInfo':
+        module = ModuleInfo(
             uid = 0,
             netuid = 0,
             active =  0,
@@ -188,41 +174,22 @@ class NeuronInfo:
             last_update = 0,
             weights = [],
             bonds = [],
-            # axon_info = None,
-            # is_null = True,
             key = "000000000000000000000000000000000000000000000000",
             pruning_score = 0,
         )
-        return neuron
+        return module
 
     @staticmethod
-    def _neuron_dict_to_namespace(neuron_dict) -> 'NeuronInfo':
-        neuron = NeuronInfo( **neuron_dict )
-        neuron.stake = { k: Balance.from_nano(stake) for k, stake in neuron.stake.items() }
-        # neuron.total_stake = Balance.from_nano(neuron.total_stake)
-        neuron.rank = neuron.rank / U16_MAX
-        neuron.incentive = neuron.incentive / U16_MAX
-        neuron.dividends = neuron.dividends / U16_MAX
-        neuron.emission = neuron.emission / NANOPERTOKEN   
-        return neuron
+    def _module_dict_to_namespace(module_dict) -> 'ModuleInfo':
+        module = ModuleInfo( **module_dict )
+        module.stake = { k: Balance.from_nano(stake) for k, stake in module.stake.items() }
+        # module.total_stake = Balance.from_nano(module.total_stake)
+        module.rank = module.rank / U16_MAX
+        module.incentive = module.incentive / U16_MAX
+        module.dividends = module.dividends / U16_MAX
+        module.emission = module.emission / NANOPERTOKEN   
+        return module
         
-@dataclass
-class AxonInfo:
-    r"""
-    Dataclass for axon info.
-    """
-    block: int
-    ip: str
-    port: int
-
-    @classmethod
-    def fix_decoded_values(cls, axon_info_decoded: Dict) -> 'AxonInfo':
-        r""" Returns an AxonInfo object from an axon_info_decoded dictionary.
-        """
-        axon_info_decoded['ip'] = commune.utils.networking.int_to_ip(int(axon_info_decoded['ip']))
-                                                                       
-        return cls(**axon_info_decoded)
-
 @dataclass
 class SubnetInfo:
     r"""
