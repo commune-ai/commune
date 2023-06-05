@@ -75,6 +75,9 @@ class c:
     root_paths = get_root_paths
         
 
+    @classmethod
+    def start_node(cls, *args, **kwargs):
+        c.module('subspace').start_node(*args, **kwargs)
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     @classmethod

@@ -1,22 +1,4 @@
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Nano
-# Copyright © 2023 Opentensor Foundation
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
-# DEALINGS IN THE SOFTWARE.
-# Logging
-# Imports
 import torch
 import scalecodec
 from retry import retry
@@ -27,11 +9,22 @@ import commune as c
 from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
-from commune.subspace.utils import U16_NORMALIZED_FLOAT, U64_MAX, NANOPERTOKEN, U16_MAX
-from commune.subspace.utils import is_valid_address_or_public_key
-from commune.subspace.utils import weight_utils
-from commune.subspace.chain_data import NeuronInfo, AxonInfo, SubnetInfo, custom_rpc_type_registry
-from commune.subspace.errors import ChainConnectionError, ChainTransactionError, ChainQueryError, StakeError, UnstakeError, TransferError, RegistrationError, SubspaceError
+from commune.subspace.utils import (U16_NORMALIZED_FLOAT,
+                                    U64_MAX,
+                                    NANOPERTOKEN, 
+                                    U16_MAX, 
+                                    is_valid_address_or_public_key, 
+                                    weight_utils)
+from commune.subspace.chain_data import (ModuleInfo, 
+                                         SubnetInfo, 
+                                         custom_rpc_type_registry)
+from commune.subspace.errors import (ChainConnectionError,
+                                     ChainTransactionError, 
+                                     ChainQueryError, StakeError,
+                                     UnstakeError, 
+                                     TransferError,
+                                     RegistrationError, 
+                                     SubspaceError)
 import streamlit as st
 import json
 from loguru import logger
@@ -46,30 +39,17 @@ class Subspace(c.Module):
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
         'local': '127.0.0.1:9944',
-        'testnet': '162.157.13.236:9944'
+        'testnet': 'wss://testnet.subspace.network',
         }
     
     def __init__( 
         self, 
-        network: str = 'testnet',
+        subspace: str = 'testnet',
         **kwargs,
     ):
-        r""" Initializes a subspace chain interface.
-            Args:
-                substrate (:obj:`SubstrateInterface`, `required`): 
-                    substrate websocket client.
-                network (default='local', type=str)
-                    The subspace network flag. The likely choices are:
-                            -- local (local running network)
-                            -- nobunaga (staging network)
-                            -- nakamoto (main network)
-                    If this option is set it overloads subspace.chain_endpoint with 
-                    an entry point node from that network.
-                chain_endpoint (default=None, type=str)
-                    The subspace endpoint flag. If set, overrides the network argument.
-        """
 
-        self.set_network( network=network)
+
+        self.set_subspace( subspace)
     @classmethod
     def network2url(cls, network:str) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
@@ -79,7 +59,7 @@ class Subspace(c.Module):
         return {v: k for k, v in cls.network2url_map.items()}.get(url, None)
     
     @classmethod
-    def resolve_network_url(cls, network:str ):  
+    def resolve_subspace_url(cls, network:str ):  
         external_ip = cls.external_ip()      
         url = cls.network2url(network)
         # resolve url ip if it is its own ip
@@ -96,7 +76,7 @@ class Subspace(c.Module):
         
         return url
     def set_network(self, 
-                network:str,
+                subspace:str,
                 websocket:str=None, 
                 ss58_format:int=42, 
                 type_registry:dict=custom_rpc_type_registry, 
@@ -107,7 +87,6 @@ class Subspace(c.Module):
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
-
                 *args, 
                 **kwargs):
 
@@ -139,7 +118,7 @@ class Subspace(c.Module):
         
         self.print(f'Connecting to [cyan bold]{network.upper()}[/ cyan bold] ')
 
-        url = self.resolve_network_url(network)
+        url = self.resolve_subspace_url(network)
         self.url = self.chain_endpoint = url
         
         self.print(url, 'broooo red')
@@ -169,15 +148,15 @@ class Subspace(c.Module):
     #####################
     def set_weights(
         self,
+        network: int = None,
         uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
-        netuid: int = None,
         key: 'c.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
         prompt:bool = False,
     ) -> bool:
-        netuid = self.resolve_netuid(netuid)
+        netuid = self.get_netuid_for_network(network)
         # First convert types.
         if isinstance( uids, list ):
             uids = torch.tensor( uids, dtype = torch.int64 )
@@ -236,28 +215,6 @@ class Subspace(c.Module):
         
         return False
 
-    @classmethod
-    def name2subnet(cls) -> int:
-        name2subnet = {
-            'commune': 0,
-            'text': 1,
-            # 'image': 2,
-            # 'audio': 3,
-            # 'image2text': 3,
-            # 'text2image': 4,
-            # 'speech2text': 5,
-            # 'text2speech': 6,
-            # 'video': 7,
-            # 'video2text': 7,
-            # 'text2video': 8,
-            # 'video2image': 9,
-        }
-
-        return name2subnet
-    ######################
-    #### Registration ####
-    ######################
-
     def resolve_key(self, key: 'c.Key') -> 'c.Key':
         if key == None:
             if not hasattr(self, 'key'):
@@ -267,12 +224,8 @@ class Subspace(c.Module):
         return key
     
 
-    def resolve_netuid(self, netuid: Union[str, int] = None) -> int:
-        if netuid == None:
-            netuid = self.default_subnet_uid
-        if isinstance(netuid, str):
-            netuid = self.subnet2uid(netuid)
-        assert isinstance(netuid, int), f'Invalid net: {netuid}, your net must be one of {self.name2subnet().keys()}'
+    def get_netuid_for_network(self, network: str = None) -> int:
+        netuid = self.network2netuid[network]
         return netuid
     
     
@@ -280,10 +233,8 @@ class Subspace(c.Module):
         self,
         network = 'commune',
         name: str = None,
-        context: str = b'',
-        ip: str = None,
-        port: int = None,
-        netuid :int = None ,
+        address: str = None,
+        stake : int = 0,
         key: 'c.Key' = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
@@ -328,23 +279,13 @@ class Subspace(c.Module):
         
         
         key = self.resolve_key(key)
-        network = self.resolve_network(network)
-        # if  self.is_key_registered(key=key, netuid=netuid):
-        #     self.print(":cross_mark: [red]Failed[/red]: error: [bold white]key:[/bold white]{} is already registered on [bold white]subnet:{}[/bold white]".format(key, netuid))
+        netuid = self.network2netuid(network)
 
 
 
-        if isinstance(ip, str):
-            ip = ip_to_int(ip)
-            
-        assert isinstance(ip, int), f'Invalid ip: {ip}, your ip must be a string or int'
-        assert isinstance(port, int), f'Invalid port: {port}, your port must be an int'
-        assert isinstance(name, str), f'Invalid name: {name}, your name must be a string'
-        assert isinstance(context, str), f'Invalid name: {context}, your name must be a string'
-        
         # convert name to bytes
         name = name.encode('utf-8')
-        context = context.encode('utf-8')
+        address = address.encode('utf-8')
         
         if not self.subnet_exists( netuid ):
             c.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
@@ -364,11 +305,10 @@ class Subspace(c.Module):
                     call_module='SubspaceModule',  
                     call_function='register', 
                     call_params={ 
-                        'netuid': netuid,
-                        'ip': ip,
-                        'port': port,
-                        'name': name,
-                        'network': network,
+                        'network': network.encode('utf-8'),
+                        'address': address.encode('utf-8'),
+                        'name': name.encode('utf-8'),
+                        'stake': stake,
                     } 
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
@@ -388,7 +328,7 @@ class Subspace(c.Module):
 
                     c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
                 
-                # Successful registration, final check for neuron and pubkey
+                # Successful registration, final check for module and pubkey
                 else:
                     c.print(":satellite: Checking Balance...")
                     is_registered = self.is_key_registered( key=key,netuid = netuid )
@@ -396,8 +336,8 @@ class Subspace(c.Module):
                         c.print(":white_heavy_check_mark: [green]Registered[/green]")
                         return True
                     else:
-                        # neuron not found, try again
-                        c.print(":cross_mark: [red]Unknown error. Neuron not found.[/red]")
+                        # module not found, try again
+                        c.print(":cross_mark: [red]Unknown error. Module not found.[/red]")
                         continue
         
                 
@@ -584,18 +524,18 @@ class Subspace(c.Module):
         }
 
         with c.info(":satellite: Checking Axon..."):
-            neuron = self.get_neuron_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
-            neuron_up_to_date = not neuron.is_null and params == {
-                'ip': ip_to_int(neuron.neuron_info.ip),
-                'port': neuron.neuron_info.port,
-                'netuid': neuron.netuid,
-                'key': neuron.coldkey,
+            module = self.get_module_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
+            module_up_to_date = not module.is_null and params == {
+                'ip': ip_to_int(module.module_info.ip),
+                'port': module.module_info.port,
+                'netuid': module.netuid,
+                'key': module.coldkey,
             }
 
         output = params.copy()
         output['key'] = key.ss58_address
 
-        if neuron_up_to_date:
+        if module_up_to_date:
             c.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
                                         f"[green not bold]- coldkey: [/green not bold][white not bold]{output['key']}[/white not bold] \n"
                                         f"[green not bold]- Status: [/green not bold] |"
@@ -610,16 +550,16 @@ class Subspace(c.Module):
         if prompt:
             output = params.copy()
             output['key'] = key.ss58_address
-            if not Confirm.ask("Do you want to serve neuron:\n  [bold white]{}[/bold white]".format(
+            if not Confirm.ask("Do you want to serve module:\n  [bold white]{}[/bold white]".format(
                 json.dumps(output, indent=4, sort_keys=True)
             )):
                 return False
 
-        with c.status(":satellite: Serving neuron on: [white]{}:{}[/white] ...".format(self.network, netuid)):
+        with c.status(":satellite: Serving module on: [white]{}:{}[/white] ...".format(self.network, netuid)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='SubspaceModule',
-                    call_function='serve_neuron',
+                    call_function='serve_module',
                     call_params=params
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
@@ -632,7 +572,7 @@ class Subspace(c.Module):
                         ))
                         return True
                     else:
-                        c.print(':cross_mark: [green]Failed to Serve neuron[/green] error: {}'.format(response.error_message))
+                        c.print(':cross_mark: [green]Failed to Serve module[/green] error: {}'.format(response.error_message))
                         return False
                 else:
                     return True
@@ -955,9 +895,9 @@ class Subspace(c.Module):
     def get_stake( self,  key_ss58: str, block: Optional[int] = None ) -> List[Tuple[str,'Balance']]:
         return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
 
-    """ Returns the neuron information for this key account """
-    def get_neuron_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
-        result = self.query_subspace( 'Neurons', block, [key_ss58] )        
+    """ Returns the module information for this key account """
+    def get_module_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
+        result = self.query_subspace( 'Modules', block, [key_ss58] )        
     ###########################
     #### Global Parameters ####
     ###########################
@@ -1059,7 +999,7 @@ class Subspace(c.Module):
 
 
     ########################################
-    #### Neuron information per subnet ####
+    #### Module information per subnet ####
     ########################################
 
     def is_key_registered_any( self, key: str = None, block: Optional[int] = None) -> bool:
@@ -1092,32 +1032,32 @@ class Subspace(c.Module):
                 netuids.append( netuid.value )
         return netuids
 
-    def get_neuron_for_pubkey_and_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None ) -> Optional[NeuronInfo]:
-        return self.neuron_for_uid( self.get_uid_for_key_on_subnet(key_ss58, netuid, block=block), netuid, block = block)
+    def get_module_for_pubkey_and_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None ) -> Optional[ModuleInfo]:
+        return self.module_for_uid( self.get_uid_for_key_on_subnet(key_ss58, netuid, block=block), netuid, block = block)
 
-    def get_all_neurons_for_key( self, key_ss58: str, block: Optional[int] = None ) -> List[NeuronInfo]:
+    def get_all_modules_for_key( self, key_ss58: str, block: Optional[int] = None ) -> List[ModuleInfo]:
         netuids = self.get_netuids_for_key( key_ss58, block) 
         uids = [self.get_uid_for_key_on_subnet(key_ss58, netuid) for netuid in netuids] 
-        return [self.neuron_for_uid( uid, netuid ) for uid, netuid in list(zip(uids, netuids))]
+        return [self.module_for_uid( uid, netuid ) for uid, netuid in list(zip(uids, netuids))]
 
 
-    def neuron_for_wallet( self, key: 'c.Key', netuid = int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
-        return self.get_neuron_for_pubkey_and_subnet ( key.ss58_address, netuid = netuid, block = block )
+    def module_for_wallet( self, key: 'c.Key', netuid = int, block: Optional[int] = None ) -> Optional[ModuleInfo]: 
+        return self.get_module_for_pubkey_and_subnet ( key.ss58_address, netuid = netuid, block = block )
 
-    def neuron_for_uid( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[NeuronInfo]: 
-        r""" Returns a list of neuron from the chain. 
+    def module_for_uid( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[ModuleInfo]: 
+        r""" Returns a list of module from the chain. 
         Args:
             uid ( int ):
-                The uid of the neuron to query for.
+                The uid of the module to query for.
             netuid ( int ):
                 The uid of the network to query for.
             block ( int ):
-                The neuron at a particular block
+                The module at a particular block
         Returns:
-            neuron (Optional[NeuronInfo]):
-                neuron metadata associated with uid or None if it does not exist.
+            module (Optional[ModuleInfo]):
+                module metadata associated with uid or None if it does not exist.
         """
-        if uid == None: return NeuronInfo._null_neuron()
+        if uid == None: return ModuleInfo._null_module()
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
@@ -1126,26 +1066,26 @@ class Subspace(c.Module):
                 if block_hash:
                     params = params + [block_hash]
                 return substrate.rpc_request(
-                    method="neuronInfo_getNeuron", # custom rpc method
+                    method="moduleInfo_getModule", # custom rpc method
                     params=params
                 )
         json_body = make_substrate_call_with_retry()
         result = json_body['result']
         self.print(result, 'RESULT')
         if result in (None, []):
-            return NeuronInfo._null_neuron()
-        return NeuronInfo.from_vec_u8( result ) 
+            return ModuleInfo._null_module()
+        return ModuleInfo.from_vec_u8( result ) 
 
-    def neurons(self, netuid: int =0 , block: Optional[int] = None ) -> List[NeuronInfo]: 
-        r""" Returns a list of neuron from the chain. 
+    def modules(self, netuid: int =0 , block: Optional[int] = None ) -> List[ModuleInfo]: 
+        r""" Returns a list of module from the chain. 
         Args:
             netuid ( int ):
-                The netuid of the subnet to pull neurons from.
+                The netuid of the subnet to pull modules from.
             block ( Optional[int] ):
                 block to sync from.
         Returns:
-            neuron (List[NeuronInfo]):
-                List of neuron metadata objects.
+            module (List[ModuleInfo]):
+                List of module metadata objects.
         """
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
@@ -1155,7 +1095,7 @@ class Subspace(c.Module):
                 if block_hash:
                     params = params + [block_hash]
                 return substrate.rpc_request(
-                    method="neuronInfo_getNeurons", # custom rpc method
+                    method="moduleInfo_getModules", # custom rpc method
                     params=params
                 )
         
@@ -1165,7 +1105,7 @@ class Subspace(c.Module):
         if result in (None, []):
             return []
         
-        return NeuronInfo.list_from_vec_u8( result )
+        return ModuleInfo.list_from_vec_u8( result )
 
 
     
@@ -1227,14 +1167,15 @@ class Subspace(c.Module):
             return_dict[r[0].value] = bal
         return return_dict
     
-    def get_namespace(self, netuid = 3,  ):
-        self.get_storage_map(module='SubspaceModule', storage_map='NeuronNamespace')
+    def get_namespace(self, network = None  ):
+        network = self.resolve_network(network)
+        self.get_storage_map(module='SubspaceModule', storage_map='ModuleNamespace')
         return {self.substrate.ss58_encode(k[len(map_prefix):]): v for k, v in result}
 
 
     @staticmethod
-    def _null_neuron() -> NeuronInfo:
-        neuron = NeuronInfo(
+    def _null_module() -> ModuleInfo:
+        module = ModuleInfo(
             uid = 0,
             netuid = 0,
             active =  0,
@@ -1249,7 +1190,7 @@ class Subspace(c.Module):
             is_null = True,
             key = "000000000000000000000000000000000000000000000000",
         )
-        return neuron
+        return module
 
 
 
@@ -1264,33 +1205,33 @@ class Subspace(c.Module):
         return key_map
     @property
     def default_subnet(self) -> str:
-        for k, v in self.subnet2uid.items():
+        for k, v in self.network2netuid.items():
             if v == 0:
                 return k
         raise Exception("No default subnet found.")
     @property
     def default_subnet_uid(self) -> int:
-        return self.subnet2uid[self.default_subnet]
+        return self.network2netuid[self.default_subnet]
     
     @property
-    def subnet2uid(self) -> Dict[str, str]:
+    def network2netuid(self ) -> Dict[str, str]:
         
         # Get the namespace for the netuid.
         records = self.query_map_subspace('SubnetNamespace', params=[]).records
         
-        subnet2uid = {}
+        network2netuid = {}
         for r in records:
             name = r[0].value
             uid = int(r[1].value)
-            subnet2uid[name] = int(uid)
+            network2netuid[name] = int(uid)
         
-        return subnet2uid
+        return network2netuid
     
     def subnets(self) -> List[str]:
-        return list(self.subnet2uid.keys())
+        return list(self.network2netuid.keys())
         
     def subnet_uids(self) -> List[int]:
-        return list(self.subnet2uid.values())
+        return list(self.network2netuid.values())
 
     
     def namespace(self, netuid: int = None) -> Dict[str, str]:
@@ -1298,7 +1239,7 @@ class Subspace(c.Module):
         
         # Get the namespace for the netuid.
         netuid = self.resolve_netuid(netuid)
-        records = self.query_map_subspace('Neurons', params=[netuid]).records
+        records = self.query_map_subspace('Modules', params=[netuid]).records
         namespace = {}
         for r in records:
             moduke_info = r[1].value
@@ -1317,50 +1258,21 @@ class Subspace(c.Module):
         for name, key in keys.items():
             subspace.register(key=key, netuid=1, ip=c.external_ip(), port=8000, name=name)
             
-        neurons = subspace.neurons(netuid=1)
+        modules = subspace.modules(netuid=1)
         for key in keys.values():
-            subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in neurons], uids=[n.uid for n in neurons])
-        
-        # from substrateinterface import Keypair
-
-        # key = c.key('Alice')
-        # st.write(subspace.get_balance(c.key('Sal').public_key))
-        # subspace.transfer(key=key, dest=c.key('Sal').public_key, amount=10000000)
-        
-        # keys = [c.key(str(i)) for i in ['Sal', 'Billy', 'Alice', 'Bob', 'Jerome']]
-        
-        # subnets = subspace.get_subnets()
-   
-        # for key in keys:
-        #     subspace.register(key=key, netuid=subnets[0])
-         
+            subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
 
             
-    def neurons(self, netuid:int = None):
+    def modules(self, netuid:int = None):
         netuid = self.resolve_netuid(netuid)
-        return self.query_map_subspace('Neurons', params=[netuid]).records
+        return self.query_map_subspace('Modules', params=[netuid]).records
     @classmethod
     def sandbox(cls):
         self = cls()
         key = c.key('fam5')
-        # # print(self.get_balance(key.public_key))
-        # # self.transfer(key=key, dest=c.key('billy').public_key, amount=10000)
-
-        # self.register(key=key, 
-        #                 ip=c.external_ip(), 
-        #                 port=8000, 
-        #                 name='fam5',
-        #                 netuid=0,
-        #                 context='whadup')
-
-        # cls.print(self.subnet2uid)
-        
-        cls.print(self.query_map_subspace('Neurons', params=[0]).records)
+        cls.print(self.query_map_subspace('Modules', params=[0]).records)
   
 if __name__ == "__main__":
     Subspace.run()
-    # st.write(key.sign('data'))
-    
-    # st.write(subspace.register(key=key, net=3))
-    # st.write(subspace.get_all_subnet_netuids())
+
     
