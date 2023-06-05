@@ -1,4 +1,4 @@
-coldkey: ens2000
+coldkey: ensemble
 model_name: server
 module: BittensorModule
 netuid: 1
