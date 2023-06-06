@@ -727,8 +727,6 @@ class Subspace(c.Module):
         if prompt:
             if not Confirm.ask("Do you want to unstake:\n[bold white]  amount: {} key: [white]{}[/bold white ]\n?".format( unstaking_balance, key.ss58_address) ):
                 return False
-
-        
         try:
             with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 

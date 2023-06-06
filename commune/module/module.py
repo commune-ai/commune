@@ -2368,7 +2368,7 @@ class c:
         else:
             return False
         
-    def info(self, 
+    def info(self , 
              include_schema: bool = False,
              include_namespace:bool = True) -> Dict[str, Any]:
         whitelist = self.whitelist()
@@ -2449,6 +2449,12 @@ class c:
                     function_schema_map[fn]['default'] = fn_default_map.get(fn, 'NA')
                 if len(function_schema_map[fn]) == 1:
                     function_schema_map[fn] = fn_schema
+                    
+                    
+        for k,v in function_schema_map.items():
+            if search != None:
+                if search == k:
+                    return v
         return function_schema_map
     
     function_schema_map = get_function_schema_map
@@ -4746,33 +4752,6 @@ class c:
         
         return peer
     
-    @classmethod
-    def add_module(cls, module, cache_path='remote_modules', refresh = True):
-        module = c.connect(module)
-        module_info = module.info(include_namespace=False)
-        assert isinstance(module_info, dict), 'Module info must be a dictionary'
-        remote_modules = {} if refresh else c.get(cache_path, {})
-        remote_modules[ module_info['name']] = module_info['address']
-        c.put(cache_path, remote_modules)
-        return {'msg': module,
-                'address': module_info['address'], 
-                'module': module_info}
-    
-    @classmethod
-    def rm_module(cls, module, cache_path='remote_modules'):
-        remote_modules = c.get(cache_path, {})
-        if module in remote_modules:
-            remote_modules.pop(module)
-            c.put(cache_path, remote_modules)
-            return {'msg': 'Module removed', 'module': module}
-        
-        return {'msg': 'Module not found', 'module': module}
-
-    @classmethod
-    def remote_modules(cls, cache_path='remote_modules'):
-       
-        
-        return c.get(cache_path, {}) 
     
     @classmethod
     async def async_add_peer(cls, 
@@ -4783,8 +4762,6 @@ class c:
         
         peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
-        if name == None:
-            name = 'Anon'
 
         peer_info = await cls.async_call(module=peer_address, 
                                               fn='info',
@@ -4819,6 +4796,34 @@ class c:
         
         return peer_registry
     
+    @classmethod
+    def add_module(cls, module, cache_path='remote_modules', refresh = True):
+        module = c.connect(module)
+        module_info = module.info(include_namespace=False)
+        assert isinstance(module_info, dict), 'Module info must be a dictionary'
+        remote_modules = {} if refresh else c.get(cache_path, {})
+        remote_modules[ module_info['name']] = module_info['address']
+        c.put(cache_path, remote_modules)
+        return {'msg': module,
+                'address': module_info['address'], 
+                'module': module_info}
+    
+    @classmethod
+    def rm_module(cls, module, cache_path='remote_modules'):
+        remote_modules = c.get(cache_path, {})
+        if module in remote_modules:
+            remote_modules.pop(module)
+            c.put(cache_path, remote_modules)
+            return {'msg': 'Module removed', 'module': module}
+        
+        return {'msg': 'Module not found', 'module': module}
+
+    @classmethod
+    def remote_modules(cls, cache_path='remote_modules'):
+       
+        
+        return c.get(cache_path, {}) 
+
     
     
     @classmethod
@@ -5080,14 +5085,13 @@ class c:
             os.makedirs( directory ) 
 
     @classmethod
-    def max_gpu_memory(cls, memory:Union[str,int],
+    def max_gpu_memory(cls, memory:Union[str,int] = None,
                        mode:str = 'most_free', 
                        min_memory_ratio = 0.0,
                        reserve:bool = False, 
                        free_gpu_memory: dict = None,
                        saturate:bool = False,
                        **kwargs):
-        
         
         
         memory = cls.resolve_memory(memory)
@@ -5169,17 +5173,18 @@ class c:
     @classmethod
     def resolve_memory(cls, memory) -> str:
         
-        scale_found = False
-        for scale_key, scale_value in cls.scale_map.items():
-            
-            if isinstance(memory, str) and memory.lower().endswith(scale_key):
-                memory = int(int(memory[:-len(scale_key)])*scale_value)
- 
-            if type(memory) in [float, int]:
-                scale_found = True
-                break   
-        assert scale_found, 'scale wasnt found'
-        
+        if isinstance(memory, str):
+            scale_found = False
+            for scale_key, scale_value in cls.scale_map.items():
+                
+                if isinstance(memory, str) and memory.lower().endswith(scale_key):
+                    memory = int(int(memory[:-len(scale_key)])*scale_value)
+    
+                if type(memory) in [float, int]:
+                    scale_found = True
+                    break
+                    
+        assert type(memory) in [float, int], f'memory must be a float or int, got {type(memory)}'
         return memory
             
 

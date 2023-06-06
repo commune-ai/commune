@@ -92,44 +92,6 @@ class TransformerModel(Model):
         self.set_model(config)
 
         
-    
-    def set_tag(self,tag:str):
-        if tag is None:
-            tag = self.default_tag
-        self.tag = self.model_path.replace('/','--')+'--'+tag
-    @classmethod
-    def calculate_loss( cls, logits: torch.Tensor,
-                       input_ids:torch.Tensor,
-                       return_value = False,
-                       **kwargs) -> torch.Tensor:
-        '''
-        Calculate the loss for the model.
-        '''
-        gt = input_ids[:, -(logits.shape[1]-1):].flatten()
-        pred = logits[:, :-1]
-            
-        if len(pred.shape) == 3:
-            pred = pred.reshape(-1, pred.shape[-1])
-        
-        assert gt.shape[0] == pred.shape[0], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
-
-        loss_fn = torch.nn.CrossEntropyLoss()
-        loss =  loss_fn(pred, gt.to(pred.device))
-        
-        # check if loss is nan
-        if torch.isnan(loss):
-            c.print('Loss is nan, skipping backward pass')
-            train = False
-            loss = torch.tensor(10)
-            raise Exception('Loss is nan, skipping backward pass')
-        
-        if return_value:
-            loss = loss.item()
-        
-        return loss
-
-    hf = c.module('huggingface')()
-
 
     def generate(self, 
                  text:str,
@@ -142,9 +104,9 @@ class TransformerModel(Model):
         return output_text
     
     @classmethod
-    def test_generate(cls, text='Hello world', **kwargs):
-        model = cls()
-        output_text = model.generate(text, **kwargs)
+    def test_generate(cls, *args, **kwargs):
+        model = cls( *args, **kwargs)
+        output_text = model.generate(text='Hello world',)
         return output_text
 
     @staticmethod
@@ -344,63 +306,39 @@ class TransformerModel(Model):
             assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
 
     
-    def set_model(self, config) -> None:
-        
-        if config.load:
-            self.load(keys=['config']) 
+    def set_model(self, config) -> None: 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         config['model_name'] = config['model']
         self.model_path = config['model_path'] = config['model'] = self.shortcuts.get(config['model'], config['model'])
-
         self.set_tokenizer(config.tokenizer)
 
-        if config == None:
-            config = self.config
-        
-
-
-        model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
-        
-        
-        # assert False
-        config.model_size = self.get_model_size(model)
-        config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
-      
-        free_gpu_memory = self.free_gpu_memory()
-
-              
-        config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
-                                            max_gpu_ratio=config.max_gpu_ratio,
-                                            reserve=config.reserve_gpus)
-    
         if config.device_map == None:
-
+            model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
+            config.model_size = self.get_model_size(model)
+            config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
+            config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
+                                                max_gpu_ratio=config.max_gpu_ratio,
+                                                reserve=config.reserve_gpus)
+    
             config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
         
-        verbose = config.verbose
-        
-
-        if isinstance(config.device_map, dict):
-            config.device_map = {k:v for k,v in config.device_map.items() }
-
         model_kwargs=dict(
             max_memory=config.max_memory,
             device_map= config.device_map,
             trust_remote_code=config.trust_remote_code,
-            # local_files_only=True
         )
         
-        if verbose:
+        if config.verbose:
             self.print(f'model_kwargs: {model_kwargs}')
        
         self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
-        # c.print(self.model.config.__dict__)
+        
+        c.print(self.model.config.__dict__)
         
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
 
-        self.device_map = config.device_map 
         self.devices = config.devices
         self.device = config.device
         
@@ -691,84 +629,18 @@ class TransformerModel(Model):
             
         return  self.config['tag']
        
-    
+    @tag.setter
+    def tag(self, tag):
+        self.config['tag'] = tag
+        
+        
     def resolve_state_path(self, tag=None):
         tag = tag if tag != None else self.tag
         path = self.config.model+'_'+tag
         path = self.resolve_path(path)
         return path
     
-    @tag.setter
-    def tag(self, tag):
-        self.config['tag'] = tag
         
-    @classmethod
-    def train_fleet(cls, 
-                    model = 'model.gptj', 
-                    network='local',
-                    skip = None,
-                    remote=True,
-                    **kwargs):
-        models = c.modules(model, network=network)
-        if isinstance(skip, str):
-            skip = [skip]
-        elif skip == None:
-            skip = []
-        else:
-            raise ValueError(f"Skip must be a string or None, got {skip}")
-        
-        for m in models:
-            cls.print(f"Training {m}")
-            if any([m.startswith(s) for s in skip]):
-                cls.print(f"Skipping {m}")
-                continue
-            cls.learn(model=m, remote=True, **kwargs)
-        
-          
-    # @classmethod
-    # def train_fleet(cls, model = 'model.gptj',
-    #                 dataset='dataset.bittensor',
-    #                 selection_ratio= 1.0,
-    #                 batch_size=8,
-    #                 num_batches = 1000,
-    #                 sequence_length=256,
-    #                 remote:bool = False,
-    #                 network='global',
-    #                 tag = None,
-    #                 **kwargs):
-        
-    #     kwargs = cls.locals2kwargs(locals())
-
-        
-    #     if remote:
-    #         kwargs.update(remote=False) # otherwise we get a remote recursion error
-    #         return cls.remote_fn(fn='train_fleet',kwargs=kwargs, name=f"train_fleet::{model}", tag=tag)
-        
-    #     models = c.modules(model, network=network)
-    #     datasets = c.connect_pool(dataset)
-
-    #     for i in range(num_batches):
-    #         selected_models = cls.random_ratio_selection(models, selection_ratio )
-    #         dataset = cls.choice(datasets)
-    #         try:
-    #             sample = dataset.sample(batch_size=batch_size, sequence_length=sequence_length)
-    #             assert isinstance(sample, dict) and 'input_ids' in sample
-    #         except Exception as e:
-    #             continue
-    #         sample['train'] = True
-    #         sample['input_ids'] = sample['input_ids'][:batch_size, :sequence_length]
-    #         sample['return_keys'] = ['stats']
-    #         results = cls.call(selected_models, fn='forward', **sample)
-    #         stats = {k:v.get('stats', {}) for k,v in results.items() if isinstance(v, dict)}
-    #         print_keys = ['epoch_loss', 'best_epoch_loss',  'steps']
-    #         print_stats = [{**{_k: v.get('train',{}).get(_k) for _k in print_keys }, 'name': k} for k,v in stats.items()]
-    #         print_stats = pd.DataFrame(print_stats)
-    #         print_stats = print_stats.sort_values(by=['best_epoch_loss'])
-    #         cls.print(f'\nRESULTS {i}/{num_batches} \n',print_stats)
-    
-    # train_fleet = learn_fleet
-    
-
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
         self = cls()
@@ -878,13 +750,14 @@ class TransformerModel(Model):
                          max_memory: dict = None,
                          **kwargs,
                          ):
-        if max_memory == None:
-            max_memory = cls.max_gpu_memory()    
-            
         from accelerate import infer_auto_device_map
         if isinstance(model, str):
             model = cls.get_empty_model(model)
-        device_map = infer_auto_device_map(model, max_memory=max_memory, **kwargs) 
+        if max_memory == None:
+            model_size = cls.get_model_size(model)
+            max_memory = cls.max_gpu_memory(model_size)    
+
+        device_map = infer_auto_device_map(model,  **kwargs) 
         
         return device_map
     
@@ -893,79 +766,62 @@ class TransformerModel(Model):
       
     @classmethod
     def deploy(cls,
-               *models: str,
-               name: str =None, 
-               wait_for_server: bool = False, 
-               device = None, 
-               namespace = None,
-               update:bool = False,
-               mode:str = 'pm2',
-               free_gpu_memory: dict = None,
-               refresh = False,
-               tag_seperator:str = '::',    
+               model: str,
+               tag = None,
+               refresh = True,    
                **kwargs
               ):
         
         config = cls.get_config(kwargs=kwargs)
+
+
+        name = f'model.{model}'
+        if tag != None:
+            name += '::'+tag
+
+        cls.launch(name=name,
+                    kwargs=kwargs,
+                    refresh = refresh,
+                    verbose=True)
         
-        if refresh:
-            for model in models:
-                cls.delete(model)
-          
-        if update:
-            cls.update(network='local')
-            
-        tag = kwargs.get('tag', None)
-        assert len(models) > 0
-        if free_gpu_memory == None:
-            free_gpu_memory = cls.free_gpu_memory()
-        deployed_models = {}
-        for model in models:
-            if tag_seperator in model:
-                model, tag = model.split(tag_seperator)
-            name = f'model.{model}'
-            if tag == None:
-                tag =  'base'
-            if tag:
-                name = name+tag_seperator+str(tag)
-                  
-            if cls.exists(name) and refresh == False:
-                cls.print(f'{name} already exists, skipping...', color='red')
-                continue
-            else:
-                cls.print(f'{name} does not exist, deploying...', color='green')
-    
-            model_size_bytes = cls.get_model_size(model)*config.model_inflation_ratio
-            max_gpu_memory = cls.max_gpu_memory(model_size_bytes,
-                                                max_gpu_ratio=config.max_gpu_ratio ,
-                                                free_gpu_memory=free_gpu_memory,
-                                                saturate=False)
-    
-            for k,v in max_gpu_memory.items():
-                free_gpu_memory[k]-= v
-                free_gpu_memory[k] = max(0, free_gpu_memory[k])
-            devices = list(max_gpu_memory.keys())
-            # cls.print(c.reserved_gpus(), 'fam') 
-            config.model = model
-            config.tag = tag
-            kwargs = {'config': config, 'tag': tag}
-            
-            cls.launch(name=name,
-                       kwargs=kwargs,
-                       mode=mode, 
-                       device=device, 
-                       wait_for_server=wait_for_server,
-                       verbose=False)
-            
-            
-            
-            deployed_models[name] = {'model': model, 'tag': tag, 'devices': devices, 'max_gpu_memory': max_gpu_memory}
-            
-        return deployed_models
             
     @classmethod
     def sandbox(cls):
-        self = cls(model='opt2.7b')
-    
+        self = cls(model='gpt125m')
+        
+    @classmethod
+    def calculate_loss( cls, logits: torch.Tensor,
+                       input_ids:torch.Tensor,
+                       return_value = False,
+                       **kwargs) -> torch.Tensor:
+        '''
+        Calculate the loss for the model.
+        '''
+        gt = input_ids[:, -(logits.shape[1]-1):].flatten()
+        pred = logits[:, :-1]
+            
+        if len(pred.shape) == 3:
+            pred = pred.reshape(-1, pred.shape[-1])
+        
+        assert gt.shape[0] == pred.shape[0], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
+
+        loss_fn = torch.nn.CrossEntropyLoss()
+        loss =  loss_fn(pred, gt.to(pred.device))
+        
+        # check if loss is nan
+        if torch.isnan(loss):
+            c.print('Loss is nan, skipping backward pass')
+            train = False
+            loss = torch.tensor(10)
+            raise Exception('Loss is nan, skipping backward pass')
+        
+        if return_value:
+            loss = loss.item()
+        
+        return loss
+
+    hf = c.module('huggingface')()
+
+
 
 TransformerModel.run(__name__)
