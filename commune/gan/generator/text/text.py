@@ -27,9 +27,8 @@ class TextGenerator(commune.Module):
         return self.tokenizer(x, return_tensors="pt")
 
     def mask_text(self, x):
+        # DO LATER
         ...
-
-
 
     def forward(self, x : Union[List[str], str, torch.Tensor]):
         if isinstance(x, torch.Tensor):
