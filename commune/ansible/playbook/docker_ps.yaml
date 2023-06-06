@@ -1,0 +1,13 @@
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+  - name: Docker ps
+    ansible.builtin.shell:
+      cmd: sudo docker ps
+      chdir: commune/
+    register: hello
+
+
+  - debug: msg="{{ hello.stdout }}"
+
+  - debug: msg="{{ hello.stderr }}"

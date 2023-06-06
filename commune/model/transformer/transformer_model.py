@@ -206,11 +206,13 @@ class TransformerModel(Model):
         return {key:output[key] for key in return_keys}
         
        
-    def encode(self, text:str, **kwargs):
+    def encode(self, text:str, token_idx = -1, **kwargs):
         kwargs['return_keys'] = ['hidden_states']
         sample = self.tokenize(text)
         kwargs.update(sample)
-        return self.forward(**kwargs)['hidden_states']
+        hidden_states = self.forward(**kwargs)['hidden_states']
+        return hidden_states[:,token_idx, :]
+    
     embed = encode
     def process_outputs(self, stats:dict, sample:dict, output:dict):
         
