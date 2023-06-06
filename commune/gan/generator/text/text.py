@@ -3,16 +3,19 @@ import commune
 from typing import Union, List
 from transformers import AutoTokenizer, ElectraForMaskedLM
 import torch
+from datasets import load_dataset
 
 class TextGenerator(commune.Module):
     
     def __init__(self,
                  generator : str="google/electra-small-generator",
                  tokenizer : Union[str, None]=None,
+                 dataset   : Union[List[str], str, None]="squad-v2"
                 ) -> None:
         super(TextGenerator, self).__init__()
         self.generator = ElectraForMaskedLM.from_pretrained(generator)
         self.tokenizer = AutoTokenizer.from_pretrained(generator if tokenizer == None else tokenizer )
+        self.dataset = load_dataset(dataset)
 
     def set_generator(self, generator : str) -> None:
         self.generator = ElectraForMaskedLM.from_pretrained(generator)
@@ -22,6 +25,11 @@ class TextGenerator(commune.Module):
 
     def tokenize_text(self, x : Union[List[str], str]) -> torch.Tensor:
         return self.tokenizer(x, return_tensors="pt")
+
+    def mask_text(self, x):
+        ...
+
+
 
     def forward(self, x : Union[List[str], str, torch.Tensor]):
         if isinstance(x, torch.Tensor):

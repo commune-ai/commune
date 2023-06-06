@@ -5,6 +5,7 @@ from copy import deepcopy
 from typing import Optional, Union, Dict, List, Any, Tuple, Callable
 from munch import Munch
 from rich.console import Console
+from rich.json import JSON
 import json
 from glob import glob
 import sys
@@ -3839,6 +3840,7 @@ class c:
        
     @classmethod
     def test(cls):
+        """ """
         test_responses = {}
         for fn in cls.fns():
             test_response = {
@@ -3855,8 +3857,8 @@ class c:
                    test_response['passed'] = False
                    test_response['response'] = str(e)
                 test_responses[fn] =test_response
-        
-        return test_responses
+
+        return JSON(json.dumps(test_responses))
        
                
     @classmethod
