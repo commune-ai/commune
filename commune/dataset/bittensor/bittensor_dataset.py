@@ -58,6 +58,7 @@ class Dataset(c.Module):
         cls.print('Testing dataset')
         dataset = cls(*args, **kwargs)
         sample = dataset.sample()
+        print(sample)
         assert cls.check_sample(sample)
         c.print('Dataset test passed')
 

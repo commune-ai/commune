@@ -74,6 +74,7 @@ class VectorStore(commune.Module):
 
     @classmethod
     def test(cls):
+        self = cls()
         self.add_vector('test', [1,2,3])
         assert self.search([1,2,3]) == {'test': 14.0}
         self.rm_vector('test')

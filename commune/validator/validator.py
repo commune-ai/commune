@@ -356,8 +356,6 @@ class Validator(c.Model):
         
         
     def get_models(self, max_models:int) -> List[str]:
-
-
         
         # shuffle to avoid overloading the first model
         

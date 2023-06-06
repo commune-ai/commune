@@ -24,7 +24,7 @@ class VectorStore(c.Module):
         self.model = c.connect(model)
         
         
-    def deploy_model(cls, model,*args, **kwargs):
+    def deploy_model(cls, model, *args, **kwargs):
         return c.deploy()
         
     def encode(self, text:str, **kwargs):

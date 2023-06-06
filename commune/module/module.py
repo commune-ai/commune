@@ -1875,18 +1875,17 @@ class c:
     rename = rename_module = rename_server
     
     
-    
     @classmethod
     def lock_file(cls, f):
         import fcntl
         fcntl.flock(f, fcntl.LOCK_EX)
         return f
+
     @classmethod
     def unlock_file(cls, f):
         import fcntl
         fcntl.flock(f, fcntl.LOCK_UN)
         return f
-    
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int, **kwargs)-> dict:
@@ -2259,6 +2258,7 @@ class c:
         
     
         return function_signature_map
+
     @property
     def function_signature_map(self, include_module:bool = False):
         return self.get_function_signature_map(obj=self, include_module=include_module)
