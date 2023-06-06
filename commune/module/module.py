@@ -4766,10 +4766,11 @@ class c:
         peer_info = await cls.async_call(module=peer_address, 
                                               fn='info',
                                               include_namespace=True, 
-                                              timeout=timeout, 
-                                              network=network)
+                                              timeout=timeout)
         
         #  add each peer to the registry
+        
+        c.print(peer_info)
 
         if 'error' in peer_info:
             if verbose:
