@@ -131,12 +131,9 @@ class Dashboard(commune.Module):
         
         
         
-        self.root_module = commune.root_module()
-        self.root_module_info = self.root_module.info()
-        st.write(self.root_module_info["address"])
 
-                      
-        self.module_name = st.selectbox('Module List',self.module_list, 0)   
+        st.write('## Modules')    
+        self.module_name = st.selectbox('',self.module_list, 0, key='module_name')   
         self.module = commune.module(self.module_name)
         self.module_config = self.module.config()
 
@@ -150,10 +147,16 @@ class Dashboard(commune.Module):
             self.load_state()
             
         self.streamlit_peers()
-            
+           
+    def st_root_module(self):
+        self.root_module = commune.root_module()
+        self.root_module_info = self.root_module.info()
+
+        st.write('## My Address:',  self.root_module_info["address"])
+ 
     def streamlit_peers(self):
-        st.write('## Peers')
         
+        st.write('## Peers')
 
         peer = st.text_input('', '0.0.0.0:8888', key='peer')
         cols = st.columns(2)
@@ -284,11 +287,14 @@ class Dashboard(commune.Module):
     
     @classmethod
     def streamlit(cls):
+        
         cls.local_css()
         commune.new_event_loop()
 
         commune.nest_asyncio()
         self = cls()
+        self.st_root_module()
+
         
         self.streamlit_sidebar()
         
