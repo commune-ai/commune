@@ -613,20 +613,67 @@ class Keypair(c.Module):
 
         return json_data
 
-    def sign(self, 
-             data: Union[ScaleBytes, bytes, str],
-             crypto_type = 'sr25519',
-             return_dict=True) -> bytes:
+    # def sign(self, 
+    #          data: Union[ScaleBytes, bytes, str],
+    #          crypto_type = 'sr25519',
+    #          return_dict=False) -> bytes:
+    #     """
+    #     Creates a signature for given data
+    #     Parameters
+    #     ----------
+    #     data: data to sign in `Scalebytes`, bytes or hex string format
+    #     Returns
+    #     -------
+    #     signature in bytes
+    #     """
+    #     # data = self.python2str(data)
+    #     if type(data) is ScaleBytes:
+    #         data = bytes(data.data)
+    #     elif data[0:2] == '0x':
+    #         data = bytes.fromhex(data[2:])
+    #     elif type(data) is str:
+    #         data = data.encode()
+    #     c.print(data)
+    #     if not self.private_key:
+    #         raise ConfigurationError('No private key set to create signatures')
+
+    #     if crypto_type == 'sr25519':
+    #         signature = sr25519.sign((self.public_key, self.private_key), data)
+
+    #     elif crypto_type == 'ed25519':
+    #         signature = ed25519_zebra.ed_sign(self.private_key, data)
+
+    #     elif crypto_type == 'ecdsa':
+    #         signature = ecdsa_sign(self.private_key, data)
+
+    #     else:
+    #         raise ConfigurationError("Crypto type not supported")
+
+    #     if return_dict:
+    #         return {
+    #             'data': data.decode(),
+    #             'signature': signature.hex(),
+    #             'public_key': self.public_key.hex(),
+    #             'ss58_address': self.ss58_address,
+    #         }
+
+    #     return signature
+    
+    def sign(self, data: Union[ScaleBytes, bytes, str], return_dict = True) -> bytes:
         """
         Creates a signature for given data
+
         Parameters
         ----------
         data: data to sign in `Scalebytes`, bytes or hex string format
+
         Returns
         -------
         signature in bytes
+
         """
-        data = self.python2str(data)
+        if return_dict :
+            data = c.python2str(data)
         if type(data) is ScaleBytes:
             data = bytes(data.data)
         elif data[0:2] == '0x':
@@ -634,21 +681,21 @@ class Keypair(c.Module):
         elif type(data) is str:
             data = data.encode()
 
-        c.print(self.__dict__)
         if not self.private_key:
             raise ConfigurationError('No private key set to create signatures')
 
-        if crypto_type == 'sr25519':
+        if self.crypto_type == 'sr25519':
             signature = sr25519.sign((self.public_key, self.private_key), data)
 
-        elif crypto_type == 'ed25519':
+        elif self.crypto_type == 'ed25519':
             signature = ed25519_zebra.ed_sign(self.private_key, data)
 
-        elif crypto_type == 'ecdsa':
+        elif self.crypto_type == KeypairType.ECDSA:
             signature = ecdsa_sign(self.private_key, data)
 
         else:
             raise ConfigurationError("Crypto type not supported")
+
 
         if return_dict:
             return {
@@ -657,9 +704,8 @@ class Keypair(c.Module):
                 'public_key': self.public_key.hex(),
                 'ss58_address': self.ss58_address,
             }
+
         return signature
-    
-    
     @classmethod
     def get_signer(cls, data:dict, return_ss58:bool = True) -> str:
         assert cls.verify(data)
@@ -1008,6 +1054,15 @@ class Keypair(c.Module):
         key = cls()
         sig = key.sign(data, return_dict=True)
         assert key.verify(sig), 'Signature doesnt verify'
+        
+        
+    @classmethod
+    def test(cls):
+        cls.test_encryption()
+        cls.test_seed()
+        cls.test_verification()
+        cls.test_key_management()
+        return {'passed': True, 'test': 'Test Keypair'}
         
            
                    

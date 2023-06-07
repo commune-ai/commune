@@ -4100,6 +4100,8 @@ class c:
             key = module(*args, **kwargs)
             
         return key
+    
+    key = get_key
         
             
     @classmethod

@@ -40,7 +40,7 @@ class Subspace(c.Module):
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
         'local': '127.0.0.1:9944',
-        'testnet': 'wss://testnet.subspace.network',
+        'testnet': '127.0.0.1:9944',
         }
     
     def __init__( 
@@ -72,8 +72,8 @@ class Subspace(c.Module):
             
 
         # if not url.startswith('wss://') and not url.startswith('ws://'):
-        if not url.startswith('http://'):
-            url = f'http://{url}'
+        if not url.startswith('ws://'):
+            url = f'ws://{url}'
         
         return url
     def set_subspace(self, 
@@ -219,7 +219,7 @@ class Subspace(c.Module):
     def resolve_key(self, key: 'c.Key') -> 'c.Key':
         if key == None:
             if not hasattr(self, 'key'):
-                self.key = c.key()
+                self.key = c.get_key()
             key = self.key
         
         return key
@@ -272,76 +272,41 @@ class Subspace(c.Module):
         
         
         key = self.resolve_key(key)
-        netuid = self.network2netuid(network)
+        # netuid = self.network2netuid(network)
 
 
 
         # convert name to bytes
         name = name.encode('utf-8')
         address = address.encode('utf-8')
-        
-        if not self.subnet_exists( netuid ):
-            c.print(":cross_mark: [red]Failed[/red]: error: [bold white]subnet:{}[/bold white] does not exist.".format(netuid))
-            return False
-
-
-
+        network = network.encode('utf-8')
+    
         # Attempt rolling registration.
         attempts = 1
-        while True:
-            c.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
+        c.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
 
 
-            with self.substrate as substrate:
-                # create extrinsic call
-                call = substrate.compose_call( 
-                    call_module='SubspaceModule',  
-                    call_function='register', 
-                    call_params={ 
-                        'network': network.encode('utf-8'),
-                        'address': address.encode('utf-8'),
-                        'name': name.encode('utf-8'),
-                        'stake': stake,
-                    } 
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
-                
-                # process if registration successful, try again if pow is still valid
-                response.process_events()
-                if not response.is_success:
-                    if 'key is already registered' in response.error_message:
-                        # Error meant that the key is already registered.
-                        c.print(f":white_heavy_check_mark: [green]Already Registered on [bold]subnet:{netuid}[/bold][/green]")
-                        return True
+        with self.substrate as substrate:
+            # create extrinsic call
+            call = substrate.compose_call( 
+                call_module='SubspaceModule',  
+                call_function='register', 
+                call_params={ 
+                    'network': network,
+                    'address': address,
+                    'name': name,
+                    'stake': stake,
+                } 
+            )
+            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
+            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
+            
+            # process if registration successful, try again if pow is still valid
+            response.process_events()
+            c.print( response.__dict__ )
+    
+            
 
-                    c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                
-                # Successful registration, final check for module and pubkey
-                else:
-                    c.print(":satellite: Checking Balance...")
-                    is_registered = self.is_key_registered( key=key,netuid = netuid )
-                    if is_registered:
-                        c.print(":white_heavy_check_mark: [green]Registered[/green]")
-                        return True
-                    else:
-                        # module not found, try again
-                        c.print(":cross_mark: [red]Unknown error. Module not found.[/red]")
-                        continue
-        
-                
-            if attempts < max_allowed_attempts:
-                #Failed registration, retry pow
-                attempts += 1
-                c.print( ":satellite: Failed registration, retrying pow ...({}/{})".format(attempts, max_allowed_attempts))
-            else:
-                # Failed to register after max attempts.
-                c.print( "[red]No more attempts.[/red]" )
-                return False 
 
     ##################
     #### Transfer ####
@@ -1148,6 +1113,11 @@ class Subspace(c.Module):
             return_dict[r[0].value] = bal
         return return_dict
     
+    def resolve_network(self, network: Optional[int] = None) -> int:
+        if network == None:
+            network = self.network
+        return network
+    
     def get_namespace(self, network = None  ):
         network = self.resolve_network(network)
         self.get_storage_map(module='SubspaceModule', storage_map='ModuleNamespace')
@@ -1174,6 +1144,19 @@ class Subspace(c.Module):
         return module
 
 
+    @classmethod
+    def get_key(cls, name = None):
+        # Imports
+        from substrateinterface import Keypair, KeypairType
+
+        # Generate the keypair from shortform private key
+        mnemonic = Keypair.generate_mnemonic()
+
+        # Generate the keypair from mnemonic
+        keypair = Keypair.create_from_mnemonic(mnemonic, crypto_type=KeypairType.SR25519)
+        
+        return keypair
+        
 
 
     @classmethod
@@ -1181,7 +1164,8 @@ class Subspace(c.Module):
                      keys: List[str]=['Alice', 'Bob', 'Chris', 'Sal', 'Billy', 'Jerome']):
         key_map = {}
         for k in keys:
-            key_map[k] = c.key(k)
+            key_map[k] = cls.get_key(k)
+            c.print(key_map[k])
             
         return key_map
     @property
@@ -1236,20 +1220,24 @@ class Subspace(c.Module):
     release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
 
     @classmethod
-    def build_node(cls):
+    def build(cls):
         c.cmd('cargo build --release', verbose=True)
 
+
+    @classmethod
+    def start_node(cls):
+        c.cmd(f'{cls.release_path} --dev --tmp', verbose=True)
     @classmethod
     def test(cls):
         subspace = cls()
-        
+        # print(subspace.query_map_subspace('Modules', params=[0]).records)
         keys = cls.test_keys(['Alice', 'Billy', 'Bob'])
         for name, key in keys.items():
-            subspace.register(key=key, netuid=1, ip=c.external_ip(), port=8000, name=name)
+            subspace.register(key=key, network='commune', address=c.external_ip(), name=name)
             
-        modules = subspace.modules(netuid=1)
-        for key in keys.values():
-            subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
+        # modules = subspace.modules(netuid=1)
+        # for key in keys.values():
+        #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
 
             
     def modules(self, netuid:int = None):
@@ -1258,8 +1246,12 @@ class Subspace(c.Module):
     @classmethod
     def sandbox(cls):
         self = cls()
-        key = c.key('fam5')
+        key = cls.get_key()
+        self.register(key=key, network='commune', address=c.external_ip(), name='Alice')
         cls.print(self.query_map_subspace('Modules', params=[0]).records)
+        
+        
+
   
 if __name__ == "__main__":
     Subspace.run()
