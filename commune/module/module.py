@@ -4585,16 +4585,7 @@ class c:
     #     return data.tobytes()
     
     
-    # SUBSPACE BABY 
-    @classmethod
-    def subtensor(self, *args, **kwargs):
-        import bittensor
-        return bittensor.subtensor(*args, **kwargs)
-    
-    @classmethod
-    def subspace(cls, *args, **kwargs):
-        subspace = cls.get_module('subspace')(*args, **kwargs)
-        return subspace
+
     @classmethod
     def network(cls, network='subtensor', *args, **kwargs) -> str:
         if network == 'subspace':
