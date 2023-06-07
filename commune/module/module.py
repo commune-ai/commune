@@ -2370,7 +2370,8 @@ class c:
         
     def info(self , 
              include_schema: bool = False,
-             include_namespace:bool = True) -> Dict[str, Any]:
+             include_namespace:bool = True,
+             include_peers: bool = True) -> Dict[str, Any]:
         whitelist = self.whitelist()
         blacklist = self.blacklist()
         fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
