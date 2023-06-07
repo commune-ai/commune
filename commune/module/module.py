@@ -562,14 +562,15 @@ class c:
 
     def set_config(self, 
                    config:Optional[Union[str, dict]]=None, 
-                   kwargs:dict={},
+                   kwargs:dict=None,
                    to_munch: bool = True,
                    add_attributes: bool = False,
                    save_config:bool = False) -> Munch:
         '''
         Set the config as well as its local params
         '''
-        
+        kwargs = kwargs if kwargs != None else {}
+        kwargs.pop('kwargs', None)
         from commune.utils.dict import munch2dict, dict2munch
         
 
@@ -2414,13 +2415,13 @@ class c:
             obj = cls.module(obj)
         function_schema_map = {}
         
+        if include_default:
+            fn_default_map = cls.get_function_default_map(obj=obj, include_module=include_module)
         for fn in cls.get_functions(obj, include_module=include_module):
                     
             if search != None :
                 if search not in fn:
                     continue
-            if include_default:
-                fn_default_map = cls.get_function_default_map(obj=obj, include_module=include_module)
             if callable(getattr(obj, fn )):
                 function_schema_map[fn] = {}
                 fn_schema = {}
