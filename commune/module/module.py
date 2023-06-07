@@ -5598,10 +5598,32 @@ class c:
         return ss58_decode(*args, **kwargs)
 
     @classmethod
-    def gradioify(cls, module : str=None, fn : str=None):
+    def gradioify(cls, module : str=None, functions : str=None, examples : list[any]=None):
         obj = cls.module(module)
-        schema = cls.schema(obj=module, include_default=True)
-        return gr.Interface(fn=getattr(obj, fn), inputs=schema[fn]["schema"]["inp"][1:], outputs=schema[fn]["schema"]["return"][1:]).launch()
+        schema = cls.schema(obj=module)
+        del schema["__init__"]
+
+        try: 
+            if functions in list(schema.keys()) and schema[functions]["schema"]["return"] == "gradio.blocks.Blocks":
+                getattr(obj, functions)().launch()
+            elif len(functions) > 1:
+                interface_list = [None] * len(functions)
+                c.print(schema)
+                for idx, fn in enumerate(functions):
+                    if schema[fn]["return"] == "gradio.blocks.Blocks":
+                        interface = getattr(obj, fn)()
+                    else:
+                        outputs = schema[fn]["return"][1:] if "~" in schema[fn]["return"] else schema[fn]["return"]
+                        del schema[fn]["return"]
+                        inputs : list = [types[1:] if "~" in types else types for types in schema[fn].values()]
+                        interface = gr.Interface(fn=getattr(obj, fn), inputs=inputs, outputs=outputs)
+                    interface_list[idx] = interface 
+                gr.TabbedInterface(interface_list, functions).launch()
+            else:
+                gr.Interface(fn=getattr(obj, functions), inputs=schema[functions]["schema"]["inp"][1:], outputs=schema[functions]["schema"]["return"][1:], examples=examples).launch()
+        except Exception as e:
+            c.console.print_exception(show_locals=True)
+
 
 
 Module = c
