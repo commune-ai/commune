@@ -8,12 +8,13 @@ import commune as c
 from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
+from commune.subspace.balance import Balance
 from commune.subspace.utils import (U16_NORMALIZED_FLOAT,
                                     U64_MAX,
                                     NANOPERTOKEN, 
                                     U16_MAX, 
                                     is_valid_address_or_public_key, 
-                                    weight_utils)
+                                    )
 from commune.subspace.chain_data import (ModuleInfo, 
                                          SubnetInfo, 
                                          custom_rpc_type_registry)
@@ -28,6 +29,7 @@ import streamlit as st
 import json
 from loguru import logger
 logger = logger.opt(colors=True)
+
 
 
 class Subspace(c.Module):
@@ -74,7 +76,7 @@ class Subspace(c.Module):
             url = f'http://{url}'
         
         return url
-    def set_network(self, 
+    def set_subspace(self, 
                 subspace:str,
                 websocket:str=None, 
                 ss58_format:int=42, 
@@ -115,9 +117,9 @@ class Subspace(c.Module):
 
         from substrateinterface import SubstrateInterface
         
-        self.print(f'Connecting to [cyan bold]{network.upper()}[/ cyan bold] ')
+        self.print(f'Connecting to [cyan bold]{subspace.upper()}[/ cyan bold] ')
 
-        url = self.resolve_subspace_url(network)
+        url = self.resolve_subspace_url(subspace)
         self.url = self.chain_endpoint = url
         
         self.print(url, 'broooo red')
@@ -147,9 +149,9 @@ class Subspace(c.Module):
     #####################
     def set_weights(
         self,
-        network: int = None,
         uids: Union[torch.LongTensor, list] ,
         weights: Union[torch.FloatTensor, list],
+        network: int = None,
         key: 'c.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
@@ -163,7 +165,7 @@ class Subspace(c.Module):
             weights = torch.tensor( weights, dtype = torch.float32 )
 
         # Reformat and normalize.
-        weight_uids, weight_vals = weight_utils.convert_weights_and_uids_for_emit( uids, weights )
+        weight_uids, weight_vals =  uids, weights 
 
         # Ask before moving on.
         if prompt:
@@ -443,8 +445,7 @@ class Subspace(c.Module):
                 return True
         
         return False
-
-    def 
+    
     def get_existential_deposit(
         self,
         block: Optional[int] = None,
@@ -459,7 +460,8 @@ class Subspace(c.Module):
         if result is None:
             return None
         
-        return self.
+        
+        
 
     #################
     #### Serving ####
@@ -875,7 +877,7 @@ class Subspace(c.Module):
         return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
 
     """ Returns the module information for this key account """
-    def get_module_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[AxonInfo]:
+    def get_module_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[ModuleInfo]:
         result = self.query_subspace( 'Modules', block, [key_ss58] )        
     ###########################
     #### Global Parameters ####
@@ -1228,6 +1230,14 @@ class Subspace(c.Module):
             namespace[module_name] = moduke_info
         
         return namespace
+
+    chain = 'subspace'
+    chain_path = f'{c.repo_path}/{chain}'
+    release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
+
+    @classmethod
+    def build_node(cls):
+        c.cmd('cargo build --release', verbose=True)
 
     @classmethod
     def test(cls):

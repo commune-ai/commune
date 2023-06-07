@@ -23,5 +23,5 @@ __ss58_format__ = 42
 import argparse
 import copy
 import os
-from .subspace import Subspace
+from .balance import Balance
 
