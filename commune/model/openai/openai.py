@@ -11,21 +11,12 @@ class OpenAILLM(c.Module):
     
     
     
-    def __init__(self,
-                model: str = "text-davinci-003",
-                prompt: str = None,
-                temperature: float=0.9,
-                max_tokens: int=1000,
-                top_p: float=1.0,
-                frequency_penalty: float=0.0,
-                presence_penalty: float=0.0,
-                tokenizer: str = None,
-                api: str = 'OPENAI_API_KEY',
-                stats:dict = None
+    def __init__(self, config = None
+                **kwargs
                 ):
         
-        self.set_config(kwargs=c.locals2kwargs(locals()))
-        self.set_api(api=api)
+        self.set_config(config, kwargs=kwargs)
+        self.set_api(api=api, password=password)
         self.set_prompt(prompt)
         self.set_tokenizer(tokenizer)
         self.set_stats(stats)
@@ -47,10 +38,25 @@ class OpenAILLM(c.Module):
         assert isinstance(stats, dict)
         self.stats = stats 
         
-    def set_api(self, api: str = None) -> None:
-        openai.api_key = os.getenv(api, api)
-
+    def set_api(self, api: str = None, password:str=None) -> None:
+        if api == None:
+            api = self.config['api']
+            
+        if self.is_encrypted(api):
+            api = c.decrypt(api, password=password)
+        openai.api_key  =  os.getenv(api, api)
         
+        if openai.api_key == None:
+            raise ValueError('OpenAI API Key not found')
+            self.putc('api', openai.api_key, password=True)
+        
+        
+    prompt = """
+        Return the following response to the Question as a JSON Dictionary
+        Q (str):
+        {x}
+        A (JSON):
+        """
     def resolve_prompt(self, prompt=None, **kwargs):
         if prompt == None:
             prompt = self.prompt
@@ -69,12 +75,6 @@ class OpenAILLM(c.Module):
         return params
     
         
-    prompt = """
-        Return the following response to the Question as a JSON Dictionary
-        Q (str):
-        {x}
-        A (JSON):
-        """
 
         
     def forward(self,
@@ -117,7 +117,9 @@ class OpenAILLM(c.Module):
         self.prompt = prompt
         assert isinstance(self.prompt, str), "Prompt must be a string"
         self.prompt_variables = self.get_prompt_variables(self.prompt)
-
+        self.config['prompt_variables'] = self.prompt_variables
+        self.config['prompt'] = self.prompt
+        self.save_config(self.config)
     @staticmethod   
     def get_prompt_variables(prompt):
         variables = []
@@ -178,43 +180,17 @@ class OpenAILLM(c.Module):
                          truncation=truncation, 
                          max_length=max_length)
     @classmethod
-    def test(cls, question = '''
-            convert this into a yaml
-
-             model: str = "text-davinci-003",
-                prompt: str = None,
-                temperature: float=0.9,
-                max_tokens: int=1000,
-                top_p: float=1.0,
-                frequency_penalty: float=0.0,
-                presence_penalty: float=0.0,
-                tokenizer: str = None,
-                api: str = 'OPENAI_API_KEY',
-                stats:dict = None
-             '''):
-        model = cls()
+    def test(cls, **kwargs):
+        model = cls(**kwargs)
         print(model.forward(question))
             
             
     @classmethod     
     def st(cls):
         import streamlit as st
-        schema = cls.schema(include_code=True, include_default=False)
-        st.write(cls.module2fn2str())
+        model = cls()
+        model.test()
         
-        
-        
-    @classmethod
-    def module2fn2str(self, include_code = True, include_default = False, **kwargs):
-        module2fn2str = {  }
-        for module in c.module_list():
-            try:
-                module_class = c.module(module)
-                if hasattr(module_class, 'fn2str'):
-                    module2fn2str[module] = module_class.fn2str(include_code = include_code,                                          include_default = include_default, **kwargs)
-            except:
-                pass
-        return module2fn2str
 if __name__ == '__main__':
     OpenAILLM.run()
 
