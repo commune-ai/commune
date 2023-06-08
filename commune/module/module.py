@@ -445,6 +445,7 @@ class c:
         old_v = cls.getc(k, password=password)
         password = password if new_password == None else new_password
         v = cls.put_v(old_v, password=password)
+        
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
         '''
@@ -457,7 +458,55 @@ class c:
         cls.dict_put(config, k, v)
         cls.save_config(config=config)
    
+   
+    @classmethod
+    def rmc(cls, k, password=None) -> Munch:
+        '''
+        Saves the config to a yaml file
+        '''
+        config = cls.config()
+        config.pop(k, None)
+        cls.save_config(config=config)
+   
     setc = putc
+    @classmethod
+    def encryptc(cls, k, password=None) -> Munch:
+        '''
+        Saves the config to a yaml file
+        '''
+        config = cls.config()
+        v = cls.dict_get(config, k)
+        assert isinstance(v,str), f'cannot encrypt {v} of type {type(v)}, strings only'
+        if password:
+            v = cls.encrypt(v,  password=password)
+
+        cls.dict_put(config, k, v)
+        cls.save_config(config=config)
+        c.print(v)
+        return v
+   
+
+    @classmethod
+    def decryptc(cls, k, password=None) -> Munch:
+        '''
+        Saves the config to a yaml file
+        '''
+        config = cls.config()
+        v = config[k]
+        if password:
+            v = cls.decrypt(v,  password=password)
+
+        config[k] = v
+        cls.save_config(config=config)
+        
+        return v
+   
+   
+    @classmethod
+    def frontend(cls):
+        c.cmd('yarn start', cwd=f'{c.repo_path}/frontend')
+       
+
       
     @classmethod
     def popc(cls, key:str):
@@ -4720,19 +4769,11 @@ class c:
     def port_range(cls):
         return cls.get_port_range()
     
-    # ports = port_range
     @classmethod
     def resolve_port_range(cls, port_range: list = None) -> list:
         return cls.get_port_range(port_range)
         return port_range
-    
-    # @classmethod 
-    # def ansible(cls, *args, fn='shell', **kwargs):
-    #     ansible_module = cls.get_module('ansible')()
-    #     return getattr(ansible_module, fn)(*args, **kwargs)
-    
-    
-    
+
     @classmethod
     def add_peer(cls, *args, **kwargs)-> List:
         loop = cls.get_event_loop()

@@ -1,11 +1,54 @@
-"model": "text-davinci-003"
-"prompt": null,
-"temperature": 0.9,
-"max_tokens": 1000,
-"top_p": 1.0,
-"frequency_penalty": 0.0,
-"presence_penaltys": 0.0,
-"tokenizer": null,
-"api": "OPENAI_API_KEY"
-"stats": null
-
+api: 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
+frequency_penalty: 0.0
+info:
+  address: 162.157.113.207:4046
+  attributes:
+  - config
+  - prompt
+  - prompt_variables
+  - tokenizer
+  - stats
+  - params
+  - module_id
+  - my_name
+  - el_namo
+  - name
+  - server_info
+  - ip
+  - port
+  - address
+  - ip_address
+  - ip_addy
+  functions:
+  - __init__
+  - decode_tokens
+  - encode_tokens
+  - forward
+  - get_prompt_variables
+  - resolve_params
+  - resolve_prompt
+  - set_api
+  - set_prompt
+  - set_stats
+  - set_tokenizer
+  name: model.openai
+  namespace:
+    bittensor: 0.0.0.0:4021
+    model.llama: 0.0.0.0:4016
+    module: 0.0.0.0:4034
+    server::vr::0: 0.0.0.0:4062
+    server::vr::1: 0.0.0.0:4018
+    server::vr::2: 0.0.0.0:4059
+    server::vr::3: 0.0.0.0:4064
+    server::vr::4: 0.0.0.0:4006
+    server::vr::5: 0.0.0.0:4036
+    server::vr::6: 0.0.0.0:4063
+    server::vr::7: 0.0.0.0:4098
+max_tokens: 1000
+model: text-davinci-003
+password: fam
+presence_penalty: 0.0
+stats: null
+temperature: 0.9
+tokenizer: null
+top_p: 10
