@@ -639,7 +639,7 @@ class c:
         return config
 
     @classmethod
-    def st(cls, module = None, fn='dashboard'):
+    def st(cls, module = None, fn='st'):
         module = cls.get_module(module)
         module_filepath = module.filepath()
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
@@ -1284,6 +1284,7 @@ class c:
         tasks = getattr(cls, f'{mode}_list')(task)
         tasks = list(filter(lambda x: x not in modules, tasks))
         return tasks
+    
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
         models = cls.modules(*args, **kwargs)
@@ -1300,7 +1301,6 @@ class c:
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
 
-    
     @staticmethod
     def is_imported(package:str) :
         return  bool(package in sys.modules)
@@ -2471,6 +2471,7 @@ class c:
             fn = getattr(cls, fn)
         fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
         return fn_schema
+    get_schema = get_fn_schema = get_function_schema
     
     def module_schema(self, 
                       
@@ -2482,14 +2483,6 @@ class c:
             'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
         }
         return module_schema
-    @classmethod
-    def function_schema(cls, fn:str)->dict:
-        '''
-        Get function schema of function in cls
-        '''
-        fn = getattr(cls, fn)
-        fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
-        return fn_schema
 
     @classmethod
     def function_info(cls, fn:str)->dict:
@@ -5564,9 +5557,6 @@ class c:
         return df
 
     @classmethod
-    def st(cls):
-        return cls.import_module('streamlit')
-    @classmethod
     def torch(cls):
         return cls.import_module('torch')
 
@@ -5596,6 +5586,34 @@ class c:
         from scalecodec.utils.ss58 import  ss58_decode
         return ss58_decode(*args, **kwargs)
 
+    @classmethod
+    def fn2str(cls, include_code = True, include_default = True, **kwargs):
+        schema = cls.schema(include_code=include_code, include_default=include_default)
+        fn2str = {}
+        for k,v in schema.items():
+            fn2str[k] = c.python2str(v)
+            
+        return fn2str
+    
+        
+    @classmethod
+    def module2fn2str(self, include_code = True, include_default = False, **kwargs):
+        module2fn2str = {  }
+        for module in c.module_list():
+            try:
+                module_class = c.module(module)
+                if hasattr(module_class, 'fn2str'):
+                    module2fn2str[module] = module_class.fn2str(include_code = include_code,                                          include_default = include_default, **kwargs)
+            except:
+                pass
+        return module2fn2str
+
+
+    @classmethod
+    def stwrite(self, *args, **kwargs):
+        import streamlit as st
+        st.write(*args, **kwargs)
+        
 Module = c
 Module.run(__name__)
     

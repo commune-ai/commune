@@ -195,12 +195,26 @@ class OpenAILLM(c.Module):
         model = cls()
         print(model.forward(question))
             
-
-
-
-
-
-
+            
+    @classmethod     
+    def st(cls):
+        import streamlit as st
+        schema = cls.schema(include_code=True, include_default=False)
+        st.write(cls.module2fn2str())
+        
+        
+        
+    @classmethod
+    def module2fn2str(self, include_code = True, include_default = False, **kwargs):
+        module2fn2str = {  }
+        for module in c.module_list():
+            try:
+                module_class = c.module(module)
+                if hasattr(module_class, 'fn2str'):
+                    module2fn2str[module] = module_class.fn2str(include_code = include_code,                                          include_default = include_default, **kwargs)
+            except:
+                pass
+        return module2fn2str
 if __name__ == '__main__':
     OpenAILLM.run()
 
