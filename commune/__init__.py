@@ -8,8 +8,6 @@ from .cli import cli
 # from .model import Model
 config = Config
 
-
-
 # Substrate ss58_format
 __ss58_format__ = 42
 # set the module functions as globals

@@ -44,8 +44,9 @@ class c:
     
     
     
-    def init(self, *args, **kwargs):
-        c.__init__(self, *args, **kwargs)
+    @classmethod
+    def init(cls, *args, **kwargs):
+        cls.__init__(*args, **kwargs)
     
     @classmethod
     def boot_peers(cls) -> List[str]: 
@@ -504,9 +505,7 @@ class c:
    
     @classmethod
     def frontend(cls):
-        c.cmd('yarn start', cwd=f'{c.repo_path}/frontend')
-       
-
+        c.cmd('yarn start', cwd=f'{c.repo_path}/frontend', verbose=True)
       
     @classmethod
     def popc(cls, key:str):
@@ -1429,7 +1428,7 @@ class c:
     @classmethod
     def locals2kwargs(cls,
                       locals_dict:dict,
-                      include_args:bool=True) -> dict:
+                      seperate_args:bool=False) -> dict:
         kwargs = {}
         locals_dict = locals_dict if locals_dict != None else {}
         assert isinstance(locals_dict, dict)
@@ -1438,9 +1437,9 @@ class c:
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
 
-        if include_args == False:
+        if seperate_args:
             args = locals_dict.pop('args', [])
-            return dict(kwargs=kwargs, args=args)
+            return args, kwargs
         
         return kwargs
     
@@ -2498,10 +2497,7 @@ class c:
                     
                 if include_default:
                     function_schema_map[fn]['default'] = fn_default_map.get(fn, 'NA')
-                if len(function_schema_map[fn]) == 1:
-                    function_schema_map[fn] = fn_schema
-                    
-                    
+
         for k,v in function_schema_map.items():
             if search != None:
                 if search == k:
@@ -4175,8 +4171,8 @@ class c:
                 data: Union[str, bytes],
                 password: str = 'bitconnect', 
                 prefix = encrypted_prefix) -> bytes:
-        password = cls.resolve_password(password)
-        data = cls.python2str(data)
+        password = c.resolve_password(password)
+        data = c.python2str(data)
         
 
         assert isinstance(password, str),  f'{password}'
@@ -4194,7 +4190,7 @@ class c:
                 ignore_error: bool = True,
                 prefix = encrypted_prefix,
                 verbose:bool = False) -> Any:
-        password = cls.resolve_password(password)
+        password = c.resolve_password(password)
         key = c.module('key.aes')(password)
         
         if isinstance(data, str):
@@ -5628,8 +5624,8 @@ class c:
         return ss58_decode(*args, **kwargs)
 
     @classmethod
-    def fn2str(cls, include_code = True, include_default = True, **kwargs):
-        schema = cls.schema(include_code=include_code, include_default=include_default)
+    def fn2str(cls,search = None,  include_code = True, include_default = True, **kwargs):
+        schema = cls.schema(search=search, include_code=include_code, include_default=include_default)
         fn2str = {}
         for k,v in schema.items():
             fn2str[k] = c.python2str(v)
@@ -5655,6 +5651,21 @@ class c:
         import streamlit as st
         st.write(*args, **kwargs)
         
+    # TAG CITY     
+        
+    def set_tag(self, tag):
+        if tag == None:
+            tag = 'base'
+        self.tag = tag
+        
+    def resolve_tag(self, tag=None):
+        if tag == None:
+            tag = self.tag
+        return tag
+    
+    @classmethod
+    def python2types(cls, d:dict)-> dict:
+        return {k:str(type(v)).split("'")[1] for k,v in d.items()}
 Module = c
 Module.run(__name__)
     
