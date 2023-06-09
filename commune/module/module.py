@@ -305,7 +305,7 @@ class c:
 
     @classmethod
     def sandbox(cls):
-        return cls.cmd('python3 sandbox.py')
+        return cls.cmd(f'python3 sandbox.py')
     sand = sandbox
     @classmethod
     def save_yaml(cls, path:str,  data:Union[Dict, Munch], root:bool = False) -> Dict:
@@ -348,12 +348,8 @@ class c:
         module_tree = cls.module_tree()
         if path in module_tree: 
             path = module_tree[path].replace('.py', '.yaml')
-            
-        if path is None:
-            if root:
-                path = c.__config_file__()
-            else:
-                path = cls.__config_file__()
+        else:
+            path = cls.__config_file__()
         assert isinstance(path, str)
         return path
     @classmethod
@@ -365,6 +361,8 @@ class c:
         '''
         
         path = cls.resolve_config_path(path, root=root)
+        
+            
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -469,6 +467,7 @@ class c:
         config.pop(k, None)
         cls.save_config(config=config)
    
+    delc = rmc
     setc = putc
     @classmethod
     def encryptc(cls, k, password=None) -> Munch:
@@ -521,7 +520,8 @@ class c:
         
         data = cls.dict_get(cls.config(), key)
         if c.is_encrypted(data):
-            assert password != None, 'password must be provided to decrypt the data'
+            if password == None:
+                return {'msg': 'password must be provided to decrypt the data', 'data': data}
             data = c.decrypt(data, password=password)
             
         return data
@@ -575,6 +575,7 @@ class c:
                 config = {}
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
+            
             default_config = cls.load_config()
             default_config.update(config)
             config = default_config
@@ -704,7 +705,7 @@ class c:
 
 
     @classmethod
-    def run_command(cls, 
+    def cmd(cls, 
                     command:str,
                     verbose:bool = False, 
                     env:Dict[str, str] = {}, 
@@ -717,6 +718,12 @@ class c:
         Runs  a command in the shell.
         
         '''
+        if isinstance(command, list):
+            kwargs = c.locals2kwargs(locals())
+            for idx,cmd in enumerate(command):
+                c.print(f'Running {idx}/{len(command)}', color='green')
+                c.cmd(cmd, **kwargs)
+            command = command.split(' ')
         import subprocess
         import shlex
         import time
@@ -775,7 +782,7 @@ class c:
         return stdout_text
 
 
-    shell = cmd = run_command
+    run_command = shell = cmd 
     @classmethod
     def import_module(cls, import_path:str) -> 'Object':
         from importlib import import_module
@@ -1780,7 +1787,7 @@ class c:
     
     @classmethod
     def get_client(cls, *args, virtual:bool = True, **kwargs):
-        client_class = cls.import_object('commune.server.client.Client')
+        client_class = c.module('module.server.client')
         client = client_class(*args, **kwargs)
         if virtual:
             return client.virtual()
@@ -2255,7 +2262,7 @@ class c:
             if k not in self.__dict__:
                 self.__dict__[k] = module_name
 
-        Server = cls.import_object('commune.server.Server')
+        Server = c.module('module.server')
         
         self.save_kwargs('serve', locals())
 
@@ -2506,6 +2513,9 @@ class c:
     
     function_schema_map = get_function_schema_map
     
+    @classmethod
+    def bruh(cls):
+        return 'fam'
 
     @classmethod
     def get_function_schema(cls, fn:str)->dict:
@@ -2514,7 +2524,7 @@ class c:
         '''
         if not callable(fn):
             fn = getattr(cls, fn)
-        fn_schema = {k:str(v) for k,v in fn.__annotations__.items()}
+        fn_schema = {k:str (v) for k,v in fn.__annotations__.items()}
         return fn_schema
     get_schema = get_fn_schema = get_function_schema
     
@@ -2544,18 +2554,19 @@ class c:
 
 
     @classmethod
-    def kill(cls, module,
+    def kill(cls, *modules,
              mode:str = 'pm2',
              verbose:bool = False,
              **kwargs):
 
-
+        kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
-        delete_modules =  getattr(cls, f'{mode}_kill')(module, verbose=verbose, **kwargs)
-       
+        for module in modules:
+            kill_fn(module, verbose=verbose, **kwargs)
+        
         cls.update(network='local')
 
-        return delete_modules
+        return modules
 
     delete = kill
     def destroy(self):
@@ -2624,6 +2635,7 @@ class c:
         if update:
             cls.update()
         kwargs = kwargs if kwargs else {}
+        kwargs.update(extra_kwargs)
         args = args if args else []
         if module == None:
             module = cls 
@@ -4649,15 +4661,15 @@ class c:
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
-        return cls.import_object('commune.server.Client')(*args, **kwargs)
+        return c.module('module.client')(*args, **kwargs)
     
     # @classmethod
     # def server(cls, *args, **kwargs) -> 'Server':
-    #     return cls.import_object('commune.server.Server')(*args, **kwargs)
+    #     return cls.import_object('module.server')(*args, **kwargs)
     
     @classmethod
     def serializer(cls, *args, **kwargs) -> 'Serializer':
-        return cls.import_object('commune.server.Serializer')(*args, **kwargs)
+        return c.module('module.server.serializer')(*args, **kwargs)
 
     
     @classmethod

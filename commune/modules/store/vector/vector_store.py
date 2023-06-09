@@ -3,8 +3,10 @@ import torch
 
 class VectorStore(c.Module):
     def __init__(self, 
-                    config = None
+                    config = None,
+                    **kwargs
                  ):
+        self.set_config(config=config, kwargs=kwargs)
         self.k2index = {}
         self.index2k = {}
         self.vectors = []
@@ -18,11 +20,8 @@ class VectorStore(c.Module):
         self.model = c.connect(model)
         
         
-    def deploy_model(cls, model,*args, **kwargs):
-        return c.deploy()
-        
     def encode(self, text:str, **kwargs):
-        return self.model.embed(text, **kwargs)
+        return self.model.encode(text, **kwargs)
     
 
     def resolve_vector(self, v:torch.Tensor):

@@ -1,9 +1,0 @@
-- name: Transfer and execute a script.
-  hosts: all
-  - name: Copy file with owner and permissions
-    ansible.builtin.copy:
-      src: "{{ lookup('env','HOME') }}/commune_ansible/src"
-      dest: /tmp/commune_ansible
-      owner: paperspace
-      group: paperspace
-      mode: '0644'

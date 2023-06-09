@@ -1,18 +1,10 @@
 all:
   hosts:
-    amsyaoo:
-      ansible_host: 87.197.111.68
-      ansible_port: 41133
-      ansible_user: root
-    huck_2000: &id001
+    huck_2000: 
       ansible_host: 162.157.13.236
       ansible_port: 2000
       ansible_user: commune
-    huck_2200: &id002
+    huck_2200:
       ansible_host: 162.157.13.236
       ansible_port: 2200
       ansible_user: commune
-selected:
-  hosts:
-    huck_2000: *id001
-    huck_2200: *id002

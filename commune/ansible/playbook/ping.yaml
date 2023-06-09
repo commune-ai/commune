@@ -1,6 +1,0 @@
-
-- name: Transfer and execute a script.
-  hosts: all
-  tasks:
-    - name: here we are checking the ping-pong 
-      ping:
