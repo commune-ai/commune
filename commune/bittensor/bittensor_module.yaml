@@ -1,5 +1,0 @@
-coldkey: ens2000
-model_name: server
-module: BittensorModule
-netuid: 1
-network: finney

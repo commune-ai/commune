@@ -1,0 +1,830 @@
+import os, sys
+from pprint import pp
+
+from functools import partial
+import asyncio
+from copy import deepcopy
+from typing import Union, Optional, List
+from concurrent import futures
+import os, sys
+from typing import *
+from loguru import logger
+import time
+import pandas as pd
+
+from munch import Munch
+import argparse
+import torch
+import json
+import random
+
+import streamlit as st
+
+
+# logger = logger.opt(colors=True)
+    
+# import torch
+import commune as c
+from torch import nn
+
+from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
+
+
+shortcuts =  {
+    # 0-1B models
+    'gpt125m': 'EleutherAI/gpt-neo-125m',
+
+    # 1-3B models
+    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+    'opt1.3b': 'facebook/opt-1.3b',
+    'opt2.7b': 'facebook/opt-2.7b',
+    # 'gpt3btuning' : ''
+
+    # 0-7B models
+    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+    'gptj': 'EleutherAI/gpt-j-6b',
+    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
+    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
+    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+    'opt6.7b': 'facebook/opt-6.7b',
+    'llama': 'decapoda-research/llama-7b-hf',
+    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
+    'falcon': 'tiiuae/falcon-40b-instruct',
+    # # > 7B models
+    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+    'gptneox': 'EleutherAI/gpt-neox-20b',
+    'gpt20b': 'EleutherAI/gpt-neox-20b',
+    'opt13b': 'facebook/opt-13b',
+    'gpt13b': 'cerebras/Cerebras-GPT-13B',
+    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
+    'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
+    'fish': os.path.expanduser('~/fish_model'),
+    'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
+    
+        }
+from torch import nn
+Model = c.module('model')
+class TransformerModel(Model):
+    shortcuts = shortcuts
+    model_options = list(shortcuts.keys()) + list(shortcuts.values())
+    default_tag = 'base'
+    
+    def __init__(self,
+                 config = None,
+                 **kwargs
+                ):
+        
+        nn.Module.__init__(self) 
+        # sets to self.config (with kwargs injected)
+        config = self.set_config(config, kwargs=kwargs)
+        self.set_model(config.model)
+
+        
+
+    def generate(self, 
+                 text:str,
+                 **kwargs) -> List[str]:
+        
+        
+        input_ids = self.tokenize(text)['input_ids']
+        output_ids =  self.model.generate(input_ids, **kwargs)
+        output_text = self.detokenize(output_ids, skip_special_tokens=True)
+        return output_text
+    
+    @classmethod
+    def test_generate(cls, *args, **kwargs):
+        model = cls( *args, **kwargs)
+        output_text = model.generate(text='Hello world',)
+        return output_text
+
+    @staticmethod
+    def check_output( output):
+        assert hasattr(output, 'logits'), 'output does not have logits'
+        
+        # check if logits has nans
+        logits_has_nans =  torch.isnan(output.logits).any()
+        assert not logits_has_nans, 'logits has nans'
+              
+        return logits_has_nans
+    
+    def _forward(self,  
+                input_ids: torch.Tensor, 
+                attention_mask: torch.Tensor = None,
+                topk:int=32,
+                output_length:int = None,
+                output_hidden_states : bool = True,
+                hidden_state_index: int = -1,
+                hidden_dim_bounds: List =  [0, -1],
+                return_keys:List[str] = ['topk', 'stats'],
+                train: bool = False,   
+                max_sequence_length : int = None,
+                map_tokens: bool = False,
+                map_logits: bool = False,  
+                tag : str = None,                           
+                **kwargs):
+        
+        # resolve the output length
+        output_length = output_length or self.config.output_length or input_ids.shape[1]
+        if output_length > input_ids.shape[1]:
+            output_length = input_ids.shape[1]
+        # resolve the max sequence length (sometimes we want to clip the input to make it faster)
+        max_sequence_length = max_sequence_length or self.config.max_sequence_length or input_ids.shape[1]
+        attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
+
+
+        sample = {
+        'input_ids': input_ids[:, -max_sequence_length:],
+        'attention_mask': attention_mask,
+        }
+        
+        if map_tokens:
+            offset_mapping, offset_mapping_std, original_input_ids = None, None, None
+            original_input_ids = self.copy(sample['input_ids'])
+            tokens = self.token_translator.translate_tokens(input_ids=sample['input_ids'], return_offsets_mapping=True)
+            offset_mapping = tokens.offset_mapping
+            offset_mapping_std = tokens.offset_mapping_std
+            sample['input_ids'] = tokens.input_ids
+            sample['attention_mask'] = tokens.attention_mask
+        
+        
+        # move to device for all tensors
+        for k,v in sample.items():
+            if isinstance(v, torch.Tensor):
+                sample[k] = sample[k].to(self.device)
+        
+        
+        # clip the input ids to the vocab size to avoid index errors
+        sample['input_ids'] = torch.clip(sample['input_ids'], 0, self.tokenizer.vocab_size-1)
+        
+        
+            
+        stats = self.stats
+        stats['sample'] =  {**stats.get('sample', {}), **{'time': self.time()}}
+        
+        # forward pass
+        output = self.model(input_ids=sample['input_ids'].to(self.device),
+                                output_hidden_states=output_hidden_states)
+        
+        
+        # check if there are any nans in the logits
+        self.check_output(output)
+        # sometime we dont care about the begginning of the sequence
+        output_length = output_length if output_length else output.logits.size(1)
+        output['hidden_states'] = output.hidden_states[hidden_state_index]
+        output['input_ids'] = sample['input_ids']
+
+        
+        # map th elogits
+        if map_logits:
+            output['logits'] = self.token_translator.translate_logits(logits = output['logits'],
+                                                                           offset_mapping=offset_mapping_std,
+                                                                           offset_mapping_std=offset_mapping_std,
+                                                                           tokens=sample['input_ids'],
+                                                                           tokens_std=original_input_ids)
+            
+        output['loss'] = loss = self.calculate_loss(**output)
+        output['logits']= output.logits[:,-output_length:,:]
+        output['topk']=self.encode_topk(output['logits'], topk=topk)
+
+
+        output = self.process_outputs(stats=stats, sample=sample, output=output)
+
+
+        
+        return {key:output[key] for key in return_keys}
+        
+       
+    def encode(self, text:str, token_idx = -1, **kwargs):
+        kwargs['return_keys'] = ['hidden_states']
+        sample = self.tokenize(text)
+        kwargs.update(sample)
+        hidden_states = self.forward(**kwargs)['hidden_states']
+        return hidden_states[:,token_idx, :]
+    
+    embed = encode
+    def process_outputs(self, stats:dict, sample:dict, output:dict):
+        
+        loss = output['loss']
+        # training stats
+        
+        
+        
+        sample_stats = {
+            'input_shape':list(sample['input_ids'].shape),
+            'latency': self.round(self.time() - stats['sample']['time'], sig=2),
+            'timestamp': int(self.time()),
+            'loss': self.round(loss.clone().item(), 3),
+            # 'history': stats['sample'].get('history',[])
+            
+        }
+        stats['sample'] = sample_stats
+
+                
+        for mode in ['train', 'eval']:
+            mode_stats = stats[mode] = stats.get(mode, {})
+            
+            
+            # skip if we are not training and we are in training mode
+            if mode == 'train' and not self.training:
+                continue
+            
+
+            # update the stats for the mode
+            mode_stats['samples'] = mode_stats.get('samples', 0) + stats['sample']['input_shape'][0]
+            mode_stats['tokens'] = mode_stats.get('tokens',0) + stats['sample']['input_shape'][0]*stats['sample']['input_shape'][1]
+            mode_stats['steps'] = mode_stats.get('steps', 0) + 1
+            mode_stats['epoch_length'] = self.config.epoch_length
+            mode_stats['epoch'] = mode_stats.get('epoch', 0)
+            
+            # calculate the running average of the loss
+            sample_loss = loss.item()
+            mode_stats['batch_count'] = mode_stats['steps'] % self.config.epoch_length
+            mode_stats['epoch_loss'] = mode_stats.get('epoch_loss', sample_loss)
+            mode_stats['epoch_loss'] = (mode_stats['epoch_loss']*mode_stats['batch_count']+ sample_loss)/(mode_stats['batch_count']+1)
+            mode_stats['epoch_loss'] = self.round(mode_stats['epoch_loss'], self.config.loss_sigdigs)
+            mode_stats['epoch_loss_history'] =mode_stats.get('epoch_loss_history',[])
+            
+
+            # update the loss history
+            if mode_stats['steps'] % self.config.epoch_length == 0:
+                mode_stats['epoch_loss'] = loss.item()
+                mode_stats['epoch_loss_history'] += [self.round(mode_stats['epoch_loss'], 3)]
+                mode_stats['epoch'] = mode_stats['epoch'] + 1
+                mode_stats['batch_count'] = 0
+                    
+            
+            # update the stats for the mode
+            if mode == 'train':
+                mode_stats['saved_step'] = mode_stats.get('saved_step', 0)
+                mode_stats['best_epoch_loss'] = mode_stats.get('best_epoch_loss', self.config.default_metric)
+                mode_stats['checkpoint_step'] = mode_stats.get('checkpoint_step', 0)
+                loss.backward()
+                if mode_stats['steps'] % self.config.accumulate_grad_batches == 0:
+                    # we want to accumulate the gradients over multiple batches, and then take an optimizer step while clipping the gradients
+                    if self.config.get('clip_grad_norm', 0)> 0:
+                        torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.clip_grad_norm)
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+                
+                mode_stats['steps_since_checkpoint'] = mode_stats['steps'] - mode_stats['checkpoint_step']
+                mode_stats['patience_steps'] = self.config['patience_steps'] = self.config.get('patience_steps', self.config.epoch_length*self.config.patience_epochs)
+                if mode_stats['steps_since_checkpoint'] >= self.config.patience_steps :
+                    is_better = mode_stats['is_better'] = bool(mode_stats['epoch_loss'] <= (mode_stats['best_epoch_loss'] - self.config.best_epoch_loss_delta))
+                    if  is_better:
+                        mode_stats['checkpoint_step'] = mode_stats['saved_step']=  mode_stats['steps']
+                        mode_stats['best_epoch_loss'] = mode_stats['epoch_loss']
+                        self.stats = stats
+                        self.save() # save all
+                    else:
+                        mode_stats['checkpoint_step'] = mode_stats['steps']
+                        mode_stats['epoch_loss'] = loss.item()
+                        self.load(keys=['model', 'optimizer'])
+                        
+            stats[mode] = mode_stats
+
+
+
+              
+        self.stats = stats
+    
+        output['stats'] = self.munch2dict(stats)
+
+        return output
+    
+    def check_config(self, config, ensure_keys=['model_path']):
+        for k in ensure_keys:
+            assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
+
+    
+    def set_model(self, config) -> None: 
+        from transformers import  AutoModelForCausalLM, AutoModel
+        from accelerate import init_empty_weights
+        config['model_name'] = config['model']
+        self.model_path = config['model_path'] = config['model'] = self.shortcuts.get(config['model'], config['model'])
+        self.set_tokenizer(config.tokenizer)
+
+        if config.device_map == None:
+            model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
+            config.model_size = self.get_model_size(model)
+            config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
+            config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
+                                                max_gpu_ratio=config.max_gpu_ratio,
+                                                reserve=config.reserve_gpus)
+    
+            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+        
+        model_kwargs=dict(
+            max_memory=config.max_memory,
+            device_map= config.device_map,
+            trust_remote_code=config.trust_remote_code,
+        )
+        
+        if config.verbose:
+            self.print(f'model_kwargs: {model_kwargs}')
+       
+        self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
+        
+        c.print(self.model.config.__dict__)
+        
+        config.devices = list(set(list(self.model.hf_device_map.values())))
+        config.device = config.devices[0]
+
+        self.devices = config.devices
+        self.device = config.device
+        
+        if config.reserve_gpus:
+            self.unreserve_gpus(config.max_memory)
+        
+        self.print(f'device_map: {self.devices}')
+        
+        self.set_optimizer(config.optimizer)
+        self.set_finetune(config.finetune) 
+          
+        if config.load:
+            self.load(keys=['model', 'optimizer']) 
+        if config.reset_stats:
+            self.reset_stats()
+        self.config = config
+        
+        
+
+
+    def set_params(params:dict = None):
+        params = params if params is not None else {}
+        if params.get('lr', None) is not None:
+            self.set_lr(lr)
+            
+        if params.get('optimizer', None) is not None:
+            self.set_optimizer(params['optimizer'])
+            
+        if params.get('clip_grad_norm', None) is not None:
+            self.set_optimizer(params['optimizer'])
+            
+        if params.get('finetune', None) is not None:
+            self.set_finetune(params['finetune'])
+        
+        
+        
+        
+        return params
+
+
+
+
+    def resolve_tokenizer(self, tokenizer:str):
+        if tokenizer is None:
+            tokenizer = self.config.model_path
+        tokenizer = self.shortcuts.get(tokenizer, tokenizer)
+        assert isinstance(tokenizer, str)
+        return tokenizer
+    def set_tokenizer(self, tokenizer):
+        from transformers import AutoTokenizer, AutoModel
+        from commune.utils.tokenizer import prep_tokenizer
+        tokenizer = self.resolve_tokenizer(tokenizer)
+
+        self.print(f'setting {tokenizer} tokenizer...')
+        assert isinstance(tokenizer, str, )
+        self.config['tokenizer'] = tokenizer
+        
+        # HACK TO INCLUDE LLAMA TOKENIZER
+        if 'llama' in tokenizer:
+            from transformers import LlamaTokenizer
+            tokenizer_class = LlamaTokenizer
+        else:
+            tokenizer_class = AutoTokenizer
+                
+        try:
+            tokenizer = tokenizer_class.from_pretrained(tokenizer, use_fast=True)
+        except ValueError:
+            
+            print('resorting ot use_fast = False')
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+
+
+        self.tokenizer = tokenizer
+        
+    
+        self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
+        self.tokenizer = prep_tokenizer(self.std_tokenizer)
+        self.token_translator = self.get_module('model.token_translator')(tokenizer=tokenizer, std_tokenizer=self.std_tokenizer)
+
+        return self.tokenizer
+
+    
+    
+    @staticmethod
+    def encode_topk( forward_response_tensor: torch.Tensor , topk:int=4096) -> torch.Tensor:
+        """ Returns topk tokens/probabilities given unnormalized logits as input. """
+
+        #import ipdb; ipdb.set_trace()
+
+        logits = forward_response_tensor  # unnormalized logit scores: [batch_size, sequence_len, vocab_size]
+        probs = torch.softmax(logits, dim=-1).to(torch.float32)  # normalized probabilities: [batch_size, sequence_len, vocab_size]
+
+        topk_indices = torch.argsort(probs, dim=-1, descending=True)[...,:topk]
+        # topk_values, topk_indices = torch.topk(probs, topk) # topk probs and indices: [batch_size, sequence_len, topk]
+
+        topk_values = probs.gather( index=topk_indices, dim=-1)
+        encoded_probs = torch.cat([topk_values, topk_indices], dim=-1)  # [batch_size, sequence_len, topk + topk]
+        return encoded_probs  # [batch_size, sequence_len, topk + topk]
+
+
+    @staticmethod
+    def decode_topk(  forward_response_tensor: torch.Tensor, topk=4096, vocab_size:int=50257) -> torch.Tensor:
+        """ Returns full logits by decoding topk-encoding input. """
+        batch_size, sequence_len, _ = forward_response_tensor.shape
+        
+        encoded_probs = forward_response_tensor  # encoded probabilities: [batch_size, sequence_len, topk + topk]
+        topk_values = encoded_probs[..., :topk]  # topk probs: [batch_size, sequence_len, topk]
+        topk_indices = encoded_probs[..., topk:].long()  # topk probs indices: [batch_size, sequence_len, topk]
+
+        topk_pmass = topk_values.sum(dim=-1)  # topk probability mass: [batch_size, sequence_len]
+        remainder_pmass = torch.clamp(1 - topk_pmass, 1e-40, 1)  # remainder probability mass: [batch_size, sequence_len]
+        remainder_floor = remainder_pmass / (vocab_size - topk)  # divide remainder: [batch_size, sequence_len]
+
+        logits = torch.ones((batch_size, sequence_len, vocab_size), dtype=topk_values.dtype).to(topk_values.device)
+        logits *= torch.log(remainder_floor)[:, :, None]  # set probability floor: [batch_size, sequence_len, vocab_size]
+
+        logits.scatter_(-1, topk_indices, torch.log(topk_values + 1e-40))  # insert topk probs: [batch_size, sequence_len, vocab_size]
+
+        return logits  # [batch_size, sequence_len, vocab_size]
+
+
+    def tokenizer_name(self):
+        return self.config['tokenizer']
+
+    def tokenize(self, 
+                 text: str = 'Whadup',
+                 padding=True, 
+                 truncation=True, 
+                 max_length=64,
+                 return_tensors='pt',
+                 add_special_tokens=False,
+                 device:str = None, 
+                 **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        
+        sample = self.tokenizer(text, padding=padding, 
+                                      truncation=truncation, 
+                                      max_length=max_length, 
+                                      return_tensors=return_tensors,
+                                      add_special_tokens=add_special_tokens, 
+                                      **kwargs)  # assume tokenizer.padding_side = 'left'
+
+        device = device if device != None else self.device
+        
+        sample = dict(
+            input_ids= sample['input_ids'].to(device),
+            attention_mask= sample['attention_mask'].to(device)
+        )
+        
+        return sample
+
+
+
+    def detokenize(self, input_ids: torch.Tensor, **kwargs) -> torch.Tensor:
+        """ Returns tokenized text as torch tensor. """
+        
+        text = self.tokenizer.batch_decode(input_ids,**kwargs)  # assume tokenizer.padding_side = 'left'
+
+        return text
+    
+    
+    @classmethod
+    def sample_check(cls, sample):
+        return bool(isinstance(sample, dict) and 'input_ids' in sample)
+    
+    @classmethod
+    async def async_get_sample(cls, dataset, max_trials=10, batch_size=1, sequence_length=64, num_batches=10):
+        sample = None
+        if not hasattr(cls, 'dataset_pool'):
+            cls.dataset_pool = c.connect_pool(dataset)
+
+        fail_count = 0
+       
+        while not cls.sample_check(sample) and fail_count < max_trials:
+            if len(cls.dataset_pool) == 0:
+                cls.dataset_pool = c.connect_pool(dataset)
+            try:
+                data_idx =cls.choice(list(range(len(cls.dataset_pool))))
+                sample = cls.dataset_pool[data_idx].sample(batch_size=batch_size,
+                                        sequence_length=sequence_length)
+                
+                if not cls.sample_check(sample):
+                    raise Exception('Sample check failed')
+                sample['input_ids'] = sample['input_ids'][:batch_size, -sequence_length:]
+                
+                
+            except Exception as e:
+                fail_count += 1
+                del cls.dataset_pool[data_idx]
+                cls.print(f'ERROR {e} failed to sample, removing dataset {data_idx}, {len(cls.dataset_pool)} remaining', color='red')
+        assert cls.sample_check(sample), f'Failed to sample from {dataset} after {max_trials} trials.'
+        return sample
+    
+    @classmethod
+    def get_sample(cls, timeout=2, retries = 3, *args, **kwargs):
+        try:
+            if timeout:
+                # Add timeout to the async_get_sample call
+                coro = asyncio.wait_for(cls.async_get_sample(*args, **kwargs), timeout=timeout)
+            else:
+                coro = cls.async_get_sample(*args, **kwargs)
+            
+            return asyncio.run(coro)
+        except asyncio.TimeoutError:
+            # Handle the timeout error here
+            print("Async function call timed out.")
+            if retries > 0:
+                return cls.get_sample(timeout=timeout, retries=retries-1, *args, **kwargs)
+    
+    
+    
+    @classmethod
+    def resolve_model(cls, model, **kwargs):      
+        if isinstance(model, str):
+            if cls.exists(model):
+                model  = cls.connect(model) 
+            else:
+                model = cls(model=model, **kwargs)
+        elif isinstance(model, nn.Module):
+            model = model
+        elif isinstance(model, dict):
+            model = cls(**model)
+        elif model == None:
+            model = cls()
+        else:
+            raise ValueError(f"Model type {type(model)} not supported.")
+        
+        
+        return model
+                
+
+    @classmethod
+    def learn(cls, model = 'gpt125m', 
+             topk:int=512 ,
+             dataset:str = 'dataset.bittensor',
+             num_batches = 1000,
+             batch_delay = 3,
+             sequence_length : int = 256,
+             batch_size: int = 32,
+             autocast : bool = True,
+             train: bool= True,
+             map_logits : bool = False,
+             map_tokens : bool = False,
+             timeout : int= 8,
+             remote:bool = False,
+             **kwargs
+             ):
+        
+        if remote:
+            kwargs = cls.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn(fn='learn',kwargs=kwargs, name=f"train::{model}")
+        
+        model = cls.resolve_model(model, **kwargs)
+
+        for i in range(num_batches):
+            cls.print('GETTING SAMPLE')
+            sample = cls.get_sample(dataset=dataset,
+                                                    batch_size=batch_size, 
+                                                    sequence_length=sequence_length,
+                                                    num_batches=num_batches)
+        
+        
+            sample.update(
+                topk=topk,
+                map_tokens=map_tokens,
+                map_logits=map_logits,
+                train=train,
+                autocast=autocast,
+                timeout=timeout,
+                return_keys=[ 'topk', 'stats']
+                
+            )
+            
+            cls.sleep(batch_delay)
+            
+            output = model.forward(**sample)
+            cls.print('STATS: ',output.get('stats', output))
+
+          
+          
+    test = evaluate = learn
+    
+    @property
+    def tag(self):
+        if self.config.get('tag', None) == None:
+            self.config['tag'] = 'base'
+            
+        return  self.config['tag']
+       
+    @tag.setter
+    def tag(self, tag):
+        self.config['tag'] = tag
+        
+        
+    def resolve_state_path(self, tag=None):
+        tag = tag if tag != None else self.tag
+        path = self.config.model+'_'+tag
+        path = self.resolve_path(path)
+        return path
+    
+        
+    @classmethod
+    def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
+        self = cls()
+        t = cls.timer()
+        for i in range(num_samples):
+            cls.print(self.encode(text).shape)
+            cls.print(num_samples/t.seconds, 'samples per second')
+
+    
+
+    @classmethod
+    def models(cls):
+        return list(cls.shortcuts.keys())
+    
+    
+    
+    @classmethod
+    def default_models(cls):
+        return list(cls.shortcuts.keys())
+          
+          
+    fleet_group = {
+        
+        '0': [ 'gpt125m', 'gpt2.7b', 'opt2.7b','gptj'],
+        '1': [ 'gptj.alpaca', 'gptj.pygppo', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
+        '2': [ 'gptj.instruct', 'gpt6b', 'opt6.7b', 'oa.galactia.6.7b', 'vicuna.7b', 'gptj'],
+
+
+        # '0': ['vicuna.7b', 'opt6.7b', 'oa.galactia.6.7b'],
+
+        'all': default_models,
+        'default': default_models,
+    }
+    
+    
+    @staticmethod
+    def get_configurations(params:dict)-> List[dict]:
+        import itertools
+        configurations = []
+        keys = params.keys()
+        values = [params[key] for key in keys]
+        for combination in itertools.product(*values):
+            config = {}
+            for i, key in enumerate(keys):
+                config[key] = combination[i]
+            configurations.append(config)
+        return configurations
+
+    @classmethod
+    def hyperfleet(cls, 
+                     *tags, 
+                     model = 'gptj',
+                     params = {
+                         'optimizer.lr': [1e-4, 1e-5],
+                         'finetune': [1,2,3,4],
+                     }, 
+                     **kwargs
+                     ) -> List[str]:
+        params_configurations = cls.get_configurations(params)
+        deployed_models = []
+        free_gpu_memory  = cls.free_gpu_memory()
+        for params in params_configurations:
+            
+            kwargs.update(params)
+            tag = '_'.join([f'{k}:{v}' for k,v in params.items()])
+            deployed_models += cls.deploy(model, tag=tag, free_gpu_memory=free_gpu_memory, **kwargs)
+        
+        return {'deployed': deployed_models}
+    @classmethod
+    def deploy_fleet(cls, 
+                     *tags, 
+                     model = 'gptj',
+                     max_models = None,
+                     **kwargs
+                     ) -> List[str]:
+
+        c.update()
+        if len(tags) == 0:
+        
+            tags = ['base','alice', 'bob', 'chris', 'dan', 'eve', 'frank', 'gina', 'harry', 'ian', 'jane', 'kate', 'larry', 'mike', 'nancy', 'olivia', 'peter', 'quinn', 'rob', 'sarah', 'tom', 'ursula', 'victor', 'wanda', 'xavier', 'yolanda', 'zach']
+            
+        
+        if max_models is None:
+            max_models = len(cls.gpus())
+        tags = tags[:max_models]
+        
+        print(f'deploying {tags} on {cls.gpus()}')
+        tag_seperator = kwargs.get('tag_seperator', '::')
+        
+        free_gpu_memory = cls.free_gpu_memory()
+        models = [ model+tag_seperator+t for t in tags]
+        deployed_models = cls.deploy(*models, **kwargs)
+        return {'deployed': deployed_models}
+        
+    @classmethod
+    def undeployed_models(cls, models: List[str] = 'all'):
+        models = cls.fleet_group.get(models, models)
+        undeployed_models = []
+        for model in models:
+            if cls.exists(f'model.{model}') == False:
+                undeployed_models.append(model)
+        return undeployed_models
+       
+    
+    @classmethod   
+    def infer_device_map(cls, model, 
+                         max_memory: dict = None,
+                         **kwargs,
+                         ):
+        from accelerate import infer_auto_device_map
+        if isinstance(model, str):
+            model = cls.get_empty_model(model)
+        if max_memory == None:
+            model_size = cls.get_model_size(model)
+            max_memory = cls.max_gpu_memory(model_size)    
+
+        device_map = infer_auto_device_map(model,  **kwargs) 
+        
+        return device_map
+    
+    
+
+      
+    @classmethod
+    def deploy(cls,
+               model: str,
+               tag = None,
+               refresh = True,    
+               **kwargs
+              ):
+        
+        config = cls.get_config(kwargs=kwargs)
+
+
+        name = f'model.{model}'
+        if tag != None:
+            name += '::'+tag
+
+        cls.launch(name=name,
+                    kwargs=kwargs,
+                    refresh = refresh,
+                    verbose=True)
+        
+            
+    @classmethod
+    def sandbox(cls):
+        self = cls(model='gpt125m')
+        
+    @classmethod
+    def calculate_loss( cls, logits: torch.Tensor,
+                       input_ids:torch.Tensor,
+                       return_value = False,
+                       **kwargs) -> torch.Tensor:
+        '''
+        Calculate the loss for the model.
+        '''
+        gt = input_ids[:, -(logits.shape[1]-1):].flatten()
+        pred = logits[:, :-1]
+            
+        if len(pred.shape) == 3:
+            pred = pred.reshape(-1, pred.shape[-1])
+        
+        assert gt.shape[0] == pred.shape[0], f'gt.shape: {gt.shape} pred.shape: {pred.shape}'
+
+        loss_fn = torch.nn.CrossEntropyLoss()
+        loss =  loss_fn(pred, gt.to(pred.device))
+        
+        # check if loss is nan
+        if torch.isnan(loss):
+            c.print('Loss is nan, skipping backward pass')
+            train = False
+            loss = torch.tensor(10)
+            raise Exception('Loss is nan, skipping backward pass')
+        
+        if return_value:
+            loss = loss.item()
+        
+        return loss
+
+    hf = c.module('huggingface')()
+
+
+
+TransformerModel.run(__name__)
