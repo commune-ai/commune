@@ -19,6 +19,7 @@ class BittensorModule(c.Module):
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
     default_model_name = default_config['model_name']
     default_netuid = default_config['netuid']
+    network2endpoint = default_config['network2endpoint'] 
     
     def __init__(self,
 
@@ -31,19 +32,13 @@ class BittensorModule(c.Module):
         self.set_subtensor(subtensor=subtensor, netuid=netuid)
         self.set_wallet(wallet)
         
-    @classmethod
-    def network_options(cls):
-        network_options = ['finney', 'test', 'local'] 
 
-            
-        return network_options
+    @classmethod
+    def networks(cls):
+        networks = list(cls.network2endpoint.keys())
+        return networks
     
-    
-    network2endpoint = {
-        'test': 'wss://test.finney.opentensor.ai:443',
-        'local': 'ws://0.0.0.0:9944',
-        'finney': 'wss://entrypoint-finney.opentensor.ai:443',
-    }
+
     @classmethod
     def get_endpoint(cls, network:str):
         return cls.network2endpoint.get(network, None)
@@ -76,6 +71,8 @@ class BittensorModule(c.Module):
         else:
             raise NotImplementedError(subtensor)
         return subtensor
+    
+    
     
     @classmethod
     def get_metagraph(cls,subtensor=None, 
@@ -513,7 +510,7 @@ class BittensorModule(c.Module):
     
     # @property
     # def default_network(self):
-    #     return self.network_options()[0]
+    #     return self.networks()[0]
     
 
     @property
@@ -1034,8 +1031,8 @@ class BittensorModule(c.Module):
         
         wallet = st.selectbox(f'Select Wallets ({wallets_list[0]})', wallets_list, 0)
         self.set_wallet(wallet)
-        network_options = self.network_options()
-        network = st.selectbox(f'Select Network ({network_options[0]})', network_options, 0)
+        networks = self.networks()
+        network = st.selectbox(f'Select Network ({networks[0]})', networks, 0)
         self.set_subtensor(subtensor=network)
         
         sync_network = st.button('Sync the Network')
@@ -2066,28 +2063,162 @@ class BittensorModule(c.Module):
         return self.metagraph.dividends.data
     
     
-    subtensor_path = f'{c.repo_path}/subtensor'
-    release_path = subtensor_path + '/target/release/node-subtensor'
+    chain_path = f'{c.repo_path}/subtensor'
+    chain_release_path = chain_path + '/target/release/node-subtensor'
     
     @classmethod
-    def local_node(cls):
-        return cls.cmd('sudo docker-compose up -d', cwd=cls.subtensor_path, verbose=True)
+    def local_node(cls, network = 'finney'):
+        if network == 'finney':
+            cmd =  f'{cls.chain_path}/target/release/node-subtensor'
+        elif network == 'test':
+            cmd = f'{cls.chain_release_path} --chain test_finney --rpc-external --rpc-cors all --ws-external --no-mdns --sync warp --bootnodes /ip4/192.81.212.20/tcp/30333/p2p/12D3KooWQawexXodtsPEymJUX1X2eKzjNq6s8MvzEWtKwJ6mLmzy'
+        
+        return cls.cmd(cmd, cwd=cls.chain_path, verbose=True)
+
 
     @classmethod
-    def add_node(cls):
-        cmd =f'''
-           {cls.release_path} 
-            --base-path /tmp/alice \
-            --alice \
-            --port 30333 \
-            --ws-port 9945 \
-            --rpc-port 9933 \
-            --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
-            --telemetry-url "wss://telemetry.polkadot.io/submit/ 0" \
+    def build(cls):
+        return cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
+        
+        
+    @classmethod   
+    def purge_chain(cls,
+                    base_path = '/tmp/alice',
+                    chain = 'local',
+                    sudo = True):
+        cmd = f'{cls.chain_path} purge-chain --base-path /tmp/alice --chain local'
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True, sudo=sudo)
+
+
+    
+
+    spec_path = f'{chain_path}/specs'
+    @classmethod
+    def build_spec(cls,
+                   chain = 'test_finney',
+                   raw  = True,
+                   disable_default_bootnode = True,
+                   ):
+
+        spec_path = f'{cls.spec_path}/{chain}.json'
+        cmd = f'{cls.chain_release_path} build-spec'
+        if c.exists(spec_path):
+            cmd += f'--chain {spec_path}'
+        else:
+            cmd += f'--chain {chain}'
+            
+
+        if disable_default_bootnode:
+            cmd += ' --disable-default-bootnode'    
+        if raw:
+            cmd += ' --raw'
+            spec_path = f'{cls.spec_path}/{chain}_raw.json'
+        else:
+            spec_path = f'{cls.spec_path}/{chain}.json'
+        cmd += f' > {spec_path}'
+        
+        c.print(cmd)
+
+        return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
+
+
+    spec_path = f'{chain_path}/specs'
+    @classmethod
+    def specs(cls):
+        specs = c.ls(f'{cls.spec_path}/')
+        
+        return [spec for spec in specs if '_raw' not in spec]
+
+    @classmethod
+    def spec_exists(cls, chain):
+        c.print(f'{cls.spec_path}/{chain}.json')
+        return c.exists(f'{cls.spec_path}/{chain}.json')
+        
+        
+
+    
+    @classmethod
+    def start_node(cls,
+                 port:int=30333,
+                 rpc_port:int=9933,
+                 ws_port:int=9945,
+                 user : str = 'alice',
+                 telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
+                 remote = False,
+                 
+                 ):
+        
+        if remote :
+            kwargs = c.locals2kwargs(locals())
+        cmd = f'''
+            {cls.chain_release_path} \
+            --base-path /tmp/{user} \
+            --{user} \
+            --port {port} \
+            --ws-port {ws_port} \
+            --rpc-port {rpc_port} \
             --validator
         '''
+
+
+        return cls.cmd(cmd, verbose=True, cwd=cls.chain_path)
+       
+       
+    supported_schemas = ['Sr25519', 'Ed25519']
+    @classmethod
+    def gen_key(cls, schema='Sr25519', password_interactive=False , sudo=False):
+            
+        if schema in ['author', 'auth']:
+            schema = 'Sr25519'
+        elif schema in ['gran', 'grandpa']:
+            schema = 'Ed25519'
+            
+        c.print(f'\n\n Generating Key ({schema}) \n\n', color='green')
+
+        assert schema in cls.supported_schemas , f'schema {schema} not supported, use either {supported_schemas}'
+        cmd = f'''{cls.chain_release_path} key generate --scheme {schema}'''
+        if password_interactive:
+            cmd += ' --password-interactive'
+
+
+        return cls.cmd(cmd, verbose=True, cwd=cls.chain_path, sudo=sudo)
+    
+
+    @classmethod
+    def add_keystore(cls,
+                     suri ,
+                     base_path = '/tmp/node01',
+                     chain = 'customSpecRaw.json',
+                     key_type = 'gran',
+                     schema = 'Ed25519',
+                     password_interactive = False,):
         
-        return cls.cmd(cmd, verbose=True, cwd=cls.subtensor_path)
+        if key_type == 'gran':
+            schema = 'Ed25519'
+        elif key_type == 'aura':
+            schema = 'Sr25519'
+        else:
+            raise Exception(f'Unknown key type {key_type}')
+        cmd  = f'''
+        {cls.chain_release_path} key insert --base-path {base_path}\
+        --chain {chain} \
+        --scheme {schema} \
+        --suri "{suri}" \
+        --key-type gran
+        '''
+        
+        if password_interactive:
+            cmd = cmd + ' --password-interactive'
+        
+        return c.cmd(cmd, verbose=True)
+        
+
+
+    @classmethod
+    def gen_keys(cls, schema = 'Sr25519' , n:int=2, **kwargs):
+        for i in range(n):
+            cls.gen_key(schema=schema, **kwargs)
+        
 
     @classmethod
     def localnet(cls):

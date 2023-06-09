@@ -3,3 +3,7 @@ model_name: server
 module: BittensorModule
 netuid: 1
 network: local
+network2endpoint:
+  finney: wss://entrypoint-finney.opentensor.ai:443
+  local: ws://0.0.0.0:9944
+  test: wss://test.finney.opentensor.ai:443
