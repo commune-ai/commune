@@ -571,6 +571,11 @@ class Keypair(c.Module):
         sender = nacl.public.PublicKey(curve25519_public_key)
         return nacl.public.Box(recipient, sender).decrypt(encrypted_message_with_nonce)
 
+    @classmethod
+    def sandbox(cls ):
+        key = cls.create_from_uri('//Alice')
+        c.print(key.__dict__)
+        c.print(c.module('bittensor').get_balance(key.ss58_address))
     def __repr__(self):
         if self.ss58_address:
             return '<Keypair (address={})>'.format(self.ss58_address)

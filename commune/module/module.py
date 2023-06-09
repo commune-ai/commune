@@ -712,7 +712,7 @@ class c:
                     output_text:bool = True,
                     sudo:bool = False,
                     password: bool = None,
-                    color: str = 'green',
+                    color: str = 'white',
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -740,7 +740,6 @@ class c:
             sudo = True
             
         if sudo:
-            assert isinstance(password, str)
             command = f'sudo {command}'
             
             
@@ -749,8 +748,6 @@ class c:
                                     # stderr=subprocess.PIPE, 
                                     env={**os.environ, **env}, **kwargs)
 
-        if password:
-            raise NotImplementedError
             
         new_line = b''
         stdout_text = ''
@@ -2077,10 +2074,15 @@ class c:
     resolve_port = get_port
     
     @classmethod
-    def exists(cls, name:str, **kwargs) -> bool:
+    def module_exists(cls, name:str, **kwargs) -> bool:
         namespace = cls.namespace(**kwargs)
         return bool(name in namespace)
     
+    @classmethod
+    def file_exists(self, path:str) -> bool:
+        import os
+        return os.path.exists(path)
+    exists = file_exists
     @classmethod
     def module_exists(cls, name:str) -> bool:
         return bool(name in cls.module_list())

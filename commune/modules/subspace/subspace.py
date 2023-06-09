@@ -1250,16 +1250,61 @@ class Subspace(c.Module):
 
     chain = 'subspace'
     chain_path = f'{c.repo_path}/{chain}'
-    release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
-
+    chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
+    spec_path = f'{chain_path}/specs'
+    
+    
     @classmethod
     def build(cls):
         c.cmd('cargo build --release', cwd=cls.chain_path,verbose=True)
 
 
     @classmethod
+    def build_spec(cls,
+                   chain = 'local'
+                   ):
+        spec_path = f'{cls.spec_path}/{chain}.json'
+        cmd = f'{cls.chain_release_path} build-spec --disable-default-bootnode --raw --chain {chain}'
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
+
+    @classmethod
+    def build_spec(cls,
+                   chain = 'local'
+                   ):
+        spec_path = f'{cls.spec_path}/{chain}.json'
+        cmd = f'{cls.chain_release_path} build-spec --disable-default-bootnode --raw --chain {chain}'
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
+
+
+    @classmethod
+    def add_keystore(cls,
+                     suri 
+                     base_path = '/tmp/node01',
+                     chain = 'customSpecRaw.json',
+                     key_type = 'gran',
+                     schema = 'Ed25519',):
+        
+        if key_type == 'gran':
+            schema = 'Ed25519'
+        elif key_type == 'aura':
+            schema = 'Sr25519'
+        else:
+            raise Exception(f'Unknown key type {key_type}')
+        cmd  = f'''
+        {cls.chain_release_path} key insert --base-path {base_path}\
+        --chain {chain} \
+        --scheme {schema} \
+        --suri {suri} \
+        --password-interactive \
+        --key-type gran
+        '''
+        
+        return c.cmd(cmd, verbose=True)
+        
+
+    @classmethod
     def start_node(cls):
-        c.cmd(f'{cls.release_path} --dev --tmp', verbose=True)
+        c.cmd(f'{cls.chain_release_path} --dev --tmp', verbose=True)
     @classmethod
     def test(cls):
         subspace = cls()
