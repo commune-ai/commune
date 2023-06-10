@@ -2096,24 +2096,31 @@ class BittensorModule(c.Module):
     @classmethod
     def build_spec(cls,
                    chain = 'test_finney',
-                   raw  = True,
+                   new_chain = None,
+                   raw  = False,
                    disable_default_bootnode = True,
+
                    ):
 
         spec_path = f'{cls.spec_path}/{chain}.json'
+
         cmd = f'{cls.chain_release_path} build-spec'
         if c.exists(spec_path):
-            cmd += f'--chain {spec_path}'
+            cmd += f' --chain {spec_path}'
         else:
-            cmd += f'--chain {chain}'
+            cmd += f' --chain {chain}'
             
 
         if disable_default_bootnode:
-            cmd += ' --disable-default-bootnode'    
+            cmd += ' --disable-default-bootnode'  
+        if new_chain != None:
+            chain = new_chain
+              
         if raw:
             cmd += ' --raw'
             spec_path = f'{cls.spec_path}/{chain}_raw.json'
         else:
+            
             spec_path = f'{cls.spec_path}/{chain}.json'
         cmd += f' > {spec_path}'
         
