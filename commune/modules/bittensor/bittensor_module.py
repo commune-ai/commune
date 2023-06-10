@@ -2140,13 +2140,70 @@ class BittensorModule(c.Module):
     def spec_exists(cls, chain):
         c.print(f'{cls.spec_path}/{chain}.json')
         return c.exists(f'{cls.spec_path}/{chain}.json')
-        
-        
 
+
+    @classmethod
+    def resolve_chain(cls, chain):
+        if not chain.endswith('.json'):
+            chain = f'{chain}.json'
+        if not cls.spec_exists(chain):
+            chain = f'{cls.spec_path}/{chain}'
+        return chain
+        
+        
+    key_types = ['aura', 'gran']
+    @classmethod
+    def insert_node_key(cls,
+                   node='node01',
+                   chain = 'jaketensor_raw.json',
+                   suri = 'verify kiss say rigid promote level blue oblige window brave rough duty',
+                   key_type = 'gran',
+                   scheme = 'Sr25519',
+                   password_interactive = False,
+                   ):
+        
+        chain = cls.resolve_chain(chain)
+        node_path = f'/tmp/{node}'
+        
+        if key_type == 'aura':
+            schmea = 'Sr25519'
+        elif key_type == 'gran':
+            schmea = 'Ed25519'
+        
+        if not c.exists(node_path):
+            c.mkdir(node_path)
+
+        cmd = f'{cls.chain_release_path} key insert --base-path {node_path}'
+        cmd += f' --suri "{suri}"'
+        cmd += f' --scheme {scheme}'
+        cmd += f' --chain {chain}'
+        assert key_type in cls.key_types, f'key_type ({key_type})must be in {cls.key_types}'
+        cmd += f' --key-type {key_type}'
+        if password_interactive:
+            cmd += ' --password-interactive'
+        
+        c.print(cmd, color='green')
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
+    
+    @classmethod
+    def instert_node_keys(cls,
+                   aura_suri : str, 
+                   grandpa_suri :str,
+                    node='node01',
+                   password_interactive = False,
+                   ):
+        '''
+        Insert aura and gran keys for a node
+        '''
+        cls.insert_node_key(node=node, key_type='aura',  suri=aura_suri)
+        cls.insert_node_key(node=node, key_type='gran', suri=grandpa_suri)
+       
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
     @classmethod
     def start_node(cls,
                  port:int=30333,
+                 chain:int = 'jaketensor',
                  rpc_port:int=9933,
                  ws_port:int=9945,
                  user : str = 'alice',
@@ -2155,11 +2212,15 @@ class BittensorModule(c.Module):
                  
                  ):
         
+        
+        chain = cls.resolve_chain(chain)
+        
         if remote :
             kwargs = c.locals2kwargs(locals())
         cmd = f'''
             {cls.chain_release_path} \
             --base-path /tmp/{user} \
+            --chain {chain} \
             --{user} \
             --port {port} \
             --ws-port {ws_port} \

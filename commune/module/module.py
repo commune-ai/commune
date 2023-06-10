@@ -4038,6 +4038,7 @@ class c:
                 parsing_kwargs = True
                 key, value = arg.split('=', 1)
                 # use determine_type to convert the value to its actual type
+                
                 kwargs[key] = cls.determine_type(value)
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
@@ -5116,14 +5117,14 @@ class c:
     free_gpus = free_gpu_memory
 
     @classmethod
-    def make_dirs( cls, path ):
+    def mkdir( cls, path ):
         """ Makes directories for path.
         """
         
         directory = os.path.dirname( path )
         if not os.path.exists( directory ):
             os.makedirs( directory ) 
-
+    make_dir= mkdir
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
                        mode:str = 'most_free', 
@@ -5680,6 +5681,14 @@ class c:
     @classmethod
     def python2types(cls, d:dict)-> dict:
         return {k:str(type(v)).split("'")[1] for k,v in d.items()}
+    
+    @staticmethod
+    def echo(x):
+        return x
+    
+
+    
+    
 Module = c
 Module.run(__name__)
     

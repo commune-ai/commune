@@ -157,6 +157,11 @@ class Keypair(c.Module):
         self.private_key: bytes = private_key
 
         self.mnemonic = None
+        
+    @classmethod
+    def gen(cls):
+        mnemonic = cls.generate_mnemonic()
+        return cls.create_from_mnemonic(mnemonic).__dict__
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
