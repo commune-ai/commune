@@ -1105,10 +1105,11 @@ class c:
             
     
     @classmethod
-    def kill_all(cls, search):
+    def kill_all(cls, search= None):
         for module in cls.modules():
-            if search in module:
+            if search != None and search in module:
                 cls.kill(module)
+        
 
 
     @classmethod
@@ -1577,15 +1578,17 @@ class c:
         if os.path.isdir(path):
             return cls.rmdir(path)
         return os.remove(path)
+    
     @classmethod
-    def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
+    def glob(cls,  path ='~/', files_only:bool = True, root:bool = False, recursive:bool=False):
         
         path = cls.resolve_path(path, extension=None, root=root)
         
+        c.print(path)
         if os.path.isdir(path):
             path = os.path.join(path, '**')
             
-        paths = glob(path, recursive=True)
+        paths = glob(path, recursive=recursive)
         
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
@@ -1760,8 +1763,7 @@ class c:
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
        
-        address =  cls.namespace('local')[name]
-        address = address.replace(cls.default_ip,cls.external_ip())
+        address =  c.connect('module').address
         return address
     
     
@@ -2446,6 +2448,8 @@ class c:
             info['namespace'] = c.namespace()
         if include_schema:
             info['schema'] = self.schema()
+        if include_peers:
+            info['peers'] = self.peers()
         return info
     
     help = info
@@ -2559,6 +2563,7 @@ class c:
     def kill(cls, *modules,
              mode:str = 'pm2',
              verbose:bool = False,
+
              **kwargs):
 
         kill_fn = getattr(cls, f'{mode}_kill')
@@ -2566,6 +2571,7 @@ class c:
         for module in modules:
             kill_fn(module, verbose=verbose, **kwargs)
         
+        # update modules
         cls.update(network='local')
 
         return modules
@@ -4798,13 +4804,21 @@ class c:
                              peer_address,
                              network = 'local',
                              timeout:int=1,
-                             verbose:bool = True):
+                             verbose:bool = True,
+                             add_peer = True):
         
         peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
 
         peer_info = await cls.async_call(module=peer_address, 
                                               fn='info',
+                                              include_namespace=True, 
+                                              timeout=timeout)
+        
+        if add_peer:
+            await cls.async_call(module=peer_address, 
+                                              fn='add_peer',
+                                              args=[cls.root_address],
                                               include_namespace=True, 
                                               timeout=timeout)
         
@@ -5434,7 +5448,16 @@ class c:
     @classmethod
     def cp(cls, path1, path2):
         import shutil
-        shutil.copy(path1, path2)
+        # what if its a folder?
+        assert os.path.exists(path1), path1
+        assert not os.path.exists(path2), path2
+        
+        if os.path.isdir(path1):
+            shutil.copytree(path1, path2)
+        elif os.path.isfile(path1):
+            shutil.copy(path1, path2)
+        else:
+            raise ValueError(f'path1 is not a file or a folder: {path1}')
         return path2
     
     
@@ -5686,8 +5709,23 @@ class c:
     def echo(x):
         return x
     
+    @staticmethod
+    def get_files_code(directory):
+        import os
+        code_dict = {}
 
-    
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, directory)
+
+                with open(file_path, 'r') as f:
+                    code = f.read()
+                    code_dict[relative_path] = code
+
+        return code_dict
+
+
     
 Module = c
 Module.run(__name__)

@@ -1352,6 +1352,8 @@ class BittensorModule(c.Module):
         for hk in hotkeys:
             cls.mine(wallet=f'{coldkey}.{hk}', **kwargs)
 
+
+
     @classmethod
     def mine(cls, 
                wallet='ensemble.vali',
@@ -1388,13 +1390,15 @@ class BittensorModule(c.Module):
             return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
             
         if netuid in [1,11]:
-            neuron_class = c.import_object('commune.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
+            neuron_class = c.import_object('commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
             config = neuron_class.config()
+            config.merge(bittensor.BaseMinerNeuron.config())
         else:
             config = cls.neuron_class().config()
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
+        config.logging.debug=debug
         
         
         c.print(config)
@@ -1406,7 +1410,8 @@ class BittensorModule(c.Module):
         # wallet
         coldkey, hotkey = wallet.split('.')
         
-        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey, config=config)
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        
         
         if wallet.is_registered(subtensor=subtensor, netuid=netuid):
             cls.print(f'wallet {wallet} is already registered')
@@ -1414,8 +1419,6 @@ class BittensorModule(c.Module):
             if not refresh_ports:
                 port = neuron.axon_info.port
                 prometheus_port = neuron.prometheus_info.port
-            # port = neuron.axon_info.port
-            # prometheus_port = neuron.prometheus_info.port
         else:
             cls.ensure_registration(wallet=wallet, 
                                     subtensor=subtensor, 
@@ -1429,23 +1432,25 @@ class BittensorModule(c.Module):
         # enseure ports are free
         # axon port
         
-        config.axon.port = cls.resolve_port(port, )
-        if hasattr(config, 'prometheus'):
-            config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        # config['axon']  = cls.resolve_port(port)
+        # if hasattr(config, 'prometheus'):
+        #     config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
         
         # neuron things
         cls.print(config)
 
-        device = cls.most_free_gpu() if device == None else device
-        if not str(device).startswith('cuda:'):
-            device = f'cuda:{device}'
-        config.neuron.device = device
-        config.logging.debug = logging
+
         if netuid in [1,11]:
             config.wallet.name = coldkey
             config.wallet.hotkey = hotkey
+            config.netuid = netuid
+            c.print(config,'BROOO')
             neuron_class(config=config).run()
         if netuid == 3:
+            device = cls.most_free_gpu() if device == None else device
+
+            if not str(device).startswith('cuda:'):
+                device = f'cuda:{device}'
             config.neuron.autocast = autocast  
             model_name = model_name if model_name is not None else cls.default_model_name 
             model_shortcuts = cls.shortcuts

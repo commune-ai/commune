@@ -1,7 +1,7 @@
+# import commune as c
 # import asyncio
 # import websockets
 # import json
-# import commune as c
 
 # class WebSocketServerModule(c.Module):
 #     def __init__(self, **kwargs):
@@ -37,7 +37,7 @@
 #         asyncio.get_event_loop().run_until_complete(start_server)
 #         asyncio.get_event_loop().run_forever()
 
-# if __name__ == '__main__':
+# if __name__ == '__main__':X
 #     server1 = WebSocketServerModule(uri="ws://localhost:8765", channel="test_channel", remote_uri="ws://localhost:8766")
 #     server1.run()
 
@@ -45,5 +45,30 @@
 #     server2.run()
 
 
-import commune as c
-print(c.module('subspace.key').create_from_uri('//bro').__dict__)
+# import commune as c
+
+# for i in range(1000):
+#     print(i)
+#     print(c.connect('module').module_name)
+# print(c.module('subspace.key').create_from_uri('//bro').__dict__)
+
+
+import os
+
+def get_files_code(directory):
+    code_dict = {}
+
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            file_path = os.path.join(root, file)
+            relative_path = os.path.relpath(file_path, directory)
+
+            with open(file_path, 'r') as f:
+                code = f.read()
+                code_dict[relative_path] = code
+
+    return code_dict
+
+
+c.print(get_files_code('commune'))
+
