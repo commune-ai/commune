@@ -1278,7 +1278,7 @@ class Subspace(c.Module):
 
     @classmethod
     def add_keystore(cls,
-                     suri 
+                     suri ,
                      base_path = '/tmp/node01',
                      chain = 'customSpecRaw.json',
                      key_type = 'gran',

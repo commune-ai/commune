@@ -159,9 +159,54 @@ class Keypair(c.Module):
         self.mnemonic = None
         
     @classmethod
-    def gen(cls):
-        mnemonic = cls.generate_mnemonic()
-        return cls.create_from_mnemonic(mnemonic).__dict__
+    def gen(cls, n:int=1):
+        '''
+        yo rody, this is a class method you can gen keys whenever fam
+        '''
+        if n == 1:
+            mnemonic = cls.generate_mnemonic()
+            return cls.create_from_mnemonic(mnemonic).to_json()
+        else:
+            return [cls.gen() for _ in range(n)]
+    
+    def to_json(self, password: str = None ) -> dict:
+        state_dict =  self.copy(self.__dict__)
+        for k,v in state_dict.items():
+            if type(v)  in [bytes]:
+                state_dict[k] = v.hex() 
+            if k in self.blacklist():
+                if password != None:
+                    state_dict[k] = self.encrypt(data=state_dict[k], password=password)
+                    
+        state_dict = json.dumps(state_dict)
+        
+        return state_dict
+    
+    def from_json(self, json: Union[str, dict], password: str = None) -> dict:
+        if type(json) == str:
+            json = json.loads(json)
+        for k,v in json.items():
+            if type(v)  in [str]:
+                json[k] = bytes.fromhex(v)
+            if k in self.blacklist():
+                if password != None:
+                    json[k] = self.decrypt(data=json[k], password=password)
+        self.__dict__ = json
+        
+        return self.state_dict()
+    @classmethod
+    def sand(cls):
+        
+        for k in cls.gen(2):
+            
+            password = 'fam'
+            enc = cls.encrypt(k, password=password)
+            dec = cls.decrypt(enc, password='bro ')
+            c.print(k,dec)
+            
+            
+
+
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
@@ -195,6 +240,8 @@ class Keypair(c.Module):
         """
         return bip39_validate(mnemonic, language_code)
 
+
+    # def resolve_crypto_type()
     @classmethod
     def create_from_mnemonic(cls, mnemonic: str, ss58_format=42, crypto_type=KeypairType.SR25519,
                              language_code: str = MnemonicLanguageCode.ENGLISH) -> 'Keypair':
