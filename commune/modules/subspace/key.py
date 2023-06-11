@@ -157,7 +157,17 @@ class Keypair(c.Module):
         self.private_key: bytes = private_key
 
         self.mnemonic = None
+    
+    @classmethod
+    def create(cls, path=None, password=None):
+        key_json = cls.gen(n=1)
+        if password != None:
+            key_json = cls.encrypt(data=key_json, password=password)
         
+        return key_json
+        
+        
+    
     @classmethod
     def gen(cls, n:int=1):
         '''
