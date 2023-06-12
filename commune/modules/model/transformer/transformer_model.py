@@ -342,33 +342,27 @@ class TransformerModel(Model):
         from accelerate import init_empty_weights
         
         config = self.resolve_config(config)
+        
         self.set_tokenizer(config.tokenizer)
 
 
 
         model_kwargs=dict(
-            max_memory=config.max_memory,
-            device_map= config.device_map,
-            trust_remote_code=config.trust_remote_code,
+
         )
         
-        if config.verbose:
-            self.print(f'model_kwargs: {model_kwargs}')
-       
-        self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
-        
-        c.print(self.model.config.__dict__)
-        
+        self.model = AutoModelForCausalLM.from_pretrained(config.model_path,
+                                                          max_memory=config.max_memory,
+                                                            device_map= config.device_map,
+                                                            trust_remote_code=config.trust_remote_code,) 
+                                                        
+
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
 
         self.devices = config.devices
         self.device = config.device
         
-        if config.reserve_gpus:
-            self.unreserve_gpus(config.max_memory)
-        
-        self.print(f'device_map: {self.devices}')
         
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 

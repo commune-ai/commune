@@ -1571,13 +1571,18 @@ class c:
         return os.path.isdir(path)
     
     @classmethod
-    def rm(cls, path, root:bool = False):
-        if not os.path.exists(path):
-            path = cls.resolve_path(path=path, extension=None, root=root)
-        assert os.path.exists(path)
-        if os.path.isdir(path):
-            return cls.rmdir(path)
-        return os.remove(path)
+    def rm(cls, path, extension=None, root=False):
+        path = cls.resolve_path(path=path, extension=extension, root=root)
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                cls.rmdir(path)
+            else:
+                os.remove(path)
+            assert not os.path.exists(path)
+            return {'success':True, 'message':f'{path} removed'}
+        else:
+            return {'success':False, 'message':f'{path} does not exist'}
+
     
     @classmethod
     def glob(cls,  path ='~/', files_only:bool = True, root:bool = False, recursive:bool=False):
@@ -1605,6 +1610,7 @@ class c:
            root:bool = False,
            return_full_path:bool = True):
         path = cls.resolve_path(path, extension=None, root=root)
+        c.print(path)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         except FileNotFoundError:
@@ -5135,9 +5141,7 @@ class c:
         """ Makes directories for path.
         """
         
-        directory = os.path.dirname( path )
-        if not os.path.exists( directory ):
-            os.makedirs( directory ) 
+        os.makedirs( path ) 
     make_dir= mkdir
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,

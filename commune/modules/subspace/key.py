@@ -133,7 +133,7 @@ class Keypair(c.Module):
                 private_key_obj = PrivateKey(private_key)
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
-        self.mnemonic = None
+       
         
         if not public_key:
             raise ValueError('No SS58 formatted address or public key provided')
@@ -159,16 +159,22 @@ class Keypair(c.Module):
 
         self.private_key: bytes = private_key
 
-        self.mnemonic = None
+        self.mnemonic = mnemonic
     
     @classmethod
-    def add_key(cls, path, password=None):
-        key_json = cls.gen(n=1)
+    def add_key(cls, path, password=None, **kwargs):
+        key_json = cls.gen(**kwargs)
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-            
+        
         cls.put(path, key_json)
         
+        return key_json
+    
+    @classmethod
+    def add_keys(cls, *path,  **kwargs):
+        for p in path:
+            cls.add_key(p, **kwargs)
         return key_json
     add = add_key
     @classmethod
@@ -179,21 +185,36 @@ class Keypair(c.Module):
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
             return None
-        return cls.from_json(key_json)
+        return cls.from_json(key_json).to_json()
     
+
     @classmethod
     def key_paths(cls):
         return cls.ls()
     @classmethod
-    def key2path(cls):
-        return {path.split('/')[-1].split('.')[0]:path for path in cls.key_paths()}
+    def key2path(cls) -> dict:
+        
+        key2path = {'.'.join(path.split('/')[-1].split('.')[:-1]):path for path in cls.key_paths()}
+        return key2path
 
     @classmethod
-    def keys(cls):
-        return list(cls.key2path().keys())
-        
+    def keys(cls, search = None):
+        keys = list(cls.key2path().keys())
+        if search != None:
+            keys = [key for key in keys if search in key]
+            
+        # sort keys
+        keys = sorted(keys)
+        return keys
+    
     @classmethod
-    def rm(cls, key):
+    def key_exists(self, key):
+        return key in self.keys()
+    
+    
+    @classmethod
+    def rm(cls, key=None):
+        
         key2path = cls.key2path()
         keys = list(key2path.keys())
         if key not in keys:
@@ -201,22 +222,28 @@ class Keypair(c.Module):
         c.rm(key2path[key])
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
-        return {'message':'key deleted', 'keys_before_delete':keys, 'keys_after_delete':cls.keys()}
+        return {'message':'key deleted',  'keys':cls.keys()}
         
         
         
+    @classmethod
+    def resolve_crypto_type(cls, crypto_type):
+        if isinstance(crypto_type, str):
+            crypto_type = crypto_type.upper()
+            crypto_type = KeypairType.__dict__[crypto_type]
+        elif isinstance(crypto_type, int):
+            assert crypto_type in list(KeypairType.__dict__.values()), f'crypto_type {crypto_type} not supported'
+        return crypto_type
     
     @classmethod
-    def gen(cls, n:int=1):
+    def gen(cls,  crypto_type: Union[int,str] = 'SR25519',  **kwargs):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
-        if n == 1:
-            mnemonic = cls.generate_mnemonic()
-            return cls.create_from_mnemonic(mnemonic).to_json()
-        else:
-            return [cls.gen() for _ in range(n)]
-    
+        crypto_type = cls.resolve_crypto_type(crypto_type)
+        mnemonic = cls.generate_mnemonic()
+        return cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs).to_json()
+
     def to_json(self, password: str = None ) -> dict:
         state_dict =  self.copy(self.__dict__)
         for k,v in state_dict.items():
@@ -236,6 +263,7 @@ class Keypair(c.Module):
         for k,v in obj.items():
             if c.is_encrypted(obj[k]):
                 obj[k] = cls.decrypt(data=obj[k], password=password)
+            
         return  cls(**obj)
     
     @classmethod
