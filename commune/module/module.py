@@ -655,10 +655,9 @@ class c:
     def key_encrypted(cls, *args, **kwargs):
         return cls.module('key').key_encrypted(*args, **kwargs)
 
-    
     @classmethod
     def encrypt_key(cls, *args, **kwargs):
-        return cls.module('key').key_encrypted(*args, **kwargs)
+        return cls.module('key').encrypt_key(*args, **kwargs)
         
 
     @classmethod
@@ -5730,6 +5729,9 @@ class c:
         return code_dict
     
     
+    @classmethod
+    def play(cls):
+        return c.module('dreambooth').train()
 
     
 Module = c
