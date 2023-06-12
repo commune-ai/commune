@@ -6,7 +6,7 @@ class CLI(c.Module):
     Create and init the CLI class, which handles the coldkey, hotkey and tao transfer 
     """
     # 
-    default_fn = 'help'
+    default_fn = '__init__'
     def __init__(
             self,
             config: c.Config = None,
@@ -56,13 +56,15 @@ class CLI(c.Module):
             
             if fn == None:
                 if len(args) == 0:
-                    fn = self.default_fn 
+                    fn = "__init__"
                 else: 
                     fn = args.pop(0)
                     
                     
-                    
-            result = getattr(module, fn)
+            if fn != '__init__':
+                result = getattr(module, fn)
+            else:
+                result = module
             if callable(result):
                 result = result(*args, **kwargs)
                 
@@ -79,7 +81,8 @@ class CLI(c.Module):
     
     shortcuts = {
         'bt': 'bittensor',
-        'hf': 'huggingface'
+        'hf': 'huggingface',
+        'chain': 'subspace',
     }
     @classmethod
     def resolve_shortcut(cls, name):

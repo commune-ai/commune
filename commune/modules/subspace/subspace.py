@@ -1248,11 +1248,6 @@ class Subspace(c.Module):
         
         return namespace
 
-
-    
-    @classmethod
-    def start_node(cls):
-        c.cmd(f'{cls.chain_release_path} --dev --tmp', verbose=True)
     @classmethod
     def test(cls):
         subspace = cls()
@@ -1315,32 +1310,28 @@ class Subspace(c.Module):
 
                    ):
 
-        spec_path = f'{cls.spec_path}/{chain}.json'
-
-        cmd = f'{cls.chain_release_path} build-spec'
-        if c.exists(spec_path):
-            cmd += f' --chain {spec_path}'
-        else:
-            cmd += f' --chain {chain}'
+        chain_spec = cls.resolve_chain_spec(chain)
+        
+            
             
 
+        cmd = f'{cls.chain_release_path} build-spec --chain {chain}'
+        
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
         if new_chain != None:
             chain = new_chain
               
         if raw:
+            assert c.exists(chain_spec), f'Chain {chain_spec} does not exist.'
             cmd += ' --raw'
-            spec_path = f'{cls.spec_path}/{chain}_raw.json'
-        else:
-            
-            spec_path = f'{cls.spec_path}/{chain}.json'
-        cmd += f' > {spec_path}'
-        
-        c.print(cmd)
+            spec_path =chain_spec.replace('.json', '_raw.json')
 
+        cmd += f' > {chain_spec}'
+        c.print(cmd)
         return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
 
+    build_spec
 
     spec_path = f'{chain_path}/specs'
     @classmethod
@@ -1348,6 +1339,12 @@ class Subspace(c.Module):
         specs = c.ls(f'{cls.spec_path}/')
         
         return [spec for spec in specs if '_raw' not in spec]
+    
+    @classmethod
+    def get_spec(cls, chain):
+        chain = cls.resolve_chain_spec(chain)
+        
+        return c.get_json(chain)
 
     @classmethod
     def spec_exists(cls, chain):
@@ -1356,7 +1353,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def resolve_chain(cls, chain):
+    def resolve_chain_spec(cls, chain):
         if not chain.endswith('.json'):
             chain = f'{chain}.json'
         if not cls.spec_exists(chain):
@@ -1375,7 +1372,7 @@ class Subspace(c.Module):
                    password_interactive = False,
                    ):
         
-        chain = cls.resolve_chain(chain)
+        chain = cls.resolve_chain_spec(chain)
         node_path = f'/tmp/{node}'
         
         if key_type == 'aura':
@@ -1399,7 +1396,7 @@ class Subspace(c.Module):
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
     @classmethod
-    def instert_node_keys(cls,
+    def insert_node_keys(cls,
                    aura_suri : str, 
                    grandpa_suri :str,
                     node='node01',
@@ -1416,17 +1413,18 @@ class Subspace(c.Module):
     @classmethod
     def start_node(cls,
                  port:int=30333,
-                 chain:int = 'main',
+                 chain:int = 'test',
                  rpc_port:int=9933,
                  ws_port:int=9945,
                  user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
                  remote = False,
+                 validator = False,
                  
                  ):
         
         
-        chain = cls.resolve_chain(chain)
+        chain = cls.resolve_chain_spec(chain)
         
         if remote :
             kwargs = c.locals2kwargs(locals())
@@ -1448,22 +1446,9 @@ class Subspace(c.Module):
        
        
     @classmethod
-    def gen_key(cls, schema='Sr25519', password_interactive=False , sudo=False):
-            
-        if schema in ['author', 'auth']:
-            schema = 'Sr25519'
-        elif schema in ['gran', 'grandpa']:
-            schema = 'Ed25519'
-            
-        c.print(f'\n\n Generating Key ({schema}) \n\n', color='green')
-
-        assert schema in cls.supported_schemas , f'schema {schema} not supported, use either {supported_schemas}'
-        cmd = f'''{cls.chain_release_path} key generate --scheme {schema}'''
-        if password_interactive:
-            cmd += ' --password-interactive'
-
-
-        return cls.cmd(cmd, verbose=True, cwd=cls.chain_path, sudo=sudo)
+    def gen_key(cls, *args, **kwargs):
+        return c.module('subspace.key').gen(*args, **kwargs)
+        
     
     
     key_store_path = '/tmp/subspace/keys'
@@ -1476,12 +1461,12 @@ class Subspace(c.Module):
         return path
     
     @classmethod
-    def gen_node_keys(cls, path):
+    def gen_node_keys(cls, path, **kwargs):
         key_class = c.module('subspace.key')
         node_path = f'node.{path}'
         c.print(key_class.add_key(path=f'{node_path}.aura', crypto_type='Sr25519'))
         key_class.add_key(path=f'{node_path}.gran',crypto_type='Ed25519')
-        return key_class.keys(node_path)
+        return key_class.keys(node_path, **kwargs)
     
     
     @classmethod
