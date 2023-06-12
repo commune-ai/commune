@@ -391,7 +391,7 @@ class Keypair(c.Module):
         return cls(
             ss58_address=ss58_address, public_key=public_key, private_key=private_key,
             ss58_format=ss58_format, crypto_type=crypto_type, seed_hex=seed_hex
-        ).to_dict()
+        )
 
     @classmethod
     def create_from_uri(

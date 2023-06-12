@@ -39,8 +39,8 @@ class Subspace(c.Module):
     token_decimals = 9
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
-        'local': '127.0.0.1:9944',
-        'testnet': '127.0.0.1:9944',
+        'local': '127.0.0.1:9945',
+        'testnet': '127.0.0.1:9945',
         }
     
     def __init__( 
@@ -1194,10 +1194,11 @@ class Subspace(c.Module):
 
     @classmethod
     def test_keys(cls, 
-                     keys: List[str]=['/Alice', '/Bob', '/Chris', '/Sal', '/Billy', 'Jerome']):
+                     keys: List[str]=['/Alice', '/Bob', '/Chris', '/Sal', '/Billy', '/Jerome']):
         key_map = {}
+        key_class = c.module('subspace.key')
         for k in keys:
-            key_map[k] = cls.get_key(uri=k)
+            key_map[k] = key_class.create_from_uri(k)
             c.print(key_map[k])
             
         return key_map
@@ -1252,7 +1253,7 @@ class Subspace(c.Module):
     def test(cls):
         subspace = cls()
         # print(subspace.query_map_subspace('Modules', params=[0]).records)
-        keys = cls.test_keys(['Alice', 'Billy', 'Bob'])
+        keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
         for name, key in keys.items():
             subspace.register(key=key, network='audio', address=c.external_ip(), name=name)
         c.print(subspace.modules(network=0))
@@ -1293,10 +1294,10 @@ class Subspace(c.Module):
         
     @classmethod   
     def purge_chain(cls,
-                    base_path = '/tmp/alice',
                     chain = 'local',
+                    user = 'alice',
                     sudo = True):
-        cmd = f'{cls.chain_path} purge-chain --base-path /tmp/alice --chain local'
+        cmd = f'{cls.chain_path} purge-chain --base-path /tmp/{user} --chain {chain}'
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True, sudo=sudo)
 
 
@@ -1410,21 +1411,29 @@ class Subspace(c.Module):
        
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
+    
+
     @classmethod
     def start_node(cls,
 
-                 chain:int = 'test',
+                 chain:int = 'dev',
                  port:int=30333,
                  rpc_port:int=9933,
                  ws_port:int=9945,
                  user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
                  remote = False,
-                 validator = True,
-                 user 
-                 
+                 validator = True,          
+                 boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
+                 purge_chain:bool = True
                  ):
         
+        port = c.resolve_port(port)
+        rpc_port = c.resolve_port(rpc_port)
+        ws_port = c.resolve_port(ws_port)
+        
+        if purge_chain:
+            cls.purge_chain(chain=chain, user=user)
         
         chain = cls.resolve_chain_spec(chain)
 
@@ -1440,6 +1449,9 @@ class Subspace(c.Module):
         
         if validator :
             cmd += ' --validator'
+            
+        if boot_nodes != None:
+            cmd += f' --bootnodes {boot_nodes}'
 
 
         return cls.cmd(cmd, verbose=True, cwd=cls.chain_path)
