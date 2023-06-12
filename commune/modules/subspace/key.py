@@ -198,13 +198,16 @@ class Keypair(c.Module):
         return key2path
 
     @classmethod
-    def keys(cls, search = None):
+    def keys(cls, search = None, detail=True):
         keys = list(cls.key2path().keys())
         if search != None:
             keys = [key for key in keys if search in key]
             
         # sort keys
         keys = sorted(keys)
+        
+        if detail:
+            keys = {key: cls.get_key(key)  for key in keys}
         return keys
     
     @classmethod
