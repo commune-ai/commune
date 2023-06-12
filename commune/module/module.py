@@ -475,6 +475,7 @@ class c:
         Saves the config to a yaml file
         '''
         config = cls.config()
+        assert k in config, f'key {k} not found in config'
         v = cls.dict_get(config, k)
         assert isinstance(v,str), f'cannot encrypt {v} of type {type(v)}, strings only'
         if password:
@@ -1610,7 +1611,6 @@ class c:
            root:bool = False,
            return_full_path:bool = True):
         path = cls.resolve_path(path, extension=None, root=root)
-        c.print(path)
         try:
             ls_files = cls.lsdir(path) if not recursive else cls.walk(path)
         except FileNotFoundError:
@@ -5728,7 +5728,8 @@ class c:
                     code_dict[relative_path] = code
 
         return code_dict
-
+    
+    
 
     
 Module = c

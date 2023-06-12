@@ -12,3 +12,4 @@ class DiffisionPipeline(c.Module):
     @classmethod
     def test(cls):
         cls()
+        

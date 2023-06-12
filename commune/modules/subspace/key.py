@@ -185,7 +185,7 @@ class Keypair(c.Module):
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
             return None
-        return cls.from_json(key_json).to_json()
+        return cls.from_json(key_json)
     
 
     @classmethod
@@ -208,6 +208,7 @@ class Keypair(c.Module):
         
         if detail:
             keys = {key: cls.get_key(key)  for key in keys}
+            
         return keys
     
     @classmethod
@@ -247,6 +248,8 @@ class Keypair(c.Module):
         mnemonic = cls.generate_mnemonic()
         return cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs).to_json()
 
+    
+    
     def to_json(self, password: str = None ) -> dict:
         state_dict =  self.copy(self.__dict__)
         for k,v in state_dict.items():

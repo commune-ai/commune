@@ -69,12 +69,16 @@ class OpenAILLM(c.Module):
         
     def set_api(self, api: str, password:str=None) -> None:
         if self.is_encrypted(api):
+
             api = c.decrypt(api, password=password)
+            
+            print('decrypting api', api, password)
             
         assert isinstance(api, str), "API Key must be a string"
         openai.api_key  =  os.getenv(api, api)
         
         self.putc('api', openai.api_key, password=password)
+        
     
     
     def resolve_prompt(self, *args, prompt = None, **kwargs):
@@ -143,6 +147,11 @@ class OpenAILLM(c.Module):
             
     def call(self):
         print('bro')
+        
+        
+    @classmethod
+    def chat(cls, *args, **kwargs):
+        return cls().forward(*args, **kwargs)
         
     @property
     def history(self):
