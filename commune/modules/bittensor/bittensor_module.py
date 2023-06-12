@@ -2068,7 +2068,7 @@ class BittensorModule(c.Module):
         return self.metagraph.dividends.data
     
     
-    chain_path = f'{c.repo_path}/subtensor'
+ `   chain_path = f'{c.repo_path}/subtensor'
     chain_release_path = chain_path + '/target/release/node-subtensor'
     
     @classmethod
@@ -2302,7 +2302,7 @@ class BittensorModule(c.Module):
     def build_node(cls):
         return cls.cmd('sudo docker-compose build', cwd=f'{cls.repo_path}/subtensor', verbose=True)
     
-    
+    `
 
 
     shortcuts =  {
@@ -2351,6 +2351,7 @@ class BittensorModule(c.Module):
             }
     
     
+
 
 
 if __name__ == "__main__":
