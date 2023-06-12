@@ -1412,22 +1412,22 @@ class Subspace(c.Module):
     
     @classmethod
     def start_node(cls,
-                 port:int=30333,
+
                  chain:int = 'test',
+                 port:int=30333,
                  rpc_port:int=9933,
                  ws_port:int=9945,
                  user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
                  remote = False,
-                 validator = False,
+                 validator = True,
+                 user 
                  
                  ):
         
         
         chain = cls.resolve_chain_spec(chain)
-        
-        if remote :
-            kwargs = c.locals2kwargs(locals())
+
         cmd = f'''
             {cls.chain_release_path} \
             --base-path /tmp/{user} \
