@@ -207,7 +207,7 @@ class Keypair(c.Module):
         keys = sorted(keys)
         
         if detail:
-            keys = {key: cls.get_key(key)  for key in keys}
+            keys = {key: cls.get_key(key).to_dict()  for key in keys}
             
         return keys
     
@@ -391,7 +391,7 @@ class Keypair(c.Module):
         return cls(
             ss58_address=ss58_address, public_key=public_key, private_key=private_key,
             ss58_format=ss58_format, crypto_type=crypto_type, seed_hex=seed_hex
-        )
+        ).to_dict()
 
     @classmethod
     def create_from_uri(
@@ -704,7 +704,6 @@ class Keypair(c.Module):
     @classmethod
     def sandbox(cls ):
         key = cls.create_from_uri('//Alice')
-        c.print(key.__dict__)
         c.print(c.module('bittensor').get_balance(key.ss58_address))
     def __repr__(self):
         if self.ss58_address:
