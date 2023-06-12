@@ -93,7 +93,9 @@ class Keypair(c.Module):
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
-                 crypto_type: int = KeypairType.SR25519
+                 crypto_type: int = KeypairType.SR25519,
+                 derive_path: str = None,
+                 mnemonic: str = None,
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -131,7 +133,8 @@ class Keypair(c.Module):
                 private_key_obj = PrivateKey(private_key)
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
-
+        self.mnemonic = None
+        
         if not public_key:
             raise ValueError('No SS58 formatted address or public key provided')
 
@@ -159,12 +162,47 @@ class Keypair(c.Module):
         self.mnemonic = None
     
     @classmethod
-    def create(cls, path=None, password=None):
+    def add_key(cls, path, password=None):
         key_json = cls.gen(n=1)
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
+            
+        cls.put(path, key_json)
         
         return key_json
+    add = add_key
+    @classmethod
+    def get_key(cls, path, password=None):
+        key_json = cls.get(path)
+        if c.is_encrypted(key_json):
+            key_json = cls.decrypt(data=key_json, password=password)
+            if key_json == None:
+                c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
+            return None
+        return cls.from_json(key_json)
+    
+    @classmethod
+    def key_paths(cls):
+        return cls.ls()
+    @classmethod
+    def key2path(cls):
+        return {path.split('/')[-1].split('.')[0]:path for path in cls.key_paths()}
+
+    @classmethod
+    def keys(cls):
+        return list(cls.key2path().keys())
+        
+    @classmethod
+    def rm(cls, key):
+        key2path = cls.key2path()
+        keys = list(key2path.keys())
+        if key not in keys:
+            raise Exception(f'key {key} not found, available keys: {keys}')
+        c.rm(key2path[key])
+        assert c.exists(key2path[key]) == False, 'key not deleted'
+        
+        return {'message':'key deleted', 'keys_before_delete':keys, 'keys_after_delete':cls.keys()}
+        
         
         
     
@@ -184,7 +222,6 @@ class Keypair(c.Module):
         for k,v in state_dict.items():
             if type(v)  in [bytes]:
                 state_dict[k] = v.hex() 
-            if k in self.blacklist():
                 if password != None:
                     state_dict[k] = self.encrypt(data=state_dict[k], password=password)
                     
@@ -192,18 +229,15 @@ class Keypair(c.Module):
         
         return state_dict
     
-    def from_json(self, json: Union[str, dict], password: str = None) -> dict:
-        if type(json) == str:
-            json = json.loads(json)
-        for k,v in json.items():
-            if type(v)  in [str]:
-                json[k] = bytes.fromhex(v)
-            if k in self.blacklist():
-                if password != None:
-                    json[k] = self.decrypt(data=json[k], password=password)
-        self.__dict__ = json
-        
-        return self.state_dict()
+    @classmethod
+    def from_json(cls, obj: Union[str, dict], password: str = None) -> dict:
+        if type(obj) == str:
+            obj = json.loads(obj)
+        for k,v in obj.items():
+            if c.is_encrypted(obj[k]):
+                obj[k] = cls.decrypt(data=obj[k], password=password)
+        return  cls(**obj)
+    
     @classmethod
     def sand(cls):
         
