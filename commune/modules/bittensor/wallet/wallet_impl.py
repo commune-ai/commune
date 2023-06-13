@@ -757,3 +757,7 @@ class Wallet():
         
         self.set_hotkey( keypair, encrypt=use_password, overwrite = overwrite)
         return self 
+    
+    @classmethod
+    def sand(cls):
+        c.print(cls.get_wallet('ensemble.1').__dict__)

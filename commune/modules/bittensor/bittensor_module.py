@@ -469,7 +469,9 @@ class BittensorModule(c.Module):
     def hotkeys(cls, wallet='default'):
         coldkeys = cls.coldkeys()
         assert wallet in coldkeys, f'Wallet {wallet} not found in {coldkeys}'
-        return  [os.path.basename(p) for p in cls.ls(os.path.join(cls.wallets_path, wallet, 'hotkeys'))]
+        hotkeys =   [os.path.basename(p) for p in cls.ls(os.path.join(cls.wallets_path, wallet, 'hotkeys'))]
+        hotkeys = sorted(hotkeys)
+        return hotkeys
         
     @classmethod
     def coldkeys(cls, wallet='default'):
@@ -1259,9 +1261,13 @@ class BittensorModule(c.Module):
         return cls.server_class(*args, **kwargs)
     
     @classmethod
-    def neuron_class(cls, *args, **kwargs):
-        return cls.module('bittensor.miner.server')
-    
+    def neuron_class(cls, netuid=default_netuid):
+        if netuid in [1, 11]:
+            neuron_class = c.import_object('commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
+        elif netuid == 3:
+            neuron_class = cls.module('bittensor.miner.server')
+        return neuron_class
+
     # @classmethod
     # def deploy_servers(cls, num_servers=3):
     #     return cls.server_class.deploy_servers()
@@ -1354,8 +1360,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     def mine(cls, 
-               wallet='ensemble.vali',
-               model_name:str= default_model_name,
+               wallet='alice.1',
                network =default_network,
                netuid=default_netuid,
                port = None,
@@ -1364,7 +1369,6 @@ class BittensorModule(c.Module):
                debug = True,
                no_set_weights = True,
                remote:bool = True,
-               tag=None,
                sleep_interval = 2,
                autocast = True,
                burned_register = False,
@@ -1372,32 +1376,23 @@ class BittensorModule(c.Module):
                max_fee = 2.0,
                refresh_ports = False
                ):
-
-
-            
         kwargs = cls.locals2kwargs(locals())
-    
-        if tag == None:
-            if network in ['local', 'finney']:
-                tag = f'{wallet}::finney::{netuid}'
-            else:
-                tag = f'{wallet}::{network}::{netuid}'
-            kwargs['tag'] = tag
+
         if remote:
             kwargs['remote'] = False
-            return cls.remote_fn(fn='mine',name=f'miner::{tag}',  kwargs=kwargs)
+            if network in ['local', 'finney']:
+                name = f'miner::{wallet}::finney::{netuid}'
+            else:
+                name = f'miner::{wallet}::{network}::{netuid}'
+            return cls.remote_fn(fn='mine',name=name,  kwargs=kwargs)
             
-        if netuid in [1,11]:
-            neuron_class = c.import_object('commune.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
-            config = neuron_class.config()
-        else:
-            config = cls.neuron_class().config()
+
+        config = cls.neuron_class(netuid=netuid).config()
+        config.merge(bittensor.BaseMinerNeuron.config())
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
-        
-        
-        c.print(config)
+
         
         # network
         subtensor = bittensor.subtensor(network=network)
@@ -1405,7 +1400,8 @@ class BittensorModule(c.Module):
         
         # wallet
         coldkey, hotkey = wallet.split('.')
-        
+        config.wallet.name = coldkey
+        config.wallet.hotkey = hotkey
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey, config=config)
         
         if wallet.is_registered(subtensor=subtensor, netuid=netuid):
@@ -1414,8 +1410,7 @@ class BittensorModule(c.Module):
             if not refresh_ports:
                 port = neuron.axon_info.port
                 prometheus_port = neuron.prometheus_info.port
-            # port = neuron.axon_info.port
-            # prometheus_port = neuron.prometheus_info.port
+
         else:
             cls.ensure_registration(wallet=wallet, 
                                     subtensor=subtensor, 
@@ -1425,53 +1420,9 @@ class BittensorModule(c.Module):
                                     sleep_interval=sleep_interval,
                                     display_kwargs=kwargs)
                         
-
-        # enseure ports are free
-        # axon port
-        
-        config.axon.port = cls.resolve_port(port, )
-        if hasattr(config, 'prometheus'):
-            config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
-        
-        # neuron things
-        cls.print(config)
-
-        device = cls.most_free_gpu() if device == None else device
-        if not str(device).startswith('cuda:'):
-            device = f'cuda:{device}'
-        config.neuron.device = device
-        config.logging.debug = logging
-        if netuid in [1,11]:
-            config.wallet.name = coldkey
-            config.wallet.hotkey = hotkey
-            neuron_class(config=config).run()
-        if netuid == 3:
-            config.neuron.autocast = autocast  
-            model_name = model_name if model_name is not None else cls.default_model_name 
-            model_shortcuts = cls.shortcuts
-            if model_name in model_shortcuts:
-                config.neuron.pretrained = True
-                config.neuron.model_name = model_shortcuts[model_name]
-                neuron = cls.neuron(config=config, 
-                                    wallet=wallet,
-                                    subtensor=subtensor,
-                                    netuid=netuid)
-            
-            else:
-                assert len(c.modules(model_name))>0
-                # cls.print(config)
-                neuron = cls.neuron(
-                    model = model_name,
-                    wallet=wallet,
-                    subtensor=subtensor,
-                    config=config,
-                    netuid=netuid)
-        else:
-            raise ValueError(f'netuid {netuid} not supported')
-    
-            
-
-        neuron.run()
+        config.axon.port = cls.resolve_port(port)
+        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        neuron_class(config=config).run()
 
     @classmethod
     def validator_neuron(cls, mode='core', modality='text.prompting'):
@@ -1932,18 +1883,18 @@ class BittensorModule(c.Module):
     @classmethod
     def mems(cls,
                      coldkey=default_coldkey, 
-                     unreged = True,
+                     unreged = False,
                      path = None,
                      hotkeys= None,
                      miners_only = False,
-                     netuid=None):
+                     netuid=default_netuid):
         coldkeypub = True # prevents seeing the private key of the coldkey
         
         if hotkeys == None:
             if unreged:
                 hotkeys = cls.unregistered_hotkeys(coldkey, netuid=netuid) 
             else:
-                hotkeys =  cls.hotkeys(coldkey, netuid=netuid)
+                hotkeys =  cls.hotkeys(coldkey)
         
         wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
         
@@ -1992,6 +1943,7 @@ class BittensorModule(c.Module):
     @classmethod
     def coldkey_json(cls, coldkey=default_coldkey):
         path = cls.coldkey_path(coldkey)
+        c.print(path)
         coldkey_json = cls.get_json(path, {})
         return coldkey_json
     
@@ -2276,7 +2228,6 @@ class BittensorModule(c.Module):
         'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
         
             }
-    
     
 
 
