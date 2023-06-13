@@ -39,8 +39,8 @@ class Subspace(c.Module):
     token_decimals = 9
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
-        'local': '127.0.0.1:9945',
-        'testnet': '127.0.0.1:9945',
+        'local': '127.0.0.1:9946',
+        'testnet': '127.0.0.1:9946',
         }
     
     def __init__( 
@@ -165,7 +165,7 @@ class Subspace(c.Module):
             weights = torch.tensor( weights, dtype = torch.float32 )
 
         # Reformat and normalize.
-        weight_uids, weight_vals =  uids, weights 
+        weight_uids, weight_vals =  uids, weights/weights.sum() 
 
         # Ask before moving on.
         if prompt:
@@ -1254,8 +1254,10 @@ class Subspace(c.Module):
         subspace = cls()
         # print(subspace.query_map_subspace('Modules', params=[0]).records)
         keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
-        for name, key in keys.items():
-            subspace.register(key=key, network='audio', address=c.external_ip(), name=name)
+        for name, key in enumerate(keys.items()):
+            port  = c.free_port()
+            address = f'{c.external_ip()}:{port}'
+            subspace.register(key=key, network='commune', address=address, name=name)
         c.print(subspace.modules(network=0))
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
@@ -1264,6 +1266,8 @@ class Subspace(c.Module):
     def modules(self, network:int = None):
         netuid = self.resolve_network(network)
         return self.query_map_subspace('Modules', params=[netuid]).records
+    
+    
     @classmethod
     def test_balance(cls):
         self = cls()
@@ -1291,15 +1295,14 @@ class Subspace(c.Module):
     def build(cls):
         return cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
         
-        
+
     @classmethod   
     def purge_chain(cls,
-                    chain = 'local',
+                    chain = 'dev',
                     user = 'alice',
-                    sudo = True):
-        cmd = f'{cls.chain_path} purge-chain --base-path /tmp/{user} --chain {chain}'
+                    sudo = False):
+        cmd = f'{cls.chain_release_path} purge-chain --base-path /tmp/{user} --chain {chain}'
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True, sudo=sudo)
-
 
   
     @classmethod
@@ -1542,6 +1545,18 @@ class Subspace(c.Module):
         return cls.cmd('sudo docker-compose build', cwd=f'{cls.repo_path}/subtensor', verbose=True)
     
     
+    @classmethod
+    def sand(cls):
+        self = cls()
+        key = c.module('subspace.key').create_from_uri('/Bob')
+        
+        c.print(self.get_balance(key.ss58_address).joules)
+        c.print(self.uids)
+        
+    
+    @property
+    def uids(self):
+        return [v[1].value for v in self.query_map_subspace('Uids',None,  [0]).records]
 
   
 if __name__ == "__main__":
