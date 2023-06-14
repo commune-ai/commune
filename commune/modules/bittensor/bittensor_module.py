@@ -1358,6 +1358,8 @@ class BittensorModule(c.Module):
         for hk in hotkeys:
             cls.mine(wallet=f'{coldkey}.{hk}', **kwargs)
 
+
+
     @classmethod
     def mine(cls, 
                wallet='alice.1',
@@ -1386,6 +1388,7 @@ class BittensorModule(c.Module):
                 name = f'miner::{wallet}::{network}::{netuid}'
             return cls.remote_fn(fn='mine',name=name,  kwargs=kwargs)
             
+<<<<<<< HEAD
 
         config = cls.neuron_class(netuid=netuid).config()
         config.merge(bittensor.BaseMinerNeuron.config())
@@ -1393,6 +1396,21 @@ class BittensorModule(c.Module):
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
 
+=======
+        if netuid in [1,11]:
+            neuron_class = c.import_object('commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
+            config = neuron_class.config()
+            config.merge(bittensor.BaseMinerNeuron.config())
+        else:
+            config = cls.neuron_class().config()
+        # model things
+        config.neuron.no_set_weights = no_set_weights
+        config.netuid = netuid 
+        config.logging.debug=debug
+        
+        
+        c.print(config)
+>>>>>>> 8f1506cb6023d4d2ad5736d007114213308270b8
         
         # network
         subtensor = bittensor.subtensor(network=network)
@@ -1400,9 +1418,15 @@ class BittensorModule(c.Module):
         
         # wallet
         coldkey, hotkey = wallet.split('.')
+<<<<<<< HEAD
         config.wallet.name = coldkey
         config.wallet.hotkey = hotkey
         wallet = bittensor.wallet(name=coldkey, hotkey=hotkey, config=config)
+=======
+        
+        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey)
+        
+>>>>>>> 8f1506cb6023d4d2ad5736d007114213308270b8
         
         if wallet.is_registered(subtensor=subtensor, netuid=netuid):
             cls.print(f'wallet {wallet} is already registered')
@@ -1410,7 +1434,10 @@ class BittensorModule(c.Module):
             if not refresh_ports:
                 port = neuron.axon_info.port
                 prometheus_port = neuron.prometheus_info.port
+<<<<<<< HEAD
 
+=======
+>>>>>>> 8f1506cb6023d4d2ad5736d007114213308270b8
         else:
             cls.ensure_registration(wallet=wallet, 
                                     subtensor=subtensor, 
@@ -1420,9 +1447,61 @@ class BittensorModule(c.Module):
                                     sleep_interval=sleep_interval,
                                     display_kwargs=kwargs)
                         
+<<<<<<< HEAD
         config.axon.port = cls.resolve_port(port)
         config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
         neuron_class(config=config).run()
+=======
+
+        # enseure ports are free
+        # axon port
+        
+        # config['axon']  = cls.resolve_port(port)
+        # if hasattr(config, 'prometheus'):
+        #     config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
+        
+        # neuron things
+        cls.print(config)
+
+
+        if netuid in [1,11]:
+            config.wallet.name = coldkey
+            config.wallet.hotkey = hotkey
+            config.netuid = netuid
+            c.print(config,'BROOO')
+            neuron_class(config=config).run()
+        if netuid == 3:
+            device = cls.most_free_gpu() if device == None else device
+
+            if not str(device).startswith('cuda:'):
+                device = f'cuda:{device}'
+            config.neuron.autocast = autocast  
+            model_name = model_name if model_name is not None else cls.default_model_name 
+            model_shortcuts = cls.shortcuts
+            if model_name in model_shortcuts:
+                config.neuron.pretrained = True
+                config.neuron.model_name = model_shortcuts[model_name]
+                neuron = cls.neuron(config=config, 
+                                    wallet=wallet,
+                                    subtensor=subtensor,
+                                    netuid=netuid)
+            
+            else:
+                assert len(c.modules(model_name))>0
+                # cls.print(config)
+                neuron = cls.neuron(
+                    model = model_name,
+                    wallet=wallet,
+                    subtensor=subtensor,
+                    config=config,
+                    netuid=netuid)
+        else:
+            raise ValueError(f'netuid {netuid} not supported')
+    
+            
+
+        neuron.run()
+>>>>>>> 8f1506cb6023d4d2ad5736d007114213308270b8
 
     @classmethod
     def validator_neuron(cls, mode='core', modality='text.prompting'):
@@ -2015,7 +2094,7 @@ class BittensorModule(c.Module):
         return self.metagraph.dividends.data
     
     
-    chain_path = f'{c.repo_path}/subtensor'
+ `   chain_path = f'{c.repo_path}/subtensor'
     chain_release_path = chain_path + '/target/release/node-subtensor'
     
     @classmethod
@@ -2048,24 +2127,31 @@ class BittensorModule(c.Module):
     @classmethod
     def build_spec(cls,
                    chain = 'test_finney',
-                   raw  = True,
+                   new_chain = None,
+                   raw  = False,
                    disable_default_bootnode = True,
+
                    ):
 
         spec_path = f'{cls.spec_path}/{chain}.json'
+
         cmd = f'{cls.chain_release_path} build-spec'
         if c.exists(spec_path):
-            cmd += f'--chain {spec_path}'
+            cmd += f' --chain {spec_path}'
         else:
-            cmd += f'--chain {chain}'
+            cmd += f' --chain {chain}'
             
 
         if disable_default_bootnode:
-            cmd += ' --disable-default-bootnode'    
+            cmd += ' --disable-default-bootnode'  
+        if new_chain != None:
+            chain = new_chain
+              
         if raw:
             cmd += ' --raw'
             spec_path = f'{cls.spec_path}/{chain}_raw.json'
         else:
+            
             spec_path = f'{cls.spec_path}/{chain}.json'
         cmd += f' > {spec_path}'
         
@@ -2085,13 +2171,70 @@ class BittensorModule(c.Module):
     def spec_exists(cls, chain):
         c.print(f'{cls.spec_path}/{chain}.json')
         return c.exists(f'{cls.spec_path}/{chain}.json')
-        
-        
 
+
+    @classmethod
+    def resolve_chain(cls, chain):
+        if not chain.endswith('.json'):
+            chain = f'{chain}.json'
+        if not cls.spec_exists(chain):
+            chain = f'{cls.spec_path}/{chain}'
+        return chain
+        
+        
+    key_types = ['aura', 'gran']
+    @classmethod
+    def insert_node_key(cls,
+                   node='node01',
+                   chain = 'jaketensor_raw.json',
+                   suri = 'verify kiss say rigid promote level blue oblige window brave rough duty',
+                   key_type = 'gran',
+                   scheme = 'Sr25519',
+                   password_interactive = False,
+                   ):
+        
+        chain = cls.resolve_chain(chain)
+        node_path = f'/tmp/{node}'
+        
+        if key_type == 'aura':
+            schmea = 'Sr25519'
+        elif key_type == 'gran':
+            schmea = 'Ed25519'
+        
+        if not c.exists(node_path):
+            c.mkdir(node_path)
+
+        cmd = f'{cls.chain_release_path} key insert --base-path {node_path}'
+        cmd += f' --suri "{suri}"'
+        cmd += f' --scheme {scheme}'
+        cmd += f' --chain {chain}'
+        assert key_type in cls.key_types, f'key_type ({key_type})must be in {cls.key_types}'
+        cmd += f' --key-type {key_type}'
+        if password_interactive:
+            cmd += ' --password-interactive'
+        
+        c.print(cmd, color='green')
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
+    
+    @classmethod
+    def instert_node_keys(cls,
+                   aura_suri : str, 
+                   grandpa_suri :str,
+                    node='node01',
+                   password_interactive = False,
+                   ):
+        '''
+        Insert aura and gran keys for a node
+        '''
+        cls.insert_node_key(node=node, key_type='aura',  suri=aura_suri)
+        cls.insert_node_key(node=node, key_type='gran', suri=grandpa_suri)
+       
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
     @classmethod
     def start_node(cls,
                  port:int=30333,
+                 chain:int = 'jaketensor',
                  rpc_port:int=9933,
                  ws_port:int=9945,
                  user : str = 'alice',
@@ -2100,11 +2243,15 @@ class BittensorModule(c.Module):
                  
                  ):
         
+        
+        chain = cls.resolve_chain(chain)
+        
         if remote :
             kwargs = c.locals2kwargs(locals())
         cmd = f'''
             {cls.chain_release_path} \
             --base-path /tmp/{user} \
+            --chain {chain} \
             --{user} \
             --port {port} \
             --ws-port {ws_port} \
@@ -2181,7 +2328,7 @@ class BittensorModule(c.Module):
     def build_node(cls):
         return cls.cmd('sudo docker-compose build', cwd=f'{cls.repo_path}/subtensor', verbose=True)
     
-    
+    `
 
 
     shortcuts =  {
@@ -2229,6 +2376,7 @@ class BittensorModule(c.Module):
         
             }
     
+
 
 
 if __name__ == "__main__":

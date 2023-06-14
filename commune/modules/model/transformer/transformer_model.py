@@ -75,6 +75,11 @@ shortcuts =  {
     'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
     
         }
+
+
+
+
+
 from torch import nn
 Model = c.module('model')
 class TransformerModel(Model):
@@ -308,47 +313,56 @@ class TransformerModel(Model):
         for k in ensure_keys:
             assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
 
+
+    def resolve_config(self, config):
+        
+        # if we are using a shortcut, we need to set the model path
+        config['model_path'] = self.shortcuts.get(config['model'], config['model'])
+        
+        # if we are using a tokenizer, we need to set the tokenizer path
+        if not hasattr(config, 'tokenizer') or config.tokenizer == None:
+            config.tokenizer = config.model_path
+
+        if config.device_map == None:
+            model = self.get_empty_model(config.model_path, trust_remote_code=config.trust_remote_code)
+            config.model_size = self.get_model_size(model)
+            config.excpeted_model_size = config.model_size*config.model_inflation_ratio
+            config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
+                                                max_gpu_ratio=config.max_gpu_ratio,
+                                                reserve=config.reserve_gpus)
+
+            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
+            
+        assert config.device_map != None, 'device_map must be set'
+        return config
+
     
     def set_model(self, config) -> None: 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
-        config['model_name'] = config['model']
-        self.model_path = config['model_path'] = config['model'] = self.shortcuts.get(config['model'], config['model'])
+        
+        config = self.resolve_config(config)
+        
         self.set_tokenizer(config.tokenizer)
 
-        if config.device_map == None:
-            model = self.get_empty_model(self.model_path, trust_remote_code=config.trust_remote_code)
-            config.model_size = self.get_model_size(model)
-            config.excpeted_model_size = config.model_size*self.config.model_inflation_ratio
-            config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
-                                                max_gpu_ratio=config.max_gpu_ratio,
-                                                reserve=config.reserve_gpus)
-    
-            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
-        
+
+
         model_kwargs=dict(
-            max_memory=config.max_memory,
-            device_map= config.device_map,
-            trust_remote_code=config.trust_remote_code,
+
         )
         
-        if config.verbose:
-            self.print(f'model_kwargs: {model_kwargs}')
-       
-        self.model = AutoModelForCausalLM.from_pretrained(config.model_path, **model_kwargs) 
-        
-        c.print(self.model.config.__dict__)
-        
+        self.model = AutoModelForCausalLM.from_pretrained(config.model_path,
+                                                          max_memory=config.max_memory,
+                                                            device_map= config.device_map,
+                                                            trust_remote_code=config.trust_remote_code,) 
+                                                        
+
         config.devices = list(set(list(self.model.hf_device_map.values())))
         config.device = config.devices[0]
 
         self.devices = config.devices
         self.device = config.device
         
-        if config.reserve_gpus:
-            self.unreserve_gpus(config.max_memory)
-        
-        self.print(f'device_map: {self.devices}')
         
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
@@ -824,6 +838,35 @@ class TransformerModel(Model):
         return loss
 
     hf = c.module('huggingface')()
+
+
+    @classmethod
+    def sand(cls):
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        import transformers
+        import torch
+
+        model = "tiiuae/falcon-40b-instruct"
+
+        tokenizer = AutoTokenizer.from_pretrained(model)
+        pipeline = transformers.pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            torch_dtype=torch.bfloat16,
+            trust_remote_code=True,
+            device_map="auto",
+        )
+        sequences = pipeline(
+        "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:",
+            max_length=200,
+            do_sample=True,
+            top_k=10,
+            num_return_sequences=1,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+        for seq in sequences:
+            print(f"Result: {seq['generated_text']}")
 
 
 

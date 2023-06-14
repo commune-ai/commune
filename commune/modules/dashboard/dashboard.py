@@ -8,7 +8,6 @@ class Dashboard(commune.Module):
     def __init__(self):
         self.public_ip = commune.external_ip()
         self.load_state()
-
     
     def load_state(self):
         self.namespace = commune.namespace(update=False)
@@ -16,16 +15,10 @@ class Dashboard(commune.Module):
         self.module_tree = commune.module_tree()
         self.module_list = ['module'] + list(self.module_tree.keys())
         sorted(self.module_list)
-        
-    
-
 
     def streamlit_module_browser(self):
 
         module_list =  self.module_list
-        
-
-        
         
         st.write(f'## Module: {self.module_name}')
             
@@ -58,7 +51,8 @@ class Dashboard(commune.Module):
         fn_info['default'].pop('cls', None)
         
         kwargs_cols = st.columns(3)
-        
+        fn_info['default'].update(self.module_config)
+        fn_info['schema'].update({k:str(type(v)).split("'")[1] for k,v in self.module_config.items()})
         # kwargs_cols[0].write('## Module Arguments')
         for i, (k,v) in enumerate(fn_info['default'].items()):
             
@@ -66,6 +60,8 @@ class Dashboard(commune.Module):
             fn_key = k 
             if k in fn_info['schema']:
                 k_type = fn_info['schema'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
                 if k_type.startswith('typing'):
                     k_type = k_type.split('.')[-1]
                 fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
@@ -86,7 +82,6 @@ class Dashboard(commune.Module):
 
         if launch_button:
             kwargs = {}
-            
             
             for k,v in init_kwarg.items():
                 
@@ -114,6 +109,7 @@ class Dashboard(commune.Module):
             )
             commune.launch(**launch_kwargs)
 
+            st.success(f'Launched {name} with {kwargs}')
         
         with st.expander('Config'):
             st.write(self.module_config)

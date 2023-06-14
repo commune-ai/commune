@@ -20,6 +20,7 @@ for f in Module.get_class_methods():
 # key = Module.key
 address = Module.address
 user = Module.user
+
 def signin(usr: str, pwd: str):
     global key, address, user
     user = usr 

@@ -2,15 +2,14 @@
 [submodule "diffusers"]
 	path = diffusers
 	url = https://github.com/commune-ai/diffusers.git
-[submodule "subtensor"]
-	path = subtensor
-	url = https://github.com/opentensor/subtensor
 [submodule "subspace"]
 	path = subspace
 	url = https://github.com/commune-ai/subspace.git
+	branch = newton
 [submodule "bittensor"]
 	path = bittensor
 	url = https://github.com/opentensor/bittensor.git
+	branch = master
 [submodule "trl"]
 	path = trl
 	url = https://github.com/lvwerra/trl
@@ -20,3 +19,7 @@
 [submodule "frontend"]
 	path = frontend
 	url = https://github.com/commune-ai/frontend
+	branch = docs
+[submodule "subtensor"]
+	path = subtensor
+	url = https://github.com/opentensor/subtensor

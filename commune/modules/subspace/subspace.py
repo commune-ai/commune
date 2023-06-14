@@ -39,8 +39,8 @@ class Subspace(c.Module):
     token_decimals = 9
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
-        'local': '127.0.0.1:9944',
-        'testnet': '127.0.0.1:9944',
+        'local': '127.0.0.1:9946',
+        'testnet': '127.0.0.1:9946',
         }
     
     def __init__( 
@@ -165,7 +165,7 @@ class Subspace(c.Module):
             weights = torch.tensor( weights, dtype = torch.float32 )
 
         # Reformat and normalize.
-        weight_uids, weight_vals =  uids, weights 
+        weight_uids, weight_vals =  uids, weights/weights.sum() 
 
         # Ask before moving on.
         if prompt:
@@ -1194,10 +1194,11 @@ class Subspace(c.Module):
 
     @classmethod
     def test_keys(cls, 
-                     keys: List[str]=['/Alice', '/Bob', '/Chris', '/Sal', '/Billy', 'Jerome']):
+                     keys: List[str]=['/Alice', '/Bob', '/Chris', '/Sal', '/Billy', '/Jerome']):
         key_map = {}
+        key_class = c.module('subspace.key')
         for k in keys:
-            key_map[k] = cls.get_key(uri=k)
+            key_map[k] = key_class.create_from_uri(k)
             c.print(key_map[k])
             
         return key_map
@@ -1248,70 +1249,15 @@ class Subspace(c.Module):
         
         return namespace
 
-    chain = 'subspace'
-    chain_path = f'{c.repo_path}/{chain}'
-    chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
-    spec_path = f'{chain_path}/specs'
-    
-    
-    @classmethod
-    def build(cls):
-        c.cmd('cargo build --release', cwd=cls.chain_path,verbose=True)
-
-
-    @classmethod
-    def build_spec(cls,
-                   chain = 'local'
-                   ):
-        spec_path = f'{cls.spec_path}/{chain}.json'
-        cmd = f'{cls.chain_release_path} build-spec --disable-default-bootnode --raw --chain {chain}'
-        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
-
-    @classmethod
-    def build_spec(cls,
-                   chain = 'local'
-                   ):
-        spec_path = f'{cls.spec_path}/{chain}.json'
-        cmd = f'{cls.chain_release_path} build-spec --disable-default-bootnode --raw --chain {chain}'
-        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
-
-
-    @classmethod
-    def add_keystore(cls,
-                     suri 
-                     base_path = '/tmp/node01',
-                     chain = 'customSpecRaw.json',
-                     key_type = 'gran',
-                     schema = 'Ed25519',):
-        
-        if key_type == 'gran':
-            schema = 'Ed25519'
-        elif key_type == 'aura':
-            schema = 'Sr25519'
-        else:
-            raise Exception(f'Unknown key type {key_type}')
-        cmd  = f'''
-        {cls.chain_release_path} key insert --base-path {base_path}\
-        --chain {chain} \
-        --scheme {schema} \
-        --suri {suri} \
-        --password-interactive \
-        --key-type gran
-        '''
-        
-        return c.cmd(cmd, verbose=True)
-        
-
-    @classmethod
-    def start_node(cls):
-        c.cmd(f'{cls.chain_release_path} --dev --tmp', verbose=True)
     @classmethod
     def test(cls):
         subspace = cls()
         # print(subspace.query_map_subspace('Modules', params=[0]).records)
-        keys = cls.test_keys(['Alice', 'Billy', 'Bob'])
-        for name, key in keys.items():
-            subspace.register(key=key, network='audio', address=c.external_ip(), name=name)
+        keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
+        for name, key in enumerate(keys.items()):
+            port  = c.free_port()
+            address = f'{c.external_ip()}:{port}'
+            subspace.register(key=key, network='commune', address=address, name=name)
         c.print(subspace.modules(network=0))
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
@@ -1320,6 +1266,8 @@ class Subspace(c.Module):
     def modules(self, network:int = None):
         netuid = self.resolve_network(network)
         return self.query_map_subspace('Modules', params=[netuid]).records
+    
+    
     @classmethod
     def test_balance(cls):
         self = cls()
@@ -1334,8 +1282,281 @@ class Subspace(c.Module):
         c.print(self.get_balance(key2.ss58_address))
         
         # c.print(self.query_map_subspace('SubnetNamespace', params=[]).records)
+    chain = 'subspace'
+    chain_path = f'{c.repo_path}/{chain}'
+    chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
+    spec_path = f'{chain_path}/specs'
+    key_types = ['aura', 'gran']
+    supported_schemas = ['Sr25519', 'Ed25519']
+    
 
+
+    @classmethod
+    def build(cls):
+        return cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
         
+
+    @classmethod   
+    def purge_chain(cls,
+                    chain = 'dev',
+                    user = 'alice',
+                    sudo = False):
+        cmd = f'{cls.chain_release_path} purge-chain --base-path /tmp/{user} --chain {chain}'
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True, sudo=sudo)
+
+  
+    @classmethod
+    def build_spec(cls,
+                   chain = 'test',
+                   new_chain = None,
+                   raw  = False,
+                   disable_default_bootnode = True,
+
+                   ):
+
+        chain_spec = cls.resolve_chain_spec(chain)
+        
+            
+            
+
+        cmd = f'{cls.chain_release_path} build-spec --chain {chain}'
+        
+        if disable_default_bootnode:
+            cmd += ' --disable-default-bootnode'  
+        if new_chain != None:
+            chain = new_chain
+              
+        if raw:
+            assert c.exists(chain_spec), f'Chain {chain_spec} does not exist.'
+            cmd += ' --raw'
+            spec_path =chain_spec.replace('.json', '_raw.json')
+
+        cmd += f' > {chain_spec}'
+        c.print(cmd)
+        return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
+
+    build_spec
+
+    spec_path = f'{chain_path}/specs'
+    @classmethod
+    def specs(cls):
+        specs = c.ls(f'{cls.spec_path}/')
+        
+        return [spec for spec in specs if '_raw' not in spec]
+    
+    @classmethod
+    def get_spec(cls, chain):
+        chain = cls.resolve_chain_spec(chain)
+        
+        return c.get_json(chain)
+
+    @classmethod
+    def spec_exists(cls, chain):
+        c.print(f'{cls.spec_path}/{chain}.json')
+        return c.exists(f'{cls.spec_path}/{chain}.json')
+
+
+    @classmethod
+    def resolve_chain_spec(cls, chain):
+        if not chain.endswith('.json'):
+            chain = f'{chain}.json'
+        if not cls.spec_exists(chain):
+            chain = f'{cls.spec_path}/{chain}'
+        return chain
+        
+        
+
+    @classmethod
+    def insert_node_key(cls,
+                   node='node01',
+                   chain = 'jaketensor_raw.json',
+                   suri = 'verify kiss say rigid promote level blue oblige window brave rough duty',
+                   key_type = 'gran',
+                   scheme = 'Sr25519',
+                   password_interactive = False,
+                   ):
+        
+        chain = cls.resolve_chain_spec(chain)
+        node_path = f'/tmp/{node}'
+        
+        if key_type == 'aura':
+            schmea = 'Sr25519'
+        elif key_type == 'gran':
+            schmea = 'Ed25519'
+        
+        if not c.exists(node_path):
+            c.mkdir(node_path)
+
+        cmd = f'{cls.chain_release_path} key insert --base-path {node_path}'
+        cmd += f' --suri "{suri}"'
+        cmd += f' --scheme {scheme}'
+        cmd += f' --chain {chain}'
+        assert key_type in cls.key_types, f'key_type ({key_type})must be in {cls.key_types}'
+        cmd += f' --key-type {key_type}'
+        if password_interactive:
+            cmd += ' --password-interactive'
+        
+        c.print(cmd, color='green')
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
+    
+    @classmethod
+    def insert_node_keys(cls,
+                   aura_suri : str, 
+                   grandpa_suri :str,
+                    node='node01',
+                   password_interactive = False,
+                   ):
+        '''
+        Insert aura and gran keys for a node
+        '''
+        cls.insert_node_key(node=node, key_type='aura',  suri=aura_suri)
+        cls.insert_node_key(node=node, key_type='gran', suri=grandpa_suri)
+       
+        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
+    
+    
+
+    @classmethod
+    def start_node(cls,
+
+                 chain:int = 'dev',
+                 port:int=30333,
+                 rpc_port:int=9933,
+                 ws_port:int=9945,
+                 user : str = 'alice',
+                 telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
+                 remote = False,
+                 validator = True,          
+                 boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
+                 purge_chain:bool = True
+                 ):
+        
+        port = c.resolve_port(port)
+        rpc_port = c.resolve_port(rpc_port)
+        ws_port = c.resolve_port(ws_port)
+        
+        if purge_chain:
+            cls.purge_chain(chain=chain, user=user)
+        
+        chain = cls.resolve_chain_spec(chain)
+
+        cmd = f'''
+            {cls.chain_release_path} \
+            --base-path /tmp/{user} \
+            --chain {chain} \
+            --{user} \
+            --port {port} \
+            --ws-port {ws_port} \
+            --rpc-port {rpc_port} \
+        '''
+        
+        if validator :
+            cmd += ' --validator'
+            
+        if boot_nodes != None:
+            cmd += f' --bootnodes {boot_nodes}'
+
+
+        return cls.cmd(cmd, verbose=True, cwd=cls.chain_path)
+       
+       
+    @classmethod
+    def gen_key(cls, *args, **kwargs):
+        return c.module('subspace.key').gen(*args, **kwargs)
+        
+    
+    
+    key_store_path = '/tmp/subspace/keys'
+
+    @classmethod
+    def resolve_node_keystore_path(cls, node):
+        path = cls.resolve_path(f'nodes/{node}')
+        if not c.exists(path):
+            c.mkdir(path)
+        return path
+    
+    @classmethod
+    def gen_node_keys(cls, path, **kwargs):
+        key_class = c.module('subspace.key')
+        node_path = f'node.{path}'
+        c.print(key_class.add_key(path=f'{node_path}.aura', crypto_type='Sr25519'))
+        key_class.add_key(path=f'{node_path}.gran',crypto_type='Ed25519')
+        return key_class.keys(node_path, **kwargs)
+    
+    
+    @classmethod
+    def keys(cls, *args, **kwargs ):
+        return c.module('subspace.key').keys(*args, **kwargs)
+    
+    
+    @classmethod
+    def get_node_keys(cls, path):
+        for key in cls.gen_node_keys(path):
+            c.print(key)
+        
+    
+    @classmethod
+    def add_keystore(cls,
+                     suri = None ,
+                     node = 'node01',
+                     chain = 'main',
+                     key_type = 'gran',
+                     schema = 'Ed25519',
+                     password_interactive = False,):
+        
+        
+        if suri is None:
+            c.module('subspace.key').create(n=1)
+        base_path = cls.resolve_node_keystore_path(node)
+        if key_type == 'gran':
+            schema = 'Ed25519'
+        elif key_type == 'aura':
+            schema = 'Sr25519'
+        else:
+            raise Exception(f'Unknown key type {key_type}')
+        cmd  = f'''
+        {cls.chain_release_path} key insert --base-path {base_path}\
+        --chain {chain} \
+        --scheme {schema} \
+        --suri "{suri}" \
+        --key-type {key_type}
+        '''
+        
+        if password_interactive:
+            cmd = cmd + ' --password-interactive'
+        
+        return c.cmd(cmd, verbose=True)
+        
+
+
+    @classmethod
+    def gen_keys(cls, schema = 'Sr25519' , n:int=2, **kwargs):
+        for i in range(n):
+            cls.gen_key(schema=schema, **kwargs)
+        
+
+    @classmethod
+    def localnet(cls):
+        cls.cmd('chmod +x ./scripts/*', cwd=f'{cls.repo_path}/subtensor', verbose=True)
+        cls.cmd('./scripts/', cwd=f'{cls.repo_path}/subtensor', verbose=True)
+    
+    @classmethod
+    def build_node(cls):
+        return cls.cmd('sudo docker-compose build', cwd=f'{cls.repo_path}/subtensor', verbose=True)
+    
+    
+    @classmethod
+    def sand(cls):
+        self = cls()
+        key = c.module('subspace.key').create_from_uri('/Bob')
+        
+        c.print(self.get_balance(key.ss58_address).joules)
+        c.print(self.uids)
+        
+    
+    @property
+    def uids(self):
+        return [v[1].value for v in self.query_map_subspace('Uids',None,  [0]).records]
 
   
 if __name__ == "__main__":
