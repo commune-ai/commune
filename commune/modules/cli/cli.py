@@ -83,6 +83,8 @@ class CLI(c.Module):
         'bt': 'bittensor',
         'hf': 'huggingface',
         'chain': 'subspace',
+        's': 'subspace',
+        'data.hf': 'dataset.hf'
     }
     @classmethod
     def resolve_shortcut(cls, name):
