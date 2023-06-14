@@ -148,7 +148,7 @@ class Keypair(c.Module):
         if seed != None or mnemonic != None or uri != None or private_key != None:
             load = False
 
-        if load:
+        if load and path != None:
             return self.load(path=path, password=password)
             
         if path != None and load and not refresh:
@@ -1067,7 +1067,11 @@ class Keypair(c.Module):
            
                    
                     
-                    
+    @classmethod
+    def gen(cls):
+        mnemonic = cls.generate_mnemonic()
+        return cls(mnemonic=mnemonic).to_dict()
+   
         
 
 if __name__ == '__main__':

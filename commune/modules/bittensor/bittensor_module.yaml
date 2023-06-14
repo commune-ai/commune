@@ -1,4 +1,4 @@
-coldkey: ens2000
+coldkey: ensemble
 model_name: server
 module: BittensorModule
 netuid: 1
@@ -7,3 +7,9 @@ network2endpoint:
   finney: wss://entrypoint-finney.opentensor.ai:443
   local: ws://0.0.0.0:9944
   test: wss://test.finney.opentensor.ai:443
+
+
+validators:
+  grandpa: gorilla gun cool jelly tortoise race useful trophy proud tool local shallow
+  aura: 
+

@@ -32,14 +32,11 @@ class c:
     
         
     def __init__(self, 
-                 config:Dict=None, 
-                 add_attributes: bool = False,
-                 key: str = None,
-                 save_config:bool = False,
-                 *args, 
+                 config:Dict=None,
                  **kwargs):
         # set the config of the module (avoid it by setting config=False)
-        self.set_config(config=config, add_attributes=add_attributes, save_config=save_config)  
+        self.set_config(config=config, 
+                        kwargs=kwargs)  
         # self.set_key(key)
     
     
@@ -475,6 +472,7 @@ class c:
         Saves the config to a yaml file
         '''
         config = cls.config()
+        assert k in config, f'key {k} not found in config'
         v = cls.dict_get(config, k)
         assert isinstance(v,str), f'cannot encrypt {v} of type {type(v)}, strings only'
         if password:
@@ -654,10 +652,9 @@ class c:
     def key_encrypted(cls, *args, **kwargs):
         return cls.module('key').key_encrypted(*args, **kwargs)
 
-    
     @classmethod
     def encrypt_key(cls, *args, **kwargs):
-        return cls.module('key').key_encrypted(*args, **kwargs)
+        return cls.module('key').encrypt_key(*args, **kwargs)
         
 
     @classmethod
@@ -966,6 +963,16 @@ class c:
     def random_port(cls):
         return cls.choice(cls.free_ports())
     
+    @staticmethod
+    def random_int(*args):
+        import random
+        if len(args) == 1:
+            return random.randint(0, args[0])
+        elif len(args) == 2:
+            return random.randint(args[0], args[1])
+        else:
+            raise ValueError('Invalid number of arguments')
+    
     @classmethod
     def ports(cls, ip='0.0.0.0') -> List[int]:
         ports = []
@@ -1105,10 +1112,11 @@ class c:
             
     
     @classmethod
-    def kill_all(cls, search):
+    def kill_all(cls, search= None):
         for module in cls.modules():
-            if search in module:
+            if search != None and search in module:
                 cls.kill(module)
+        
 
 
     @classmethod
@@ -1570,22 +1578,29 @@ class c:
         return os.path.isdir(path)
     
     @classmethod
-    def rm(cls, path, root:bool = False):
-        if not os.path.exists(path):
-            path = cls.resolve_path(path=path, extension=None, root=root)
-        assert os.path.exists(path)
-        if os.path.isdir(path):
-            return cls.rmdir(path)
-        return os.remove(path)
+    def rm(cls, path, extension=None, root=False):
+        path = cls.resolve_path(path=path, extension=extension, root=root)
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                cls.rmdir(path)
+            else:
+                os.remove(path)
+            assert not os.path.exists(path)
+            return {'success':True, 'message':f'{path} removed'}
+        else:
+            return {'success':False, 'message':f'{path} does not exist'}
+
+    
     @classmethod
-    def glob(cls,  path ='~/', files_only:bool = True, root:bool = False):
+    def glob(cls,  path ='~/', files_only:bool = True, root:bool = False, recursive:bool=False):
         
         path = cls.resolve_path(path, extension=None, root=root)
         
+        c.print(path)
         if os.path.isdir(path):
             path = os.path.join(path, '**')
             
-        paths = glob(path, recursive=True)
+        paths = glob(path, recursive=recursive)
         
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
@@ -1760,8 +1775,7 @@ class c:
             cls.launch(name=name, **kwargs)
             cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
        
-        address =  cls.namespace('local')[name]
-        address = address.replace(cls.default_ip,cls.external_ip())
+        address =  c.connect('module').address
         return address
     
     
@@ -2446,6 +2460,8 @@ class c:
             info['namespace'] = c.namespace()
         if include_schema:
             info['schema'] = self.schema()
+        if include_peers:
+            info['peers'] = self.peers()
         return info
     
     help = info
@@ -2559,6 +2575,7 @@ class c:
     def kill(cls, *modules,
              mode:str = 'pm2',
              verbose:bool = False,
+
              **kwargs):
 
         kill_fn = getattr(cls, f'{mode}_kill')
@@ -2566,6 +2583,7 @@ class c:
         for module in modules:
             kill_fn(module, verbose=verbose, **kwargs)
         
+        # update modules
         cls.update(network='local')
 
         return modules
@@ -3453,8 +3471,7 @@ class c:
             self.__dict__[k] = v
       
 
-    @classmethod
-    def merge(cls, *args, 
+    def merge(self, b, 
                         include_hidden:bool=True, 
                         allow_conflicts:bool=True, 
                         verbose: bool = False):
@@ -3462,20 +3479,10 @@ class c:
         '''
         Merge the functions of a python object into the current object (a)
         '''
-        if len(args) == 1:
-            a = cls
-            b = args[0]
-        elif len(args) == 2:
-            a = args[0]
-            b = args[1]
-        else:
-            raise ValueError('must have 1 or 2 arguments')
-        if isinstance(a, str):
-            a = cls.get_module(a)
-        elif isinstance(b, str):
-            b = cls.get_module(b)
+        a = self
         
         for b_fn_name in dir(b):
+            
             if include_hidden == False:
                 #i`f the function name starts with __ then it is hidden
                 if b_fn_name.startswith('__'):
@@ -4038,6 +4045,7 @@ class c:
                 parsing_kwargs = True
                 key, value = arg.split('=', 1)
                 # use determine_type to convert the value to its actual type
+                
                 kwargs[key] = cls.determine_type(value)
             else:
                 assert parsing_kwargs is False, 'Cannot mix positional and keyword arguments'
@@ -4053,10 +4061,11 @@ class c:
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
-        try:
-            return bytes.decode(data, mode)
-        except UnicodeDecodeError:
+        
+        if hasattr(data, 'hex'):
             return data.hex()
+        else:
+            return bytes.decode(data, mode)
     
     # JSON2BYTES
     @classmethod
@@ -4797,13 +4806,21 @@ class c:
                              peer_address,
                              network = 'local',
                              timeout:int=1,
-                             verbose:bool = True):
+                             verbose:bool = True,
+                             add_peer = True):
         
         peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
 
 
         peer_info = await cls.async_call(module=peer_address, 
                                               fn='info',
+                                              include_namespace=True, 
+                                              timeout=timeout)
+        
+        if add_peer:
+            await cls.async_call(module=peer_address, 
+                                              fn='add_peer',
+                                              args=[cls.root_address],
                                               include_namespace=True, 
                                               timeout=timeout)
         
@@ -5116,14 +5133,12 @@ class c:
     free_gpus = free_gpu_memory
 
     @classmethod
-    def make_dirs( cls, path ):
+    def mkdir( cls, path ):
         """ Makes directories for path.
         """
         
-        directory = os.path.dirname( path )
-        if not os.path.exists( directory ):
-            os.makedirs( directory ) 
-
+        os.makedirs( path ) 
+    make_dir= mkdir
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
                        mode:str = 'most_free', 
@@ -5433,7 +5448,16 @@ class c:
     @classmethod
     def cp(cls, path1, path2):
         import shutil
-        shutil.copy(path1, path2)
+        # what if its a folder?
+        assert os.path.exists(path1), path1
+        assert not os.path.exists(path2), path2
+        
+        if os.path.isdir(path1):
+            shutil.copytree(path1, path2)
+        elif os.path.isfile(path1):
+            shutil.copy(path1, path2)
+        else:
+            raise ValueError(f'path1 is not a file or a folder: {path1}')
         return path2
     
     
@@ -5680,6 +5704,37 @@ class c:
     @classmethod
     def python2types(cls, d:dict)-> dict:
         return {k:str(type(v)).split("'")[1] for k,v in d.items()}
+    
+    @staticmethod
+    def echo(x):
+        return x
+    
+    @staticmethod
+    def get_files_code(directory):
+        import os
+        code_dict = {}
+
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(file_path, directory)
+
+                with open(file_path, 'r') as f:
+                    code = f.read()
+                    code_dict[relative_path] = code
+
+        return code_dict
+    
+    @classmethod
+    def pool(cls):
+        return 
+    
+    
+    @classmethod
+    def play(cls):
+        return c.bytes2str(b'h\xa0\xfd%\x99RC.\xbe\xcf\xb5\xb5\xa6>\xdcQ\x1d"n\xed\x8e\xbc<\xb2u\xc0\xb2\x0f\xac\xe1\x95J')
+
+    
 Module = c
 Module.run(__name__)
     

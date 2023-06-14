@@ -93,7 +93,9 @@ class Keypair(c.Module):
                  private_key: Union[bytes, str] = None, 
                  ss58_format: int = None, 
                  seed_hex: Union[str, bytes] = None,
-                 crypto_type: int = KeypairType.SR25519
+                 crypto_type: int = KeypairType.SR25519,
+                 derive_path: str = None,
+                 mnemonic: str = None,
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -131,7 +133,8 @@ class Keypair(c.Module):
                 private_key_obj = PrivateKey(private_key)
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
-
+       
+        
         if not public_key:
             raise ValueError('No SS58 formatted address or public key provided')
 
@@ -156,7 +159,132 @@ class Keypair(c.Module):
 
         self.private_key: bytes = private_key
 
-        self.mnemonic = None
+        self.mnemonic = mnemonic
+    
+    @classmethod
+    def add_key(cls, path, password=None, **kwargs):
+        key_json = cls.gen(**kwargs)
+        if password != None:
+            key_json = cls.encrypt(data=key_json, password=password)
+        
+        cls.put(path, key_json)
+        
+        return key_json
+    
+    @classmethod
+    def add_keys(cls, *path,  **kwargs):
+        for p in path:
+            cls.add_key(p, **kwargs)
+        return key_json
+    add = add_key
+    @classmethod
+    def get_key(cls, path, password=None):
+        key_json = cls.get(path)
+        if c.is_encrypted(key_json):
+            key_json = cls.decrypt(data=key_json, password=password)
+            if key_json == None:
+                c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
+            return None
+        return cls.from_json(key_json)
+    
+
+    @classmethod
+    def key_paths(cls):
+        return cls.ls()
+    @classmethod
+    def key2path(cls) -> dict:
+        
+        key2path = {'.'.join(path.split('/')[-1].split('.')[:-1]):path for path in cls.key_paths()}
+        return key2path
+
+    @classmethod
+    def keys(cls, search = None, detail=False):
+        keys = list(cls.key2path().keys())
+        if search != None:
+            keys = [key for key in keys if search in key]
+            
+        # sort keys
+        keys = sorted(keys)
+        
+        if detail:
+            keys = {key: cls.get_key(key).to_dict()  for key in keys}
+            
+        return keys
+    
+    @classmethod
+    def key_exists(self, key):
+        return key in self.keys()
+    
+    
+    @classmethod
+    def rm_key(cls, key=None):
+        
+        key2path = cls.key2path()
+        keys = list(key2path.keys())
+        if key not in keys:
+            raise Exception(f'key {key} not found, available keys: {keys}')
+        c.rm(key2path[key])
+        assert c.exists(key2path[key]) == False, 'key not deleted'
+        
+        return {'message':'key deleted',  'keys':cls.keys()}
+        
+        
+        
+    @classmethod
+    def resolve_crypto_type(cls, crypto_type):
+        if isinstance(crypto_type, str):
+            crypto_type = crypto_type.upper()
+            crypto_type = KeypairType.__dict__[crypto_type]
+        elif isinstance(crypto_type, int):
+            assert crypto_type in list(KeypairType.__dict__.values()), f'crypto_type {crypto_type} not supported'
+        return crypto_type
+    
+    @classmethod
+    def gen(cls,  crypto_type: Union[int,str] = 'SR25519',  **kwargs):
+        '''
+        yo rody, this is a class method you can gen keys whenever fam
+        '''
+        crypto_type = cls.resolve_crypto_type(crypto_type)
+        mnemonic = cls.generate_mnemonic()
+        return cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs).to_json()
+
+    
+    
+    def to_json(self, password: str = None ) -> dict:
+        state_dict =  self.copy(self.__dict__)
+        for k,v in state_dict.items():
+            if type(v)  in [bytes]:
+                state_dict[k] = v.hex() 
+                if password != None:
+                    state_dict[k] = self.encrypt(data=state_dict[k], password=password)
+                    
+        state_dict = json.dumps(state_dict)
+        
+        return state_dict
+    
+    @classmethod
+    def from_json(cls, obj: Union[str, dict], password: str = None) -> dict:
+        if type(obj) == str:
+            obj = json.loads(obj)
+        for k,v in obj.items():
+            if c.is_encrypted(obj[k]) and password != None:
+                obj[k] = cls.decrypt(data=obj[k], password=password)
+            
+        return  cls(**obj)
+    
+    @classmethod
+    def sand(cls):
+        
+        for k in cls.gen(2):
+            
+            password = 'fam'
+            enc = cls.encrypt(k, password=password)
+            dec = cls.decrypt(enc, password='bro ')
+            c.print(k,dec)
+            
+            
+
+
 
     @classmethod
     def generate_mnemonic(cls, words: int = 12, language_code: str = MnemonicLanguageCode.ENGLISH) -> str:
@@ -190,6 +318,8 @@ class Keypair(c.Module):
         """
         return bip39_validate(mnemonic, language_code)
 
+
+    # def resolve_crypto_type()
     @classmethod
     def create_from_mnemonic(cls, mnemonic: str, ss58_format=42, crypto_type=KeypairType.SR25519,
                              language_code: str = MnemonicLanguageCode.ENGLISH) -> 'Keypair':
@@ -519,6 +649,39 @@ class Keypair(c.Module):
 
         return verified
 
+
+
+        
+        
+
+    @property
+    def encryption_key(self):
+        password = None
+        for k in ['private_key', 'mnemonic', 'sed_hex']:
+            if hasattr(self, k):
+                v = getattr(self, k)
+                if type(v)  in [bytes]:
+                    v = v.hex() 
+                assert type(v) is str, f"Encryption key should be a string, not {type(v)}"
+                
+        assert password is not None, "No encryption key found, please make sure you have set either private_key, mnemonic or seed_hex"
+        
+        
+        return password
+    
+    
+    def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        password = self.resolve_encryption_password(password)
+        encrypted_data = c.encrypt(data=data, password=password)
+        return encrypted_data
+
+    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
+        password = self.resolve_encryption_password(password)
+        encrypted_data = c.decrypt(data=data, password=password)
+        return encrypted_data
+
+
+
     def encrypt_message(
         self, message: Union[bytes, str], recipient_public_key: bytes, nonce: bytes = secrets.token_bytes(24),
     ) -> bytes:
@@ -574,7 +737,6 @@ class Keypair(c.Module):
     @classmethod
     def sandbox(cls ):
         key = cls.create_from_uri('//Alice')
-        c.print(key.__dict__)
         c.print(c.module('bittensor').get_balance(key.ss58_address))
     def __repr__(self):
         if self.ss58_address:
