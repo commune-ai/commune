@@ -1199,7 +1199,6 @@ class Subspace(c.Module):
         key_class = c.module('subspace.key')
         for k in keys:
             key_map[k] = key_class.create_from_uri(k)
-            c.print(key_map[k])
             
         return key_map
     @property
@@ -1254,10 +1253,11 @@ class Subspace(c.Module):
         subspace = cls()
         # print(subspace.query_map_subspace('Modules', params=[0]).records)
         keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
-        for name, key in enumerate(keys.items()):
+        for idx, (username, key) in enumerate(keys.items()):
             port  = c.free_port()
             address = f'{c.external_ip()}:{port}'
-            subspace.register(key=key, network='commune', address=address, name=name)
+            c.print(key)
+            subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
         c.print(subspace.modules(network=0))
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
@@ -1290,10 +1290,13 @@ class Subspace(c.Module):
     supported_schemas = ['Sr25519', 'Ed25519']
     
 
-
+    chains = ['dev', 'test', 'main']
     @classmethod
     def build(cls):
-        return cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
+        cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
+        
+        for chains in cls.chains:
+            cls.build_spec(chains)
         
 
     @classmethod   
@@ -1335,15 +1338,15 @@ class Subspace(c.Module):
         c.print(cmd)
         return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
 
-    build_spec
 
     spec_path = f'{chain_path}/specs'
     @classmethod
-    def specs(cls):
+    def chain_specs(cls):
         specs = c.ls(f'{cls.spec_path}/')
         
         return [spec for spec in specs if '_raw' not in spec]
     
+    specs = chain_specs
     @classmethod
     def get_spec(cls, chain):
         chain = cls.resolve_chain_spec(chain)
