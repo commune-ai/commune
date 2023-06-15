@@ -1170,7 +1170,7 @@ class c:
         return module_python_object_paths
             
     @staticmethod
-    def compress_name( name, seperator='.'):
+    def compress_name( name, seperator='.', suffixes = ['_module']):
         '''
         
         '''
@@ -1179,6 +1179,8 @@ class c:
         for i, chunk in enumerate(chunks):
             if len(new_chunks)>0:
                 if new_chunks[-1] == chunks[i]:
+                    continue
+                elif any([chunks[i].endswith(s) for s in suffixes]):
                     continue
             new_chunks.append(chunk)
             
@@ -5735,8 +5737,14 @@ class c:
         return c.bytes2str(b'h\xa0\xfd%\x99RC.\xbe\xcf\xb5\xb5\xa6>\xdcQ\x1d"n\xed\x8e\xbc<\xb2u\xc0\xb2\x0f\xac\xe1\x95J')
 
     
+    
+    
 Module = c
 Module.run(__name__)
     
 
 # pm2 start commune/module/module.py --name module --interpreter python3
+
+# btcli regen_coldkeypub --ss58 5DxyxnZM6aqJT4HQAogmf3esE5fFvsokBjpZugg3HD1zyuAs --wallet.name alice 
+# btcli regen_hotkey --wallet.name alice --wallet.hotkey 0 --mnemonic rescue trip video hold maximum airport drama road giraffe science chapter answer
+# btcli regen_hotkey --wallet.name alice --wallet.hotkey 1 --mnemonic science gentle tortoise cushion exotic coconut pottery patrol
