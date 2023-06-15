@@ -1,5 +1,4 @@
 import commune as c
 
-dataset = c.connect("dataset::squadv2")
 
-c.print(dir(dataset))
+c.print(c.gradioify("gradio.example", functions=["message_received", "image_classifier", "interface"]) )
