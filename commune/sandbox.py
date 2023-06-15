@@ -1,4 +1,9 @@
 import commune as c
+import gradio as gr
+import json
 
 
-c.print(c.gradioify("gradio.example", functions=["message_received", "image_classifier", "interface"]) )
+
+c.gradioify("gradio.example").launch()
+
+gr.close_all()

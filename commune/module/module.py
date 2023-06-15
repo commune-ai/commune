@@ -4,7 +4,7 @@ import inspect
 import numpy as np
 import os
 from copy import deepcopy
-from typing import Optional, Union, Dict, List, Any, Tuple, Callable
+from typing import Optional, Union, Dict, List, Any, Tuple, Annotated
 from munch import Munch
 from rich.console import Console
 import json
@@ -2431,7 +2431,7 @@ class c:
                 
                 for fn_k, fn_v in obj_fn.__annotations__.items():
                     
-                    
+
                     fn_v = str(fn_v)  
 
                     if fn_v == inspect._empty:
@@ -5597,33 +5597,138 @@ class c:
         from scalecodec.utils.ss58 import  ss58_decode
         return ss58_decode(*args, **kwargs)
 
-    @classmethod
-    def gradioify(cls, module : str=None, functions : str=None, examples : list[any]=None):
-        obj = cls.module(module)
-        schema = cls.schema(obj=module)
-        del schema["__init__"]
+     
+    def interpeter(obj, fn, **kwargs):
+        if fn["return"] == "Blocks":
+            return getattr(obj, fn)() # function rendering is a block so things are prebuilt 
+        else:
+            # handel output annotations given there is
+            if "return" in list(fn.keys()):     
+                # converts the return in the function annotation to gradio str components
+                if fn["return"].__origin__ in (list, tuple, Tuple):
+                     outputs = []
+                     for output in fn["return"].__args__:
+                        _output = output.__metadata__[-1]
+                        if isinstance(_output, gr.component.IOComponent):
+                            _output._id += 1
+                            outputs.append(_output.get_config())
+                        elif isinstance(_output, str):
+                            outputs.append(_output)
+                        else:
+                            raise ValueError("Must provide an annotation that is either and IOComponent or string")
+                else:
+                    outputs = fn.__annotations__["return"].__metadata__[-1]
+                            
+                del fn["return"]
 
-        try: 
-            if functions in list(schema.keys()) and schema[functions]["schema"]["return"] == "gradio.blocks.Blocks":
-                getattr(obj, functions)().launch()
-            elif len(functions) > 1:
-                interface_list = [None] * len(functions)
-                c.print(schema)
-                for idx, fn in enumerate(functions):
-                    if schema[fn]["return"] == "gradio.blocks.Blocks":
-                        interface = getattr(obj, fn)()
-                    else:
-                        outputs = schema[fn]["return"][1:] if "~" in schema[fn]["return"] else schema[fn]["return"]
-                        del schema[fn]["return"]
-                        inputs : list = [types[1:] if "~" in types else types for types in schema[fn].values()]
-                        interface = gr.Interface(fn=getattr(obj, fn), inputs=inputs, outputs=outputs)
-                    interface_list[idx] = interface 
-                gr.TabbedInterface(interface_list, functions).launch()
+                        # handel input annotation 
+                if fn: # check if there if there are no more inputs 
+                    inputs = []
+                    for input in fn.values():
+                        _input = input.__metadata__[-1]
+                        if isinstance(_input, gr.component.IOComponent):
+                            _input._id += 1
+                            inputs.append(_input.get_config())
+                        elif isinstance(_input, str):
+                                inputs.append(_input)
+                        else:
+                            raise ValueError("Must provide an annotation that is either and IOComponent or string")
+            return gr.Interface(fn=getattr(obj, fn), inputs=inputs, outputs=outputs, **kwargs)
+
+
+    def _annotate(module, fn : str, /, **kwargs) -> Union[gr.Interface, gr.Blocks]:
+        try:
+            fn = getattr(module, fn)
+            if fn.__annotations__ and \
+            "return" in list(fn.__annotations__.keys()) and \
+            fn.__annotations__["return"].__metadata__[-1] == "Block":
+                return fn()
+                
+            
             else:
-                gr.Interface(fn=getattr(obj, functions), inputs=schema[functions]["schema"]["inp"][1:], outputs=schema[functions]["schema"]["return"][1:], examples=examples).launch()
-        except Exception as e:
-            c.console.print_exception(show_locals=True)
+                inputs, outputs = [], []
+                if "return" in fn.__annotations__.keys():
+                    if fn.__annotations__["return"].__origin__ in (list, tuple, Tuple):
+                            for output in fn.__annotations__["return"].__args__:
+                                _output = output.__metadata__[-1]
+                                if isinstance(_output, gr.component.IOComponent):
+                                    _output._id += 1
+                                    outputs.append(_output.get_config())
+                                elif isinstance(_output, str):
+                                    outputs.append(_output)
+                                else:
+                                    raise ValueError("Must provide an annotation that is either and IOComponent or string")
+                    else:
+                        outputs = fn.__annotations__["return"].__metadata__[-1]
 
+                    del fn.__annotations__["return"]
+                
+                if fn.__annotations__: # check if there if there are no more inputs 
+                    for input in fn.__annotations__.values():
+                        _input = input.__metadata__[-1]
+                        if isinstance(_input, gr.components.IOComponent):
+                            _input._id += 1
+                            inputs.append(gr.components.get_component_instance(input.get_config()))
+                        elif isinstance(_input, str):
+                            inputs.append(_input)
+                        else:
+                            raise ValueError("Must provide an annotation that is either and IOComponent or string")
+                return gr.Interface(fn, inputs, outputs, **kwargs)
+        except (AttributeError, ValueError) as e:
+            return False
+
+    @classmethod
+    def gradioify(cls, module : str=None, fn : Union[str, list[str]]=None, **kwargs) -> None:
+        """
+            
+            serve all possible functions within the module that return blocks or are annotated using
+            typing within directory gradio.tpying there are prebuilt annotation that one can uses to annotate
+            functions or you can create your own custom annotation that are gradio compiable
+            
+            
+            ### Commandline Serve All Function(s)
+            ```python
+                >>> c gradioify gradio.example
+            ```
+
+            ### Serve All Function(s)
+            ```python
+                >>> import commune
+                >>> commune.gradioify("gradio.example").launch()
+            ```
+
+            ### Serve Singualr Function 
+            ```python
+                >>> import commune
+                >>> commune.gradioify("gradio.example", fn="example_").launch()
+            ```
+
+
+        """
+        obj = cls.module(module)
+
+        if fn == None:
+            schema = cls.schema(obj=obj)
+            del schema["__init__"]
+            fn = list(schema.keys())
+            
+
+        if not isinstance(fn, list):
+            fn = [fn]
+
+        try:  
+            if len(fn) == 1:
+                return cls._annotate(obj, fn[-1], **kwargs)
+            elif len(fn) > 1:  
+                interfaces, names = list(), list()
+                for idx, function in enumerate(fn):
+                    interface = cls._annotate(obj, function)
+                    if isinstance(interface, Union[gr.Interface, gr.Blocks]):
+                        interfaces.append(cls._annotate(obj, function))
+                        names.append(function)
+                return gr.TabbedInterface(interface_list=interfaces, tab_names=names, **kwargs)
+        except (AttributeError, ValueError, KeyboardInterrupt) as e:
+            c.console.print_exception(show_locals=True)
 
 
 Module = c

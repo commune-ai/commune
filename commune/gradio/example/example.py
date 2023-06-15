@@ -1,30 +1,27 @@
 
 import commune
 import numpy as np
-from typing import NewType, TypeVar
+from ..typing import Image, Block, Textbox, Label
 import gradio as gr
-
-# image = NewType('image', np.ndarray)
-image = TypeVar('image', np.ndarray, np.generic)
-label = TypeVar('label', dict, dict[str, any])
-textbox = TypeVar("textbox", str, bytes)
 
 class ExampleGradioSchemaBuilder(commune.Module):
 
     def __init__(self):
         ...
 
+
+
     @staticmethod
-    def image_classifier(inp : image) -> label:
+    def image_classifier(inp : Image) -> Label:
         return {'cat': 0.3, 'dog': 0.7}
 
     @staticmethod
-    def message_received(msg : textbox) -> textbox:
+    def message_received(msg : Textbox) -> Textbox:
         return msg
 
 
     @classmethod
-    def interface(cls) -> gr.Blocks:
+    def interface(cls) -> Block:
         def add_text(history, text):
             history = history + [(text, None)]
             return history, gr.update(value="", interactive=False)
