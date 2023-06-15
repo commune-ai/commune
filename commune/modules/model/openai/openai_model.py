@@ -180,6 +180,13 @@ class OpenAILLM(c.Module):
     def test(cls, **params:dict):
         model = cls(**params)
         cls.print(model.forward('What is the meaning of life?'))
+        
+    @classmethod
+    def encapi(cls, password):
+        return cls.encryptc('api',password=password)
+    @classmethod
+    def decapi(cls, password):
+        return cls.decryptc('api',password=password)
          
     def set_tokenizer(self, tokenizer: str):
 

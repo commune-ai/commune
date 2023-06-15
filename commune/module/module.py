@@ -162,12 +162,9 @@ class c:
     @classmethod
     def module_class(cls) -> str:
         return cls.__name__
-
-    
     @classmethod
     def class_name(cls) -> str:
         return cls.__name__
-
     def get_class_name(cls, obj = None) -> str:
         obj = obj if obj != None else cls
         if not cls.is_class(obj):
@@ -483,7 +480,7 @@ class c:
         c.print(v)
         return v
    
-
+    encc=encryptc
     @classmethod
     def decryptc(cls, k, password=None) -> Munch:
         '''
@@ -498,8 +495,16 @@ class c:
         cls.save_config(config=config)
         
         return v
-   
-   
+    
+    decc = decryptc
+    
+    @classmethod
+    def is_encryptedc(cls, k) -> Munch:
+        '''
+        Saves the config to a yaml file
+        '''
+        config = cls.getc(c)
+        return c.is_encrypted(v)
     @classmethod
     def frontend(cls):
         c.cmd('yarn start', cwd=f'{c.repo_path}/frontend', verbose=True)
@@ -519,7 +524,7 @@ class c:
         data = cls.dict_get(cls.config(), key)
         if c.is_encrypted(data):
             if password == None:
-                return {'msg': 'password must be provided to decrypt the data', 'data': data}
+                return data
             data = c.decrypt(data, password=password)
             
         return data
@@ -2259,8 +2264,6 @@ class c:
         if name == None:
             if hasattr(self, 'module_path'):
                 name = self.module_path()
-            elif hasattr(self, 'default_module_name'):
-                name = self.default_module_name()
             else:
                 name = self.__class__.__name__
                 
@@ -2791,7 +2794,7 @@ class c:
         elif module == None:
             module = cls
             
-        module_name =module.default_module_name() if name == None else name
+        module_name =module.module_path() if name == None else name
             
         
         module_path = module.module_file()
@@ -3410,7 +3413,7 @@ class c:
             def __repr__(self):
                 return self.module.__repr__() 
             @classmethod
-            def default_module_name(cls) -> str:
+            def module_path(cls) -> str:
                 return module_class.__name__.lower()
  
             @classmethod
@@ -3432,9 +3435,6 @@ class c:
     def setattr(self, k, v):
         setattr(self, k, v)
         
-    @classmethod
-    def default_module_name(cls) -> str:
-        return cls.module_class().lower()
 
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
@@ -4207,6 +4207,7 @@ class c:
             encrypted_data = f'{prefix}::{encrypted_data}'
         return encrypted_data
     
+
     
     @classmethod
     def decrypt(cls, 
@@ -4217,6 +4218,9 @@ class c:
                 verbose:bool = False) -> Any:
         password = c.resolve_password(password)
         key = c.module('key.aes')(password)
+        
+        if not c.is_encrypted(data, prefix=prefix):
+            return data
         
         if isinstance(data, str):
             if data.startswith(prefix):
@@ -4244,8 +4248,8 @@ class c:
                 raise Exception(f'could not decrypt data, try another pasword')
         
         return data
-
-    
+    enc = encrypt
+    dec = decrypt
     module_cache = {}
     @classmethod
     def put_cache(cls,k,v ):
@@ -4518,6 +4522,8 @@ class c:
             return bool(data.get('encrypted', False) == True)
         else:
             return False
+        
+        
         
     def is_user(self, auth: dict = None) -> bool:
         assert isinstance(auth, dict), 'Auth must be provided'
