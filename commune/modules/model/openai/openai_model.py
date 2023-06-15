@@ -187,6 +187,11 @@ class OpenAILLM(c.Module):
     @classmethod
     def decapi(cls, password):
         return cls.decryptc('api',password=password)
+    
+    @classmethod
+    def encrypted(cls):
+        return cls.is_encrypted('api')
+        return cls.decryptc('api',password=password)
          
     def set_tokenizer(self, tokenizer: str):
 
