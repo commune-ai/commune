@@ -54,8 +54,11 @@ class BittensorModule(c.Module):
     @classmethod
     def get_subtensor(cls, network:Union[str, bittensor.subtensor]='local') -> bittensor.subtensor:
         
-        endpoint = cls.network2endpoint[network]
-        subtensor = bittensor.subtensor(chain_endpoint=endpoint)
+        if isinstance(network, str):
+            endpoint = cls.network2endpoint[network]
+            subtensor = bittensor.subtensor(chain_endpoint=endpoint)
+        else:
+            subtensor = network
         
         return subtensor
     
@@ -822,7 +825,7 @@ class BittensorModule(c.Module):
     def add_keys(cls, name=default_coldkey,
                       coldkey_ss58: Optional[str] = None,
                       hotkeys=None , 
-                      n = 20,
+                      n = 100,
                       use_password: bool=False,
                       overwrite:bool = False):
         if coldkey_ss58:

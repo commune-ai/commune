@@ -445,7 +445,7 @@ class c:
         '''
         config = cls.config()
         if password:
-            v = cls.decrypt(v, password=password)
+            v = cls.encrypt(v, password=password)
 
         cls.dict_put(config, k, v)
         cls.save_config(config=config)
