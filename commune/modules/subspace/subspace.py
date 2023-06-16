@@ -1428,7 +1428,13 @@ class Subspace(c.Module):
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
     
+    @classmethod
+    def nodes(cls, chain='dev'):
+        return c.pm2ls(f'{cls.node_prefix()}::{chain}')
 
+    @classmethod
+    def node_prefix(cls):
+        return f'{cls.module_path()}.node'
     @classmethod
     def start_node(cls,
 
@@ -1474,8 +1480,8 @@ class Subspace(c.Module):
 
         
         if remote:
-            node_module_name = f'{cls.module_path()}.node::{chain}::{user}'
-            cmd = f'pm2 start {cls.chain_release_path} --name {node_module_name} -f -- {cmd_kwargs}'
+            node_module_name = f'{cls.node_prefix}::{chain}::{user}'
+            cmd = f'pm2 start {cls.chain_release_path} --name {node_module_name} -- {cmd_kwargs}'
         else:
             cmd = f'{cmd} {cmd_kwargs}'
             

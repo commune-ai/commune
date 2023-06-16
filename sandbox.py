@@ -1,5 +1,5 @@
 import commune as c
 
-bt = c.module('bittensor')()
-meta = bt.metagraph
-c.print(meta.neurons)
+for p in range(570, 600):
+    c.print(p)
+    print(c.cmd(f'pm2 delete {p}'))
