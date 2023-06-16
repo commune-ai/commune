@@ -1,4 +1,4 @@
-coldkey: ensemble
+coldkey: alice
 model_name: server
 module: BittensorModule
 netuid: 1

@@ -1071,6 +1071,7 @@ class Subspace(c.Module):
     #### Legacy ####
     ################
 
+
     def get_balance(self, address: str, block: int = None) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
@@ -1252,13 +1253,14 @@ class Subspace(c.Module):
     def test(cls):
         subspace = cls()
         # print(subspace.query_map_subspace('Modules', params=[0]).records)
-        keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
-        for idx, (username, key) in enumerate(keys.items()):
-            port  = c.free_port()
-            address = f'{c.external_ip()}:{port}'
-            c.print(key)
-            subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
-        c.print(subspace.modules(network=0))
+        # keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
+        # for idx, (username, key) in enumerate(keys.items()):
+        #     port  = c.free_port()
+        #     address = f'{c.external_ip()}:{port}'
+        #     c.print(key)
+        #     subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
+        # c.print(subspace.query_map_subspace('Addresses', params=[0]).records)
+        c.print(subspace.uids())
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
 
@@ -1301,11 +1303,18 @@ class Subspace(c.Module):
 
     @classmethod   
     def purge_chain(cls,
-                    chain = 'dev',
-                    user = 'alice',
+                    chain:str = 'dev',
+                    user:str = 'alice',
+                    base_path:str = None,
                     sudo = False):
-        cmd = f'{cls.chain_release_path} purge-chain --base-path /tmp/{user} --chain {chain}'
-        return c.cmd(cmd, cwd=cls.chain_path, verbose=True, sudo=sudo)
+        if base_path == None:
+            base_path = cls.resolve_chain_base_path(user=user)
+        return c.rm(base_path)
+    
+    
+    @classmethod
+    def resolve_chain_base_path(cls, user='alice'):
+        return cls.resolve_path(f'{user}')
 
   
     @classmethod
@@ -1437,15 +1446,15 @@ class Subspace(c.Module):
         port = c.resolve_port(port)
         rpc_port = c.resolve_port(rpc_port)
         ws_port = c.resolve_port(ws_port)
-        
+        base_path = cls.resolve_chain_base_path(user=user)
         if purge_chain:
-            cls.purge_chain(chain=chain, user=user)
+            cls.purge_chain(base_path=base_path)
         
         chain = cls.resolve_chain_spec(chain)
 
         cmd = f'''
             {cls.chain_release_path} \
-            --base-path /tmp/{user} \
+            --base-path {base_path} \
             --chain {chain} \
             --{user} \
             --port {port} \
@@ -1551,15 +1560,15 @@ class Subspace(c.Module):
     @classmethod
     def sand(cls):
         self = cls()
-        key = c.module('subspace.key').create_from_uri('/Bob')
+        # namespace = self.query_map_subspace('Addresses', params=[0]).records
+        # addresses = self.query_map_subspace('Addresses', params=[0]).records
+        # c.print(self.query_map_subspace('Addresses', params=[0]).records)
+        c.print(self.get_balance('5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty').__dict__)
+
         
-        c.print(self.get_balance(key.ss58_address).joules)
-        c.print(self.uids)
-        
-    
-    @property
-    def uids(self):
-        return [v[1].value for v in self.query_map_subspace('Uids',None,  [0]).records]
+
+    def uids(self, netuid = 0):
+        return [v[1].value for v in self.query_map_subspace('Uids',None,  [netuid]).records]
 
   
 if __name__ == "__main__":

@@ -99,8 +99,7 @@ class c:
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
         # odd case where the module is a module in streamlit
-        if obj == None:
-            obj = cls
+        obj = cls.resolve_module(obj)
         module_path =  inspect.getfile(obj)
         # convert into simple
         if simple:
@@ -1883,6 +1882,7 @@ class c:
 
         peer_registry = cls.peer_registry(update=update)  
         
+        registered_peer_addresses = []
         for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
             
             if isinstance(peer_info, dict):
@@ -1890,7 +1890,9 @@ class c:
                 peer_namespace = peer_info.get('namespace', None)
                 if isinstance(peer_namespace, dict):
                     for name, address in peer_namespace.items():
-                        remote_namespace[name+seperator+peer_name] = address
+                        if  not address in registered_peer_addresses:
+                            remote_namespace[name+seperator+peer_name] = address
+                            registered_peer_addresses.append(peer_address)
                 else:
                     cls.print(f'Peer {peer_name} has no namespace', color='red')
         
@@ -2477,6 +2479,7 @@ class c:
         self.info()
     @classmethod
     def schema(cls, search = None, *args,  **kwargs):
+        
         return {k: v for k,v in cls.get_function_schema_map(*args,search=search,**kwargs).items()}
     @classmethod
     def get_function_schema_map(cls,
@@ -4166,7 +4169,6 @@ class c:
             
         return key
     
-    key = get_key
         
             
     @classmethod
@@ -4368,22 +4370,24 @@ class c:
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
     
-    @staticmethod
-    def is_key(key):
-        return hasattr(args[0], 'public_key') and hasattr(args[0], 'address')
     
-    def set_key(self, *args, **kwargs) -> None:
-        # set the key
-        if hasattr(args[0], 'public_key') and hasattr(args[0], 'address'):
-            # key is already a key object
-            self.key = args[0]
-            self.public_key = self.key.public_key
-            self.address = self.key.address
-        else:
-            # key is a string
-            self.key = self.get_key(*args, **kwargs)
-            self.public_key = self.key.public_key
-      
+    @classmethod  
+    def key_exists(cls, *args, **kwargs):
+        return c.module('key').key_exits(*args, **kwargs)
+    
+    
+    @classmethod
+    def set_key(self, key: str, tag=None) -> None:
+        self.module_path()
+        self.key = key
+    
+    @classmethod
+    def add_key(cls, *args, **kwargs):
+        return c.module('key').add_key( *args, **kwargs)
+    @classmethod
+    def rm_key(cls, *args, **kwargs):
+        return c.module('key').add_key( *args, **kwargs)
+    
     def set_network(self, network: str) -> None:
         self.network = network
         
@@ -5228,7 +5232,7 @@ class c:
         if module == None:
             module = cls
         if isinstance(module, str):
-            module = self.get_module(module)
+            module = c.module(module)
         
         return module
             
@@ -5304,7 +5308,26 @@ class c:
         link_cmd[new] = old 
         
         cls.put('link_cmd', link_cmd)
-        
+    
+    # @classmethod
+    # def remote(cls, name:str = None, remote :str = False,**remote_kwargs):
+    #     def decorator(fn):
+    #         if name is None:
+    #             name = fn.__name__
+    #         def inner_function(**kwargs):
+    #             remote = kwargs.pop('remote', remote)
+    #             if remote:
+    #                 kwargs['remote'] = False
+    #                 return cls.launch(fn=fn, kwargs=kwargs, name=name, **remote_kwargs)
+    #             else:
+    #                 return fn(**kwargs)
+                    
+    #         # Return the inner function (wrapper)
+    #         return inner_function
+    
+    #     # Return the decorator function
+    #     return decorator
+
 
     @classmethod
     def remote_fn(cls, 
@@ -5313,6 +5336,7 @@ class c:
                     args= None,
                     kwargs = None, 
                     tag = None,
+                    refresh =True,
                     tag_seperator= '::',
                     name=None):
         
@@ -5336,6 +5360,7 @@ class c:
         cls.launch(fn=fn, 
                    module = module,
                     kwargs=kwargs,
+                    refresh=refresh,
                     name=name)
 
     rfn = remote_fn

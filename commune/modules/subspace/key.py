@@ -226,7 +226,7 @@ class Keypair(c.Module):
         c.rm(key2path[key])
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
-        return {'message':'key deleted',  'keys':cls.keys()}
+        return {'message':'{key} deleted',  'keys':cls.keys()}
         
         
         

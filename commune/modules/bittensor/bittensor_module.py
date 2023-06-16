@@ -25,12 +25,12 @@ class BittensorModule(c.Module):
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
-                subtensor: Union[bittensor.subtensor, str] =default_network,
+                network: Union[bittensor.subtensor, str] =default_network,
                 netuid: int = default_netuid,
                 config = None,
                 ):
         self.set_config(config)
-        self.set_subtensor(subtensor=subtensor, netuid=netuid)
+        self.set_subtensor(network=network, netuid=netuid)
         self.set_wallet(wallet)
         
 
@@ -52,38 +52,28 @@ class BittensorModule(c.Module):
         return bool(':' in endpoint and cls.is_number(endpoint.split(':')[-1]))
       
     @classmethod
-    def get_subtensor(cls, subtensor:Union[str, bittensor.subtensor]='local') -> bittensor.subtensor:
+    def get_subtensor(cls, network:Union[str, bittensor.subtensor]='local') -> bittensor.subtensor:
         
-        if  subtensor == None:
-            subtensor = bittensor.subtensor()
-        elif isinstance(subtensor, str):
-            if cls.is_endpoint(subtensor):
-                subtensor = bittensor.subtensor(chain_endpoint=subtensor)
-            elif subtensor in cls.network2endpoint: 
-                endpoint = cls.network2endpoint[subtensor]
-                subtensor = bittensor.subtensor(chain_endpoint=endpoint)
-            else:
-                raise NotImplementedError(subtensor)
-            
-        elif isinstance(subtensor, type(None)):
-            subtensor = bittensor.subtensor()
-        elif isinstance(subtensor, bittensor.Subtensor):
-            subtensor = subtensor
-        else:
-            raise NotImplementedError(subtensor)
+        endpoint = cls.network2endpoint[network]
+        subtensor = bittensor.subtensor(chain_endpoint=endpoint)
+        
         return subtensor
     
     
-    
     @classmethod
-    def get_metagraph(cls,subtensor=None, 
+    def get_metagraph(cls,
+                      netuid = default_netuid, 
+                      network=default_network, 
+                      subtensor = None,
                       cache= True,
-                      netuid = None, 
                       sync:bool = True,
                       load:bool = True,
-                      save:bool = True,
+                      save:bool = False,
                       block:bool = None,):
-        subtensor = cls.get_subtensor(subtensor)
+        
+        if subtensor == None:
+            subtensor = cls.get_subtensor(network=network)
+            
         netuid = cls.get_netuid(netuid)
     
         try:
@@ -121,10 +111,12 @@ class BittensorModule(c.Module):
             
             
     
-    def set_subtensor(self, subtensor=None, netuid=None):
+    def set_subtensor(self, network:str=None, netuid:int=None):
          
-        self.subtensor = self.get_subtensor(subtensor)
+        self.subtensor = self.get_subtensor(network)
         self.metagraph = self.get_metagraph(subtensor=self.subtensor, netuid=netuid)
+
+            
         
         return self.subtensor
         
@@ -156,7 +148,7 @@ class BittensorModule(c.Module):
         return wallet 
     def resolve_subtensor(self, subtensor: 'Subtensor' = None) -> 'Subtensor':
         if isinstance(subtensor, str):
-            subtensor = self.get_subtensor(subtensor)
+            subtensor = self.get_subtensor(network=subtensor)
         if subtensor is None:
             subtensor = self.subtensor
         return subtensor
@@ -476,7 +468,15 @@ class BittensorModule(c.Module):
     @classmethod
     def hotkeys(cls, coldkey=default_coldkey):
         hotkeys =   [os.path.basename(p) for p in cls.ls(os.path.join(cls.wallets_path, coldkey, 'hotkeys'))]
-        hotkeys = sorted(hotkeys)
+        
+        
+        if all([c.is_number(hk) for hk in hotkeys]):
+            hotkeys = [int(hk) for hk in hotkeys]
+            hotkeys = sorted(hotkeys)
+            hotkeys = [str(hk) for hk in hotkeys]
+        else:
+            hotkeys = sorted(hotkeys)
+
         return hotkeys
         
     @classmethod
@@ -909,7 +909,11 @@ class BittensorModule(c.Module):
       
       
     @classmethod
-    def add_hotkeys(cls, hotkeys:list = list(range(8)), coldkey=default_coldkey, **kwargs):
+    def add_hotkeys(cls, coldkey=default_coldkey,hotkeys:list = 10,  **kwargs):
+        if isinstance(hotkeys, int):
+            hotkeys =  list(range(hotkeys))
+        assert isinstance(hotkeys, list), f'hotkeys must be a list or int, got {type(hotkeys)}'
+        
         for hk in hotkeys:
             cls.add_hotkey(coldkey=coldkey, hotkey=hk, **kwargs)  
         
@@ -1375,6 +1379,12 @@ class BittensorModule(c.Module):
 
 
 
+    @classmethod
+    def get_miner_name(cls, wallet:str, network:str, netuid:int) -> str:
+        network = cls.resolve_network(network)
+        name = f'miner::{wallet}::{network}::{netuid}'
+
+        return name
 
     @classmethod
     def mine(cls, 
@@ -1382,31 +1392,32 @@ class BittensorModule(c.Module):
                network =default_network,
                netuid=default_netuid,
                port = None,
-               prometheus_port = None,
-                device = None,
+               prometheus_port:int = None,
+                device:int = None,
                debug = True,
                no_set_weights = True,
                remote:bool = True,
-               sleep_interval = 2,
-               autocast = True,
-               burned_register = False,
+               sleep_interval:int = 2,
+               autocast:bool = True,
+               burned_register:bool = False,
                logging:bool = True,
-               max_fee = 2.0,
+               max_fee:int = 2.0,
+               refresh=True,
+               miner_name:str = None,
                refresh_ports = False
                ):
         kwargs = cls.locals2kwargs(locals())
-
         # resolve the name of the remote function
         if remote:
+            if miner_name == None:
+                miner_name = cls.get_miner_name(wallet=wallet, 
+                                                      network=network,
+                                                      netuid=netuid)
             kwargs['remote'] = False
-            if network in ['local', 'finney']:
-                name = f'miner::{wallet}::finney::{netuid}'
-            else:
-                name = f'miner::{wallet}::{network}::{netuid}'
-            return cls.remote_fn(fn='mine',name=name,  kwargs=kwargs)
+            return cls.remote_fn(fn='mine',name=miner_name,  kwargs=kwargs, refresh=refresh)
             
-
-        config = cls.neuron_class(netuid=netuid).config()
+        neuron_class = cls.neuron_class(netuid=netuid)
+        config = neuron_class.config()
         config.merge(bittensor.BaseMinerNeuron.config())
         # model things
         config.neuron.no_set_weights = no_set_weights
@@ -1428,7 +1439,6 @@ class BittensorModule(c.Module):
             neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
             if not refresh_ports:
                 port = neuron.axon_info.port
-                prometheus_port = neuron.prometheus_info.port
         else:
             cls.ensure_registration(wallet=wallet, 
                                     subtensor=subtensor, 
@@ -1437,9 +1447,8 @@ class BittensorModule(c.Module):
                                     burned_register=burned_register, 
                                     sleep_interval=sleep_interval,
                                     display_kwargs=kwargs)
-                        
+        config.logging.debug = debug       
         config.axon.port = cls.resolve_port(port)
-        config.prometheus.port = cls.resolve_port(prometheus_port, avoid_ports=[config.axon.port])
         neuron_class(config=config).run()
 
     @classmethod
@@ -1535,23 +1544,24 @@ class BittensorModule(c.Module):
         for w in cls.unreged():
             cls.burned_register(w, **kwargs)
         
-        
+    @classmethod
+    def miner_exists(wallet:str, network:str, netuid:int):
+        miner_name = cls.get_miner_name(wallet=wallet, network=network, netuid=netuid)
+        return miner_name in miners
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
-                    hotkeys = None,
-                    remote=True,
                     netuid= default_netuid,
                     network=default_network,
                     model_name = default_model_name,
-                    refresh: bool = True,
+                    refresh: bool = False,
                     burned_register=False, 
                     ensure_registration=False,
                     device = 'cpu',
-                    n = None,
-                    unreged = False,
-                    ensure_gpus = False,
-                    max_fee=1.1): 
+                    max_fee=1.1,
+                    hotkeys = None,
+                    n = 20,
+                    remote=True): 
     
         
         # address = cls.address(name)
@@ -1560,32 +1570,14 @@ class BittensorModule(c.Module):
         else:
             wallets  = [f'{name}.{h}' for h in hotkeys]
             
-            
-        
-            
-        n = n if n != None else len(wallets)
-        assert isinstance(n,int) and n > 0 and n <= len(wallets)
-        
-        gpus = cls.gpus()
+                
         subtensor = cls.get_subtensor(network)
-        
-        
-        if unreged:
-            unreged_wallets = cls.unregistered_wallets(subtensor=subtensor, netuid=netuid)
-            wallets = [w for w in wallets if w in unreged_wallets]
-        
-        if ensure_gpus:
-            model_size = cls.get_model_size(model_name)
-            free_gpu_memory = cls.free_gpu_memory()
-            
+
         avoid_ports = []
         miners = cls.miners(netuid=netuid)
-        deloyed_miners = 0
-        for i, wallet in enumerate(wallets):
         
-            tag = f'{wallet}::{subtensor.network}::{netuid}'
-            miner_name = f'miner::{tag}'
-            
+        for i, wallet in enumerate(wallets):
+            miner_name = cls.get_miner_name(wallet=wallet, network=network, netuid=netuid)
             if miner_name in miners and not refresh:
                 cls.print(f'{miner_name} is already running. Skipping ...')
                 continue
@@ -1615,23 +1607,16 @@ class BittensorModule(c.Module):
             avoid_ports += [axon_port, prometheus_port]
             avoid_ports = list(set(avoid_ports)) # avoid duplicates, though htat shouldnt matter
                 
-            if ensure_gpus:
-                device = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-                free_gpu_memory[device] -= model_size
-                assert free_gpu_memory[device] > 0, f'Not enough memory on device {device} to load model {model_name} of size {model_size}'
-                assert device < len(gpus), f'Not enough GPUs. Only {len(gpus)} available.'
-            
-            
-            
 
             cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
             cls.mine(wallet=wallet,
                         remote=remote, 
-                        tag=tag, 
                         netuid=netuid,
                         device=device, 
+                        refresh=refresh,
                         port=axon_port,
                         network=network,
+                        miner_name = miner_name,
                         prometheus_port = prometheus_port,
                         burned_register=burned_register,
                         max_fee=max_fee)
@@ -1642,8 +1627,15 @@ class BittensorModule(c.Module):
                 break
         
     @classmethod
-    def miners(cls, *args, **kwargs):
-        return list(cls.wallet2miner(*args, **kwargs).keys())
+    def miners(cls,
+                wallet:str=None,
+                unreged:bool=False, 
+                reged:bool=False,
+                netuid:int=default_netuid,
+                network:str =default_network,
+                prefix:str='miner'):
+        kwargs =  c.locals2kwargs(locals())
+        return list(cls.wallet2miner( **kwargs).keys())
     
     @classmethod
     def validators(cls, *args, **kwargs):
@@ -1657,9 +1649,10 @@ class BittensorModule(c.Module):
                          wallet=None,
                          unreged=False, 
                          reged=False,
-                         netuid=None,
+                         netuid=default_netuid,
                          network =default_network,
                          prefix='validator'):
+        network = cls.resolve_network(network)
         wallet2miner = {}
         if unreged:
             filter_wallets = cls.unreged()
@@ -1681,32 +1674,48 @@ class BittensorModule(c.Module):
             return wallet2miner[wallet]
         return wallet2miner
      
+     
     @classmethod
-    def wallet2miner(cls, wallet=None, unreged=False, reged=False, prefix='miner', netuid=None):
+    def resolve_network(cls, network):
+        if network in ['local']:
+            network = 'finney'
+        return network
+    
+    @classmethod
+    def wallet2miner(cls, 
+                         wallet=None,
+                         unreged=False, 
+                         reged=False,
+                         netuid=default_netuid,
+                         network =default_network,
+                         prefix='miner'):
         wallet2miner = {}
+        network = cls.resolve_network(network)
         if unreged:
-            filter_wallets = cls.unreged(netuid=netuid)
+            filter_wallets = cls.unreged()
         elif reged:
-            filter_wallets = cls.reged(netuid=netuid)
+            filter_wallets = cls.reged()
         else:
             filter_wallets = []
             
             
         for m in cls.pm2_list(prefix):
-            miner_netuid = m.split('::')[-1]
-            if netuid != None and miner_netuid != str(netuid):
-                continue
+            
             wallet_name = m.split('::')[1]
-            if m.split('::')[0] != prefix:
+            network_name = m.split('::')[2]
+            if netuid != None and m.split('::')[-1] != str(netuid):
                 continue
             if len(filter_wallets) > 0 and wallet_name not in filter_wallets:
+                continue
+            if network != None and network != network_name:
                 continue
             wallet2miner[wallet_name] = m
             
         if wallet in wallet2miner:
             return wallet2miner[wallet]
         return wallet2miner
-          
+     
+  
     w2m = wallet2miner
     @classmethod
     def get_miner(cls, wallet):
@@ -2079,6 +2088,23 @@ class BittensorModule(c.Module):
         'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
         
             }
+    
+    
+    chain_repo = f'{c.repo_path}/subtensor'
+
+    @classmethod
+    def start_node(cls, mode='docker'):
+        if mode == 'docker':
+            return cls.cmd('docker-compose up -d', cwd=cls.chain_repo, verbose=True)
+        else:
+            raise NotImplementedError('Only docker mode is supported at this time.')
+    
+    @classmethod
+    def node_logs(cls, mode='docker'):
+        if mode == 'docker':
+            return cls.cmd('docker ps', cwd=cls.chain_repo, verbose=True)
+        else:
+            raise NotImplementedError('Only docker mode is supported at this time.')
     
 
 
