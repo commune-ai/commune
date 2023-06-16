@@ -1487,6 +1487,16 @@ class Subspace(c.Module):
             
         cls.cmd(cmd, color='green',verbose=True)
        
+    @classmethod
+    def release_exists(cls):
+        return c.exists(cls.chain_release_path)
+       
+    @classmethod
+    def start_chain(cls, users = ['alice','bob'] ):
+        if not cls.release_exists():
+            cls.build()
+        for user in users:
+            cls.start_node(user=user)
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
