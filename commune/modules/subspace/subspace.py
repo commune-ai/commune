@@ -43,6 +43,13 @@ class Subspace(c.Module):
         'testnet': '127.0.0.1:9946',
         }
     
+    chain = 'subspace'
+    chain_path = f'{c.repo_path}/{chain}'
+    chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
+    spec_path = f'{chain_path}/specs'
+    key_types = ['aura', 'gran']
+    supported_schemas = ['Sr25519', 'Ed25519']
+    
     def __init__( 
         self, 
         subspace: str = 'testnet',
@@ -1284,12 +1291,6 @@ class Subspace(c.Module):
         c.print(self.get_balance(key2.ss58_address))
         
         # c.print(self.query_map_subspace('SubnetNamespace', params=[]).records)
-    chain = 'subspace'
-    chain_path = f'{c.repo_path}/{chain}'
-    chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
-    spec_path = f'{chain_path}/specs'
-    key_types = ['aura', 'gran']
-    supported_schemas = ['Sr25519', 'Ed25519']
     
 
     chains = ['dev', 'test', 'main']
@@ -1437,11 +1438,14 @@ class Subspace(c.Module):
                  ws_port:int=9945,
                  user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
-                 remote = False,
                  validator = True,          
                  boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
-                 purge_chain:bool = True
+                 purge_chain:bool = True,
+                 remote:bool = False,
+                 
                  ):
+
+
         
         port = c.resolve_port(port)
         rpc_port = c.resolve_port(rpc_port)
@@ -1450,12 +1454,12 @@ class Subspace(c.Module):
         if purge_chain:
             cls.purge_chain(base_path=base_path)
         
-        chain = cls.resolve_chain_spec(chain)
+        chain_spec = cls.resolve_chain_spec(chain)
 
-        cmd = f'''
-            {cls.chain_release_path} \
+        cmd = cls.chain_release_path
+        cmd_kwargs = f'''
             --base-path {base_path} \
-            --chain {chain} \
+            --chain {chain_spec} \
             --{user} \
             --port {port} \
             --ws-port {ws_port} \
@@ -1468,13 +1472,19 @@ class Subspace(c.Module):
         if boot_nodes != None:
             cmd += f' --bootnodes {boot_nodes}'
 
-
-        return cls.cmd(cmd, verbose=True, cwd=cls.chain_path)
+        
+        if remote:
+            node_module_name = f'{cls.module_path()}.node::{chain}::{user}'
+            cmd = f'pm2 start {cls.chain_release_path} --name {node_module_name} -f -- {cmd_kwargs}'
+        else:
+            cmd = f'{cmd} {cmd_kwargs}'
+            
+        cls.cmd(cmd, color='green',verbose=True)
        
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
-        return c.module('subspace.key').gen(*args, **kwargs)
+        return c.module('key').gen(*args, **kwargs)
         
     
     
@@ -1552,10 +1562,7 @@ class Subspace(c.Module):
         cls.cmd('chmod +x ./scripts/*', cwd=f'{cls.repo_path}/subtensor', verbose=True)
         cls.cmd('./scripts/', cwd=f'{cls.repo_path}/subtensor', verbose=True)
     
-    @classmethod
-    def build_node(cls):
-        return cls.cmd('sudo docker-compose build', cwd=f'{cls.repo_path}/subtensor', verbose=True)
-    
+
     
     @classmethod
     def sand(cls):
