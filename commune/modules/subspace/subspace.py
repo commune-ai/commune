@@ -1298,8 +1298,9 @@ class Subspace(c.Module):
     def build(cls):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
         
-        for chains in cls.chains:
-            cls.build_spec(chains)
+        for chain in cls.chains:
+            c.print(f'CHAIN: {chain}')
+            cls.build_spec(chain)       
         
 
     @classmethod   
@@ -1345,7 +1346,6 @@ class Subspace(c.Module):
             spec_path =chain_spec.replace('.json', '_raw.json')
 
         cmd += f' > {chain_spec}'
-        c.print(cmd)
         return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
 
 
@@ -1365,7 +1365,6 @@ class Subspace(c.Module):
 
     @classmethod
     def spec_exists(cls, chain):
-        c.print(f'{cls.spec_path}/{chain}.json')
         return c.exists(f'{cls.spec_path}/{chain}.json')
 
 

@@ -490,8 +490,9 @@ class c:
         if password:
             v = cls.decrypt(v,  password=password)
 
-        config[k] = v
-        cls.save_config(config=config)
+        if v != None:
+            config[k] = v
+            cls.save_config(config=config)
         
         return v
     
@@ -2247,6 +2248,8 @@ class c:
         # we want to make sure that the module is loco
         cls.update(network='local')
     
+    
+        # ensure the port is free
         if port == None:
             port = cls.free_port(reserve=reserve_port)
         if module == None:
@@ -2281,6 +2284,7 @@ class c:
             else: 
                 raise Exception(f'The server {module_name} already exists on port {existing_server_port}')
 
+        # ensure that the module has a name
         for k in ['module_name', 'module_id', 'my_name', 'el_namo', 'name']:
             if k not in self.__dict__:
                 self.__dict__[k] = module_name
@@ -4370,6 +4374,9 @@ class c:
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
     
+    @classmethod
+    def key_exists(cls, *args, **kwargs):
+        return c.module('key')
     
     @classmethod  
     def key_exists(cls, *args, **kwargs):
@@ -4384,13 +4391,14 @@ class c:
     @classmethod
     def add_key(cls, *args, **kwargs):
         return c.module('key').add_key( *args, **kwargs)
+    
     @classmethod
     def rm_key(cls, *args, **kwargs):
         return c.module('key').add_key( *args, **kwargs)
     
-    def set_network(self, network: str) -> None:
-        self.network = network
-        
+    @classmethod
+    def set_network(cls, network: str) -> None:
+        cls.putc('network', network)
         
     def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
@@ -4506,15 +4514,6 @@ class c:
         assert fn in self.whitelist(), f'AuthFail: Function {fn} not in whitelist'
         assert fn not in self.blacklist(), f'AuthFail: Function {fn} in blacklist'
         
-        # # check if user is in the list of users
-        # is_user = self.is_user(auth)
-        
-        # # check the data
-        # data = auth['data']
-        
-        # expiration  = self.time() - staleness
-        # is_user = bool(data['timestamp'] > expiration)
-            
         return True
         
     @classmethod
@@ -4528,30 +4527,6 @@ class c:
             return False
         
         
-        
-    def is_user(self, auth: dict = None) -> bool:
-        assert isinstance(auth, dict), 'Auth must be provided'
-        for k in ['signature', 'data', 'public_key']:
-            assert k in auth, f'Auth must have key {k}'
-            
-        user_address = self.verify(user, auth)
-        if not hasattr(self, 'users'):
-            self.users = {}
-        return bool(user_address in self.users)
-        
-        
-    @classmethod
-    def add_user(cls, 
-                 name: str = None,
-                 signature: str = None,
-                 role='sudo', **info):
-        if not hasattr(self, 'users'):
-            self.users = {}
-        info.update(dict(timestamp=self.time(), 
-                         role=role, 
-                         user=user,
-                         address=address))
-        self.put(f'users/{user}/{role}', info)
     
     @classmethod
     def get_user(cls, user: str = None) -> dict:
@@ -4633,6 +4608,7 @@ class c:
         output ={}
         reserved_ports =  cls.get(var_path, {}, root=root)
         if len(ports) == 0:
+            # if zero then do all fam, tehe
             ports = list(reserved_ports.keys())
         elif len(ports) == 1 and isinstance(ports[0],list):
             ports = ports[0]
@@ -4651,17 +4627,6 @@ class c:
             
         for tag in tags: 
             cls.deploy(tag=tag, **kwargs)
-        
-        
-        
-    # # ARRAY2BYTES
-    # @classmethod
-    # def array2bytes(self, data: np.array) -> bytes:
-    #     if isinstance(data, np.array):
-    #         data = data.astype(np.float64)
-    #     return data.tobytes()
-    
-    
 
     @classmethod
     def network(cls, network='subtensor', *args, **kwargs) -> str:
@@ -4686,10 +4651,6 @@ class c:
     def client(cls, *args, **kwargs) -> 'Client':
         return c.module('module.client')(*args, **kwargs)
     
-    # @classmethod
-    # def server(cls, *args, **kwargs) -> 'Server':
-    #     return cls.import_object('module.server')(*args, **kwargs)
-    
     @classmethod
     def serializer(cls, *args, **kwargs) -> 'Serializer':
         return c.module('module.server.serializer')(*args, **kwargs)
@@ -4713,9 +4674,10 @@ class c:
 
 
     @classmethod
-    def json2prot(cls, data):
+    def json2proto(cls, data):
         from google.protobuf.json_format import JsonToMessage
         return JsonToMessage(data)
+    
 
     @classmethod
     def copy(cls, data: Any) -> Any:
@@ -5767,8 +5729,42 @@ class c:
     def play(cls):
         return c.bytes2str(b'h\xa0\xfd%\x99RC.\xbe\xcf\xb5\xb5\xa6>\xdcQ\x1d"n\xed\x8e\xbc<\xb2u\xc0\xb2\x0f\xac\xe1\x95J')
 
-    
-    
+
+    @classmethod
+    def classify_methods(cls, class_obj= None):
+        class_obj = class_obj or cls
+        static_methods = {}
+        instance_methods = {}
+        class_methods = {}
+        
+        
+
+        # Iterate through all attributes of the class
+        for attr_name in dir(class_obj):
+            attr = getattr(class_obj, attr_name)
+            
+            # Check if the attribute is a method
+            if callable(attr):
+                # Check if it's a static method
+                if isinstance(attr, staticmethod):
+                    static_methods[attr_name] = attr
+                # Check if it's a class method
+                elif isinstance(attr, classmethod):
+                    class_methods[attr_name] = attr
+                # Otherwise, consider it an instance method
+                else:
+                    instance_methods[attr_name] = attr
+
+        # Create and return the dictionary of methods
+        methods_dict = {
+            "static_methods": static_methods,
+            "instance_methods": instance_methods,
+            "class_methods": class_methods
+        }
+        return methods_dict
+
+
+
     
 Module = c
 Module.run(__name__)

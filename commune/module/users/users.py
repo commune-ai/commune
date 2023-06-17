@@ -4,7 +4,6 @@ from typing import Dict , Any, List
 import streamlit as st
 import json
 class Users(c.Module):
-    
     default_role = 'homie'
     default_network = 'commune'
     
