@@ -1258,9 +1258,9 @@ class Subspace(c.Module):
         return namespace
     
     @classmethod
-    def query(cls, *args, params=[default_netuid],  **kwargs):
+    def query(cls, name,  *params,  block=None):
         self = cls()
-        return self.query_map_subspace(*args,params=params, **kwargs).records
+        return self.query_map_subspace(name=name,params=list(params),block=block).records
 
     @classmethod
     def test(cls):
@@ -1300,12 +1300,14 @@ class Subspace(c.Module):
 
     chains = ['dev', 'test', 'main']
     @classmethod
-    def build(cls):
+    def build(cls, restart_chain=True, chain:str = 'dev'):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
         
         for chain in cls.chains:
             c.print(f'CHAIN: {chain}')
-            cls.build_spec(chain)       
+            cls.build_spec(chain)   
+        if restart_chain:
+            cls.restart_chain(chain=chain)    
         
 
     @classmethod   
@@ -1452,6 +1454,7 @@ class Subspace(c.Module):
                  boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
                  purge_chain:bool = True,
                  remote:bool = True,
+                 refresh:bool = True
                  
                  ):
 
@@ -1484,12 +1487,12 @@ class Subspace(c.Module):
 
         
         if remote:
-            node_module_name = f'{cls.node_prefix()}::{chain}::{user}'
-            cmd = f'pm2 start {cls.chain_release_path} --name {node_module_name} -f -- {cmd_kwargs}'
+            cmd = c.pm2_start(path=cls.chain_release_path, 
+                              name=f'{cls.node_prefix()}::{chain}::{user}',
+                              cmd_kwargs=cmd_kwargs,
+                              refresh=refresh)
         else:
-            cmd = f'{cmd} {cmd_kwargs}'
-            
-        cls.cmd(cmd, color='green',verbose=True)
+            cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=True)
        
     @classmethod
     def release_exists(cls):
