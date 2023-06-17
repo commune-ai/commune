@@ -167,7 +167,7 @@ class Users(c.Module):
                 seed = f'{password}'
                 self.button['sign_in'] = st.form_submit_button(label='sign in')
                 if self.button['sign_in']:
-                    c.add_key(path=username,seed=seed)
+                    c.add_key(path=username,suri=seed)
                     self.key = c.get_key(username)
                     st.write(self.key.ss58_address)
                     response = self.add_user(ss58_address=self.key.ss58_address, name=username, role='admin')
@@ -260,6 +260,6 @@ class Users(c.Module):
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
-    Users.st()
+    Users.run()
     
     
