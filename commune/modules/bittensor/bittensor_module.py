@@ -1443,7 +1443,7 @@ class BittensorModule(c.Module):
                netuid=default_netuid,
                port = None,
                prometheus_port:int = None,
-                device:int = None,
+               device:int = None,
                debug = True,
                no_set_weights = True,
                remote:bool = True,
@@ -1456,6 +1456,8 @@ class BittensorModule(c.Module):
                miner_name:str = None,
                refresh_ports = False
                ):
+        
+        
         kwargs = cls.locals2kwargs(locals())
         # resolve the name of the remote function
         if remote:
@@ -1463,12 +1465,15 @@ class BittensorModule(c.Module):
                 miner_name = cls.get_miner_name(wallet=wallet, 
                                                       network=network,
                                                       netuid=netuid)
+            o
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=miner_name,  kwargs=kwargs, refresh=refresh)
+
             
         neuron_class = cls.neuron_class(netuid=netuid)
         config = neuron_class.config()
         config.merge(bittensor.BaseMinerNeuron.config())
+
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
@@ -1482,13 +1487,14 @@ class BittensorModule(c.Module):
         coldkey, hotkey = wallet.split('.')
         config.wallet.name = coldkey
         config.wallet.hotkey = hotkey
-        wallet = bittensor.wallet(name=coldkey, hotkey=hotkey, config=config)
+        wallet = bittensor.wallet(config=config)
         
         if wallet.is_registered(subtensor=subtensor, netuid=netuid):
             cls.print(f'wallet {wallet} is already registered')
             neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
             if not refresh_ports:
                 port = neuron.axon_info.port
+            config.wallet.reregister = False
         else:
             cls.ensure_registration(wallet=wallet, 
                                     subtensor=subtensor, 
@@ -1498,7 +1504,10 @@ class BittensorModule(c.Module):
                                     sleep_interval=sleep_interval,
                                     display_kwargs=kwargs)
         config.logging.debug = debug       
+        
+   
         config.axon.port = cls.resolve_port(port)
+        c.print(config)
         neuron_class(config=config).run()
 
     @classmethod
@@ -1970,19 +1979,18 @@ class BittensorModule(c.Module):
         cls.unstake2pool() # unstake2pool job
     @classmethod
     def mems(cls,
-                     coldkey=default_coldkey, 
-                     unreged = False,
-                     path = None,
-                     hotkeys= None,
-                     miners_only = False,
-                     netuid=default_netuid):
+                     coldkey:str=default_coldkey, 
+                     unreged:bool = False,
+                     miners_only:bool = False,
+                     path:str = None,
+                     network:str = default_network,
+                     netuid:int=default_netuid):
         coldkeypub = True # prevents seeing the private key of the coldkey
-        
-        if hotkeys == None:
-            if unreged:
-                hotkeys = cls.unregistered_hotkeys(coldkey, netuid=netuid) 
-            else:
-                hotkeys =  cls.hotkeys(coldkey)
+
+        if unreged:
+            hotkeys = cls.unregistered_hotkeys(coldkey, netuid=netuid) 
+        else:
+            hotkeys =  cls.hotkeys(coldkey)
         
         wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
         
@@ -1994,13 +2002,12 @@ class BittensorModule(c.Module):
             coldkey_json = cls.coldkey_json(coldkey)
             
         
-        if coldkeypub:
-            coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
-        else:
-            coldkey_info = [f"btcli regen_coldkey --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey} --mnemonic {coldkey_json['secretPhrase']}"]
+        c.print(coldkey_json)
+        coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
+
             
         if miners_only:
-            miners = cls.miners(netuid=netuid)
+            miners = cls.miners(netuid=netuid, network=network)
             
         template = 'btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
         for hk, hk_mnemonic in hotkey_map.items():
