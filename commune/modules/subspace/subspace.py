@@ -39,11 +39,12 @@ class Subspace(c.Module):
     token_decimals = 9
     retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
     network2url_map = {
-        'local': '127.0.0.1:9946',
-        'testnet': '127.0.0.1:9946',
+        'local': '127.0.0.1:9945',
+        'testnet': '127.0.0.1:9945',
         }
     
     chain = 'subspace'
+    default_netuid = 1
     chain_path = f'{c.repo_path}/{chain}'
     chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
     spec_path = f'{chain_path}/specs'
@@ -776,7 +777,7 @@ class Subspace(c.Module):
         return make_substrate_call_with_retry()
 
     """ Queries subspace map storage with params and block. """
-    def query_map_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [] ) -> Optional[object]:
+    def query_map_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [default_netuid] ) -> Optional[object]:
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
@@ -1255,18 +1256,22 @@ class Subspace(c.Module):
             namespace[module_name] = moduke_info
         
         return namespace
+    
+    @classmethod
+    def query(cls, *args, params=[default_netuid],  **kwargs):
+        self = cls()
+        return self.query_map_subspace(*args,params=params, **kwargs).records
 
     @classmethod
     def test(cls):
         subspace = cls()
-        # print(subspace.query_map_subspace('Modules', params=[0]).records)
-        # keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
-        # for idx, (username, key) in enumerate(keys.items()):
-        #     port  = c.free_port()
-        #     address = f'{c.external_ip()}:{port}'
-        #     c.print(key)
-        #     subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
-        # c.print(subspace.query_map_subspace('Addresses', params=[0]).records)
+        keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
+        for idx, (username, key) in enumerate(keys.items()):
+            port  = c.free_port()
+            address = f'{c.external_ip()}:{port}'
+            c.print(key)
+            subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
+        c.print(subspace.query_map_subspace('SubnetNamespace', params=[]).records)
         c.print(subspace.uids())
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])

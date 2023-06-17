@@ -167,9 +167,9 @@ class Keypair(c.Module):
         if cls.key_exists(path) and not refresh :
             c.print({'status': 'error', 'message': f'key already exists at {path}'}, color='red')
             return None
-        key_json = cls.gen(**kwargs)
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
+        key_json = cls.gen(**kwargs)
         
         cls.put(path, key_json)
         
@@ -246,14 +246,31 @@ class Keypair(c.Module):
         return crypto_type
     
     @classmethod
-    def gen(cls,  
-            crypto_type: Union[int,str] = 'SR25519',  **kwargs):
+    def gen(cls,
+            suri:str = None, 
+            mnemonic:str = None, 
+            private_key:str = None,
+            crypto_type: Union[int,str] = 'SR25519', 
+            return_json: bool = False,
+            **kwargs):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
-        crypto_type = cls.resolve_crypto_type(crypto_type)
-        mnemonic = cls.generate_mnemonic()
-        return cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs).to_json()
+        if suri:
+            key =  cls.create_from_uri(suri, **kwargs)
+        elif mnemonic:
+            key = cls.create_from_mnemonic(mnemonic, **kwargs)
+        elif private_key:
+            key = cls.create_from_private_key(private_key, **kwargs)
+        else:
+            crypto_type = cls.resolve_crypto_type(crypto_type)
+            mnemonic = cls.generate_mnemonic()
+            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
+        
+        if return_json:
+            return key.to_json()
+        
+        return key
 
     
     
@@ -581,7 +598,7 @@ class Keypair(c.Module):
 
         return json_data
 
-    def sign(self, data: Union[ScaleBytes, bytes, str]) -> bytes:
+    def sign(self, data: Union[ScaleBytes, bytes, str], return_json:bool=False) -> bytes:
         """
         Creates a signature for given data
 
@@ -615,10 +632,18 @@ class Keypair(c.Module):
 
         else:
             raise ConfigurationError("Crypto type not supported")
+        
+        if return_json:
+            return {
+                'data': data.decode(),
+                'crypto': self.crypto_type,
+                'signature': signature.hex()
+            }
 
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str]) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str], public_key:Optional[str]= None) -> bool:
+        
         """
         Verifies data with specified signature
 
@@ -626,11 +651,14 @@ class Keypair(c.Module):
         ----------
         data: data to be verified in `Scalebytes`, bytes or hex string format
         signature: signature in bytes or hex string format
+        public_key: public key in bytes or hex string format
 
         Returns
         -------
         True if data is signed with this Keypair, otherwise False
         """
+        if public_key == None:
+            public_key = self.public_key
 
         if type(data) is ScaleBytes:
             data = bytes(data.data)
@@ -654,12 +682,12 @@ class Keypair(c.Module):
         else:
             raise ConfigurationError("Crypto type not supported")
 
-        verified = crypto_verify_fn(signature, data, self.public_key)
+        verified = crypto_verify_fn(signature, data, public_key)
 
         if not verified:
             # Another attempt with the data wrapped, as discussed in https://github.com/polkadot-js/extension/pull/743
             # Note: As Python apps are trusted sources on its own, no need to wrap data when signing from this lib
-            verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', self.public_key)
+            verified = crypto_verify_fn(signature, b'<Bytes>' + data + b'</Bytes>', public_key)
 
         return verified
 
@@ -752,6 +780,14 @@ class Keypair(c.Module):
     def sandbox(cls ):
         key = cls.create_from_uri('//Alice')
         c.print(c.module('bittensor').get_balance(key.ss58_address))
+        
+    @classmethod
+    def test(cls):
+        key = cls.gen('test')
+        sig = key.sign('test')
+        assert key.verify('test',sig, bytes.fromhex(key.public_key.hex()))
+        assert key.verify('test',sig, key.public_key)
+        
     def __repr__(self):
         if self.ss58_address:
             return '<Keypair (address={})>'.format(self.ss58_address)

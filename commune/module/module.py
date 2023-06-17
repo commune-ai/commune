@@ -5721,15 +5721,14 @@ class c:
         return code_dict
     
     @classmethod
-    def pool(cls):
-        return 
-    
-    
+    def pool(cls , n=5):
+        for i in range(n):
+            cls.deploy(tag=str(i))
+        
     @classmethod
     def play(cls):
         return c.bytes2str(b'h\xa0\xfd%\x99RC.\xbe\xcf\xb5\xb5\xa6>\xdcQ\x1d"n\xed\x8e\xbc<\xb2u\xc0\xb2\x0f\xac\xe1\x95J')
-
-
+    
     @classmethod
     def classify_methods(cls, class_obj= None):
         class_obj = class_obj or cls
@@ -5764,6 +5763,9 @@ class c:
         return methods_dict
 
 
+    @classmethod
+    def build(cls, network='subspace'): 
+        return c.module(network).build()
 
     
 Module = c
