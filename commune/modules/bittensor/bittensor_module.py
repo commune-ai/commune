@@ -21,7 +21,53 @@ class BittensorModule(c.Module):
     default_netuid = default_config['netuid']
     network2endpoint = default_config['network2endpoint'] 
     default_pool_address = default_config['pool_address']
-    
+    chain_repo = f'{c.repo_path}/subtensor'
+    shortcuts =  {
+        # 0-1B models
+        'gpt125m': 'EleutherAI/gpt-neo-125m',
+
+        # 1-3B models
+        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
+        'gpt3b': 'EleutherAI/gpt-neo-2.7B',
+        'opt1.3b': 'facebook/opt-1.3b',
+        'opt2.7b': 'facebook/opt-2.7b',
+        # 'gpt3btuning' : ''
+
+        # 0-7B models
+        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
+        'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
+        'gptj': 'EleutherAI/gpt-j-6b',
+        'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
+        'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
+        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
+        'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
+        'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
+        'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
+        'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
+        'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
+        'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
+        'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
+        'opt6.7b': 'facebook/opt-6.7b',
+        'llama': 'decapoda-research/llama-7b-hf',
+        'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
+        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
+        'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
+        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
+        'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
+        # # > 7B models
+        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
+        'gptneox': 'EleutherAI/gpt-neox-20b',
+        'gpt20b': 'EleutherAI/gpt-neox-20b',
+        'opt13b': 'facebook/opt-13b',
+        'gpt13b': 'cerebras/Cerebras-GPT-13B',
+        'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
+        'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
+        'fish': os.path.expanduser('~/fish_model'),
+        'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
+        
+            }
+
+
     def __init__(self,
 
                 wallet:Union[bittensor.wallet, str] = None,
@@ -330,14 +376,15 @@ class BittensorModule(c.Module):
         return wallet_list
     
     @classmethod
-    def wallets(cls, search = None, registered=False, subtensor=default_network, netuid:int=None):
+    def wallets(cls, search = None, registered=False, subtensor=default_network, netuid:int=default_netuid):
         wallets = []
         if registered:
             subtensor = cls.get_subtensor(subtensor)
             netuid = cls.get_netuid(netuid)
-        for c in cls.coldkeys():
-            for h in cls.hotkeys(c):
-                wallet = f'{c}.{h}'
+            
+        for ck in cls.coldkeys():
+            for hk in cls.hotkeys(ck):
+                wallet = f'{ck}.{hk}'
                 if registered:
                     if not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
                         continue
@@ -528,7 +575,7 @@ class BittensorModule(c.Module):
     def network(self):
         return self.subtensor.network
     @classmethod
-    def is_registered(cls, wallet = None, netuid: int = None, subtensor: 'Subtensor' = None):
+    def is_registered(cls, wallet = None, netuid: int = default_netuid, subtensor: 'Subtensor' = default_network):
         netuid = cls.get_netuid(netuid)
         wallet = cls.get_wallet(wallet)
         subtensor = cls.get_subtensor(subtensor)
@@ -1736,9 +1783,6 @@ class BittensorModule(c.Module):
                 c.kill(w2m[w])
             else:
                 cls.print(f'Miner {w} not found.')
-    # @classmethod
-    # def kill(cls, wallet):
-    #     return c.kill(cls.w2m(wallet))
 
     @classmethod
     def restart(cls, wallet):
@@ -1751,8 +1795,19 @@ class BittensorModule(c.Module):
     def burn_fee(cls, subtensor='finney', netuid=default_netuid):
         subtensor = cls.get_subtensor(subtensor)
         return subtensor.query_subtensor('Burn', None, [netuid]).value/1e9
+    @classmethod
+    def query_map(cls, key='Uids', subtensor='finney', netuid=default_netuid):
+        subtensor = cls.get_subtensor(subtensor)
+        return subtensor.query_map_subtensor(key, None, [netuid]).records
 
-    
+
+
+    @classmethod
+    def key2uid(cls, netuid:int=default_netuid):
+        uids = cls.query_map('Uids', netuid=netuid)[:10]
+        keys = {k.value:v.value for k,v in uids}
+        return uids
+
 
     @classmethod
     def logs(cls, *arg, **kwargs):
@@ -2046,55 +2101,6 @@ class BittensorModule(c.Module):
     def dividends(self):
         return self.metagraph.dividends.data
     
-
-    shortcuts =  {
-        # 0-1B models
-        'gpt125m': 'EleutherAI/gpt-neo-125m',
-
-        # 1-3B models
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-        'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-        'opt1.3b': 'facebook/opt-1.3b',
-        'opt2.7b': 'facebook/opt-2.7b',
-        # 'gpt3btuning' : ''
-
-        # 0-7B models
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-        'gptj': 'EleutherAI/gpt-j-6b',
-        'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-        'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-        'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-        'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-        'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-        'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-        'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-        'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-        'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-        'opt6.7b': 'facebook/opt-6.7b',
-        'llama': 'decapoda-research/llama-7b-hf',
-        'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-        'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-        'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
-        # # > 7B models
-        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-        'gptneox': 'EleutherAI/gpt-neox-20b',
-        'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b',
-        'gpt13b': 'cerebras/Cerebras-GPT-13B',
-        'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
-        'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
-        'fish': os.path.expanduser('~/fish_model'),
-        'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
-        
-            }
-    
-    
-    chain_repo = f'{c.repo_path}/subtensor'
-
     @classmethod
     def start_node(cls, mode='docker'):
         if mode == 'docker':

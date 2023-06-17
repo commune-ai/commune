@@ -7,7 +7,4 @@ network2endpoint:
   finney: wss://entrypoint-finney.opentensor.ai:443
   local: ws://0.0.0.0:9944
   test: wss://test.finney.opentensor.ai:443
-pool_address: AESKEY::WZuGNi20GyBTWyByEWBWiNJvDDFE/2BdLxEdNU0AG1XaoxtnkinO7U5ijJsr67fLyxHpz8imQSz+KuNoFbBFEgTU7UK/oz43Sjc63G/fR6c=
-validators:
-  aura: null
-  grandpa: gorilla gun cool jelly tortoise race useful trophy proud tool local shallow
+pool_address: null
