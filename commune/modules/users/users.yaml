@@ -17,6 +17,10 @@ users:
     network: commune
     role: admin
     ss58_address: 5GKfcSYVNw1w5ke7N527a1MrsKvHEnw8R88LiZ58A9MJMaQQ
+  brodfdf:
+    network: commune
+    role: admin
+    ss58_address: 5GC7NpnNAE7s9i66qwZufbCD7mmQWzWydoVq414zT9KECoZ1
   fam:
     network: commune
     role: admin
