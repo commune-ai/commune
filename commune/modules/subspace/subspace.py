@@ -1446,7 +1446,7 @@ class Subspace(c.Module):
                  validator = True,          
                  boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
                  purge_chain:bool = True,
-                 remote:bool = False,
+                 remote:bool = True,
                  
                  ):
 
@@ -1479,8 +1479,8 @@ class Subspace(c.Module):
 
         
         if remote:
-            node_module_name = f'{cls.node_prefix}::{chain}::{user}'
-            cmd = f'pm2 start {cls.chain_release_path} --name {node_module_name} -- {cmd_kwargs}'
+            node_module_name = f'{cls.node_prefix()}::{chain}::{user}'
+            cmd = f'pm2 start {cls.chain_release_path} --name {node_module_name} -f -- {cmd_kwargs}'
         else:
             cmd = f'{cmd} {cmd_kwargs}'
             
