@@ -2552,7 +2552,7 @@ class c:
         '''
         Get function schema of function in cls
         '''
-        if not callable(fn):
+        if isinstance(fn, str):
             fn = getattr(cls, fn)
         fn_schema = {k:str (v) for k,v in fn.__annotations__.items()}
         return fn_schema
@@ -2776,8 +2776,41 @@ class c:
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
     
-    
     @classmethod
+    def pm2_exists(cls, name:str):
+        return name in cls.pm2_list()
+    
+    @staticmethod
+    def pm2_start(path:str , 
+                  name:str,
+                  cmd_kwargs:str = None, 
+                  refresh: bool = True,
+                  verbose:bool = True,
+                  force : bool = True,
+                  interpreter : str = None,
+                  **kwargs):
+        if c.pm2_exists(name) and refresh:
+            c.pm2_kill(name)
+            
+        cmd = f'pm2 start {path} --name {name}'
+        if force:
+            cmd += ' -f'
+            
+        if interpreter != None:
+            cmd += f' --interpreter {interpreter}'
+            
+        if cmd_kwargs != None:
+            cmd += f' -- '
+            if isinstance(cmd_kwargs, dict):
+                for k, v in cmd_kwargs.items():
+                    cmd += f'--{k} {v}'
+            elif isinstance(cmd_kwargs, str):
+                cmd += f'{cmd_kwargs}'
+                            
+        return c.cmd(cmd, verbose=verbose,**kwargs)
+        
+    @classmethod
+    
     def pm2_launch(cls, 
                    module:str = None,  
                    fn: str = 'serve',
