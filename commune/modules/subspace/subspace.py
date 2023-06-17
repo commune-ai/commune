@@ -824,11 +824,11 @@ class Subspace(c.Module):
         if not self.subnet_exists( netuid ): return None
         return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
 
-    """ Returns network SubnetworkN hyper parameter """
+    """ Returns network SubnetN hyper parameter """
     def subnetwork_n (self, netuid: int = None, block: Optional[int] = None ) -> int:
         netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
-        return self.query_subspace('SubnetworkN', block, [netuid] ).value
+        return self.query_subspace('SubnetN', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
     def max_n (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
@@ -901,7 +901,7 @@ class Subspace(c.Module):
         return subnet_netuids
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
-        return self.query_subspace( 'TotalNetworks', block ).value      
+        return self.query_subspace( 'TotalSubnets', block ).value      
     
     def get_emission_value_by_subnet( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
@@ -1307,7 +1307,7 @@ class Subspace(c.Module):
             c.print(f'CHAIN: {chain}')
             cls.build_spec(chain)   
         if restart_chain:
-            cls.restart_chain(chain=chain)    
+            cls.start_chain(chain=chain)    
         
 
     @classmethod   
@@ -1499,11 +1499,11 @@ class Subspace(c.Module):
         return c.exists(cls.chain_release_path)
        
     @classmethod
-    def start_chain(cls, users = ['alice','bob'] ):
+    def start_chain(cls, users = ['alice','bob'] ,chain:str='dev'):
         if not cls.release_exists():
             cls.build()
         for user in users:
-            cls.start_node(user=user)
+            cls.start_node(user=user, chain=chain)
        
     @classmethod
     def gen_key(cls, *args, **kwargs):

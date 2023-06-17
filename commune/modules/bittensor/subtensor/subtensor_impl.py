@@ -491,10 +491,10 @@ class Subtensor:
         if not self.subnet_exists( netuid ): return None
         return self.query_subtensor('SynergyScalingLawPower', block, [netuid] ).value / 100.
 
-    """ Returns network SubnetworkN hyper parameter """
+    """ Returns network SubnetN hyper parameter """
     def subnetwork_n (self, netuid: int, block: Optional[int] = None ) -> int:
         if not self.subnet_exists( netuid ): return None
-        return self.query_subtensor('SubnetworkN', block, [netuid] ).value
+        return self.query_subtensor('SubnetN', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
     def max_n (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
@@ -612,7 +612,7 @@ class Subtensor:
         return subnet_netuids
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
-        return self.query_subtensor( 'TotalNetworks', block ).value      
+        return self.query_subtensor( 'TotalSubnets', block ).value      
 
     def get_subnet_modality( self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
         return self.query_subtensor( 'NetworkModality', block, [netuid] ).value   
