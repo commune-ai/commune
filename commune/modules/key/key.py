@@ -162,7 +162,11 @@ class Keypair(c.Module):
         self.mnemonic = mnemonic
     
     @classmethod
-    def add_key(cls, path, password=None, **kwargs):
+    def add_key(cls, path, password=None, refresh=False, **kwargs):
+        
+        if cls.key_exists(path) and not refresh :
+            c.print({'status': 'error', 'message': f'key already exists at {path}'}, color='red')
+            return None
         key_json = cls.gen(**kwargs)
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
@@ -226,7 +230,7 @@ class Keypair(c.Module):
         c.rm(key2path[key])
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
-        return {'message':'{key} deleted',  'keys':cls.keys()}
+        return {'message':f'{key} deleted',  'keys':cls.keys()}
         
         
         
@@ -242,7 +246,8 @@ class Keypair(c.Module):
         return crypto_type
     
     @classmethod
-    def gen(cls,  crypto_type: Union[int,str] = 'SR25519',  **kwargs):
+    def gen(cls,  
+            crypto_type: Union[int,str] = 'SR25519',  **kwargs):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
