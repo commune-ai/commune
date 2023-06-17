@@ -169,7 +169,8 @@ class Keypair(c.Module):
             return None
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
-        key_json = cls.gen(**kwargs)
+        key = cls.gen(**kwargs)
+        key_json = key.to_json()
         
         cls.put(path, key_json)
         
