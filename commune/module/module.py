@@ -5639,6 +5639,7 @@ class c:
     def _annotate(module, fn : str, /, **kwargs) -> Union[gr.Interface, gr.Blocks]:
         try:
             fn = getattr(module, fn)
+
             if fn.__annotations__ and \
             "return" in list(fn.__annotations__.keys()) and \
             fn.__annotations__["return"].__metadata__[-1] == "Block":
@@ -5659,7 +5660,9 @@ class c:
                                 else:
                                     raise ValueError("Must provide an annotation that is either and IOComponent or string")
                     else:
-                        outputs = fn.__annotations__["return"].__metadata__[-1]
+                        print(fn.__annotations__["return"].__metadata__[-1])
+                        outputs = [fn.__annotations__["return"].__metadata__[-1]]
+
 
                     del fn.__annotations__["return"]
                 
@@ -5673,7 +5676,8 @@ class c:
                             inputs.append(_input)
                         else:
                             raise ValueError("Must provide an annotation that is either and IOComponent or string")
-                return gr.Interface(fn, inputs, outputs, **kwargs)
+                print(inputs, outputs)
+                return gr.Interface(fn=fn, inputs=inputs, outputs=outputs)
         except (AttributeError, ValueError) as e:
             return False
 
@@ -5722,14 +5726,17 @@ class c:
             elif len(fn) > 1:  
                 interfaces, names = list(), list()
                 for idx, function in enumerate(fn):
+                    print(function)
                     interface = cls._annotate(obj, function)
+                    
                     if isinstance(interface, Union[gr.Interface, gr.Blocks]):
-                        interfaces.append(cls._annotate(obj, function))
+                        interfaces.append(interface)
                         names.append(function)
-                return gr.TabbedInterface(interface_list=interfaces, tab_names=names, **kwargs)
+                print(interfaces)
+                return gr.TabbedInterface(interface_list=interfaces, tab_names=names)
         except (AttributeError, ValueError, KeyboardInterrupt) as e:
             c.console.print_exception(show_locals=True)
-
+ 
 
 Module = c
 Module.run(__name__)
