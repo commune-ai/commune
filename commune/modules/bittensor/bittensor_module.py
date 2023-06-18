@@ -1454,7 +1454,7 @@ class BittensorModule(c.Module):
                max_fee:int = 2.0,
                refresh=True,
                miner_name:str = None,
-               refresh_ports = False
+               refresh_ports:bool = False
                ):
         
         
@@ -1507,7 +1507,6 @@ class BittensorModule(c.Module):
         
    
         config.axon.port = cls.resolve_port(port)
-        c.print(config)
         neuron_class(config=config).run()
 
     @classmethod
@@ -1604,9 +1603,9 @@ class BittensorModule(c.Module):
             cls.burned_register(w, **kwargs)
         
     @classmethod
-    def miner_exists(wallet:str, network:str, netuid:int):
-        miner_name = cls.get_miner_name(wallet=wallet, network=network, netuid=netuid)
-        return miner_name in miners
+    def miner_exists(cls, wallet:str, network:str=default_network, netuid:int=default_netuid):
+        miners = cls.miners(network=network, netuid=netuid)
+        return wallet in miners
 
     @classmethod
     def fleet(cls, name=default_coldkey, 
@@ -1619,6 +1618,7 @@ class BittensorModule(c.Module):
                     device = 'cpu',
                     max_fee=1.1,
                     hotkeys = None,
+                    refresh_ports = False,
                     n = 20,
                     remote=True): 
     
@@ -1637,6 +1637,10 @@ class BittensorModule(c.Module):
         
         for i, wallet in enumerate(wallets):
             miner_name = cls.get_miner_name(wallet=wallet, network=network, netuid=netuid)
+            if cls.miner_exists(wallet, network=network, netuid=netuid) and not refresh:
+                cls.print(f'{miner_name} is already running. Skipping ...')
+                continue
+            
             if miner_name in miners and not refresh:
                 cls.print(f'{miner_name} is already running. Skipping ...')
                 continue
@@ -1678,6 +1682,7 @@ class BittensorModule(c.Module):
                         miner_name = miner_name,
                         prometheus_port = prometheus_port,
                         burned_register=burned_register,
+                        
                         max_fee=max_fee)
             
             n -= 1 
