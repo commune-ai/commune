@@ -1608,19 +1608,19 @@ class BittensorModule(c.Module):
         return wallet in miners
 
     @classmethod
-    def fleet(cls, name=default_coldkey, 
-                    netuid= default_netuid,
-                    network=default_network,
-                    model_name = default_model_name,
+    def fleet(cls, name:str=default_coldkey, 
+                    netuid:int= default_netuid,
+                    network:str=default_network,
+                    model_name:str= default_model_name,
                     refresh: bool = False,
-                    burned_register=False, 
-                    ensure_registration=False,
-                    device = 'cpu',
-                    max_fee=1.1,
-                    hotkeys = None,
-                    refresh_ports = False,
-                    n = 20,
-                    remote=True): 
+                    burned_register:bool=False, 
+                    ensure_registration:bool=False,
+                    device:str = 'cpu',
+                    max_fee:float=1.1,
+                    hotkeys:List[str] = None,
+                    refresh_ports:bool = False,
+                    n:int = 20,
+                    remote:bool=True): 
     
         
         # address = cls.address(name)
