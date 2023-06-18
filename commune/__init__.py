@@ -14,7 +14,7 @@ __ss58_format__ = 42
 for k,v in Module.__dict__.items():
     globals()[k] = v
 
-for f in Module.get_class_methods():
+for f in Module.get_class_methods() + Module.get_static_methods():
     globals()[f] = getattr(Module, f)
     
 # key = Module.key

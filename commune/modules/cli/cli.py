@@ -62,11 +62,18 @@ class CLI(c.Module):
                     
                     
             if fn != '__init__':
-                result = getattr(module, fn)
+                fn = getattr(module, fn)
+                if callable(fn):
+                    if c.classify_method(fn) == 'self':
+                        module_inst = module()
+                        fn = getattr(module_inst, fn.__name__)
+                else: 
+                    result = fn
             else:
-                result = module
-            if callable(result):
-                result = result(*args, **kwargs)
+                fn = module
+                
+            if callable(fn):
+                result = fn(*args, **kwargs)
                 
         else:
             raise Exception ('No module, function or server found for {args[0]}')

@@ -1,14 +1,40 @@
-module: Subspace
-url: ws://127.0.0.1:9944
-network: null
-websocket: null
-ss58_format: 42
-type_registry: null
-type_registry_preset: null
-cache_region: null
-runtime_config: null
-use_remote_preset: false
-ws_options: null
-auto_discover: true
-auto_reconnect: true
-substrate: null
+chain: subspace
+chain_info:
+  dev:
+    alice:
+      boot_nodes: /ip4/0.0.0.0/tcp/4828/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
+      chain: dev
+      port: 4828
+      rpc_port: 4871
+      user: alice
+      verbose: true
+      ws_port: 4834
+    bob:
+      boot_nodes: /ip4/0.0.0.0/tcp/4828/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
+      chain: dev
+      port: 4808
+      rpc_port: 4884
+      user: bob
+      verbose: true
+      ws_port: 4875
+chain_path: f"{c.repo_path}/subspace"
+chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
+default_netuid: 1
+key_types:
+- aura
+- gran
+network: dev
+network2url:
+  dev: 127.0.0.1:4875
+  local: 127.0.0.1:4874
+  testnet: 127.0.0.1:4874
+retry_params:
+  backoff: 2
+  delay: 2
+  max_delay: 4
+  tries: 2
+spec_path: f"{chain_path}/specs"
+supported_schemas:
+- Sr25519
+- Ed25519
+token_decimals: 9
