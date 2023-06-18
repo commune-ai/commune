@@ -50,6 +50,7 @@ class Subspace(c.Module):
     spec_path = f'{chain_path}/specs'
     key_types = ['aura', 'gran']
     supported_schemas = ['Sr25519', 'Ed25519']
+
     
     def __init__( 
         self, 
@@ -228,7 +229,7 @@ class Subspace(c.Module):
     @classmethod
     def get_key(cls, uri= None) -> 'c.Key':
         
-        key = c.module('subspace.key')
+        key = c.module('key')
         if uri != None:
             key = key.create_from_uri(uri)
         else:
@@ -1203,12 +1204,11 @@ class Subspace(c.Module):
 
     @classmethod
     def test_keys(cls, 
-                     keys: List[str]=['/Alice', '/Bob', '/Chris', '/Sal', '/Billy', '/Jerome']):
+                     keys: List[str]=['Alice', 'Bob', 'Chris']):
         key_map = {}
-        key_class = c.module('subspace.key')
+        key_class = c.module('key')
         for k in keys:
-            key_map[k] = key_class.create_from_uri(k)
-            
+            key_map[k] = key_class.gen(k)
         return key_map
     @property
     def default_subnet(self) -> str:
@@ -1265,7 +1265,7 @@ class Subspace(c.Module):
     @classmethod
     def test(cls):
         subspace = cls()
-        keys = cls.test_keys(['/Alice', '/Billy', '/Bob'])
+        keys = cls.test_keys()
         for idx, (username, key) in enumerate(keys.items()):
             port  = c.free_port()
             address = f'{c.external_ip()}:{port}'
@@ -1300,14 +1300,12 @@ class Subspace(c.Module):
 
     chains = ['dev', 'test', 'main']
     @classmethod
-    def build(cls, restart_chain=True, chain:str = 'dev'):
-        cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=True)
+    def build(cls, chain:str = 'dev', verbose:bool=False):
+        cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
         
         for chain in cls.chains:
             c.print(f'CHAIN: {chain}')
-            cls.build_spec(chain)   
-        if restart_chain:
-            cls.start_chain(chain=chain)    
+            cls.build_spec(chain)    
         
 
     @classmethod   
@@ -1329,8 +1327,7 @@ class Subspace(c.Module):
     @classmethod
     def build_spec(cls,
                    chain = 'test',
-                   new_chain = None,
-                   raw  = False,
+                   raw:bool  = False,
                    disable_default_bootnode = True,
 
                    ):
@@ -1344,9 +1341,6 @@ class Subspace(c.Module):
         
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
-        if new_chain != None:
-            chain = new_chain
-              
         if raw:
             assert c.exists(chain_spec), f'Chain {chain_spec} does not exist.'
             cmd += ' --raw'
@@ -1355,8 +1349,6 @@ class Subspace(c.Module):
         cmd += f' > {chain_spec}'
         return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
 
-
-    spec_path = f'{chain_path}/specs'
     @classmethod
     def chain_specs(cls):
         specs = c.ls(f'{cls.spec_path}/')
@@ -1454,7 +1446,8 @@ class Subspace(c.Module):
                  boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
                  purge_chain:bool = True,
                  remote:bool = True,
-                 refresh:bool = True
+                 refresh:bool = True,
+                 verbose:bool = True,
                  
                  ):
 
@@ -1470,14 +1463,7 @@ class Subspace(c.Module):
         chain_spec = cls.resolve_chain_spec(chain)
 
         cmd = cls.chain_release_path
-        cmd_kwargs = f'''
-            --base-path {base_path} \
-            --chain {chain_spec} \
-            --{user} \
-            --port {port} \
-            --ws-port {ws_port} \
-            --rpc-port {rpc_port} \
-        '''
+        cmd_kwargs = f'''--base-path {base_path} --chain {chain_spec} --{user} --port {port} --ws-port {ws_port} --rpc-port {rpc_port}'''
         
         if validator :
             cmd += ' --validator'
@@ -1490,7 +1476,8 @@ class Subspace(c.Module):
             cmd = c.pm2_start(path=cls.chain_release_path, 
                               name=f'{cls.node_prefix()}::{chain}::{user}',
                               cmd_kwargs=cmd_kwargs,
-                              refresh=refresh)
+                              refresh=refresh,
+                              verbose=verbose)
         else:
             cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=True)
        
@@ -1499,11 +1486,15 @@ class Subspace(c.Module):
         return c.exists(cls.chain_release_path)
        
     @classmethod
-    def start_chain(cls, users = ['alice','bob'] ,chain:str='dev'):
-        if not cls.release_exists():
-            cls.build()
+    def start_chain(cls, users = ['alice','bob'] ,
+                    chain:str='dev', 
+                    verbose:bool = True,
+                    build: bool = False):
+        if build:
+            cls.build(verbose=verbose)
         for user in users:
-            cls.start_node(user=user, chain=chain)
+            cls.start_node(user=user, chain=chain, verbose=verbose)
+            cls.sleep(2)
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
@@ -1522,7 +1513,7 @@ class Subspace(c.Module):
     
     @classmethod
     def gen_node_keys(cls, path, **kwargs):
-        key_class = c.module('subspace.key')
+        key_class = c.module('key')
         node_path = f'node.{path}'
         c.print(key_class.add_key(path=f'{node_path}.aura', crypto_type='Sr25519'))
         key_class.add_key(path=f'{node_path}.gran',crypto_type='Ed25519')
@@ -1531,7 +1522,7 @@ class Subspace(c.Module):
     
     @classmethod
     def keys(cls, *args, **kwargs ):
-        return c.module('subspace.key').keys(*args, **kwargs)
+        return c.module('key').keys(*args, **kwargs)
     
     
     @classmethod
@@ -1543,7 +1534,7 @@ class Subspace(c.Module):
     @classmethod
     def add_keystore(cls,
                      suri = None ,
-                     node = 'node01',
+                     node = 'alice',
                      chain = 'main',
                      key_type = 'gran',
                      schema = 'Ed25519',
@@ -1551,7 +1542,7 @@ class Subspace(c.Module):
         
         
         if suri is None:
-            c.module('subspace.key').create(n=1)
+            suri = c.module('key').gen().mnemonic
         base_path = cls.resolve_node_keystore_path(node)
         if key_type == 'gran':
             schema = 'Ed25519'
@@ -1588,12 +1579,14 @@ class Subspace(c.Module):
 
     
     @classmethod
-    def sand(cls):
+    def sand(cls, user='alice'):
         self = cls()
         # namespace = self.query_map_subspace('Addresses', params=[0]).records
         # addresses = self.query_map_subspace('Addresses', params=[0]).records
         # c.print(self.query_map_subspace('Addresses', params=[0]).records)
-        c.print(self.get_balance('5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty').__dict__)
+        key = c.module('key').gen(user)
+        c.print(key, key.ss58_address)
+        c.print(self.get_balance(key.ss58_address).__dict__)
 
         
 

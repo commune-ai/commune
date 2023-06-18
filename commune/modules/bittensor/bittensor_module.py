@@ -1465,7 +1465,7 @@ class BittensorModule(c.Module):
                 miner_name = cls.get_miner_name(wallet=wallet, 
                                                       network=network,
                                                       netuid=netuid)
-            o
+            
             kwargs['remote'] = False
             return cls.remote_fn(fn='mine',name=miner_name,  kwargs=kwargs, refresh=refresh)
 
