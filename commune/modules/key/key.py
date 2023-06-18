@@ -252,23 +252,26 @@ class Keypair(c.Module):
             mnemonic:str = None, 
             private_key:str = None,
             crypto_type: Union[int,str] = 'SR25519', 
-            return_json: bool = False,
+            json: bool = False,
             **kwargs):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
+        c.print(f'generating {crypto_type} keypair, {suri}', color='green')
+
+        crypto_type = cls.resolve_crypto_type(crypto_type)
+
         if suri:
-            key =  cls.create_from_uri(suri, **kwargs)
+            key =  cls.create_from_uri(suri, crypto_type=crypto_type, **kwargs)
         elif mnemonic:
-            key = cls.create_from_mnemonic(mnemonic, **kwargs)
+            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
         elif private_key:
-            key = cls.create_from_private_key(private_key, **kwargs)
+            key = cls.create_from_private_key(private_key,crypto_type=crypto_type, **kwargs)
         else:
-            crypto_type = cls.resolve_crypto_type(crypto_type)
             mnemonic = cls.generate_mnemonic()
             key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
         
-        if return_json:
+        if json:
             return key.to_json()
         
         return key
@@ -441,8 +444,8 @@ class Keypair(c.Module):
         Keypair
         """
         crypto_type = cls.resolve_crypto_type(crypto_type)
-        if not suri.startswith('/'):
-            suri = '/' + suri
+        if not suri.startswith('//'):
+            suri = '//' + suri
 
         if suri and suri.startswith('/'):
             suri = DEV_PHRASE + suri

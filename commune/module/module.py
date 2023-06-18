@@ -2659,7 +2659,7 @@ class c:
                shortcut = None,
                wait_for_server=False,
                device = None,
-               update: bool = True,
+               update: bool = False,
                **extra_kwargs):
         '''
         Launch a module as pm2 or ray 
@@ -2790,7 +2790,7 @@ class c:
                   interpreter : str = None,
                   **kwargs):
         if c.pm2_exists(name) and refresh:
-            c.pm2_kill(name)
+            c.pm2_kill(name, verbose=verbose)
             
         cmd = f'pm2 start {path} --name {name}'
         if force:
@@ -2806,7 +2806,9 @@ class c:
                     cmd += f'--{k} {v}'
             elif isinstance(cmd_kwargs, str):
                 cmd += f'{cmd_kwargs}'
-                            
+            
+        # c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
+        c.print(f'{cmd_kwargs}')          
         return c.cmd(cmd, verbose=verbose,**kwargs)
         
     @classmethod
@@ -2822,6 +2824,7 @@ class c:
                    interpreter:str='python3', 
                    no_autorestart: bool = False,
                    verbose: bool = False , 
+                   force:bool = True,
                    refresh:bool=True ):
         
         # avoid these references fucking shit up
@@ -2849,7 +2852,9 @@ class c:
         args_str = json.dumps(args).replace('"', "'")
 
         if refresh:
-            cls.pm2_kill(module_name)   
+            cls.pm2_kill(module_name)  
+        if force:
+            command += ' -f '
         
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
         env = {}
