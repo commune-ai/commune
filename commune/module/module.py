@@ -12,6 +12,8 @@ from glob import glob
 import sys
 import argparse
 import asyncio
+from typing import Union, Dict, Optional, Any, List, Tuple
+
 
 class c:
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
@@ -911,7 +913,7 @@ class c:
     
     @classmethod
     def get_address(cls, module, **kwargs):
-        return cls.namespace(**kwargs).get(module, None)
+        return c.namespace(**kwargs).get(module, None)
     
     @classmethod
     def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
@@ -1106,7 +1108,7 @@ class c:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
 
     @staticmethod
-    def kill_all_servers( verbose: bool = True):
+    def kill_all_servers(bro, verbose: bool = True) -> {'bro': ['str','Text'], 'bro2': 'Text'}:
         '''
         Kill all of the servers
         '''
@@ -1319,7 +1321,7 @@ class c:
     
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
-        modules = list(cls.namespace(*args, **kwargs).keys())
+        modules = list(c.namespace(*args, **kwargs).keys())
         # sorted(modules)
         return modules
     
@@ -1349,11 +1351,11 @@ class c:
         return models
     @classmethod
     def datasets(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
+        return [k for k in list(c.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     
     @classmethod
     def datasets(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(cls.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
+        return [k for k in list(c.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
@@ -1626,7 +1628,8 @@ class c:
         return os.listdir(path)
 
     @classmethod
-    def walk(cls, path:str) -> List[str]:
+    def walk(cls, path:str, module:str=False) -> List[str]:
+        
         import os
         path_map = {}
         for root, dirs, files in os.walk(path):
@@ -1681,7 +1684,7 @@ class c:
             cls.wait_for_server(name)
         
         if namespace == None :
-            namespace = cls.namespace(network, update=False)
+            namespace = c.namespace(network, update=False)
         namespace = cls.copy(namespace)
 
         # local namespace  
@@ -1829,7 +1832,7 @@ class c:
 
     @classmethod
     def port2module(cls, *args, **kwargs):
-        namespace = cls.namespace(*args, **kwargs)
+        namespace = c.namespace(*args, **kwargs)
         port2module =  {}
         for name, address in namespace.items():
             port = int(address.split(':')[1])
@@ -1846,7 +1849,7 @@ class c:
 
     @classmethod
     def address2module(cls, *args, **kwargs):
-        namespace = cls.namespace(*args, **kwargs)
+        namespace = c.namespace(*args, **kwargs)
         port2module =  {}
         for name, address in namespace.items():
             port2module[address] = name
@@ -2087,7 +2090,7 @@ class c:
     
     @classmethod
     def module_exists(cls, name:str, **kwargs) -> bool:
-        namespace = cls.namespace(**kwargs)
+        namespace = c.namespace(**kwargs)
         return bool(name in namespace)
     
     @classmethod
@@ -2192,7 +2195,7 @@ class c:
 
     @classmethod
     def namespace_options(cls,search=None) -> List[str]:
-        namespace  = cls.namespace()
+        namespace  = c.namespace()
         namespace_names = list(namespace.keys())
         namespace_addresses = list(namespace.values())
         namespace_options =  namespace_names + namespace_addresses
@@ -2318,37 +2321,10 @@ class c:
 
     fns = functions
         
-    @classmethod
-    def get_functions(cls, obj:Any=None, include_module:bool = False,) -> List[str]:
-        '''
-        List of functions
-        '''
-        if isinstance(obj, str):
-            obj = cls.get_module(obj)
-        from commune.utils.function import get_functions
-        obj = obj if obj != None else cls
 
-        
-        if cls.is_root_module(obj):
-            include_module = True
-            
-    
-        functions = get_functions(obj=obj)
-        
-        if not include_module:
-            module_functions = get_functions(obj=c)
-            new_functions = []
-            for f in functions:
-                if f == '__init__':
-                    new_functions.append(f)
-                if f not in module_functions:
-                    new_functions.append(f)
-            functions = new_functions
-        return functions
 
     @classmethod
     def get_function_signature_map(cls, obj=None, include_module:bool = False):
-        from commune.utils.function import get_function_signature
         function_signature_map = {}
         obj = obj if obj else cls
         for f in cls.get_functions(obj = obj, include_module=include_module):
@@ -2360,7 +2336,7 @@ class c:
             if not hasattr(cls, f):
                 continue
             if callable(getattr(cls, f )):
-                function_signature_map[f] = {k:str(v) for k,v in get_function_signature(getattr(cls, f )).items()}        
+                function_signature_map[f] = {k:str(v) for k,v in cls.get_function_signature(getattr(cls, f )).items()}        
         
     
         return function_signature_map
@@ -2487,46 +2463,15 @@ class c:
         if isinstance(obj, str):
             obj = cls.module(obj)
         function_schema_map = {}
-        
-        if include_default:
-            fn_default_map = cls.get_function_default_map(obj=obj, include_module=include_module)
+    
         for fn in cls.get_functions(obj, include_module=include_module):
-                    
+               
             if search != None :
                 if search not in fn:
                     continue
             if callable(getattr(obj, fn )):
-                function_schema_map[fn] = {}
-                fn_schema = {}
-                obj_fn = getattr(obj, fn )
-                if not hasattr(obj_fn, '__annotations__'):
-                    obj_fn.__annotations__ = {}
-                
-                for fn_k, fn_v in obj_fn.__annotations__.items():
-                    
-                    
-                    fn_v = str(fn_v)  
+                function_schema_map[fn] = cls.get_function_schema(fn, include_defaults=include_default, include_code=include_code, include_docs=include_docs)
 
-                    if fn_v == inspect._empty:
-                        fn_schema[fn_k]= 'Any'
-                    elif fn_v.startswith('<class'):
-                        fn_schema[fn_k] = fn_v.split("'")[1]
-                    else:
-                        fn_schema[fn_k] = fn_v
-                              
-                function_schema_map[fn]['schema'] = fn_schema
-                if include_docs:         
-                    function_schema_map[fn]['docs']: getattr(obj, fn ).__doc__ 
-                if include_code:
-                    function_schema_map[fn]['code'] = inspect.getsource(getattr(obj, fn ))
-                    
-                if include_default:
-                    function_schema_map[fn]['default'] = fn_default_map.get(fn, 'NA')
-
-        for k,v in function_schema_map.items():
-            if search != None:
-                if search == k:
-                    return v
         return function_schema_map
     
     function_schema_map = get_function_schema_map
@@ -2536,13 +2481,48 @@ class c:
         return 'fam'
 
     @classmethod
-    def get_function_schema(cls, fn:str)->dict:
+    def get_function_annotations(cls, fn):
+        fn = cls.resolve_fn(fn)
+        return fn.__annotations__
+        
+    @classmethod
+    def get_function_schema(cls, fn:str,
+                            include_defaults:bool=False,
+                            include_code:bool = False,
+                            include_docs:bool = False)->dict:
         '''
         Get function schema of function in cls
         '''
+        import inspect
+        fn_schema = {}
         if isinstance(fn, str):
             fn = getattr(cls, fn)
-        fn_schema = {k:str (v) for k,v in fn.__annotations__.items()}
+        fn_args = cls.get_function_args(fn)
+        fn_schema['input']  = cls.get_function_annotations(fn=fn)
+        
+        if include_defaults:
+            fn_schema['default'] = cls.get_function_defaults(fn=fn) 
+            for k,v in fn_schema['default'].items(): 
+                if k not in fn_schema['input'] and v != None:
+                    fn_schema['input'][k] = type(v).__name__ if v != None else None
+           
+           
+        for k,v in fn_schema['input'].items():
+            v = str(v)
+            if v.startswith('<class'):
+                fn_schema['input'][k] = v.split("'")[1]
+            else:
+                fn_schema['input'][k] = v
+        
+        fn_schema['output'] = fn_schema['input'].pop('return', {})
+        
+            
+        if include_docs:         
+            fn_schema['docs']: getattr(obj, fn ).__doc__ 
+        if include_code:
+            fn_schema['code'] = inspect.getsource(getattr(obj, fn ))
+                
+
         return fn_schema
     get_schema = get_fn_schema = get_function_schema
     
@@ -2991,10 +2971,7 @@ class c:
             assert mode in default_modes, f'{mode} not in {default_modes}'
             methods.extend(getattr(cls, f'get_{mode}_methods')(obj))
             
-    @classmethod
-    def get_class_methods(cls, obj=None) -> List[str]:
-        from commune.utils.function import get_class_methods
-        return get_class_methods(obj if obj else cls)
+
         
     @classmethod
     def get_self_methods(cls, obj=None) -> List[str]:
@@ -4419,10 +4396,6 @@ class c:
         return c.module('key').add_key( *args, **kwargs)
     
     @classmethod
-    def rm_key(cls, *args, **kwargs):
-        return c.module('key').add_key( *args, **kwargs)
-    
-    @classmethod
     def set_network(cls, network: str) -> None:
         cls.putc('network', network)
         
@@ -4968,7 +4941,7 @@ class c:
                
                ):
 
-            cls.namespace(network=network,verbose=True, update=True)
+            c.namespace(network=network,verbose=True, update=True)
             
             # cls.root_module()
 
@@ -5427,7 +5400,7 @@ class c:
         return results
     @classmethod
     def addresses(cls, *args, **kwargs) -> List[str]:
-        return list(cls.namespace(*args,**kwargs).values())
+        return list(c.namespace(*args,**kwargs).values())
 
     @classmethod
     def address_exists(cls, address:str) -> List[str]:
@@ -5772,49 +5745,272 @@ class c:
         for i in range(n):
             cls.deploy(tag=str(i))
         
+
     @classmethod
-    def play(cls):
-        return c.bytes2str(b'h\xa0\xfd%\x99RC.\xbe\xcf\xb5\xb5\xa6>\xdcQ\x1d"n\xed\x8e\xbc<\xb2u\xc0\xb2\x0f\xac\xe1\x95J')
+    def classify_methods(cls, obj= None):
+        obj = obj or cls
+        method_type_map = {}
+        for attr_name in dir(obj):
+            method_type = None
+            try:
+                method_type = cls.classify_method(getattr(obj, attr_name))
+            except Exception as e:
+                continue
+        
+            if method_type not in method_type_map:
+                method_type_map[method_type] = []
+            method_type_map[method_type].append(attr_name)
+        
+        return method_type_map
+
+
+    @classmethod
+    def resolve_fn(cls,fn):
+        if isinstance(fn, str):
+            fn = getattr(cls, fn)
+        assert callable(fn) or cls.is_property(fn), f'{fn} is not callable'
+        return fn
     
     @classmethod
-    def classify_methods(cls, class_obj= None):
-        class_obj = class_obj or cls
-        static_methods = {}
-        instance_methods = {}
-        class_methods = {}
-        
-        
-
-        # Iterate through all attributes of the class
-        for attr_name in dir(class_obj):
-            attr = getattr(class_obj, attr_name)
-            
-            # Check if the attribute is a method
-            if callable(attr):
-                # Check if it's a static method
-                if isinstance(attr, staticmethod):
-                    static_methods[attr_name] = attr
-                # Check if it's a class method
-                elif isinstance(attr, classmethod):
-                    class_methods[attr_name] = attr
-                # Otherwise, consider it an instance method
-                else:
-                    instance_methods[attr_name] = attr
-
-        # Create and return the dictionary of methods
-        methods_dict = {
-            "static_methods": static_methods,
-            "instance_methods": instance_methods,
-            "class_methods": class_methods
-        }
-        return methods_dict
-
-
+    def get_function_args(cls, fn):
+        fn = cls.resolve_fn(fn)
+        args = inspect.getfullargspec(fn).args
+        return args
+    
     @classmethod
-    def build(cls, network='subspace'): 
+    def classify_method(cls, fn):
+        fn = cls.resolve_fn(fn)
+        args = cls.get_function_args(fn)
+        if len(args) == 0:
+            return 'static'
+        elif args[0] == 'self':
+            return 'self'
+        else:
+            return 'class'
+    
+    @classmethod
+    def build(cls, network:str='subspace'): 
         return c.module(network).build()
 
+    @classmethod
+    def play(cls):
+        c.print(c.rm_key('brodfdf'))
+        
+
+    @staticmethod
+    def get_parents(obj) -> List[str]:
+        cls = resolve_class(obj)
+        return list(cls.__mro__[1:-1])
+
+    @staticmethod
+    def get_parent_functions(cls) -> List[str]:
+        parent_classes = get_parents(cls)
+        function_list = []
+        for parent in parent_classes:
+            function_list += get_functions(parent)
+
+        return list(set(function_list))
+
+    @staticmethod
+    def is_property(fn: 'Callable') -> bool:
+        return isinstance(fn, property)
+
+    @classmethod
+    def get_functions(cls, obj: Any = None, include_module:bool = False, include_parents:bool=False, include_hidden:bool = False) -> List[str]:
+        '''
+        Get a list of functions in a class
+        
+        Args;
+            obj: the class to get the functions from
+            include_parents: whether to include the parent functions
+            include_hidden: whether to include hidden functions (starts and begins with "__")
+        '''
+        
+        '''
+        List of functions
+        '''
+        if obj == None:
+            obj = cls
+        
+        if isinstance(obj, str):
+            obj = c.module(obj)
+        
+        if cls.is_root_module(obj):
+            include_module = True
+        
+        
+        functions = []
+        parent_functions = [] 
+        for fn_name in dir(obj):
+            
+            # skip hidden functions if include_hidden is False
+            if (include_hidden==False) and (fn_name.startswith('__') and fn_name.endswith('__')):
+                
+                if fn_name != '__init__':
+                    continue
     
+            # if the function is in the parent class, skip it
+            if  (fn_name in parent_functions) and (include_parents==False):
+                continue
+
+            # if the function is a property, skip it
+            if hasattr(type(obj), fn_name) and \
+                isinstance(getattr(type(obj), fn_name), property):
+                continue
+            
+            # if the function is callable, include it
+            if callable(getattr(obj, fn_name)):
+                functions.append(fn_name)
+                
+        if not include_module:
+            module_functions = get_functions(obj=c)
+            new_functions = []
+            for f in functions:
+                if f == '__init__':
+                    new_functions.append(f)
+                if f not in module_functions:
+                    new_functions.append(f)
+            functions = new_functions
+            
+        return functions
+
+
+
+    @classmethod
+    def get_class_methods(cls: Union[str, type], obj = None)-> List[str]:
+        '''
+        Gets the class methods in a class
+        '''
+        if obj is None:
+            obj = cls
+            
+        functions =  c.get_functions(cls)
+        signature_map = {}
+        for f in functions:
+            if f.startswith('__'):
+                continue
+            signature_map[f] = cls.get_function_args(getattr(cls, f)) 
+
+        return [k for k, v in signature_map.items() if 'self' not in v]
+
+    @classmethod
+    def get_self_methods(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = obj or cls
+        functions =  c.get_functions(obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if 'self' in v]
+    
+
+    @classmethod
+    def get_static_methods(cls: Union[str, type], obj=None):
+        '''
+        Gets the self methods in a class
+        '''
+        obj = obj or cls
+        functions =  c.get_functions(obj)
+        signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
+        return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
+    
+    @classmethod
+    def get_method_type(cls, fn):
+        return cls.get_function_signature( fn)
+        
+
+    @classmethod
+    def get_function_signature(cls, fn) -> dict: 
+        '''
+        get the signature of a function
+        '''
+        if isinstance(fn, str):
+            fn = getattr(cls, fn)
+        
+        import inspect
+        return dict(inspect.signature(fn)._parameters)
+
+    @staticmethod
+    def get_function_input_variables(fn)-> dict:
+        return list(c.get_function_signature(fn).keys())
+
+    @classmethod
+    def get_function_defaults(cls, fn):
+        import inspect
+        
+        fn = cls.resolve_fn(fn)
+        function_defaults = dict(inspect.signature(fn)._parameters)
+        for k,v in function_defaults.items():
+            if v._default != inspect._empty and  v._default != None:
+                function_defaults[k] = v._default
+            else:
+                function_defaults[k] = None
+
+        return function_defaults
+
+
+        
+        
+    @staticmethod
+    def is_class(obj):
+        '''
+        is the object a class
+        '''
+        return type(obj).__name__ == 'type'
+
+
+    @staticmethod
+    def resolve_class(obj):
+        '''
+        resolve class of object or return class if it is a class
+        '''
+        if c.is_class(obj):
+            return obj
+        else:
+            return obj.__class__
+    @staticmethod
+    def is_full_function(fn_schema):
+
+        for mode in ['input', 'output']:
+            if len(fn_schema[mode]) > 0:
+                for value_key, value_type in fn_schema[mode].items():
+                    if value_type == None:
+                        return None
+            else:
+                return None
+        return fn_schema 
+
+    @staticmethod
+    def try_n_times(fn, max_trials:int=10, args:list=[],kwargs:dict={}):
+        assert isinstance(fn, callable)
+        for t in range(max_trials):
+            try:
+                result = fn(*args, **kwargs)
+                return result
+            except Exception as e:
+                continue
+        raise(e)
+
+    @staticmethod
+    def has_fn(obj, fn_name):
+        return callable(getattr(obj, fn_name, None))
+
+
+    @staticmethod
+    def try_fn_n_times(fn, kwargs:Dict, try_count_limit: int = 10):
+        '''
+        try a function n times
+        '''
+        try_count = 0
+        return_output = None
+        while try_count < try_count_limit:
+            try:
+                return_output = fn(**kwargs)
+                break
+            except RuntimeError:
+                try_count += 1
+        return return_output
+
 Module = c
 Module.run(__name__)
     

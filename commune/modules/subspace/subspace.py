@@ -44,12 +44,12 @@ class Subspace(c.Module):
         }
     
     chain = 'subspace'
-    default_netuid = 1
     chain_path = f'{c.repo_path}/{chain}'
     chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
     spec_path = f'{chain_path}/specs'
     key_types = ['aura', 'gran']
     supported_schemas = ['Sr25519', 'Ed25519']
+    default_netuid = 1
 
     
     def __init__( 
@@ -778,7 +778,7 @@ class Subspace(c.Module):
         return make_substrate_call_with_retry()
 
     """ Queries subspace map storage with params and block. """
-    def query_map_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [default_netuid] ) -> Optional[object]:
+    def query_map( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [default_netuid] ) -> Optional[object]:
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
@@ -859,7 +859,7 @@ class Subspace(c.Module):
 
     """ Returns a list of stake tuples (coldkey, balance) for each delegating coldkey including the owner"""
     def get_stake( self,  key_ss58: str, block: Optional[int] = None ) -> List[Tuple[str,'Balance']]:
-        return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map_subspace( 'Stake', block, [key_ss58] ) ]
+        return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map( 'Stake', block, [key_ss58] ) ]
 
     """ Returns the module information for this key account """
     def get_module_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[ModuleInfo]:
@@ -893,7 +893,7 @@ class Subspace(c.Module):
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
         subnet_netuids = []
-        result = self.query_map_subspace( 'SubnetN', block )
+        result = self.query_map( 'SubnetN', block )
         if result.records:
             for netuid, exists in result:  
                 if exists:
@@ -911,7 +911,7 @@ class Subspace(c.Module):
 
     def get_subnets( self, block: Optional[int] = None ) -> List[int]:
         subnets = []
-        result = self.query_map_subspace( 'NetworksAdded', block )
+        result = self.query_map( 'NetworksAdded', block )
         if result.records:
             for network in result.records:
                 subnets.append( network[0].value )
@@ -991,7 +991,7 @@ class Subspace(c.Module):
         return [ self.get_uid_for_key_on_subnet( key_ss58, netuid, block) for netuid in self.get_netuids_for_key( key_ss58, block)]
 
     def get_netuids_for_key( self, key_ss58: str, block: Optional[int] = None) -> List[int]:
-        result = self.query_map_subspace( 'IsNetworkMember', block, [ key_ss58 ] )   
+        result = self.query_map( 'IsNetworkMember', block, [ key_ss58 ] )   
         netuids = []
         for netuid, is_member in result.records:
             if is_member:
@@ -1216,15 +1216,13 @@ class Subspace(c.Module):
             if v == 0:
                 return k
         raise Exception("No default subnet found.")
-    @property
-    def default_subnet_uid(self) -> int:
-        return self.network2netuid[self.default_subnet]
+    
     
     @property
     def network2netuid(self ) -> Dict[str, str]:
         
         # Get the namespace for the netuid.
-        records = self.query_map_subspace('SubnetNamespace', params=[]).records
+        records = self.query_map('SubnetNamespace', params=[]).records
         
         network2netuid = {}
         for r in records:
@@ -1240,27 +1238,44 @@ class Subspace(c.Module):
     def subnet_uids(self) -> List[int]:
         return list(self.network2netuid.values())
 
-    
+    def resolve_netuid(cls, netuid: int = None) -> int:
+        if netuid == None:
+            netuid = cls.default_netuid
+        return netuid
+
+        
     def namespace(self, netuid: int = None) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         
         # Get the namespace for the netuid.
-        netuid = self.resolve_netuid(netuid)
-        records = self.query_map_subspace('Modules', params=[netuid]).records
-        namespace = {}
-        for r in records:
-            moduke_info = r[1].value
-            moduke_info['key'] = r[0].value
-            module_name = moduke_info['name']
-            moduke_info['ip'] = int_to_ip(moduke_info['ip'])
-            namespace[module_name] = moduke_info
-        
+        netuid = self.resolve_netuid(netuid)        
+        addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
+        namespace = { r[0].value: addresses[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
         return namespace
+    
+    
+    def name2key(self, netuid: int = None) -> Dict[str, str]:
+        # netuid = self.resolve_netuid(netuid)
+        
+        # Get the namespace for the netuid.
+        netuid = self.resolve_netuid(netuid)        
+        keys = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
+        namespace = { r[0].value: keys[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
+        return namespace
+    
+    def key2name(self, netuid: int = None) -> Dict[str, str]:
+        return {v:k for k,v in self.name2key(netuid=netuid).items()}
+    
+    @classmethod
+    def nodes(cls):
+        return c.pm2ls('subspace')
     
     @classmethod
     def query(cls, name,  *params,  block=None):
         self = cls()
-        return self.query_map_subspace(name=name,params=list(params),block=block).records
+        return self.query_map(name=name,params=list(params),block=block).records
+
+ 
 
     @classmethod
     def test(cls):
@@ -1271,7 +1286,7 @@ class Subspace(c.Module):
             address = f'{c.external_ip()}:{port}'
             c.print(key)
             subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
-        c.print(subspace.query_map_subspace('SubnetNamespace', params=[]).records)
+        c.print(subspace.query_map('SubnetNamespace', params=[]).records)
         c.print(subspace.uids())
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
@@ -1279,7 +1294,7 @@ class Subspace(c.Module):
             
     def modules(self, network:int = None):
         netuid = self.resolve_network(network)
-        return self.query_map_subspace('Modules', params=[netuid]).records
+        return self.query_map('Modules', params=[netuid]).records
     
     
     @classmethod
@@ -1295,7 +1310,7 @@ class Subspace(c.Module):
         
         c.print(self.get_balance(key2.ss58_address))
         
-        # c.print(self.query_map_subspace('SubnetNamespace', params=[]).records)
+        # c.print(self.query_map('SubnetNamespace', params=[]).records)
     
 
     chains = ['dev', 'test', 'main']
@@ -1486,15 +1501,25 @@ class Subspace(c.Module):
         return c.exists(cls.chain_release_path)
        
     @classmethod
-    def start_chain(cls, users = ['alice','bob'] ,
+    def start_chain(cls, 
+                    users = ['alice','bob'] ,
                     chain:str='dev', 
                     verbose:bool = True,
+                    sleep :int = 2,
                     build: bool = False):
         if build:
             cls.build(verbose=verbose)
+        avoid_ports = []
+
         for user in users:
-            cls.start_node(user=user, chain=chain, verbose=verbose)
-            cls.sleep(2)
+            node_kwargs = {'chain':chain, 'user':user, 'verbose':verbose}
+            for k in ['port','rpc_port','ws_port']:
+                port = c.free_port(avoid_ports=avoid_ports)
+                avoid_ports.append(port)
+                node_kwargs[k] = port
+                
+            cls.start_node(**node_kwargs)
+            cls.sleep(sleep)
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
@@ -1581,17 +1606,20 @@ class Subspace(c.Module):
     @classmethod
     def sand(cls, user='alice'):
         self = cls()
-        # namespace = self.query_map_subspace('Addresses', params=[0]).records
-        # addresses = self.query_map_subspace('Addresses', params=[0]).records
-        # c.print(self.query_map_subspace('Addresses', params=[0]).records)
-        key = c.module('key').gen(user)
-        c.print(key, key.ss58_address)
-        c.print(self.get_balance(key.ss58_address).__dict__)
+        # namespace = self.query_map('Addresses', params=[0]).records
+        # addresses = self.query_map('Addresses', params=[0]).records
+        # c.print(self.query_map('Addresses', params=[0]).records)
+        # key = c.module('key').gen(user)
+        # c.print(key, key.ss58_address)
+        # c.print(self.get_balance(key.ss58_address).__dict__)
 
+        c.print(self.network2netuid)
+        # c.print(self.namespace())
+        c.print(self.namespace())
         
 
     def uids(self, netuid = 0):
-        return [v[1].value for v in self.query_map_subspace('Uids',None,  [netuid]).records]
+        return [v[1].value for v in self.query_map('Uids',None,  [netuid]).records]
 
   
 if __name__ == "__main__":
