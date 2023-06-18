@@ -1,8 +1,10 @@
 
 import commune
 import numpy as np
-from ..typing import Image, Block, Textbox, Label
+from commune.gradio.typing import Image, Block, Textbox, Label
 import gradio as gr
+
+
 
 class ExampleGradioSchemaBuilder(commune.Module):
 
@@ -36,7 +38,7 @@ class ExampleGradioSchemaBuilder(commune.Module):
             return history
 
         with gr.Blocks() as demo:
-            chatbot = gr.Chatbot([], elem_id="chatbot").style(height=750)
+            chatbot = gr.Chatbot([], elem_id="chatbot").style(height=500)
 
             with gr.Row():
                 with gr.Column(scale=0.85):
