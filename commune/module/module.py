@@ -1147,7 +1147,7 @@ class c:
                 return True
         return False
     @classmethod
-    def path2simple(cls, path:str, compress:bool = True) -> str:
+    def path2simple(cls, path:str, compress:bool = True,) -> str:
 
         # does the config exist
 
@@ -1162,7 +1162,9 @@ class c:
         simple_path = simple_path.replace('/', '.')[1:]
         if compress:
             simple_path = cls.compress_name(simple_path, seperator='.')
-        simple_path.replace('modules.', '')
+        
+        if simple_path.startswith('modules.'):
+            simple_path = simple_path.replace('modules.', '')
         return simple_path
     
     @classmethod
@@ -1175,7 +1177,7 @@ class c:
         return module_python_object_paths
             
     @staticmethod
-    def compress_name( name, seperator='.', suffixes = ['_module']):
+    def compress_name( name, seperator='.', suffixes = ['_module', 'module']):
         '''
         
         '''
@@ -1231,13 +1233,13 @@ class c:
 
 
     @classmethod
-    def find_python_classes(cls, path:str = None, class_index=0, search = None):
+    def find_python_class(cls, path:str = None, class_index=0, search = None, start_lines=200):
         import re
         
         if path is None:
             path = cls.filepath()
         # read the contents of the Python script file
-        python_script = cls.get_text(path)
+        python_script = cls.readlines(path, end_line = start_lines)
         class_names  = []
         lines = python_script.split('\n')
         
@@ -1269,7 +1271,7 @@ class c:
         if path.endswith('module/module.py'):
             return 'commune.Module'
             
-        object_name = cls.find_python_classes(path)
+        object_name = cls.find_python_class(path)
         if len(object_name) == 0:
             return None
         object_name = object_name[-1]
@@ -1281,17 +1283,8 @@ class c:
     def path2object(cls, path:str) -> str:
         path = cls.path2objectpath(path)
         return cls.import_object(path)
-    @classmethod
-    def simple2object(cls, path:str) -> str:
-        path = cls.simple2path(path)
-        object_path = cls.path2objectpath(path)
-        return cls.import_object(object_path)
 
-    @classmethod
-    def simple2objectpath(cls, path:str) -> str:
-        path = cls.simple2path(path)
-        object_path = cls.path2objectpath(path)
-        return object_path
+
     @classmethod
     def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
         
@@ -1309,15 +1302,12 @@ class c:
 
         elif mode == 'object':
             module_tree = {cls.path2simple(f):cls.path2objectpath(f) for f in cls.get_module_python_paths()}
-            
         module_tree = {k:v for k,v in module_tree.items() if search is None or search in k}
         
+        # to use functions like c. we need to replace it with module lol
         if cls.root_module_class in module_tree:
             module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
 
-        for k in c.copy(list(module_tree.keys())):
-            if k.startswith('modules.'):
-                module_tree[k.replace('modules.', '')] = module_tree.pop(k)
         return module_tree
     
     tree = module_tree
@@ -1373,20 +1363,9 @@ class c:
         return  bool(package in sys.modules)
 
     @classmethod
-    def simple2path_map(cls) -> Dict[str, str]:
-        return {cls.path2simple(f):f for f in cls.get_module_python_paths()}
-    @classmethod
     def simple2path(cls, path) -> Dict[str, str]:
         module_tree = cls.module_tree()
         return module_tree[path]
-
-    @classmethod
-    def path2simple_map(cls) -> Dict[str, str]:
-        return {v:k for k,v in cls.simple2path_map().items()}
-    
-    @classmethod
-    def simple2config_map(cls) -> Dict[str, str]:
-        return {cls.path2simple(f):f for f in cls.get_module_config_paths()}
 
 
     module_python_paths = None
@@ -1400,18 +1379,30 @@ class c:
         modules = []
         failed_modules = []
 
+        # find all of the python files
         for f in glob(c.root_path + '/**/*.py', recursive=True):
             if os.path.isdir(f):
                 continue
             file_path, file_ext =  os.path.splitext(f)
+   
             if file_ext == '.py':
-                has_config = any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']])
-                if has_config:
+                dir_path, file_name = os.path.split(file_path)
+                dir_name = os.path.basename(dir_path)
+                if dir_name.lower() == file_name.lower():
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                elif file_name.lower().endswith('module'):
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                    
+                elif 'module' in file_name.lower():
+                    modules.append(f)
+                elif any([os.path.exists(file_path+'.'+ext) for ext in ['yaml', 'yml']]):
                     modules.append(f)
                 else:
                     # FIX ME
-                    f_classes = cls.find_python_classes(f, search=['commune.Module', 'c.Module'])
-                    
+                    f_classes = cls.find_python_class(f, search=['commune.Module', 'c.Module'])
+                    # f_classes = []
                     if len(f_classes) > 0:
                         modules.append(f)
         cls.module_python_paths = modules
@@ -1421,10 +1412,6 @@ class c:
     @classmethod
     def dashboard(cls, *args, **kwargs):
         return cls.get_module('dashboard')(*args, **kwargs)
-    @staticmethod
-    def get_module_config_paths() -> List[str]:
-        return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
-
 
     @classmethod
     def is_parent(cls, parent=None):
@@ -1649,6 +1636,7 @@ class c:
         return list(path_map.keys())
     
        
+    ftree = walk
     @classmethod
     def bt(cls, *args, **kwargs):
         return cls.get_module('bittensor')(*args, **kwargs)
@@ -2937,10 +2925,10 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str,verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=0, end_line=0, verbose=True, mode='cmd'):
         if mode == 'local':
             path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
-            return cls.get_text(path, last_bytes=1000 )
+            return c.readlines(path, start_line=startline, end_line=endline, verbose=verbose)
         elif mode == 'cmd':
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
@@ -5055,29 +5043,50 @@ class c:
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
-            
+           
+           
     @classmethod
-    def get_text(cls, path: str, root=False, last_bytes=-1, first_bytes=-1) -> str:
+    def readlines(self, path:str, start_line:int = 0, end_line:int = 0, root=False) -> List[str]:
         # Get the absolute path of the file
+        path = self.resolve_path(path, root=root)
+        # Read the contents of the file
+        with open(path, 'r') as file:
+            lines = file.readlines()
+            if end_line == 0:
+                end_line = len(lines)
+            lines = lines[start_line:end_line]
+        lines = '\n'.join(lines)
+        return lines
+    
+    
+    @classmethod
+    def get_text(cls, 
+                 path: str, 
+                 start_byte:int = 0,
+                 end_byte:int = 0,
+                 start_line :int= 0,
+                 end_line:int = 0,
+                  root=False, ) -> str:
+        # Get the absolute path of the file
+        
         path = cls.resolve_path(path, root=root)
         # Read the contents of the file
         with open(path, 'rb') as file:
-            # Move to the beginning of the file
-
-            content = ''
-            if last_bytes > 0:
-                file.seek(0, 2)
-                file_size = file.tell()  # Get the file size
-                # Move to the position to read the last bytes
-                file.seek(max(file_size - last_bytes, 0), 0)
-                content = file.read(last_bytes).decode()
-            elif first_bytes > 0:
-                # Move back to the beginning of the file
-                file.seek(0, 0)
-                content = file.read(first_bytes).decode()
+        
                 
-            else:
-                content = file.read().decode()
+            file.seek(0, 2) # this is done to get the fiel size
+            file_size = file.tell()  # Get the file size
+            if start_byte < 0:
+                start_byte = file_size - start_byte
+            if end_byte <= 0:
+                end_byte = file_size - end_byte 
+            chunk_size = end_byte - start_byte + 1
+            file.seek(start_byte)
+            content = file.read(chunk_size).decode()
+            
+            if start_line != 0 or end_line != 0:
+                content = content.split('\n')
+                content = content[start_line:end_line]
 
         return content
 
