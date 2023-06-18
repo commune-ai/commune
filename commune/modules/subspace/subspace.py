@@ -36,49 +36,40 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
-    token_decimals = 9
-    retry_params = dict(delay=2, tries=2, backoff=2, max_delay=4) # retry params for retrying failed RPC calls
-    network2url_map = {
-        'local': '127.0.0.1:9945',
-        'testnet': '127.0.0.1:9945',
-        }
-    
-    chain = 'subspace'
-    chain_path = f'{c.repo_path}/{chain}'
-    chain_release_path =  f'{c.repo_path}/subspace/target/release/node-{chain}'
-    spec_path = f'{chain_path}/specs'
-    key_types = ['aura', 'gran']
-    supported_schemas = ['Sr25519', 'Ed25519']
-    default_netuid = 1
+    default_config = c.get_config('subspace', to_munch=False)
+    token_decimals = default_config['token_decimals']
+    retry_params = default_config['retry_params']
+    network2url = default_config['network2url']
+    chain = default_config['chain']
+    default_network = default_config['network']
+    chain_path = eval(default_config['chain_path'])
+    chain_release_path = eval(default_config['chain_release_path'])
+    spec_path = eval(default_config['spec_path'])
+    key_types = default_config['key_types']
+    supported_schemas = default_config['supported_schemas']
+    default_netuid = default_config['default_netuid']
 
     
     def __init__( 
         self, 
-        subspace: str = 'testnet',
+        network: str = default_network,
         **kwargs,
     ):
 
 
-        self.set_subspace( subspace)
+        self.set_subspace( network)
     @classmethod
-    def network2url(cls, network:str) -> str:
+    def get_network_url(cls, network:str = default_network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        return cls.network2url_map.get(network, 'local')
+        return cls.network2url.get(network)
     @classmethod
     def url2network(cls, url:str) -> str:
-        return {v: k for k, v in cls.network2url_map.items()}.get(url, None)
+        return {v: k for k, v in cls.network2url.items()}.get(url, None)
     
     @classmethod
-    def resolve_subspace_url(cls, network:str ):  
+    def resolve_network_url(cls, network:str ):  
         external_ip = cls.external_ip()      
-        url = cls.network2url(network)
-        # resolve url ip if it is its own ip
-        ip = url.split('/')[-1].split(':')[0]
-        port = url.split(':')[-1]
-        if ip.strip() == external_ip.strip():
-            ip = '0.0.0.0'
-            url = f'{ip}:{port}'
-            
+        url = cls.get_network_url(network)
 
         # if not url.startswith('wss://') and not url.startswith('ws://'):
         if not url.startswith('ws://'):
@@ -86,7 +77,7 @@ class Subspace(c.Module):
         
         return url
     def set_subspace(self, 
-                subspace:str,
+                network:str,
                 websocket:str=None, 
                 ss58_format:int=42, 
                 type_registry:dict=custom_rpc_type_registry, 
@@ -126,12 +117,12 @@ class Subspace(c.Module):
 
         from substrateinterface import SubstrateInterface
         
-        self.print(f'Connecting to [cyan bold]{subspace.upper()}[/ cyan bold] ')
 
-        url = self.resolve_subspace_url(subspace)
+        url = self.resolve_network_url(network)
+        
         self.url = self.chain_endpoint = url
         
-        self.print(url, 'broooo red')
+        
         self.substrate= SubstrateInterface(
                                     url=url, 
                                     websocket=websocket, 
@@ -322,7 +313,6 @@ class Subspace(c.Module):
             
             # process if registration successful, try again if pow is still valid
             response.process_events()
-            c.print( response.__dict__ )
     
             
 
@@ -1226,6 +1216,25 @@ class Subspace(c.Module):
         return namespace
     
     
+    def modules(self, netuid: int = None) -> Dict[str, ModuleInfo]:
+        # netuid = self.resolve_netuid(netuid)
+        netuid = self.resolve_netuid(netuid) 
+        uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
+        uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
+        uid2name = { r[1].value : r[0].value for r in self.query_map('Namespace', params=[netuid]).records}
+        modules = {}
+        for uid, address in uid2addresses.items():
+            modules[uid] = {
+                'uid': uid,
+                'address': address,
+                'name': uid2name[uid],
+                'key': uid2key[uid],
+                
+            }
+            
+        return modules
+    
+    
     def name2key(self, netuid: int = None) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         
@@ -1345,6 +1354,7 @@ class Subspace(c.Module):
 
     @classmethod
     def spec_exists(cls, chain):
+        c.print(c.exists)
         return c.exists(f'{cls.spec_path}/{chain}.json')
 
 
@@ -1423,8 +1433,8 @@ class Subspace(c.Module):
                  ws_port:int=9945,
                  user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
-                 validator = True,          
-                 boot_nodes = '/ip4/127.0.0.1/tcp/30333/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV',       
+                 validator: bool = True,          
+                 boot_nodes : str = None,       
                  purge_chain:bool = True,
                  remote:bool = True,
                  refresh:bool = True,
@@ -1471,21 +1481,52 @@ class Subspace(c.Module):
                     users = ['alice','bob'] ,
                     chain:str='dev', 
                     verbose:bool = True,
+                    reuse_ports : bool = True,
                     sleep :int = 2,
-                    build: bool = False):
+                    build: bool = False,
+                    external:bool = False,
+                    boot_nodes : str = None,
+                    port_keys: list = ['port','rpc_port','ws_port'],):
         if build:
             cls.build(verbose=verbose)
         avoid_ports = []
+        
+        ip = c.ip(external=external)
+        chain_info_path = f'chain_info.{chain}'
+        chain_info = cls.getc(chain_info_path, default={})
+        for i, user in enumerate(users):
+            
 
-        for user in users:
-            node_kwargs = {'chain':chain, 'user':user, 'verbose':verbose}
-            for k in ['port','rpc_port','ws_port']:
-                port = c.free_port(avoid_ports=avoid_ports)
-                avoid_ports.append(port)
-                node_kwargs[k] = port
+            
+            if user in chain_info and reuse_ports:
+                node_kwargs = chain_info[user]
+                for k in port_keys:
+                    node_kwargs[k] = c.resolve_port(node_kwargs[k])
                 
-            cls.start_node(**node_kwargs)
+            else:
+                node_kwargs = {'chain':chain, 'user':user, 'verbose':verbose}
+                for k in port_keys:
+                    port = c.free_port(avoid_ports=avoid_ports)
+                    avoid_ports.append(port)
+                    node_kwargs[k] = port
+                
+
+            if boot_nodes == None:
+                boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV'
+            
+            node_kwargs['boot_nodes'] = boot_nodes
+            chain_info[user] = c.copy(node_kwargs)
+
+                
+            cls.start_node(**chain_info[user])
+
             cls.sleep(sleep)
+        
+        cls.putc(chain_info_path, chain_info)
+
+
+        cls.putc(f'network2url.{chain}', f'{c.external_ip()}:{node_kwargs["ws_port"]}')
+        
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
@@ -1514,6 +1555,29 @@ class Subspace(c.Module):
     @classmethod
     def keys(cls, *args, **kwargs ):
         return c.module('key').keys(*args, **kwargs)
+    
+
+    def subnet_state(self, key, netuid = None,  **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        for r in self.query_map(key, params=[], **kwargs).records:
+            if r[0].value == netuid:
+                incentive = r[1].value
+        
+        return incentive
+    
+    def incentive(self, netuid = None, **kwargs):
+        return self.subnet_state('Incentive', netuid=netuid, **kwargs)
+        
+        
+    
+    def emission(self, netuid = None, **kwargs):
+        return self.subnet_state('Emission', netuid=netuid, **kwargs)
+        
+    
+    def dividends(self, netuid = None, **kwargs):
+        return self.subnet_state('Dividends', netuid=netuid, **kwargs)
+        
+        
     
     
     @classmethod
@@ -1579,7 +1643,6 @@ class Subspace(c.Module):
         # c.print(key, key.ss58_address)
         # c.print(self.get_balance(key.ss58_address).__dict__)
 
-        c.print(self.network2netuid)
         # c.print(self.namespace())
         c.print(self.namespace())
         

@@ -518,12 +518,12 @@ class c:
         cls.save_config(config=config)
         
     @classmethod  
-    def getc(cls, key, password=None) -> Any:
+    def getc(cls, key, password=None, default= None) -> Any:
         '''
         Saves the config to a yaml file
         '''
         
-        data = cls.dict_get(cls.config(), key)
+        data = cls.dict_get(cls.config(), key, default)
         if c.is_encrypted(data):
             if password == None:
                 return data
@@ -1543,15 +1543,15 @@ class c:
     save_json = put_json
     
     @classmethod
-    def file_exists(cls, path:str, extension = 'json', root:bool = False)-> bool:
-        path = cls.resolve_path(path=path, extension=extension, root=root)
+    def file_exists(cls, path:str, root:bool = False)-> bool:
+        path = cls.resolve_path(path=path,  root=root)
         return os.path.exists(path)
 
         
 
     
     
-    exists_json = file_exists
+    exists = exists_json = file_exists
 
     @classmethod
     def rm_json(cls, path=None, root:bool = False):
@@ -2093,11 +2093,6 @@ class c:
         namespace = c.namespace(**kwargs)
         return bool(name in namespace)
     
-    @classmethod
-    def file_exists(self, path:str) -> bool:
-        import os
-        return os.path.exists(path)
-    exists = file_exists
     @classmethod
     def module_exists(cls, name:str) -> bool:
         return bool(name in cls.module_list())
@@ -3576,6 +3571,14 @@ class c:
         if not hasattr(cls, '__external_ip__'):
             cls.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
         return cls.__external_ip__
+    
+    @classmethod
+    def ip(cls,external=True, **kwargs) -> str:
+        if external:
+            ip =  cls.external_ip(**kwargs)
+        else:
+            ip =  cls.default_ip
+        return ip
     
     @classmethod
     def resolve_ip(cls, ip=None) -> str:
