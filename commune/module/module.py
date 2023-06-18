@@ -5826,9 +5826,6 @@ class c:
             include_hidden: whether to include hidden functions (starts and begins with "__")
         '''
         
-        '''
-        List of functions
-        '''
         if obj == None:
             obj = cls
         
@@ -5994,7 +5991,6 @@ class c:
     @staticmethod
     def has_fn(obj, fn_name):
         return callable(getattr(obj, fn_name, None))
-
 
     @staticmethod
     def try_fn_n_times(fn, kwargs:Dict, try_count_limit: int = 10):

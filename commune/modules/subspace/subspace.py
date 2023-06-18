@@ -675,28 +675,7 @@ class Subspace(c.Module):
             wait_for_finalization:bool = False,
             prompt: bool = False,
         ) -> bool:
-        r""" Removes stake into the wallet coldkey from the specified hotkey uid.
-        Args:
-            wallet (c.wallet):
-                commune wallet object.
-            key_ss58 (Optional[str]):
-                ss58 address of the hotkey to unstake from.
-                by default, the wallet hotkey is used.
-            amount (Union[Balance, float]):
-                Amount to stake as commune balance, or float interpreted as joule.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
+
         with c.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
             old_balance = self.get_balance( key.ss58_address )        
             old_stake = self.get_stake_for_key( key_ss58 = key.ss58_address)
@@ -723,7 +702,7 @@ class Subspace(c.Module):
                     call_module='SubspaceModule', 
                     call_function='remove_stake',
                     call_params={
-                        'hotkey': key.ss58_address,
+                        'key': key.ss58_address,
                         'amount_unstaked': amount.nano
                         }
                     )
@@ -765,17 +744,15 @@ class Subspace(c.Module):
     ########################
 
     """ Queries subspace named storage with params and block. """
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def query_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [] ) -> Optional[object]:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query(
-                    module='SubspaceModule',
-                    storage_function = name,
-                    params = params,
-                    block_hash = None if block == None else substrate.get_block_hash(block)
+        with self.substrate as substrate:
+            return substrate.query(
+                module='SubspaceModule',
+                storage_function = name,
+                params = params,
+                block_hash = None if block == None else substrate.get_block_hash(block)
                 )
-        return make_substrate_call_with_retry()
 
     """ Queries subspace map storage with params and block. """
     def query_map( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [default_netuid] ) -> Optional[object]:
@@ -832,7 +809,7 @@ class Subspace(c.Module):
         return self.query_subspace('SubnetN', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
-    def max_n (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+    def max_allowed_uids (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
         if not self.subnet_exists( netuid ): return None
         return self.query_subspace('MaxAllowedUids', block, [netuid] ).value
@@ -1157,11 +1134,6 @@ class Subspace(c.Module):
             network = self.network
         return network
     
-    def get_namespace(self, network = None  ):
-        network = self.resolve_network(network)
-        self.get_storage_map(module='SubspaceModule', storage_map='ModuleNamespace')
-        return {self.substrate.ss58_encode(k[len(map_prefix):]): v for k, v in result}
-
 
     @staticmethod
     def _null_module() -> ModuleInfo:
@@ -1291,12 +1263,6 @@ class Subspace(c.Module):
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
 
-            
-    def modules(self, network:int = None):
-        netuid = self.resolve_network(network)
-        return self.query_map('Modules', params=[netuid]).records
-    
-    
     @classmethod
     def test_balance(cls):
         self = cls()

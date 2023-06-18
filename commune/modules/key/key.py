@@ -96,6 +96,7 @@ class Keypair(c.Module):
                  crypto_type: int = KeypairType.SR25519,
                  derive_path: str = None,
                  mnemonic: str = None,
+                 path = None,
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -114,12 +115,12 @@ class Keypair(c.Module):
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
         self.derive_path = None
+        self.path = path 
 
         if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
 
         if private_key:
-
             if type(private_key) is str:
                 private_key = bytes.fromhex(private_key.replace('0x', ''))
 
@@ -180,7 +181,6 @@ class Keypair(c.Module):
     def add_keys(cls, *path,  **kwargs):
         for p in path:
             cls.add_key(p, **kwargs)
-        return key_json
     add = add_key
     @classmethod
     def get_key(cls, path, password=None):
@@ -192,7 +192,6 @@ class Keypair(c.Module):
             return None
         return cls.from_json(key_json)
     
-
     @classmethod
     def key_paths(cls):
         return cls.ls()
@@ -794,6 +793,6 @@ class Keypair(c.Module):
         
     def __repr__(self):
         if self.ss58_address:
-            return '<Keypair (address={})>'.format(self.ss58_address)
+            return f'<Keypair (address={self.ss58_address})>'
         else:
-            return '<Keypair (public_key=0x{})>'.format(self.public_key.hex())
+            return f'<Keypair (public_key=0x{self.public_key.hex()})>'
