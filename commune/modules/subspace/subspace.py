@@ -232,10 +232,10 @@ class Subspace(c.Module):
         return netuid
     
     
-    def register (
+    def register(
         self,
-        name: str ,
         key ,
+        name: str ,
         stake : int = 0,
         address: str = None,
         network = subnet,
@@ -475,8 +475,9 @@ class Subspace(c.Module):
                 If we did not wait for finalization / inclusion, the response is true.
         """
 
-        output['key'] = key.ss58_address
+        key = self.resolve_key(key)
         subnet = self.resolve_subnet(netuid)
+        
         
 
         with c.status(":satellite: Serving module on: [white]{}:{}[/white] ...".format(self.network, netuid)):
@@ -508,9 +509,9 @@ class Subspace(c.Module):
 
     def add_stake(
             self,
-            key_ss58: Optional[str] = None,
+            key: Optional[str] ,
             amount: Union[Balance, float] = None, 
-            key: 'c.Key' = None,
+            netuid:int = None,
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
             prompt: bool = False,
@@ -543,37 +544,21 @@ class Subspace(c.Module):
             NotDelegateError:
                 If the hotkey is not a delegate on the chain.
         """
-
-
+        
+        key = c.get_key(key)
+        netuid = self.resolve_netuid(netuid)
+        
         # Flag to indicate if we are using the wallet's own hotkey.
-        old_balance = self.get_balance( key.ss58_address )
+        old_balance = self.get_balance( key.ss58_address , fmt='j')
+        old_stake = self.get_stake( key.ss58_address , fmt='j')
+
+        if amount is None:
+            amount = old_balance
+        
+        # assume amount is in joules
+        amount = self.to_nano(amount)
+
         # Get current stake
-        old_stake = self.get_stake( key_ss58=key.ss58_address )
-
-        # Convert to c.Balance
-        if amount == None:
-            # Stake it all.
-            staking_balance =  old_balance
-        elif not isinstance(amount, Balance ):
-            staking_balance = Balance.from_token( amount )
-        else:
-            staking_balance = amount
-
-        # Remove existential balance to keep key alive.
-        if staking_balance > Balance.from_nano( 1000 ):
-            staking_balance = staking_balance - Balance.from_nano( 1000 )
-        else:
-            staking_balance = staking_balance
-
-        # Check enough to stake.
-        if staking_balance > old_balance:
-            c.print(":cross_mark: [red]Not enough stake[/red]:[bold white]\n  balance:{}\n  amount: {}\n  coldkey: {}[/bold white]".format(old_balance, staking_balance, wallet.name))
-            return False
-                
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to stake:[bold white]\n  amount: {}\n  to: {}[/bold white]".format( staking_balance, key.ss58_address) ):
-                return False
 
         try:
             with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
@@ -583,12 +568,14 @@ class Subspace(c.Module):
                     call_module='SubspaceModule', 
                     call_function='add_stake',
                     call_params={
-                        'key': key.ss58_address,
-                        'amount_staked': amount.nano
+                        'netuid': netuid,
+                        'amount_staked': amount
                         }
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+                    response = substrate.submit_extrinsic( extrinsic, 
+                                                          wait_for_inclusion = wait_for_inclusion,
+                                                          wait_for_finalization = wait_for_finalization )
 
 
             if response: # If we successfully staked.
@@ -599,9 +586,9 @@ class Subspace(c.Module):
 
                 c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
-                    new_balance = self.get_balance( address = key.ss58_address )
+                    new_balance = self.get_balance(  key.ss58_address , fmt='j')
                     block = self.get_current_block()
-                    new_stake = self.get_stake(key.ss58_address,block=block) # Get current stake
+                    new_stake = self.get_stake(key.ss58_address,block=block, fmt='j') # Get current stake
 
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
                     c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
@@ -609,10 +596,6 @@ class Subspace(c.Module):
             else:
                 c.print(":cross_mark: [red]Failed[/red]: Error unknown.")
                 return False
-
-        except NotRegisteredError as e:
-            c.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
-            return False
         except StakeError as e:
             c.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
             return False
@@ -623,31 +606,25 @@ class Subspace(c.Module):
 
     def unstake (
             self,
+            key: 'c.Key', 
             amount: float = None, 
-            key: 'c.Key' = None,
+            netuid = None,
             wait_for_inclusion:bool = True, 
             wait_for_finalization:bool = False,
             prompt: bool = False,
         ) -> bool:
 
-        with c.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
-            old_balance = self.get_balance( key.ss58_address )        
-            old_stake = self.get_stake( key_ss58 = key.ss58_address)
-
+        key = c.get_key(key)
+        netuid = self.resolve_netuid(netuid)
+        old_stake = self.get_stake( key.ss58_address, netuid=netuid, fmt='nano' )
         if amount == None:
-            unstake_balance = self.get_stake( key_ss58 = key.ss58_address)
-        unstaking_balance = amount
-
-        # Check enough to unstake.
-        stake_on_uid = old_stake
-        if unstaking_balance > stake_on_uid:
-            c.print(":cross_mark: [red]Not enough stake[/red]: [green]{}[/green] to unstake: [blue]{}[/blue] from key: [white]{}[/white]".format(stake_on_uid, unstaking_balance, key.ss58_address))
-            return False
+            amount = old_stake
+            
+        old_balance = self.get_balance(  key.ss58_address , fmt='nano')
+            
+            
+        c.print("Unstaking [bold white]{}[/bold white] from [bold white]{}[/bold white]".format(amount, self.network))
         
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to unstake:\n[bold white]  amount: {} key: [white]{}[/bold white ]\n?".format( unstaking_balance, key.ss58_address) ):
-                return False
         try:
             with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
@@ -657,8 +634,8 @@ class Subspace(c.Module):
                     call_module='SubspaceModule', 
                     call_function='remove_stake',
                     call_params={
-                        'key': key.ss58_address,
-                        'amount_unstaked': amount.nano
+                        'amount_unstaked': amount,
+                        'netuid': netuid
                         }
                     )
                     extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
@@ -678,8 +655,8 @@ class Subspace(c.Module):
 
                 c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
-                    new_balance = self.get_balance( address = key.ss58_address )
-                    new_stake = self.get_stake( key_ss58 = key.ss58_address ) # Get stake on hotkey.
+                    new_balance = self.get_balance( key.ss58_address , fmt='nano')
+                    new_stake = self.get_stake( key.ss58_address , fmt='nano') # Get stake on hotkey.
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
                     c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
                     return True
@@ -687,9 +664,9 @@ class Subspace(c.Module):
                 c.print(":cross_mark: [red]Failed[/red]: Error unknown.")
                 return False
 
-        except NotRegisteredError as e:
-            c.print(":cross_mark: [red]Hotkey: {} is not registered.[/red]".format(key.ss58_address))
-            return False
+        # except Exception as e:
+        #     c.print(f":cross_mark: [red]key: {key} is not registered.[/red]")
+        #     return False
         except StakeError as e:
             c.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
             return False
@@ -783,8 +760,14 @@ class Subspace(c.Module):
     
     @classmethod
     def resolve_key_ss58(cls, key_ss58):
-        if c.key_exists( key_ss58 ):
-            key_ss58 = c.get_key( key_ss58 ).ss58_address
+        
+        if isinstance(key_ss58, str):
+            if c.key_exists( key_ss58 ):
+                key_ss58 = c.get_key( key_ss58 ).ss58_address
+        if hasattr(key_ss58, 'ss58_address'):
+            key_ss58 = key_ss58.ss58_address
+            
+            
     
         return key_ss58
 
@@ -796,13 +779,28 @@ class Subspace(c.Module):
             key = c.get_key( key )
         return key
         
+    @classmethod
+    def from_nano(cls,x):
+        return x / (10**cls.token_decimals)
+    to_token = from_nano
+    @classmethod
+    def to_nano(cls,x):
+        return x * (10**cls.token_decimals)
+    from_token = to_nano
+    @classmethod
+    def format_amount(cls, x, fmt='nano'):
+        if fmt in ['nano', 'n']:
+            return x
+        elif fmt in ['token', 'unit', 'j', 'J']:
+            return cls.to_token(x)
+        else:
+            raise ValueError(f"Invalid format {fmt}.")
     
-    
-    def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None  ) -> Optional['Balance']:
+    def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
         
         key_ss58 = self.resolve_key_ss58( key_ss58 )
         netuid = self.resolve_netuid( netuid )
-        return Balance.from_nano( self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value )
+        return self.format_amount(self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value, fmt=fmt)
        
     ###########################
     #### Global Parameters ####
@@ -888,7 +886,7 @@ class Subspace(c.Module):
 
 
 
-    def get_balance(self, key: str, block: int = None) -> Balance:
+    def get_balance(self, key: str, block: int = None, fmt='j') -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -898,7 +896,7 @@ class Subspace(c.Module):
                 account balance
         """
         
-        key = self.resolve_key( key )
+        key_ss58 = self.resolve_key_ss58( key )
         
         try:
             @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -907,17 +905,19 @@ class Subspace(c.Module):
                     return substrate.query(
                         module='System',
                         storage_function='Account',
-                        params=[key.ss58_address],
+                        params=[key_ss58],
                         block_hash = None if block == None else substrate.get_block_hash( block )
                     )
             result = make_substrate_call_with_retry()
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
             c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
-        return Balance.from_nano( result.value['data']['free'] )
+        return  self.format_amount(result.value['data']['free'] , fmt=fmt)
 
 
 
-    def get_balances(self, block: int = None) -> Dict[str, Balance]:
+    balance =  get_balance
+
+    def get_balances(self, block: int = None, fmt:str = 'j') -> Dict[str, Balance]:
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
@@ -929,7 +929,7 @@ class Subspace(c.Module):
         result = make_substrate_call_with_retry()
         return_dict = {}
         for r in result:
-            bal = Balance.from_nano(int( r[1]['data']['free'].value ))
+            bal = self.format_amount(int( r[1]['data']['free'].value ), fmt=fmt)
             return_dict[r[0].value] = bal
         return return_dict
     balances = get_balances
@@ -989,6 +989,25 @@ class Subspace(c.Module):
             netuid = cls.default_netuid
         return netuid
 
+
+    def key2name(self, key: str = None, netuid: int = None) -> str:
+        modules = self.modules(netuid)
+        key2name =  { m['key']: m['name']for m in modules.values() }
+        if key != None:
+            return key2name[key]
+            
+        
+    def name2key(self, name:str=None,  netuid: int = None) -> Dict[str, str]:
+        # netuid = self.resolve_netuid(netuid)
+        
+        # Get the namespace for the netuid.
+        netuid = self.resolve_netuid(netuid)        
+        keys = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
+        namespace = { r[0].value: keys[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
+        if name != None:
+            return namespace[name]
+        else:
+            return namespace
         
     def namespace(self, netuid: int = None) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
@@ -999,6 +1018,27 @@ class Subspace(c.Module):
         namespace = { r[0].value: addresses[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
         return namespace
     
+    
+    def get_module(self, key, netuid):
+        key = self.resolve_key(key)
+        
+        modules = self.modules(netuid)
+        if len(modules) == 0:
+            return self._null_module()
+        else:
+            return modules[0]
+        
+        
+        
+    def key2module(self, key: str = None, netuid: int = None) -> Dict[str, str]:
+        modules = self.modules(netuid)
+        key2module =  { m['key']: m for m in modules.values() }
+        
+        if key != None:
+            key_ss58 = self.resolve_key_ss58(key)
+            return key2module[key_ss58]
+        return key2module
+        
     
     def modules(self, netuid: int = None) -> Dict[str, ModuleInfo]:
         # netuid = self.resolve_netuid(netuid)
@@ -1032,18 +1072,8 @@ class Subspace(c.Module):
         return modules
     
     
-    def name2key(self, netuid: int = None) -> Dict[str, str]:
-        # netuid = self.resolve_netuid(netuid)
-        
-        # Get the namespace for the netuid.
-        netuid = self.resolve_netuid(netuid)        
-        keys = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
-        namespace = { r[0].value: keys[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
-        return namespace
-    
-    def key2name(self, netuid: int = None) -> Dict[str, str]:
-        return {v:k for k,v in self.name2key(netuid=netuid).items()}
-    
+
+
     @classmethod
     def nodes(cls):
         return c.pm2ls('subspace')
