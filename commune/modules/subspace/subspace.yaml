@@ -24,6 +24,7 @@ key_types:
 - aura
 - gran
 network: dev
+subnet: commune
 network2url:
   dev: 127.0.0.1:4875
   local: 127.0.0.1:4874

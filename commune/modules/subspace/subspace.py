@@ -42,6 +42,7 @@ class Subspace(c.Module):
     network2url = default_config['network2url']
     chain = default_config['chain']
     default_network = default_config['network']
+    default_subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
     chain_release_path = eval(default_config['chain_release_path'])
     spec_path = eval(default_config['spec_path'])
@@ -226,15 +227,6 @@ class Subspace(c.Module):
         else:
             raise NotImplementedError('No uri, mnemonic, privatekey or publickey provided')
         return key
-    def resolve_key(self, key: 'c.Key') -> 'c.Key':
-        if key == None:
-            if not hasattr(self, 'key'):
-                self.key = c.get_key()
-            key = self.key
-        
-        return key
-    
-
     def get_netuid_for_network(self, network: str = None) -> int:
         netuid = self.network2netuid[network]
         return netuid
@@ -242,11 +234,11 @@ class Subspace(c.Module):
     
     def register (
         self,
-        network = 'commune',
-        name: str = None,
-        address: str = None,
+        name: str ,
+        key ,
         stake : int = 0,
-        key: 'c.Key' = None,
+        address: str = None,
+        network = default_subnet,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         prompt: bool = False,
@@ -284,7 +276,8 @@ class Subspace(c.Module):
         key = self.resolve_key(key)
         # netuid = self.network2netuid(network)
 
-
+        if address is None:
+            address = f'{c.ip()}:{c.free_port()}'
 
         # convert name to bytes
         name = name.encode('utf-8')
@@ -330,11 +323,10 @@ class Subspace(c.Module):
         key: 'c.Key' =  None,
         keep_alive: bool = True
     ) -> bool:
-        key = self.resolve_key(key)
+        key = c.get_key(key)
 
 
         # Validate destination address.
-        print(dest)
         if not is_valid_address_or_public_key( dest ):
             c.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
             return False
@@ -350,7 +342,7 @@ class Subspace(c.Module):
             # check existential deposit.
             existential_deposit = self.get_existential_deposit()
 
-        transfer_balance =  Balance(amount)
+        transfer_balance =  Balance.to_nanos(amount)
         with c.status(":satellite: Transferring..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
@@ -370,7 +362,7 @@ class Subspace(c.Module):
                         'partialFee': 2e7, # assume  0.02 joule 
                     }
 
-                fee = payment_info['partialFee'] * 10 ** self.token_decimals
+                fee = transfer_balance.to_nanos(payment_info['partialFee'])
         
         if not keep_alive:
             # Check if the transfer should keep_alive the account
@@ -393,7 +385,7 @@ class Subspace(c.Module):
                     call_function='transfer',
                     call_params={
                         'dest': dest, 
-                        'value': transfer_balance.nano
+                        'value': transfer_balance
                     }
                 )
 
@@ -441,10 +433,10 @@ class Subspace(c.Module):
     #################
     #### Serving ####
     #################
-    def serve (
+    def update_module (
         self,
-        ip: str, 
-        port: int, 
+        name: str = None,
+        address: str = None,
         netuid: int = None,
         key: 'c.Key' =  None,
         wait_for_inclusion: bool = False,
@@ -480,51 +472,19 @@ class Subspace(c.Module):
                 flag is true if extrinsic was finalized or uncluded in the block. 
                 If we did not wait for finalization / inclusion, the response is true.
         """
-        params = {
-            'ip': ip_to_int(ip),
-            'port': port,
-            'netuid': netuid,
-            'key': wallet.coldkeypub.ss58_address,
-        }
 
-        with c.info(":satellite: Checking Axon..."):
-            module = self.get_module_for_pubkey_and_subnet( wallet.hotkey.ss58_address, netuid = netuid )
-            module_up_to_date = not module.is_null and params == {
-                'ip': ip_to_int(module.module_info.ip),
-                'port': module.module_info.port,
-                'netuid': module.netuid,
-                'key': module.coldkey,
-            }
-
-        output = params.copy()
         output['key'] = key.ss58_address
-
-        if module_up_to_date:
-            c.print(f":white_heavy_check_mark: [green]Axon already Served[/green]\n"
-                                        f"[green not bold]- coldkey: [/green not bold][white not bold]{output['key']}[/white not bold] \n"
-                                        f"[green not bold]- Status: [/green not bold] |"
-                                        f"[green not bold] ip: [/green not bold][white not bold]{int_to_ip(output['ip'])}[/white not bold] |"
-                                        f"[green not bold] port: [/green not bold][white not bold]{output['port']}[/white not bold] | "
-                                        f"[green not bold] netuid: [/green not bold][white not bold]{output['netuid']}[/white not bold] |"
-            )
-
-
-            return True
-
-        if prompt:
-            output = params.copy()
-            output['key'] = key.ss58_address
-            if not Confirm.ask("Do you want to serve module:\n  [bold white]{}[/bold white]".format(
-                json.dumps(output, indent=4, sort_keys=True)
-            )):
-                return False
 
         with c.status(":satellite: Serving module on: [white]{}:{}[/white] ...".format(self.network, netuid)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='SubspaceModule',
-                    call_function='serve_module',
-                    call_params=params
+                    call_function='update_module',
+                    call_params= {
+                                'address': port,
+                                'name': name,
+                                'key': wallet.coldkeypub.ss58_address,
+                            }
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
@@ -584,7 +544,7 @@ class Subspace(c.Module):
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address )
         # Get current stake
-        old_stake = self.get_stake_for_key( key_ss58=key.ss58_address )
+        old_stake = self.get_stake( key_ss58=key.ss58_address )
 
         # Convert to c.Balance
         if amount == None:
@@ -637,7 +597,7 @@ class Subspace(c.Module):
                 with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
                     new_balance = self.get_balance( address = key.ss58_address )
                     block = self.get_current_block()
-                    new_stake = self.get_stake_for_key(key.ss58_address,block=block) # Get current stake
+                    new_stake = self.get_stake(key.ss58_address,block=block) # Get current stake
 
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
                     c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
@@ -668,9 +628,10 @@ class Subspace(c.Module):
 
         with c.status(":satellite: Syncing with chain: [white]{}[/white] ...".format(self.network)):
             old_balance = self.get_balance( key.ss58_address )        
-            old_stake = self.get_stake_for_key( key_ss58 = key.ss58_address)
+            old_stake = self.get_stake( key_ss58 = key.ss58_address)
 
-
+        if amount == None:
+            unstake_balance = self.get_stake( key_ss58 = key.ss58_address)
         unstaking_balance = amount
 
         # Check enough to unstake.
@@ -714,7 +675,7 @@ class Subspace(c.Module):
                 c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
                     new_balance = self.get_balance( address = key.ss58_address )
-                    new_stake = self.get_stake_for_key( key_ss58 = key.ss58_address ) # Get stake on hotkey.
+                    new_stake = self.get_stake( key_ss58 = key.ss58_address ) # Get stake on hotkey.
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
                     c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
                     return True
@@ -776,61 +737,66 @@ class Subspace(c.Module):
     """ Returns network ImmunityPeriod hyper parameter """
     def immunity_period (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
         return self.query_subspace("ImmunityPeriod", block, [netuid] ).value
 
 
     """ Returns network MinAllowedWeights hyper parameter """
     def min_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
         return self.query_subspace("MinAllowedWeights", block, [netuid] ).value
 
     """ Returns network MaxWeightsLimit hyper parameter """
     def max_weight_limit (self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
         return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
 
     """ Returns network SubnetN hyper parameter """
-    def subnetwork_n (self, netuid: int = None, block: Optional[int] = None ) -> int:
+    def n (self, netuid: int = None, block: Optional[int] = None ) -> int:
         netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace('SubnetN', block, [netuid] ).value
+        return self.query_subspace('N', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
     def max_allowed_uids (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
         return self.query_subspace('MaxAllowedUids', block, [netuid] ).value
-
-    """ Returns network BlocksSinceLastStep hyper parameter """
-    def blocks_since_epoch (self, netuid: int = None, block: Optional[int] = None) -> int:
-        netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
-        return self.query_subspace('BlocksSinceLastStep', block, [netuid] ).value
 
     """ Returns network Tempo hyper parameter """
     def tempo (self, netuid: int = None, block: Optional[int] = None) -> int:
         netuid = self.resolve_netuid( netuid )
-        if not self.subnet_exists( netuid ): return None
         return self.query_subspace('Tempo', block, [netuid] ).value
 
     ##########################
     #### Account functions ###
     ##########################
+    
+    """ Returns network Tempo hyper parameter """
+    def stake (self, key = None, netuid: int = None, block: Optional[int] = None) -> int:
+        netuid = self.resolve_netuid( netuid )
+        return {k.value:v.value for k,v in self.query_map('Stake', block, [netuid] ).records}
 
     """ Returns the stake under a coldkey - hotkey pairing """
-    def get_stake_for_key( self, key_ss58: str, block: Optional[int] = None ) -> Optional['Balance']:
-        return Balance.from_nano( self.query_subspace( 'Stake', block, [key_ss58] ).value )
+    
+    
+    @classmethod
+    def resolve_key_ss58(cls, key_ss58):
+        if c.key_exists( key_ss58 ):
+            key_ss58 = c.get_key( key_ss58 ).ss58_address
+        return key_ss58
 
-    """ Returns a list of stake tuples (coldkey, balance) for each delegating coldkey including the owner"""
-    def get_stake( self,  key_ss58: str, block: Optional[int] = None ) -> List[Tuple[str,'Balance']]:
-        return [ (r[0].value, Balance.from_nano( r[1].value ))  for r in self.query_map( 'Stake', block, [key_ss58] ) ]
-
-    """ Returns the module information for this key account """
-    def get_module_info( self, key_ss58: str, block: Optional[int] = None ) -> Optional[ModuleInfo]:
-        result = self.query_subspace( 'Modules', block, [key_ss58] )        
+    @classmethod
+    def resolve_key(cls, key):
+        if c.key_exists( key ):
+            key = c.get_key( key )
+        return key
+        
+    
+    
+    def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None  ) -> Optional['Balance']:
+        
+        key_ss58 = self.resolve_key_ss58( key_ss58 )
+        netuid = self.resolve_netuid( netuid )
+        return Balance.from_nano( self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value )
+       
     ###########################
     #### Global Parameters ####
     ###########################
@@ -847,26 +813,7 @@ class Subspace(c.Module):
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
-    def serving_rate_limit (self, block: Optional[int] = None ) -> Optional[int]:
-        return self.query_subspace( "ServingRateLimit", block ).value
 
-    #####################################
-    #### Network Parameters ####
-    #####################################
-
-    def subnet_exists( self, netuid: int = None, block: Optional[int] = None ) -> bool:
-        netuid = self.resolve_netuid( netuid )
-        return self.query_subspace( 'SubnetN', block, [netuid] ).value  
-
-    def get_subnets( self, block: Optional[int] = None ) -> List[int]:
-        subnet_netuids = []
-        result = self.query_map( 'SubnetN', block )
-        if result.records:
-            for netuid, exists in result:  
-                if exists:
-                    subnet_netuids.append( netuid.value )
-            
-        return subnet_netuids
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
         return self.query_subspace( 'TotalSubnets', block ).value      
@@ -874,62 +821,6 @@ class Subspace(c.Module):
     def get_emission_value_by_subnet( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
         return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
-
-
-    def get_subnets( self, block: Optional[int] = None ) -> List[int]:
-        subnets = []
-        result = self.query_map( 'NetworksAdded', block )
-        if result.records:
-            for network in result.records:
-                subnets.append( network[0].value )
-            return subnets
-        else:
-            return []
-
-    def get_all_subnets_info( self,
-                             block: Optional[int] = None ,
-                             retry_params: Dict[str, int] = None) -> List[SubnetInfo]:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                block_hash = None if block == None else substrate.get_block_hash( block )
-                params = []
-                if block_hash:
-                    params = params + [block_hash]
-                return substrate.rpc_request(
-                    method="subnetInfo_getSubnetsInfo", # custom rpc method
-                    params=params
-                )
-        
-        json_body = make_substrate_call_with_retry()
-        result = json_body['result']
-
-        if result in (None, []):
-            return []
-        
-        return SubnetInfo.list_from_vec_u8( result )
-
-    def get_subnet_info( self, netuid: int, block: Optional[int] = None ) -> Optional[SubnetInfo]:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                block_hash = None if block == None else substrate.get_block_hash( block )
-                params = [netuid]
-                if block_hash:
-                    params = params + [block_hash]
-                return substrate.rpc_request(
-                    method="subnetInfo_getSubnetInfo", # custom rpc method
-                    params=params
-                )
-        
-        json_body = make_substrate_call_with_retry()
-        result = json_body['result']
-
-        if result in (None, []):
-            return None
-        
-        return SubnetInfo.from_vec_u8( result )
-
 
     ########################################
     #### Module information per subnet ####
@@ -954,142 +845,6 @@ class Subspace(c.Module):
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
-    def get_all_uids_for_key( self, key_ss58: str, block: Optional[int] = None) -> List[int]:
-        return [ self.get_uid_for_key_on_subnet( key_ss58, netuid, block) for netuid in self.get_netuids_for_key( key_ss58, block)]
-
-    def get_netuids_for_key( self, key_ss58: str, block: Optional[int] = None) -> List[int]:
-        result = self.query_map( 'IsNetworkMember', block, [ key_ss58 ] )   
-        netuids = []
-        for netuid, is_member in result.records:
-            if is_member:
-                netuids.append( netuid.value )
-        return netuids
-
-    def get_module_for_pubkey_and_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None ) -> Optional[ModuleInfo]:
-        return self.module_for_uid( self.get_uid_for_key_on_subnet(key_ss58, netuid, block=block), netuid, block = block)
-
-    def get_all_modules_for_key( self, key_ss58: str, block: Optional[int] = None ) -> List[ModuleInfo]:
-        netuids = self.get_netuids_for_key( key_ss58, block) 
-        uids = [self.get_uid_for_key_on_subnet(key_ss58, netuid) for netuid in netuids] 
-        return [self.module_for_uid( uid, netuid ) for uid, netuid in list(zip(uids, netuids))]
-
-
-    def module_for_wallet( self, key: 'c.Key', netuid = int, block: Optional[int] = None ) -> Optional[ModuleInfo]: 
-        return self.get_module_for_pubkey_and_subnet ( key.ss58_address, netuid = netuid, block = block )
-
-    def module_for_uid( self, uid: int, netuid: int, block: Optional[int] = None ) -> Optional[ModuleInfo]: 
-        r""" Returns a list of module from the chain. 
-        Args:
-            uid ( int ):
-                The uid of the module to query for.
-            netuid ( int ):
-                The uid of the network to query for.
-            block ( int ):
-                The module at a particular block
-        Returns:
-            module (Optional[ModuleInfo]):
-                module metadata associated with uid or None if it does not exist.
-        """
-        if uid == None: return ModuleInfo._null_module()
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                block_hash = None if block == None else substrate.get_block_hash( block )
-                params = [netuid, uid]
-                if block_hash:
-                    params = params + [block_hash]
-                return substrate.rpc_request(
-                    method="moduleInfo_getModule", # custom rpc method
-                    params=params
-                )
-        json_body = make_substrate_call_with_retry()
-        result = json_body['result']
-        self.print(result, 'RESULT')
-        if result in (None, []):
-            return ModuleInfo._null_module()
-        return ModuleInfo.from_vec_u8( result ) 
-
-    def modules(self, netuid: int =0 , block: Optional[int] = None ) -> List[ModuleInfo]: 
-        r""" Returns a list of module from the chain. 
-        Args:
-            netuid ( int ):
-                The netuid of the subnet to pull modules from.
-            block ( Optional[int] ):
-                block to sync from.
-        Returns:
-            module (List[ModuleInfo]):
-                List of module metadata objects.
-        """
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                block_hash = None if block == None else substrate.get_block_hash( block )
-                params = [netuid]
-                if block_hash:
-                    params = params + [block_hash]
-                return substrate.rpc_request(
-                    method="moduleInfo_getModules", # custom rpc method
-                    params=params
-                )
-        
-        json_body = make_substrate_call_with_retry()
-        result = json_body['result']
-
-        if result in (None, []):
-            return []
-        
-        return ModuleInfo.list_from_vec_u8( result )
-
-
-    
-
-    ################
-    #### Legacy ####
-    ################
-
-
-    def get_balance(self, address: str, block: int = None) -> Balance:
-        r""" Returns the token balance for the passed ss58_address address
-        Args:
-            address (Substrate address format, default = 42):
-                ss58 chain address.
-        Return:
-            balance (bittensor.utils.balance.Balance):
-                account balance
-        """
-        try:
-            @retry(delay=2, tries=3, backoff=2, max_delay=4)
-            def make_substrate_call_with_retry():
-                with self.substrate as substrate:
-                    return substrate.query(
-                        module='System',
-                        storage_function='Account',
-                        params=[address],
-                        block_hash = None if block == None else substrate.get_block_hash( block )
-                    )
-            result = make_substrate_call_with_retry()
-        except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
-            c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
-            return Balance(1000)
-        return Balance( result.value['data']['free'] )
-
-
-    
-    def get_balances(self, block: int = None) -> Dict[str, Balance]:
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.query_map(
-                    module='System',
-                    storage_function='Account',
-                    block_hash = None if block == None else substrate.get_block_hash( block )
-                )
-        result = make_substrate_call_with_retry()
-        return_dict = {}
-        for r in result:
-            bal =  Balance.from_nano(int( r[1]['data']['free'].value ) )
-            return_dict[r[0].value] = bal
-        return return_dict
 
     def get_current_block(self) -> int:
         r""" Returns the current block number on the chain.
@@ -1103,6 +858,37 @@ class Subspace(c.Module):
                 return substrate.get_block_number(None)
         return make_substrate_call_with_retry()
 
+
+
+    def get_balance(self, key: str, block: int = None) -> Balance:
+        r""" Returns the token balance for the passed ss58_address address
+        Args:
+            address (Substrate address format, default = 42):
+                ss58 chain address.
+        Return:
+            balance (bittensor.utils.balance.Balance):
+                account balance
+        """
+        
+        key = self.resolve_key( key )
+        
+        try:
+            @retry(delay=2, tries=3, backoff=2, max_delay=4)
+            def make_substrate_call_with_retry():
+                with self.substrate as substrate:
+                    return substrate.query(
+                        module='System',
+                        storage_function='Account',
+                        params=[key.ss58_address],
+                        block_hash = None if block == None else substrate.get_block_hash( block )
+                    )
+            result = make_substrate_call_with_retry()
+        except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
+            c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+        return Balance.from_nano( result.value['data']['free'] )
+
+
+
     def get_balances(self, block: int = None) -> Dict[str, Balance]:
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
@@ -1115,7 +901,7 @@ class Subspace(c.Module):
         result = make_substrate_call_with_retry()
         return_dict = {}
         for r in result:
-            bal = Balance( int( r[1]['data']['free'].value ) )
+            bal = Balance.from_nano(int( r[1]['data']['free'].value ))
             return_dict[r[0].value] = bal
         return return_dict
     
@@ -1172,14 +958,7 @@ class Subspace(c.Module):
         for k in keys:
             key_map[k] = key_class.gen(k)
         return key_map
-    @property
-    def default_subnet(self) -> str:
-        for k, v in self.network2netuid.items():
-            if v == 0:
-                return k
-        raise Exception("No default subnet found.")
-    
-    
+
     @property
     def network2netuid(self ) -> Dict[str, str]:
         
@@ -1257,16 +1036,22 @@ class Subspace(c.Module):
         return self.query_map(name=name,params=list(params),block=block).records
 
  
+ 
+    def register_fleet(cls, fleet: List[str], ):
+        netuid = cls.resolve_netuid(netuid)
+        for name in fleet:
+            cls.register(name=name, netuid=netuid)
+
 
     @classmethod
     def test(cls):
-        subspace = cls()
-        keys = cls.test_keys()
-        for idx, (username, key) in enumerate(keys.items()):
+        subspace = cls()        
+        for key in c.get_keys('test'):
             port  = c.free_port()
-            address = f'{c.external_ip()}:{port}'
-            c.print(key)
-            subspace.register(key=key, network='commune', address=address, name=f'module{idx}')
+            subspace.register(key=key, 
+                              network='bitconnect',
+                              address=f'{c.external_ip()}:{port}', 
+                              name=f'module{key.path}')
         c.print(subspace.query_map('SubnetNamespace', params=[]).records)
         c.print(subspace.uids())
         # for key in keys.values():
@@ -1634,17 +1419,18 @@ class Subspace(c.Module):
 
     
     @classmethod
-    def sand(cls, user='alice'):
+    def sand(cls, user='Alice'):
         self = cls()
         # namespace = self.query_map('Addresses', params=[0]).records
         # addresses = self.query_map('Addresses', params=[0]).records
         # c.print(self.query_map('Addresses', params=[0]).records)
-        # key = c.module('key').gen(user)
+        key = c.module('key').create_from_uri(user)
         # c.print(key, key.ss58_address)
-        # c.print(self.get_balance(key.ss58_address).__dict__)
+        # key = c.get_key(user)
+        c.print(self.get_balance(key.ss58_address).__dict__)
 
+        # # c.print(self.namespace())
         # c.print(self.namespace())
-        c.print(self.namespace())
         
 
     def uids(self, netuid = 0):

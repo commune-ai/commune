@@ -62,13 +62,24 @@ class CLI(c.Module):
                     
                     
             if fn != '__init__':
-                fn = getattr(module, fn)
-                if callable(fn):
+                fn_name = fn
+                fn = getattr(module, fn_name)
+                
+                
+                # if c.is_property(fn):
+                #     result = getattr(module(), fn.__name__)
+                
+                if callable(fn) :
                     if c.classify_method(fn) == 'self':
                         module_inst = module()
-                        fn = getattr(module_inst, fn.__name__)
+                        fn = getattr(module_inst, fn_name)
                 else: 
                     result = fn
+                    
+                if c.is_property(fn):
+                    result = getattr(module(), fn_name)
+                    
+                
             else:
                 fn = module
                 

@@ -78,6 +78,10 @@ class c:
     @classmethod
     def start_node(cls, *args, **kwargs):
         c.module('subspace').start_node(*args, **kwargs)
+
+    @classmethod
+    def start_chain(cls, *args, **kwargs):
+        c.module('subspace').start_chain(*args, **kwargs)
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     @classmethod
@@ -649,6 +653,12 @@ class c:
     @classmethod
     def add_key(cls, *args, **kwargs):
         return cls.module('key').add_key(*args, **kwargs)
+    @classmethod
+    def add_keys(cls, *args, **kwargs):
+        return cls.module('key').add_keys(*args, **kwargs)
+    @classmethod
+    def key_exists(cls, *args, **kwargs):
+        return cls.module('key').key_exists(*args, **kwargs)
     @classmethod
     def ls_keys(cls, *args, **kwargs):
         return cls.module('key').ls_keys(*args, **kwargs)
@@ -4153,7 +4163,9 @@ class c:
             kwargs['mode'] = mode
             raise c.get_key(*args, **kwargs)
                
-    
+    @classmethod
+    def get_keys(cls,*args, **kwargs ):
+        return c.module('key').get_keys(*args, **kwargs )
     @classmethod
     def get_key(cls, *args,mode='commune', **kwargs) -> None:
 
@@ -4180,6 +4192,8 @@ class c:
         return key
     
         
+        
+
             
     @classmethod
     def hash(cls, 
@@ -4380,14 +4394,7 @@ class c:
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
     
-    @classmethod
-    def key_exists(cls, *args, **kwargs):
-        return c.module('key')
-    
-    @classmethod  
-    def key_exists(cls, *args, **kwargs):
-        return c.module('key').key_exits(*args, **kwargs)
-    
+
     
     @classmethod
     def set_key(self, key: str, tag=None) -> None:
@@ -5771,7 +5778,6 @@ class c:
     def resolve_fn(cls,fn):
         if isinstance(fn, str):
             fn = getattr(cls, fn)
-        assert callable(fn) or cls.is_property(fn), f'{fn} is not callable'
         return fn
     
     @classmethod
@@ -5814,8 +5820,9 @@ class c:
 
         return list(set(function_list))
 
-    @staticmethod
-    def is_property(fn: 'Callable') -> bool:
+    @classmethod
+    def is_property(cls, fn: 'Callable') -> bool:
+        fn = cls.resolve_fn(fn)
         return isinstance(fn, property)
 
     @classmethod
@@ -5863,7 +5870,7 @@ class c:
                 functions.append(fn_name)
                 
         if not include_module:
-            module_functions = get_functions(obj=c)
+            module_functions = c.get_functions(obj=c)
             new_functions = []
             for f in functions:
                 if f == '__init__':
@@ -6009,13 +6016,13 @@ class c:
             except RuntimeError:
                 try_count += 1
         return return_output
+    
+    
+    @classmethod
+    def jload(cls, json_string):
+        import json
+        return json.loads(json_string)
 
 Module = c
 Module.run(__name__)
     
-
-# pm2 start commune/module/module.py --name module --interpreter python3
-
-# btcli regen_coldkeypub --ss58 5DxyxnZM6aqJT4HQAogmf3esE5fFvsokBjpZugg3HD1zyuAs --wallet.name alice 
-# btcli regen_hotkey --wallet.name alice --wallet.hotkey 0 --mnemonic rescue trip video hold maximum airport drama road giraffe science chapter answer
-# btcli regen_hotkey --wallet.name alice --wallet.hotkey 1 --mnemonic science gentle tortoise cushion exotic coconut pottery patrol
