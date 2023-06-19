@@ -279,7 +279,22 @@ class Keypair(c.Module):
         c.rm(key2path[key])
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
-        return {'message':f'{key} deleted',  'keys':cls.keys()}
+        return {'deleted':[key]}
+        
+        
+    @classmethod
+    def rm_keys(cls, *keys):
+        
+        
+        for key in keys:
+            key2path = cls.key2path()
+            keys = list(key2path.keys())
+            if key not in keys:
+                raise Exception(f'key {key} not found, available keys: {keys}')
+            c.rm(key2path[key])
+            assert c.exists(key2path[key]) == False, 'key not deleted'
+            
+        return {'removed_keys':keys}
         
         
         
