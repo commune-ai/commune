@@ -2,21 +2,21 @@ chain: subspace
 chain_info:
   dev:
     alice:
-      boot_nodes: /ip4/0.0.0.0/tcp/4830/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
+      boot_nodes: /ip4/0.0.0.0/tcp/4833/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
       chain: dev
-      port: 4830
-      rpc_port: 4873
+      port: 4833
+      rpc_port: 4876
       user: alice
       verbose: true
-      ws_port: 4836
+      ws_port: 4839
     bob:
-      boot_nodes: /ip4/0.0.0.0/tcp/4830/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
+      boot_nodes: /ip4/0.0.0.0/tcp/4833/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
       chain: dev
-      port: 4810
-      rpc_port: 4886
+      port: 4813
+      rpc_port: 4889
       user: bob
       verbose: true
-      ws_port: 4877
+      ws_port: 4881
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
 default_netuid: 1
@@ -25,7 +25,7 @@ key_types:
 - gran
 network: dev
 network2url:
-  dev: 127.0.0.1:4877
+  dev: 127.0.0.1:4881
   local: 127.0.0.1:4874
   testnet: 127.0.0.1:4874
 retry_params:
