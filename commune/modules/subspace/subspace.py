@@ -437,10 +437,10 @@ class Subspace(c.Module):
     #################
     def update_module (
         self,
+        key: 'c.Key' ,
         name: str = None,
         address: str = None,
         netuid: int = None,
-        key: 'c.Key' =  None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
@@ -476,7 +476,15 @@ class Subspace(c.Module):
         """
 
         key = self.resolve_key(key)
-        subnet = self.resolve_subnet(netuid)
+        netuid = self.resolve_netuid(netuid)
+        
+        module = self.get_module( key )
+        
+        if name is None:
+            name = module['name']
+        if address is None:
+            address = module['address']
+            
         
         
 
@@ -486,7 +494,7 @@ class Subspace(c.Module):
                     call_module='SubspaceModule',
                     call_function='update_module',
                     call_params= {
-                                'address': port,
+                                'address': address,
                                 'name': name,
                                 'netuid': netuid,
                             }
@@ -496,12 +504,11 @@ class Subspace(c.Module):
                 if wait_for_inclusion or wait_for_finalization:
                     response.process_events()
                     if response.is_success:
-                        c.print(':white_heavy_check_mark: [green]Served[/green]\n  [bold white]{}[/bold white]'.format(
-                            json.dumps(params, indent=4, sort_keys=True)
-                        ))
+                        module = self.get_module( key )
+                        c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{module}[/bold white]')
                         return True
                     else:
-                        c.print(':cross_mark: [green]Failed to Serve module[/green] error: {}'.format(response.error_message))
+                        c.print(f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}')
                         return False
                 else:
                     return True
@@ -655,8 +662,12 @@ class Subspace(c.Module):
 
                 c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
-                    new_balance = self.get_balance( key.ss58_address , fmt='nano')
-                    new_stake = self.get_stake( key.ss58_address , fmt='nano') # Get stake on hotkey.
+                    old_balance = self.to_token(old_balance)
+                    old_stake = self.to_token(old_stake)
+                    
+                    new_balance = self.get_balance( key.ss58_address , fmt='token')
+                    new_stake = self.get_stake( key.ss58_address , fmt='token') # Get stake on hotkey.
+                    
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
                     c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
                     return True
@@ -917,7 +928,7 @@ class Subspace(c.Module):
 
     balance =  get_balance
 
-    def get_balances(self, block: int = None, fmt:str = 'j') -> Dict[str, Balance]:
+    def get_balances(self, block: int = None, fmt:str = 'n') -> Dict[str, Balance]:
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
         def make_substrate_call_with_retry():
             with self.substrate as substrate:
@@ -1019,14 +1030,10 @@ class Subspace(c.Module):
         return namespace
     
     
-    def get_module(self, key, netuid):
-        key = self.resolve_key(key)
+    def get_module(self, key:str, netuid:int=None):
+        return self.key2module(key, netuid)
         
-        modules = self.modules(netuid)
-        if len(modules) == 0:
-            return self._null_module()
-        else:
-            return modules[0]
+        
         
         
         
