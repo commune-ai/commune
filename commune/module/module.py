@@ -317,7 +317,6 @@ class c:
         if isinstance(data, Munch):
             data = cls.munch2dict(deepcopy(data))
             
-        print('saving yaml', path, data)
         return save_yaml(data=data , path=path)
 
     def merge_config(self, config:Dict, overrite_keys:bool = False) -> Dict:
@@ -1006,6 +1005,10 @@ class c:
                 used_ports += [port]
                 
         return used_ports
+    
+    @classmethod
+    def free_address(cls, **kwargs):
+        return f'{c.ip()}:{c.free_port(**kwargs)}'
     
     @classmethod
     def free_port(cls, 
@@ -2107,8 +2110,6 @@ class c:
     def module_exists(cls, name:str) -> bool:
         return bool(name in cls.module_list())
     
-    
-    
     @classmethod
     def wait_for_server(cls,
                           name: str ,
@@ -2117,6 +2118,8 @@ class c:
         
         start_time = cls.time()
         time_waiting = 0
+        cls.local_namespace(update=True)
+
         while not cls.server_exists(name):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
@@ -2125,8 +2128,7 @@ class c:
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
-    def server_running(self):
-        return hasattr(self, 'server_info')
+    
 
     def stop_server(self):
         self.server.stop()
@@ -2209,21 +2211,27 @@ class c:
         return namespace_options
     
     
-    kwargs_store = {}
-    def save_kwargs(self, fn:str, kwargs:dict):
-        kwargs.pop('self', None)
-        self.kwargs_store[fn] = kwargs
-        return self.kwargs_store
     
-    
+    @classmethod
+    def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, **kwargs):
+        if name == None:
+            if isinstance(module, str):
+                name = c.module(module).module_path()
+            else:
+                name = cls.module_path()
+            assert name != None, f'Could not resolve name for module {module}'
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
+        return name
     
     @classmethod
     def serve(cls, 
               module:Any = None ,
               name:str=None, 
+              
+              address:str = None,
               ip:str=None, 
               port:int=None ,
-              network:str = None,
               context= '',
               key = None,
               tag:str=None, 
@@ -2234,26 +2242,38 @@ class c:
               wait_for_server:bool = False,
               wait_for_server_timeout:int = 30,
               wait_for_server_sleep_interval: int = 1,
-              verbose = False,
-              reserve_port = False,
-              *args, 
+              verbose:bool = False,
+              reserve_port:bool = False,
+              tag_seperator: str = '::',
+              remote = True,
               **kwargs ):
         '''
         Servers the module on a specified port
         '''
+        name = cls.resolve_server_name(module=module, name=name, tag=tag)
+        
+        if remote:
+            kwargs = cls.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn('serve', name=name, kwargs=kwargs, )
+        
+        
+        if address != None and port == None and ip == None:
+            ip, port = address.split(':')
+            port = int(port)
+            
+            
         # we want to make sure that the module is loco
         cls.update(network='local')
     
-    
-        # ensure the port is free
-        if port == None:
-            port = cls.free_port(reserve=reserve_port)
         if module == None:
-            self = cls(*args, **kwargs)
+            module = cls
         elif isinstance(module, str):
-            self = cls.get_module(module)(*args, **kwargs)
+            module = c.module(module)
         else:
-            self = module
+            module = module
+            
+        self = module(**kwargs)
              
         whitelist = whitelist if whitelist else self.whitelist()
         blacklist = blacklist if blacklist else self.blacklist()
@@ -2262,37 +2282,34 @@ class c:
         
         # if the module is a class, then use the module_tag 
         # Make sure you have the module tag set
-        if name == None:
-            if hasattr(self, 'module_path'):
-                name = self.module_path()
-            else:
-                name = self.__class__.__name__
                 
-        module_name = name
-
         '''check if the server exists'''
-        cls.print(f'Checking if server {module_name} exists {self}')
-        if self.server_exists(module_name): 
+        cls.print(f'Checking if server {name} exists {self}')
+        if self.server_exists(name): 
             if replace:
                 if verbose:
-                    cls.print(f'Stopping server {module_name}')
-                self.kill_server(module_name)
+                    cls.print(f'Stopping server {name}')
+                self.kill_server(name)
             else: 
-                raise Exception(f'The server {module_name} already exists on port {existing_server_port}')
+                raise Exception(f'The server {name} already exists on port {existing_server_port}')
 
         # ensure that the module has a name
         for k in ['module_name', 'module_id', 'my_name', 'el_namo', 'name']:
             if k not in self.__dict__:
-                self.__dict__[k] = module_name
+                self.__dict__[k] = name
 
         Server = c.module('module.server')
         
-        self.save_kwargs('serve', locals())
 
+    
+        # ensure the port is free
+        if port == None:
+            port = cls.free_port(reserve=reserve_port)
+            
         server = Server(ip=ip, 
                         port=port,
                         module = self,
-                        name= module_name,
+                        name= name,
                         whitelist=whitelist,
                         blacklist=blacklist)
         
@@ -5050,8 +5067,20 @@ class c:
         # Read the contents of the file
         with open(path, 'r') as file:
             lines = file.readlines()
-            if end_line == 0:
-                end_line = len(lines)
+            if end_line == 0 :
+                if start_line == 0 :
+                    start_line = 0
+                    end_line = len(lines)
+                elif start_line > 0:
+                    end_line = start_line
+                    start_line = 0
+                elif start_line < 0:
+                    start_line = len(lines) + start_line
+                    end_line = len(lines)
+            
+            assert start_line >= 0, f"start_line must be greater than or equal to 0"
+            assert end_line > start_line, f"end_line must be less than or equal to {len(lines)}"
+                
             lines = lines[start_line:end_line]
         lines = '\n'.join(lines)
         return lines

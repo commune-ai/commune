@@ -17,7 +17,9 @@ import random
 import asyncio
 from copy import deepcopy
 import commune as c
-from .serializer import Serializer
+
+
+Serializer = c.module('module.server.serializer')
 
 
 class VirtualModule:

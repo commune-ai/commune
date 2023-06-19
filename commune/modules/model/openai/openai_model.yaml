@@ -1,4 +1,4 @@
-api: AESKEY::koHJuOstfRAdHDw8H+4wYBDtEXStTS2wwoAC7g8eSVW6bzdVEWoGjpIq0zl9wBVVGRqM8e5aG912ipqiJNfIOwLO0Rph2LPLdA5uVVoMZCQ=
+api: bro
 frequency_penalty: 0.0
 max_tokens: 10
 model: gpt-3.5-turbo

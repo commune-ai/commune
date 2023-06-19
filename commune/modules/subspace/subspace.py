@@ -272,31 +272,23 @@ class Subspace(c.Module):
                 If we did not wait for finalization / inclusion, the response is true.
         """
         
-        
         key = self.resolve_key(key)
+        
         # netuid = self.subnet_namespace(network)
-
         if address is None:
             address = f'{c.ip()}:{c.free_port()}'
-
-        # convert name to bytes
-        name = name.encode('utf-8')
-        address = address.encode('utf-8')
-        network = network.encode('utf-8')
     
         # Attempt rolling registration.
-        attempts = 1
-        call_params={ 
-                    'network': network,
-                    'address': address,
-                    'name': name,
+        call_params = { 
+                    'network': network.encode('utf-8'),
+                    'address': address.encode('utf-8'),
+                    'name': name.encode('utf-8'),
                     'stake': stake,
                 } 
-        
-        c.print(f":satellite: Registering ({attempts}/{max_allowed_attempts}) {key} \n Params : {call_params}")
-
+        c.print(f":satellite: Registering {key} \n Params : {call_params}")
 
         with self.substrate as substrate:
+            
             # create extrinsic call
             call = substrate.compose_call( 
                 call_module='SubspaceModule',  
@@ -308,6 +300,13 @@ class Subspace(c.Module):
             
             # process if registration successful, try again if pow is still valid
             response.process_events()
+            
+            if response.is_success:
+                c.print(":white_heavy_check_mark: [green]Success[/green]")
+                return True
+            else:
+                c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                return False
     
             
 
@@ -341,7 +340,6 @@ class Subspace(c.Module):
         # Check balance.
         with c.status(":satellite: Checking Balance..."):
             account_balance = self.get_balance( key.ss58_address )
-            # check existential deposit.
             existential_deposit = self.get_existential_deposit()
 
         transfer_balance =  Balance.to_nanos(amount)
@@ -375,12 +373,8 @@ class Subspace(c.Module):
             c.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
             return False
 
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to transfer:[bold white]\n  amount: {}\n  from: {}\n  to: {}\n  for fee: {}[/bold white]".format( transfer_balance, key.ss58_address, dest, fee )):
-                return False
 
-        with c.status(":satellite: Transferring..."):
+        with c.status(":satellite: Transferring to {}"):
             with self.substrate as substrate:
                 call = substrate.compose_call(
                     call_module='Balances',
@@ -404,20 +398,20 @@ class Subspace(c.Module):
                     c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                     block_hash = response.block_hash
                     c.print("[green]Block Hash: {}[/green]".format( block_hash ))
+                    new_balance = self.get_balance( key.ss58_address )
+                    c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+                    return True
                 else:
                     c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
 
-        if response.is_success:
-            with c.status(":satellite: Checking Balance..."):
-                new_balance = self.get_balance( key.ss58_address )
-                c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
-                return True
+
         
         return False
     
     def get_existential_deposit(
         self,
         block: Optional[int] = None,
+        fmt = 'nano'
     ) -> Optional[Balance]:
         """ Returns the existential deposit for the chain. """
         result = self.query_constant(
@@ -429,7 +423,43 @@ class Subspace(c.Module):
         if result is None:
             return None
         
+        return self.format_amount( result.value, fmt = fmt )
         
+        
+    
+    def serve(self,
+              module: str,
+              name = None,
+              tag = None,
+              network = subnet, 
+              address = None,
+              stake = 0,
+              key = None, **kwargs):
+        
+        
+        key = self.resolve_key(key)
+        name = c.resolve_server_name(module=module, name=name, tag=tag)
+
+        
+        c.serve(module=module, address=address, name=name, **kwargs)
+        c.wait_for_server(name)
+        address = c.namespace().get(name)
+        address = address.replace(c.default_ip, c.ip())
+        
+        if self.is_registered(key):
+            self.update_module(key=key, 
+                               name=name, 
+                               address=address,
+                               netuid=self.get_netuid_for_network(network), 
+                               **kwargs)
+        else:
+        
+            self.register(
+                name = name,
+                address = address,
+                key = key,
+                network = network,
+            )
         
 
     #################
@@ -594,11 +624,6 @@ class Subspace(c.Module):
 
 
             if response.is_success: # If we successfully unstaked.
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
-
                 c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                 with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
                     old_balance = self.to_token(old_balance)
@@ -934,6 +959,7 @@ class Subspace(c.Module):
     def subnet_netuids(self) -> List[int]:
         return list(self.subnet_namespace.values())
 
+    @classmethod
     def resolve_netuid(cls, netuid: int = None) -> int:
         if netuid == None:
             netuid = cls.default_netuid
@@ -960,13 +986,21 @@ class Subspace(c.Module):
             return namespace
         
     def namespace(self, netuid: int = None) -> Dict[str, str]:
-        # netuid = self.resolve_netuid(netuid)
         
         # Get the namespace for the netuid.
         netuid = self.resolve_netuid(netuid)        
         addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
         namespace = { r[0].value: addresses[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
         return namespace
+    
+    
+    def name2uid(self, name: str = None, netuid: int = None) -> int:
+        netuid = self.resolve_netuid(netuid)
+        name2uid = { r[0].value: r[1].value for r in self.query_map('Namespace', params=[netuid]).records}
+        
+        if name != None:
+            return name2uid[name]
+        return name2uid
     
     
     def get_module(self, key:str, netuid:int=None):
@@ -987,7 +1021,6 @@ class Subspace(c.Module):
         
     
     def modules(self, netuid: int = None) -> Dict[str, ModuleInfo]:
-        # netuid = self.resolve_netuid(netuid)
         netuid = self.resolve_netuid(netuid) 
         uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
         uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
@@ -1029,8 +1062,6 @@ class Subspace(c.Module):
         self = cls()
         return self.query_map(name=name,params=list(params),block=block).records
 
- 
- 
     def register_fleet(cls, fleet: List[str], ):
         netuid = cls.resolve_netuid(netuid)
         for name in fleet:
