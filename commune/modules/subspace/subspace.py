@@ -228,7 +228,7 @@ class Subspace(c.Module):
             raise NotImplementedError('No uri, mnemonic, privatekey or publickey provided')
         return key
     def get_netuid_for_network(self, network: str = None) -> int:
-        netuid = self.network2netuid[network]
+        netuid = self.subnet_namespace[network]
         return netuid
     
     
@@ -274,7 +274,7 @@ class Subspace(c.Module):
         
         
         key = self.resolve_key(key)
-        # netuid = self.network2netuid(network)
+        # netuid = self.subnet_namespace(network)
 
         if address is None:
             address = f'{c.ip()}:{c.free_port()}'
@@ -286,7 +286,14 @@ class Subspace(c.Module):
     
         # Attempt rolling registration.
         attempts = 1
-        c.print(":satellite: Registering...({}/{})".format(attempts, max_allowed_attempts))
+        call_params={ 
+                    'network': network,
+                    'address': address,
+                    'name': name,
+                    'stake': stake,
+                } 
+        
+        c.print(f":satellite: Registering ({attempts}/{max_allowed_attempts}) {key} \n Params : {call_params}")
 
 
         with self.substrate as substrate:
@@ -294,12 +301,7 @@ class Subspace(c.Module):
             call = substrate.compose_call( 
                 call_module='SubspaceModule',  
                 call_function='register', 
-                call_params={ 
-                    'network': network,
-                    'address': address,
-                    'name': name,
-                    'stake': stake,
-                } 
+                call_params=call_params
             )
             extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
             response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
@@ -813,7 +815,35 @@ class Subspace(c.Module):
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
-
+    def subnets(self):
+        subnets = []
+        subnet_stake = {k.value:v.value for k,v in self.query_map( 'SubnetTotalStake', params=[] ).records}
+        subnet_emission = {k.value:v.value for k,v in self.query_map( 'SubnetEmission', params=[] ).records}
+        n = {k.value:v.value for k,v in self.query_map( 'N', params=[] ).records}
+        total_stake = self.total_stake()
+        
+        for name, netuid  in self.subnet_namespace.items():
+            
+            subnets.append(
+                {
+                    'name': name,
+                    'netuid': netuid,
+                    'stake': Balance.from_nano(subnet_stake[netuid]),
+                    'emission': Balance.from_nano(subnet_emission[netuid]),
+                    'n': n[netuid],
+                    'tempo': self.tempo( netuid = netuid ),
+                    'immunity_period': self.immunity_period( netuid = netuid ),
+                    'min_allowed_weights': self.min_allowed_weights( netuid = netuid ),
+                    'max_allowed_uids': self.max_allowed_uids( netuid = netuid ),
+                    'ratio': Balance.from_nano(subnet_stake[netuid]) / total_stake,
+                }
+            )
+            
+        return subnets
+            
+            
+            
+            
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
         return self.query_subspace( 'TotalSubnets', block ).value      
@@ -904,6 +934,7 @@ class Subspace(c.Module):
             bal = Balance.from_nano(int( r[1]['data']['free'].value ))
             return_dict[r[0].value] = bal
         return return_dict
+    balances = get_balances
     
     def resolve_network(self, network: Optional[int] = None) -> int:
         if network == None:
@@ -960,24 +991,22 @@ class Subspace(c.Module):
         return key_map
 
     @property
-    def network2netuid(self ) -> Dict[str, str]:
+    def subnet_namespace(self ) -> Dict[str, str]:
         
         # Get the namespace for the netuid.
         records = self.query_map('SubnetNamespace', params=[]).records
         
-        network2netuid = {}
+        subnet_namespace = {}
         for r in records:
             name = r[0].value
             uid = int(r[1].value)
-            network2netuid[name] = int(uid)
+            subnet_namespace[name] = int(uid)
         
-        return network2netuid
+        return subnet_namespace
     
-    def subnets(self) -> List[str]:
-        return list(self.network2netuid.keys())
         
-    def subnet_uids(self) -> List[int]:
-        return list(self.network2netuid.values())
+    def subnet_netuids(self) -> List[int]:
+        return list(self.subnet_namespace.values())
 
     def resolve_netuid(cls, netuid: int = None) -> int:
         if netuid == None:
@@ -1002,12 +1031,25 @@ class Subspace(c.Module):
         uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
         uid2name = { r[1].value : r[0].value for r in self.query_map('Namespace', params=[netuid]).records}
         modules = {}
+        
+        emission = self.emission(netuid=netuid)
+        incentive = self.incentive(netuid=netuid)
+        dividends = self.dividends(netuid=netuid)
+        stake = self.stake(netuid=netuid)
+        balances = self.balances()
+        
         for uid, address in uid2addresses.items():
+            key = uid2key[uid]
             modules[uid] = {
                 'uid': uid,
                 'address': address,
                 'name': uid2name[uid],
-                'key': uid2key[uid],
+                'key': key,
+                'emission': emission[uid],
+                'incentive': incentive[uid],
+                'dividends': dividends[uid],
+                'stake': stake[ key],
+                'balance': balances[key],
                 
             }
             
@@ -1044,14 +1086,14 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def test(cls):
+    def test(cls, network=default_subnet):
         subspace = cls()        
-        for key in c.get_keys('test'):
+        for key_path, key in c.get_keys('test').items():
             port  = c.free_port()
             subspace.register(key=key, 
-                              network='bitconnect',
+                              network=network,
                               address=f'{c.external_ip()}:{port}', 
-                              name=f'module{key.path}')
+                              name=f'module{key_path}')
         c.print(subspace.query_map('SubnetNamespace', params=[]).records)
         c.print(subspace.uids())
         # for key in keys.values():
@@ -1337,10 +1379,20 @@ class Subspace(c.Module):
         return key_class.keys(node_path, **kwargs)
     
     
-    @classmethod
-    def keys(cls, *args, **kwargs ):
-        return c.module('key').keys(*args, **kwargs)
+    def keys(self, netuid = None, **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        return [r[1].value for r in self.query_map('Keys', params= [netuid], **kwargs).records]
     
+    def registered_keys(self, netuid = None, **kwargs):
+        key_addresses = self.keys(netuid=netuid, **kwargs)
+        address2key = c.address2key()
+        registered_keys = {}
+        for k_addr in key_addresses:
+            if k_addr in address2key:
+                registered_keys[address2key[k_addr]] = k_addr
+                
+        return registered_keys
+
 
     def subnet_state(self, key, netuid = None,  **kwargs):
         netuid = self.resolve_netuid(netuid)

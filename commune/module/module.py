@@ -4166,6 +4166,16 @@ class c:
     @classmethod
     def get_keys(cls,*args, **kwargs ):
         return c.module('key').get_keys(*args, **kwargs )
+    
+    @classmethod
+    def key2address(cls,*args, **kwargs ):
+        return c.module('key').key2address(*args, **kwargs )
+    @classmethod
+    def address2key(cls,*args, **kwargs ):
+        return c.module('key').address2key(*args, **kwargs )
+    
+    def get_key_for_address(self, address:str, mode:str = 'commune'):
+         return c.module('key').get_key_for_address(*args, **kwargs )
     @classmethod
     def get_key(cls, *args,mode='commune', **kwargs) -> None:
 
@@ -4708,7 +4718,11 @@ class c:
                 
                 list_items = x[1:-1].split(',')
                 # try to convert each item to its actual type
-                return [cls.determine_type(item.strip()) for item in list_items]
+                x =  [cls.determine_type(item.strip()) for item in list_items]
+                if len(x) == 1 and x[0] == '':
+                    x = []
+                return x
+       
             except:
                 # if conversion fails, return as string
                 return x
