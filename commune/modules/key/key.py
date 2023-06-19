@@ -178,19 +178,53 @@ class Keypair(c.Module):
         return key_json
     
     @classmethod
-    def add_keys(cls, *path,  **kwargs):
-        for p in path:
-            cls.add_key(p, **kwargs)
+    def add_keys(cls, name, n=100, **kwargs):
+        for i in range(n):
+            key_name = f'{name}.{i}'
+            c.print(f'generating key {key_name}')
+            cls.add_key(key_name, **kwargs)
     add = add_key
     @classmethod
-    def get_key(cls, path, password=None):
+    def get_key(cls, path, password=None, json:bool=False, **kwargs):
+        
+        if cls.key_exists(path) == False:
+           
+            key = cls.add_key(path, **kwargs)
+            c.print(f'key does not exist, generating new key -> {key}')
+            
         key_json = cls.get(path)
         if c.is_encrypted(key_json):
             key_json = cls.decrypt(data=key_json, password=password)
             if key_json == None:
                 c.print({'status': 'error', 'message': f'key is encrypted, please {path} provide password'}, color='red')
             return None
-        return cls.from_json(key_json)
+
+
+        if isinstance(key_json, str):
+            key_json = c.jload(key_json)
+        key_json['path'] = path
+
+        if json:
+            return key_json
+        else:
+            return cls.from_json(key_json)
+        
+        
+    @classmethod
+    def get_keys(cls, prefix):
+        keys = []
+        for key in cls.keys():
+            if key.startswith(prefix):
+                keys.append(cls.get_key(key))
+                
+        return keys
+        
+    
+    
+    def serve(self, key=None):
+        if key == None:
+            key
+            
     
     @classmethod
     def key_paths(cls):
@@ -216,8 +250,8 @@ class Keypair(c.Module):
         return keys
     
     @classmethod
-    def key_exists(self, key):
-        return key in self.keys()
+    def key_exists(cls, key):
+        return key in cls.keys()
     
     
     @classmethod
@@ -794,5 +828,10 @@ class Keypair(c.Module):
     def __repr__(self):
         if self.ss58_address:
             return f'<Keypair (address={self.ss58_address})>'
+        else:
+            return f'<Keypair (public_key=0x{self.public_key.hex()})>'
+    def __str__(self):
+        if self.ss58_address:
+            return f'<Keypair (address={self.ss58_address}, path={self.path})>'
         else:
             return f'<Keypair (public_key=0x{self.public_key.hex()})>'
