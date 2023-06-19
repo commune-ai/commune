@@ -2,21 +2,21 @@ chain: subspace
 chain_info:
   dev:
     alice:
-      boot_nodes: /ip4/0.0.0.0/tcp/4828/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
+      boot_nodes: /ip4/0.0.0.0/tcp/4830/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
       chain: dev
-      port: 4828
-      rpc_port: 4871
+      port: 4830
+      rpc_port: 4873
       user: alice
       verbose: true
-      ws_port: 4834
+      ws_port: 4836
     bob:
-      boot_nodes: /ip4/0.0.0.0/tcp/4828/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
+      boot_nodes: /ip4/0.0.0.0/tcp/4830/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV
       chain: dev
-      port: 4808
-      rpc_port: 4884
+      port: 4810
+      rpc_port: 4886
       user: bob
       verbose: true
-      ws_port: 4875
+      ws_port: 4877
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
 default_netuid: 1
@@ -24,9 +24,8 @@ key_types:
 - aura
 - gran
 network: dev
-subnet: commune
 network2url:
-  dev: 127.0.0.1:4875
+  dev: 127.0.0.1:4877
   local: 127.0.0.1:4874
   testnet: 127.0.0.1:4874
 retry_params:
@@ -35,6 +34,7 @@ retry_params:
   max_delay: 4
   tries: 2
 spec_path: f"{chain_path}/specs"
+subnet: commune
 supported_schemas:
 - Sr25519
 - Ed25519

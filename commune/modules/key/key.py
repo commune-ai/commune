@@ -211,15 +211,30 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def get_keys(cls, prefix):
-        keys = []
+    def get_keys(cls, prefix=None):
+        keys = {}
         for key in cls.keys():
-            if key.startswith(prefix):
-                keys.append(cls.get_key(key))
+            if  prefix == None or key.startswith(prefix) :
+                keys[key] = cls.get_key(key)
                 
         return keys
         
+        
+    @classmethod
+    def key2address(cls, prefix=None):
+        return { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
+    @classmethod
+    def address2key(cls, prefix=None):
+        return { v: k for k,v in cls.key2address(prefix).items()}
     
+
+    @classmethod
+    def has_address(cls, address):
+        return address in cls.address2key()
+    
+    @classmethod
+    def get_key_for_address(cls, address, default=None):
+        return cls.address2key().get(address,default)
     
     def serve(self, key=None):
         if key == None:
