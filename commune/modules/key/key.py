@@ -233,8 +233,8 @@ class Keypair(c.Module):
         return address in cls.address2key()
     
     @classmethod
-    def get_key_for_address(cls, address, default=None):
-        return cls.address2key().get(address,default)
+    def get_key_for_address(cls, address, ):
+        return cls.address2key().get(address)
     
     def serve(self, key=None):
         if key == None:

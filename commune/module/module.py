@@ -4174,8 +4174,9 @@ class c:
     def address2key(cls,*args, **kwargs ):
         return c.module('key').address2key(*args, **kwargs )
     
-    def get_key_for_address(self, address:str, mode:str = 'commune'):
-         return c.module('key').get_key_for_address(*args, **kwargs )
+    @classmethod
+    def get_key_for_address(cls, address:str):
+         return c.module('key').get_key_for_address(address)
     @classmethod
     def get_key(cls, *args,mode='commune', **kwargs) -> None:
 
