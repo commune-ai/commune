@@ -445,49 +445,16 @@ class Subspace(c.Module):
         wait_for_finalization = True,
         prompt: bool = False,
     ) -> bool:
-        r""" Subscribes an bittensor endpoint to the substensor chain.
-        Args:
-            wallet (bittensor.wallet):
-                bittensor wallet object.
-            ip (str):
-                endpoint host port i.e. 192.122.31.4
-            port (int):
-                endpoint port number i.e. 9221
-            protocol (int):
-                int representation of the protocol 
-            netuid (int):
-                network uid to serve on.
-            placeholder1 (int):
-                placeholder for future use.
-            placeholder2 (int):
-                placeholder for future use.
-            wait_for_inclusion (bool):
-                if set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                if set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
 
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
-        
         module = self.get_module( key )
         
         if name is None:
             name = module['name']
         if address is None:
             address = module['address']
-            
         
-        
-
         with c.status(":satellite: Serving module on: [white]{}:{}[/white] ...".format(self.network, netuid)):
             with self.substrate as substrate:
                 call = substrate.compose_call(
@@ -523,34 +490,6 @@ class Subspace(c.Module):
             wait_for_finalization: bool = False,
             prompt: bool = False,
         ) -> bool:
-        r""" Adds the specified amount of stake to passed hotkey uid.
-        Args:
-            wallet (c.wallet):
-                Bittensor wallet object.
-            hotkey_ss58 (Optional[str]):
-                ss58 address of the hotkey account to stake to
-                defaults to the wallet's hotkey.
-            amount (Union[Balance, float]):
-                Amount to stake as commune balance, or float interpreted as joule.
-            wait_for_inclusion (bool):
-                If set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                If set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-
-        Raises:
-            NotRegisteredError:
-                If the wallet is not registered on the chain.
-            NotDelegateError:
-                If the hotkey is not a delegate on the chain.
-        """
         
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
@@ -585,7 +524,7 @@ class Subspace(c.Module):
                                                           wait_for_finalization = wait_for_finalization )
 
 
-            if response: # If we successfully staked.
+            if response : # If we successfully staked.
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
                     c.print(":white_heavy_check_mark: [green]Sent[/green]")
@@ -654,7 +593,7 @@ class Subspace(c.Module):
                     response.process_events()
 
 
-            if response: # If we successfully unstaked.
+            if response.is_success: # If we successfully unstaked.
                 # We only wait here if we expect finalization.
                 if not wait_for_finalization and not wait_for_inclusion:
                     c.print(":white_heavy_check_mark: [green]Sent[/green]")
