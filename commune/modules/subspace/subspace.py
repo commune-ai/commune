@@ -41,8 +41,8 @@ class Subspace(c.Module):
     retry_params = default_config['retry_params']
     network2url = default_config['network2url']
     chain = default_config['chain']
-    default_network = default_config['network']
-    default_subnet = default_config['subnet']
+    network = default_config['network']
+    subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
     chain_release_path = eval(default_config['chain_release_path'])
     spec_path = eval(default_config['spec_path'])
@@ -53,14 +53,14 @@ class Subspace(c.Module):
     
     def __init__( 
         self, 
-        network: str = default_network,
+        network: str = network,
         **kwargs,
     ):
 
 
         self.set_subspace( network)
     @classmethod
-    def get_network_url(cls, network:str = default_network) -> str:
+    def get_network_url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
         return cls.network2url.get(network)
     @classmethod
@@ -238,7 +238,7 @@ class Subspace(c.Module):
         key ,
         stake : int = 0,
         address: str = None,
-        network = default_subnet,
+        network = subnet,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         prompt: bool = False,
@@ -476,6 +476,8 @@ class Subspace(c.Module):
         """
 
         output['key'] = key.ss58_address
+        subnet = self.resolve_subnet(netuid)
+        
 
         with c.status(":satellite: Serving module on: [white]{}:{}[/white] ...".format(self.network, netuid)):
             with self.substrate as substrate:
@@ -485,7 +487,7 @@ class Subspace(c.Module):
                     call_params= {
                                 'address': port,
                                 'name': name,
-                                'key': wallet.coldkeypub.ss58_address,
+                                'netuid': netuid,
                             }
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
@@ -937,6 +939,11 @@ class Subspace(c.Module):
             network = self.network
         return network
     
+    def resolve_subnet(self, subnet: Optional[int] = None) -> int:
+        if subnet == None:
+            subnet = self.subnet
+        return subnet
+    
 
     @staticmethod
     def _null_module() -> ModuleInfo:
@@ -1055,7 +1062,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def test(cls, network=default_subnet):
+    def test(cls, network=subnet):
         subspace = cls()        
         for key_path, key in c.get_keys('test').items():
             port  = c.free_port()
