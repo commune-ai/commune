@@ -783,11 +783,14 @@ class Subspace(c.Module):
     def resolve_key_ss58(cls, key_ss58):
         if c.key_exists( key_ss58 ):
             key_ss58 = c.get_key( key_ss58 ).ss58_address
+    
         return key_ss58
 
     @classmethod
     def resolve_key(cls, key):
-        if c.key_exists( key ):
+        
+        if isinstance(key, str):
+            assert c.key_exists( key ), f"Key {key} does not exist."
             key = c.get_key( key )
         return key
         
@@ -819,6 +822,7 @@ class Subspace(c.Module):
         subnets = []
         subnet_stake = {k.value:v.value for k,v in self.query_map( 'SubnetTotalStake', params=[] ).records}
         subnet_emission = {k.value:v.value for k,v in self.query_map( 'SubnetEmission', params=[] ).records}
+        subnet_founders = {k.value:v.value for k,v in self.query_map( 'Founder', params=[] ).records}
         n = {k.value:v.value for k,v in self.query_map( 'N', params=[] ).records}
         total_stake = self.total_stake()
         
@@ -836,6 +840,8 @@ class Subspace(c.Module):
                     'min_allowed_weights': self.min_allowed_weights( netuid = netuid ),
                     'max_allowed_uids': self.max_allowed_uids( netuid = netuid ),
                     'ratio': Balance.from_nano(subnet_stake[netuid]) / total_stake,
+                    'founder': subnet_founders[netuid]
+                    
                 }
             )
             
@@ -852,25 +858,15 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid( netuid )
         return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
 
-    ########################################
-    #### Module information per subnet ####
-    ########################################
 
-    def is_key_registered_any( self, key: str = None, block: Optional[int] = None) -> bool:
-        key = self.resolve_key( key )
-        return len( self.get_netuids_for_key( key.ss58_address, block) ) > 0
-    
-    def is_key_registered_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> bool:
-        uid = self.get_uid_for_key_on_subnet( key_ss58, netuid, block ) != None
-        return uid != None
 
-    def is_key_registered( self, key: str, netuid: int, block: Optional[int] = None) -> bool:
-        if not isinstance( key, str ):
-            key = key.ss58_address
-        uid = self.get_uid_for_key_on_subnet( key, netuid, block ) 
-        
-  
-        return uid != None
+    def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
+        key_address = self.resolve_key( key ).ss58_address
+        key_addresses = self.keys(netuid=netuid, block=block)
+        if key_address in key_addresses:
+            return True
+        else:
+            return False
 
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
@@ -962,33 +958,6 @@ class Subspace(c.Module):
         return module
 
 
-    # @classmethod
-    # def get_key(cls, name = None):
-    #     # Imports
-    #     from substrateinterface import Keypair, KeypairType
-
-    #     # Generate the keypair from shortform private key
-        
-    #     if name == None:
-    #         mnemonic = Keypair.generate_mnemonic()
-
-    #         # Generate the keypair from mnemonic
-    #         keypair = Keypair.create_from_mnemonic(mnemonic, crypto_type=KeypairType.SR25519)
-    #     else:
-    #         # get key from uri or name
-    #         keypair = Keypair.create_from_uri(name, crypto_type=KeypairType.SR25519)
-    #     return keypair
-        
-
-
-    @classmethod
-    def test_keys(cls, 
-                     keys: List[str]=['Alice', 'Bob', 'Chris']):
-        key_map = {}
-        key_class = c.module('key')
-        for k in keys:
-            key_map[k] = key_class.gen(k)
-        return key_map
 
     @property
     def subnet_namespace(self ) -> Dict[str, str]:
@@ -1393,6 +1362,10 @@ class Subspace(c.Module):
                 
         return registered_keys
 
+    reged = registered_keys
+    
+    
+    
 
     def subnet_state(self, key, netuid = None,  **kwargs):
         netuid = self.resolve_netuid(netuid)
