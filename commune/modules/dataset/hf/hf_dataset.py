@@ -3,11 +3,8 @@ from datasets import load_dataset
 
 
 class HFDataset(c.Module):
-    # def __init__(self, config = None, **kwargs):
-    #     self.set_config(config, **kwargs)
-        
-    def set_config(self, config, **kwargs):
-        c.set_config(self, config, kwargs=kwargs)
+    def __init__(self, config = None, **kwargs):
+        self.set_config(config, kwargs=kwargs)
         self.dataset = load_dataset(**self.config)
         self.split = self.config.split
         

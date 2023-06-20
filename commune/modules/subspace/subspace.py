@@ -1244,6 +1244,18 @@ class Subspace(c.Module):
     @classmethod
     def node_prefix(cls):
         return f'{cls.module_path()}.node'
+    
+    
+    
+    def state_dict(self): 
+        modules = self.modules()
+        state_dict = {
+            'modules': modules,
+            'chain': self.chain,
+        }
+        return state_dict
+        
+    
     @classmethod
     def start_node(cls,
 
@@ -1391,11 +1403,7 @@ class Subspace(c.Module):
 
     def subnet_state(self, key, netuid = None,  **kwargs):
         netuid = self.resolve_netuid(netuid)
-        for r in self.query_map(key, params=[], **kwargs).records:
-            if r[0].value == netuid:
-                incentive = r[1].value
-        
-        return incentive
+        return self.query_subspace(key, params=[netuid], **kwargs)
     
     def incentive(self, netuid = None, **kwargs):
         return self.subnet_state('Incentive', netuid=netuid, **kwargs)

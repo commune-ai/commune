@@ -16,7 +16,7 @@ class Dashboard(commune.Module):
         self.module_list = ['module'] + list(self.module_tree.keys())
         sorted(self.module_list)
 
-    def streamlit_module_browser(self):
+    def streamlit_module_launcher(self):
 
         module_list =  self.module_list
         
@@ -27,16 +27,13 @@ class Dashboard(commune.Module):
         module_schema = self.module.schema(include_default=True)
         # st.write(module_schema)
         fn_name = '__init__'
-        fn_info = module_schema[fn_name]
+        fn_schema = module_schema[fn_name]
         
         init_kwarg = {}
         cols = st.columns([3,1,6])
 
         st.write('#### Startup Arguments')
         cols = st.columns([2,1,4,4])
-        
-
-    
         tag = None
         # tag = st.text_input('**Tag**', 'None')
         if tag == 'None' or tag == '' or tag == 'null':
@@ -46,20 +43,21 @@ class Dashboard(commune.Module):
         mode = 'pm2'
         serve = True
 
-        
-        fn_info['default'].pop('self', None)
-        fn_info['default'].pop('cls', None)
+        fn_schema['default'].pop('self', None)
+        fn_schema['default'].pop('cls', None)
         
         kwargs_cols = st.columns(3)
-        fn_info['default'].update(self.module_config)
-        fn_info['schema'].update({k:str(type(v)).split("'")[1] for k,v in self.module_config.items()})
-        # kwargs_cols[0].write('## Module Arguments')
-        for i, (k,v) in enumerate(fn_info['default'].items()):
+        fn_schema['default'].update(self.module_config)
+        st.write(fn_schema)
+        
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in self.module_config.items()})
+
+        for i, (k,v) in enumerate(fn_schema['default'].items()):
             
-            optional = fn_info['default'][k] != 'NA'
+            optional = fn_schema['default'][k] != 'NA'
             fn_key = k 
-            if k in fn_info['schema']:
-                k_type = fn_info['schema'][k]
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
                 if 'Munch' in k_type or 'Dict' in k_type:
                     k_type = 'Dict'
                 if k_type.startswith('typing'):
@@ -69,7 +67,7 @@ class Dashboard(commune.Module):
             if k in ['kwargs', 'args'] and v == 'NA':
                 continue
             
-            
+        
             
             kwargs_col_idx = kwargs_col_idx % (len(kwargs_cols))
             init_kwarg[k] = kwargs_cols[kwargs_col_idx].text_input(fn_key, v)
@@ -87,8 +85,17 @@ class Dashboard(commune.Module):
                 
                 if v == 'None':
                     v = None
-                elif k in fn_info['schema'] and fn_info['schema'][k] == 'str':
-                    v = v
+        
+                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                    if v.startswith("f'") or v.startswith('f"'):
+                        v = c.ljson(v)
+                    elif v.startswith('[') and v.endswith(']'):
+                        v = c.ljson(v)
+                    elif v.startswith('{') and v.endswith('}'):
+                        v = eval(v)
+                    else:
+                        v = v
+                    
                 elif k == 'kwargs':
                     continue
                 elif v == 'NA':
@@ -108,13 +115,13 @@ class Dashboard(commune.Module):
                 kwargs = kwargs,
             )
             commune.launch(**launch_kwargs)
-
+            st.write(launch_kwargs)
             st.success(f'Launched {name} with {kwargs}')
         
         with st.expander('Config'):
             st.write(self.module_config)
 
-        with st.expander('Schema'):
+        with st.expander('input'):
             st.write(self.module.schema())
     
             
@@ -131,7 +138,7 @@ class Dashboard(commune.Module):
         st.write('## Modules')    
         self.module_name = st.selectbox('',self.module_list, 0, key='module_name')   
         self.module = commune.module(self.module_name)
-        self.module_config = self.module.config()
+        self.module_config = self.module.config(to_munch=False)
 
 
         with st.expander('Modules'):
@@ -196,7 +203,7 @@ class Dashboard(commune.Module):
         
         function_info_map = self.module.function_info_map()
         fn_name = fn_name
-        fn_info = function_info_map[fn_name]
+        fn_schema = function_info_map[fn_name]
         
         kwargs = {}
         cols = st.columns([3,1,6])
@@ -221,12 +228,13 @@ class Dashboard(commune.Module):
             
         
         # kwargs_cols[0].write('## Module Arguments')
-        for i, (k,v) in enumerate(fn_info['default'].items()):
+        for i, (k,v) in enumerate(fn_schema['default'].items()):
             
-            optional = fn_info['default'][k] != 'NA'
+            optional = fn_schema['default'][k] != 'NA'
             fn_key = k 
-            if k in fn_info['schema']:
-                k_type = fn_info['schema'][k]
+            
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
                 if k_type.startswith('typing'):
                     k_type = k_type.split('.')[-1]
                 fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
@@ -249,7 +257,7 @@ class Dashboard(commune.Module):
             for k,v in init_kwarg.items():
                 if v == 'None':
                     v = None
-                elif k in fn_info['schema'] and fn_info['schema'][k] == 'str':
+                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
                     v = v
                 elif k == 'kwargs':
                     continue
@@ -297,7 +305,7 @@ class Dashboard(commune.Module):
         
         tabs = st.tabs(['Modules', 'Peers', 'Users', 'Playground'])
         
-        self.streamlit_module_browser()
+        self.streamlit_module_launcher()
 
 
     @staticmethod
