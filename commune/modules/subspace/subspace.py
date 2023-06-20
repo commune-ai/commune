@@ -150,72 +150,51 @@ class Subspace(c.Module):
     #####################
     def set_weights(
         self,
-        uids: Union[torch.LongTensor, list] ,
-        weights: Union[torch.FloatTensor, list],
-        network: int = None,
+        uids: Union[torch.LongTensor, list] = None,
+        weights: Union[torch.FloatTensor, list] = None,
+        netuid: int = None,
         key: 'c.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
         prompt:bool = False,
     ) -> bool:
-        netuid = self.get_netuid_for_network(network)
+        key = self.resolve_key(key)
+        netuid = self.resolve_netuid(netuid)
+        if uids is None:
+            uids = self.uids()
+        if weights is None:
+            weights = torch.tensor([1 for _ in uids])
+            weights = weights / weights.sum()
+            weights = weights.tolist()
         # First convert types.
-        if isinstance( uids, list ):
-            uids = torch.tensor( uids, dtype = torch.int64 )
-        if isinstance( weights, list ):
-            weights = torch.tensor( weights, dtype = torch.float32 )
 
-        # Reformat and normalize.
-        weight_uids, weight_vals =  uids, weights/weights.sum() 
-
-        # Ask before moving on.
-        if prompt:
-            if not Confirm.ask("Do you want to set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]?".format( [float(v/65535) for v in weight_vals], weight_uids) ):
-                return False
-
-        with c.status(":satellite: Setting weights on [white]{}[/white] ...".format(self.network)):
-            try:
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                        call_module='SubspaceModule',
-                        call_function='set_weights',
-                        call_params = {
-                            'dests': weight_uids,
-                            'weights': weight_vals,
-                            'netuid': netuid,
-                            'version_key': 1
-                        }
-                    )
-                    # Period dictates how long the extrinsic will stay as part of waiting pool
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
-                    response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                    # We only wait here if we expect finalization.
-                    if not wait_for_finalization and not wait_for_inclusion:
-                        c.print(":white_heavy_check_mark: [green]Sent[/green]")
-                        return True
-
-                    response.process_events()
-                    if response.is_success:
-                        c.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                        logger.print(  prefix = 'Set weights', sufix = '<green>Finalized: </green>' + str(response.is_success) )
-                        return True
-                    else:
-                        c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                        c.print(  prefix = 'Set weights', sufix = '<red>Failed: </red>' + str(response.error_message) )
-                        return False
-
-            except Exception as e:
-                c.print(":cross_mark: [red]Failed[/red]: error:{}".format(e))
-                c.status(  'Set weights <red>Failed: </red>' + str(e) )
-                return False
-
-        if response.is_success:
-            c.print("Set weights:\n[bold white]  weights: {}\n  uids: {}[/bold white ]".format( [float(v/4294967295) for v in weight_vals], weight_uids ))
-            message = '<green>Success: </green>' + f'Set {len(uids)} weights, top 5 weights' + str(list(zip(uids.tolist()[:5], [round (w,4) for w in weights.tolist()[:5]] )))
-            c.debug('Set weights:'.ljust(20) +  message)
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module='SubspaceModule',
+                call_function='set_weights',
+                call_params = {
+                    'dests': uids,
+                    'weights': weights,
+                    'netuid': netuid,
+                }
+            )
+        # Period dictates how long the extrinsic will stay as part of waiting pool
+        extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
+        response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+        # We only wait here if we expect finalization.
+        if not wait_for_finalization and not wait_for_inclusion:
+            c.print(":white_heavy_check_mark: [green]Sent[/green]")
             return True
-        
-        return False
+
+        response.process_events()
+        if response.is_success:
+            c.print(":white_heavy_check_mark: [green]Finalized[/green]")            
+            c.print(f"Set weights:\n[bold white]  weights: {weights}\n  uids: {uids}[/bold white ]")
+            return True
+        else:
+            c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+            c.print(  'Set weights <red>Failed: </red>' + str(response.error_message) )
+            return False
 
 
     @classmethod
@@ -985,7 +964,7 @@ class Subspace(c.Module):
         else:
             return namespace
         
-    def namespace(self, netuid: int = None) -> Dict[str, str]:
+    def namespace(self, netuid: int = None, **kwargs) -> Dict[str, str]:
         
         # Get the namespace for the netuid.
         netuid = self.resolve_netuid(netuid)        

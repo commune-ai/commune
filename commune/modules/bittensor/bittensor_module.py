@@ -1619,7 +1619,7 @@ class BittensorModule(c.Module):
                     max_fee:float=1.1,
                     hotkeys:List[str] = None,
                     refresh_ports:bool = False,
-                    n:int = 20,
+                    n:int = 100,
                     remote:bool=True): 
     
         
