@@ -143,6 +143,37 @@ class Subspace(c.Module):
 
     def __repr__(self) -> str:
         return self.__str__()
+    
+    def auth(self, key, chain='dev', netuid = None):
+        netuid = self.resolve_netuid(netuid)
+        key = self.resolve_key(key)
+        data = {
+            'network': self.module_path(),
+            'chain': chain,
+            'timestamp': int(c.time()),
+            'netuid': netuid,
+        }
+        data = c.python2str(data)
+        auth =  {
+            'address': key.ss58_address,
+            'signature': key.sign(data).hex(),
+            'public_key': key.public_key.hex(),
+            'data': data,
+        }
+        return auth
+    
+    def verify(self, auth, max_staleness=60):
+        key = c.module('key')(ss58_address=auth['address'])
+        verified =  key.verify(auth['data'], bytes.fromhex(auth['signature']), bytes.fromhex(auth['public_key']))
+        assert verified, 'Signature verification failed.'
+        data = c.jload(auth['data'])
+        assert data['timestamp'] > c.time() - max_staleness, 'Signature is too old.'
+        assert auth['address'] == key.ss58_address, 'Address does not match signature.'
+        assert self.is_registered(key,netuid= data['netuid']), 'Key is not registered.'
+        return True
+    
+    
+
 
 
     #####################
@@ -156,7 +187,6 @@ class Subspace(c.Module):
         key: 'c.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
-        prompt:bool = False,
     ) -> bool:
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
@@ -165,7 +195,8 @@ class Subspace(c.Module):
         if weights is None:
             weights = torch.tensor([1 for _ in uids])
             weights = weights / weights.sum()
-            weights = weights.tolist()
+        weights = weights * U16_MAX
+        weights = weights.tolist()
         # First convert types.
 
         with self.substrate as substrate:
@@ -173,19 +204,19 @@ class Subspace(c.Module):
                 call_module='SubspaceModule',
                 call_function='set_weights',
                 call_params = {
-                    'dests': uids,
+                    'uids': uids,
                     'weights': weights,
                     'netuid': netuid,
                 }
             )
         # Period dictates how long the extrinsic will stay as part of waiting pool
         extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
-        response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+        response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion,
+                                              wait_for_finalization = wait_for_finalization )
         # We only wait here if we expect finalization.
         if not wait_for_finalization and not wait_for_inclusion:
             c.print(":white_heavy_check_mark: [green]Sent[/green]")
             return True
-
         response.process_events()
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Finalized[/green]")            
@@ -815,7 +846,7 @@ class Subspace(c.Module):
 
 
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
-        key_address = self.resolve_key( key ).ss58_address
+        key_address = self.resolve_key_ss58( key )
         key_addresses = self.keys(netuid=netuid, block=block)
         if key_address in key_addresses:
             return True
@@ -1227,7 +1258,7 @@ class Subspace(c.Module):
                  purge_chain:bool = True,
                  remote:bool = True,
                  refresh:bool = True,
-                 verbose:bool = True,
+                 verbose:bool = False,
                  
                  ):
 
@@ -1269,7 +1300,7 @@ class Subspace(c.Module):
     def start_chain(cls, 
                     users = ['alice','bob'] ,
                     chain:str='dev', 
-                    verbose:bool = True,
+                    verbose:bool = False,
                     reuse_ports : bool = True,
                     sleep :int = 2,
                     build: bool = False,
@@ -1298,10 +1329,6 @@ class Subspace(c.Module):
                     port = c.free_port(avoid_ports=avoid_ports)
                     avoid_ports.append(port)
                     node_kwargs[k] = port
-                
-
-            if boot_nodes == None:
-                boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/12D3KooWFYXNTRKT7Nc2podN4RzKMTJKZaYmm7xcCX5aE5RvagxV'
             
             node_kwargs['boot_nodes'] = boot_nodes
             chain_info[user] = c.copy(node_kwargs)
@@ -1310,11 +1337,13 @@ class Subspace(c.Module):
             cls.start_node(**chain_info[user])
 
             cls.sleep(sleep)
-        
+            node_id = cls.node_id(chain=chain, user=user)
+            boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
+            c.print(f'boot_nodes: {boot_nodes}', color='green')
         cls.putc(chain_info_path, chain_info)
 
 
-        cls.putc(f'network2url.{chain}', f'{c.external_ip()}:{node_kwargs["ws_port"]}')
+        cls.putc(f'network2url.{chain}', f'{ip}:{node_kwargs["ws_port"]}')
         
        
     @classmethod
@@ -1371,6 +1400,10 @@ class Subspace(c.Module):
     def incentive(self, netuid = None, **kwargs):
         return self.subnet_state('Incentive', netuid=netuid, **kwargs)
         
+    def weights(self, netuid = None, **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        return self.query_map('Weights', params=[netuid], **kwargs).records
+        
         
     
     def emission(self, netuid = None, **kwargs):
@@ -1422,38 +1455,33 @@ class Subspace(c.Module):
         return c.cmd(cmd, verbose=True)
         
 
-
-    @classmethod
-    def gen_keys(cls, schema = 'Sr25519' , n:int=2, **kwargs):
-        for i in range(n):
-            cls.gen_key(schema=schema, **kwargs)
-        
-
-    @classmethod
-    def localnet(cls):
-        cls.cmd('chmod +x ./scripts/*', cwd=f'{cls.repo_path}/subtensor', verbose=True)
-        cls.cmd('./scripts/', cwd=f'{cls.repo_path}/subtensor', verbose=True)
-    
-
     
     @classmethod
     def sand(cls, user='Alice'):
         self = cls()
-        # namespace = self.query_map('Addresses', params=[0]).records
-        # addresses = self.query_map('Addresses', params=[0]).records
-        # c.print(self.query_map('Addresses', params=[0]).records)
-        key = c.module('key').create_from_uri(user)
-        # c.print(key, key.ss58_address)
-        # key = c.get_key(user)
-        c.print(self.get_balance(key.ss58_address).__dict__)
-
-        # # c.print(self.namespace())
-        # c.print(self.namespace())
+        auth = self.auth(key='alice')
+        return self.verify(auth)
         
 
     def uids(self, netuid = 0):
         return [v[1].value for v in self.query_map('Uids',None,  [netuid]).records]
 
+
+    @classmethod
+    def node_ids(cls, chain='dev'):
+        node_ids = {}
+        for node in cls.nodes(chain=chain):
+            node_logs = c.logs(node, start_line=100, mode='local')
+            for line in node_logs.split('\n'):
+                if 'Local node identity is: ' in line:
+                    node_ids[node.split('::')[-1]] = line.split('Local node identity is: ')[1].strip()
+                    break
+                
+        return node_ids
+    @classmethod
+    def node_id(cls, chain='dev', user='alice'):
+        return cls.node_ids(chain=chain)[user]
+            
   
 if __name__ == "__main__":
     Subspace.run()
