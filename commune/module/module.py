@@ -2216,7 +2216,7 @@ class c:
     
     
     @classmethod
-    def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, **kwargs):
+    def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
         if name == None:
             if isinstance(module, str):
                 name = c.module(module).module_path()
@@ -2932,8 +2932,9 @@ class c:
     @classmethod
     def pm2_logs(cls, module:str, start_line=0, end_line=0, verbose=True, mode='cmd'):
         if mode == 'local':
-            path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
-            return c.readlines(path, start_line=startline, end_line=endline, verbose=verbose)
+            path = f'{cls.pm2_dir}/logs/{module}-error.log'.replace(':', '-')
+            c.print(f'path: {path}')
+            return c.readlines(path, start_line=start_line, end_line=end_line)
         elif mode == 'cmd':
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
@@ -3607,7 +3608,7 @@ class c:
         if external:
             ip =  cls.external_ip(**kwargs)
         else:
-            ip =  cls.default_ip
+            ip =  '127.0.0.1'
         return ip
     
     @classmethod

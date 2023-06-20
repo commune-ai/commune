@@ -229,6 +229,9 @@ class Keypair(c.Module):
     
 
     @classmethod
+    def get_address(cls, key):
+        return cls.key2address()[key]
+    @classmethod
     def has_address(cls, address):
         return address in cls.address2key()
     
