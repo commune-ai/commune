@@ -328,10 +328,10 @@ class Subspace(c.Module):
         self,
         dest: str, 
         amount: float , 
+        key: str =  None,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         prompt: bool = False,
-        key: 'c.Key' =  None,
         keep_alive: bool = True
     ) -> bool:
         key = c.get_key(key)
@@ -437,7 +437,7 @@ class Subspace(c.Module):
         
         
     
-    def serve(self,
+    def register_module(self,
               module: str,
               name = None,
               tag = None,
@@ -1254,7 +1254,9 @@ class Subspace(c.Module):
             'chain': self.chain,
         }
         return state_dict
-        
+       
+       
+ 
     
     @classmethod
     def start_node(cls,
@@ -1489,7 +1491,160 @@ class Subspace(c.Module):
     @classmethod
     def node_id(cls, chain='dev', user='alice'):
         return cls.node_ids(chain=chain)[user]
+    
+    
+    def state_dict(self):
+        state_dict = {}
+        state_dict['emission'] = self.emission()
+    
+   
+    @classmethod
+    def function2streamlit(cls, 
+                           fn_schema, 
+                           extra_defaults:dict=None,
+                           cols:list=None):
+        if extra_defaults is None:
+            extra_defaults = {}
+
+        st.write('#### Startup Arguments')
+        # refresh = st.checkbox('**Refresh**', False)
+        # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
+        mode = 'pm2'
+        serve = True
+
+        kwargs = {}
+        fn_schema['default'].pop('self', None)
+        fn_schema['default'].pop('cls', None)
+        fn_schema['default'].update(extra_defaults)
+        
+        
+
+        
+        
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+        st.write(f'cols: {cols}')
+        cols = st.columns(cols)
+
+        for i, (k,v) in enumerate(fn_schema['input'].items()):
             
+            optional = fn_schema['default'][k] != 'NA'
+            fn_key = k 
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+
+            
+            col_idx = col_idx % (len(cols))
+            kwargs[k] = cols[col_idx].text_input(fn_key, v)
+            
+        return kwargs
+         
+         
+         
+    @classmethod
+    def get_key_info(cls, key):
+        
+        key_info = {
+            'key': key.ss58_address,
+            'is_registered': cls.is_registered(key),
+        }
+        return key_info
+        
+    
+    @classmethod
+    def dashboard(cls, key = None):
+        import streamlit as st
+        # plotly
+        import plotly.express as px
+        self = cls()
+        
+        available_modules = c.leaves()
+        module2index = {m:i for i,m in enumerate(available_modules)}
+        
+        with st.sidebar:
+            keys = c.keys()
+                
+            with st.expander('Select Key', expanded=True):
+            
+ 
+                key2index = {k:i for i,k in enumerate(keys)}
+                if key == None:
+                    key = keys[0]
+                key = st.selectbox('Select Key', keys, index=key2index[key])
+                        
+                key = c.get_key(key)
+                    
+                st.write(key)
+                
+                
+            with st.expander('Create Key', expanded=False):                
+                new_key = st.text_input('Name of Key', '')
+                create_key_button = st.button('Create Key')
+                if create_key_button and len(new_key) > 0:
+                    c.add_key(new_key)
+                    key = c.get_key(new_key)
+                    
+            with st.expander('Remove Key', expanded=False):                
+                rm_key = st.selectbox('Select Key to Remove', keys, index=0)
+                rm_key_button = st.button('Remove Key')
+                if rm_key_button:
+                    c.rm_key(rm_key)
+                              
+    
+            with st.expander('Network', expanded=True):
+            
+                networks = self.subnets()
+                if len(networks) == 0:
+                    networks = ['commune']
+                network2index = {n:i for i,n in enumerate(networks)}
+                network = st.selectbox('Network', networks, index=network2index['commune'])
+                
+                
+            
+            
+        with st.expander('Register Module', expanded=True):
+            modules = c.leaves()
+            module2idx = {m:i for i,m in enumerate(modules)}
+            module = st.selectbox('modules', modules, module2idx['model.openai'])
+            
+            cols = st.columns(2)
+            name = cols[0].text_input('name', module)
+            tag = cols[1].text_input('tag', 'None')
+            if 'None' == tag:
+                tag = None
+                
+            serve = st.button('Serve')
+            if serve:
+                self.serve(module=module, name=name, tag=tag, key=key)
+            fn_schema = self.schema('register_module', include_default=True)['register_module']
+            
+            cls.function2streamlit(fn_schema)
+            module = st.selectbox('module', available_modules, index=module2index['module'])
+            
+            
+             
+            
+        with st.expander('Transfer', expanded=True):
+            st.write(self.schema('transfer', include_default=True))
+             
+        x = range(10)
+        st.write(x, 'hello')
+        x_str = list(map(lambda x: str(x), x))
+        st.write(x_str, x)
+        
+        
+        
+        
   
 if __name__ == "__main__":
     Subspace.run()

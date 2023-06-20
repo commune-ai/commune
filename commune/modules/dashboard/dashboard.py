@@ -16,41 +16,32 @@ class Dashboard(commune.Module):
         self.module_list = ['module'] + list(self.module_tree.keys())
         sorted(self.module_list)
 
-    def streamlit_module_launcher(self):
-
-        module_list =  self.module_list
-        
-        st.write(f'## Module: {self.module_name}')
-            
-        # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
-        # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
-        module_schema = self.module.schema(include_default=True)
-        # st.write(module_schema)
-        fn_name = '__init__'
-        fn_schema = module_schema[fn_name]
-        
-        init_kwarg = {}
-        cols = st.columns([3,1,6])
+    @classmethod
+    def function2streamlit(cls, 
+                           fn_schema, 
+                           extra_defaults:dict=None,
+                           cols:list=None):
+        if extra_defaults is None:
+            extra_defaults = {}
 
         st.write('#### Startup Arguments')
-        cols = st.columns([2,1,4,4])
-        tag = None
-        # tag = st.text_input('**Tag**', 'None')
-        if tag == 'None' or tag == '' or tag == 'null':
-            tag = None
         # refresh = st.checkbox('**Refresh**', False)
         # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
         mode = 'pm2'
         serve = True
 
+        kwargs = {}
         fn_schema['default'].pop('self', None)
         fn_schema['default'].pop('cls', None)
+        fn_schema['default'].update(extra_defaults)
         
-        kwargs_cols = st.columns(3)
-        fn_schema['default'].update(self.module_config)
-        st.write(fn_schema)
         
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in self.module_config.items()})
+
+        
+        
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = st.columns(len(fn_schema['default']))
 
         for i, (k,v) in enumerate(fn_schema['default'].items()):
             
@@ -63,51 +54,73 @@ class Dashboard(commune.Module):
                 if k_type.startswith('typing'):
                     k_type = k_type.split('.')[-1]
                 fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            kwargs_col_idx  = i 
+            col_idx  = i 
             if k in ['kwargs', 'args'] and v == 'NA':
                 continue
             
-        
-            
-            kwargs_col_idx = kwargs_col_idx % (len(kwargs_cols))
-            init_kwarg[k] = kwargs_cols[kwargs_col_idx].text_input(fn_key, v)
-            
-        init_kwarg.pop('self', None )
-        init_kwarg.pop('cls', None)
-        name = st.text_input('**Name**', self.module_name) 
 
-        launch_button = st.button('Launch Module')  
-
-        if launch_button:
-            kwargs = {}
             
-            for k,v in init_kwarg.items():
-                
-                if v == 'None':
-                    v = None
+            col_idx = col_idx % (len(cols))
+            kwargs[k] = cols[col_idx].text_input(fn_key, v)
+            
+        return kwargs
+            
+            
+    @classmethod
+    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         
-                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
-                    if v.startswith("f'") or v.startswith('f"'):
-                        v = c.ljson(v)
-                    elif v.startswith('[') and v.endswith(']'):
-                        v = c.ljson(v)
-                    elif v.startswith('{') and v.endswith('}'):
-                        v = eval(v)
-                    else:
-                        v = v
-                    
-                elif k == 'kwargs':
-                    continue
-                elif v == 'NA':
-                    assert k != 'NA', f'Key {k} not in default'
+        for k,v in kwargs.items():
+            if v == 'None':
+                v = None
+
+            elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                if v.startswith("f'") or v.startswith('f"'):
+                    v = c.ljson(v)
+                elif v.startswith('[') and v.endswith(']'):
+                    v = v
+                elif v.startswith('{') and v.endswith('}'):
+                    v = v
                 else:
-                    v = eval(v) 
+                    v = v
                 
-                kwargs[k] = v
+            elif k == 'kwargs':
+                continue
+            elif v == 'NA':
+                assert k != 'NA', f'Key {k} not in default'
+            else:
+                v = eval(v) 
+            
+        kwargs[k] = v
+        return kwargs
+    @classmethod
+    def streamlit_module_launcher(cls, module, mode:str='pm2', fn_name='__init__'):
+
+        module_path = module.module_path()
+        st.write(f'## Module: {module.module_path()}')
+            
+        # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_function_schema_map()
+        # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
+        module_schema = module.schema(include_default=True)
+        
+        cols = st.columns(2)
+        name = cols[0].text_input('**Name**', module_path)
+        tag = cols[1].text_input('**Tag**', 'None')
+        config = module.config(to_munch=False)
+        
+        
+        fn_schema = module_schema[fn_name]
+        kwargs = cls.function2streamlit(fn_schema=fn_schema, extra_defaults=config )
+        
+        launch_button = st.button('Launch Module')  
+        
+        if launch_button:
+            
+            kwargs = cls.process_kwargs(kwargs=kwargs, fn_schema=fn_schema)
+            
                 
                 
             launch_kwargs = dict(
-                module = self.module,
+                module = module,
                 name = name,
                 tag = tag,
                 mode = mode,
@@ -115,14 +128,14 @@ class Dashboard(commune.Module):
                 kwargs = kwargs,
             )
             commune.launch(**launch_kwargs)
-            st.write(launch_kwargs)
             st.success(f'Launched {name} with {kwargs}')
         
+        
         with st.expander('Config'):
-            st.write(self.module_config)
+            st.write(module.config())
 
         with st.expander('input'):
-            st.write(self.module.schema())
+            st.write(module.schema())
     
             
 
@@ -133,8 +146,7 @@ class Dashboard(commune.Module):
                 return self.streamlit_sidebar(False)
         
         
-        
-
+    
         st.write('## Modules')    
         self.module_name = st.selectbox('',self.module_list, 0, key='module_name')   
         self.module = commune.module(self.module_name)
@@ -175,7 +187,6 @@ class Dashboard(commune.Module):
             
         
             
-            
         
 
         
@@ -195,89 +206,7 @@ class Dashboard(commune.Module):
      
 
         peer_info_map = {}
- 
-    def function_call(self, module:str, fn_name: str = '__init__' ):
-        
-        module = commune.connect(module)
-        peer_info = module.peer_info()
-        
-        function_info_map = self.module.function_info_map()
-        fn_name = fn_name
-        fn_schema = function_info_map[fn_name]
-        
-        kwargs = {}
-        cols = st.columns([3,1,6])
-        cols[0].write(f'#### {name}.{fn_name}')
-        cols[2].write('#### Module Arguments')
-        cols = st.columns([2,1,4,4])
-        launch_col = cols[0]
-        kwargs_cols = cols[2:]
-        st.write(function_info_map)
-                
-        st.write(self.module_config, 'brooo')
-        
-        with launch_col:
-            tag = None
-            # tag = st.text_input('**Tag**', 'None')
-            if tag == 'None' or tag == '' or tag == 'null':
-                tag = None
-            # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
-            mode = 'pm2'
-            serve = True
-            launch_button = st.button('Launch Module')  
-            
-        
-        # kwargs_cols[0].write('## Module Arguments')
-        for i, (k,v) in enumerate(fn_schema['default'].items()):
-            
-            optional = fn_schema['default'][k] != 'NA'
-            fn_key = k 
-            
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
-                if k_type.startswith('typing'):
-                    k_type = k_type.split('.')[-1]
-                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            kwargs_col_idx  = i 
-            if k in ['kwargs', 'args'] and v == 'NA':
-                continue
-            
-            
-            
-            kwargs_col_idx = kwargs_col_idx % (len(kwargs_cols))
-            init_kwarg[k] = kwargs_cols[kwargs_col_idx].text_input(fn_key, v)
-            
-        init_kwarg.pop('self', None )
-        init_kwarg.pop('cls', None)
-        
-
-
-        if launch_button:
-            kwargs = {}
-            for k,v in init_kwarg.items():
-                if v == 'None':
-                    v = None
-                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
-                    v = v
-                elif k == 'kwargs':
-                    continue
-                elif v == 'NA':
-                    assert k != 'NA', f'Key {k} not in default'
-                else:
-                    v = eval(v) 
-                
-                kwargs[k] = v
-                
-            launch_kwargs = dict(
-                module = self.module,
-                name = name,
-                tag = tag,
-                mode = mode,
-                refresh = refresh,
-                kwargs = kwargs,
-            )
-            commune.launch(**launch_kwargs)
-            
+   
    
     def streamlit_playground(self):
         class bro:
@@ -305,7 +234,7 @@ class Dashboard(commune.Module):
         
         tabs = st.tabs(['Modules', 'Peers', 'Users', 'Playground'])
         
-        self.streamlit_module_launcher()
+        self.streamlit_module_launcher(module=self.module)
 
 
     @staticmethod
