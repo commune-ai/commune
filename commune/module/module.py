@@ -24,7 +24,7 @@ class c:
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
     library_name = root_dir = root_path.split('/')[-1]
-    default_network = 'commune'
+    default_network = 'subspace'
     pwd = os.getenv('PWD')
     console = Console()
     helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
@@ -1449,12 +1449,16 @@ class c:
     @classmethod
     def locals2kwargs(cls,
                       locals_dict:dict,
-                      seperate_args:bool=False) -> dict:
+                      seperate_args:bool=False,
+                      merge_kwargs :bool = True) -> dict:
         kwargs = {}
         locals_dict = locals_dict if locals_dict != None else {}
         assert isinstance(locals_dict, dict)
         kwargs.update(locals_dict)
-        kwargs.update(locals_dict.get('kwargs', {}))
+        c.print(locals_dict)
+        if merge_kwargs:
+            kwargs.update(locals_dict.get('kwargs', {}))
+        
         kwargs.pop('cls', None)
         kwargs.pop('self', None)
 
@@ -1681,7 +1685,7 @@ class c:
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 
-                network : str = 'global',
+                network : str = default_network,
                 namespace = None,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
@@ -2170,7 +2174,10 @@ class c:
 
     @classmethod
     def subspace_namespace(cls, **kwargs ) -> Dict:
-        return c.module('subspace')().namespace(**kwargs)
+        namespace = c.module('subspace')().namespace(**kwargs)
+        local_namespace = c.local_namespace(**kwargs)
+        namespace.update(local_namespace)
+        return namespace
 
         
     
@@ -2178,7 +2185,7 @@ class c:
     @classmethod
     def namespace(cls,
                   search = None,
-                  network:str='global',
+                  network:str=default_network,
                   verbose: bool = False,
                   update: bool = False,
                   max_staleness:int = 30,
@@ -2248,17 +2255,21 @@ class c:
               verbose:bool = False,
               reserve_port:bool = False,
               tag_seperator: str = '::',
-              remote = True,
-              **kwargs ):
+              remote:bool = True,
+              args:list = None,
+              kwargs:dict = None,):
         '''
         Servers the module on a specified port
         '''
+        kwargs  = kwargs if kwargs else {}
+        args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
-        
+        c.print(kwargs)
         if remote:
-            kwargs = cls.locals2kwargs(locals())
-            kwargs['remote'] = False
-            return cls.remote_fn('serve', name=name, kwargs=kwargs, )
+            
+            remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
+            remote_kwargs['remote'] = False
+            return cls.remote_fn('serve', name=name, kwargs=remote_kwargs, )
         
         
         if address != None and port == None and ip == None:
@@ -2536,8 +2547,12 @@ class c:
             v = str(v)
             if v.startswith('<class'):
                 fn_schema['input'][k] = v.split("'")[1]
+            if v.startswith('typing.'):
+                fn_schema['input'][k] = v.split(".")[1].lower()
             else:
                 fn_schema['input'][k] = v
+                
+
         
         fn_schema['output'] = fn_schema['input'].pop('return', {})
         
@@ -2637,21 +2652,17 @@ class c:
     ## PM2 LAND
     @classmethod
     def deploy(cls, 
-               module:str = None, 
+               module:str = None,
                fn: str = 'serve',
                args : list = None,
                kwargs: dict = None,
+               name:Optional[str]=None,  
                refresh:bool=True,
                mode:str = 'pm2',
-               name:Optional[str]=None, 
                tag:str=None, 
                tag_seperator: str = ':',
-               user: str = None,
-               key : str = None,
                verbose : bool = True, 
-               shortcut = None,
-               wait_for_server=False,
-               device = None,
+               device:str = None,
                update: bool = False,
                **extra_kwargs):
         '''
@@ -2680,12 +2691,6 @@ class c:
                 
         if verbose:
             cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
-            
-        if fn == 'serve':
-            kwargs['tag'] = kwargs.get('tag', tag)
-            kwargs['name'] = kwargs.get('name', name)
-        else:
-            wait_for_server = False # invalid command
 
         if mode == 'local':
             return getattr(module, fn)(*args, **kwargs)
@@ -2709,10 +2714,6 @@ class c:
             stdout = getattr(cls, f'{mode}_launch')(**launch_kwargs)
             
             
-            if wait_for_server:
-                cls.wait_for_server(name)
-            
-            
         elif mode == 'ray':
             launch_kwargs = dict(
                     module=module, 
@@ -2723,9 +2724,6 @@ class c:
                     refresh=refresh,
                     **extra_kwargs
             )
-            if wait_for_server:
-                self.wait_for_server(name)
-
         
             getattr(cls, f'{mode}_launch')(**launch_kwargs)
         else: 
@@ -2850,6 +2848,7 @@ class c:
             command += ' -f '
         
         command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
+        c.print(f'Launching {module_name} with command: {command}', color='green')
         env = {}
 
         if device != None:
@@ -4483,80 +4482,7 @@ class c:
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
-    @classmethod
-    def auth_data(cls, network = None, key = None) -> dict:
-        network = network if network else cls.default_network
-        
-        data = {
-            'timestamp': cls.timestamp(),
-            'network': network
-        }
-        
-        if key:
-            key = cls.get_key(key)
-            data = key.sign(data)
-        return data
 
-
-    @classmethod
-    def call_auth_data(cls, 
-                       module:str, 
-                       fn:str,
-                       args:list=None,
-                       kwargs:dict = None,
-                       network:str = None,
-                       key = None) -> dict:
-        network = network if network else cls.default_network
-        data = {
-            'network': network,
-            'module':module,
-            'fn': fn,
-            'args': args or [],
-            'kwargs': kwargs or {},
-            'timestamp': cls.timestamp(),
-        }
-        
-        if key:
-            key = cls.get_key(key)
-            data = key.sign(data)
-            
-        return data
-
-
-    @classmethod
-    def verify_call_auth(cls, auth) -> dict:
-        signer_address = cls.get_signer(auth)        
-        
-        if key:
-            key = cls.get_key(key)
-            data = key.sign(data)
-        return data
-
-      
-    def authenticate(self, data, staleness: int = 60, ) -> bool:
-        
-        '''
-        Args:
-            auth {
-                'signature': str,
-                'data': str (json) with ['timestamp'],
-                'public_key': str
-            }
-            
-            statleness: int (seconds) - how old the request can be
-        return bool
-        '''
-        if not isinstance(data, dict):
-            return False
-        
-        fn = data.get('fn', None)
-        assert fn != None, 'Must provide a function name'
-        
-        assert fn in self.whitelist(), f'AuthFail: Function {fn} not in whitelist'
-        assert fn not in self.blacklist(), f'AuthFail: Function {fn} in blacklist'
-        
-        return True
-        
     @classmethod
     def is_encrypted(cls, data, prefix='AESKEY'):
         if isinstance(data, str):
@@ -4981,7 +4907,7 @@ class c:
         return value
     @classmethod
     def update(cls, 
-               network = 'global',
+               network = default_network,
                verbose:bool = True,
                min_staleness = 30,
                
