@@ -11,7 +11,6 @@ from munch import Munch
 class Dashboard(commune.Module):
     
     def __init__(self,
-
                 wallet:Union[bittensor.wallet, str] = None,
                 subtensor: Union[bittensor.subtensor, str] = 'local',
                 ):

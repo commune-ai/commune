@@ -175,7 +175,7 @@ class Keypair(c.Module):
         
         cls.put(path, key_json)
         
-        return key_json
+        return cls.get_key(path)
     
     @classmethod
     def add_keys(cls, name, n=100, **kwargs):
@@ -185,13 +185,19 @@ class Keypair(c.Module):
             cls.add_key(key_name, **kwargs)
     add = add_key
     @classmethod
-    def get_key(cls, path, password=None, json:bool=False, **kwargs):
+    def get_key(cls, 
+                path:str, 
+                password:str=None, 
+                json:bool=False,
+                create_if_not_exists:bool = True,
+                **kwargs):
         
-        if cls.key_exists(path) == False:
-           
+        if cls.key_exists(path) == False and create_if_not_exists == True:
             key = cls.add_key(path, **kwargs)
             c.print(f'key does not exist, generating new key -> {key}')
-            
+          
+        
+              
         key_json = cls.get(path)
         if c.is_encrypted(key_json):
             key_json = cls.decrypt(data=key_json, password=password)
@@ -208,6 +214,7 @@ class Keypair(c.Module):
             return key_json
         else:
             return cls.from_json(key_json)
+        
         
         
     @classmethod
@@ -286,19 +293,19 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def rm_keys(cls, *keys):
+    def rm_keys(cls, *rm_keys, verbose:bool=False):
         
+        removed_keys = []
         
-        for key in keys:
-            key2path = cls.key2path()
-            keys = list(key2path.keys())
-            if key not in keys:
-                raise Exception(f'key {key} not found, available keys: {keys}')
-            c.rm(key2path[key])
-            assert c.exists(key2path[key]) == False, 'key not deleted'
+        for rm_key in rm_keys:
+            keys = cls.keys()
+            for key in cls.keys():
+                if key.startswith(rm_key):
+                    cls.rm_key(key)
+                    c.print(f'removed key {key}')
+                    removed_keys.append(key)
             
-        return {'removed_keys':keys}
-        
+        return {'removed_keys':rm_keys}
         
         
     @classmethod
@@ -868,3 +875,35 @@ class Keypair(c.Module):
             return f'<Keypair (address={self.ss58_address}, path={self.path})>'
         else:
             return f'<Keypair (public_key=0x{self.public_key.hex()})>'
+        
+        
+        
+    def state_dict(self):
+        return self.__dict__
+    
+    to_dict = state_dict
+    @classmethod
+    def dashboard(cls): 
+        import streamlit as st
+        self = cls.gen()
+        
+        
+        keys = self.keys()
+        
+        selected_keys = st.multiselect('Keys', keys)
+        buttons = {}
+        for key_name in selected_keys:
+            key = cls.get_key(key_name)
+            with st.expander('Key Info'):
+                st.write(key.to_dict())
+
+
+            buttons[key_name] = {}
+            buttons[key_name]['sign'] = st.button('Sign', key_name)
+                
+        st.write(self.keys())
+        
+Keypair.run(__name__)
+        
+        
+        

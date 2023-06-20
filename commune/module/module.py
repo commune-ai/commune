@@ -701,9 +701,10 @@ class c:
         return config
 
     @classmethod
-    def st(cls, module = None, fn='st'):
+    def st(cls, module = None, fn='dashboard'):
         module = cls.get_module(module)
         module_filepath = module.filepath()
+        c.print(f'Running {module_filepath}', color='green')
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
 
     @staticmethod
@@ -1325,7 +1326,7 @@ class c:
 
         return module_tree
     
-    tree = module_tree
+    available_modules = tree = module_tree
     leaves = lsm = module_list
     @classmethod
     def list_modules(cls, search=None):
@@ -2547,7 +2548,7 @@ class c:
             v = str(v)
             if v.startswith('<class'):
                 fn_schema['input'][k] = v.split("'")[1]
-            if v.startswith('typing.'):
+            elif v.startswith('typing.'):
                 fn_schema['input'][k] = v.split(".")[1].lower()
             else:
                 fn_schema['input'][k] = v
@@ -2660,7 +2661,7 @@ class c:
                refresh:bool=True,
                mode:str = 'pm2',
                tag:str=None, 
-               tag_seperator: str = ':',
+               tag_seperator: str = '::',
                verbose : bool = True, 
                device:str = None,
                update: bool = False,
@@ -5996,6 +5997,10 @@ class c:
     def jload(cls, json_string):
         import json
         return json.loads(json_string)
+    
+    @classmethod
+    def bro(cls, x):
+        return x
 
 Module = c
 Module.run(__name__)
