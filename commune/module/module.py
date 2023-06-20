@@ -2165,6 +2165,13 @@ class c:
         }
         
         return global_namespace
+    
+    
+
+    @classmethod
+    def subspace_namespace(cls, **kwargs ) -> Dict:
+        return c.module('subspace')().namespace(**kwargs)
+
         
     
         
@@ -2194,10 +2201,6 @@ class c:
         return namespace
     
     
-    
-    @classmethod
-    def subspace_namespace(cls, search = None, update=False):
-        return {}
     
 
     @classmethod
