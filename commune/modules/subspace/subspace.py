@@ -238,7 +238,7 @@ class Subspace(c.Module):
             raise NotImplementedError('No uri, mnemonic, privatekey or publickey provided')
         return key
     def get_netuid_for_network(self, network: str = None) -> int:
-        netuid = self.subnet_namespace[network]
+        netuid = self.subnet_namespace.get(network, None)
         return netuid
     
     
@@ -263,19 +263,25 @@ class Subspace(c.Module):
 
         if kwargs is None:
             kwargs = {}
+            
+            
+            
         
         key = self.resolve_key(key)
         name = c.resolve_server_name(module=module, name=name, tag=tag)
 
         address = c.free_address()
-        c.serve(module=module, address=address, name=name, **kwargs)
-        
-        if self.is_registered(key):
+        c.serve(module=module, address=address, name=name, kwargs=kwargs)
+
+        netuid = self.get_netuid_for_network(network)
+
+        if self.is_registered(key) and netuid != None:
+
             return self.update_module(key=key, 
                                name=name, 
                                address=address,
-                               netuid=self.get_netuid_for_network(network), 
-                               **kwargs)
+                               netuid=netuid, 
+                               )
             
         # netuid = self.subnet_namespace(network)
         if address is None:
@@ -910,6 +916,8 @@ class Subspace(c.Module):
         )
         return module
 
+    def subnet_names(self, netuid: int = None) -> Dict[int, str]:
+        return list(self.subnet_namespace.keys())
 
 
     @property
@@ -934,6 +942,8 @@ class Subspace(c.Module):
     def resolve_netuid(cls, netuid: int = None) -> int:
         if netuid == None:
             netuid = cls.default_netuid
+            return netuid
+            
         return netuid
 
 
@@ -1520,90 +1530,7 @@ class Subspace(c.Module):
             'is_registered': cls.is_registered(key),
         }
         return key_info
-        
-    
-    @classmethod
-    def dashboard(cls, key = None):
-        import streamlit as st
-        # plotly
-        import plotly.express as px
-        self = cls()
-        
-        available_modules = c.leaves()
-        module2index = {m:i for i,m in enumerate(available_modules)}
-        
-        with st.sidebar:
-            keys = c.keys()
-                
-            with st.expander('Select Key', expanded=True):
-            
- 
-                key2index = {k:i for i,k in enumerate(keys)}
-                if key == None:
-                    key = keys[0]
-                key = st.selectbox('Select Key', keys, index=key2index[key])
-                        
-                key = c.get_key(key)
-                    
-                st.write(key)
-                
-                
-            with st.expander('Create Key', expanded=False):                
-                new_key = st.text_input('Name of Key', '')
-                create_key_button = st.button('Create Key')
-                if create_key_button and len(new_key) > 0:
-                    c.add_key(new_key)
-                    key = c.get_key(new_key)
-                    
-            with st.expander('Remove Key', expanded=False):                
-                rm_key = st.selectbox('Select Key to Remove', keys, index=0)
-                rm_key_button = st.button('Remove Key')
-                if rm_key_button:
-                    c.rm_key(rm_key)
-                              
-    
-            with st.expander('Network', expanded=True):
-            
-                networks = self.subnets()
-                if len(networks) == 0:
-                    networks = ['commune']
-                network2index = {n:i for i,n in enumerate(networks)}
-                network = st.selectbox('Network', networks, index=network2index['commune'])
-                
-                
-            
-            
-        with st.expander('Register Module', expanded=True):
-            modules = c.leaves()
-            module2idx = {m:i for i,m in enumerate(modules)}
-            module = st.selectbox('modules', modules, module2idx['model.openai'])
-            
-            cols = st.columns(2)
-            name = cols[0].text_input('name', module)
-            tag = cols[1].text_input('tag', 'None')
-            if 'None' == tag:
-                tag = None
-                
-            serve = st.button('Serve')
-            if serve:
-                self.serve(module=module, name=name, tag=tag, key=key)
-            fn_schema = self.schema('register_module', include_default=True)['register_module']
-            
-            cls.function2streamlit(fn_schema)
-            module = st.selectbox('module', available_modules, index=module2index['module'])
-            
-            
-             
-            
-        with st.expander('Transfer', expanded=True):
-            st.write(self.schema('transfer', include_default=True))
-             
-        x = range(10)
-        st.write(x, 'hello')
-        x_str = list(map(lambda x: str(x), x))
-        st.write(x_str, x)
-        
-        
+         
         
         
   

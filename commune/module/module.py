@@ -708,7 +708,7 @@ class c:
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
 
     @staticmethod
-    def st_sidebar(fn):
+    def stside(fn):
         import streamlit as st
         
         def wrapper(*args, **kwargs):
@@ -716,7 +716,9 @@ class c:
                 return fn(*args, **kwargs)
         
         return wrapper
-
+    @staticmethod
+    def st_load_css(*args, **kwargs):
+        c.module('streamlit').load_css(*args, **kwargs)
 
     @classmethod
     def cmd(cls, 
@@ -3468,6 +3470,12 @@ class c:
         # return module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
+    
+    @classmethod
+    def modulefn(cls, module, fn, *args, **kwargs):
+        return getattr(c.module(module), fn)(*args, **kwargs)
+        
+    
     
     def setattr(self, k, v):
         setattr(self, k, v)

@@ -37,32 +37,32 @@ class StreamlitModule(c.Module):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
 
 
-    def run(self, data, plots=[], default_plot  ='histogram', title=None ):
+    # def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
-        self.cols= st.columns([1,3])
-        if len(plots) == 0:
-            plots = self.plot_options
+    #     self.cols= st.columns([1,3])
+    #     if len(plots) == 0:
+    #         plots = self.plot_options
 
-        if default_plot not in plots:
-            default_plot = plots[0]
-        supported_types = [pd.DataFrame]
-        if isinstance(data, pd.DataFrame):
-            df = data
-            with self.cols[1]:
-                if len(plots) > 1:
-                    name2index = {_name:_idx for _idx, _name in enumerate(plots)}
-                    plot = st.selectbox('Choose a Plot', plots, name2index[default_plot])
-                else:
-                    plot = plots[0]
-            form = st.form(F'Params for {plot}')
-            with form:
-                fig = getattr(self, 'st_'+ plot)(df)
-                form.form_submit_button("Render")
+    #     if default_plot not in plots:
+    #         default_plot = plots[0]
+    #     supported_types = [pd.DataFrame]
+    #     if isinstance(data, pd.DataFrame):
+    #         df = data
+    #         with self.cols[1]:
+    #             if len(plots) > 1:
+    #                 name2index = {_name:_idx for _idx, _name in enumerate(plots)}
+    #                 plot = st.selectbox('Choose a Plot', plots, name2index[default_plot])
+    #             else:
+    #                 plot = plots[0]
+    #         form = st.form(F'Params for {plot}')
+    #         with form:
+    #             fig = getattr(self, 'st_'+ plot)(df)
+    #             form.form_submit_button("Render")
 
-        else:
-            raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
-        fig.update_layout(height=800)
-        self.show(fig)
+    #     else:
+    #         raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
+    #     fig.update_layout(height=800)
+    #     self.show(fig)
         
     @property
     def plot_options(self):
@@ -288,12 +288,33 @@ class StreamlitModule(c.Module):
             kwargs[k] = cols[col_idx].text_input(fn_key, v)
             
         return kwargs
+    
+    
+    @classmethod
+    def style2path(cls, style:str=None) -> str:
+        path = cls.dirpath() + '/styles'
+        style2path = {p.split('/')[-1].split('.')[0] : p for p in cls.ls(path)}
+        if style != None:
+            return style2path[style]
+        return style2path
+        
+        
+    @classmethod
+    def load_style(cls, style='commune'):
+        style_path =  cls.style2path(style)        
+        with open(style_path) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+ 
         
     
-
-
-
-if __name__ == '__main__':
-
+    @classmethod
+    def styles(cls):
+        return list(cls.style2path().keys())
     
-    # import json
+    
+    @classmethod
+    def style_paths(cls):
+        return list(cls.style2path().values())
+        
+
+StreamlitModule.run(__name__)
