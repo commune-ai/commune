@@ -14,7 +14,7 @@ class OpenAILLM(c.Module):
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
-                 password=None,
+                 password:str='whadupfam',
                 **kwargs
                 ):
         
@@ -77,11 +77,8 @@ class OpenAILLM(c.Module):
         
         assert isinstance(api, str),f"API Key must be a string,{api}"
         openai.api_key  =  os.getenv(api, api)
-        
         self.putc('api', openai.api_key, password=password)
         
-    
-    
     def resolve_prompt(self, *args, prompt = None, **kwargs):
         if prompt == None:
             prompt = self.prompt

@@ -1,4 +1,4 @@
-api: OPENAI_API_KEY
+api: AESKEY::yrxkA8G5srJJTRj6uCthL/gi5gRowpk9Ld/kfjZeahc=
 frequency_penalty: 0.0
 max_tokens: 10
 model: gpt-3.5-turbo

@@ -1,11 +1,25 @@
 import commune as c
 import streamlit as st
+from streamlit.components.v1 import components
 
 
 class SubspaceDashboard(c.Module):
     
-    def __init__(self):
+    def __init__(self, config=None): 
+        st.set_page_config(layout="wide")
+
+
+        c.module('streamlit').load_style()
+        self.set_config(config=config)
         self.subspace = c.module('subspace')()
+        st.write(self.subspace.registered_keys())
+
+        
+        
+    
+        
+    def line_seperator(cls, text='-', length=50):
+        st.write(text*length)
     @classmethod
     def function2streamlit(cls, 
                            module = None,
@@ -35,6 +49,8 @@ class SubspaceDashboard(c.Module):
         fn_schema['default'].pop('self', None)
         fn_schema['default'].pop('cls', None)
         fn_schema['default'].update(extra_defaults)
+        fn_schema['default'].pop('config', None)
+        fn_schema['default'].pop('kwargs', None)
         
         
         fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
@@ -98,12 +114,13 @@ class SubspaceDashboard(c.Module):
                 c.rm_key(rm_key)
                             
 
+    default_network = 'commune'
     def network_management(self):
         with st.expander('Network', expanded=True):
         
             networks = self.subspace.subnets()
             if len(networks) == 0:
-                networks = ['commune']
+                networks = [default_network]
             else:
                 networks = [n['name'] for n in networks]
             network2index = {n:i for i,n in enumerate(networks)}
@@ -116,6 +133,12 @@ class SubspaceDashboard(c.Module):
             st.write('#### Subspace')
             self.key_management()
             self.network_management()
+                
+            update = st.button('Update')
+            if update:
+                self.subspace = c.module('subspace')()
+                self.registered_keys = self.subspace.registered_keys()
+                st.write(self.registered_keys)
           
 
     @classmethod
@@ -151,26 +174,27 @@ class SubspaceDashboard(c.Module):
         st.write('#### Unstaking')
         unstake_kwargs = self.function2streamlit(module='subspace', fn='unstake', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
 
-        
+
     def register_dashboard(self, key=None):
-        st.write('#### Register Module')
-        available_modules = c.leaves()
-        module2index = {m:i for i,m in enumerate(available_modules)}
+        st.write('# Register Module')
         modules = c.leaves()
         module2idx = {m:i for i,m in enumerate(modules)}
-        module = st.selectbox('module', modules, module2idx['model.openai'])
+        cols = st.columns(3)
+        module  = name = cols[0].selectbox('module', modules, module2idx['model.openai'])
+        network = cols[1].text_input('network', self.config.default_network, key='network')
+        tag = cols[2].text_input('tag', 'None', key='tag')
+        serve = st.button('Register')
+
+        self.line_seperator()
+        st.write('#### Module Arguments')
         kwargs = self.function2streamlit(module=module, fn='__init__' )
-        cols = st.columns(2)
-        name = cols[0].text_input('name', module, key='name')
-        tag = cols[1].text_input('tag', 'None', key='tag')
-        kwargs 
+        self.line_seperator()
         if 'None' == tag:
             tag = None
             
-        serve = st.button('Register')
         
         if serve:
-            self.subspace.register(module=module, name=name, tag=tag, key=self.key)
+            self.subspace.register(module=module, name=name, tag=tag, key=self.key, network=network, kwargs=kwargs)
         
 SubspaceDashboard.run(__name__)
 
