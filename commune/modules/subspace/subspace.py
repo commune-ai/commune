@@ -294,7 +294,7 @@ class Subspace(c.Module):
                     'name': name.encode('utf-8'),
                     'stake': stake,
                 } 
-        c.print(f":satellite: Registering {key} \n Params : {call_params}")
+        c.print(f":satellite: Registering {key} \n Params : ", call_params)
 
         with self.substrate as substrate:
             
@@ -919,7 +919,9 @@ class Subspace(c.Module):
     def subnet_names(self, netuid: int = None) -> Dict[int, str]:
         return list(self.subnet_namespace.keys())
 
-
+    
+    def subnet2netuid(self, subnet:str):
+        return self.subnet_namespace.get(subnet, None)
     @property
     def subnet_namespace(self ) -> Dict[str, str]:
         
@@ -940,7 +942,14 @@ class Subspace(c.Module):
 
     @classmethod
     def resolve_netuid(cls, netuid: int = None) -> int:
+
+        
+        if isinstance(netuid, str):
+            # If the netuid is a subnet name, resolve it to a netuid.
+            netuid = self.subnet2netuid(netuid)
+            
         if netuid == None:
+            # If the netuid is not specified, use the default.
             netuid = cls.default_netuid
             return netuid
             
@@ -1001,7 +1010,7 @@ class Subspace(c.Module):
         return key2module
         
     
-    def modules(self, netuid: int = None) -> Dict[str, ModuleInfo]:
+    def modules(self, netuid: int = None, fmt='nano') -> Dict[str, ModuleInfo]:
         netuid = self.resolve_netuid(netuid) 
         uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
         uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
@@ -1021,13 +1030,16 @@ class Subspace(c.Module):
                 'address': address,
                 'name': uid2name[uid],
                 'key': key,
-                'emission': emission[uid],
-                'incentive': incentive[uid],
-                'dividends': dividends[uid],
+                'emission': emission[uid].value,
+                'incentive': incentive[uid].value,
+                'dividends': dividends[uid].value,
                 'stake': stake[ key],
                 'balance': balances[key],
                 
             }
+            
+            for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
+                modules[uid][k] = self.format_amount(modules[uid][k], fmt=fmt)
             
         return modules
     
@@ -1216,8 +1228,16 @@ class Subspace(c.Module):
     def node_prefix(cls):
         return f'{cls.module_path()}.node'
     
-    
-    
+    @classmethod
+    def st_metrics_dict(cls, x, num_columns=3):
+        cols = st.columns(num_columns)
+        if self.is_registered:
+            neuron = self.neuron
+            for i, (k,v) in enumerate(x):
+                if type(v) in [int, float]:
+                    cols[i % num_columns].metric(label=k, value=v)
+                        
+        
     def state_dict(self): 
         modules = self.modules()
         state_dict = {

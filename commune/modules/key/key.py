@@ -229,7 +229,10 @@ class Keypair(c.Module):
         
     @classmethod
     def key2address(cls, prefix=None):
-        return { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
+        key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
+        if prefix in key2address:
+            return key2address[prefix]
+        return key2address
     @classmethod
     def address2key(cls, prefix=None):
         return { v: k for k,v in cls.key2address(prefix).items()}
@@ -238,6 +241,7 @@ class Keypair(c.Module):
     @classmethod
     def get_address(cls, key):
         return cls.key2address()[key]
+    get_addy = get_address
     @classmethod
     def has_address(cls, address):
         return address in cls.address2key()
