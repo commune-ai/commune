@@ -2154,14 +2154,16 @@ class c:
     def attributes(self):
         return list(self.__dict__.keys())
     @classmethod
-    def get_attributes(cls, obj=None):
+    def get_attributes(cls, search = None, obj=None):
         if obj is None:
             obj = cls
         if isinstance(obj, str):
             obj = cls.module(obj)
         # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
-        return list(obj.__dict__.keys())
-
+        attrs =  dir(obj)
+        if search is not None:
+            attrs = [a for a in attrs if search in a]
+        return attrs
 
     @classmethod
     def global_namespace(cls, update=False) -> Dict:
@@ -2605,12 +2607,15 @@ class c:
         kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
         for module in modules:
-            kill_fn(module, verbose=verbose, **kwargs)
+            x =kill_fn(module, verbose=verbose, **kwargs)
+            if isinstance(x, list):
+                delete_modules.extend(x)
+            
         
         # update modules
         cls.update(network='local')
 
-        return modules
+        return delete_modules
 
     delete = kill
     def destroy(self):

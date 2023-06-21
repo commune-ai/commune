@@ -1,6 +1,8 @@
 import commune as c
 import streamlit as st
+import pandas as pd
 from streamlit.components.v1 import components
+import plotly.express as px
 
 
 class SubspaceDashboard(c.Module):
@@ -12,7 +14,6 @@ class SubspaceDashboard(c.Module):
         c.module('streamlit').load_style()
         self.set_config(config=config)
         self.subspace = c.module('subspace')()
-        st.write(self.subspace.registered_keys())
 
         
         
@@ -125,6 +126,7 @@ class SubspaceDashboard(c.Module):
                 networks = [n['name'] for n in networks]
             network2index = {n:i for i,n in enumerate(networks)}
             network = st.selectbox('Network', networks, index=network2index['commune'])
+            self.netuid = self.subspace.subnet2netuid(network)
             
            
         
@@ -145,15 +147,37 @@ class SubspaceDashboard(c.Module):
     def dashboard(cls, key = None):
         import streamlit as st
         # plotly
-        import plotly.express as px
         self = cls()
         self.sidebar()
-        with st.expander('Register Module', expanded=True):
-            self.register_dashboard()
-        with st.expander('Transfer Module', expanded=True):
-            self.transfer_dashboard()
-        with st.expander('Staking', expanded=True):
-            self.staking_dashboard()
+        
+        tabs = st.tabs(['Modules', 'Network', 'Keys']) 
+        with tabs[0]:   
+            self.module_dashboard()
+        with tabs[1]:
+            self.network_dashboard()
+        # with st.expander('Transfer Module', expanded=True):
+        #     self.transfer_dashboard()
+        # with st.expander('Staking', expanded=True):
+        #     self.staking_dashboard()
+        
+
+    def network_dashboard(self):
+        st.write('# Network')
+        
+        self.subnets = self.subspace.subnets()
+        df = pd.DataFrame(self.subnets)
+        st.write(df)
+        fig = px.pie(df, values='stake', names='name', title='Subnet Balances')
+        st.plotly_chart(fig)
+        
+        for subnet in self.subnets:
+            network = subnet.pop('name', None)
+            with st.expander(network, expanded=True):
+                st.write(subnet)
+        
+        # convert into metrics
+        
+        
 
     def transfer_dashboard(self):
             kwargs = self.function2streamlit(module='subspace', fn='transfer', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
@@ -165,18 +189,52 @@ class SubspaceDashboard(c.Module):
             if transfer_button:
                 self.transfer(**kwargs)
             
-            st.write(kwargs)
             
 
     def staking_dashboard(self):
         st.write('#### Staking')
         stake_kwargs = self.function2streamlit(module='subspace', fn='add_stake', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
+        
+        stake_kwargs['netuid'] = self.netuid
         st.write('#### Unstaking')
         unstake_kwargs = self.function2streamlit(module='subspace', fn='unstake', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
 
 
-    def register_dashboard(self, key=None):
-        st.write('# Register Module')
+    def subnet_dashboard(self):
+        st.write(self.subspace.subnets())
+
+    def module_dashboard(self):
+        
+        self.modules = list(self.subspace.modules(fmt='token').values())
+        df = pd.DataFrame(self.modules)
+        
+        # pie of stake per module
+        # select fields to show
+        with st.expander('Module Statistics', expanded=True):
+            value_field2index = {v:i for i,v in enumerate(list(df.columns))}
+            key_field2index = {v:i for i,v in enumerate(list(df.columns))}
+            value_field = st.selectbox('Value Field', df.columns , index=value_field2index['stake'])
+            key_field = st.selectbox('Key Field',df.columns, index=value_field2index['name'])
+            
+            
+            # plot pie chart in a funky color
+            fig = px.pie(df, values=value_field, names=key_field, title='Module Balances', color_discrete_sequence=px.colors.sequential.RdBu)
+            # show the key field
+            # do it in funky way
+            
+            st.plotly_chart(fig)
+            st.write(df)
+        
+        
+        
+        st.write('#### Modules')
+        st.write(self.modules)
+
+        with st.expander('Register Module', expanded=False):
+            self.launch_dashboard()
+    def launch_dashboard(self):
+        st.write('# Modules')
+        st.write('## Register Module')
         modules = c.leaves()
         module2idx = {m:i for i,m in enumerate(modules)}
         cols = st.columns(3)

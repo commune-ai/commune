@@ -306,7 +306,13 @@ class StreamlitModule(c.Module):
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
  
         
-    
+    @classmethod
+    def st_metrics_dict(cls, x:str, num_columns=3):
+        cols = st.columns(num_columns)
+        for i, (k,v) in enumerate(x.items()):
+            if type(v) in [int, float, str]:
+                cols[i % num_columns].metric(label=k, value=v)
+                        
     @classmethod
     def styles(cls):
         return list(cls.style2path().keys())
