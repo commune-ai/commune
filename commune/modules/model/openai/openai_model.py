@@ -69,12 +69,13 @@ class OpenAILLM(c.Module):
         
     def set_api(self, api: str, password:str=None) -> None:
         if self.is_encrypted(api):
-
             api = c.decrypt(api, password=password)
-            
             print('decrypting api', api, password)
-            
-        assert isinstance(api, str), "API Key must be a string"
+        
+        if api == None:
+            api = 'OPENAI_API_KEY'
+        
+        assert isinstance(api, str),f"API Key must be a string,{api}"
         openai.api_key  =  os.getenv(api, api)
         
         self.putc('api', openai.api_key, password=password)

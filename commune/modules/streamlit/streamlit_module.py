@@ -8,25 +8,27 @@ import pandas as pd
 import plotly.express as px
 # from commune.plot.dag import DagModule 
 
-import commune
+import commune as c
 
 
 
-class StreamlitModule(commune.Module):
+class StreamlitModule(c.Module):
 
     height=1000
     width=1000
     theme= 'plotly_dark'
     def __init__(self):
         self.add_plot_tools()
-        
+    
+    
+    @classmethod
     def add_plot_tools(self):
         # sync plots from express
         for fn_name in dir(px):
             if not (fn_name.startswith('__') and fn_name.endswith('__')):
                 plt_obj = getattr(px, fn_name)
                 if callable(plt_obj):
-                    setattr(self, fn_name, plt_obj)
+                    setattr(cls, fn_name, plt_obj)
 
         # self.dag = DagModule()
 
@@ -207,14 +209,14 @@ class StreamlitModule(commune.Module):
         return fig
 
 
-    def st_heatmap(self, df=None):
+    def st_heatmap(cls, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
         # Choose X, Y and Color Axis
 
         plotly_kwargs = {}
-        with self.cols[0]:
+        with cls.cols[0]:
             st.markdown("### X-axis")
             plotly_kwargs['x'] = st.selectbox("Choose X-Axis Feature", column_options, 0)
             plotly_kwargs['nbinsx'] = st.slider("Number of Bins", 10, 100, 10)
@@ -226,25 +228,72 @@ class StreamlitModule(commune.Module):
             st.markdown("### Z-axis")
             plotly_kwargs['z'] = st.selectbox("Choose Z-Axis Feature", column_options, 0)
             plotly_kwargs['histfunc'] = st.selectbox("Aggregation Function", ["avg", "sum", "min", "sum", "count"], 0)
-            plotly_kwargs['template'] = self.theme
+            plotly_kwargs['template'] = cls.theme
 
         fig = px.density_heatmap(df, **plotly_kwargs)
-        fig.update_layout(width=self.width, height=self.height, font_size=20)
+        fig.update_layout(width=cls.width, height=cls.height, font_size=20)
+
+
 
         return fig
+
+   
+    @classmethod
+    def function2streamlit(cls, 
+                           fn_schema, 
+                           extra_defaults:dict=None,
+                           cols:list=None):
+        if extra_defaults is None:
+            extra_defaults = {}
+
+        st.write('#### Startup Arguments')
+        # refresh = st.checkbox('**Refresh**', False)
+        # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
+        mode = 'pm2'
+        serve = True
+
+        kwargs = {}
+        fn_schema['default'].pop('self', None)
+        fn_schema['default'].pop('cls', None)
+        fn_schema['default'].update(extra_defaults)
+        
+        
+
+        
+        
+        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
+        if cols == None:
+            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
+        st.write(f'cols: {cols}')
+        cols = st.columns(cols)
+
+        for i, (k,v) in enumerate(fn_schema['input'].items()):
+            
+            optional = fn_schema['default'][k] != 'NA'
+            fn_key = k 
+            if k in fn_schema['input']:
+                k_type = fn_schema['input'][k]
+                if 'Munch' in k_type or 'Dict' in k_type:
+                    k_type = 'Dict'
+                if k_type.startswith('typing'):
+                    k_type = k_type.split('.')[-1]
+                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
+            col_idx  = i 
+            if k in ['kwargs', 'args'] and v == 'NA':
+                continue
+            
+
+            
+            col_idx = col_idx % (len(cols))
+            kwargs[k] = cols[col_idx].text_input(fn_key, v)
+            
+        return kwargs
+        
+    
 
 
 
 if __name__ == '__main__':
-    from sklearn.datasets import load_iris
-    import pandas as pd
-    st_plt = StreamlitModule()
-    data = load_iris()
-    df = pd.DataFrame(data=data.data, columns=data.feature_names)
-
-    st_plt.run(data=df, plots=['heatmap'])
-    # st.write(st_plt.streamlit_functions)
-
 
     
     # import json

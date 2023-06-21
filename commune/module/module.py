@@ -2274,9 +2274,10 @@ class c:
         
         
         if address != None and port == None and ip == None:
-            ip, port = address.split(':')
-            port = int(port)
-            
+            # ip = address.split(':')[0]
+
+            port = int(address.split(':')[-1])
+            print(f'ip: {ip} port: {port}')
             
         # we want to make sure that the module is loco
         cls.update(network='local')
