@@ -245,7 +245,9 @@ class Subspace(c.Module):
     def register(
         self,
         key ,
-        name: str ,
+        module:str = None , 
+        name: str = None,
+        tag:str = None,
         stake : int = 0,
         address: str = None,
         network = subnet,
@@ -255,35 +257,26 @@ class Subspace(c.Module):
         max_allowed_attempts: int = 3,
         update_interval: Optional[int] = None,
         log_verbose: bool = False,
+        kwargs = None,
 
     ) -> bool:
 
-        r""" Registers the wallet to chain.
-        Args:
-            network (int):
-                The netuid of the subnet to register on.
-            wait_for_inclusion (bool):
-                If set, waits for the extrinsic to enter a block before returning true, 
-                or returns false if the extrinsic fails to enter the block within the timeout.   
-            wait_for_finalization (bool):
-                If set, waits for the extrinsic to be finalized on the chain before returning true,
-                or returns false if the extrinsic fails to be finalized within the timeout.
-            prompt (bool):
-                If true, the call waits for confirmation from the user before proceeding.
-            max_allowed_attempts (int):
-                Maximum number of attempts to register the wallet.
-            update_interval (int):
-                The number of nonces to solve between updates.
-            log_verbose (bool):
-                If true, the registration process will log more information.
-        Returns:
-            success (bool):
-                flag is true if extrinsic was finalized or uncluded in the block. 
-                If we did not wait for finalization / inclusion, the response is true.
-        """
+        if kwargs is None:
+            kwargs = {}
         
         key = self.resolve_key(key)
+        name = c.resolve_server_name(module=module, name=name, tag=tag)
+
+        address = c.free_address()
+        c.serve(module=module, address=address, name=name, **kwargs)
         
+        if self.is_registered(key):
+            return self.update_module(key=key, 
+                               name=name, 
+                               address=address,
+                               netuid=self.get_netuid_for_network(network), 
+                               **kwargs)
+            
         # netuid = self.subnet_namespace(network)
         if address is None:
             address = f'{c.ip()}:{c.free_port()}'
@@ -437,39 +430,7 @@ class Subspace(c.Module):
         
         
     
-    def register_module(self,
-              module: str,
-              name = None,
-              tag = None,
-              network = subnet, 
-              address = None,
-              stake = 0,
-              key = None, **kwargs):
-        
-        
-        key = self.resolve_key(key)
-        name = c.resolve_server_name(module=module, name=name, tag=tag)
 
-        
-        c.serve(module=module, address=address, name=name, **kwargs)
-        c.wait_for_server(name)
-        address = c.namespace().get(name)
-        address = address.replace(c.default_ip, c.ip())
-        
-        if self.is_registered(key):
-            self.update_module(key=key, 
-                               name=name, 
-                               address=address,
-                               netuid=self.get_netuid_for_network(network), 
-                               **kwargs)
-        else:
-        
-            self.register(
-                name = name,
-                address = address,
-                key = key,
-                network = network,
-            )
         
 
     #################
