@@ -68,7 +68,7 @@ class Subspace(c.Module):
         return {v: k for k, v in cls.network2url.items()}.get(url, None)
     
     @classmethod
-    def resolve_network_url(cls, network:str , prefix='wss://'):  
+    def resolve_network_url(cls, network:str , prefix='ws://'):  
         external_ip = cls.external_ip()      
         url = cls.get_network_url(network)
 
@@ -1306,12 +1306,15 @@ class Subspace(c.Module):
         if validator :
             cmd_kwargs += ' --validator'
             cmd_kwargs += f' --{user}'
+        else:
+            cmd_kwargs += ' --ws-external --rpc-external'
         cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
         
 
             
         if boot_nodes != None:
             cmd_kwargs += f' --bootnodes {boot_nodes}'
+            
             
         cmd_kwargs += f' --rpc-cors=all'
 
