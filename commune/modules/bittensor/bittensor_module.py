@@ -1477,7 +1477,6 @@ class BittensorModule(c.Module):
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
-
         
         # network
         subtensor = bittensor.subtensor(network=network)
@@ -1608,19 +1607,20 @@ class BittensorModule(c.Module):
         return wallet in miners
 
     @classmethod
-    def fleet(cls, name:str=default_coldkey, 
-                    netuid:int= default_netuid,
-                    network:str=default_network,
-                    model_name:str= default_model_name,
-                    refresh: bool = False,
-                    burned_register:bool=False, 
-                    ensure_registration:bool=False,
-                    device:str = 'cpu',
-                    max_fee:float=1.1,
-                    hotkeys:List[str] = None,
-                    refresh_ports:bool = False,
-                    n:int = 100,
-                    remote:bool=True): 
+    def fleet(cls, 
+            name:str=default_coldkey, 
+            netuid:int= default_netuid,
+            network:str=default_network,
+            model_name:str= default_model_name,
+            refresh: bool = False,
+            burned_register:bool=False, 
+            ensure_registration:bool=False,
+            device:str = 'cpu',
+            max_fee:float=1.1,
+            hotkeys:List[str] = None,
+            refresh_ports:bool = False,
+            n:int = 100,
+            remote:bool=True): 
     
         
         # address = cls.address(name)

@@ -4,19 +4,29 @@ chain_info:
     alice:
       boot_nodes: null
       chain: dev
-      port: 4844
-      rpc_port: 4889
+      port: 4817
+      rpc_port: 4293
       user: alice
-      verbose: true
-      ws_port: 4850
+      verbose: false
+      ws_port: 4323
     bob:
-      boot_nodes: /ip4/127.0.0.1/tcp/4844/p2p/12D3KooWCnjyiVkQW3RjxL8EZ3khHUVcwJFxwMpz8g3Qqo25RioZ
+      boot_nodes: /ip4/162.157.13.236/tcp/4817/p2p/12D3KooWCnjyiVkQW3RjxL8EZ3khHUVcwJFxwMpz8g3Qqo25RioZ
       chain: dev
-      port: 4826
-      rpc_port: 4901
+      port: 4104
+      rpc_port: 4240
       user: bob
-      verbose: true
-      ws_port: 4893
+      verbose: false
+      ws_port: 4649
+    charlie:
+      boot_nodes: /ip4/162.157.13.236/tcp/4104/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
+      chain: dev
+      port: 4236
+      rpc_cors: all
+      rpc_port: 4682
+      user: charlie
+      validator: false
+      verbose: false
+      ws_port: 4645
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
 default_netuid: 1
@@ -25,7 +35,7 @@ key_types:
 - gran
 network: dev
 network2url:
-  dev: 127.0.0.1:4893
+  dev: 162.157.13.236:4645
   local: 127.0.0.1:4874
   testnet: 127.0.0.1:4874
 retry_params:
