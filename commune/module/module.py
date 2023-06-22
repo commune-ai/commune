@@ -2192,10 +2192,8 @@ class c:
     
 
     @classmethod
-    def subspace_namespace(cls, **kwargs ) -> Dict:
+    def subspace_namespace(cls, netuid=None, **kwargs ) -> Dict:
         namespace = c.module('subspace')().namespace(**kwargs)
-        local_namespace = c.local_namespace(**kwargs)
-        namespace.update(local_namespace)
         return namespace
 
         
