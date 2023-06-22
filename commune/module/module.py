@@ -2820,7 +2820,7 @@ class c:
                 cmd += f'{cmd_kwargs}'
             
         # c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
-        c.print(f'{cmd_kwargs}')          
+        c.print(cmd)          
         return c.cmd(cmd, verbose=verbose,**kwargs)
         
     @classmethod

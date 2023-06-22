@@ -68,14 +68,14 @@ class Subspace(c.Module):
         return {v: k for k, v in cls.network2url.items()}.get(url, None)
     
     @classmethod
-    def resolve_network_url(cls, network:str ):  
+    def resolve_network_url(cls, network:str , prefix='wss://'):  
         external_ip = cls.external_ip()      
         url = cls.get_network_url(network)
 
-        # if not url.startswith('wss://') and not url.startswith('ws://'):
-        if not url.startswith('ws://'):
-            url = f'ws://{url}'
+        if not url.startswith(prefix):
+            url = prefix + url
         
+        c.print(f'Checking connection to {url}...')
         return url
     def set_subspace(self, 
                 network:str,
@@ -172,10 +172,6 @@ class Subspace(c.Module):
         assert self.is_registered(key,netuid= data['netuid']), 'Key is not registered.'
         return True
     
-    
-
-
-
     #####################
     #### Set Weights ####
     #####################
@@ -263,9 +259,6 @@ class Subspace(c.Module):
 
         if kwargs is None:
             kwargs = {}
-            
-            
-            
 
         name = c.resolve_server_name(module=module, name=name, tag=tag)
         key = key or name
@@ -1079,6 +1072,11 @@ class Subspace(c.Module):
         return c.pm2ls('subspace')
     
     @classmethod
+    def kill_nodes(cls):
+        for node in cls.nodes():
+            c.pm2_kill(node)
+    
+    @classmethod
     def query(cls, name,  *params,  block=None):
         self = cls()
         return self.query_map(name=name,params=list(params),block=block).records
@@ -1288,11 +1286,12 @@ class Subspace(c.Module):
                  remote:bool = True,
                  refresh:bool = True,
                  verbose:bool = False,
+                 rpc_cors:str = 'all',
                  
                  ):
 
 
-        
+        cmd = cls.chain_release_path
         port = c.resolve_port(port)
         rpc_port = c.resolve_port(rpc_port)
         ws_port = c.resolve_port(ws_port)
@@ -1301,17 +1300,21 @@ class Subspace(c.Module):
             cls.purge_chain(base_path=base_path)
         
         chain_spec = cls.resolve_chain_spec(chain)
-
-        cmd = cls.chain_release_path
-        cmd_kwargs = f'''--base-path {base_path} --chain {chain_spec} --{user} --port {port} --ws-port {ws_port} --rpc-port {rpc_port}'''
+        cmd_kwargs = f' --base-path {base_path}'
+        cmd_kwargs += f' --chain {chain_spec}'
         
         if validator :
-            cmd += ' --validator'
+            cmd_kwargs += ' --validator'
+            cmd_kwargs += f' --{user}'
+        cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
+        
+
             
         if boot_nodes != None:
-            cmd += f' --bootnodes {boot_nodes}'
+            cmd_kwargs += f' --bootnodes {boot_nodes}'
+            
+        cmd_kwargs += f' --rpc-cors=all'
 
-        
         if remote:
             cmd = c.pm2_start(path=cls.chain_release_path, 
                               name=f'{cls.node_prefix()}::{chain}::{user}',
@@ -1327,14 +1330,15 @@ class Subspace(c.Module):
        
     @classmethod
     def start_chain(cls, 
-                    users = ['alice','bob'] ,
+                    users = ['alice','bob', 'charlie'] ,
                     chain:str='dev', 
                     verbose:bool = False,
                     reuse_ports : bool = True,
                     sleep :int = 2,
                     build: bool = False,
-                    external:bool = False,
+                    external:bool = True,
                     boot_nodes : str = None,
+                    rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
         if build:
             cls.build(verbose=verbose)
@@ -1353,7 +1357,13 @@ class Subspace(c.Module):
                     node_kwargs[k] = c.resolve_port(node_kwargs[k])
                 
             else:
-                node_kwargs = {'chain':chain, 'user':user, 'verbose':verbose}
+                node_kwargs = {
+                               'chain':chain, 
+                               'user':user, 
+                               'verbose':verbose,
+                               'rpc_cors': rpc_cors,
+                               'validator': True if bool(i <= len(users)-1) else False,
+                               }
                 for k in port_keys:
                     port = c.free_port(avoid_ports=avoid_ports)
                     avoid_ports.append(port)
@@ -1361,14 +1371,11 @@ class Subspace(c.Module):
             
             node_kwargs['boot_nodes'] = boot_nodes
             chain_info[user] = c.copy(node_kwargs)
-
-                
             cls.start_node(**chain_info[user])
 
             cls.sleep(sleep)
             node_id = cls.node_id(chain=chain, user=user)
             boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
-            c.print(f'boot_nodes: {boot_nodes}', color='green')
         cls.putc(chain_info_path, chain_info)
 
 
@@ -1576,6 +1583,9 @@ class Subspace(c.Module):
         return key_info
          
         
+    @classmethod
+    def node_help(cls):
+        c.cmd(f'{cls.chain_release_path} --help', verbose=True)
         
   
 if __name__ == "__main__":
