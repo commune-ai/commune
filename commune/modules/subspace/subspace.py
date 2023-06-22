@@ -449,8 +449,8 @@ class Subspace(c.Module):
         name: str = None,
         address: str = None,
         netuid: int = None,
-        key: 'c.Key'  = None,
-        module = None,s
+        key: str  = None,
+        module:str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
