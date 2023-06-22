@@ -446,15 +446,18 @@ class Subspace(c.Module):
     #################
     def update_module (
         self,
-        key: 'c.Key' ,
         name: str = None,
         address: str = None,
         netuid: int = None,
+        key: 'c.Key'  = None,
+        module = None,s
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
     ) -> bool:
-
+        if key is None:
+            assert module is not None, "Either key or module must be provided"
+            key = module
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
         module = self.get_module( key )

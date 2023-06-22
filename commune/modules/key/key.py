@@ -178,6 +178,18 @@ class Keypair(c.Module):
         return cls.get_key(path)
     
     @classmethod
+    def mv_key(cls, path, new_path):
+        
+        assert cls.key_exists(path), f'key does not exist at {path}'
+
+        key_json = cls.get_key(path).to_json()
+        cls.put(new_path, key_json)
+        cls.rm_key(path)
+            
+        
+        return cls.get_key(path)
+    
+    @classmethod
     def add_keys(cls, name, n=100, **kwargs):
         for i in range(n):
             key_name = f'{name}.{i}'

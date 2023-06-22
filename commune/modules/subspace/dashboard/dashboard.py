@@ -85,7 +85,7 @@ class SubspaceDashboard(c.Module):
             
         return kwargs
     
-    def key_management(self):
+    def key_dashboard(self):
         keys = c.keys()
         key = None
         with st.expander('Select Key', expanded=True):
@@ -148,7 +148,7 @@ class SubspaceDashboard(c.Module):
         import streamlit as st
         # plotly
         self = cls()
-        self.sidebar()
+        # self.sidebar()
         
         tabs = st.tabs(['Modules', 'Network', 'Keys']) 
         with tabs[0]:   
@@ -156,6 +156,9 @@ class SubspaceDashboard(c.Module):
             self.module_dashboard()
         with tabs[1]:
             self.network_dashboard()
+        with tabs[2]:
+            self.key_dashboard()
+            
         # with st.expander('Transfer Module', expanded=True):
         #     self.transfer_dashboard()
         # with st.expander('Staking', expanded=True):
