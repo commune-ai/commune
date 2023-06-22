@@ -121,7 +121,7 @@ class SubspaceDashboard(c.Module):
         
             networks = self.subspace.subnets()
             if len(networks) == 0:
-                networks = [default_network]
+                networks = [self.default_network]
             else:
                 networks = [n['name'] for n in networks]
             network2index = {n:i for i,n in enumerate(networks)}
@@ -152,6 +152,7 @@ class SubspaceDashboard(c.Module):
         
         tabs = st.tabs(['Modules', 'Network', 'Keys']) 
         with tabs[0]:   
+            st.write('# Modules')
             self.module_dashboard()
         with tabs[1]:
             self.network_dashboard()
@@ -167,8 +168,10 @@ class SubspaceDashboard(c.Module):
         self.subnets = self.subspace.subnets()
         df = pd.DataFrame(self.subnets)
         st.write(df)
-        fig = px.pie(df, values='stake', names='name', title='Subnet Balances')
-        st.plotly_chart(fig)
+        if len(df) > 0:
+            fig = px.pie(df, values='stake', names='name', title='Subnet Balances')
+            st.plotly_chart(fig)
+        
         
         for subnet in self.subnets:
             network = subnet.pop('name', None)
@@ -206,54 +209,60 @@ class SubspaceDashboard(c.Module):
     def module_dashboard(self):
         
         self.modules = list(self.subspace.modules(fmt='token').values())
+        self.namespace = self.subspace.namespace()
         df = pd.DataFrame(self.modules)
         
+        with st.expander('Register Module', expanded=True):
+            self.launch_dashboard()
+            
+        with st.expander('Modules', expanded=True):
+            st.write(self.modules)
+            
         # pie of stake per module
         # select fields to show
-        with st.expander('Module Statistics', expanded=True):
-            value_field2index = {v:i for i,v in enumerate(list(df.columns))}
-            key_field2index = {v:i for i,v in enumerate(list(df.columns))}
-            value_field = st.selectbox('Value Field', df.columns , index=value_field2index['stake'])
-            key_field = st.selectbox('Key Field',df.columns, index=value_field2index['name'])
-            
-            
-            # plot pie chart in a funky color
-            fig = px.pie(df, values=value_field, names=key_field, title='Module Balances', color_discrete_sequence=px.colors.sequential.RdBu)
-            # show the key field
-            # do it in funky way
-            
-            st.plotly_chart(fig)
-            st.write(df)
         
-        
-        
-        st.write('#### Modules')
-        st.write(self.modules)
+        if len(df)> 0:
+            with st.expander('Module Statistics', expanded=True):
+                value_field2index = {v:i for i,v in enumerate(list(df.columns))}
+                key_field2index = {v:i for i,v in enumerate(list(df.columns))}
+                value_field = st.selectbox('Value Field', df.columns , index=value_field2index['stake'])
+                key_field = st.selectbox('Key Field',df.columns, index=value_field2index['name'])
+                
+                # plot pie chart in a funky color
 
-        with st.expander('Register Module', expanded=False):
-            self.launch_dashboard()
+                fig = px.pie(df, values=value_field, names=key_field, title='Module Balances', color_discrete_sequence=px.colors.sequential.RdBu)
+                # show the key field
+                # do it in funky way
+                
+                st.plotly_chart(fig)
+                st.write(df)
+        
+    
     def launch_dashboard(self):
-        st.write('# Modules')
-        st.write('## Register Module')
         modules = c.leaves()
         module2idx = {m:i for i,m in enumerate(modules)}
-        cols = st.columns(3)
-        module  = name = cols[0].selectbox('module', modules, module2idx['model.openai'])
-        network = cols[1].text_input('network', self.config.default_network, key='network')
-        tag = cols[2].text_input('tag', 'None', key='tag')
-        serve = st.button('Register')
 
-        self.line_seperator()
-        st.write('#### Module Arguments')
-        kwargs = self.function2streamlit(module=module, fn='__init__' )
-        self.line_seperator()
+
+        cols = st.columns(2)
+        module  = name = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
+        tag = cols[1].text_input('tag', 'None', key='tag')
         if 'None' == tag:
             tag = None
-            
+        
+        network = st.text_input('network', self.config.default_network, key='network')
+
+        self.line_seperator()
+        st.write(f'#### Module ({module}) Kwargs ')
+        kwargs = self.function2streamlit(module=module, fn='__init__' )
+        self.line_seperator()
+
+
+        serve = st.button('Register')
         
         if serve:
             self.subspace.register(module=module, name=name, tag=tag, key=self.key, network=network, kwargs=kwargs)
         
+
 SubspaceDashboard.run(__name__)
 
 
