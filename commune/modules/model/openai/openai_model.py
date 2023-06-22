@@ -15,18 +15,23 @@ class OpenAILLM(c.Module):
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
                  password:str='whadupfam',
+                 tag : str = None,
+                 load: bool = True,
+                 save: bool = True,
                 **kwargs
                 ):
         
         
-        
+        if load:
+            config = self.load(password=password)
         config = self.set_config(config, kwargs=kwargs)
-        self.set_tag(config.tag)
+        self.set_tag(tag)
+        self.set_stats(config.stats)
         self.set_password(password)
         self.set_api(api=config.api, password=self.password)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)
-        self.set_stats(config.stats)
+        
         
         self.params  = dict(
                  model =self.config.model,
@@ -37,6 +42,8 @@ class OpenAILLM(c.Module):
                 presence_penalty=self.config.presence_penalty,
         )
         
+        if save:
+            self.save(tag=self.tag)
 
         
     def set_stats(self, stats):
@@ -60,10 +67,8 @@ class OpenAILLM(c.Module):
         
     def load(self, tag=None, password = None):
         tag = self.resolve_tag(tag)
-        password = self.resolve_password(password)
-        
         config = self.get(tag, self.config)
-        self.init(self, config=config, password=password)
+        return config
         
         
         
@@ -141,7 +146,7 @@ class OpenAILLM(c.Module):
             self.history = self.history +  [*messages,response]
             self.save()
             
-        c.stwrite(self.history)
+        # c.stwrite(self.history)
         return response['content']
             
     def call(self):

@@ -182,9 +182,7 @@ class SubspaceDashboard(c.Module):
 
         cols = st.columns(2)
         module  = name = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
-        tag = cols[1].text_input('tag', 'None', key='tag')
-        if 'None' == tag:
-            tag = None
+
         
         network = st.text_input('network', self.config.default_network, key='network')
         c_st = c.module('streamlit')
@@ -194,10 +192,17 @@ class SubspaceDashboard(c.Module):
         c_st.line_seperator()
 
 
-        serve = st.button('Register')
-        
-        if serve:
-            self.subspace.register(module=module, name=name, tag=tag, network=network, kwargs=kwargs)
+        register = st.button('Register')
+        tag = cols[1].text_input('tag', 'None', key='tag')
+        if 'None' == tag:
+            tag = None
+            
+            
+        st.write(self.modules)
+        if register:
+    
+            c.print(dict(module=module,tag=tag, network=network, kwargs=kwargs))
+            # self.subspace.register(module=module, name=name, tag=tag, network=network, kwargs=kwargs)
         
 
 SubspaceDashboard.run(__name__)
