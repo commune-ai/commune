@@ -428,7 +428,7 @@ class c:
             if max_age != None:
                 timestamp = data.get('timestamp', None)
                 if timestamp != None:
-                    age = c.age(timestamp)
+                    age = c.get_age(timestamp)
                     if age > max_age:
                         return default
         else:
