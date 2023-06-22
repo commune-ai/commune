@@ -244,13 +244,13 @@ class Subspace(c.Module):
     
     def register(
         self,
-        key ,
         module:str = None , 
         name: str = None,
         tag:str = None,
         stake : int = 0,
         address: str = None,
         network = subnet,
+        key = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         prompt: bool = False,
@@ -266,10 +266,12 @@ class Subspace(c.Module):
             
             
             
-        
-        key = self.resolve_key(key)
-        name = c.resolve_server_name(module=module, name=name, tag=tag)
 
+        name = c.resolve_server_name(module=module, name=name, tag=tag)
+        if key is None:
+            key = name
+        key = self.resolve_key(key if key is not None else name)
+            
         address = c.free_address()
         c.serve(module=module, address=address, name=name, kwargs=kwargs)
 
@@ -467,8 +469,7 @@ class Subspace(c.Module):
                 call = substrate.compose_call(
                     call_module='SubspaceModule',
                     call_function='update_module',
-                    call_params= {
-                                'address': address,
+                    call_params = {'address': address,
                                 'name': name,
                                 'netuid': netuid,
                             }
@@ -727,7 +728,8 @@ class Subspace(c.Module):
     def resolve_key(cls, key):
         
         if isinstance(key, str):
-            assert c.key_exists( key ), f"Key {key} does not exist."
+            if not c.key_exists( key ):
+                c.add_key( key)
             key = c.get_key( key )
         return key
         
