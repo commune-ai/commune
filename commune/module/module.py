@@ -24,7 +24,7 @@ class c:
     root_path  = root = os.path.dirname(os.path.dirname(__file__))
     repo_path  = os.path.dirname(root_path)
     library_name = root_dir = root_path.split('/')[-1]
-    default_network = 'subspace'
+    default_network = 'local'
     pwd = os.getenv('PWD')
     console = Console()
     helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 

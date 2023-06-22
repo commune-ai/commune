@@ -15,11 +15,11 @@ from typing import *
 
 
 import commune
-
-
 class CustomChatbot(commune.Module):
     def __init__(self, llm:str= 'gpt4',
                  tokenizer:str='gpt2',
+                 x: str = 'whadup fam',
+                 
                  **kwargs):
         super().__init__(**kwargs)
         self.set_tokenizer(self.config['tokenizer'])
