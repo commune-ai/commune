@@ -1590,6 +1590,11 @@ class Subspace(c.Module):
     def node_help(cls):
         c.cmd(f'{cls.chain_release_path} --help', verbose=True)
         
+        
+    @classmethod
+    def dashboard(cls):
+        return c.module('subspace.dashboard').dashboard()
+        
   
 if __name__ == "__main__":
     Subspace.run()
