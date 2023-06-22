@@ -198,12 +198,12 @@ class SubspaceDashboard(c.Module):
             tag = None
             
             
-        st.write(self.modules)
+
         if register:
-    
-            c.print(dict(module=module,tag=tag, network=network, kwargs=kwargs))
-            # self.subspace.register(module=module, name=name, tag=tag, network=network, kwargs=kwargs)
-        
+            try:
+                self.subspace.register(module=module, name=name, tag=tag, network=network, kwargs=kwargs)
+            except Exception as e:
+                st.error(e)
 
 SubspaceDashboard.run(__name__)
 
