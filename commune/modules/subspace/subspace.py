@@ -510,51 +510,38 @@ class Subspace(c.Module):
 
         if amount is None:
             amount = old_balance
-        
-        # assume amount is in joules
-        amount = self.to_nano(amount)
-
+            
+        amount = self.to_nano(amount, fmt='nano')
         # Get current stake
 
-        try:
-            with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+        c.print(f"Old Balance: {old_balance} {amount}")
+        with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
 
-                with self.substrate as substrate:
-                    call = substrate.compose_call(
-                    call_module='SubspaceModule', 
-                    call_function='add_stake',
-                    call_params={
-                        'netuid': netuid,
-                        'amount_staked': amount
-                        }
-                    )
-                    extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                    response = substrate.submit_extrinsic( extrinsic, 
-                                                          wait_for_inclusion = wait_for_inclusion,
-                                                          wait_for_finalization = wait_for_finalization )
+            with self.substrate as substrate:
+                call = substrate.compose_call(
+                call_module='SubspaceModule', 
+                call_function='add_stake',
+                call_params={
+                    'netuid': netuid,
+                    'amount_staked': amount
+                    }
+                )
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                response = substrate.submit_extrinsic( extrinsic, 
+                                                        wait_for_inclusion = wait_for_inclusion,
+                                                        wait_for_finalization = wait_for_finalization )
 
-
-            if response : # If we successfully staked.
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
-
-                c.print(":white_heavy_check_mark: [green]Finalized[/green]")
-                with c.status(":satellite: Checking Balance on: [white]{}[/white] ...".format(self.network)):
-                    new_balance = self.get_balance(  key.ss58_address , fmt='j')
-                    block = self.get_current_block()
-                    new_stake = self.get_stake(key.ss58_address,block=block, fmt='j') # Get current stake
-
-                    c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
-                    c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
-                    return True
-            else:
-                c.print(":cross_mark: [red]Failed[/red]: Error unknown.")
-                return False
-        except StakeError as e:
-            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(e))
-            return False
+        if response.is_success:
+            c.print(":white_heavy_check_mark: [green]Sent[/green]")
+            new_balance = self.get_balance(  key.ss58_address , fmt='j')
+            block = self.get_current_block()
+            new_stake = self.get_stake(key.ss58_address,block=block, fmt='j') # Get current stake
+            c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_balance, new_balance ))
+            c.print("Stake:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format( old_stake, new_stake ))
+                
+        else:
+            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
+        return False
 
 
 
@@ -962,7 +949,7 @@ class Subspace(c.Module):
 
     def key2name(self, key: str = None, netuid: int = None) -> str:
         modules = self.modules(netuid)
-        key2name =  { m['key']: m['name']for m in modules.values() }
+        key2name =  { m['key']: m['name']for m in modules}
         if key != None:
             return key2name[key]
             
@@ -1006,7 +993,7 @@ class Subspace(c.Module):
         
     def key2module(self, key: str = None, netuid: int = None) -> Dict[str, str]:
         modules = self.modules(netuid)
-        key2module =  { m['key']: m for m in modules.values() }
+        key2module =  { m['key']: m for m in modules }
         
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
@@ -1021,14 +1008,15 @@ class Subspace(c.Module):
                 netuid: int = None,
                 fmt='nano', 
                 detail:bool = True,
-                cache = True,
+                load = True,
+                save = True,
                 max_age: int = 60,
                 ) -> Dict[str, ModuleInfo]:
-        if cache:
-            modules = self.get('modules', {})
-
-        too_old = c.time() - max_age > modules.get('timestamp', 0)
-        if len(modules) == 0 or too_old:
+        
+        modules = []
+        if load:
+            modules = self.get('modules', {}, max_age=max_age)
+        if len(modules) == 0 :
             
 
             netuid = self.resolve_netuid(netuid) 
@@ -1044,11 +1032,11 @@ class Subspace(c.Module):
             
             
             
-            modules = {}
+            modules = []
             
             for uid, address in uid2addresses.items():
                 key = uid2key[uid]
-                modules[uid] = {
+                module= {
                     'uid': uid,
                     'address': address,
                     'name': uid2name[uid],
@@ -1060,20 +1048,30 @@ class Subspace(c.Module):
                     'balance': balances[key],
                     
                 }
+                modules.append(module)
                 
                 for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
-                    modules[uid][k] = self.format_amount(modules[uid][k], fmt=fmt)
+                    modules[-1][k] = self.format_amount(modules[-1][k], fmt=fmt)
                 
             
             
-            if cache:
+            if save:
                 self.put('modules', modules, include_timestamp=True)
             if detail == False:
                 modules = [ m['name'] for m in modules.values()]
 
             return modules
-        
-    
+       
+       
+    def my_modules(self, *args, **kwargs):
+        my_modules = []
+        address2key = c.address2key()
+        for module in self.modules(*args, **kwargs):
+            if module['key'] in address2key:
+                my_modules += [module]
+                
+        return my_modules
+                
 
 
     @classmethod
@@ -1262,11 +1260,13 @@ class Subspace(c.Module):
                     cols[i % num_columns].metric(label=k, value=v)
                         
         
-    def state_dict(self): 
+    def state_dict(self, netuid = None): 
+        netuid = self.resolve_netuid(netuid)
         modules = self.modules()
         state_dict = {
             'modules': modules,
             'chain': self.chain,
+            'netuid': netuid,
         }
         return state_dict
        
