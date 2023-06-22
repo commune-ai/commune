@@ -77,8 +77,9 @@ class OpenAILLM(c.Module):
         
         assert isinstance(api, str),f"API Key must be a string,{api}"
         openai.api_key  =  os.getenv(api, api)
-        self.putc('api', openai.api_key, password=password)
+        self.config.api = api
         
+        self.save()        
     def resolve_prompt(self, *args, prompt = None, **kwargs):
         if prompt == None:
             prompt = self.prompt

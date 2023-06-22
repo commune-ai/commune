@@ -566,14 +566,15 @@ class c:
         return self.path_exists(path)
     @classmethod
     def get_config(cls, 
-                   config = None,
-                   kwargs=None, 
+                   config:dict = None,
+                   kwarg:dict=None, 
                    to_munch:bool = True,
                    root:bool = False) -> Munch:
         '''
         Set the config as well as its local params
         '''
-
+        kwargs = kwargs if kwargs != None else {}
+        kwargs.pop('kwargs', None)
                 
         if isinstance(config, str) or config == None:
             try:
@@ -626,11 +627,6 @@ class c:
         '''
         Set the config as well as its local params
         '''
-        kwargs = kwargs if kwargs != None else {}
-        kwargs.pop('kwargs', None)
-        from commune.utils.dict import munch2dict, dict2munch
-        
-
         config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
         if add_attributes:
@@ -2615,7 +2611,7 @@ class c:
         # update modules
         cls.update(network='local')
 
-        return delete_modules
+        return {'killed': delete_modules}
 
     delete = kill
     def destroy(self):
@@ -4203,6 +4199,10 @@ class c:
         return c.module('key').get_keys(*args, **kwargs )
     
     @classmethod
+    def rm_keys(cls,*args, **kwargs ):
+        return c.module('key').rm_keys(*args, **kwargs )
+    
+    @classmethod
     def key2address(cls,*args, **kwargs ):
         return c.module('key').key2address(*args, **kwargs )
     @classmethod
@@ -5705,14 +5705,16 @@ class c:
         
     # TAG CITY     
         
-    def set_tag(self, tag):
+    def set_tag(self, tag:str,default_tag:str='base'):
         if tag == None:
-            tag = 'base'
+            tag = default_tag
         self.tag = tag
+        return default_tag
         
-    def resolve_tag(self, tag=None):
+        
+    def resolve_tag(self, tag:str=None, default_tag='base'):
         if tag == None:
-            tag = self.tag
+            tag = default_tag
         return tag
     
     @classmethod

@@ -18,73 +18,7 @@ class SubspaceDashboard(c.Module):
         
         
     
-        
-    def line_seperator(cls, text='-', length=50):
-        st.write(text*length)
-    @classmethod
-    def function2streamlit(cls, 
-                           module = None,
-                           fn:str = '__init__', 
-                           extra_defaults:dict=None,
-                           cols:list=None,
-                           skip_keys = ['self', 'cls'],
-                            mode = 'pm2'):
-        
-        key_prefix = f'{module}.{fn}'
-        if module == None:
-            module = cls
-            
-        elif isinstance(module, str):
-            module = c.module(module)
-        
-        config = module.config(to_munch=False)
-        
-        fn_schema = module.schema(include_default=True)[fn]
 
-        if fn == '__init__':
-            extra_defaults = config
-        elif extra_defaults is None:
-            extra_defaults = {}
-
-        kwargs = {}
-        fn_schema['default'].pop('self', None)
-        fn_schema['default'].pop('cls', None)
-        fn_schema['default'].update(extra_defaults)
-        fn_schema['default'].pop('config', None)
-        fn_schema['default'].pop('kwargs', None)
-        
-        
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
-        if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
-        cols = st.columns(cols)
-
-
-        for i, (k,v) in enumerate(fn_schema['default'].items()):
-            
-            optional = fn_schema['default'][k] != 'NA'
-            fn_key = k 
-            if fn_key in skip_keys:
-                continue
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
-                if 'Munch' in k_type or 'Dict' in k_type:
-                    k_type = 'Dict'
-                if k_type.startswith('typing'):
-                    k_type = k_type.split('.')[-1]
-                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            col_idx  = i 
-            if k in ['kwargs', 'args'] and v == 'NA':
-                continue
-            
-
-            
-            col_idx = col_idx % (len(cols))
-            kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
-            
-            
-        return kwargs
-    
     def key_dashboard(self):
         keys = c.keys()
         key = None
@@ -109,10 +43,10 @@ class SubspaceDashboard(c.Module):
                 key = c.get_key(new_key)
                 
         with st.expander('Remove Key', expanded=False):                
-            rm_key = st.selectbox('Select Key to Remove', keys, index=0)
+            rm_keys = st.multiselect('Select Key(s) to Remove', keys, [], key='rm_key')
             rm_key_button = st.button('Remove Key')
             if rm_key_button:
-                c.rm_key(rm_key)
+                c.rm_keys(rm_keys)
                             
 
     default_network = 'commune'
@@ -253,17 +187,17 @@ class SubspaceDashboard(c.Module):
             tag = None
         
         network = st.text_input('network', self.config.default_network, key='network')
-
-        self.line_seperator()
+        c_st = c.module('streamlit')
+        c_st.line_seperator()
         st.write(f'#### Module ({module}) Kwargs ')
-        kwargs = self.function2streamlit(module=module, fn='__init__' )
-        self.line_seperator()
+        kwargs = c_st.function2streamlit(module=module, fn='__init__' )
+        c_st.line_seperator()
 
 
         serve = st.button('Register')
         
         if serve:
-            self.subspace.register(module=module, name=name, tag=tag, key=self.key, network=network, kwargs=kwargs)
+            self.subspace.register(module=module, name=name, tag=tag, network=network, kwargs=kwargs)
         
 
 SubspaceDashboard.run(__name__)
