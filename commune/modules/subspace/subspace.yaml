@@ -25,7 +25,7 @@ key_types:
 - gran
 network: dev
 network2url:
-  dev: 127.0.0.1:4893
+  dev: 162.157.13.236:4893
   local: 127.0.0.1:4874
   testnet: 127.0.0.1:4874
 retry_params:
