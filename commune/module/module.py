@@ -410,23 +410,41 @@ class c:
             default=None, 
             password=None, 
             mode:str = 'json',
-            **kwargs):
+            max_age:str = None,
+            **kwargs) -> Any:
         
         '''
-        Puts a value in sthe config
+        Puts a value in sthe config, with the option to encrypt it
+
+        Return the value
         '''
-        kwargs['default'] = default
-        data = getattr(cls, f'get_{mode}')(key, **kwargs)
+        data = getattr(cls, f'get_{mode}')(key,default=default, **kwargs)
         if data == None: 
-            data = {}
+            data = default
         encrypted = c.is_encrypted(data)
         if encrypted:
             data = cls.decrypt(data, password=password)
         if isinstance(data, dict):
-            data = data.get('data', data)
+            if max_age != None:
+                timestamp = data.get('timestamp', None)
+                if timestamp != None:
+                    age = c.age(timestamp)
+                    if age > max_age:
+                        return default
+        else:
+            data = default
             
-            
+        if 'data' in data:
+            data = data['data']
         return data
+    
+    @staticmethod
+    def get_age(timestamp:int=0):
+        return c.time() - timestamp
+    
+    @staticmethod
+    def too_old(self, timestamp:int, max_age:int):
+        return self.get_age(timestamp) > max_age
     
     @classmethod
     def config_keys(self, config:Dict = None) -> List[str]:
@@ -567,7 +585,7 @@ class c:
     @classmethod
     def get_config(cls, 
                    config:dict = None,
-                   kwarg:dict=None, 
+                   kwargs:dict=None, 
                    to_munch:bool = True,
                    root:bool = False) -> Munch:
         '''
@@ -1499,7 +1517,7 @@ class c:
     @classmethod
     async def async_get_json(cls,
                              path:str,
-                             default=None,
+                             default:Any=None,
                              root: bool = False,
                              **kwargs):
 
@@ -4184,15 +4202,6 @@ class c:
     
     # KEY LAND
 
-    # MODULE IDENTITY LAND
-    
-    @classmethod
-    def get_wallet( cls, *args, mode = 'bittensor', **kwargs) -> 'bittensor.Wallet':
-        if mode == 'bittensor':
-            return cls.get_module('bittensor').get_wallet(*args, **kwargs)
-        elif mode == 'subspace':
-            kwargs['mode'] = mode
-            raise c.get_key(*args, **kwargs)
                
     @classmethod
     def get_keys(cls,*args, **kwargs ):
@@ -4212,23 +4221,19 @@ class c:
     @classmethod
     def get_key_for_address(cls, address:str):
          return c.module('key').get_key_for_address(address)
+
     @classmethod
     def get_key(cls, *args,mode='commune', **kwargs) -> None:
-
-
-        if mode == 'commune':
-            module = cls.module('key')
-        elif mode == 'subspace':
-            module  = cls.module('subspace.key')
-        elif mode == 'substrate':
-            module =  cls.module(f'web3.account.substrate')
-        elif mode == 'evm':
-            module = cls.module('web3.account.evm')
-        elif  mode == 'aes':
-            module =  cls.module('key.aes')
-        else:
-            raise ValueError('Invalid mode for key')
-        
+     
+        mode2key = {
+            'commune': 'key',
+            'subspace': 'subspace.key',
+            'substrate': 'web3.account.substrate',
+            'evm': 'web3.account.evm',
+            'aes': 'key.aes',
+            }
+        key = mode2key[mode]
+        module = cls.module(key)
         # run get_key if the function exists
         if hasattr(module, 'get_key'):
             key = module.get_key(*args, **kwargs)
@@ -4444,7 +4449,7 @@ class c:
     
     @classmethod
     def set_key(self, key: str, tag=None) -> None:
-        self.module_path()
+        self.get_key(key)
         self.key = key
     
     @classmethod

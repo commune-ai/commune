@@ -244,10 +244,10 @@ class Subspace(c.Module):
     
     def register(
         self,
-        module:str = None , 
-        name: str = None,
+        module:str = None ,  
         tag:str = None,
         stake : int = 0,
+        name: str = None, # defaults to module::tag
         address: str = None,
         network = subnet,
         key = None,
@@ -268,9 +268,8 @@ class Subspace(c.Module):
             
 
         name = c.resolve_server_name(module=module, name=name, tag=tag)
-        if key is None:
-            key = name
-        key = self.resolve_key(key if key is not None else name)
+        key = key or name
+        key = self.resolve_key(key)
             
         address = c.free_address()
         c.serve(module=module, address=address, name=name, kwargs=kwargs)
@@ -1014,40 +1013,66 @@ class Subspace(c.Module):
             return key2module[key_ss58]
         return key2module
         
+        
+    def module_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
+        return bool(module in self.namespace(netuid=netuid, **kwargs))
     
-    def modules(self, netuid: int = None, fmt='nano') -> Dict[str, ModuleInfo]:
-        netuid = self.resolve_netuid(netuid) 
-        uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
-        uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
-        uid2name = { r[1].value : r[0].value for r in self.query_map('Namespace', params=[netuid]).records}
-        modules = {}
-        
-        emission = self.emission(netuid=netuid)
-        incentive = self.incentive(netuid=netuid)
-        dividends = self.dividends(netuid=netuid)
-        stake = self.stake(netuid=netuid)
-        balances = self.balances()
-        
-        for uid, address in uid2addresses.items():
-            key = uid2key[uid]
-            modules[uid] = {
-                'uid': uid,
-                'address': address,
-                'name': uid2name[uid],
-                'key': key,
-                'emission': emission[uid].value,
-                'incentive': incentive[uid].value,
-                'dividends': dividends[uid].value,
-                'stake': stake[ key],
-                'balance': balances[key],
+    def modules(self,
+                netuid: int = None,
+                fmt='nano', 
+                detail:bool = True,
+                cache = True,
+                max_age: int = 60,
+                ) -> Dict[str, ModuleInfo]:
+        if cache:
+            modules = self.get('modules', {})
+
+        too_old = c.time() - max_age > modules.get('timestamp', 0)
+        if len(modules) == 0 or too_old:
+            
+
+            netuid = self.resolve_netuid(netuid) 
+            uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
+            uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
+            uid2name = { r[1].value : r[0].value for r in self.query_map('Namespace', params=[netuid]).records}
+            
+            emission = self.emission(netuid=netuid)
+            incentive = self.incentive(netuid=netuid)
+            dividends = self.dividends(netuid=netuid)
+            stake = self.stake(netuid=netuid)
+            balances = self.balances()
+            
+            
+            
+            modules = {}
+            
+            for uid, address in uid2addresses.items():
+                key = uid2key[uid]
+                modules[uid] = {
+                    'uid': uid,
+                    'address': address,
+                    'name': uid2name[uid],
+                    'key': key,
+                    'emission': emission[uid].value,
+                    'incentive': incentive[uid].value,
+                    'dividends': dividends[uid].value,
+                    'stake': stake[ key],
+                    'balance': balances[key],
+                    
+                }
                 
-            }
+                for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
+                    modules[uid][k] = self.format_amount(modules[uid][k], fmt=fmt)
+                
             
-            for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
-                modules[uid][k] = self.format_amount(modules[uid][k], fmt=fmt)
             
-        return modules
-    
+            if cache:
+                self.put('modules', modules, include_timestamp=True)
+            if detail == False:
+                modules = [ m['name'] for m in modules.values()]
+
+            return modules
+        
     
 
 
@@ -1059,12 +1084,6 @@ class Subspace(c.Module):
     def query(cls, name,  *params,  block=None):
         self = cls()
         return self.query_map(name=name,params=list(params),block=block).records
-
-    def register_fleet(cls, fleet: List[str], ):
-        netuid = cls.resolve_netuid(netuid)
-        for name in fleet:
-            cls.register(name=name, netuid=netuid)
-
 
     @classmethod
     def test(cls, network=subnet):

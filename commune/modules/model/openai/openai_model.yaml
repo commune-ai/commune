@@ -4,7 +4,6 @@ max_tokens: 10
 model: gpt-3.5-turbo
 presence_penalty: 0.0
 stats: {}
-tag: base
 temperature: 0.9
 tokenizer: gpt2
 top_p: 1
