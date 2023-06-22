@@ -10,10 +10,13 @@ class SubspaceDashboard(c.Module):
     def __init__(self, config=None): 
         st.set_page_config(layout="wide")
 
-
         c.module('streamlit').load_style()
         self.set_config(config=config)
         self.subspace = c.module('subspace')()
+        self.modules = self.subspace.modules(fmt='token', load=False)
+        self.my_modules = self.subspace.my_modules()
+        self.namespace = self.subspace.namespace()
+        
 
         
         
@@ -63,26 +66,29 @@ class SubspaceDashboard(c.Module):
             self.netuid = self.subspace.subnet2netuid(network)
             
            
+           
+    
         
     def sidebar(self):
         with st.sidebar:
-            st.write('#### Subspace')
-            self.key_management()
-            self.network_management()
-                
             update = st.button('Update')
-            if update:
-                self.subspace = c.module('subspace')()
-                self.registered_keys = self.subspace.registered_keys()
-                st.write(self.registered_keys)
-          
+            st.write('#### My Modules')
+
+            modules = [m['name'] for m in self.subspace.my_modules()]
+            for module in self.subspace.my_modules():
+                with st.expander(module['name'], expanded=False):
+                    st.write(module)
+            
 
     @classmethod
     def dashboard(cls, key = None):
         import streamlit as st
         # plotly
+        
         self = cls()
-        # self.sidebar()
+        st.write('# Subspace')
+
+        self.sidebar()
         
         tabs = st.tabs(['Modules', 'Network', 'Keys']) 
         with tabs[0]:   
@@ -145,8 +151,6 @@ class SubspaceDashboard(c.Module):
 
     def module_dashboard(self):
         
-        self.modules = self.subspace.modules(fmt='token', load=False)
-        self.namespace = self.subspace.namespace()
         df = pd.DataFrame(self.modules)
         
         with st.expander('Register Module', expanded=True):
