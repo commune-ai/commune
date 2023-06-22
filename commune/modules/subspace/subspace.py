@@ -1008,7 +1008,7 @@ class Subspace(c.Module):
                 netuid: int = None,
                 fmt='nano', 
                 detail:bool = True,
-                load = True,
+                load = False,
                 save = True,
                 max_age: int = 60,
                 ) -> Dict[str, ModuleInfo]:

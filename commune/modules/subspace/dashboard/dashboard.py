@@ -145,7 +145,7 @@ class SubspaceDashboard(c.Module):
 
     def module_dashboard(self):
         
-        self.modules = list(self.subspace.modules(fmt='token').values())
+        self.modules = self.subspace.modules(fmt='token', load=False)
         self.namespace = self.subspace.namespace()
         df = pd.DataFrame(self.modules)
         
