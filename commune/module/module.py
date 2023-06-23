@@ -27,9 +27,7 @@ class c:
     default_network = 'local'
     pwd = os.getenv('PWD')
     console = Console()
-    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
-                'info', 'ip', 'address','ip_address', 'info', 'schema',
-                'module_name', 'modules', 'help']
+
 
     
         
@@ -164,6 +162,7 @@ class c:
         path = path.replace('modules.', '')
         return path
         
+    module_name = module_path
     @classmethod
     def module_class(cls) -> str:
         return cls.__name__
@@ -2290,10 +2289,7 @@ class c:
         
         
         if address != None and port == None and ip == None:
-            # ip = address.split(':')[0]
-
             port = int(address.split(':')[-1])
-            print(f'ip: {ip} port: {port}')
             
         # we want to make sure that the module is loco
         cls.update(network='local')
@@ -2307,8 +2303,8 @@ class c:
             
         self = module(**kwargs)
              
-        whitelist = whitelist if whitelist else self.whitelist()
-        blacklist = blacklist if blacklist else self.blacklist()
+        whitelist = whitelist if whitelist else self.whitelist
+        blacklist = blacklist if blacklist else self.blacklist
     
         # resolve the module id
         
@@ -2462,8 +2458,8 @@ class c:
     
     
     def is_fn_allowed(self, fn_name:str) -> bool:
-        whitelist = self.whitelist()
-        blacklist = self.blacklist()
+        whitelist = self.whitelist
+        blacklist = self.blacklist
         if fn_name in whitelist and fn_name not in blacklist:
             return True
         else:
@@ -2473,8 +2469,8 @@ class c:
              include_schema: bool = False,
              include_namespace:bool = True,
              include_peers: bool = True) -> Dict[str, Any]:
-        whitelist = self.whitelist()
-        blacklist = self.blacklist()
+        whitelist = self.whitelist
+        blacklist = self.blacklist
         fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
         
@@ -2613,20 +2609,16 @@ class c:
     def kill(cls, *modules,
              mode:str = 'pm2',
              verbose:bool = False,
-
+             update : bool = True,
              **kwargs):
 
         kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
         for module in modules:
-            x =kill_fn(module, verbose=verbose, **kwargs)
-            if isinstance(x, list):
-                delete_modules.extend(x)
-            
-        
+            killed_module =kill_fn(module, verbose=verbose, **kwargs)
+            delete_modules.extend(killed_module)
         # update modules
         cls.update(network='local')
-
         return {'killed': delete_modules}
 
     delete = kill
@@ -2829,7 +2821,7 @@ class c:
                    module:str = None,  
                    fn: str = 'serve',
                    name:Optional[str]=None, 
-                   tag:str=None, 
+                   tag : str = None,
                    args : list = None,
                    kwargs: dict = None,
                    device:str=None, 
@@ -2837,82 +2829,70 @@ class c:
                    no_autorestart: bool = False,
                    verbose: bool = False , 
                    force:bool = True,
+                   meta_fn: str = 'module_fn',
+                   tag_seperator:str = '::',
                    refresh:bool=True ):
-        
+    
+
+        if module == None:
+            module = cls.module_name()
+        elif hasattr(module, 'module_name'):
+            module = module.module_name()
+            
         # avoid these references fucking shit up
         args = args if args else []
         kwargs = kwargs if kwargs else {}
-        
-        if isinstance(module, str):
-            assert isinstance(module, str), f'module must be a string, not {type(module)}'
-            module = cls.get_module(module)
-        elif module == None:
-            module = cls
             
-        module_name =module.module_path() if name == None else name
+        # convert args and kwargs to json strings
+        kwargs =  {
+            'module': module,
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs
             
-        
-        module_path = module.module_file()
-        
+        }
+        kwargs_str = json.dumps(kwargs).replace('"', "'")
+        name = c.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator) 
         # build command to run pm2
-        command = f" pm2 start {module_path} --name {module_name} --interpreter {interpreter}"
+        command = f" pm2 start {c.module_file()} --name {name} --interpreter {interpreter}"
         if no_autorestart:
             command = command + ' ' + '--no-autorestart'
-
-        # convert args and kwargs to json strings
-        kwargs_str = json.dumps(kwargs).replace('"', "'")
-        args_str = json.dumps(args).replace('"', "'")
-
-        if refresh:
-            cls.pm2_kill(module_name)  
         if force:
             command += ' -f '
-        
-        command = command + ' -- ' + f'--fn {fn} --kwargs "{kwargs_str}" --args "{args_str}"'
-        c.print(f'Launching {module_name} with command: {command}', color='green')
-        env = {}
+        command = command + ''
 
+        command = command +  f' -- --fn {meta_fn} --kwargs "{kwargs_str}"'
+        env = {}
         if device != None:
             if isinstance(device, int):
                 env['CUDA_VISIBLE_DEVICES']=str(device)
             if isinstance(device, list):
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
                 
-        if verbose:
+                
+                
+        if refresh:
+            cls.pm2_kill(name)  
 
-            cls.print(f'Launching {module_name} with command: {command}', color='green')
-        
-        
+        if verbose:
+            cls.print(f'Launching {module} with command: {command}', color='green')
+            
+        c.print(command)
         stdout = cls.run_command(command, env=env, verbose=verbose)
         # cls.print(f'STDOUT: \n {stdout}', color='green')
         return stdout
     
     @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = True, pool_match:bool = False):
+    def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
-        kill_list = []
-        
-        # check if exact match, if so kill it, if not kill all that start with name
-
-        exact_match = any([name == module for module in pm2_list])
-        
-        if exact_match and not pool_match:
-            # kill exact match
-            if verbose:
-                cls.print(f'Killing {name}', color='red')
-            cls.run_command(f"pm2 delete {name}", verbose=False)
-            kill_list.append(name)
-            return kill_list
-        else:
-            # kill all modules that start with name
-            for module in pm2_list:
-                if module.startswith(name):
-                    if verbose:
-                        cls.print(f'Killing {module}', color='red')
-                    cls.run_command(f"pm2 delete {module}", verbose=False)
-                    kill_list.append(module)
-            return kill_list
+        assert name in pm2_list, f'{name} not in {pm2_list}'
+        if verbose:
+            cls.print(f'Killing {name}', color='red')
+        cls.run_command(f"pm2 delete {name}", verbose=False)
+        return name
+    
+    
     @classmethod
     def pm2_restart(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()
@@ -3427,6 +3407,20 @@ class c:
         import ray
         return ray.runtime_context.get_runtime_context()
     
+    @classmethod
+    def module_fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
+        module = c.module(module)
+        fn =  getattr(module, fn)
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = {}
+        c.print('module_fn', module, fn, args, kwargs)
+        if len(args)>0 or len(kwargs)>0:
+            return fn(*args, **kwargs)
+        else:
+            return fn()
+            
     
     @classmethod
     def module(cls,module: Any = None ,*args, **kwargs):
@@ -3979,37 +3973,42 @@ class c:
         return logger.success(*args, **kwargs)
 
     @classmethod
-    def warning(cls, *args, **kwargs):
-        logger = cls.resolve_logger()
-        return logger.warning(*args, **kwargs)
-    
-
-    
-    def whitelist(self, mode='sudo') -> List[str]:
-        if self.is_root():
-            return self.helper_functions
-        else:
-            return self.fns() + self.attributes() 
-        
-    def role2whitelist(self, role='bro') -> Dict:
-        return {self.default_role: self.whitelist()}
-        
-    def role2blacklist(self, role='foe') -> Dict:
-        return {'foe': []}
-    
-    def blacklist(self) -> List[str]:
-        return ['module_name']
-    black_fns = blacklist
-
-    @classmethod
     def error(cls, *args, **kwargs):
         logger = cls.resolve_logger()
         return logger.error(*args, **kwargs)
     
     @classmethod
     def debug(cls, *args, **kwargs):
-        console = cls.resolve_console()
-        return console.debug(*args, **kwargs)
+        logger = cls.resolve_logger()
+        return logger.debug(*args, **kwargs)
+    
+    @classmethod
+    def warning(cls, *args, **kwargs):
+        logger = cls.resolve_logger()
+        return logger.warning(*args, **kwargs)
+    
+
+    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
+                'info', 'ip', 'address','ip_address', 'info', 'schema',
+                'module_name', 'modules', 'help']
+    @property
+    def whitelist(self) -> List[str]:
+        if hasattr(self, 'config'):
+            if 'whitelist' in self.config:
+                return self.config['whitelist']
+            
+        if self.is_root():
+            return self.helper_functions
+        else:
+            return self.fns(include_module=False) + self.attributes() + self.helper_functions
+    @property
+    def blacklist(self) -> List[str]:
+        if hasattr(self, 'config'):
+            if 'blacklist' in self.config:
+                return self.config['blacklist']
+        return []
+ 
+
 
     @classmethod
     def from_json(cls, json_str:str) -> 'Module':
