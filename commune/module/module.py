@@ -2885,7 +2885,7 @@ class c:
     
     @classmethod
     def register(cls, *args, **kwargs):
-        return c.module('subspace').register(*args,**kwargs)
+        return c.module('subspace')().register(*args,**kwargs)
     
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = True):
