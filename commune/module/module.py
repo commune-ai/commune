@@ -2882,11 +2882,17 @@ class c:
         # cls.print(f'STDOUT: \n {stdout}', color='green')
         return stdout
     
+    
+    @classmethod
+    def register(cls, *args, **kwargs):
+        return c.module('subspace').register(*args,**kwargs)
+    
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
-        assert name in pm2_list, f'{name} not in {pm2_list}'
+        if  name not in pm2_list:
+            return None
         if verbose:
             cls.print(f'Killing {name}', color='red')
         cls.run_command(f"pm2 delete {name}", verbose=False)
