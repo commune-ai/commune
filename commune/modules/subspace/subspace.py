@@ -193,6 +193,7 @@ class Subspace(c.Module):
             weights = weights / weights.sum()
         weights = weights * U16_MAX
         weights = weights.tolist()
+        c.print(f'Setting weights for {len(uids)} uids..., {len(weights)}')
         # First convert types.
 
         with self.substrate as substrate:
@@ -1498,7 +1499,8 @@ class Subspace(c.Module):
         return self.verify(auth)
         
 
-    def uids(self, netuid = 0):
+    def uids(self, netuid = None, **kwargs):
+        netuid = self.resolve_netuid(netuid)
         return [v[1].value for v in self.query_map('Uids',None,  [netuid]).records]
 
 
