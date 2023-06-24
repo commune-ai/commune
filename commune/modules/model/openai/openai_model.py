@@ -11,6 +11,7 @@ class OpenAILLM(c.Module):
     
     prompt = """{x}"""
 
+    whitelist = ['forward']
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
@@ -261,12 +262,5 @@ class OpenAILLM(c.Module):
         # model.save()
         # model.test()
         # st.write('fuckkkkffffff')
-        
-        
-        
-    
-        
-if __name__ == '__main__':
-    OpenAILLM.run()
 
 

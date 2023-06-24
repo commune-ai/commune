@@ -205,7 +205,7 @@ class SubspaceDashboard(c.Module):
 
         if register:
             try:
-                self.subspace.register(module=module, name=name, tag=tag, network=network, kwargs=kwargs)
+                self.subspace.register(module=module,  tag=tag, network=network, kwargs=kwargs)
             except Exception as e:
                 st.error(e)
 
