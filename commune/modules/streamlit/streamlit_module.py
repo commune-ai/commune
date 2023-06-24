@@ -14,59 +14,44 @@ import commune as c
 
 class StreamlitModule(c.Module):
 
-    height=1000
-    width=1000
-    theme= 'plotly_dark'
-    def __init__(self):
-        self.add_plot_tools()
-    
-    
-    @classmethod
-    def add_plot_tools(self):
-        # sync plots from express
-        for fn_name in dir(px):
-            if not (fn_name.startswith('__') and fn_name.endswith('__')):
-                plt_obj = getattr(px, fn_name)
-                if callable(plt_obj):
-                    setattr(cls, fn_name, plt_obj)
-
-        # self.dag = DagModule()
+    height:int=1000
+    width:int=1000
+    theme: str= 'plotly_dark' 
 
     @property
     def streamlit_functions(self):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
 
 
-    # def run(self, data, plots=[], default_plot  ='histogram', title=None ):
+    def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
-    #     self.cols= st.columns([1,3])
-    #     if len(plots) == 0:
-    #         plots = self.plot_options
+        self.cols= st.columns([1,3])
+        if len(plots) == 0:
+            plots = self.plot_options()
 
-    #     if default_plot not in plots:
-    #         default_plot = plots[0]
-    #     supported_types = [pd.DataFrame]
-    #     if isinstance(data, pd.DataFrame):
-    #         df = data
-    #         with self.cols[1]:
-    #             if len(plots) > 1:
-    #                 name2index = {_name:_idx for _idx, _name in enumerate(plots)}
-    #                 plot = st.selectbox('Choose a Plot', plots, name2index[default_plot])
-    #             else:
-    #                 plot = plots[0]
-    #         form = st.form(F'Params for {plot}')
-    #         with form:
-    #             fig = getattr(self, 'st_'+ plot)(df)
-    #             form.form_submit_button("Render")
+        if default_plot not in plots:
+            default_plot = plots[0]
+        supported_types = [pd.DataFrame]
+        if isinstance(data, pd.DataFrame):
+            df = data
+            with self.cols[1]:
+                if len(plots) > 1:
+                    name2index = {_name:_idx for _idx, _name in enumerate(plots)}
+                    plot = st.selectbox('Choose a Plot', plots, name2index[default_plot])
+                else:
+                    plot = plots[0]
+            form = st.form(F'Params for {plot}')
+            with form:
+                fig = getattr(self, 'st_'+ plot)(df)
+                form.form_submit_button("Render")
 
-    #     else:
-    #         raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
-    #     fig.update_layout(height=800)
-    #     self.show(fig)
+        else:
+            raise NotImplementedError(f'Broooooo, hold on, you can only use the following {supported_types}')
+        fig.update_layout(height=800)
+        self.show(fig)
         
-    @property
-    def plot_options(self):
-        plot_options = list(map(lambda fn: fn.replace('st_',''), self.streamlit_functions))
+    def plot_options(self, prefix:str ='st_plot'):
+        plot_options = self.fns(prefix)
         return plot_options
 
 
@@ -74,7 +59,7 @@ class StreamlitModule(c.Module):
         with self.cols[1]:
             st.plotly_chart(fig)
 
-    def st_scatter2D(self, df=None):
+    def st_plot_scatter2D(self, df=None):
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
 
@@ -103,7 +88,7 @@ class StreamlitModule(c.Module):
 
 
 
-    def st_scatter3D(self, df=None):
+    def st_plot_scatter3D(self, df=None):
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
 
@@ -127,7 +112,7 @@ class StreamlitModule(c.Module):
         return fig
 
 
-    def st_box(self, df=None):
+    def st_plot_box(self, df=None):
 
 
         df = df if isinstance(df, pd.DataFrame) else self.df
@@ -154,7 +139,7 @@ class StreamlitModule(c.Module):
         fig.update_layout(width=self.width, height=self.height, font_size=20)
         return fig
 
-    def st_bar(self, df=None):
+    def st_plot_bar(self, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
@@ -182,7 +167,7 @@ class StreamlitModule(c.Module):
 
 
 
-    def st_histogram(self, df=None):
+    def st_plot_histogram(self, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
@@ -209,7 +194,7 @@ class StreamlitModule(c.Module):
         return fig
 
 
-    def st_heatmap(cls, df=None):
+    def st_plot_heatmap(cls, df=None):
 
         df = df if isinstance(df, pd.DataFrame) else self.df
         column_options = list(df.columns)
@@ -391,3 +376,13 @@ class StreamlitModule(c.Module):
         return list(cls.style2path().values())
         
 
+    
+    def add_plot_tools(self):
+        # sync plots from express
+        for fn_name in dir(px):
+            if not (fn_name.startswith('__') and fn_name.endswith('__')):
+                plt_obj = getattr(px, fn_name)
+                if callable(plt_obj):
+                    setattr(self, fn_name, plt_obj)
+
+        # self.dag = DagModule()

@@ -5727,9 +5727,15 @@ class c:
 
 
     @classmethod
-    def resolve_fn(cls,fn):
+    def resolve_fn(cls,fn, obj=None, ensure_exists:bool=True):
+        if obj is None:
+            obj = cls
         if isinstance(fn, str):
-            fn = getattr(cls, fn)
+            if hasattr(obj, fn):
+                fn = getattr(obj, fn)  
+            else:
+                if ensure_exists:
+                    raise Exception(f"Object {obj} does not have attribute {fn}")
         return fn
     
     @classmethod
@@ -5774,7 +5780,7 @@ class c:
 
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
-        fn = cls.resolve_fn(fn)
+        fn = cls.resolve_fn(fn,ensure_exists=False)
         return isinstance(fn, property)
 
     @classmethod
