@@ -2418,36 +2418,8 @@ class c:
         
         return default_value_map   
     
-    @property
-    def function_info_map(self):
-        return self.get_function_info_map(obj=self, include_module=False)
-    
-    @classmethod
-    def get_function_info_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
-        obj = obj if obj != None else cls
-        function_schema_map = cls.get_function_schema_map(obj=obj,include_module=include_module)
-        function_default_map = cls.get_function_default_map(obj=obj,include_module=include_module)
-        function_info_map = {}
-        for fn in function_schema_map:
-            function_info_map[fn] = {
-                'default':function_default_map.get(fn, 'NA'),
-                **function_schema_map.get(fn, {}),
-            }
-            # check if the function is a class method or a static method
-            
-            if 'self' in function_info_map[fn]['schema']:
-                function_info_map[fn]['method_type'] = 'self'
-                function_info_map[fn]['schema'].pop('self')
-                
-            elif 'cls' in function_info_map[fn]['schema']:
-                function_info_map[fn]['method_type'] = 'cls'
-                function_info_map[fn]['schema'].pop('cls')
-                
-            else:
-                function_info_map[fn]['method_type'] = 'static'  
 
-        return function_info_map    
-    
+
     @classmethod
     def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
         if isinstance(peer, str):
@@ -2498,33 +2470,34 @@ class c:
     @classmethod
     def schema(cls, search = None, *args,  **kwargs):
         
-        return {k: v for k,v in cls.get_function_schema_map(*args,search=search,**kwargs).items()}
+        return {k: v for k,v in cls.get_schema(*args,search=search,**kwargs).items()}
     @classmethod
-    def get_function_schema_map(cls,
+    def get_schema(cls,
                                 obj = None,
                                 search = None,
-                                include_code : bool = False,
+                                code : bool = False,
+                                docs: bool = False,
                                 include_hidden:bool = False, 
                                 include_module:bool = False,
-                                include_default:bool = False,
-                                include_docs: bool = False):
+                                defaults:bool = False,):
         
         obj = obj if obj else cls
+        
         if isinstance(obj, str):
             obj = cls.module(obj)
+            
         function_schema_map = {}
-    
         for fn in cls.get_functions(obj, include_module=include_module):
                
             if search != None :
                 if search not in fn:
                     continue
             if callable(getattr(obj, fn )):
-                function_schema_map[fn] = cls.get_function_schema(fn, include_defaults=include_default, include_code=include_code, include_docs=include_docs)
+                c.print(f'getting schema for {fn}')
+                function_schema_map[fn] = cls.get_function_schema(fn, defaults=defaults, code=code, docs=docs)
 
         return function_schema_map
     
-    function_schema_map = get_function_schema_map
     
     @classmethod
     def bruh(cls):
@@ -2537,9 +2510,9 @@ class c:
         
     @classmethod
     def get_function_schema(cls, fn:str,
-                            include_defaults:bool=False,
-                            include_code:bool = False,
-                            include_docs:bool = False)->dict:
+                            defaults:bool=False,
+                            code:bool = False,
+                            docs:bool = False)->dict:
         '''
         Get function schema of function in cls
         '''
@@ -2550,7 +2523,7 @@ class c:
         fn_args = cls.get_function_args(fn)
         fn_schema['input']  = cls.get_function_annotations(fn=fn)
         
-        if include_defaults:
+        if defaults:
             fn_schema['default'] = cls.get_function_defaults(fn=fn) 
             for k,v in fn_schema['default'].items(): 
                 if k not in fn_schema['input'] and v != None:
@@ -2570,34 +2543,14 @@ class c:
         
         fn_schema['output'] = fn_schema['input'].pop('return', {})
         
-            
-        if include_docs:         
-            fn_schema['docs']: getattr(obj, fn ).__doc__ 
-        if include_code:
-            fn_schema['code'] = inspect.getsource(getattr(obj, fn ))
+        if docs:         
+            fn_schema['docs'] =  fn.__doc__ 
+        if code:
+            fn_schema['code'] = inspect.getsource(fn)
                 
 
         return fn_schema
-    get_schema = get_fn_schema = get_function_schema
     
-    def module_schema(self, 
-                      
-                      include_hidden:bool = False, 
-                      include_module:bool = False):
-        module_schema = {
-            'module_name':self.module_name,
-            'server':self.server_info,
-            'function_schema':self.function_schema_map(include_hidden=include_hidden, include_module=include_module),
-        }
-        return module_schema
-
-    @classmethod
-    def function_info(cls, fn:str)->dict:
-        '''
-        Get function schema of function in cls
-        '''
-        fn_info  =  cls.function_info_map().get(fn , {})
-        return fn_info
 
     @staticmethod
     def get_annotations(fn:callable) -> dict:
@@ -5684,8 +5637,8 @@ class c:
         return ss58_decode(*args, **kwargs)
 
     @classmethod
-    def fn2str(cls,search = None,  include_code = True, include_default = True, **kwargs):
-        schema = cls.schema(search=search, include_code=include_code, include_default=include_default)
+    def fn2str(cls,search = None,  code = True, defaults = True, **kwargs):
+        schema = cls.schema(search=search, code=code, defaults=defaults)
         fn2str = {}
         for k,v in schema.items():
             fn2str[k] = c.python2str(v)
@@ -5694,13 +5647,13 @@ class c:
     
         
     @classmethod
-    def module2fn2str(self, include_code = True, include_default = False, **kwargs):
+    def module2fn2str(self, code = True, defaults = False, **kwargs):
         module2fn2str = {  }
         for module in c.module_list():
             try:
                 module_class = c.module(module)
                 if hasattr(module_class, 'fn2str'):
-                    module2fn2str[module] = module_class.fn2str(include_code = include_code,                                          include_default = include_default, **kwargs)
+                    module2fn2str[module] = module_class.fn2str(code = code,                                          defaults = defaults, **kwargs)
             except:
                 pass
         return module2fn2str

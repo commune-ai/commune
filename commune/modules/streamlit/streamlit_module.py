@@ -327,7 +327,7 @@ class StreamlitModule(c.Module):
         
         config = module.config(to_munch=False)
         
-        fn_schema = module.schema(include_default=True)[fn]
+        fn_schema = module.schema(defaults=True)[fn]
 
         if fn == '__init__':
             extra_defaults = config
