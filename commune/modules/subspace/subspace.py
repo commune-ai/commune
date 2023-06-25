@@ -757,12 +757,27 @@ class Subspace(c.Module):
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
+
+    def loop(self, interval=60):
+        while True:
+            
+            self.save()
+            c.sleep(interval)
+            
+    def save(self, chain:str='dev'):
+        state_dict = self.state_dict()
+        self.put(f'chain_states/{chain}', state_dict)
+    def load(self, chain:str='dev'):
+        state_dict = self.get(f'chain_states/{chain}')
+        return state_dict
+
     def state_dict(self):
         state_dict = {
-            'subnets': self.subnets(),
+            'subnets': self.subnets(modules=True),
             'block': self.block,
             'balances': self.balances(),
         }
+        return state_dict
 
     def subnets(self, modules:bool = False, block: Optional[int] = None, save=False) -> list:
         subnets = []
@@ -1032,7 +1047,7 @@ class Subspace(c.Module):
             emission = self.emission(netuid=netuid)
             incentive = self.incentive(netuid=netuid)
             dividends = self.dividends(netuid=netuid)
-            stake = self.stake(netuid=netuid)
+            stake = self.allstake(netuid=netuid)
             balances = self.balances()
             
             
@@ -1269,16 +1284,6 @@ class Subspace(c.Module):
                 if type(v) in [int, float]:
                     cols[i % num_columns].metric(label=k, value=v)
                         
-        
-    def state_dict(self, netuid = None): 
-        netuid = self.resolve_netuid(netuid)
-        modules = self.modules()
-        state_dict = {
-            'modules': modules,
-            'chain': self.chain,
-            'netuid': netuid,
-        }
-        return state_dict
        
        
  
@@ -1531,10 +1536,7 @@ class Subspace(c.Module):
         return cls.node_ids(chain=chain)[user]
     
     
-    def state_dict(self):
-        state_dict = {}
-        state_dict['emission'] = self.emission()
-    
+
    
     @classmethod
     def function2streamlit(cls, 
