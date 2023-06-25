@@ -3564,11 +3564,46 @@ class c:
             pip_list = [l for l in pip_list if l.startswith(lib)]
         return pip_list
     
+    
+    @classmethod
+    def libs(cls):
+        return list(cls.lib2version().values())
+    
+    @classmethod
+    def ensure_lib(cls, lib:str, verbose:bool=True):
+        if  cls.pip_exists(lib):
+            return {'lib':lib, 'version':cls.version(lib), 'status':'exists'}
+        elif cls.pip_exists(lib) == False:
+            cls.pip_install(lib, verbose=verbose)
+        return {'lib':lib, 'version':cls.version(lib), 'status':'installed'}
+    
+    
+    @classmethod
+    def pip_install(cls, lib:str, verbose:str=True):
+        return cls.cmd(f'pip install {lib}', verbose=verbose)
+
+    @classmethod
+    def pip_exists(cls, lib:str, verbose:str=True):
+        return bool(lib in cls.libs())
+    
+    
+    @classmethod
+    def lib2version(cls, lib:str = None) -> dict:
+        lib2version = {}
+        for l in cls.pip_list():
+            name = l.split(' ')[0].strip()
+            version = l.split(' ')[-1].strip()
+            if len(name) > 0:
+                lib2version[name] = version
+            if lib != None and lib == name:
+                return version
+            
+        return lib2version
     @classmethod
     def version(cls, lib:str):
         lines = [l for l in cls.cmd(f'pip list').split('\n') if l.startswith(lib)]
         if len(lines)>0:
-            return lines[0].split('         ')[1].strip()
+            return lines[0].split(' ')[-1].strip()
         else:
             return f'No Library Found {lib}'
     
@@ -4488,12 +4523,9 @@ class c:
     
     
     @classmethod
-    def network(cls,  *args, mode='subspace', **kwargs) -> str:
-        if mode == 'subspace':
-            return self.get_module('subspace')(*args, **kwargs)
-        else:
-            raise ValueError('Invalid mode for network')
-        
+    def network(cls,  *args, module='subspace', **kwargs) -> str:
+        return c.module(module)(*args, **kwargs)
+
     def remove_user(self, key: str) -> None:
         if not hasattr(self, 'users'):
             self.users = []
@@ -4571,15 +4603,7 @@ class c:
         for tag in tags: 
             cls.deploy(tag=tag, **kwargs)
 
-    @classmethod
-    def network(cls, network='subtensor', *args, **kwargs) -> str:
-        if network == 'subspace':
-            return cls.subspace(*args, **kwargs)
-        elif network == 'subtensor':
-            return cls.subtensor(*args, **kwargs)
-        else:
-            raise ValueError('Invalid mode for network')
-    
+
 
     @classmethod
     def resolve_network(cls, subspace: str) -> str:

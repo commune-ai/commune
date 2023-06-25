@@ -21,15 +21,15 @@ class Validator(c.Module):
 
     def __init__(self, 
                  config = None,
+                 subspace = None,
                  **kwargs
                  ):
         config = self.set_config(config=config,kwargs=kwargs)
         self.set_models(config)
         self.set_dataset(config.dataset)
         self.set_tokenizer(config.tokenizer)
+        self.set_subspace(subspace)
         self.weights = nn.Parameter(torch.ones(5))
-
-        self.set_optimizer(config.optimizer)
 
     namespace_update_ts =0
     _namespace = None
@@ -40,6 +40,9 @@ class Validator(c.Module):
     def verify_signature(self, signature: Dict) -> bool:
         return True
     
+    
+    def set_subspace(self, subspace):
+        self.subspace = c.module('subspace')()
             
     @classmethod
     def get_models(cls, models=None) -> List[str]:

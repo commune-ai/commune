@@ -74,7 +74,7 @@ class CLI(c.Module):
                         module_inst = module()
                         fn = getattr(module_inst, fn_name)
                 elif c.is_property(fn):
-                    result = getattr(module(), fn)
+                    result =  getattr(module(), fn_name)
                 else: 
                     result = fn    
                 
