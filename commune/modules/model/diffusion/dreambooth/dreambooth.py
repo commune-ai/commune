@@ -69,7 +69,7 @@ import commune as c
 class Dreambooth(c.Module):
     
     def __init__(self, config=None): 
-        c.Module.__init__(self, config)
+        self.set_config(config)
         self.set_model(config)
         self.set_dataset(config)
         
@@ -973,5 +973,8 @@ class Dreambooth(c.Module):
 
         return prompt_embeds
 
-if __name__ == "__main__":
-    Dreambooth.run()
+
+    @classmethod
+    def test(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
+        

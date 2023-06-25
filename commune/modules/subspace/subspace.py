@@ -485,7 +485,7 @@ class Subspace(c.Module):
                     return True
 
 
-    def add_stake(
+    def stake(
             self,
             key: Optional[str] ,
             amount: Union[Balance, float] = None, 
@@ -505,7 +505,9 @@ class Subspace(c.Module):
         if amount is None:
             amount = old_balance
             
-        amount = self.to_nano(amount, fmt='nano')
+        amount = self.to_nano(amount)
+        
+        c.print(amount)
         # Get current stake
 
         c.print(f"Old Balance: {old_balance} {amount}")
@@ -687,9 +689,9 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def stake (self, key = None, netuid: int = None, block: Optional[int] = None) -> int:
+    def allstake(self, key = None, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
         netuid = self.resolve_netuid( netuid )
-        return {k.value:v.value for k,v in self.query_map('Stake', block, [netuid] ).records}
+        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', block, [netuid] ).records}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -755,7 +757,14 @@ class Subspace(c.Module):
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
-    def subnets(self):
+    def state_dict(self):
+        state_dict = {
+            'subnets': self.subnets(),
+            'block': self.block,
+            'balances': self.balances(),
+        }
+
+    def subnets(self, modules:bool = False, block: Optional[int] = None, save=False) -> list:
         subnets = []
         subnet_stake = {k.value:v.value for k,v in self.query_map( 'SubnetTotalStake', params=[] ).records}
         subnet_emission = {k.value:v.value for k,v in self.query_map( 'SubnetEmission', params=[] ).records}
@@ -765,8 +774,7 @@ class Subspace(c.Module):
         
         for name, netuid  in self.subnet_namespace.items():
             
-            subnets.append(
-                {
+            subnet = {
                     'name': name,
                     'netuid': netuid,
                     'stake': Balance.from_nano(subnet_stake[netuid]),
@@ -780,8 +788,11 @@ class Subspace(c.Module):
                     'founder': subnet_founders[netuid]
                     
                 }
-            )
-            
+            if modules:
+                subnet['modules'] = self.modules( netuid = netuid )
+            subnets += [subnet]
+        if save:
+            self.put( f'subnets', subnets)
         return subnets
             
             
@@ -1171,7 +1182,7 @@ class Subspace(c.Module):
     
     specs = chain_specs
     @classmethod
-    def get_spec(cls, chain):
+    def get_spec(cls, chain:str):
         chain = cls.resolve_chain_spec(chain)
         
         return c.get_json(chain)
