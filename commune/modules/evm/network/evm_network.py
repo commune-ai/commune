@@ -7,24 +7,9 @@ from typing import Dict, List, Optional, Union
 import commune as c
 
 
-#
-# Copyright 2022 Ocean Protocol Foundation
-# SPDX-License-Identifier: Apache-2.0
-#
-#
-# Copyright 2021 Ocean Protocol Foundation
-# SPDX-License-Identifier: Apache-2.0
-#
-"""
-This is copied from Web3 python library to control the `requests`
-session parameters.
-"""
-
 import lru
 import requests
 from requests.adapters import HTTPAdapter
-
-
 from typing import Dict, Optional, Union
 from web3 import WebsocketProvider
 from web3 import HTTPProvider, WebsocketProvider
@@ -32,7 +17,6 @@ class CustomHTTPProvider(HTTPProvider):
     """
     Override requests to control the connection pool to make it blocking.
     """
-
     def make_request(self, method, params):
         self.logger.debug(
             "Making request HTTP. URI: %s, Method: %s", self.endpoint_uri, method
