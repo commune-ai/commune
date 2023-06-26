@@ -4,20 +4,23 @@ import os
 import sys
 from copy import deepcopy
 import asyncio
-import commune
+import commune as c
 from glob import glob
 from typing import Dict, List, Union, Any, Optional, Tuple, Callable, TypeVar, Type, cast
-class EVMContract(commune.Module):
+class EVM(c.Module):
 
+    base_dir = f'{c.repo_path}/contracts/evm'
+    contracts_dir_path = base_dir + '/contracts/'
+    artifacts_dir_path = base_dir + '/artifacts/'
     def __init__(self, 
                  config:dict=None, 
-                 contract:'commune.evm.contract' =None, 
-                 network: 'commune.evm.network'= None, 
-                 account: 'commune.evm.account'=None, 
+                 contract:'c.evm.contract' =None, 
+                 network: 'c.evm.network'= None, 
+                 account: 'c.evm.account'=None, 
                  base_dir:str=None,
                  compile: bool=True):
 
-        commune.Module.__init__(self, config=config)
+        self.set_config(config=config)
         self.set_contracts_dir_path(base_dir=base_dir)
         if compile:
             self.compile()
@@ -26,13 +29,6 @@ class EVMContract(commune.Module):
         self.set_account(account=account)
         self.set_contract(contract=contract)
 
-
-    def set_contracts_dir_path(self, base_dir:str=None):
-        base_dir = base_dir if base_dir else f'{self.pwd}/contracts/evm'
-        self.contracts_dir_path = base_dir + '/contracts/'
-        self.artifacts_dir_path = base_dir + '/artifacts/'
-        assert os.path.isdir(self.contracts_dir_path[:-1]), self.contracts_dir_path
-        assert os.path.isdir(self.artifacts_dir_path[:-1]), self.artifacts_dir_path
     @property
     def address(self):
         return self.contract.address
@@ -299,7 +295,7 @@ class EVMContract(commune.Module):
         contract = web3.eth.contract(address=contract_address, abi=contract_artifact['abi'])
         
         if virtual:
-            from commune.web3.evm.contract.virtual_contract import VirtualContract
+            from c.web3.evm.contract.virtual_contract import VirtualContract
             contract = VirtualContract(contract=contract, account = self.account)
         
         return contract
@@ -408,7 +404,7 @@ class EVMContract(commune.Module):
     @classmethod
     def streamlit(cls):
         import streamlit as st
-        commune.new_event_loop()
+        c.new_event_loop()
         st.write("## "+cls.__name__)
         EVMContract.new_event_loop()
 
@@ -417,10 +413,6 @@ class EVMContract(commune.Module):
         contract = self.deploy_contract(contract='CommunalCluster',new=True, args=['BRO', 'BROCOIN'])
         # print(contract)
         print(contract.balanceOf(self.account.address))
-
-
-if __name__ == '__main__':
-    EVMContract.streamlit()
 
 
  
