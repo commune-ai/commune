@@ -802,29 +802,22 @@ class Subspace(c.Module):
     cache = {}
     def state_dict(self,
                    key:str = None, # KEY OF THE ATTRIBUTE, NOT A PRIVATE/PUBLIC KEY PAIR
+                   netuid: int = 1,
                    network:str= network, 
                    load : bool= True,
                    save : bool = False,
                    dirpath:str = 'chain_states',
                    max_age: str = 60, 
-                   netuid: int = 1,
                    cache:bool = True) -> dict:
         # network = self.resolve_network(network, ensure_network=False)
         path = f'{dirpath}/{network}'
-        
         state_dict = {}
+        
+        
         if load:
-            if cache : 
-                c.print(f'Loading state for {network} from self.cache')
-                state_dict = self.cache.get('state_dict', {})
-                
-            if len(state_dict) == 0:
-                state_dict = self.get(path, {} ,max_age=max_age)
-            
+            state_dict = self.get(path, default={} ,max_age=max_age, cache=cache)
             if len(state_dict) == 0:
                 save = True
-            
-            
             
         if len(state_dict) == 0:
             subnets = self.subnets(modules=True)
@@ -841,24 +834,14 @@ class Subspace(c.Module):
         state_dict['subnet_namespace'] = {s['name']: s['netuid'] for s in subnets.values()}
         state_dict['namespace'] = {s['netuid']: {m['name']: m['address'] for m in s['modules']}  for s in subnets.values()}
 
-            
-            
-
-        
         if save:
-            if cache:
-                c.print(f'Caching state for {network} into self.cache')
-
-                self.cache['state_dict'] = state_dict
-            c.print(f'Saving state for {network}.')
-            self.put(path, state_dict)
+            self.put(path, state_dict, cache=cache)
                 
         if key in state_dict:
             if netuid in state_dict[key]:
                 return state_dict[key][netuid]
             return state_dict[key]
         
-
         return state_dict
 
     def subnets(self, modules:bool = False, block: Optional[int] = None, save=False) -> list:
@@ -893,7 +876,16 @@ class Subspace(c.Module):
         return subnets
             
             
-            
+          
+    @classmethod
+    def get_docker_compose(cls):
+        path = f'{cls.chain_path}/docker-compose.yml'
+        return c.load_yaml(path)
+    
+    @classmethod
+    def save_docker_compose(cls, docker_compose_yaml: dict):
+        path = f'{cls.chain_path}/docker-compose.yml'
+        return c.save_yaml(path, docker_compose_yaml)
             
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
@@ -1044,12 +1036,16 @@ class Subspace(c.Module):
         return list(self.subnet_namespace.values())
 
     @classmethod
-    def resolve_netuid(cls, netuid: int = None) -> int:
+    def resolve_netuid(cls, netuid: int = None, subspace_namespace:str=None) -> int:
 
         
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
-            netuid = self.subnet2netuid(netuid)
+            if subspace_namespace == None:
+                subspace_namespace = cls.subnet_namespace
+            else:
+                subspace_namespace = subspace_namespace
+            netuid = subspace_namespace.get(netuid)
             
         if netuid == None:
             # If the netuid is not specified, use the default.

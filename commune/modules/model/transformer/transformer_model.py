@@ -30,72 +30,20 @@ from torch import nn
 from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
 
 
-shortcuts =  {
-    # 0-1B models
-    'gpt125m': 'EleutherAI/gpt-neo-125m',
-
-    # 1-3B models
-    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-    'opt1.3b': 'facebook/opt-1.3b',
-    'opt2.7b': 'facebook/opt-2.7b',
-    # 'gpt3btuning' : ''
-
-    # 0-7B models
-    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-    'gptj': 'EleutherAI/gpt-j-6b',
-    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-    'opt6.7b': 'facebook/opt-6.7b',
-    'llama': 'decapoda-research/llama-7b-hf',
-    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
-    'falcon': 'tiiuae/falcon-40b-instruct',
-    # # > 7B models
-    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-    'gptneox': 'EleutherAI/gpt-neox-20b',
-    'gpt20b': 'EleutherAI/gpt-neox-20b',
-    'opt13b': 'facebook/opt-13b',
-    'gpt13b': 'cerebras/Cerebras-GPT-13B',
-    'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
-    'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
-    'fish': os.path.expanduser('~/fish_model'),
-    'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
-    
-        }
-
-
-
-
-
 from torch import nn
 Model = c.module('model')
 class TransformerModel(Model):
-    shortcuts = shortcuts
+    default_config = c.config('model.transformer')
+    shortcuts = default_config.shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
-    default_tag = 'base'
+    default_tag = default_config.tag
     
     def __init__(self,
                  config = None,
                  **kwargs
                 ):
-        
-        nn.Module.__init__(self) 
-        # sets to self.config (with kwargs injected)
-        config = self.set_config(config, kwargs=kwargs)
-        self.set_model(config.model)
+        config = self.set_config(config=config, kwargs=kwargs)
+        self.set_model(config)
 
         
 
@@ -155,16 +103,7 @@ class TransformerModel(Model):
         'attention_mask': attention_mask,
         }
         
-        if map_tokens:
-            offset_mapping, offset_mapping_std, original_input_ids = None, None, None
-            original_input_ids = self.copy(sample['input_ids'])
-            tokens = self.token_translator.translate_tokens(input_ids=sample['input_ids'], return_offsets_mapping=True)
-            offset_mapping = tokens.offset_mapping
-            offset_mapping_std = tokens.offset_mapping_std
-            sample['input_ids'] = tokens.input_ids
-            sample['attention_mask'] = tokens.attention_mask
-        
-        
+
         # move to device for all tensors
         for k,v in sample.items():
             if isinstance(v, torch.Tensor):
@@ -191,15 +130,7 @@ class TransformerModel(Model):
         output['hidden_states'] = output.hidden_states[hidden_state_index]
         output['input_ids'] = sample['input_ids']
 
-        
-        # map th elogits
-        if map_logits:
-            output['logits'] = self.token_translator.translate_logits(logits = output['logits'],
-                                                                           offset_mapping=offset_mapping_std,
-                                                                           offset_mapping_std=offset_mapping_std,
-                                                                           tokens=sample['input_ids'],
-                                                                           tokens_std=original_input_ids)
-            
+           
         output['loss'] = loss = self.calculate_loss(**output)
         output['logits']= output.logits[:,-output_length:,:]
         output['topk']=self.encode_topk(output['logits'], topk=topk)
@@ -341,11 +272,12 @@ class TransformerModel(Model):
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         
+        # init pytorch module state
+        self.init_nn()
+        
         config = self.resolve_config(config)
         
         self.set_tokenizer(config.tokenizer)
-
-
 
         model_kwargs=dict(
 
@@ -357,20 +289,15 @@ class TransformerModel(Model):
                                                             trust_remote_code=config.trust_remote_code,) 
                                                         
 
-        config.devices = list(set(list(self.model.hf_device_map.values())))
-        config.device = config.devices[0]
-
-        self.devices = config.devices
-        self.device = config.device
-        
+        self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))
+        self.device = config.device = config.devices[0]
         
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
           
         if config.load:
             self.load(keys=['model', 'optimizer']) 
-        if config.reset_stats:
-            self.reset_stats()
+            
         self.config = config
         
         
@@ -408,20 +335,12 @@ class TransformerModel(Model):
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
         tokenizer = self.resolve_tokenizer(tokenizer)
-
         self.print(f'setting {tokenizer} tokenizer...')
         assert isinstance(tokenizer, str, )
         self.config['tokenizer'] = tokenizer
-        
-        # HACK TO INCLUDE LLAMA TOKENIZER
-        if 'llama' in tokenizer:
-            from transformers import LlamaTokenizer
-            tokenizer_class = LlamaTokenizer
-        else:
-            tokenizer_class = AutoTokenizer
                 
         try:
-            tokenizer = tokenizer_class.from_pretrained(tokenizer, use_fast=True)
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=True)
         except ValueError:
             
             print('resorting ot use_fast = False')
@@ -430,10 +349,8 @@ class TransformerModel(Model):
 
         self.tokenizer = tokenizer
         
-    
-        self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
-        self.tokenizer = prep_tokenizer(self.std_tokenizer)
-        self.token_translator = self.get_module('model.token_translator')(tokenizer=tokenizer, std_tokenizer=self.std_tokenizer)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
 
         return self.tokenizer
 
@@ -796,7 +713,7 @@ class TransformerModel(Model):
         if tag != None:
             name += '::'+tag
 
-        cls.launch(name=name,
+        cls.serve(name=name,
                     kwargs=kwargs,
                     refresh = refresh,
                     verbose=True)

@@ -306,7 +306,7 @@ class c:
         return cls.cmd(f'python3 sandbox.py')
     sand = sandbox
     @classmethod
-    def save_yaml(cls, path:str,  data:Union[Dict, Munch], root:bool = False) -> Dict:
+    def save_yaml(cls, path:str,  data: dict, root:bool = False) -> Dict:
         '''
         Loads a yaml file
         '''
@@ -377,10 +377,13 @@ class c:
             password: bool = None,
             include_timestamp : bool = True,
             mode: bool = 'json',
+            cache :bool = True,
             **kwargs):
         '''
         Puts a value in the config
         '''
+        
+
         encrypt =  password != None
         v = cls.copy(v)
         if encrypt:
@@ -396,7 +399,9 @@ class c:
         
         # default json 
         getattr(cls,f'put_{mode}')(k, data, **kwargs)
-        
+    
+        if cache:
+            cls.cache[k] = v
         
         return data
     
@@ -410,6 +415,7 @@ class c:
             password=None, 
             mode:str = 'json',
             max_age:str = None,
+            cache :bool = True,
             **kwargs) -> Any:
         
         '''
@@ -417,6 +423,10 @@ class c:
 
         Return the value
         '''
+        if cache:
+            if key in cls.cache:
+                return cls.cache[key]
+        
         verbose = kwargs.get('verbose', False)
         data = getattr(cls, f'get_{mode}')(key,default=default, **kwargs)
         if data == None: 
@@ -1551,11 +1561,18 @@ class c:
         torch.save(data, path)
         return path
     
+    
+    
     @classmethod
     def get_torch(cls,path:str, root:bool = False, **kwargs):
         import torch
         path = cls.resolve_path(path=path, extension='pt', root=root)
         return torch.load(path)
+    
+    
+    def init_nn(self):
+        import torch
+        torch.nn.Module.__init__(self)
     
     @classmethod
     def put_json(cls,*args,**kwargs) -> str:
@@ -2268,7 +2285,7 @@ class c:
               context= '',
               key = None,
               tag:str=None, 
-              replace:bool = True, 
+              refresh:bool = True, 
               whitelist:List[str] = None,
               blacklist:List[str] = None,
               wait_for_termination:bool = True,
@@ -2321,7 +2338,7 @@ class c:
         '''check if the server exists'''
         cls.print(f'Checking if server {name} exists {self}')
         if self.server_exists(name): 
-            if replace:
+            if refresh:
                 if verbose:
                     cls.print(f'Stopping server {name}')
                 self.kill_server(name)
@@ -3494,8 +3511,8 @@ class c:
                     continue
             self.__dict__[k] = v
       
-
-    def merge(self, b, 
+    @classmethod
+    def merge(cls, b, 
                         include_hidden:bool=True, 
                         allow_conflicts:bool=True, 
                         verbose: bool = False):
@@ -3503,7 +3520,7 @@ class c:
         '''
         Merge the functions of a python object into the current object (a)
         '''
-        a = self
+        a =  cls
         
         for b_fn_name in dir(b):
             
@@ -4325,14 +4342,15 @@ class c:
         return data
     enc = encrypt
     dec = decrypt
-    module_cache = {}
+    cache = {}
+    cache = {}
     @classmethod
     def put_cache(cls,k,v ):
-        cls.module_cache[k] = v
+        cls.cache[k] = v
     
     @classmethod
     def get_cache(cls,k, default=None, **kwargs):
-        v = cls.module_cache.get(k, default)
+        v = cls.cache.get(k, default)
         return v
 
     @classmethod
@@ -5555,8 +5573,8 @@ class c:
     #     return mnemonic
     
     @classmethod
-    def docker_ps(cls):
-        return cls.cmd('docker ps')
+    def docker_ps(cls, sudo=True):
+        return cls.cmd('docker ps', sudo=True)
     dps = docker_ps
     
     '''
