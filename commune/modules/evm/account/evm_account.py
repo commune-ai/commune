@@ -132,9 +132,8 @@ class EVMAccount(commune.Module, Account):
         return tx_receipt.__dict__
 
     
-    def resolve_message(self, message):
+    def resolve_message(self, message) :
         message = self.python2str(message)
-        print(type(message))
         if isinstance(message, str):
             message = encode_defunct(text=message)
         elif isinstance(message, SignableMessage):
