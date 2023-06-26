@@ -1073,15 +1073,11 @@ class Subspace(c.Module):
         
     def name2key(self, name:str=None,  netuid: int = None) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
+             
+        modules = self.modules(netuid=netuid)
         
-        # Get the namespace for the netuid.
-        netuid = self.resolve_netuid(netuid)        
-        keys = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
-        namespace = { r[0].value: keys[r[1].value] for r in self.query_map('Namespace', params=[netuid]).records}
-        if name != None:
-            return namespace[name]
-        else:
-            return namespace
+        return { m['name']: m['key'] for m in modules}
+        
         
     def namespace(self, netuid: int = None, **kwargs) -> Dict[str, str]:
         
@@ -1107,7 +1103,7 @@ class Subspace(c.Module):
         
         
     def key2module(self, key: str = None, netuid: int = None) -> Dict[str, str]:
-        modules = self.modules(netuid)
+        modules = self.modules(netuid=netuid)
         key2module =  { m['key']: m for m in modules }
         
         if key != None:
