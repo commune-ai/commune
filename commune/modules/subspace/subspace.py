@@ -1123,7 +1123,7 @@ class Subspace(c.Module):
                 netuid: int = default_netuid,
                 fmt='nano', 
                 detail:bool = True,
-                load = False,
+                load = True,
                 save = True,
                 max_age: int = 60,
                 network = network,
