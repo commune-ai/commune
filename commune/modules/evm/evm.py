@@ -10,37 +10,25 @@ from typing import Dict, List, Union, Any, Optional, Tuple, Callable, TypeVar, T
 class EVM(c.Module):
 
     base_dir = f'{c.repo_path}/contracts/evm'
-    contracts_dir_path = base_dir + '/contracts/'
-    artifacts_dir_path = base_dir + '/artifacts/'
+    contracts_dir_path = base_dirir_path = base_dir + '/artifacts/'
     def __init__(self, 
                  config:dict=None, 
                  contract:'c.evm.contract' =None, 
                  network: 'c.evm.network'= None, 
-                 account: 'c.evm.account'=None, 
+                 account: 'c.evm.account'=N
                  base_dir:str=None,
-                 compile: bool=True):
-
-        self.set_config(config=config)
-        self.set_contracts_dir_path(base_dir=base_dir)
-        if compile:
-            self.compile()
-
-        self.set_network(network=network)
-        self.set_account(account=account)
-        self.set_contract(contract=contract)
+                 com.set_config(config=cset_contracts_dir_path(base_dir=base_dir)
+        if comp
+        self.stwork=network)
+        self.set_account
 
     @property
     def address(self):
         return self.contract.address
 
-    @property
-    def function_abi_map(self):
-        return {f_abi['name']:f_abi for f_abi in self.abi}
-    @property
-    def function_names(self):
-        return list(self.function_abi_map.keys())
-
-    @property
+    @propertymap(self):
+        return {f_a
+        return list(self.fu
     def accounts(self):
         return self.account.accounts
 

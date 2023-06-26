@@ -417,6 +417,7 @@ class c:
 
         Return the value
         '''
+        verbose = kwargs.get('verbose', False)
         data = getattr(cls, f'get_{mode}')(key,default=default, **kwargs)
         if data == None: 
             data = default
@@ -429,6 +430,7 @@ class c:
                 if timestamp != None:
                     age = c.get_age(timestamp)
                     if age > max_age:
+                        c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
                         return default
         else:
             data = default
@@ -715,7 +717,7 @@ class c:
 
     @classmethod
     def st(cls, module = None, fn='dashboard'):
-        module = cls.get_module(module)
+        module = cls.module(module)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
@@ -940,6 +942,12 @@ class c:
     def get_address(cls, module, **kwargs):
         return c.namespace(**kwargs).get(module, None)
     
+    @classmethod
+    def resolve_address(cls, address:str = None):
+        if address == None:
+            address = c.free_address()
+        assert isinstance(address, str),  'address must be a string'
+        return address
     @classmethod
     def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
         port_range = cls.resolve_port_range(port_range)
@@ -2254,7 +2262,6 @@ class c:
     def serve(cls, 
               module:Any = None ,
               name:str=None, 
-              
               address:str = None,
               ip:str=None, 
               port:int=None ,
@@ -3388,7 +3395,7 @@ class c:
         '''
         
         if module is None:
-            return c.root_module()
+            return cls
         if isinstance(module, str):
             modules = c.module_list()
             if module in modules:
@@ -3987,7 +3994,7 @@ class c:
                 'module_name', 'modules', 'help']
     @property
     def whitelist(self) -> List[str]:
-        if hasattr(self, 'config'):
+        if isinstance(self.config, dict):
             if 'whitelist' in self.config:
                 return self.config['whitelist']
             
@@ -3997,11 +4004,11 @@ class c:
             return self.fns(include_module=False) + self.attributes() + self.helper_functions
     @property
     def blacklist(self) -> List[str]:
-        if hasattr(self, 'config'):
+        if  isinstance(self.config, dict):
             if 'blacklist' in self.config:
                 return self.config['blacklist']
         return []
- 
+
 
 
     @classmethod
