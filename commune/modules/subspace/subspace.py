@@ -42,6 +42,7 @@ class Subspace(c.Module):
     network2url = default_config['network2url']
     chain = default_config['chain']
     network = default_config['network']
+    url = network2url[network]
     subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
     chain_release_path = eval(default_config['chain_release_path'])
@@ -49,6 +50,7 @@ class Subspace(c.Module):
     key_types = default_config['key_types']
     supported_schemas = default_config['supported_schemas']
     default_netuid = default_config['default_netuid']
+    key = default_config['key']
     state = {}
 
     
@@ -69,8 +71,7 @@ class Subspace(c.Module):
         return {v: k for k, v in cls.network2url.items()}.get(url, None)
     
     @classmethod
-    def resolve_network_url(cls, network:str , prefix='ws://'):  
-        external_ip = cls.external_ip()      
+    def resolve_network_url(cls, network:str , prefix='ws://'):    
         url = cls.get_network_url(network)
 
         if not url.startswith(prefix):
@@ -89,6 +90,7 @@ class Subspace(c.Module):
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
+                verbose:bool=True,
                 *args, 
                 **kwargs):
 
@@ -142,20 +144,20 @@ class Subspace(c.Module):
                                     *args,
                                     **kwargs)
         c.print(f'Connected to {network}')
-
-      
-
     def __repr__(self) -> str:
-        return self.__str__()
+        return f'<Subspace: network={self.network}, url={self.url}>'
+    def __str__(self) -> str:
+        return f'<Subspace: network={self.network}, url={self.url}>'
     
-    def auth(self, key, chain='dev', subnet = None):
-        subnet = self.resolve_netuid(netuid)
+    def auth(self, data, key:str = key, network:str=network, netuid = None):
+        netuid = self.resolve_netuid(netuid)
         key = self.resolve_key(key)
         data = {
-            'network': self.module_path(),
-            'chain': chain,
-            'timestamp': int(c.time()),
+            'network': network,
             'netuid': netuid,
+            'timestamp': int(c.time()),
+            'block': self.block, 
+            'data': data
         }
         data = c.python2str(data)
         auth =  {
@@ -728,14 +730,13 @@ class Subspace(c.Module):
             
     
         return key_ss58
-
     @classmethod
     def resolve_key(cls, key):
-        
         if isinstance(key, str):
             if not c.key_exists( key ):
                 c.add_key( key)
             key = c.get_key( key )
+        assert hasattr(key, 'ss58_address'), f"Invalid key {key}."
         return key
         
     @classmethod
@@ -876,15 +877,24 @@ class Subspace(c.Module):
         return subnets
             
             
-          
+        
+    docker_compose_path = f'{chain_path}/docker-compose.yml'
     @classmethod
     def get_docker_compose(cls):
-        path = f'{cls.chain_path}/docker-compose.yml'
-        return c.load_yaml(path)
+        return c.load_yaml(cls.docker_compose_path)
     
     @classmethod
-    def save_docker_compose(cls, docker_compose_yaml: dict):
+    def start_docker_node(cls, sudo:bool = True, verbose:bool = True):
+        cmd = f'docker-compose  -f {cls.docker_compose_path} build '
+        return c.cmd(cmd, 
+              cwd=cls.chain_path, 
+              sudo=sudo,
+              verbose=verbose)
+    @classmethod
+    def save_docker_compose(cls, docker_compose_yaml: dict = None):
         path = f'{cls.chain_path}/docker-compose.yml'
+        if docker_compose_yaml is None:
+            docker_compose_yaml = cls.get_docker_compose()
         return c.save_yaml(path, docker_compose_yaml)
             
 
@@ -1035,23 +1045,22 @@ class Subspace(c.Module):
     def subnet_netuids(self) -> List[int]:
         return list(self.subnet_namespace.values())
 
-    @classmethod
-    def resolve_netuid(cls, netuid: int = None, subspace_namespace:str=None) -> int:
+    def resolve_netuid(self, netuid: int = None, subspace_namespace:str=None) -> int:
 
         
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
             if subspace_namespace == None:
-                subspace_namespace = cls.subnet_namespace
+                subspace_namespace = self.subnet_namespace
             else:
                 subspace_namespace = subspace_namespace
-            netuid = subspace_namespace.get(netuid)
+            netuid = subspace_namespace.get(netuid, None)
             
         if netuid == None:
             # If the netuid is not specified, use the default.
-            netuid = cls.default_netuid
+            netuid = self.default_netuid
             return netuid
-            
+        assert isinstance(netuid, int), "netuid must be an integer"
         return netuid
 
 
@@ -1118,6 +1127,7 @@ class Subspace(c.Module):
                 save = True,
                 max_age: int = 60,
                 network = network,
+                update = True,
                 ) -> Dict[str, ModuleInfo]:
         
         
@@ -1125,8 +1135,11 @@ class Subspace(c.Module):
         self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         
-        if load:
-            self.state_dict( max_age=max_age,cache=True, load=load, )['subnets'][netuid-1]['']
+        if load and not update:
+            self.state_dict( 'modules', netuid=netuid, 
+                            max_age=max_age,
+                            cache=True, 
+                            load=load, )
             
         if len(modules) == 0 :
              

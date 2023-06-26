@@ -198,11 +198,12 @@ class Keypair(c.Module):
     add = add_key
     @classmethod
     def get_key(cls, 
-                path:str, 
+                path:str,
                 password:str=None, 
                 json:bool=False,
                 create_if_not_exists:bool = True,
                 **kwargs):
+        
         
         if cls.key_exists(path) == False and create_if_not_exists == True:
             key = cls.add_key(path, **kwargs)

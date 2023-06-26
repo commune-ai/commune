@@ -1,4 +1,6 @@
 chain: subspace
+network: dev
+key: alice
 chain_info:
   dev:
     alice:
@@ -33,7 +35,6 @@ default_netuid: 1
 key_types:
 - aura
 - gran
-network: dev
 network2url:
   dev: 162.157.13.236:4647
   local: 127.0.0.1:4874
