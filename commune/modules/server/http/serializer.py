@@ -40,10 +40,8 @@ class Serializer(c.Module):
                 block_ref_paths.append(block_ref_path)
         else:
             data = getattr(self, f'serialize_{data_type}')(data)
-            if isinstance(data, dict):
-                data['data'] = self.bytes2str(data['data']) if mode == 'str' else data['data']
-            else:
-                data = self.bytes2str(data) if mode == 'str' else data
+            data = self.bytes2str(data) if mode == 'str' else data
+            c.print(data,type(data))
         return {
             'data': data,
             'block_ref_paths': block_ref_paths,
@@ -61,10 +59,7 @@ class Serializer(c.Module):
             for block_ref_path in block_ref_paths:
                 block = c.dict_get(data, block_ref_path)
                 data_type = block['data_type']
-                if isinstance(block['data'], str):
-                    block['data'] = self.str2bytes(block['data'])
-                elif isinstance(block['data'], dict):
-                    block['data']['data'] = self.str2bytes(block['data']['data'])
+                block['data'] = self.str2bytes(block['data'])
                 deserialized_data = getattr(self, f'deserialize_{data_type}')(data =block['data'])
                 c.dict_put(data, block_ref_path, deserialized_data)
 
@@ -128,33 +123,22 @@ class Serializer(c.Module):
         data_buffer = msgpack.packb(torch_numpy, default=msgpack_numpy.encode)
         return data_buffer
 
-    def bytes2torch(self, data:bytes, shape:list, dtype:str, requires_grad:bool=False) -> torch.Tensor:
+    def bytes2torch(self, data:bytes, ) -> torch.Tensor:
         numpy_object = msgpack.unpackb(data, object_hook=msgpack_numpy.decode).copy()
         int64_workaround = bool(numpy_object.dtype == np.int64)
         if int64_workaround:
             numpy_object = numpy_object.astype(np.float64)
-        torch_object = torch.tensor(numpy_object).view(shape).requires_grad_(requires_grad)
+        torch_object = torch.tensor(numpy_object)
         if int64_workaround:
             dtype = torch.int64
-        torch_object =  torch_object.to(dtype)
         return torch_object
 
     def serialize_torch(self, data: torch.Tensor) -> DataBlock:
-        new_data = {}
-        new_data['dtype'] = str(data.dtype)
-        new_data['shape'] = list(data.shape)
-        new_data['requires_grad'] = data.requires_grad
-        new_data['data'] = self.torch2bytes(data=data)
-        return  new_data
+
+        return  self.torch2bytes(data=data)
     
     def deserialize_torch(self, data: bytes) -> torch.Tensor:
-        dtype = data['dtype']
-        assert 'torch.' in dtype
-        dtype = eval(dtype)
-        shape = data['shape']
-        requires_grad = data['requires_grad']
-        c.print(f"deserialize_torch: {dtype}, {shape}, {requires_grad}, {data}")
-        data =  self.bytes2torch(data=data['data'], shape=shape, dtype=dtype, requires_grad=requires_grad )
+        data =  self.bytes2torch(data=data )
         return data
 
     def get_str_type(self, data):
@@ -194,7 +178,7 @@ class Serializer(c.Module):
     @classmethod
     def test_serialize(cls):
         module = Serializer()
-        data = {'bro': {'fam': torch.ones(2,2), 'bro': [torch.ones(1,1)]}}
+        data = {'bro': {'fam': torch.ones(2,20), 'bro': [torch.ones(1,1)]}}
         proto = module.serialize(data)
         
         c.print(proto)
