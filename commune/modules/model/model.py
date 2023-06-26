@@ -375,7 +375,7 @@ class Model( nn.Module, commune.Module):
         self.load_state_dict(state_dict)
         
 
-    def set_finetune(self, finetune) -> Tuple[bool, str]:
+    def set_finetune(self, finetune, set_last_layer_attribute:bool = True) -> Tuple[bool, str]:
         r''' Set to tune only the parameter of the last layer
             Returns: 
                 reached_last_layer (:type:`bool`):
@@ -427,6 +427,10 @@ class Model( nn.Module, commune.Module):
         if (all) or (last_layer_name == None):
             return False, last_layer_name
 
+
+        if set_last_layer_attribute:
+            self.last_layer_name = last_layer_name
+        
         self.print(f'Set to finetune layer {last_layer_name} and onwards')
         
         for name, param in self.named_parameters():

@@ -24,7 +24,7 @@ class Serializer(c.Module):
     various python tensor equivalents. i.e. torch.Tensor or tensorflow.Tensor
     """
 
-    def serialize (self, data: object) -> 'DataBlock':
+    def serialize (self, data: object, mode='bytes') -> 'DataBlock':
         data_type = self.get_str_type(data)
         block_ref_paths = []
         if data_type in ['dict']:
@@ -32,18 +32,30 @@ class Serializer(c.Module):
             for k_index ,k in enumerate(object_map.keys()):
                 v = object_map[k]
                 block_ref_path = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split('.')))
-                c.dict_put(data, block_ref_path , self.serialize(data=v))
+                c.dict_put(data, block_ref_path , self.serialize(data=v, mode='str'))
                 block_ref_paths.append(block_ref_path)
                 
         serializer = getattr(self, f'serialize_{data_type}')
-        data = serializer( data = data )
+        data = serializer( data )
 
-        output_data = {'data_type': data_type, 
-                                        'data': data,
-                                        'block_ref_paths': block_ref_paths}
         
+        if mode == 'bytes':
+            return data
+        elif mode == 'str':
+            data = c.bytes2str(data)
+            return data
+
+        if isinstance(data, dict):
+            data = {'data_type': data_type, 
+                                            'data': data,
+                                            'block_ref_paths': block_ref_paths, **data}
+            
+            
+        if mode in ['str']:
+            c.print(data)
+            data['data'] = c.bytes2str(data['data'])
         
-        return output_data
+        return data
 
     def deserialize(self, data: 'DataBlock') -> object:
         """Serializes a torch object to DataBlock wire format.
