@@ -95,8 +95,8 @@ class Client( Serializer, c.Module):
             max_processes: int = 1,
             timeout:int = 4,
             loop: 'Loop' = None,
-            key: 'Key' = None,
-            network : 'Network' = None,
+            key: 'Key' = c.default_key,
+            network : 'Network' = c.default_network,
             stats = None,
         ):
         self.set_network(network)     
@@ -105,6 +105,8 @@ class Client( Serializer, c.Module):
                         max_processes = max_processes,
                         timeout = timeout,
                         loop = loop)
+        self.set_key(key)
+        self.set_network(network)
         self.set_stats(stats)
         
     def set_stats(self, stats=None): 
@@ -268,8 +270,9 @@ class Client( Serializer, c.Module):
             'fn' : fn,
             'args' : list(args),
             'kwargs': kwargs,
-            
         })
+        
+        
         data.update(kwargs)
 
         fn = data.get('fn', None)

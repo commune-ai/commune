@@ -27,6 +27,7 @@ class c:
     default_network = 'local'
     pwd = os.getenv('PWD')
     console = Console()
+    default_key = 'alice'
 
 
     
@@ -4450,11 +4451,7 @@ class c:
 
     
     def resolve_key(self, key: str) -> str:
-        if key == None:
-            key = self.key
-        assert isinstance(key, str)
-        key = self.get_key(key)
-            
+        c.module('key').resolve_key(key)
         return key  
                 
     @classmethod  
@@ -4464,18 +4461,16 @@ class c:
 
     
     @classmethod
-    def set_key(self, key: str, tag=None) -> None:
-        self.get_key(key)
+    def set_key(self, key:str = None) -> None:
+        key = self.get_key(key)
         self.key = key
+        return key
     
     @classmethod
     def add_key(cls, *args, **kwargs):
         return c.module('key').add_key( *args, **kwargs)
     
-    @classmethod
-    def set_network(cls, network: str) -> None:
-        cls.putc('network', network)
-        
+
     def sign(self, data:dict  = None, key: str = None) -> bool:
         key = self.resolve_key(key)
         return key.sign(data) 
@@ -4638,6 +4633,15 @@ class c:
             subspace = cls.subspace(subspace)
             
         return subspace
+    
+    @classmethod
+    def get_network(self, subspace: str = None) -> str:
+        return c.module('subspace')(subspace)
+    
+    def set_network(self, subspace: str = None) -> str:
+        self.network = self.get_network(subspace)
+        
+    
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':

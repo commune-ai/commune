@@ -24,7 +24,8 @@ class Serializer(c.Module):
     various python tensor equivalents. i.e. torch.Tensor or tensorflow.Tensor
     """
 
-    def serialize (self, data: object, mode='bytes') -> 'DataBlock':
+    def serialize(self, data: object, mode='bytes') -> 'DataBlock':
+        data = c.copy(data)
         data_type = self.get_str_type(data)
         block_ref_paths = []
         if data_type in ['dict']:
@@ -32,49 +33,40 @@ class Serializer(c.Module):
             for k_index ,k in enumerate(object_map.keys()):
                 v = object_map[k]
                 block_ref_path = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split('.')))
+                
+                c.print(block_ref_path, v)
+                
                 c.dict_put(data, block_ref_path , self.serialize(data=v, mode='str'))
                 block_ref_paths.append(block_ref_path)
-                
-        serializer = getattr(self, f'serialize_{data_type}')
-        data = serializer( data )
+        else:
+            data = getattr(self, f'serialize_{data_type}')(data)
+            if isinstance(data, dict):
+                data['data'] = self.bytes2str(data['data']) if mode == 'str' else data['data']
+            else:
+                data = self.bytes2str(data) if mode == 'str' else data
+        return {
+            'data': data,
+            'block_ref_paths': block_ref_paths,
+            'data_type': data_type
+        }
 
-        
-        if mode == 'bytes':
-            return data
-        elif mode == 'str':
-            data = c.bytes2str(data)
-            return data
-
-        if isinstance(data, dict):
-            data = {'data_type': data_type, 
-                                            'data': data,
-                                            'block_ref_paths': block_ref_paths, **data}
-            
-            
-        if mode in ['str']:
-            c.print(data)
-            data['data'] = c.bytes2str(data['data'])
-        
-        return data
 
     def deserialize(self, data: 'DataBlock') -> object:
         """Serializes a torch object to DataBlock wire format.
         """
         
-        if isinstance(data, str):
-            data = c.str2bytes(data)
-        c.print(data)
-        data_type = data['data_type']
-        deserializer = getattr(self, f'deserialize_{data_type}')
-        if isinstance(data['data'], str ):
-            data['data'] = c.str2bytes(data['data'])
         block_ref_paths = data['block_ref_paths'] 
-        data = deserializer( data = data['data'])
+        data = data['data']
         if len(block_ref_paths) > 0:
             for block_ref_path in block_ref_paths:
                 block = c.dict_get(data, block_ref_path)
-                block = self.deserialize(data =block)
-                c.dict_put(data, block_ref_path, block)
+                data_type = block['data_type']
+                if isinstance(block['data'], str):
+                    block['data'] = self.str2bytes(block['data'])
+                elif isinstance(block['data'], dict):
+                    block['data']['data'] = self.str2bytes(block['data']['data'])
+                deserialized_data = getattr(self, f'deserialize_{data_type}')(data =block['data'])
+                c.dict_put(data, block_ref_path, deserialized_data)
 
         return data
 
@@ -110,6 +102,16 @@ class Serializer(c.Module):
         data_json_str = json.dumps(data)
         data_json_bytes = msgpack.packb(data_json_str)
         return data_json_bytes
+    
+    @classmethod
+    def bytes2str(cls, x, **kwargs):
+        return msgpack.unpackb(x, **kwargs)
+    
+    @classmethod
+    def str2bytes(cls, x, **kwargs):
+        return msgpack.packb(x, **kwargs)
+        
+
 
     def bytes2dict(self, data:bytes) -> dict:
         json_object_bytes = msgpack.unpackb(data)
@@ -151,7 +153,8 @@ class Serializer(c.Module):
         dtype = eval(dtype)
         shape = data['shape']
         requires_grad = data['requires_grad']
-        data =  self.bytes2torch(data=data, shape=shape, dtype=dtype, requires_grad=requires_grad )
+        c.print(f"deserialize_torch: {dtype}, {shape}, {requires_grad}, {data}")
+        data =  self.bytes2torch(data=data['data'], shape=shape, dtype=dtype, requires_grad=requires_grad )
         return data
 
     def get_str_type(self, data):
@@ -193,9 +196,9 @@ class Serializer(c.Module):
         module = Serializer()
         data = {'bro': {'fam': torch.ones(2,2), 'bro': [torch.ones(1,1)]}}
         proto = module.serialize(data)
-        # c.print(module.deserialize(proto))
         
         c.print(proto)
+        c.print(module.deserialize(proto))
 
     @classmethod
     def test_deserialize(cls):
