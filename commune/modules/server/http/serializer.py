@@ -42,6 +42,7 @@ class Serializer(c.Module):
                                         'data': data,
                                         'block_ref_paths': block_ref_paths}
         
+        
         return output_data
 
     def deserialize(self, data: 'DataBlock') -> object:
@@ -180,7 +181,7 @@ class Serializer(c.Module):
         module = Serializer()
         data = {'bro': {'fam': torch.ones(2,2), 'bro': [torch.ones(1,1)]}}
         proto = module.serialize(data)
-        c.print(module.deserialize(proto))
+        # c.print(module.deserialize(proto))
         
         c.print(proto)
 
