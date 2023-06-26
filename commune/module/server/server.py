@@ -19,9 +19,6 @@ from commune.module.server.serializer import Serializer
 from commune.module.server.proto import ServerServicer
 from commune.module.server.proto import DataBlock
 import signal
-
-if os.getenv('USE_STREAMLIT'):
-    import streamlit as st
 from munch import Munch
 
 

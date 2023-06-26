@@ -14,7 +14,6 @@ import sys
 import os
 import asyncio
 import commune as c
-from commune.module.server.interceptor import ServerInterceptor
 from commune.module.server.serializer import Serializer
 from commune.module.server.proto import ServerServicer
 from commune.module.server.proto import DataBlock
