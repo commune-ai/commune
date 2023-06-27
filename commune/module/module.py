@@ -6084,6 +6084,12 @@ class c:
     @classmethod
     def bro(cls, x):
         return x
+    
+    
+    @classmethod
+    def giturl(cls):
+        return c.cmd('git remote -v').split('\n')[0].split('\t')[1].split(' ')[0]
+    
 
 Module = c
 Module.run(__name__)

@@ -116,6 +116,7 @@ class Serializer(c.Module):
     ################ BIG TORCH LAND ############################
     """
     def torch2bytes(self, data:torch.Tensor)-> bytes:
+    
         if data.requires_grad:
             data = data.detach()
         torch_numpy = np.array(data.cpu().tolist())
@@ -135,7 +136,18 @@ class Serializer(c.Module):
 
     def serialize_torch(self, data: torch.Tensor) -> DataBlock:
 
-        return  self.torch2bytes(data=data)
+        output =   self.torch2bytes(data=data)
+        if isinstance(output, dict):
+           for k,v in output.keys():
+                if isinstance(k, bytes):
+                    k = self.bytes2str(k)
+                if isinstance(v, bytes):
+                    v = self.bytes2str(v)
+                output[k] = v
+        else:
+            # c.print(output, type(output))
+            c.print('BROOOOO')
+        return output
     
     def deserialize_torch(self, data: bytes) -> torch.Tensor:
         data =  self.bytes2torch(data=data )
@@ -178,10 +190,8 @@ class Serializer(c.Module):
     @classmethod
     def test_serialize(cls):
         module = Serializer()
-        data = {'bro': {'fam': torch.ones(2,20), 'bro': [torch.ones(1,1)]}}
+        data = {'bro': {'fam': torch.ones(2,2), 'bro': [torch.ones(1,1)]}}
         proto = module.serialize(data)
-        
-        c.print(proto)
         c.print(module.deserialize(proto))
 
     @classmethod
