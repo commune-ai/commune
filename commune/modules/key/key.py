@@ -166,8 +166,7 @@ class Keypair(c.Module):
     def add_key(cls, path, password=None, refresh=False, **kwargs):
         
         if cls.key_exists(path) and not refresh :
-            c.print({'status': 'error', 'message': f'key already exists at {path}'}, color='red')
-            return None
+            return {'status': 'error', 'message': f'key already exists at {path}'}
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         key = cls.gen(**kwargs)

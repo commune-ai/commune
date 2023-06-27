@@ -21,7 +21,8 @@ class c:
     user = None
     default_ip = '0.0.0.0'
     address = None
-    root_path  = root = os.path.dirname(os.path.dirname(__file__))
+    root_path  = root = libpath = os.path.dirname(os.path.dirname(__file__))
+    modules_path = os.path.join(root_path, 'modules')
     repo_path  = os.path.dirname(root_path)
     library_name = root_dir = root_path.split('/')[-1]
     default_network = 'local'
@@ -162,7 +163,8 @@ class c:
         path = cls.get_module_path(simple=simple)
         path = path.replace('modules.', '')
         return path
-        
+    
+    name = module_path
     module_name = module_path
     @classmethod
     def module_class(cls) -> str:
@@ -931,7 +933,6 @@ class c:
         
         '''
         
-        tmp_dir = c.tmp_dir() if root else cls.tmp_dir()
         
         
         if path.startswith('/'):
@@ -941,6 +942,10 @@ class c:
         elif path.startswith('./'):
             return os.path.abspath(path)
         else:
+            # if it is a relative path, then it is relative to the module path
+            # ex: 'data' -> '.commune/path_module/data'
+            tmp_dir = c.tmp_dir() if root else cls.tmp_dir()
+
             if tmp_dir not in path:
                 path = os.path.join(tmp_dir, path)
             if not os.path.isdir(path):
@@ -1376,6 +1381,10 @@ class c:
     @classmethod
     def has_modules(cls, *args, **kwargs):
         return bool(len(cls.modules(*args, **kwargs)) > 0)
+        
+    @classmethod
+    def has_module(cls, module):
+        return module in cls.module_list()
         
     
     @classmethod
@@ -4239,7 +4248,7 @@ class c:
          return c.module('key').get_key_for_address(address)
 
     @classmethod
-    def get_key(cls, *args,mode='commune', **kwargs) -> None:
+    def get_key(cls,key:str = None ,mode='commune', **kwarg) -> None:
      
         mode2key = {
             'commune': 'key',
@@ -4252,9 +4261,9 @@ class c:
         module = cls.module(key)
         # run get_key if the function exists
         if hasattr(module, 'get_key'):
-            key = module.get_key(*args, **kwargs)
+            key = module.get_key(key, **kwarg)
         else:
-            key = module(*args, **kwargs)
+            key = module(key, **kwarg)
             
         return key
     
@@ -4459,16 +4468,29 @@ class c:
         return c.module('key').keys(*args, **kwargs)
     
 
+
     
     @classmethod
-    def set_key(self, key:str = None) -> None:
+    def set_key(self, key:str = None, **kwargs) -> None:
+        if key == None:
+            key = self.name()
         key = self.get_key(key)
         self.key = key
         return key
     
+    
+    def resolve_keypath(cls, key = None):
+        if key == None:
+            key = cls.module_path()
+        assert isinstance(key, str), 'key must be a string'
+        return key
+    def create_key(cls , key = None):
+        key = cls.resolve_keypath(key)
+        return c.module('key').create_key(key)
+    
     @classmethod
-    def add_key(cls, *args, **kwargs):
-        return c.module('key').add_key( *args, **kwargs)
+    def add_key(cls, key, *args,  **kwargs):
+        return c.module('key').add_key(key, *args, **kwargs)
     
 
     def sign(self, data:dict  = None, key: str = None) -> bool:
@@ -5140,11 +5162,36 @@ class c:
     free_gpus = free_gpu_memory
 
     @classmethod
-    def mkdir( cls, path ):
+    def mkdir( cls, path = 'bro' ):
         """ Makes directories for path.
         """
+        c.print(cls.resolve_path(path))
+        # return os.makedirs( path ) 
         
-        os.makedirs( path ) 
+    @classmethod
+    def new_module( cls,
+                   module = 'abc_module',
+                   module_type='dir'):
+        """ Makes directories for path.
+        """
+        module_path = 'path'
+        module = module.replace('.','/')
+        assert c.has_module(module) == False, f'Module {module} already exists'
+        module_path = os.path.join(c.modules_path, module)
+        c.print(module_path)
+        
+        if module_type == 'dir':
+            c.makedirs(module_path)
+            c.print(f'Created module {module} at {module_path}')
+        else:
+            raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
+        
+        
+        # c.print(cls.resolve_path(path))
+        # return os.makedirs( path ) 
+        
+        
+        
     make_dir= mkdir
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
