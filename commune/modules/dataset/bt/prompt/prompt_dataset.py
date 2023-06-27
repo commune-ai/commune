@@ -1,8 +1,9 @@
 import commune as c
 from datasets import load_dataset
 
-class HFDataset(c.Module):
-    def __init__(self, config = None, **kwargs):
+
+class PromptDataset(c.Module):
+    def __init__(self,  config = None, **kwargs):
         self.set_config(config, kwargs=kwargs)
         self.dataset = load_dataset(**self.config)
         self.split = self.config.split
@@ -27,8 +28,4 @@ class HFDataset(c.Module):
         
         assert isinstance(sample, dict)
         return sample
-    
-    # @staticmethod
-    # def play():
-    #     c.
     
