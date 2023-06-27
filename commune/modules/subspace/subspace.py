@@ -766,13 +766,8 @@ class Subspace(c.Module):
     ###########################
 
     @property
-    def block (self) -> int:
-        r""" Returns current chain block.
-        Returns:
-            block (int):
-                Current chain block.
-        """
-        return self.get_current_block()
+    def block (self, network:str=None) -> int:
+        return self.get_current_block(network=network)
 
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
@@ -817,9 +812,12 @@ class Subspace(c.Module):
         if len(state_dict) == 0:
             if load:
                 save = True
-            subnets = self.subnets(modules=True)
+                
+            subnets =  self.subnets()
+            modules = {s['netuid']: self.modules(netuid=s['netuid'], load=False, save=False)for s in subnets.values()}
             state_dict = {
                 'subnets': subnets,
+                'modules': modules,
                 'block': self.block,
                 'timestamp': c.timestamp(),
                 'balances': self.balances(),
@@ -829,8 +827,7 @@ class Subspace(c.Module):
 
         subnets = state_dict['subnets']
         state_dict['subnet_namespace'] = {s['name']: s['netuid'] for s in subnets.values()}
-        state_dict['namespace'] = {s['netuid']: {m['name']: m['address'] for m in s['modules']}  for s in subnets.values()}
-        state_dict['modules'] = {s['netuid']: s['modules'] for s in subnets.values()}
+        state_dict['namespace'] = {netuid: {m['name']: m['address'] for m in modules} for netuid, modules in state_dict['modules'].items()}
 
         if save:
             self.put(path, state_dict, cache=cache)
@@ -844,7 +841,7 @@ class Subspace(c.Module):
         
         return state_dict
 
-    def subnets(self, modules:bool = False, block: Optional[int] = None, save=False, load=True) -> list:
+    def subnets(self, modules:bool = False, block: Optional[int] = None, save=False, load=False) -> list:
         
         
         
@@ -874,8 +871,6 @@ class Subspace(c.Module):
                     
                 }
             subnets[name] = subnet
-            if modules:
-                subnet['modules'] = self.modules(netuid=netuid)
         if save:
             self.put( f'subnets', subnets)
         return subnets
@@ -923,18 +918,15 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def get_current_block(self) -> int:
+    def get_current_block(self, network=None) -> int:
         r""" Returns the current block number on the chain.
         Returns:
             block_number (int):
                 Current chain blocknumber.
-        """        
-        @retry(delay=2, tries=3, backoff=2, max_delay=4)
-        def make_substrate_call_with_retry():
-            with self.substrate as substrate:
-                return substrate.get_block_number(None)
-        return make_substrate_call_with_retry()
-
+        """     
+        network = self.resolve_network(network)   
+        with self.substrate as substrate:
+            return substrate.get_block_number(None)
 
 
     def get_balance(self, key: str, block: int = None, fmt='j') -> Balance:
