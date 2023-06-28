@@ -148,15 +148,26 @@ class Subspace(c.Module):
     def __str__(self) -> str:
         return f'<Subspace: network={self.network}, url={self.url}>'
     
-    def auth(self, data, key:str = key, network:str=network, netuid = None):
+    def auth(self,
+             module:str = None, 
+             fn:str = None,
+             args: list = None,
+             kwargs: dict = None,
+             key:str = key,
+             network:str=network, netuid = None):
         netuid = self.resolve_netuid(netuid)
+    
         key = self.resolve_key(key)
         data = {
             'network': network,
             'netuid': netuid,
+            'module': module,
+            'fn': fn,
+            'args': args,
+            'kwargs': kwargs,
             'timestamp': int(c.time()),
             'block': self.block, 
-            'data': data
+            
         }
         data = c.python2str(data)
         auth =  {
@@ -167,15 +178,24 @@ class Subspace(c.Module):
         }
         return auth
     
-    def verify(self, auth, max_staleness=60):
+    def verify(self, 
+               auth,
+               max_staleness=100,
+               ensure_registered=True,):
         key = c.module('key')(ss58_address=auth['address'])
         verified =  key.verify(auth['data'], bytes.fromhex(auth['signature']), bytes.fromhex(auth['public_key']))
-        assert verified, 'Signature verification failed.'
+        if not verified:
+            return {'verified': False, 'error': 'Signature is invalid.'}
+        if auth['address'] != key.ss58_address:
+            return {'verified': False, 'error': 'Signature address does not match.'}
+        
         data = c.jload(auth['data'])
-        assert data['timestamp'] > c.time() - max_staleness, 'Signature is too old.'
-        assert auth['address'] == key.ss58_address, 'Address does not match signature.'
-        assert self.is_registered(key,netuid= data['netuid']), 'Key is not registered.'
-        return True
+        
+        if data['timestamp'] < c.time() - max_staleness:
+            return {'verified': False, 'error': 'Signature is stale.', 'timestamp': data['timestamp'], 'now': c.time()}
+        if not self.is_registered(key,netuid= data['netuid']) and ensure_registered:
+            return {'verified': False, 'error': 'Key is not registered.'}
+        return {'verified': True, 'error': None}
     
     #####################
     #### Set Weights ####
@@ -833,8 +853,11 @@ class Subspace(c.Module):
             self.put(path, state_dict, cache=cache)
                 
         if key in state_dict:
-            if netuid in state_dict[key]:
+            if str(netuid) in state_dict[key]:
+                return state_dict[key][str(netuid)]
+            elif netuid in state_dict[key]:
                 return state_dict[key][netuid]
+            
             if default :
                 default = {}
             return state_dict.get(key)
@@ -1182,16 +1205,23 @@ class Subspace(c.Module):
             return modules
        
        
-    def my_modules(self, *args, **kwargs):
+    def my_modules(self, *args, names_only:bool= False,  **kwargs):
         my_modules = []
         address2key = c.address2key()
         for module in self.modules(*args, **kwargs):
             if module['key'] in address2key:
                 my_modules += [module]
-                
+        if names_only:
+            my_modules = [m['name'] for m in my_modules]
         return my_modules
+    
+    def live_keys(self, *args, **kwargs):
+        return [m['key'] for m in self.my_modules(*args, **kwargs)]
                 
 
+    def key_alive(self, key:str, *args, **kwargs):
+        
+        return key in self.live_keys(*args, **kwargs)
 
     @classmethod
     def nodes(cls):

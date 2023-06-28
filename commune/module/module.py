@@ -513,7 +513,6 @@ class c:
 
         cls.dict_put(config, k, v)
         cls.save_config(config=config)
-        c.print(v)
         return v
    
     encc=encryptc
@@ -679,26 +678,26 @@ class c:
     # KEY LAND
     @classmethod
     def add_key(cls, *args, **kwargs):
-        return cls.module('key').add_key(*args, **kwargs)
+        return c.module('key').add_key(*args, **kwargs)
     @classmethod
     def add_keys(cls, *args, **kwargs):
-        return cls.module('key').add_keys(*args, **kwargs)
+        return c.module('key').add_keys(*args, **kwargs)
     @classmethod
     def key_exists(cls, *args, **kwargs):
-        return cls.module('key').key_exists(*args, **kwargs)
+        return c.module('key').key_exists(*args, **kwargs)
     @classmethod
     def ls_keys(cls, *args, **kwargs):
-        return cls.module('key').ls_keys(*args, **kwargs)
+        return c.module('key').ls_keys(*args, **kwargs)
     @classmethod
     def rm_key(cls, *args, **kwargs):
-        return cls.module('key').rm_key(*args, **kwargs)
+        return c.module('key').rm_key(*args, **kwargs)
     @classmethod
     def key_encrypted(cls, *args, **kwargs):
-        return cls.module('key').key_encrypted(*args, **kwargs)
+        return c.module('key').key_encrypted(*args, **kwargs)
 
     @classmethod
     def encrypt_key(cls, *args, **kwargs):
-        return cls.module('key').encrypt_key(*args, **kwargs)
+        return c.module('key').encrypt_key(*args, **kwargs)
         
 
     @classmethod
@@ -730,7 +729,7 @@ class c:
 
     @classmethod
     def st(cls, module = None, fn='dashboard'):
-        module = cls.module(module)
+        module = c.module(module)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
         cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
@@ -1499,7 +1498,6 @@ class c:
         locals_dict = locals_dict if locals_dict != None else {}
         assert isinstance(locals_dict, dict)
         kwargs.update(locals_dict)
-        c.print(locals_dict)
         if merge_kwargs:
             kwargs.update(locals_dict.get('kwargs', {}))
         
@@ -1660,7 +1658,6 @@ class c:
         
         path = cls.resolve_path(path, extension=None, root=root)
         
-        c.print(path)
         if os.path.isdir(path):
             path = os.path.join(path, '**')
             
@@ -1742,12 +1739,16 @@ class c:
                 wait_for_server:bool = False,
                 trials = 3, 
                 verbose: bool = False, 
+                key = None,
                 ignore_error:bool = False,
                 **kwargs ):
+        if key != None:
+            key = cls.get_key(key)
+            
     
         if (name == None and ip == None and port == None):
             return cls.root_module()
-            
+            s
         if wait_for_server:
             cls.wait_for_server(name)
         
@@ -1797,7 +1798,7 @@ class c:
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
         if verbose:
             cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-        client= cls.get_client(ip=ip, port=int(port), virtual=virtual)
+        client= cls.get_client(ip=ip, port=int(port), virtual=virtual, key=key)
         
         return client
      
@@ -1861,10 +1862,11 @@ class c:
             return dict(zip(modules, module_clients))
         return module_clients
 
-    
+    client_module_path = 'module.server.client'
+    server_module_path = 'module.server'
     @classmethod
-    def get_client(cls, *args, virtual:bool = True, **kwargs):
-        client_class = c.module('module.server.client')
+    def get_client(cls, *args, virtual:bool = True,**kwargs):
+        client_class = c.module(cls.client_module_path)
         client = client_class(*args, **kwargs)
         if virtual:
             return client.virtual()
@@ -2206,7 +2208,7 @@ class c:
         if obj is None:
             obj = cls
         if isinstance(obj, str):
-            obj = cls.module(obj)
+            obj = c.module(obj)
         # assert hasattr(obj, '__dict__'), f'{obj} has no __dict__'
         attrs =  dir(obj)
         if search is not None:
@@ -2314,7 +2316,6 @@ class c:
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
-        c.print(kwargs)
         if remote:
             
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
@@ -2518,7 +2519,7 @@ class c:
         obj = obj if obj else cls
         
         if isinstance(obj, str):
-            obj = cls.module(obj)
+            obj = c.module(obj)
             
         function_schema_map = {}
         for fn in cls.get_functions(obj, include_module=include_module):
@@ -2799,7 +2800,6 @@ class c:
                 cmd += f'{cmd_kwargs}'
             
         # c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
-        c.print(cmd)          
         return c.cmd(cmd, verbose=verbose,**kwargs)
         
     @classmethod
@@ -2864,7 +2864,6 @@ class c:
         if verbose:
             cls.print(f'Launching {module} with command: {command}', color='green')
             
-        c.print(command)
         stdout = cls.run_command(command, env=env, verbose=verbose)
         # cls.print(f'STDOUT: \n {stdout}', color='green')
         return stdout
@@ -2964,7 +2963,7 @@ class c:
     
     @classmethod
     def learn(cls, *args, **kwargs):
-        return cls.module('model.transformer').learn(*args, **kwargs)
+        return c.module('model.transformer').learn(*args, **kwargs)
         
     
     @classmethod
@@ -3140,7 +3139,7 @@ class c:
             module_class = cls
 
         else:
-            module_class = cls.module(module)
+            module_class = c.module(module)
             
         name = self.get_module_name(name=name, tag=tag) 
         assert isinstance(name, str)
@@ -3401,19 +3400,25 @@ class c:
         return ray.runtime_context.get_runtime_context()
     
     @classmethod
-    def module_fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
+    def fn(cls, module:str, fn:str , args:list = None, kwargs:dict= None):
         module = c.module(module)
-        fn =  getattr(module, fn)
+        is_self_method = bool(fn in module.self_methods())
+        if is_self_method:
+            module = module()
+            fn = getattr(module, fn)
+        else:
+            fn =  getattr(module, fn)
         if args is None:
             args = []
         if kwargs is None:
             kwargs = {}
-        c.print('module_fn', module, fn, args, kwargs)
+            
+        
         if len(args)>0 or len(kwargs)>0:
             return fn(*args, **kwargs)
         else:
             return fn()
-            
+    module_fn = fn
     
     @classmethod
     def module(cls,module: Any = None ,*args, **kwargs):
@@ -3888,7 +3893,7 @@ class c:
         from accelerate import init_empty_weights
         
         kwargs['trust_remote_code'] = trust_remote_code
-        model = cls.module('model.transformer').shortcuts.get(model, model)
+        model = c.module('model.transformer').shortcuts.get(model, model)
 
         if isinstance(model, str):
             if verbose:
@@ -3917,7 +3922,7 @@ class c:
         if isinstance(model, str):
             model = cls.get_empty_model(model)
             
-            model = cls.module('model').shortcuts().get(model, model)
+            model = c.module('model').shortcuts().get(model, model)
             
         params = {}
         size_in_bytes = 0 
@@ -4248,23 +4253,22 @@ class c:
          return c.module('key').get_key_for_address(address)
 
     @classmethod
-    def get_key(cls,key:str = None ,mode='commune', **kwarg) -> None:
+    def get_key(cls,key:str = None ,mode='commune', **kwargs) -> None:
      
-        mode2key = {
+        mode2module = {
             'commune': 'key',
             'subspace': 'subspace.key',
             'substrate': 'web3.account.substrate',
             'evm': 'web3.account.evm',
             'aes': 'key.aes',
             }
-        key = mode2key[mode]
-        module = cls.module(key)
-        # run get_key if the function exists
+        key = cls.resolve_keypath(key)
+        module = c.module(mode2module[mode])
         if hasattr(module, 'get_key'):
-            key = module.get_key(key, **kwarg)
+            key = module.get_key(key, **kwargs)
         else:
             key = module(key, **kwarg)
-            
+
         return key
     
         
@@ -4368,10 +4372,17 @@ class c:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
+    def auth(self,*args,  key=None, **kwargs):
+        key = self.resolve_key(key)
+        return self.module('subspace')().auth(*args, key=key, **kwargs)
+    
+        
+    
     @classmethod
     async def async_call(cls,
                          module,
                          fn,
+                         network = default_network,
                          *args,
                          **kwargs) -> None:
         
@@ -4459,8 +4470,9 @@ class c:
         return  fn, module
 
     
-    def resolve_key(self, key: str) -> str:
-        c.module('key').resolve_key(key)
+    def resolve_key(self, key: str = None) -> str:
+        key = self.resolve_keypath(key)
+        key = self.get_key(key)
         return key  
                 
     @classmethod  
@@ -4478,7 +4490,7 @@ class c:
         self.key = key
         return key
     
-    
+    @classmethod
     def resolve_keypath(cls, key = None):
         if key == None:
             key = cls.module_path()
@@ -4500,8 +4512,8 @@ class c:
        
     
     @classmethod
-    def verify(cls, data:dict ) -> bool:        
-        return c.module('key').verify(data)
+    def verify(cls, *args, **kwargs ) -> bool:        
+        return c.module('subspace')().verify(*args, **kwargs)
         
     
     @classmethod
@@ -4567,6 +4579,8 @@ class c:
     @classmethod
     def network(cls,  *args, module='subspace', **kwargs) -> str:
         return c.module(module)(*args, **kwargs)
+    
+
 
     def remove_user(self, key: str) -> None:
         if not hasattr(self, 'users'):
@@ -4658,7 +4672,7 @@ class c:
     
     @classmethod
     def get_network(self, subspace: str = None) -> str:
-        return c.module('subspace')(subspace)
+        return c.module('subspace')()
     
     def set_network(self, subspace: str = None) -> str:
         self.network = self.get_network(subspace)
@@ -4820,9 +4834,6 @@ class c:
                                               include_namespace=True, 
                                               timeout=timeout)
         
-        #  add each peer to the registry
-        
-        c.print(peer_info)
 
         if 'error' in peer_info:
             if verbose:
@@ -5165,8 +5176,9 @@ class c:
     def mkdir( cls, path = 'bro' ):
         """ Makes directories for path.
         """
-        c.print(cls.resolve_path(path))
-        # return os.makedirs( path ) 
+
+        path = cls.resolve_path(path)
+        return os.makedirs( path ) 
         
     @classmethod
     def new_module( cls,
@@ -5178,7 +5190,6 @@ class c:
         module = module.replace('.','/')
         assert c.has_module(module) == False, f'Module {module} already exists'
         module_path = os.path.join(c.modules_path, module)
-        c.print(module_path)
         
         if module_type == 'dir':
             c.makedirs(module_path)
@@ -5477,16 +5488,35 @@ class c:
         else:
             raise NotImplemented
         
+
     @staticmethod
-    def is_ss58(value: str) -> bool:
-        try:
-            decoded = base58.b58decode_check(value)
-            # Check if the decoded value starts with a specific prefix byte
-            prefix = decoded[0]
-            return prefix in (0x00, 0x01) # Or any other prefix values you want to allow
-        except ValueError:
+    def is_ss58(address):
+        # Check address length
+        if len(address) != 47:
             return False
         
+        # Check prefix
+        network_prefixes = ['1', '2', '5', '7']  # Add more prefixes as needed
+        if address[0] not in network_prefixes:
+            return False
+        
+        # Verify checksum
+        encoded = '0123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+        address_without_checksum = address[:-1]
+        checksum = address[-1]
+        address_hash = 0
+        for char in address_without_checksum:
+            address_hash = address_hash * 58 + encoded.index(char)
+        
+        # Calculate the expected checksum
+        expected_checksum = encoded[address_hash % 58]
+        
+        # Compare the expected checksum with the provided checksum
+        if expected_checksum != checksum:
+            return False
+        
+        return True
+ 
     @staticmethod
     def is_mnemonic(s: str) -> bool:
         import re
@@ -5502,15 +5532,6 @@ class c:
         pattern = r'^[0-9a-fA-F]{64}$'
         return bool(re.match(pattern, s))
 
-    def is_ss58(value: str) -> bool:
-        try:
-            decoded = base58.b58decode_check(value)
-            # Check if the decoded value starts with a specific prefix byte
-            prefix = decoded[0]
-            return prefix in (0x00, 0x01) # Or any other prefix values you want to allow
-        except ValueError:
-            return False
-        
         
     @classmethod
     def mv(cls, path1, path2):
@@ -5555,17 +5576,17 @@ class c:
     
     @classmethod
     def learn(cls, *args, **kwargs):
-        return cls.module('model.transformer').learn(*args, **kwargs)
+        return c.module('model.transformer').learn(*args, **kwargs)
         
     @classmethod
     def mine(cls,*args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
-        return cls.module('bittensor').mine(*args, **kwargs)
+        return c.module('bittensor').mine(*args, **kwargs)
     
     @classmethod
     def train_fleet(cls, *args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
-        return cls.module('model.transformer').train_fleet(*args, **kwargs)
+        return c.module('model.transformer').train_fleet(*args, **kwargs)
     
     @classmethod
     def miners(cls, prefix='miner'):
@@ -5573,7 +5594,7 @@ class c:
     
     @classmethod
     def check_miners(cls, *args, module='bittensor', **kwargs):
-        return cls.module(module).check_miners( *args, **kwargs)
+        return c.module(module).check_miners( *args, **kwargs)
     
     
     @classmethod
@@ -5968,6 +5989,7 @@ class c:
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if 'self' in v]
     
+    self_methods = self_fns = get_self_methods
 
     @classmethod
     def get_static_methods(cls: Union[str, type], obj=None):
@@ -5978,6 +6000,8 @@ class c:
         functions =  c.get_functions(obj)
         signature_map = {f:cls.get_function_args(getattr(obj, f)) for f in functions}
         return [k for k, v in signature_map.items() if not ('self' in v or 'cls' in v)]
+    
+    static_meethods = static_fns = get_static_methods
     
     @classmethod
     def get_method_type(cls, fn):
@@ -6091,6 +6115,17 @@ class c:
         return c.cmd('git remote -v').split('\n')[0].split('\t')[1].split(' ')[0]
     
 
+    @classmethod
+    def my_modules(cls, *args, **kwargs):
+        return c.module('subspace')().my_modules(*args, **kwargs)
+    
+    
+    @classmethod
+    def partial(cls, fn, *args, **kwargs):
+        from functools import partial
+        return partial(fn, *args, **kwargs)
+        
+    
 Module = c
 Module.run(__name__)
     
