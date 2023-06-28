@@ -2,5 +2,8 @@ import commune as c
 
 # s = c.module('subspace')()
 
-auth = c.module()().auth()
-c.print(c.verify(auth))
+
+module = c.connect('module')
+c.print(module.server_info)
+# auth = c.module()().auth()
+# c.print(c.verify(auth))

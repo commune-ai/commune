@@ -223,7 +223,14 @@ class Server(ServerServicer, Serializer, c.Module):
             self.check_call(fn=fn, args=args, kwargs=kwargs, user=user)
 
             c.print('Calling Function: '+fn, color='cyan')
-            output_data = getattr(self.module, fn)(*args,**kwargs)
+            fn_obj = getattr(self.module, fn)
+            
+            if callable(fn_obj):
+                # if the function is callable (an actual function)
+                output_data = fn_obj(*args, **kwargs)
+            else:
+                # if the function is an attribute
+                output_data = fn_obj
             
             success = True
 
