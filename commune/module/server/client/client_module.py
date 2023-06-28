@@ -94,6 +94,7 @@ class Client( Serializer, c.Module):
             key: 'Key' = None,
             network : 'Network' = c.default_network,
             stats = None,
+            virtual = False,
         ):
         self.set_client(ip =ip,
                         port = port ,
@@ -103,7 +104,10 @@ class Client( Serializer, c.Module):
         self.key = key
         self.network = network
         self.set_stats(stats)
-        self.get_server_info()
+
+        if virtual:
+            self.virtual()
+
         
     def set_stats(self, stats=None): 
         if stats is None:     
@@ -181,16 +185,6 @@ class Client( Serializer, c.Module):
         self.sync_the_async(loop=self.loop)
         self.success = False
 
-
-    def set_server_functions(self):
-        self.server_functions = self.forward(fn='functions', kwargs={'include_module': True})
-        
-        if isinstance(self.server_functions, list):  
-            self.success = True
-            self.server_functions += ['root_address', 'namespace']
-        else:
-            self.success = False
-
     def get_server_info(self):
         self.server_info = self.forward(fn='info')
     
@@ -245,12 +239,12 @@ class Client( Serializer, c.Module):
         self, 
         data = None,
         metadata: dict = None,
-        fn = None,
-        args = None,
-        kwargs = None,
+        fn:str = None,
+        args:list = None,
+        kwargs:dict = None,
         timeout: int = None,
-        results_only = True,
-        verbose=True,
+        results_only: bool = True,
+        verbose: bool =True,
         **added_kwargs
     ) :
         if timeout == None:
@@ -365,12 +359,21 @@ class Client( Serializer, c.Module):
         }
 
     def virtual(self):
-        self.set_server_functions()
+        self.get_server_info()
         module = VirtualModule(module = self) 
-        # module.key = self.key
-        # module.subspce = self.subspace   
         return module
-
+    
+    # protected_attributes = ['virtual']
+    # def getattr(self, key):
+    #     c.print(f"Getting attribute {key}")
+    #     if key in self.protected_attributes:
+    #         return self.__getattr__(key)
+        
+    #     if self.virtual :
+            
+    #         return lambda *args, **kwargs : self.__call__(fn=key, args=args, kwargs=kwargs)
+    #     else:
+    #         return self.__getattr__(key)
 
 # if __name__ == "__main__":
 #     Client.test_module()

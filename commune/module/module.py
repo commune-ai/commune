@@ -1637,8 +1637,15 @@ class c:
 
     @classmethod
     def isdir(cls, path, root:bool = False):
+        path = cls.resolve_path(path=path, root=root)
         return os.path.isdir(path)
-    
+        
+
+    @classmethod
+    def isfile(cls, path, root: bool = False):
+        path = cls.resolve_path(path=path, root=root)
+        return os.path.isfile(path)
+
     @classmethod
     def rm(cls, path, extension=None, root=False):
         path = cls.resolve_path(path=path, extension=extension, root=root)
@@ -1867,11 +1874,12 @@ class c:
     @classmethod
     def get_client(cls, *args, virtual:bool = True,**kwargs):
         client_class = c.module(cls.client_module_path)
-        client = client_class(*args, **kwargs)
-        if virtual:
-            return client.virtual()
-        else:
-            return client
+        client = client_class(*args, virtual=virtual, **kwargs)
+        # if virtual:
+        #     return client.virtual()
+        # else:
+        #     return client
+        return client
     
    
     nest_asyncio_enabled : bool = False
@@ -5173,12 +5181,11 @@ class c:
     free_gpus = free_gpu_memory
 
     @classmethod
-    def mkdir( cls, path = 'bro' ):
+    def mkdir( cls, path = 'bro', exist_ok:bool=True):
         """ Makes directories for path.
         """
-
         path = cls.resolve_path(path)
-        return os.makedirs( path ) 
+        return os.makedirs( path , exist_ok=exist_ok) 
         
     @classmethod
     def new_module( cls,
@@ -5192,7 +5199,7 @@ class c:
         module_path = os.path.join(c.modules_path, module)
         
         if module_type == 'dir':
-            c.makedirs(module_path)
+            c.mkdir(module_path)
             c.print(f'Created module {module} at {module_path}')
         else:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
