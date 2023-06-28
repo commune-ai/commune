@@ -829,7 +829,7 @@ class Subspace(c.Module):
                    netuid: int = 1,
                    network:str= network, 
                    load : bool= False,
-                   save : bool = True,
+                   save : bool = False,
                    dirpath:str = 'chain_states',
                    max_age: str = 60, 
                    default = None,
@@ -847,9 +847,9 @@ class Subspace(c.Module):
             if load:
                 save = True
                 
-            subnets =  self.subnet_state(modules=True)
+
             state_dict = {
-                'state': self.chain_state(),
+                'state': self.subnet_states(),
                 'block': self.block,
                 'timestamp': c.timestamp(),
                 'balances': self.balances(),
@@ -865,9 +865,11 @@ class Subspace(c.Module):
             state_dict['subnets'][s_name]['namespace'] = {s['name']: {m['name']: m['address'] for m in s['modules']} for s in subnets.values()}
 
 
+        netuid = self.resolve_netuid(netuid)
+        
 
 
-        if key in state_dict:
+        if key in state_dict['']:
             
             if default :
                 default = {}
@@ -875,6 +877,14 @@ class Subspace(c.Module):
         
         return state_dict
 
+    def subnet_states(self, *args, **kwargs):
+        subnet_states = {}
+        for netuid in self.netuids():
+            subnet_state = self.subnet_state(*args,  netuid=netuid, **kwargs)
+            subnet_states[subnet_state['name']] = subnet_state
+        return subnet_states
+            
+            
     def subnet_state(self, 
                     include_modules:bool = True,
                     block: Optional[int] = None,
@@ -906,7 +916,7 @@ class Subspace(c.Module):
             }
         if include_modules:
             subnet['modules'] = self.modules( netuid = netuid )
-        return subnets
+        return subnet
             
             
         
@@ -1025,7 +1035,7 @@ class Subspace(c.Module):
     
     def resolve_subnet(self, subnet: Optional[int] = None) -> int:
         if subnet == None:
-            subnet = self.subnet
+            subnet = self.subnets()[0]
         return subnet
     
 
@@ -1182,12 +1192,12 @@ class Subspace(c.Module):
         modules = []
         # self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        if load:
-            # c.print("Warning: load=True and update=False. This will load the last saved state.", style='bold red')
-            modules =  self.state_dict(key='modules', netuid=netuid, 
-                            max_age=max_age,
-                            cache=True, 
-                            load=load, )
+        # if load:
+        #     # c.print("Warning: load=True and update=False. This will load the last saved state.", style='bold red')
+        #     modules =  self.state_dict(key='modules', netuid=netuid, 
+        #                     max_age=max_age,
+        #                     cache=True, 
+        #                     load=load, )
             
         
 
