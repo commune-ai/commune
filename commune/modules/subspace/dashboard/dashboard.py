@@ -12,9 +12,9 @@ class SubspaceDashboard(c.Module):
 
         c.module('streamlit').load_style()
         self.set_config(config=config)
-        self.subspace = ()
-        self.modules = self.subspace.modules(fmt='token', load=False)
-        self.state = c.module('subspace').load_state_dict()
+        self.subspace = c.module('subspace')()
+        self.modules = self.subspace.modules(fmt='token')
+        self.state = self.subspace.state_dict()
         st.write(self.state)
         self.my_modules = self.subspace.my_modules()
         self.namespace = self.subspace.namespace()

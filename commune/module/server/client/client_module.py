@@ -105,9 +105,6 @@ class Client( Serializer, c.Module):
         self.network = network
         self.set_stats(stats)
 
-        if virtual:
-            self.virtual()
-
         
     def set_stats(self, stats=None): 
         if stats is None:     
@@ -255,9 +252,8 @@ class Client( Serializer, c.Module):
         args = args if args else []
         data = data if data else {}
         metadata = metadata if metadata else {}
-        
         if self.key :
-            auth = self.auth(fn=fn, module=self.endpoint, key=self.key.path)
+            auth = self.auth(fn=fn, module=self.endpoint, key=self.key)
         else:
             auth = None
         
@@ -268,15 +264,13 @@ class Client( Serializer, c.Module):
             'auth' : auth,
         })
         
-    
-        
         
         data.update(kwargs)
 
         fn = data.get('fn', None)
         random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
         if verbose:
-            self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout} {args} {kwargs}",color=random_color)
+            self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout} data: {data}",color=random_color)
         
         
         fn_stats = self.stats['fn'].get(fn, self.default_fn_stats)
@@ -310,7 +304,7 @@ class Client( Serializer, c.Module):
             self.stats['errors'] += 1
             
         if verbose:
-            self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), latency: {fn_stats['latency']} ",color=random_color)
+            self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), \n args:{args} \n kwargs:{kwargs} \n latency: {fn_stats['latency']} ",color=random_color)
              
         if results_only:
             response = response.get('data', {}).get('result', response)

@@ -1752,7 +1752,6 @@ class c:
         if key != None:
             key = cls.get_key(key)
             
-    
         if (name == None and ip == None and port == None):
             return cls.root_module()
             s
@@ -1872,13 +1871,12 @@ class c:
     client_module_path = 'module.server.client'
     server_module_path = 'module.server'
     @classmethod
-    def get_client(cls, *args, virtual:bool = True,**kwargs):
+    def get_client(cls, *args,virtual:bool = True, **kwargs):
+        
         client_class = c.module(cls.client_module_path)
-        client = client_class(*args, virtual=virtual, **kwargs)
-        # if virtual:
-        #     return client.virtual()
-        # else:
-        #     return client
+        client = client_class(*args, **kwargs)
+        if virtual:
+            client =  client.virtual()
         return client
     
    
@@ -2285,39 +2283,49 @@ class c:
     
     @classmethod
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
+        if module == None:
+            module = cls 
         if name == None:
             if isinstance(module, str):
-                name = c.module(module).module_path()
+                module = c.module(module)
+            if hasattr(module, 'module_path'):
+                name = module.module_path()
             else:
-                name = cls.module_path()
+                name = module.__name__
+                
+                
             assert name != None, f'Could not resolve name for module {module}'
-            if tag != None:
-                name = f'{name}{tag_seperator}{tag}'
+        if tag != None:
+            name = f'{name}{tag_seperator}{tag}'
         return name
-    
+    resolve_name = resolve_server_name
     @classmethod
     def serve(cls, 
               module:Any = None ,
+              # name related
               name:str=None, 
+              tag:str=None,
+              # networking 
               address:str = None,
               ip:str=None, 
               port:int=None ,
-              context= '',
-              key = None,
-              tag:str=None, 
-              refresh:bool = True, 
-              whitelist:List[str] = None,
-              blacklist:List[str] = None,
-              wait_for_termination:bool = True,
-              wait_for_server:bool = False,
-              wait_for_server_timeout:int = 30,
-              wait_for_server_sleep_interval: int = 1,
-              verbose:bool = False,
+              key = None, # key for server's identity
+              refresh:bool = True, # refreshes the server's key
+              whitelist:List[str] = None, # list of addresses that can connect to the server
+              blacklist:List[str] = None, # list of addresses that cannot connect to the server
+              wait_for_termination:bool = True, # waits for the server to terminate before returning
+              wait_for_server:bool = False, # waits for the server to start before returning
+              wait_for_server_timeout:int = 30, # timeout for waiting for the server to start
+              wait_for_server_sleep_interval: int = 1, # sleep interval for waiting for the server to start
+              verbose:bool = False, # prints out information about the server
               reserve_port:bool = False,
               tag_seperator: str = '::',
               remote:bool = True,
               args:list = None,
-              kwargs:dict = None,):
+              kwargs:dict = None, 
+              update: bool = False
+              
+              ):
         '''
         Servers the module on a specified port
         '''
@@ -2325,11 +2333,9 @@ class c:
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
         if remote:
-            
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
             return cls.remote_fn('serve', name=name, kwargs=remote_kwargs, )
-        
         
         if address != None and port == None and ip == None:
             port = int(address.split(':')[-1])
@@ -2337,14 +2343,9 @@ class c:
         # we want to make sure that the module is loco
         cls.update(network='local')
     
-        if module == None:
-            module = cls
-        elif isinstance(module, str):
-            module = c.module(module)
-        else:
-            module = module
+        module = cls.resolve_module(module)
             
-        self = module(**kwargs)
+        self = module(*args, **kwargs)
              
         whitelist = whitelist if whitelist else self.whitelist
         blacklist = blacklist if blacklist else self.blacklist
@@ -2370,8 +2371,6 @@ class c:
                 self.__dict__[k] = name
 
         Server = c.module('module.server')
-        
-
     
         # ensure the port is free
         if port == None:
@@ -3673,9 +3672,12 @@ class c:
         return ip
     
     @classmethod
-    def resolve_ip(cls, ip=None) -> str:
+    def resolve_ip(cls, ip=None, external:bool=True) -> str:
         if ip == None:
-            ip = cls.external_ip()   
+            if external:
+                ip = c.external_ip()
+            else:
+                ip = '0.0.0.0'
         assert isinstance(ip, str)
         return ip
         
@@ -4271,6 +4273,8 @@ class c:
             'aes': 'key.aes',
             }
         key = cls.resolve_keypath(key)
+        if 'Keypair' in c.type_str(key):
+            return key
         module = c.module(mode2module[mode])
         if hasattr(module, 'get_key'):
             key = module.get_key(key, **kwargs)
@@ -4375,14 +4379,14 @@ class c:
         v = cls.cache.get(k, default)
         return v
 
+    def auth(self,*args,  key=None, **kwargs):
+        key = self.resolve_key(key)
+        return self.module('subspace')().auth(*args, key=key, **kwargs)
+    
     @classmethod
     def call(cls,  *args, loop=None, **kwargs) -> None:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
-    
-    def auth(self,*args,  key=None, **kwargs):
-        key = self.resolve_key(key)
-        return self.module('subspace')().auth(*args, key=key, **kwargs)
     
         
     
@@ -4391,6 +4395,7 @@ class c:
                          module,
                          fn,
                          network = default_network,
+                         key = None,
                          *args,
                          **kwargs) -> None:
         
@@ -4408,18 +4413,9 @@ class c:
         if fn == None:
             fn = 'forward'
             
-        if isinstance(module, list):
-            modules = module
-            jobs = []
-            for m in modules:
-                print(m, fn, args, kwargs)
-                job = cls.async_call(m, fn, *args, **kwargs)
-                jobs.append(job)
-            results = await asyncio.gather(*jobs)
-            return dict(zip(modules, results))
-    
         if isinstance(module, str):
-            module = await cls.async_connect(module)
+            module = await cls.async_connect(module, network=network, key=key)
+            
         result = getattr(module, fn)
         if inspect.iscoroutinefunction(result):
             return await result(*args, **kwargs)
@@ -4479,9 +4475,15 @@ class c:
 
     
     def resolve_key(self, key: str = None) -> str:
-        key = self.resolve_keypath(key)
+        if key == None:
+            key = self.resolve_keypath(key)
         key = self.get_key(key)
         return key  
+    
+    
+    @classmethod
+    def type_str(cls, x):
+        return type(x).__name__
                 
     @classmethod  
     def keys(cls, *args, **kwargs):
@@ -4502,7 +4504,6 @@ class c:
     def resolve_keypath(cls, key = None):
         if key == None:
             key = cls.module_path()
-        assert isinstance(key, str), 'key must be a string'
         return key
     def create_key(cls , key = None):
         key = cls.resolve_keypath(key)
@@ -4520,8 +4521,8 @@ class c:
        
     
     @classmethod
-    def verify(cls, *args, **kwargs ) -> bool:        
-        return c.module('subspace')().verify(*args, **kwargs)
+    def verify(cls, auth, module='subspace', **kwargs ) -> bool:    
+        return c.module(module)(**kwargs).verify(auth)
         
     
     @classmethod
@@ -4691,9 +4692,9 @@ class c:
     def client(cls, *args, **kwargs) -> 'Client':
         return c.module('module.client')(*args, **kwargs)
     
-    @classmethod
-    def serializer(cls, *args, **kwargs) -> 'Serializer':
-        return c.module('module.server.serializer')(*args, **kwargs)
+    # @classmethod
+    # def serializer(cls, *args, **kwargs) -> 'Serializer':
+    #     return c.module('module.server.serializer')(*args, **kwargs)
 
     
     @classmethod
@@ -4701,7 +4702,8 @@ class c:
         metadata = metadata or {}
         if not isinstance(data, dict):
             data = dict(value=data)
-        proto_data =  cls.serializer().serialize(data=data, metadata=metadata ,**kwargs)
+        serializer = c.module('serializer')
+        proto_data =  serializer.serialize(data=data, metadata=metadata ,**kwargs)
         if to_json:
             proto_data = cls.proto2json(proto_data)
             
@@ -5738,6 +5740,10 @@ class c:
     def torch(cls):
         return cls.import_module('torch')
 
+    @classmethod
+    def tensor(cls, *args, **kwargs):
+        return cls.import_object('torch.tensor')(*args, **kwargs)
+
     @staticmethod
     def json2df(json_data):
         """
@@ -6131,6 +6137,26 @@ class c:
     def partial(cls, fn, *args, **kwargs):
         from functools import partial
         return partial(fn, *args, **kwargs)
+        
+        
+    @staticmethod
+    def sizeof( obj):
+        import sys
+        type_str = c.type_str(obj)
+        sizeof = 0
+        if isinstance(obj, dict):
+            for k,v in obj.items():
+                sizeof +=  c.sizeof(k) + c.sizeof(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                sizeof += c.sizeof(v)
+        elif any([k.lower() in c.type_str(obj).lower() for k in ['torch', 'Tensor'] ]):
+
+            sizeof += c.get_tensor_size(obj)
+        else:
+            sizeof += sys.getsizeof(obj)
+                
+        return sizeof
         
     
 Module = c

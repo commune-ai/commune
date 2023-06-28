@@ -1,9 +1,9 @@
 import commune as c
+import torch
+
 
 # s = c.module('subspace')()
-
-
-module = c.connect('module')
-c.print(module.server_info)
+x = {'bro': c.tensor([0,1]*100000)}
+c.print(c.sizeof(x))
 # auth = c.module()().auth()
 # c.print(c.verify(auth))

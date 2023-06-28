@@ -121,8 +121,16 @@ class Serializer(c.Module):
             data = data.detach()
         torch_numpy = np.array(data.cpu().tolist())
         # torch_numpy = data.cpu().numpy().copy()
-        data_buffer = msgpack.packb(torch_numpy, default=msgpack_numpy.encode)
-        return data_buffer
+    
+        output = msgpack.packb(torch_numpy, default=msgpack_numpy.encode)
+        if isinstance(output, dict):
+           for k,v in output.keys():
+                if isinstance(k, bytes):
+                    k = self.bytes2str(k)
+                if isinstance(v, bytes):
+                    v = self.bytes2str(v)
+                output[k] = v
+        return output
 
     def bytes2torch(self, data:bytes, ) -> torch.Tensor:
         numpy_object = msgpack.unpackb(data, object_hook=msgpack_numpy.decode).copy()
@@ -137,16 +145,6 @@ class Serializer(c.Module):
     def serialize_torch(self, data: torch.Tensor) -> DataBlock:
 
         output =   self.torch2bytes(data=data)
-        if isinstance(output, dict):
-           for k,v in output.keys():
-                if isinstance(k, bytes):
-                    k = self.bytes2str(k)
-                if isinstance(v, bytes):
-                    v = self.bytes2str(v)
-                output[k] = v
-        else:
-            # c.print(output, type(output))
-            c.print('BROOOOO')
         return output
     
     def deserialize_torch(self, data: bytes) -> torch.Tensor:
@@ -190,7 +188,7 @@ class Serializer(c.Module):
     @classmethod
     def test_serialize(cls):
         module = Serializer()
-        data = {'bro': {'fam': torch.ones(2,2), 'bro': [torch.ones(1,1)]}}
+        data = {'bro': {'fam': torch.ones(300,2), 'bro': [torch.ones(1,1)]}}
         proto = module.serialize(data)
         c.print(module.deserialize(proto))
 
