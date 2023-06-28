@@ -730,12 +730,13 @@ class Keypair(c.Module):
             return {
                 'data': data.decode(),
                 'crypto': self.crypto_type,
-                'signature': signature.hex()
+                'signature': signature.hex(),
+                'public_key': self.public_key.hex(),
             }
 
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str], public_key:Optional[str]= None) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto = None) -> bool:
         
         """
         Verifies data with specified signature
@@ -750,6 +751,14 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
+        if isinstance(data, dict):
+            if 'data' in data:
+                data = data['data']
+                crypto = data['crypto']
+                signature = data['signature']
+                public_key = data['public_key']
+                
+                
         if public_key == None:
             public_key = self.public_key
 

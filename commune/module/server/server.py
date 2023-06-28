@@ -500,9 +500,4 @@ class Server(ServerServicer, Serializer, c.Module):
         
         
 
-if __name__ == '__main__':
-    import asyncio 
-    import random
-    import streamlit as st
-    Server.test_server()
     

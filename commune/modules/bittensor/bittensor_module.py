@@ -99,7 +99,8 @@ class BittensorModule(c.Module):
       
     @classmethod
     def get_subtensor(cls, network:Union[str, bittensor.subtensor]='local') -> bittensor.subtensor:
-        
+        if network == None:
+            network = cls.default_network
         if isinstance(network, str):
             endpoint = cls.network2endpoint[network]
             subtensor = bittensor.subtensor(chain_endpoint=endpoint)
@@ -602,8 +603,9 @@ class BittensorModule(c.Module):
             metagraph = cls.get_metagraph(netuid=netuid,
                         subtensor=subtensor,
                         load=True)
+        subtensor = cls.get_subtensor(subtensor)
             
-        current_block = cls.block(subtensor=subtensor)
+        current_block = subtensor
         block_staleness = current_block - metagraph.block
         return block_staleness.item()
     
@@ -1803,7 +1805,8 @@ class BittensorModule(c.Module):
         return c.restart(cls.w2m(wallet))
     @classmethod
     def block(cls, subtensor=default_network):
-        return cls.get_subtensor(subtensor).get_current_block()
+        subtensor = cls.get_subtensor(subtensor)
+        return subtensor.get_current_block()
     
     @classmethod
     def burn_fee(cls, subtensor='finney', netuid=default_netuid):
@@ -2114,19 +2117,20 @@ class BittensorModule(c.Module):
         return self.metagraph.dividends.data
     
     @classmethod
-    def start_node(cls, mode='docker'):
+    def start_node(cls, mode='docker', sudo=True):
         if mode == 'docker':
-            return cls.cmd('docker-compose up -d', cwd=cls.chain_repo, verbose=True)
+            return cls.cmd('docker-compose up -d', cwd=cls.chain_repo, verbose=True, sudo=sudo)
         else:
             raise NotImplementedError('Only docker mode is supported at this time.')
     
     @classmethod
-    def node_logs(cls, mode='docker'):
+    def node_logs(cls, mode='docker', sudo=True):
         if mode == 'docker':
-            return cls.cmd('docker ps', cwd=cls.chain_repo, verbose=True)
+            return cls.cmd('docker ps', cwd=cls.chain_repo, verbose=False, sudo=sudo)
         else:
             raise NotImplementedError('Only docker mode is supported at this time.')
     
+
 
 
 

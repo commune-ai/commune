@@ -57,28 +57,24 @@ class VirtualModule:
         Args:
             include_hiddden (bool): If True, include hidden attributes.
         '''
-        from functools import partial
-                
-        for attr in self.module_client.server_functions:
-            # continue if attribute is private and we don't want to include hidden attributes
-            if attr.startswith('_') and (not include_hiddden):
-                continue
-            
-            
-            # set attribute as the remote_call
-            setattr(self, attr,  partial(self.remote_call, attr))
-            self.synced_attributes.append(attr)
-            
+        self.server_info = self.module_client.server_info
+        
             
 
 
-    protected_attributes = ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes']
+    protected_attributes = ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes', 'server_info']
     def __getattr__(self, key):
 
-        if key in self.protected_attributes or key in self.synced_attributes :
+        if key in self.protected_attributes :
             return getattr(self, key)
-        else:
+        # elif key in self.server_info['attributes']:
+        #     return self.module_client(fn='getattr', args=[key])
+        elif key in self.server_info['functions']:
+            return lambda *args, **kwargs: self.module_client(fn=key, args=args, kwargs=kwargs)
+        elif key in self.server_info['attributes']:
             return  self.module_client(fn='getattr', args=[key])
+        else:
+            raise AttributeError(f"VirtualModule has no attribute {key}")
 
 
 
@@ -95,19 +91,19 @@ class Client( Serializer, c.Module):
             max_processes: int = 1,
             timeout:int = 4,
             loop: 'Loop' = None,
-            key: 'Key' = c.default_key,
+            key: 'Key' = None,
             network : 'Network' = c.default_network,
             stats = None,
         ):
-        self.set_network(network)     
         self.set_client(ip =ip,
                         port = port ,
                         max_processes = max_processes,
                         timeout = timeout,
                         loop = loop)
-        self.set_key(key)
-        self.set_network(network)
+        self.key = key
+        self.network = network
         self.set_stats(stats)
+        self.get_server_info()
         
     def set_stats(self, stats=None): 
         if stats is None:     
@@ -163,6 +159,7 @@ class Client( Serializer, c.Module):
             ip, port = ip.split(":")
             port = int(port)
         self.ip, self.port = self.resolve_ip_and_port(ip=ip, port=port)
+        self.address = f"{self.ip}:{self.port}"
         self.set_event_loop(loop)
         channel = grpc.aio.insecure_channel(
             self.endpoint,
@@ -196,7 +193,6 @@ class Client( Serializer, c.Module):
 
     def get_server_info(self):
         self.server_info = self.forward(fn='info')
-        
     
     @property
     def endpoint(self):
@@ -254,7 +250,7 @@ class Client( Serializer, c.Module):
         kwargs = None,
         timeout: int = None,
         results_only = True,
-        verbose=False,
+        verbose=True,
         **added_kwargs
     ) :
         if timeout == None:
@@ -266,11 +262,19 @@ class Client( Serializer, c.Module):
         data = data if data else {}
         metadata = metadata if metadata else {}
         
+        if self.key :
+            auth = self.auth(fn=fn, module=self.endpoint, key=self.key.path)
+        else:
+            auth = None
+        
         data.update({
             'fn' : fn,
             'args' : list(args),
             'kwargs': kwargs,
+            'auth' : auth,
         })
+        
+    
         
         
         data.update(kwargs)
@@ -278,7 +282,7 @@ class Client( Serializer, c.Module):
         fn = data.get('fn', None)
         random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
         if verbose:
-            self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout}",color=random_color)
+            self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout} {args} {kwargs}",color=random_color)
         
         
         fn_stats = self.stats['fn'].get(fn, self.default_fn_stats)
@@ -312,7 +316,7 @@ class Client( Serializer, c.Module):
             self.stats['errors'] += 1
             
         if verbose:
-            self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), time: {stats['time']} ",color=random_color)
+            self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), latency: {fn_stats['latency']} ",color=random_color)
              
         if results_only:
             response = response.get('data', {}).get('result', response)
@@ -368,7 +372,7 @@ class Client( Serializer, c.Module):
         return module
 
 
-if __name__ == "__main__":
-    Client.test_module()
+# if __name__ == "__main__":
+#     Client.test_module()
 
     # st.write(module)
