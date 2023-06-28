@@ -7,46 +7,26 @@ from concurrent import futures
 from typing import Dict, List, Callable, Optional, Tuple, Union
 import sys
 import torch
-import grpc
-from substrateinterface import Keypair
 from loguru import logger
 import sys
 import os
 import asyncio
 import commune as c
-from commune.module.server.interceptor import ServerInterceptor
-from commune.module.server.serializer import Serializer
-from commune.module.server.proto import ServerServicer
-from commune.module.server.proto import DataBlock
 import signal
 
-if os.getenv('USE_STREAMLIT'):
-    import streamlit as st
+
 from munch import Munch
 
 
-class Server(ServerServicer, Serializer, c.Module):
-    """ The factory class for commune.Server object
-    The Server is a grpc server for the commune network which opens up communication between it and other neurons.
-    The server protocol is defined in commune.proto and describes the manner in which forward and backwards requests
-    are transported / encoded between validators and servers
-    """
-    port_range = [50050, 50100]
-    default_ip =  '0.0.0.0'
+class Server( c.Module):
 
     def __init__(
             self,
             module: Union[c.Module, object]= None,
-            name = None,
+            name : str= None,
             ip: Optional[str] = None,
             port: Optional[int] = None,
-            max_workers: Optional[int] = 10, 
-            authenticate = False,
-            maximum_concurrent_rpcs: Optional[int] = 400,
-            thread_pool: Optional[futures.ThreadPoolExecutor] = None,
             timeout: Optional[int] = None,
-            compression:Optional[str] = None,
-            server: Optional['grpc._Server'] = None,
             verbose: bool = True,
             whitelist: List[str] = None,
             blacklist: List[str ] = None,
@@ -56,69 +36,16 @@ class Server(ServerServicer, Serializer, c.Module):
 
 
         ) -> 'Server':
-        r""" Creates a new commune.Server object from passed arguments.
-            Args:
-                thread_pool (:obj:`Optional[ThreadPoolExecutor]`, `optional`):
-                    Threadpool used for processing server queries.
-                server (:obj:`Optional[grpc._Server]`, `required`):
-                    Grpc server endpoint, overrides passed threadpool.
-                port (:type:`Optional[int]`, `optional`):
-                    Binding port.
-                ip (:type:`Optional[str]`, `optional`):
-                    Binding ip.
-                external_ip (:type:`Optional[str]`, `optional`):
-                    The external ip of the server to broadcast to the network.
-                max_workers (:type:`Optional[int]`, `optional`):
-                    Used to create the threadpool if not passed, specifies the number of active threads servicing requests.
-                maximum_concurrent_rpcs (:type:`Optional[int]`, `optional`):
-                    Maximum allowed concurrently processed RPCs.
-                timeout (:type:`Optional[int]`, `optional`):
-                    timeout on the forward requests. 
-                authenticate (:type:`Optional[bool]`, `optional`):
-                    Whether or not to authenticate the server.
-          
-        """ 
 
-
-
-        self.set_event_loop(loop)
-        
-        
-        if name == None:
-            if not hasattr(module, 'module_name'):
-                name = str(module)
-        self.name = name
+        self.loop = c.get_event_loop()    
+        self.module = module
+        self.name = c.resolve_name(name)
         self.timeout = timeout
         self.verbose = verbose
-        self.module = module
-        self.authenticate = authenticate
-        
-        
-        self.ip = ip = ip if ip != None else self.default_ip
-        self.port = port = c.resolve_port(port)
-        while not self.port_available(ip=ip, port=port):
-            port = self.get_available_port(ip=ip)
-            is_port_available =  self.port_available(ip=ip, port=port)
-        
-        self.thread_pool = self.set_thread_pool(thread_pool=thread_pool)
-        
-
-        server = grpc.server( self.thread_pool,
-                            #   interceptors=(ServerInterceptor(blacklist=blacklist,receiver_hotkey=self.wallet.hotkey.ss58_address),),
-                                maximum_concurrent_rpcs = maximum_concurrent_rpcs,
-                                options = [('grpc.keepalive_time_ms', 100000),
-                                            ('grpc.keepalive_timeout_ms', 500000)]
-                            )
-        
-        # set the server compression algorithm
-        self.server = server
-        from commune.module.server.proto import add_ServerServicer_to_server
-        add_ServerServicer_to_server( self, server )
-        self.full_address = str( ip ) + ":" + str( port )
-        self.server.add_insecure_port( self.full_address )
+        self.ip = c.resolve_ip(ip,external=False) # default to '0.0.0.0'
+        self.port = c.resolve_port(port)
+        self.address = str( self.ip ) + ":" + str( self.port )
     
-        self.ip = c.external_ip()
-        self.port = port
         
         # whether or not the server is running
         self.started = False

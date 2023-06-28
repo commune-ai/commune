@@ -218,6 +218,9 @@ class Server(ServerServicer, Serializer, c.Module):
         kwargs = data.get('kwargs', {})
         args = data.get('args', [])
         user = data.get('user', [])
+        auth = data.get('auth', None)
+        if auth != None:
+            c.print(auth)
         try:
             
             self.check_call(fn=fn, args=args, kwargs=kwargs, user=user)

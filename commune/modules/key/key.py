@@ -704,6 +704,8 @@ class Keypair(c.Module):
         signature in bytes
 
         """
+        if not isinstance(data, str):
+            data = c.python2str(data)
         if type(data) is ScaleBytes:
             data = bytes(data.data)
         elif data[0:2] == '0x':
