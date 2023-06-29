@@ -91,7 +91,7 @@ class SubspaceDashboard(c.Module):
 
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Subnet', 'Keys']) 
+        tabs = st.tabs(['Modules', 'Subnet', 'Keys', 'Playground']) 
         with tabs[0]:   
             st.write('# Modules')
             self.module_dashboard()
@@ -99,6 +99,8 @@ class SubspaceDashboard(c.Module):
             self.subnet_dashboard()
         with tabs[2]:
             self.key_dashboard()
+        with tabs[3]:
+            self.playground_dashboard()
             
         # with st.expander('Transfer Module', expanded=True):
         #     self.transfer_dashboard()
@@ -168,11 +170,8 @@ class SubspaceDashboard(c.Module):
             kwargs[k] = v
         return kwargs
     
-    
-
-    def subnet_dashboard(self):
-        st.write(self.subspace.subnets())
-
+    def playground_dashboard(self):
+        st.write('# Playground')
     def module_dashboard(self):
         
         df = pd.DataFrame(self.modules)

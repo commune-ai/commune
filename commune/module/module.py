@@ -29,11 +29,11 @@ class c:
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
-    whitelist = ['getattr', 'functions', 'namespace', 'server_info', 
+    helper_whitelist = ['getattr', 'functions', 'namespace', 'server_info', 
                 'info', 'ip', 'address','ip_address', 'info', 'schema',
                 'module_name', 'modules', 'help']
+    whitelist = []
     blacklist = []
-
 
     
         
@@ -512,7 +512,7 @@ class c:
         config = cls.config()
         assert k in config, f'key {k} not found in config'
         v = cls.dict_get(config, k)
-        assert isinstance(v,str), f'cannot encrypt {v} of type {type(v)}, strings only'
+        # assert isinstance(v,str), f'cannot encrypt {v} of type {type(v)}, strings only'
         if password:
             v = cls.encrypt(v,  password=password)
 
@@ -1379,7 +1379,6 @@ class c:
     @classmethod
     def modules(cls, *args, **kwargs) -> List[str]:
         modules = list(c.namespace(*args, **kwargs).keys())
-        # sorted(modules)
         return modules
     
     @classmethod
@@ -2173,9 +2172,6 @@ class c:
         namespace = c.namespace(**kwargs)
         return bool(name in namespace)
     
-    @classmethod
-    def module_exists(cls, name:str) -> bool:
-        return bool(name in cls.module_list())
     
     @classmethod
     def wait_for_server(cls,
@@ -2305,6 +2301,18 @@ class c:
             name = f'{name}{tag_seperator}{tag}'
         return name
     resolve_name = resolve_server_name
+    
+    @property
+    def whitelist(self):
+        whitelist = c.helper_whitelist
+        is_module = c.is_module(self)
+        if not is_module:
+            whitelist += self.functions() + self.attributes()
+        return whitelist
+            
+    
+    
+    
     @classmethod
     def serve(cls, 
               module:Any = None ,
@@ -2338,6 +2346,7 @@ class c:
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
+        tag = None
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
@@ -2352,9 +2361,14 @@ class c:
         module = cls.resolve_module(module)
             
         self = module(*args, **kwargs)
-             
-        whitelist = whitelist if whitelist else self.whitelist
-        blacklist = blacklist if blacklist else self.blacklist
+
+        if whitelist == None:
+            whitelist = self.whitelist
+        if blacklist == None:
+            blacklist = self.blacklist
+        
+        
+            
     
         # resolve the module id
         
@@ -2493,7 +2507,7 @@ class c:
         
     def info(self , 
              include_schema: bool = False,
-             include_namespace:bool = True,
+             include_namespace:bool = False,
              include_peers: bool = True) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
@@ -4582,8 +4596,9 @@ class c:
     
     
     @classmethod
-    def network(cls,  *args, module='subspace', **kwargs) -> str:
-        return c.module(module)(*args, **kwargs)
+    def network(cls) -> str:
+        return c.resolve_network()
+    net = network
     
 
 
@@ -4662,18 +4677,9 @@ class c:
             tags = list(range(n))
             
         for tag in tags: 
-            cls.deploy(tag=tag, **kwargs)
+            cls.serve(tag=tag, **kwargs)
 
 
-
-    @classmethod
-    def resolve_network(cls, subspace: str) -> str:
-        if subspace == None:
-            subspace = cls.subspace()
-        elif isinstance(subspace, str):
-            subspace = cls.subspace(subspace)
-            
-        return subspace
 
     
     @classmethod
@@ -4972,6 +4978,7 @@ class c:
         if network == None:
             network = config['network']
         return network
+    get_network = resolve_network
     @classmethod
     def set_network(cls, network=None):
         config = c.config()
@@ -4979,27 +4986,22 @@ class c:
         config['network'] = network
         c.save_config(config)
         return network
+    setnet = set_network
     
     @classmethod
     def get_network(self, network=None):
         config = self.config()
         network = config['network']
         return network
+    getnet = get_network
+    resnet = resolve_network
     
     @classmethod
     def update(cls, 
-               network = None,
+               network: str = None,
                verbose:bool = True,
-               min_staleness = 30,
-               
                ):
-        
-            c.resolve_network(network=network)
-
-            c.namespace(network=network,verbose=True, update=True)
-            
-            # cls.root_module()
-
+            c.namespace(network=network,verbose=verbose, update=True)
         
         
     @classmethod
@@ -5426,9 +5428,6 @@ class c:
             prefix = cls.resolve_module(module).module_path()
             name = f'{prefix}{tag_seperator}{fn}'
     
-        if tag != None:
-            name = f'{name}{tag_seperator}{tag}'
-            
             
         cls.launch(fn=fn, 
                    module = module,

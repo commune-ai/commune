@@ -301,6 +301,7 @@ class Subspace(c.Module):
         network: str = None,
 
     ) -> bool:
+        
         network = self.resolve_network(network)
         
         if kwargs is None:
@@ -1297,7 +1298,7 @@ class Subspace(c.Module):
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return {m['name']: m['key'] for m in modules}
-    
+    my_keys = my_module_keys
     def is_my_module(self, name:str):
         return self.name2module(name=name, *args, **kwargs)
     
@@ -1410,12 +1411,9 @@ class Subspace(c.Module):
         
         return [spec for spec in specs if '_raw' not in spec]
     
-
     @classmethod
-    def chains(cls):
-    
-        return 
-    
+    def chains(cls)-> str:
+        return list(cls.chain2spec().keys())   
     
     @classmethod
     def chain2spec(cls, chain = None):
@@ -1444,11 +1442,25 @@ class Subspace(c.Module):
         return cls.chain2spec(chain)
         
     @classmethod
-    def new_chain_spec(self, chain, base_chain:str = 'dev'):
+    def new_chain_spec(self, 
+                       chain,
+                       base_chain:str = 'dev', 
+                       balances : 'List[str, int]' = None,
+                       aura_authorities: 'List[str, int]' = None,
+                       grandpa_authorities: 'List[str, int]' = None,
+                       ):
         base_spec =  self.get_spec(base_chain)
         new_chain_path = f'{self.spec_path}/{chain}.json'
-        c.put_json( new_chain_path, base_spec)
-        return og_spec
+        
+        if balances != None:
+            base_spec['balances'] = balances
+        if aura_authorities != None:
+            base_spec['balances'] = aura_authorities
+        c.put_json( new_chain_path, bascse_spec)
+        
+        return base_spec
+    
+    new_chain = new_chain_spec
 
     @classmethod
     def rm_chain(self, chain):
