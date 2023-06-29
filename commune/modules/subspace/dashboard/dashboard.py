@@ -15,7 +15,6 @@ class SubspaceDashboard(c.Module):
         self.subspace = c.module('subspace')()
         self.modules = self.subspace.modules(fmt='token')
         self.state = self.subspace.state_dict()
-        st.write(self.state)
         self.my_modules = self.subspace.my_modules()
         self.namespace = self.subspace.namespace()
         
@@ -54,18 +53,18 @@ class SubspaceDashboard(c.Module):
                 c.rm_keys(rm_keys)
                             
 
-    default_network = 'commune'
-    def network_management(self):
-        with st.expander('Network', expanded=True):
+    default_subnet = 'commune'
+    def subnet_management(self):
+        with st.expander('Subnet', expanded=True):
         
-            networks = self.subspace.subnets()
-            if len(networks) == 0:
-                networks = [self.default_network]
+            subnets = self.subspace.subnets()
+            if len(subnets) == 0:
+                subnets = [self.default_subnet]
             else:
-                networks = [n['name'] for n in networks]
-            network2index = {n:i for i,n in enumerate(networks)}
-            network = st.selectbox('Network', networks, index=network2index['commune'])
-            self.netuid = self.subspace.subnet2netuid(network)
+                subnets = [n['name'] for n in subnets]
+            subnet2index = {n:i for i,n in enumerate(subnets)}
+            subnet = st.selectbox('Subnet', subnets, index=subnet2index['commune'])
+            self.netuid = self.subspace.subnet2netuid(subnet)
             
            
            
@@ -76,8 +75,8 @@ class SubspaceDashboard(c.Module):
             update = st.button('Update')
             st.write('#### My Modules')
 
-            modules = [m['name'] for m in self.subspace.my_modules()]
-            for module in self.subspace.my_modules():
+            modules = [m for m in self.subspace.my_modules(names_only=False)]
+            for module in modules:
                 with st.expander(module['name'], expanded=False):
                     st.write(module)
             
@@ -92,12 +91,12 @@ class SubspaceDashboard(c.Module):
 
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Network', 'Keys']) 
+        tabs = st.tabs(['Modules', 'Subnet', 'Keys']) 
         with tabs[0]:   
             st.write('# Modules')
             self.module_dashboard()
         with tabs[1]:
-            self.network_dashboard()
+            self.subnet_dashboard()
         with tabs[2]:
             self.key_dashboard()
             
@@ -107,10 +106,10 @@ class SubspaceDashboard(c.Module):
         #     self.staking_dashboard()
         
 
-    def network_dashboard(self):
-        st.write('# Network')
+    def subnet_dashboard(self):
+        st.write('# Subnet')
         
-        self.subnets = self.subspace.subnets()
+        self.subnets = self.subspace.subnets(detail=True)
         df = pd.DataFrame(self.subnets)
         st.write(df)
         if len(df) > 0:
@@ -119,8 +118,8 @@ class SubspaceDashboard(c.Module):
         
         
         for subnet in self.subnets:
-            network = subnet.pop('name', None)
-            with st.expander(network, expanded=True):
+            subnet = subnet.pop('name', None)
+            with st.expander(subnet, expanded=True):
                 st.write(subnet)
         
         # convert into metrics
@@ -137,16 +136,39 @@ class SubspaceDashboard(c.Module):
             if transfer_button:
                 self.transfer(**kwargs)
             
-            
-
-    def staking_dashboard(self):
-        st.write('#### Staking')
-        stake_kwargs = self.function2streamlit(module='subspace', fn='add_stake', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
+    @classmethod
+    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         
-        stake_kwargs['netuid'] = self.netuid
-        st.write('#### Unstaking')
-        unstake_kwargs = self.function2streamlit(module='subspace', fn='unstake', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
-
+        for k,v in kwargs.items():
+            if v == 'None':
+                v = None
+                
+            elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                if v.startswith("f'") or v.startswith('f"'):
+                    v = c.ljson(v)
+                elif v.startswith('[') and v.endswith(']'):
+                    v = v
+                elif v.startswith('{') and v.endswith('}'):
+                    v = v
+                else:
+                    v = v
+                
+            elif k == 'kwargs':
+                continue
+            elif v == 'NA':
+                assert k != 'NA', f'Key {k} not in default'
+            elif v in ['True', 'False']:
+                v = eval(v)
+            else:
+                try:
+                    v = eval(v) 
+                except:
+                    pass
+            
+            kwargs[k] = v
+        return kwargs
+    
+    
 
     def subnet_dashboard(self):
         st.write(self.subspace.subnets())
@@ -158,14 +180,14 @@ class SubspaceDashboard(c.Module):
         with st.expander('Register Module', expanded=True):
             self.launch_dashboard()
             
-        with st.expander('Modules', expanded=True):
+        with st.expander('Modules', expanded=False):
             st.write(self.modules)
             
         # pie of stake per module
         # select fields to show
         
         if len(df)> 0:
-            with st.expander('Module Statistics', expanded=True):
+            with st.expander('Module Statistics', expanded=False):
                 value_field2index = {v:i for i,v in enumerate(list(df.columns))}
                 key_field2index = {v:i for i,v in enumerate(list(df.columns))}
                 value_field = st.selectbox('Value Field', df.columns , index=value_field2index['stake'])
@@ -190,25 +212,30 @@ class SubspaceDashboard(c.Module):
         module  = name = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
 
         
-        network = st.text_input('network', self.config.default_network, key='network')
+        subnet = st.text_input('subnet', self.config.default_subnet, key='subnet')
         c_st = c.module('streamlit')
         c_st.line_seperator()
         st.write(f'#### Module ({module}) Kwargs ')
+        
+        fn_schema = c.get_function_schema(c.module(module), '__init__')
         kwargs = c_st.function2streamlit(module=module, fn='__init__' )
         c_st.line_seperator()
 
-
+        st.write(self.process_kwargs(kwargs , fn_schema))
         register = st.button('Register')
         tag = cols[1].text_input('tag', 'None', key='tag')
         if 'None' == tag:
             tag = None
             
             
+        if 'tag' in kwargs:
+            kwargs['tag'] = tag
 
         if register:
             try:
-                self.subspace.register(module=module,  tag=tag, network=network, kwargs=kwargs)
+                self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs)
             except Exception as e:
+                raise e
                 st.error(e)
 
 

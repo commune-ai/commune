@@ -25,7 +25,7 @@ class c:
     modules_path = os.path.join(root_path, 'modules')
     repo_path  = os.path.dirname(root_path)
     library_name = root_dir = root_path.split('/')[-1]
-    default_network = 'local'
+    default_network = 'subspace'
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
@@ -452,8 +452,9 @@ class c:
         else:
             data = default
             
-        if 'data' in data:
-            data = data['data']
+        if isinstance(data, dict):
+            if 'data' in data:
+                data = data['data']
         return data
     
     @staticmethod
@@ -1557,10 +1558,9 @@ class c:
         except Exception as e:
             cls.print(f'Failed to load json from {path} with error {e}')
             return default
-        if data == None:
-            data = {}
-        if 'data' in data and 'meta' in data:
-            data = data['data']
+        if isinstance(data, dict):
+            if 'data' in data and 'meta' in data:
+                data = data['data']
         
         return data
 
@@ -2426,6 +2426,8 @@ class c:
     @classmethod
     def get_function_signature_map(cls, obj=None, include_module:bool = False):
         function_signature_map = {}
+        if isinstance(obj, str):
+            obj = c.module(obj)
         obj = obj if obj else cls
         for f in cls.get_functions(obj = obj, include_module=include_module):
             if f.startswith('__') and f.endswith('__'):

@@ -224,56 +224,34 @@ class StreamlitModule(c.Module):
 
    
     @classmethod
-    def function2streamlit(cls, 
-                           fn_schema, 
-                           extra_defaults:dict=None,
-                           cols:list=None):
-        if extra_defaults is None:
-            extra_defaults = {}
-
-        st.write('#### Startup Arguments')
-        # refresh = st.checkbox('**Refresh**', False)
-        # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
-        mode = 'pm2'
-        serve = True
-
-        kwargs = {}
-        fn_schema['default'].pop('self', None)
-        fn_schema['default'].pop('cls', None)
-        fn_schema['default'].update(extra_defaults)
+    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
         
-        
+        for k,v in kwargs.items():
+            if v == 'None':
+                v = None
 
-        
-        
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
-        if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
-        st.write(f'cols: {cols}')
-        cols = st.columns(cols)
-
-        for i, (k,v) in enumerate(fn_schema['input'].items()):
-            
-            optional = fn_schema['default'][k] != 'NA'
-            fn_key = k 
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
-                if 'Munch' in k_type or 'Dict' in k_type:
-                    k_type = 'Dict'
-                if k_type.startswith('typing'):
-                    k_type = k_type.split('.')[-1]
-                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            col_idx  = i 
-            if k in ['kwargs', 'args'] and v == 'NA':
+            elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                if v.startswith("f'") or v.startswith('f"'):
+                    v = c.ljson(v)
+                elif v.startswith('[') and v.endswith(']'):
+                    v = v
+                elif v.startswith('{') and v.endswith('}'):
+                    v = v
+                else:
+                    v = v
+                
+            elif k == 'kwargs':
                 continue
+            elif v == 'NA':
+                assert k != 'NA', f'Key {k} not in default'
+            else:
+                v = eval(v) 
             
-
-            
-            col_idx = col_idx % (len(cols))
-            kwargs[k] = cols[col_idx].text_input(fn_key, v)
-            
+        kwargs[k] = v
         return kwargs
     
+    
+
     
     @classmethod
     def style2path(cls, style:str=None) -> str:
@@ -354,10 +332,10 @@ class StreamlitModule(c.Module):
             
             col_idx = col_idx % (len(cols))
             kwargs[k] = cols[col_idx].text_input(fn_key, v, key=f'{key_prefix}.{k}')
-            
+     
+        kwargs = cls.process_kwargs(kwargs, fn_schema)       
             
         return kwargs
-    
         
     @classmethod
     def st_metrics_dict(cls, x:str, num_columns=3):

@@ -428,7 +428,7 @@ def dict_merge(*args):
 
 
 
-async def async_get_json(path, return_type='dict', handle_error=True, default_return = {}):
+async def async_get_json(path, return_type='dict', handle_error=True, default = None):
     from commune.utils.asyncio import async_read, sync_wrapper
     
     try:  
@@ -436,7 +436,7 @@ async def async_get_json(path, return_type='dict', handle_error=True, default_re
         data = json.loads(await async_read(path))
     except FileNotFoundError as e:
         if handle_error:
-            return default_return
+            return default
         else:
             raise e
 
