@@ -820,7 +820,7 @@ class Subspace(c.Module):
                                          save=True, 
                                          load=False,
                                          netuid=netuid)
-        self.put('archive/{network}/balances', self.balances())
+        self.put(f'archive/{network}/balances', self.balances())
 
     def load(self, network:str=None, save:bool = False):
         network = self.resolve_network(network)
@@ -1186,9 +1186,9 @@ class Subspace(c.Module):
             emission = self.emission(netuid=netuid)
             incentive = self.incentive(netuid=netuid)
             dividends = self.dividends(netuid=netuid)
-            stake = self.subnet_stake(netuid=netuid)
-            balances = self.balances()
             weights = self.weights(netuid=netuid)
+            stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
+            balances = self.balances()
             
             
             
@@ -1233,7 +1233,9 @@ class Subspace(c.Module):
         return modules
         
     
-       
+      
+    def names(self, netuid: int = None, **kwargs) -> List[str]:
+        return list(self.namespace(netuid=netuid, **kwargs).keys())
        
     def my_modules(self, *args, names_only:bool= False,  **kwargs):
         my_modules = []
