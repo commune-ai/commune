@@ -217,23 +217,24 @@ class Subspace(c.Module):
     #####################
     def set_weights(
         self,
+        key: 'c.key' = None,
         uids: Union[torch.LongTensor, list] = None,
         weights: Union[torch.FloatTensor, list] = None,
         netuid: int = None,
-        key: 'c.key' = None,
         wait_for_inclusion:bool = True,
         wait_for_finalization:bool = True,
         network = None,
     ) -> bool:
         network = self.resolve_network(network)
         key = self.resolve_key(key)
-        subnet = self.resolve_netuid(netuid)
+        netuid = self.resolve_netuid(netuid)
         if uids is None:
             uids = self.uids()
         if weights is None:
             weights = torch.tensor([1 for _ in uids])
             weights = weights / weights.sum()
         weights = weights * U16_MAX
+        c.print(f'Weights: {weights}')
         weights = weights.tolist()
         c.print(f'Setting weights for {len(uids)} uids..., {len(weights)}')
         # First convert types.
@@ -266,6 +267,7 @@ class Subspace(c.Module):
             c.print(  'Set weights <red>Failed: </red>' + str(response.error_message) )
             return False
 
+    vote = set_weights
 
     @classmethod
     def get_key(cls, uri= None) -> 'c.Key':
@@ -590,7 +592,6 @@ class Subspace(c.Module):
                 
         else:
             c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
-        return False
 
 
 
@@ -614,6 +615,7 @@ class Subspace(c.Module):
         if amount == None:
             amount = old_stake
             
+        amount = self.to_nano(amount)
         old_balance = self.get_balance(  key.ss58_address , fmt='nano')
             
             
@@ -970,7 +972,7 @@ class Subspace(c.Module):
             return substrate.get_block_number(None)
 
 
-    def get_balance(self, key: str, block: int = None, fmt='j') -> Balance:
+    def get_balance(self, key: str, block: int = None, fmt='j', network=None) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -979,7 +981,7 @@ class Subspace(c.Module):
             balance (bittensor.utils.balance.Balance):
                 account balance
         """
-        
+        network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
         
         try:
