@@ -318,8 +318,7 @@ class Subspace(c.Module):
 
         netuid = self.get_netuid_for_subnet(subnet)
 
-        if self.is_registered(key) and netuid != None:
-
+        if self.is_registered(key):
             return self.update_module(key=key, 
                                name=name, 
                                address=address,
@@ -489,50 +488,51 @@ class Subspace(c.Module):
     #################
     def update_module (
         self,
+        key: str ,
         name: str = None,
         address: str = None,
         netuid: int = None,
-        key: str  = None,
-        module:str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
     ) -> bool:
-        if key is None:
-            assert module is not None, "Either key or module must be provided"
-            key = module
+            
         key = self.resolve_key(key)
-        netuid = self.resolve_netuid(netuid)
-        module = self.get_module( key )
+        module = self.key2module(key)
+        netuid = self.resolve_netuid(netuid)   
         
+        if  name == None and address == None:
+            c.print(":cross_mark: [red]Invalid arguments[/red]:[bold white]\n  name: {}\n  address: {}\n  netuid: {}[/bold white]".format(name, address, netuid))
+            return False     
         if name is None:
             name = module['name']
         if address is None:
             address = module['address']
         
-        with c.status(":satellite: Serving module on: [white]{}:{}[/white] ...".format(self.network, netuid)):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='SubspaceModule',
-                    call_function='update_module',
-                    call_params = {'address': address,
-                                'name': name,
-                                'netuid': netuid,
-                            }
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                if wait_for_inclusion or wait_for_finalization:
-                    response.process_events()
-                    if response.is_success:
-                        module = self.get_module( key )
-                        c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{module}[/bold white]')
-                        return True
-                    else:
-                        c.print(f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}')
-                        return False
-                else:
+        with self.substrate as substrate:
+            call_params =  {'address': address,
+                            'name': name,
+                            'netuid': netuid,
+                        }
+            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white]',call_params)
+            call = substrate.compose_call(
+                call_module='SubspaceModule',
+                call_function='update_module',
+                call_params =call_params
+            )
+            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
+            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
+            if wait_for_inclusion or wait_for_finalization:
+                response.process_events()
+                if response.is_success:
+                    module = self.get_module( key )
+                    c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{module}[/bold white]')
                     return True
+                else:
+                    c.print(f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}')
+                    return False
+            else:
+                return True
 
 
     def stake(
@@ -663,7 +663,9 @@ class Subspace(c.Module):
 
     """ Queries subspace named storage with params and block. """
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
-    def query_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [] ) -> Optional[object]:
+    def query_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [], network=None ) -> Optional[object]:
+        self.resolve_network(network)
+        
         with self.substrate as substrate:
             return substrate.query(
                 module='SubspaceModule',
@@ -676,17 +678,24 @@ class Subspace(c.Module):
     def query_map( self, name: str, 
                   block: Optional[int] = None, 
                   params: Optional[List[object]] = [default_netuid] ,
-                  network:str = None
+                  network:str = None,
+                  cache = False,
+                  max_age = 60
+                  
                   ) -> Optional[object]:
 
         network = self.resolve_network(network)
+        
         with self.substrate as substrate:
-            return substrate.query_map(
+            value =  substrate.query_map(
                 module='SubspaceModule',
                 storage_function = name,
                 params = params,
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
+        
+        return value
+        
     
     """ Gets a constant from subspace with module_name, constant_name, and block. """
     def query_constant( self, 
@@ -757,11 +766,9 @@ class Subspace(c.Module):
         if isinstance(key_ss58, str):
             if c.key_exists( key_ss58 ):
                 key_ss58 = c.get_key( key_ss58 ).ss58_address
-        if hasattr(key_ss58, 'ss58_address'):
+        elif hasattr(key_ss58, 'ss58_address'):
             key_ss58 = key_ss58.ss58_address
             
-            
-    
         return key_ss58
     @classmethod
     def resolve_key(cls, key):
@@ -1054,8 +1061,12 @@ class Subspace(c.Module):
         return module
 
 
-    def subnets(self) -> Dict[int, str]:
-        return list(self.subnet_namespace.keys())
+    def subnets(self, detail=False) -> Dict[int, str]:
+        subnets = list(self.subnet_namespace.keys())
+        if detail:
+            subnets = [ self.subnet_state(netuid=subnet) for subnet in subnets]
+        return subnets
+        
 
     def netuids(self) -> Dict[int, str]:
         return list(self.subnet_namespace.values())
@@ -1063,17 +1074,26 @@ class Subspace(c.Module):
 
     
     @property
-    def subnet_namespace(self ) -> Dict[str, str]:
+    def subnet_namespace(self, cache:bool = True, max_age:int=60, network=network ) -> Dict[str, str]:
         
         # Get the namespace for the netuid.
+        cache_path = f'archive/{network}/subnet_namespace'
+        subnet_namespace = {}
+        if cache:
+            cached_subnet_namespace = self.get(cache_path, None, max_age= max_age)
+            if cached_subnet_namespace != None :
+                return cached_subnet_namespace
+            
+            
         records = self.query_map('SubnetNamespace', params=[]).records
         
-        subnet_namespace = {}
         for r in records:
             name = r[0].value
             uid = int(r[1].value)
             subnet_namespace[name] = int(uid)
         
+        if cache:
+            self.put(cache_path, subnet_namespace)
         return subnet_namespace
 
     
@@ -1087,7 +1107,7 @@ class Subspace(c.Module):
         if netuid != None:
             return subnet_reverse_namespace.get(netuid, None)
         return subnet_reverse_namespace
-    def subnet2netuid(self,subnet = None):
+    def subnet2netuid(self,subnet:str = None):
         subnet2netuid = self.subnet_namespace
         if subnet != None:
             return subnet2netuid.get(subnet, None)
@@ -1104,9 +1124,8 @@ class Subspace(c.Module):
             # If the netuid is a subnet name, resolve it to a netuid.
             if subspace_namespace == None:
                 subspace_namespace = self.subnet_namespace
-            else:
-                subspace_namespace = subspace_namespace
-            netuid = subspace_namespace.get(netuid, None)
+            assert netuid in subspace_namespace, f"Subnet {netuid} not found in {subspace_namespace} for chain {self.chain}"
+            netuid = subspace_namespace[netuid]
             
         if netuid == None:
             # If the netuid is not specified, use the default.
@@ -1146,8 +1165,19 @@ class Subspace(c.Module):
         return name2uid
     
     
-    def get_module(self, key:str, netuid:int=None):
-        return self.key2module(key, netuid)
+    def get_module(self, name:str = None, key=None, netuid=None, **kwargs) -> ModuleInfo:
+        if key != None:
+            module = self.key2module(key=key, netuid=netuid, **kwargs)
+        if name != None:
+            module = self.name2module(name=name, netuid=netuid, **kwargs)
+            
+        return module
+        
+        
+    def name2module(self, name:str = None, netuid: int = None, **kwargs) -> ModuleInfo:
+        modules = self.modules(netuid=netuid, **kwargs)
+        name2module = { m['name']: m for m in modules }
+        return name2module[name]
         
         
         
@@ -1161,6 +1191,14 @@ class Subspace(c.Module):
             key_ss58 = self.resolve_key_ss58(key)
             return key2module[key_ss58]
         return key2module
+        
+    def module2key(self, module: str = None, netuid: int = None) -> Dict[str, str]:
+        modules = self.modules(netuid=netuid)
+        module2key =  { m['name']: m['key'] for m in modules }
+        
+        if module != module:
+            return module2key[module]
+        return module2key
         
         
     def module_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
@@ -1245,7 +1283,7 @@ class Subspace(c.Module):
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.namespace(netuid=netuid, **kwargs).keys())
        
-    def my_modules(self, *args, names_only:bool= False,  **kwargs):
+    def my_modules(self, *args, names_only:bool= True,  **kwargs):
         my_modules = []
         address2key = c.address2key()
         for module in self.modules(*args, **kwargs):
@@ -1254,6 +1292,13 @@ class Subspace(c.Module):
         if names_only:
             my_modules = [m['name'] for m in my_modules]
         return my_modules
+    
+    def my_module_keys(self, *args,  **kwargs):
+        modules = self.my_modules(*args, names_only=False, **kwargs)
+        return {m['name']: m['key'] for m in modules}
+    
+    def is_my_module(self, name:str):
+        return self.name2module(name=name, *args, **kwargs)
     
     def live_keys(self, *args, **kwargs):
         return [m['key'] for m in self.my_modules(*args, **kwargs)]
