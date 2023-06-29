@@ -27,6 +27,7 @@ class VirtualModule:
                  include_hiddden: bool = False):
 
         self.synced_attributes = []
+
         '''
         VirtualModule is a wrapper around a Commune module.
         
@@ -40,6 +41,7 @@ class VirtualModule:
             self.success = self.module_client.success
         else:
             self.module_client = module
+        c.print(self.module_client.server_info)
         self.sync_module_attributes(include_hiddden=include_hiddden)
       
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
@@ -67,15 +69,8 @@ class VirtualModule:
 
         if key in self.protected_attributes :
             return getattr(self, key)
-        # elif key in self.server_info['attributes']:
-        #     return self.module_client(fn='getattr', args=[key])
-        elif key in self.server_info['functions']:
-            return lambda *args, **kwargs: self.module_client(fn=key, args=args, kwargs=kwargs)
-        elif key in self.server_info['attributes']:
-            return  self.module_client(fn='getattr', args=[key])
         else:
-            raise AttributeError(f"VirtualModule has no attribute {key}")
-
+            return lambda *args, **kwargs: self.module_client(fn=key, args=args, kwargs=kwargs)
 
 
 class Client( Serializer, c.Module):
