@@ -332,7 +332,7 @@ class Subspace(c.Module):
     
         # Attempt rolling registration.
         call_params = { 
-                    'network': network.encode('utf-8'),
+                    'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
