@@ -172,7 +172,7 @@ class SubspaceDashboard(c.Module):
                 key_field = st.selectbox('Key Field',df.columns, index=value_field2index['name'])
                 
                 # plot pie chart in a funky color
-
+                
                 fig = px.pie(df, values=value_field, names=key_field, title='Module Balances', color_discrete_sequence=px.colors.sequential.RdBu)
                 # show the key field
                 # do it in funky way
@@ -211,6 +211,5 @@ class SubspaceDashboard(c.Module):
             except Exception as e:
                 st.error(e)
 
-SubspaceDashboard.run(__name__)
 
 

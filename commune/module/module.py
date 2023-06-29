@@ -29,6 +29,10 @@ class c:
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
+    whitelist = ['getattr', 'functions', 'namespace', 'server_info', 
+                'info', 'ip', 'address','ip_address', 'info', 'schema',
+                'module_name', 'modules', 'help']
+    blacklist = []
 
 
     
@@ -2404,11 +2408,15 @@ class c:
         
     serve_module = serve
     @classmethod
-    def functions(cls, search = None, include_module=False):
+    def functions(cls, search = None, 
+                  include_module=False):
         functions = cls.get_functions(include_module=include_module)  
+
+        functions = list(set(functions))
         
         if isinstance(search, str):
             functions = [f for f in functions if search in f]
+            
         return functions
 
     fns = functions
@@ -2483,12 +2491,9 @@ class c:
              include_schema: bool = False,
              include_namespace:bool = True,
              include_peers: bool = True) -> Dict[str, Any]:
-        whitelist = self.whitelist
-        blacklist = self.blacklist
-        fns = [ fn for fn in self.fns() if self.is_fn_allowed(fn)]
+        fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
-        
-
+    
         info  = dict(
             address = self.address,
             functions =  fns,
@@ -2511,7 +2516,7 @@ class c:
         self.info()
     @classmethod
     def schema(cls, search = None, *args,  **kwargs):
-        
+
         return {k: v for k,v in cls.get_schema(*args,search=search,**kwargs).items()}
     @classmethod
     def get_schema(cls,
@@ -2534,10 +2539,10 @@ class c:
             if search != None :
                 if search not in fn:
                     continue
-            if callable(getattr(obj, fn )):
+            fn_obj = getattr(obj, fn )
+            if callable(fn_obj):
                 c.print(f'getting schema for {fn}')
                 function_schema_map[fn] = cls.get_function_schema(fn, defaults=defaults, code=code, docs=docs)
-
         return function_schema_map
     
     
@@ -2590,6 +2595,16 @@ class c:
         if code:
             fn_schema['code'] = inspect.getsource(fn)
                 
+
+        fn_args = c.get_function_args(fn)
+        for arg in fn_args:
+            if arg not in fn_schema['input']:
+                fn_schema['input'][arg] = 'NA'
+            if arg in ['self', 'cls']:
+                fn_schema['type'] = arg
+                fn_schema['input'].pop(arg)
+            else:
+                fn_schema['type'] = 'static'
 
         return fn_schema
     
@@ -4030,29 +4045,6 @@ class c:
         logger = cls.resolve_logger()
         return logger.warning(*args, **kwargs)
     
-
-    helper_functions = ['getattr', 'functions', 'namespace', 'server_info', 
-                'info', 'ip', 'address','ip_address', 'info', 'schema',
-                'module_name', 'modules', 'help']
-    @property
-    def whitelist(self) -> List[str]:
-        if isinstance(self.config, dict):
-            if 'whitelist' in self.config:
-                return self.config['whitelist']
-            
-        if self.is_root():
-            return self.helper_functions
-        else:
-            return self.fns(include_module=False) + self.attributes() + self.helper_functions
-    @property
-    def blacklist(self) -> List[str]:
-        if  isinstance(self.config, dict):
-            if 'blacklist' in self.config:
-                return self.config['blacklist']
-        return []
-
-
-
     @classmethod
     def from_json(cls, json_str:str) -> 'Module':
         import json
@@ -5878,6 +5870,8 @@ class c:
         args = inspect.getfullargspec(fn).args
         return args
     
+    fn_args = get_fn_args =  get_function_args
+    
     @classmethod
     def classify_method(cls, fn):
         fn = cls.resolve_fn(fn)
@@ -5918,7 +5912,10 @@ class c:
         return isinstance(fn, property)
 
     @classmethod
-    def get_functions(cls, obj: Any = None, include_module:bool = False, include_parents:bool=False, include_hidden:bool = False) -> List[str]:
+    def get_functions(cls, obj: Any = None,
+                      include_module:bool = False, 
+                      include_parents:bool=False, 
+                      include_hidden:bool = False) -> List[str]:
         '''
         Get a list of functions in a class
         
@@ -5970,6 +5967,7 @@ class c:
                 if f not in module_functions:
                     new_functions.append(f)
             functions = new_functions
+            
             
         return functions
 

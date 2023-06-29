@@ -11,14 +11,14 @@ class HFDataset(c.Module):
         return len(self.dataset)
     
         
-    def sample(self, idx=None):
+    def sample(self, idx:str=None):
         if idx is None:
             idx = c.random_int(len(self))
 
         return self.dataset[idx]
     
     @classmethod
-    def test(cls, *args, module=None, **kwargs):
+    def test(cls, *args, module:str=None, **kwargs):
         cls.print('Testing dataset')
         dataset = cls(*args, **kwargs)
         c.print(dir(dataset))
