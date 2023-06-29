@@ -41,8 +41,6 @@ class VirtualModule:
             self.success = self.module_client.success
         else:
             self.module_client = module
-        c.print(self.module_client.server_info)
-        self.sync_module_attributes(include_hiddden=include_hiddden)
       
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
         
@@ -52,25 +50,17 @@ class VirtualModule:
         else:
             return self.module_client(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
             
-    def sync_module_attributes(self, include_hiddden: bool = False):
-        '''
-        Syncs attributes of the module with the VirtualModule instance.
-        
-        Args:
-            include_hiddden (bool): If True, include hidden attributes.
-        '''
-        self.server_info = self.module_client.server_info
-        
             
 
 
-    protected_attributes = ['synced_attributes', 'module_client', 'remote_call', 'sync_module_attributes', 'server_info']
+    protected_attributes = [ 'module_client', 'remote_call']
     def __getattr__(self, key):
 
         if key in self.protected_attributes :
             return getattr(self, key)
         else:
             return lambda *args, **kwargs: self.module_client(fn=key, args=args, kwargs=kwargs)
+
 
 
 class Client( Serializer, c.Module):
@@ -125,7 +115,6 @@ class Client( Serializer, c.Module):
             asyncio.set_event_loop(loop)
         
         self.loop = loop
-                
         
         
     def resolve_ip_and_port(self, ip, port) -> Tuple[str, int]:
@@ -348,7 +337,6 @@ class Client( Serializer, c.Module):
         }
 
     def virtual(self):
-        self.get_server_info()
         module = VirtualModule(module = self) 
         return module
     
