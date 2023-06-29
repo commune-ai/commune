@@ -8,5 +8,3 @@ class Demo(c.Module):
     def hey(self, x='fam'):
         return f'whadup {x}'
     
-
-Demo.run(__name__)
