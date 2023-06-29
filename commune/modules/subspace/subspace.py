@@ -28,6 +28,7 @@ from commune.modules.subspace.errors import (ChainConnectionError,
 import streamlit as st
 import json
 from loguru import logger
+import os
 logger = logger.opt(colors=True)
 
 
@@ -504,10 +505,10 @@ class Subspace(c.Module):
         if  name == None and address == None:
             c.print(":cross_mark: [red]Invalid arguments[/red]:[bold white]\n  name: {}\n  address: {}\n  netuid: {}[/bold white]".format(name, address, netuid))
             return False     
-        if name is None:
-            name = module['name']
-        if address is None:
-            address = module['address']
+        if name == None:
+            name = ''
+        if address == None:
+            address = ''
         
         with self.substrate as substrate:
             call_params =  {'address': address,
@@ -525,7 +526,7 @@ class Subspace(c.Module):
             if wait_for_inclusion or wait_for_finalization:
                 response.process_events()
                 if response.is_success:
-                    module = self.get_module( key )
+                    module = self.get_module( key=key, netuid=netuid )
                     c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{module}[/bold white]')
                     return True
                 else:
@@ -1409,6 +1410,20 @@ class Subspace(c.Module):
         
         return [spec for spec in specs if '_raw' not in spec]
     
+
+    @classmethod
+    def chains(cls):
+    
+        return 
+    
+    
+    @classmethod
+    def chain2spec(cls, chain = None):
+        chain2spec = {os.path.basename(spec).replace('.json', ''): spec for spec in cls.specs()}
+        if chain != None: 
+            return chain2spec[chain]
+        return chain2spec
+    
     specs = chain_specs
     @classmethod
     def get_spec(cls, chain:str):
@@ -1423,15 +1438,22 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def resolve_chain_spec(cls, chain):
-        if not chain.endswith('.json'):
-            chain = f'{chain}.json'
-        if not cls.spec_exists(chain):
-            chain = f'{cls.spec_path}/{chain}'
-        return chain
+    def resolve_chain_spec(cls, chain = None):
+        if chain == None:
+            chain = cls.network
+        return cls.chain2spec(chain)
         
-        
+    @classmethod
+    def new_chain_spec(self, chain, base_chain:str = 'dev'):
+        base_spec =  self.get_spec(base_chain)
+        new_chain_path = f'{self.spec_path}/{chain}.json'
+        c.put_json( new_chain_path, base_spec)
+        return og_spec
 
+    @classmethod
+    def rm_chain(self, chain):
+        return c.rm(self.resolve_chain_spec(chain))
+    
     @classmethod
     def insert_node_key(cls,
                    node='node01',
