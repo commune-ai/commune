@@ -1743,7 +1743,7 @@ class c:
                 name:str=None, 
                 ip:str=None, 
                 port:int=None , 
-                network : str = default_network,
+                network : str = None,
                 namespace = None,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
@@ -1752,6 +1752,7 @@ class c:
                 key = None,
                 ignore_error:bool = False,
                 **kwargs ):
+        c.resolve_network(network)
         if key != None:
             key = cls.get_key(key)
             
@@ -4899,6 +4900,8 @@ class c:
         # assume that if the result is a dictionary, and it has an error key, then it is an error
         if isinstance(x, dict):
             if 'error' in x:
+                return False
+            if 'success' in x and x['success'] == False:
                 return False
             
         return True
