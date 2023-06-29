@@ -2248,11 +2248,13 @@ class c:
     @classmethod
     def namespace(cls,
                   search = None,
-                  network:str=default_network,
+                  network:str=None,
                   verbose: bool = False,
                   update: bool = False,
                   max_staleness:int = 30,
                   **kwargs):
+        
+        network = cls.resolve_network(network)
         
         if isinstance(search, str) :
             if hasattr(cls, f'{search}_namespace'):
@@ -4672,15 +4674,7 @@ class c:
             subspace = cls.subspace(subspace)
             
         return subspace
-    
-    @classmethod
-    def get_network(self, subspace: str = None) -> str:
-        return c.module('subspace')()
-    
-    def set_network(self, subspace: str = None) -> str:
-        self.network = self.get_network(subspace)
-        
-    
+
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
@@ -4971,13 +4965,36 @@ class c:
         value = self.get_json(key, *args, **kwargs)
         value = value.get('data', None)
         return value
+    
+    @classmethod
+    def resolve_network(cls, network=None):
+        config = c.config()
+        if network == None:
+            network = config['network']
+        return network
+    @classmethod
+    def set_network(cls, network=None):
+        config = c.config()
+        assert network in config['networks'], f'Network {network} not found in {config["networks"]}'
+        config['network'] = network
+        c.save_config(config)
+        return network
+    
+    @classmethod
+    def get_network(self, network=None):
+        config = self.config()
+        network = config['network']
+        return network
+    
     @classmethod
     def update(cls, 
-               network = default_network,
+               network = None,
                verbose:bool = True,
                min_staleness = 30,
                
                ):
+        
+            c.resolve_network(network=network)
 
             c.namespace(network=network,verbose=True, update=True)
             
