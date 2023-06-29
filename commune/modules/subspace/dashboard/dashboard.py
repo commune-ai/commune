@@ -231,11 +231,12 @@ class SubspaceDashboard(c.Module):
             kwargs['tag'] = tag
 
         if register:
-            try:
-                self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs)
-            except Exception as e:
-                raise e
-                st.error(e)
+            response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs)
+            if response['success']:
+                st.success('Module Registered')
+            else:
+                st.error(response['message'])
+                
 
 
 

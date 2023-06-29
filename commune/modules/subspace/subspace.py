@@ -358,10 +358,9 @@ class Subspace(c.Module):
             
             if response.is_success:
                 c.print(":white_heavy_check_mark: [green]Success[/green]")
-                return True
+                return {'success': True, 'message': 'Successfully registered module {} with address {}'.format(name, address)}
             else:
-                c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-                return False
+                return {'success': False, 'message': response.error_message}
     
             
 
@@ -457,9 +456,10 @@ class Subspace(c.Module):
                     c.print("[green]Block Hash: {}[/green]".format( block_hash ))
                     new_balance = self.get_balance( key.ss58_address )
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
-                    return True
+                    return {'success': True, 'message': 'Successfully transferred {} to {}'.format(amount, dest)}
                 else:
                     c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+                    return {'success': False, 'message': response.error_message}
 
 
         
