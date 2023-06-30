@@ -35,9 +35,7 @@ services:
       
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
-
-      # EXTERNAL LIBRARIES (CURRENTLY COMMENTED OUT AND NOT USED)
-      # BITTENSOR
+      - ~/.commune:/root/.commune
       - ~/.bittensor:/root/.bittensor
 
     deploy:
