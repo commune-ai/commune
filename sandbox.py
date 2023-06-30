@@ -1,7 +1,6 @@
 import commune as c
 
 
-c.print(c.connect('dataset.hf').info())
 
 # import torch
 

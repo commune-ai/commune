@@ -1180,6 +1180,7 @@ class c:
         for module in cls.modules():
             if search != None and search in module:
                 cls.kill(module)
+            
         
 
 
@@ -2778,9 +2779,7 @@ class c:
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
         for module in cls.pm2_list():
-            cls.pm2_kill(module)
-            if verbose:
-                cls.print(f'[red] Killed {module}[/red]')      
+            cls.pm2_kill(module, verbose=verbose)
                 
     @classmethod
     def pm2_list(cls, search=None,  verbose:bool = False) -> List[str]:
@@ -2920,9 +2919,11 @@ class c:
         pm2_list = cls.pm2_list()
         if  name not in pm2_list:
             return None
-        if verbose:
-            cls.print(f'Killing {name}', color='red')
+
         cls.run_command(f"pm2 delete {name}", verbose=False)
+        
+        if verbose:
+            cls.print(f'KILLED {name}', color='red')
         return name
     
     
