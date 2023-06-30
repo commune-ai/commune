@@ -54,7 +54,7 @@ class Validator(c.Module):
         # we want to mix more recent scores with older ones
         w = w * self.config.alpha + (1-self.config.alpha) * self.w.get(module_name, 0)
         self.w[module_name] = w
-        if self.count % self.config.save_interval = 0:
+        if self.count % self.config.save_interval == 0:
             self.save()
         if module_name not in module_state:
             module_state[module_name] = []

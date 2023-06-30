@@ -2515,8 +2515,9 @@ class c:
             address = self.address,
             functions =  fns,
             attributes = attributes,
-            name = self.module_name,
-            hash = self.hash,
+            name = self.module_name() if callable(self.module_name) else self.module_name,
+            path = self.module_path(),
+            script_hash = self.script_hash(),
         )
         if include_namespace:
             info['namespace'] = c.namespace()
@@ -6186,7 +6187,7 @@ class c:
         return c.get_text(script_path, *args, **kwargs)
     
     @classmethod
-    def python_hash(cls,  *args, **kwargs):
+    def script_hash(cls,  *args, **kwargs):
         python_script = cls.python_script(*args, **kwargs)
         return c.hash(python_script)
 
