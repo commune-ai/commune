@@ -2516,6 +2516,7 @@ class c:
             functions =  fns,
             attributes = attributes,
             name = self.module_name,
+            hash = self.hash,
         )
         if include_namespace:
             info['namespace'] = c.namespace()
@@ -6177,6 +6178,18 @@ class c:
             sizeof += sys.getsizeof(obj)
                 
         return sizeof
+    
+    @classmethod
+    def python_script(cls, script_path = None, *args, **kwargs):
+        if script_path is None:
+            script_path = cls.filepath()
+        return c.get_text(script_path, *args, **kwargs)
+    
+    @classmethod
+    def python_hash(cls,  *args, **kwargs):
+        python_script = cls.python_script(*args, **kwargs)
+        return c.hash(python_script)
+
         
     
 Module = c
