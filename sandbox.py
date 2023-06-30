@@ -1,20 +1,25 @@
+import requests
 import commune as c
 
+class Web(c.Module):
+    @staticmethod
+    def get_text_from_url(url):
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return None
+        
+    def test(self):
+        print("test"
 
 
-# import torch
+url = "https://cryptomarketpool.com/use-web3-py-in-python-to-call-uniswap/"
 
-# import streamlit as st
-# # set the network
-# c.set_network('subspace')
-# st.write(c.module('demo')())
+web_util = Web()
+text = web_util.get_text_from_url(url)
 
-
-# # st.write(c.network())
-# st.write(c.namespace())
-# module = c.connect('dataset.hf::sup')
-
-
-# st.write(module.info())
-# # auth = c.module()().auth()
-# # c.print(c.verify(auth))
+if text:
+    c.print(text)
+else:
+    c.print("Failed to retrieve the text from the URL.")
