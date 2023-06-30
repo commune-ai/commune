@@ -2616,14 +2616,14 @@ class c:
                 
 
         fn_args = c.get_function_args(fn)
+        fn_schema['type'] = 'static'
         for arg in fn_args:
             if arg not in fn_schema['input']:
                 fn_schema['input'][arg] = 'NA'
             if arg in ['self', 'cls']:
                 fn_schema['type'] = arg
                 fn_schema['input'].pop(arg)
-            else:
-                fn_schema['type'] = 'static'
+                
 
         return fn_schema
     
@@ -6185,11 +6185,27 @@ class c:
         if script_path is None:
             script_path = cls.filepath()
         return c.get_text(script_path, *args, **kwargs)
-    
     @classmethod
     def script_hash(cls,  *args, **kwargs):
         python_script = cls.python_script(*args, **kwargs)
         return c.hash(python_script)
+    
+    @classmethod
+    def match_module_hash(cls, hash:str, module:str=None, *args, **kwargs):
+        '''
+        match the hash of a module
+        '''
+        
+        if module != None:
+            module = c.module(module)
+        else:
+            module = cls
+        return module.script_hash(*args, **kwargs) == hash
+    
+    
+    
+    
+    
 
         
     
