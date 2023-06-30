@@ -1,14 +1,13 @@
 
 
+
 network: subspace # global or local network
 sleep: 0.1 # sleep time between each forward call
 load: False # if true, load the dataset
-save: True # if true, save the dataset
 stats: {} # if true, print the stats
 max_stats_history: 100
 save_interval: 10
-namespace_update_interval: 100
 alpha: 0.9
-ma_keys: ['metric', 'weights']
 timeout: 3
 tag: base
+run: True
