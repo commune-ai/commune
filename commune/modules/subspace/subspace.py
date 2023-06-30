@@ -1212,8 +1212,7 @@ class Subspace(c.Module):
                 netuid: int = default_netuid,
                 fmt='nano', 
                 detail:bool = True,
-                load = True,
-                save = True,
+                cache:bool = True,
                 max_age: int = 60,
                 network = network,
                 keys = None,
@@ -1222,10 +1221,12 @@ class Subspace(c.Module):
                 ) -> Dict[str, ModuleInfo]:
         
         
-        modules = []
-        # self.resolve_network(network)
+        network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
-        
+        cache_path = f"archive/{network}.{netuid}/modules"
+
+        if cache:
+            modules = self.get(cache_path, default=[], max_age=max_age)
 
         if len(modules) == 0 :
              
@@ -1279,6 +1280,8 @@ class Subspace(c.Module):
         for i, m in enumerate(modules):
             modules[i] ={k: m[k] for k in keys}
             
+        if cache or update:
+            self.put(cache_path, modules)
                 
         return modules
         
@@ -1335,8 +1338,6 @@ class Subspace(c.Module):
                               network=network,
                               address=f'{c.external_ip()}:{port}', 
                               name=f'module{key_path}')
-        c.print(subspace.query_map('SubnetNamespace', params=[]).records)
-        c.print(subspace.uids())
         # for key in keys.values():
         #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
 

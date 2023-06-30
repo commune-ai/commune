@@ -1798,10 +1798,8 @@ class c:
                     return None
                 raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
             
-
             port = int(name.split(':')[-1])
 
-                
             ip = name.split(':')[0]
 
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
@@ -5440,10 +5438,13 @@ class c:
 
     rfn = remote_fn
     @classmethod
-    def choice(cls, options:list)->list:
+    def choice(cls, options:Union[list, dict])->list:
         import random
-        assert isinstance(options, list)
+        if isinstance(options, dict):
+            options = list(options.values())
+        assert isinstance(options, list),'options must be a list'
         return random.choice(options)
+    
     
     @classmethod
     def colors(cls):
