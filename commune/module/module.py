@@ -122,6 +122,14 @@ class c:
         removes the PWD with respect to where module.py is located
         '''
         return cls.get_module_path(simple=False)
+    pythonpath = pypath =  filepath
+    @classmethod
+    def configpath(cls) -> str:
+        '''
+        removes the PWD with respect to where module.py is located
+        '''
+        return cls.get_module_config_path()
+    cfgpath = configpath
     
     @classmethod
     def dirpath(cls) -> str:
@@ -347,15 +355,18 @@ class c:
     
     
     @classmethod
-    def resolve_config_path(cls, path= None, root:bool=False) -> str:
+    def resolve_config_path(cls, module= None, root:bool=False) -> str:
         
         module_tree = cls.module_tree()
-        if path in module_tree: 
-            path = module_tree[path].replace('.py', '.yaml')
+        if module in module_tree: 
+            module = module_tree[module].replace('.py', '.yaml')
         else:
             path = cls.__config_file__()
         assert isinstance(path, str)
         return path
+    
+    config_path = resolve_config_path
+    
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = False, root:bool = False) -> Union[Munch, Dict]:
         '''
@@ -2508,24 +2519,25 @@ class c:
     def info(self , 
              include_schema: bool = False,
              include_namespace:bool = False,
-             include_peers: bool = True) -> Dict[str, Any]:
+             include_peers: bool = False) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
     
         info  = dict(
             address = self.address,
-            functions =  fns,
-            attributes = attributes,
-            name = self.module_name() if callable(self.module_name) else self.module_name,
-            path = self.module_path(),
-            script_hash = self.script_hash(),
+            functions =  fns, # get the functions of the module
+            attributes = attributes, # get the attributes of the module
+            name = self.module_name() if callable(self.module_name) else self.module_name, # get the name of the module
+            path = self.module_path(), # get the path of the module
+            chash = self.chash(), # get the hash of the module (code)
         )
+        if include_peers:
+            info['peers'] = self.peers()
+        # EXTRA FEATURES THAT CAN BE ADDED, BUT ARE NOT INCLUDED BY DEFAULT
         if include_namespace:
             info['namespace'] = c.namespace()
         if include_schema:
             info['schema'] = self.schema()
-        if include_peers:
-            info['peers'] = self.peers()
         return info
     
     help = info
@@ -6182,15 +6194,15 @@ class c:
         return sizeof
     
     @classmethod
-    def python_script(cls, script_path = None, *args, **kwargs):
-        if script_path is None:
-            script_path = cls.filepath()
-        return c.get_text(script_path, *args, **kwargs)
+    def code(cls, module = None, *args, **kwargs):
+        module = cls.resolve_module(module)
+        return c.get_text( module.pypath(), *args, **kwargs)
+    pycode = code
     @classmethod
-    def script_hash(cls,  *args, **kwargs):
-        python_script = cls.python_script(*args, **kwargs)
-        return c.hash(python_script)
-    
+    def codehash(cls,  *args, **kwargs):
+        code = cls.code(*args, **kwargs)
+        return c.hash(code)
+    chash = pyhash = codehash
     @classmethod
     def match_module_hash(cls, hash:str, module:str=None, *args, **kwargs):
         '''
