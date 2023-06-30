@@ -6244,6 +6244,21 @@ class c:
             module = cls
         return module.script_hash(*args, **kwargs) == hash
     
+    @classmethod
+    def find_code_line(self, search, *args, **kwargs):
+        code = self.code(*args, **kwargs)
+        found_lines = []
+        for i, line in enumerate(code.split('\n')):
+            if search in line:
+                found_lines.append({'idx': i, 'text': line})
+        if len(found_lines) == 0:
+            return None
+        elif len(found_lines) == 1:
+            return found_lines[0]
+        return found_lines
+    
+    
+    
     
     
     
