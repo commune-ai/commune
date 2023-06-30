@@ -5218,26 +5218,55 @@ class c:
         path = cls.resolve_path(path)
         return os.makedirs( path , exist_ok=exist_ok) 
         
+    def rm_module(self, module):
+        module = module.replace('.','/')
+        module_path = os.path.join(c.modules_path, module)
+        self.rm(module_path)
+        
     @classmethod
     def new_module( cls,
                    module = 'abc_module',
+                   base = 'base',
+                   overwrite = False,
                    module_type='dir'):
         """ Makes directories for path.
         """
         module_path = 'path'
         module = module.replace('.','/')
-        assert c.has_module(module) == False, f'Module {module} already exists'
+        assert c.has_module(module) == False or overwrite, f'Module {module} already exists'
         module_path = os.path.join(c.modules_path, module)
         
+        
         if module_type == 'dir':
-            c.mkdir(module_path)
+            if overwrite:
+                c.rm(module_path)
+            c.mkdir(module_path, exist_ok=overwrite)
             c.print(f'Created module {module} at {module_path}')
         else:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
         
+        base_module = c.module(base)
+        base_code = base_module.code()
+        base_config = base_module.config()
+
+        module = module.replace('/','_')
         
-        # c.print(cls.resolve_path(path))
-        # return os.makedirs( path ) 
+        module_code_path =f'{module_path}/{module}.py'
+        module_config_path = f'{module_path}/{module}.yaml'
+        
+        module_code_lines = []
+        for code_ln in base_code.split('\n'):
+            if all([ k in code_ln for k in ['class','c.Module', ')', '(']]):
+                class_name = module[0].upper() + module[1:] # capitalize first letter
+                class_name = ''.join([m.capitalize() for m in module.split('_')])
+                c
+                indent = code_ln.split('class')[0]
+                code_ln = f'{indent}class {class_name}(c.Module):'
+            module_code_lines.append(code_ln)
+            
+        module_code = '\n'.join(module_code_lines)
+        c.put_text(module_code_path, module_code)
+        c.save_yaml(module_config_path, base_config)
         
         
         
