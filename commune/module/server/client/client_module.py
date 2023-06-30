@@ -226,6 +226,7 @@ class Client( Serializer, c.Module):
         timeout: int = None,
         results_only: bool = True,
         verbose: bool =False,
+   
         **added_kwargs
     ) :
         if timeout == None:
@@ -340,19 +341,4 @@ class Client( Serializer, c.Module):
         module = VirtualModule(module = self) 
         return module
     
-    # protected_attributes = ['virtual']
-    # def getattr(self, key):
-    #     c.print(f"Getting attribute {key}")
-    #     if key in self.protected_attributes:
-    #         return self.__getattr__(key)
-        
-    #     if self.virtual :
-            
-    #         return lambda *args, **kwargs : self.__call__(fn=key, args=args, kwargs=kwargs)
-    #     else:
-    #         return self.__getattr__(key)
 
-# if __name__ == "__main__":
-#     Client.test_module()
-
-    # st.write(module)

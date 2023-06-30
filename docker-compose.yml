@@ -14,20 +14,13 @@ services:
 
       # COMMUNE VOLUME MOUNTS
       - ./commune:/app/commune
-      - ./test:/app/test
-      - ./docs:/app/docs
-      - ./examples:/app/examples
-
-
       # LOCAL COMMUNE MOUNTS AND FILES
       - ./Makefile:/app/Makefile 
       - ./setup.py:/app/setup.py
       - ./commune.sh:/app/commune.sh
       - ./requirements.txt:/app/requirements.txt
       - ./README.md:/app/README.md
-      - ./hardhat.config.js:/app/hardhat.config.js
       - ./scripts:/app/scripts
-      - ./contracts:/app/contracts
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET

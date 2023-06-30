@@ -45,9 +45,6 @@ class EVMAccount(commune.Module, Account):
     def private_key(self):
         return self._private_key
 
-    def set_web3(self, web3: Web3) -> Web3:
-        self.web3 = web3
-        return self.web3
 
     @property
     def key(self) -> str:
