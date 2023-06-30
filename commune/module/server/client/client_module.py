@@ -225,7 +225,7 @@ class Client( Serializer, c.Module):
         kwargs:dict = None,
         timeout: int = None,
         results_only: bool = True,
-        verbose: bool =True,
+        verbose: bool =False,
         **added_kwargs
     ) :
         if timeout == None:
@@ -254,7 +254,7 @@ class Client( Serializer, c.Module):
         fn = data.get('fn', None)
         random_color = random.choice(['red','green','yellow','blue','magenta','cyan','white'])
         if verbose:
-            self.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout} data: {data}",color=random_color)
+            c.print(f"SENDING --> {self.endpoint}::fn::({fn}), timeout: {timeout} data: {data}",color=random_color)
         
         
         fn_stats = self.stats['fn'].get(fn, self.default_fn_stats)
@@ -288,7 +288,7 @@ class Client( Serializer, c.Module):
             self.stats['errors'] += 1
             
         if verbose:
-            self.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), \n args:{args} \n kwargs:{kwargs} \n latency: {fn_stats['latency']} ",color=random_color)
+            c.print(f"SUCCESS <-- {self.endpoint}::fn::({fn}), \n args:{args} \n kwargs:{kwargs} \n latency: {fn_stats['latency']} ",color=random_color)
              
         if results_only:
             response = response.get('data', {}).get('result', response)
