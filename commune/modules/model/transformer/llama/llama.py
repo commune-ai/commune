@@ -20,7 +20,7 @@
 """ PyTorch LLaMA model."""
 import math
 from typing import List, Optional, Tuple, Union, Dict
-import commune
+import commune as c
 import torch
 import torch.utils.checkpoint
 from torch import nn
@@ -35,7 +35,6 @@ from transformers.utils import add_start_docstrings, add_start_docstrings_to_mod
 logger = logging.get_logger(__name__)
 
 import streamlit as st
-
 
 
 
@@ -284,7 +283,9 @@ class LlamaDecoderLayer(nn.Module):
         return outputs
 
 
-class LlamaModel(nn.Module, commune.Module):
+
+
+class LlamaModel(nn.Module, c.Module):
     """
     Transformer decoder consisting of *config.num_hidden_layers* layers. Each layer is a [`LlamaDecoderLayer`]
 
@@ -541,7 +542,7 @@ class LlamaModel(nn.Module, commune.Module):
         return output
     @classmethod
     def load_from_hf(cls, model = 'vicuna-7b-delta-v0'):
-        hf = commune.get_module('huggingface')
+        hf = c.get_module('huggingface')
         weights = hf.get_model_weights(model)
         config = hf.get_model_config(model)
         weights = {k.replace('model.', ''): v for k, v in weights.items()}
@@ -651,8 +652,8 @@ class LlamaModel(nn.Module, commune.Module):
 
             self.config['tokenizer'] = tokenizer
             
-        hf = commune.module('huggingface')
-        tokenizer_class = commune.import_object('commune.model.transformer.llama.LlamaTokenizer')
+        hf = c.module('huggingface')
+        tokenizer_class = c.import_object('commune.modules.model.transformer.llama.LlamaTokenizer')
         path = hf.get_model_path('llama')
         tokenizer = tokenizer_class.from_pretrained(path)
    
@@ -727,11 +728,3 @@ class LlamaModel(nn.Module, commune.Module):
             if k in state_dict.keys():
                 state_dict[k] = new_state_dict[k]
         self.load_state_dict(state_dict)
-        
-if __name__ == "__main__":
-
-    
-    LlamaModel.test()
-    # st.write(list(self.params('layers.').keys()))
-    # st.write(self.params())
-    
