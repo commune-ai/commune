@@ -16,9 +16,10 @@ class Validator(c.Module):
         self.modules = self.state['modules']
         self.namespace = self.state['namespace']
         self.state = self.config.get('state', self.state)
-        self.state['response_history'] = []
         self.module_info = {}
+        self.response_history = {}
         self.w = {}
+        self.count = 0
         if run:
             self.run()
         
@@ -52,6 +53,7 @@ class Validator(c.Module):
 
         response = {'module': module_name, 'w': w, 'error': error}
         
+        self.count += 1
         if verbose:
             c.print(response, color='white')
             
@@ -63,10 +65,18 @@ class Validator(c.Module):
         # we want to mix more recent scores with older ones
         w = w * self.config.alpha + (1-self.config.alpha) * self.w.get(module_name, 0)
         self.w[module_name] = w
-        self.put('w', self.w)
-        self.state['response_history'].append(response)
-        self.state['w'] = self.w
+        if self.count % self.config.save_interval = 0:
+            self.put('w', self.w)
+        if module_name not in self.response_history:
+            self.response_history[module_name] = []
+        self.response_history[module_name].append(response)
     
+
+    def save(self, tag=None):
+        tag = self.config.tag if tag == None else tag
+        
+        self.put(f'{tag}/w', self.w)
+         self.put(f'{tag}/response_history', self.response_history)
 
     def run(self):
         
