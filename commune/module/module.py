@@ -15,6 +15,30 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 
 
+@classmethod
+def cache_result(cls, func):
+    import functools
+    
+    def wrapper(*args, **kwargs):
+        fn_name = func.__name__
+        cache = kwargs.pop('cache', True)
+        update = kwargs.pop('update', False)
+        max_age = kwargs.pop('max_age', 60)
+
+        if cache and not update:
+            cls.get(fn_name, max_age=max_age, cache=cache)
+
+        result = func(*args, **kwargs)
+        
+        if cache:
+            cls.put(fn_name, result, cache=cache)
+
+        return result
+
+    return wrapper
+
+
+
 class c:
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
@@ -359,7 +383,7 @@ class c:
         
         module_tree = cls.module_tree()
         if module in module_tree: 
-            module = module_tree[module].replace('.py', '.yaml')
+            path = module_tree[module].replace('.py', '.yaml')
         else:
             path = cls.__config_file__()
         assert isinstance(path, str)
@@ -428,9 +452,9 @@ class c:
         
     @classmethod
     def get(cls,
-            key, 
-            default=None, 
-            password=None, 
+            key:str, 
+            default: Any=None, 
+            password: str=None, 
             mode:str = 'json',
             max_age:str = None,
             cache :bool = True,
@@ -861,6 +885,7 @@ class c:
         from importlib import import_module
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
+        c.print(f'Importing {object_name} from {module}', color='green')
         if verbose:
             cls.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
@@ -1238,14 +1263,7 @@ class c:
             simple_path = simple_path.replace('modules.', '')
         return simple_path
     
-    @classmethod
-    def get_module_python_object_paths(cls):
-        module_python_paths = cls.get_module_python_paths()
-        module_python_object_paths = []
-        for path in module_python_paths:
-            module_python_object_paths  += [cls.root_dir+'.'+path.split(cls.root_dir)[-1][1:].replace('/', '.').replace('.py', '')]
-            
-        return module_python_object_paths
+
             
     @staticmethod
     def compress_name( name, seperator='.', suffixes = ['_module', 'module']):
@@ -1304,13 +1322,12 @@ class c:
 
 
     @classmethod
-    def find_python_class(cls, path:str = None, class_index=0, search = None, start_lines=200):
+    def find_python_class(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
         import re
+        c.print(path)
         
-        if path is None:
-            path = cls.filepath()
         # read the contents of the Python script file
-        python_script = cls.readlines(path, end_line = start_lines)
+        python_script = cls.readlines(path, end_line = start_lines, resolve=False)
         class_names  = []
         lines = python_script.split('\n')
         
@@ -1320,6 +1337,10 @@ class c:
             self_ref_condition = 'key_elements' not in line
 
             has_class_bool = all([key_element in line for key_element in key_elements])
+            if has_class_bool:
+                c.print(has_class_bool, line)
+            if 'nn.Module' in line:
+                c.print(line, has_class_bool,  color='red')
             other_exceptions = ['ModuleWrapper' in line, 'key_elements' in line]
             has_exception = any([exception for exception in other_exceptions])
             if has_class_bool and (not has_exception):
@@ -1364,8 +1385,21 @@ class c:
         path = cls.path2objectpath(path)
         return cls.import_object(path)
 
+
     @classmethod
-    def module_tree(cls, search=None, mode='path') -> List[str]:
+    def module_tree(cls, search=None, 
+                    mode='path', 
+                    cache:bool = True,
+                    update:bool = False,
+                    max_age:int=60,) -> List[str]:
+        
+        if cache and not update:
+            cache_path = 'module_tree'
+            module_tree = c.get(cache_path, max_age=max_age, cache=True)
+            if module_tree != None:
+                return module_tree
+            
+            
         assert mode in ['path', 'object']
         module_tree = {}
         if mode == 'path':
@@ -1378,7 +1412,8 @@ class c:
         # to use functions like c. we need to replace it with module lol
         if cls.root_module_class in module_tree:
             module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
-
+        if cache or update:
+            c.put('module_tree', module_tree, cache=cache)
         return module_tree
     
     available_modules = tree = module_tree
@@ -5092,9 +5127,14 @@ class c:
            
            
     @classmethod
-    def readlines(self, path:str, start_line:int = 0, end_line:int = 0, root=False) -> List[str]:
+    def readlines(self, path:str,
+                  start_line:int = 0,
+                  end_line:int = 0, 
+                  root=False, 
+                  resolve:bool = True) -> List[str]:
         # Get the absolute path of the file
-        path = self.resolve_path(path, root=root)
+        if resolve:
+            path = self.resolve_path(path, root=root)
         # Read the contents of the file
         with open(path, 'r') as file:
             lines = file.readlines()

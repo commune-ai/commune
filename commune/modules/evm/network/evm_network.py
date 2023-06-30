@@ -74,7 +74,7 @@ class EVMNetwork(c.Module):
 
     def __init__(self, config=None, **kwargs):
         self.set_config(config=config, kwargs=kwargs)
-        self.set_network(config.network)
+        self.set_network(self.config.network)
 
     @property
     def network(self):
