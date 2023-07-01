@@ -39,11 +39,9 @@ class TransformerModel(Model):
     default_tag = default_config.tag
     
     def __init__(self,
-                 model = 'llama',
                  config = None,
                  **kwargs
                 ):
-        kwargs['model'] = model
         config = self.set_config(config=config, kwargs=kwargs)
         self.set_model(config)
         
@@ -58,6 +56,7 @@ class TransformerModel(Model):
         input_ids = self.tokenize(text)['input_ids']
         output_ids =  self.model.generate(input_ids, **kwargs)
         output_text = self.detokenize(output_ids, skip_special_tokens=True)
+        
         return output_text
     
     @classmethod
@@ -92,6 +91,8 @@ class TransformerModel(Model):
                 tag : str = None,                           
                 **kwargs):
         
+        if isinstance(input_ids, str) or isinstance(input_ids, list):
+            input_ids = self.tokenize(input_ids)['input_ids']
         # resolve the output length
         output_length = output_length or self.config.output_length or input_ids.shape[1]
         if output_length > input_ids.shape[1]:
@@ -247,30 +248,6 @@ class TransformerModel(Model):
         for k in ensure_keys:
             assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
 
-
-    def resolve_config(self, config):
-        
-        # if we are using a shortcut, we need to set the model path
-        config['model'] = self.shortcuts.get(config['model'], config['model'])
-        
-        # if we are using a tokenizer, we need to set the tokenizer path
-        if not hasattr(config, 'tokenizer') or config.tokenizer == None:
-            config.tokenizer = config.model
-
-        if config.device_map == None:
-            model = self.get_empty_model(config.model, trust_remote_code=config.trust_remote_code)
-            config.model_size = self.get_model_size(model)
-            config.excpeted_model_size = config.model_size*config.model_inflation_ratio
-            config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
-                                                max_gpu_ratio=config.max_gpu_ratio,
-                                                reserve=config.reserve_gpus)
-
-            config.device_map= self.infer_device_map(model, max_memory=config.max_memory)
-            
-        assert config.device_map != None, 'device_map must be set'
-        return config
-
-    
     def set_model(self, config) -> None: 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
@@ -278,11 +255,17 @@ class TransformerModel(Model):
         # init pytorch module state
         self.init_nn()
         
-        config = self.resolve_config(config)
-        
-        
-        
+        # if we are using a shortcut, we need to set the model path
+        config['model'] = self.shortcuts.get(config.model, config.model)
+        config.tokenizer = config.tokenizer if config.tokenizer else config.model
         self.set_tokenizer(config.tokenizer)
+
+
+        if config.device_map == None:
+            config.device_map= c.infer_device_map(config.model, max_memory=config.max_memory)
+            
+        assert config.device_map is not None, f'could not infer device map for {config.model}'
+        
 
         model_kwargs=dict(
 
@@ -297,6 +280,7 @@ class TransformerModel(Model):
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))
         self.device = config.device = config.devices[0]
+        
         
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
@@ -350,20 +334,15 @@ class TransformerModel(Model):
         except ValueError:
             
             print('resorting ot use_fast = False')
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
-            except ValueError as e:
-                print('resorting ot use_fast = False')
-                tokenizer = c.import_object('commune.modules.model.transformer.llama.LlamaTokenizer').from_pretrained(tokenizer, use_fast=False)
-                
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
 
-        c.print('tokenizer', tokenizer)
-
+        if not hasattr(tokenizer, 'pad_token') or tokenizer.pad_token is None:
+            assert hasattr(tokenizer, 'eos_token') and tokenizer.eos_token is not None
+            tokenizer.add_special_tokens({'pad_token': tokenizer.eos_token})
+            
+        c.print('tokenizer', tokenizer.pad_token, tokenizer.eos_token)
         self.tokenizer = tokenizer
-        
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-
+                
         return self.tokenizer
 
     
@@ -704,14 +683,20 @@ class TransformerModel(Model):
             max_memory = cls.max_gpu_memory(model_size)    
 
         device_map = infer_auto_device_map(model,  **kwargs) 
-        
-        return device_map
+        gpu2layers = {}
+        for layer, gpu in device_map.items():
+            if gpu not in gpu2layers:
+                gpu2layers[gpu] = []
+            gpu2layers[gpu].append(layer)
+        c.print(gpu2layers)
+        c.print(max_memory)
+        # return device_map
     
     
 
       
     @classmethod
-    def deploy(cls,
+    def serve(cls,
                model: str,
                tag = None,
                refresh = True,    
@@ -719,16 +704,15 @@ class TransformerModel(Model):
               ):
         
         config = cls.get_config(kwargs=kwargs)
-
-
-        name = f'model.{model}'
-        if tag != None:
-            name += '::'+tag
-
-        cls.serve(name=name,
-                    kwargs=kwargs,
-                    refresh = refresh,
-                    verbose=True)
+        config.tag = tag
+        config.model = model
+        c.print(config)
+        c.serve(module=cls.module_path(),
+                name= f'model.{model}',
+                tag = tag,
+                kwargs={'config': config},
+                refresh = refresh,
+                verbose=True, **kwargs)
         
             
     @classmethod

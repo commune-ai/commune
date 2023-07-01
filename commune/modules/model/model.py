@@ -471,9 +471,9 @@ class Model( nn.Module, commune.Module):
                 
         return total_params
 
-    # @classmethod
-    # def deploy(cls, *args, **kwargs):
-    #     return cls.base_model().deploy(*args, **kwargs)
+    @classmethod
+    def serve(cls, *args, **kwargs):
+        return cls.base_model().serve(*args, **kwargs)
 
 
     @classmethod
