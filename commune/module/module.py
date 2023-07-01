@@ -6285,6 +6285,31 @@ class c:
         return module.script_hash(*args, **kwargs) == hash
     
     
+    def tokenizer(self, tokenizer='gpt2', *args, **kwargs):
+        from transformers import AutoTokenizer
+        return AutoTokenizer.from_pretrained(tokenizer, *args, **kwargs)
+    
+    def tokenize(self, text, tokenizer='gpt2', *args, **kwargs):
+        return self.tokenizer(tokenizer, *args, **kwargs).encode(text)
+    def detokenize(self, tokens, tokenizer='gpt2', *args, **kwargs):
+        return self.tokenizer(tokenizer, *args, **kwargs).decode(tokens)
+
+    
+    def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
+        code = self.code()
+        code_lines = code.split('\n')
+        c.tokenizer()
+        if mode == 'lines':
+            code_lines
+        else:
+            raise ValueError(f'unknown mode {mode}')
+        return 
+    
+    
+    @classmethod
+    def register(cls, *args, **kwargs):
+        return c.module('subspace')().register(*args, **kwargs)
+    
     
     
     

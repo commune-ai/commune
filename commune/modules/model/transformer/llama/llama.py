@@ -647,7 +647,6 @@ class LlamaModel(nn.Module, c.Module):
         from commune.utils.tokenizer import prep_tokenizer
 
 
-        
         if isinstance(tokenizer, str):
 
             self.config['tokenizer'] = tokenizer
@@ -656,11 +655,7 @@ class LlamaModel(nn.Module, c.Module):
         tokenizer_class = c.import_object('commune.modules.model.transformer.llama.LlamaTokenizer')
         path = hf.get_model_path('llama')
         tokenizer = tokenizer_class.from_pretrained(path)
-   
         self.tokenizer = tokenizer
-        
-    
-        # self.std_tokenizer = AutoTokenizer.from_pretrained('gpt2', use_fast= True)
         self.tokenizer = prep_tokenizer(self.tokenizer)
         self.tokenizer.pad_token = tokenizer.eos_token
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})

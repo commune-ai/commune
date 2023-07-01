@@ -45,8 +45,9 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
     "hf-internal-testing/llama-tokenizer": 2048,
 }
 
+import commune as c
 
-class LlamaTokenizer(PreTrainedTokenizer):
+class LlamaTokenizer(PreTrainedTokenizer, c.Module):
     """
     Construct a Llama tokenizer. Based on byte-level Byte-Pair-Encoding.
 

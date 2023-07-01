@@ -39,11 +39,14 @@ class TransformerModel(Model):
     default_tag = default_config.tag
     
     def __init__(self,
+                 model = 'llama',
                  config = None,
                  **kwargs
                 ):
+        kwargs['model'] = model
         config = self.set_config(config=config, kwargs=kwargs)
         self.set_model(config)
+        
 
         
 
@@ -248,14 +251,14 @@ class TransformerModel(Model):
     def resolve_config(self, config):
         
         # if we are using a shortcut, we need to set the model path
-        config['model_path'] = self.shortcuts.get(config['model'], config['model'])
+        config['model'] = self.shortcuts.get(config['model'], config['model'])
         
         # if we are using a tokenizer, we need to set the tokenizer path
         if not hasattr(config, 'tokenizer') or config.tokenizer == None:
-            config.tokenizer = config.model_path
+            config.tokenizer = config.model
 
         if config.device_map == None:
-            model = self.get_empty_model(config.model_path, trust_remote_code=config.trust_remote_code)
+            model = self.get_empty_model(config.model, trust_remote_code=config.trust_remote_code)
             config.model_size = self.get_model_size(model)
             config.excpeted_model_size = config.model_size*config.model_inflation_ratio
             config.max_memory = self.max_gpu_memory(memory=config.excpeted_model_size,
@@ -277,13 +280,16 @@ class TransformerModel(Model):
         
         config = self.resolve_config(config)
         
+        
+        
         self.set_tokenizer(config.tokenizer)
 
         model_kwargs=dict(
 
         )
         
-        self.model = AutoModelForCausalLM.from_pretrained(config.model_path,
+        c.print('loading model', config.model)
+        self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                           max_memory=config.max_memory,
                                                             device_map= config.device_map,
                                                             trust_remote_code=config.trust_remote_code,) 
@@ -327,7 +333,7 @@ class TransformerModel(Model):
 
     def resolve_tokenizer(self, tokenizer:str):
         if tokenizer is None:
-            tokenizer = self.config.model_path
+            tokenizer = self.config.model
         tokenizer = self.shortcuts.get(tokenizer, tokenizer)
         assert isinstance(tokenizer, str)
         return tokenizer
@@ -344,8 +350,14 @@ class TransformerModel(Model):
         except ValueError:
             
             print('resorting ot use_fast = False')
-            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+            try:
+                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+            except ValueError as e:
+                print('resorting ot use_fast = False')
+                tokenizer = c.import_object('commune.modules.model.transformer.llama.LlamaTokenizer').from_pretrained(tokenizer, use_fast=False)
+                
 
+        c.print('tokenizer', tokenizer)
 
         self.tokenizer = tokenizer
         
