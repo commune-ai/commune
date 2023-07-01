@@ -31,7 +31,7 @@ clip_grad_norm: 1.0
 tag: null
 load: false
 refresh_state: false
-device_map: 'auto'
+device_map: null
 max_memory: null
 reserve_gpus: False
 verbose: true
@@ -63,7 +63,8 @@ shortcuts:
   gptj.alpaca: bertin-project/bertin-gpt-j-6B-alpaca
   oa.galactia.6.7b: OpenAssistant/galactica-6.7b-finetuned
   opt6.7b: facebook/opt-6.7b
-  llama: decapoda-research/llama-7b-hf
+  llama: openlm-research/open_llama_7b
+  llama13b: openlm-research/open_llama_13b
   vicuna.13b: lmsys/vicuna-13b-delta-v0
   vicuna.7b: lmsys/vicuna-7b-delta-v0
   llama-trl: trl-lib/llama-7b-se-rl-peft
@@ -80,3 +81,4 @@ shortcuts:
   fish: "~/fish_model"
   vr: "~/models/gpt-j-6B-vR"
   mosaic: mosaicml/mpt-30b
+  falcon_40b_instruct: "tiiuae/falcon-40b-instruct"

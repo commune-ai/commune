@@ -38,7 +38,6 @@ def cache_result(cls, func):
     return wrapper
 
 
-
 class c:
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
@@ -58,17 +57,12 @@ class c:
                 'module_name', 'modules', 'help']
     whitelist = []
     blacklist = []
-
-    
-        
     def __init__(self, 
                  config:Dict=None,
                  **kwargs):
-        # set the config of the module (avoid it by setting config=False)
+        
         self.set_config(config=config, 
                         kwargs=kwargs)  
-        # self.set_key(key)
-    
     
     
     @classmethod
@@ -651,7 +645,7 @@ class c:
             try:
                 config = cls.load_config(path=config)
             except FileNotFoundError as e:
-                cls.print(f'config not found at {config}, loading default config')
+                c.print(f'config not found at {config}, loading default config')
                 config = {}
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
@@ -789,7 +783,7 @@ class c:
 
     @classmethod
     def cmd(cls, 
-                    command:str,
+                    command:Union[str, list],
                     verbose:bool = False, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = True,
@@ -805,7 +799,8 @@ class c:
             kwargs = c.locals2kwargs(locals())
             for idx,cmd in enumerate(command):
                 c.print(f'Running {idx}/{len(command)}', color='green')
-                c.cmd(cmd, **kwargs)
+                kwargs['command'] = cmd
+                c.cmd(**kwargs)
             command = command.split(' ')
         import subprocess
         import shlex
@@ -839,26 +834,23 @@ class c:
         last_time_line_printed = time.time()
  
         try:
-            for c in iter(lambda: process.stdout.read(1), b""):
+            for ch in iter(lambda: process.stdout.read(1), b""):
                 
 
-                if c == b'\n':
+                if  ch == b'\n':
                     line_count_idx += 1
-                    stdout_text += (new_line+c).decode()
+                    stdout_text += (new_line+ch).decode()
                     if verbose:
                         
-                        cls.print(new_line.decode(), color=color)
+                        c.print(new_line.decode(), color=color)
                     new_line = b''
                     continue
                 
-                new_line += c
+                new_line += ch
   
         except KeyboardInterrupt:
-            pass
-            
-            
-             
-        kill_process(process)
+            kill_process(process)
+        
         return stdout_text
 
 
@@ -885,9 +877,8 @@ class c:
         from importlib import import_module
         module = '.'.join(key.split('.')[:-1])
         object_name = key.split('.')[-1]
-        c.print(f'Importing {object_name} from {module}', color='green')
         if verbose:
-            cls.print(f'Importing {object_name} from {module}')
+            c.print(f'Importing {object_name} from {module}')
         obj =  getattr(import_module(module), object_name)
         return obj
     
@@ -1227,7 +1218,7 @@ class c:
         '''
         for module in cls.servers():
             if verbose:
-                cls.print(f'Restarting {module}', color='red')
+                c.print(f'Restarting {module}', color='red')
             cls.restart_server(module)
     @classmethod
     def restart_all(cls):
@@ -1324,7 +1315,6 @@ class c:
     @classmethod
     def find_python_class(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
         import re
-        c.print(path)
         
         # read the contents of the Python script file
         python_script = cls.readlines(path, end_line = start_lines, resolve=False)
@@ -1337,10 +1327,7 @@ class c:
             self_ref_condition = 'key_elements' not in line
 
             has_class_bool = all([key_element in line for key_element in key_elements])
-            if has_class_bool:
-                c.print(has_class_bool, line)
-            if 'nn.Module' in line:
-                c.print(line, has_class_bool,  color='red')
+
             other_exceptions = ['ModuleWrapper' in line, 'key_elements' in line]
             has_exception = any([exception for exception in other_exceptions])
             if has_class_bool and (not has_exception):
@@ -1602,7 +1589,7 @@ class c:
         try:
             data = await async_get_json(path, **kwargs)
         except Exception as e:
-            cls.print(f'Failed to load json from {path} with error {e}')
+            c.print(f'Failed to load json from {path} with error {e}')
             return default
         if isinstance(data, dict):
             if 'data' in data and 'meta' in data:
@@ -1799,13 +1786,14 @@ class c:
                 key = None,
                 ignore_error:bool = False,
                 **kwargs ):
-        c.resolve_network(network)
+        network = c.resolve_network(network)
+        c.print('network', network)
         if key != None:
             key = cls.get_key(key)
             
         if (name == None and ip == None and port == None):
             return cls.root_module()
-            s
+        
         if wait_for_server:
             cls.wait_for_server(name)
         
@@ -1852,7 +1840,7 @@ class c:
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
         if verbose:
-            cls.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
+            c.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
         client= cls.get_client(ip=ip, port=int(port), virtual=virtual, key=key)
         
         return client
@@ -2011,7 +1999,7 @@ class c:
                             remote_namespace[name+seperator+peer_name] = address
                             registered_peer_addresses.append(peer_address)
                 else:
-                    cls.print(f'Peer {peer_name} has no namespace', color='red')
+                    c.print(f'Peer {peer_name} has no namespace', color='red')
         
         c.put('remote_namespace', remote_namespace)
         
@@ -2049,7 +2037,7 @@ class c:
                     return peer
                 module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
                 if verbose:
-                    cls.print('Connecting: ',module_name, color='cyan')
+                    c.print('Connecting: ',module_name, color='cyan')
 
                 if cls.check_response(module_name):
                     return module_name
@@ -2232,7 +2220,7 @@ class c:
         while not cls.server_exists(name):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
-            cls.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
+            c.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
 
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
@@ -2415,18 +2403,13 @@ class c:
         
         
             
-    
-        # resolve the module id
-        
-        # if the module is a class, then use the module_tag 
-        # Make sure you have the module tag set
                 
         '''check if the server exists'''
-        cls.print(f'Checking if server {name} exists {self}')
+        c.print(f'Checking if server {name} exists {self}')
         if self.server_exists(name): 
             if refresh:
                 if verbose:
-                    cls.print(f'Stopping server {name}')
+                    c.print(f'Stopping server {name}')
                 self.kill_server(name)
             else: 
                 raise Exception(f'The server {name} already exists on port {existing_server_port}')
@@ -2693,7 +2676,12 @@ class c:
         delete_modules = []
         for module in modules:
             killed_module =kill_fn(module, verbose=verbose, **kwargs)
-            delete_modules.extend(killed_module)
+            if isinstance(killed_module, list):
+                delete_modules.extend(killed_module)
+            elif isinstance(killed_module, str):
+                delete_modules.append(killed_module)
+            else:
+                raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
         # update modules
         cls.update(network='local')
         return {'killed': delete_modules}
@@ -2780,7 +2768,7 @@ class c:
                 
                 
         if verbose:
-            cls.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
+            c.print(f'[bold cyan]Launching[/bold cyan] [bold yellow]class:{module.__name__}[/bold yellow] [bold white]name[/bold white]:{name} [bold white]fn[/bold white]:{fn} [bold white]mode[/bold white]:{mode}', color='green')
 
         if mode == 'local':
             return getattr(module, fn)(*args, **kwargs)
@@ -2949,10 +2937,10 @@ class c:
             cls.pm2_kill(name)  
 
         if verbose:
-            cls.print(f'Launching {module} with command: {command}', color='green')
+            c.print(f'Launching {module} with command: {command}', color='green')
             
         stdout = cls.run_command(command, env=env, verbose=verbose)
-        # cls.print(f'STDOUT: \n {stdout}', color='green')
+        # c.print(f'STDOUT: \n {stdout}', color='green')
         return stdout
     
     
@@ -2970,7 +2958,7 @@ class c:
         cls.run_command(f"pm2 delete {name}", verbose=False)
         
         if verbose:
-            cls.print(f'KILLED {name}', color='red')
+            c.print(f'KILLED {name}', color='red')
         return name
     
     
@@ -2982,7 +2970,7 @@ class c:
         for module in pm2_list:
             if module.startswith(name) or name in ['all']:
                 if verbose:
-                    cls.print(f'Restarting {module}', color='cyan')
+                    c.print(f'Restarting {module}', color='cyan')
                 cls.run_command(f"pm2 restart {module}")
                 restarted_modules.append(module)
 
@@ -3006,7 +2994,7 @@ class c:
     def pm2_status(cls, verbose=True):
         stdout = cls.run_command(f"pm2 status")
         if verbose:
-            cls.print(stdout,color='green')
+            c.print(stdout,color='green')
         return stdout
 
     pm2_dir = os.path.expanduser('~/.pm2')
@@ -3030,7 +3018,7 @@ class c:
         parser.add_argument('-args', '--args', dest='args', help='arguments to the function', type=str, default="[]")  
         args = parser.parse_args()
         if verbose:
-            cls.print('Argparse Args: ',args, color='cyan')
+            c.print('Argparse Args: ',args, color='cyan')
         args.kwargs = json.loads(args.kwargs.replace("'",'"'))
         args.args = json.loads(args.args.replace("'",'"'))
         return args
@@ -3637,7 +3625,7 @@ class c:
             if  allow_conflicts:
                 if hasattr(a, b_fn_name):
                     if verbose:
-                        cls.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
+                        c.print(f'Warning: overriding function {b_fn_name} already exists in {a}', color='yellow')
             else:
                 assert not hasattr(a, b_fn_name), f'function {b_fn_name} already exists in {a}'
                 
@@ -3654,7 +3642,7 @@ class c:
                     error_fn_list.append(b_fn)
                 if len(error_fn_list)>0:
                     if verbose:
-                        cls.print(error_fn_list, 'DEBUG')        
+                        c.print(error_fn_list, 'DEBUG')        
         return a
    
     @classmethod
@@ -3663,7 +3651,7 @@ class c:
         try:
             nest_asyncio.apply()
         except RuntimeError as e:
-            cls.print('Broooo, nest-asyncio doesnt work fam')
+            c.print('Broooo, nest-asyncio doesnt work fam')
             pass
         
         
@@ -3850,9 +3838,28 @@ class c:
         for gpu_id, gpu_info in cls.gpu_map().items():
             used_gpu_memory += gpu_info['used'] 
         return used_gpu_memory
+    
+    @staticmethod
+    def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
+        assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
+        fmts = ['b', 'kb', 'mb', 'gb', 'tb', 'pb']
+        
+        for i, f in enumerate(fmts):
+            if fmt == f:
+                break
+            else:
+                x = x/1000
+        if prettify:
+            return f'{x:.2f} {f}'
+        else:
+            return x
+        
 
     @classmethod
-    def least_used_gpu(cls, free_gpu_memory:dict = None, return_tuple:bool = False, **kwargs) -> int:
+    def most_free_gpu(cls, 
+                      free_gpu_memory:dict = None,
+                      mode : bool = 'int',
+                      **kwargs) -> Union[int, Dict[str, int]]:
         """ Returns a dictionary of gpu_id to max memory for each gpu.
         Args:
             total_memory (int, optional): Total memory to allocate. Defaults to None.
@@ -3865,17 +3872,56 @@ class c:
             free_gpu_memory = cls.free_gpu_memory(**kwargs)
         assert isinstance(free_gpu_memory, dict), f'free_gpu_memory must be a dict, not {type(free_gpu_memory)}'
         most_available_gpu_tuples = sorted(free_gpu_memory.items(), key=lambda x: x[1] , reverse=True)
-        if return_tuple:
+        if mode == 'tuple':
             return most_available_gpu_tuples[0]
-        return most_available_gpu_tuples[0][0]
+        elif mode == 'dict': 
+            return {most_available_gpu_tuples[0][0]: most_available_gpu_tuples[0][1]}
+        elif mode == 'int':
+            return most_available_gpu_tuples[0][0]
+        elif mode == 'str':
+            return str(most_available_gpu_tuples[0][0])
+        else:
+            raise ValueError(f'Invalid mode {mode}')
     
     
-    most_free_gpu = least_used_gpu
+
+    @classmethod
+    def most_free_gpus(cls, 
+                       n:int=None,
+                      free_gpu_memory:dict = None,
+                      mode : str = 'dict',
+                      fmt:str='b',
+                      **kwargs) -> Union[int, Dict[str, int]]:
+        """ Returns a dictionary of gpu_id to max memory for each gpu.
+        Args:
+            total_memory (int, optional): Total memory to allocate. Defaults to None.
+            buffer_memory (int, optional): Buffer memory to leave on each gpu. Defaults to 10.
+        
+        Returns 
+            Dict[int, str]: Dictionary of gpu_id to max memory for each gpu.
+        """
+ 
+        if free_gpu_memory is None:
+            free_gpu_memory = cls.free_gpu_memory(**kwargs)
+        assert isinstance(free_gpu_memory, dict), f'free_gpu_memory must be a dict, not {type(free_gpu_memory)}'
+        most_available_gpu_tuples = sorted(free_gpu_memory.items(), key=lambda x: x[1] , reverse=True)
+
+        if n == None:
+            n = len(most_available_gpu_tuples)
+        if mode == 'dict': 
+            return {most_available_gpu_tuples[i][0]: c.format_data_size(most_available_gpu_tuples[i][1], fmt=fmt) for i in range(n)}
+        elif mode == 'tuple':
+            return [(i,c.format_data_size(most_available_gpu_tuples[i][0], fmt=fmt)) for i in range(n)]
+        else:
+            return [c.format_data_size(most_available_gpu_tuples[i][0], fmt=fmt) for i in range(n)]
+        
     
     @classmethod
     def most_free_gpu_memory(cls, *args, **kwargs) -> int:
         gpu_id = cls.most_free_gpu()
         return cls.free_gpu_memory(*args, **kwargs)[gpu_id]
+    
+
     
     @classmethod
     def gpu_info(cls, device:int = None) -> Dict[str, Union[int, float]]:
@@ -3915,43 +3961,52 @@ class c:
             assert torch.cuda.is_available(), 'Cuda is not available'
             gpu_id = 0
             if find_least_used:
-                gpu_id = cls.least_used_gpu()
+                gpu_id = cls.most_free_gpu()
                 
             device = f'cuda:{gpu_id}'
         
             if verbose:
                 device_info = cls.gpu_info(gpu_id)
-                cls.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
+                c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
     
     
     @classmethod
-    def params_map(cls, model):
+    def params_map(cls, model, fmt='b'):
         params_map = {}
-        state_dict = model.state_dict()
+        state_dict = c.resolve_model(model).state_dict()
         for k,v in state_dict.items():
-            params_map[k] = {'shape': v.shape ,
-                             'size': cls.get_tensor_size(v)}
+            params_map[k] = {'shape': list(v.shape) ,
+                             'size': cls.get_tensor_size(v, fmt=fmt),
+                             'dtype': str(v.dtype),
+                             'requires_grad': v.requires_grad,
+                             'device': v.device,
+                             'numel': v.numel(),
+                             
+                             }
             
         return params_map
     
-    @classmethod
-    def params_size_map(cls, model):
-        return {k: v['size'] for k,v in cls.params_map(model).items()}
+
     
 
     @classmethod
     def get_num_params(cls, model:'nn.Module' = None)->int:
         import numpy as np
         from torch import nn
+        model = c.resolve_model(model)
         model_parameters = filter(lambda p: p.requires_grad, model.parameters())
         num_params = sum([np.prod(p.size()) for p in model_parameters])
         return num_params
 
     get_model_params = get_num_params
     @classmethod
-    def get_tensor_size(cls, tensor:'torch.Tensor'):
-        return tensor.nelement() * tensor.element_size()
+    def get_tensor_size(cls, tensor:'torch.Tensor' = None, fmt:str='b') -> float:
+        if tensor is None:
+            import torch
+            tensor = torch.rand(1)
+        tensor_size =  tensor.nelement() * tensor.element_size()
+        return c.format_data_size(tensor_size, fmt=fmt)
     @classmethod 
     def get_model_device(cls, model, fast_and_lazy:bool = True) -> 'torch.device':
         if fast_and_lazy:
@@ -3969,18 +4024,26 @@ class c:
         if remote:
             return cls.remote_fn('update_loop', kwargs=dict(period=period, remote=False), name='update_loop')
         while True:
-            cls.print('Updating...', color='yellow')
+            c.print('Updating...', color='yellow')
             modules = cls.modules()
-            cls.print(f'Modules (n): {modules}', color='cyan')
-            cls.print(modules, color='purple')
+            c.print(f'Modules (n): {modules}', color='cyan')
+            c.print(modules, color='purple')
             cls.update()
             cls.sleep(period)
+            
     def model_size(self, **kwargs ):
         return self.get_model_size(model=self, **kwargs)
     
+    @classmethod
+    def model_shortcuts(cls, **kwargs):
+        return  c.module('model.transformer').shortcuts
+    
+    
+
     
     @classmethod
     def get_empty_model(cls, model, verbose: bool = False, trust_remote_code:bool=True, **kwargs):
+        model = c.model_shortcuts().get(model, model)
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
         
@@ -3989,12 +4052,13 @@ class c:
 
         if isinstance(model, str):
             if verbose:
-                cls.print(f'loading config model from {model}...')
+                c.print(f'loading config model from {model}...')
 
             model_config = AutoConfig.from_pretrained(model, **kwargs)
             model_config_dict = model_config.to_dict()
             with init_empty_weights():
                 model = AutoModelForCausalLM.from_config(model_config,  **kwargs)
+                
                 
         return model
     
@@ -4004,31 +4068,67 @@ class c:
 
         return init_empty_weights(*args, **kwargs)
         
+        
     @classmethod
     def get_model_size(cls, 
                        model: 'nn.Module',
                        model_inflation_ratio: float = 1.0, 
+                       fmt = 'b',
                        keys:List[str]=None):
         
         # get the size of the model by initializing an empty model
-        if isinstance(model, str):
-            model = cls.get_empty_model(model)
-            
-            model = c.module('model').shortcuts().get(model, model)
+        model = c.resolve_model(model)
             
         params = {}
         size_in_bytes = 0 
-        for name, param in model.named_parameters():
+        for name, param in model.state_dict().items():
             if keys != None and name not in keys:
                 continue
             
             size_in_bytes += cls.get_tensor_size(param)
           
-        return size_in_bytes * model_inflation_ratio
+        return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
+
+
+    @classmethod
+    def resolve_model(cls, model):
+        if isinstance(model, str):
+            model = c.get_empty_model(model)
+        return model
+        
+    @classmethod
+    def params_size_map(cls, 
+                       model: str,
+                       block_prefix:str = 'layers',
+                       fmt= 'b',
+                       keys:List[str]=None):
+        
+        
+        
+        # get the size of the model by initializing an empty model
+        model = c.resolve_model(model)
+        
+        params = {}
+        size_in_bytes = 0 
+        
+        for name, param in model.state_dict().items():
+            params_size = c.format_data_size(cls.get_tensor_size(param), fmt=fmt)
+            if name.startswith(block_prefix):
+                
+                idx = name.replace(block_prefix+'.','').split('.')[0]
+                block_name = f'{block_prefix}.{idx}'
+                if block_name not in params:
+                    params[block_name] = 0
+                params[block_name] += params_size
+            else:
+                params[name] = params_size
+                        
+        return params
 
 
     def num_params(self)->int:
         return self.get_num_params(self)
+    
 
     def to_dict(self)-> Dict:
         return self.__dict__
@@ -4420,7 +4520,7 @@ class c:
             if ignore_error:
                 data = None
                 if verbose:
-                    cls.print(f'Exception: Wrong Password, try another',color='red')
+                    c.print(f'Exception: Wrong Password, try another',color='red')
             else:
                 raise Exception(f'could not decrypt data, try another pasword')
         
@@ -4447,16 +4547,16 @@ class c:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
-        
-    
     @classmethod
     async def async_call(cls,
-                         module,
-                         fn,
-                         network = default_network,
-                         key = None,
+                         module : str,
+                         fn : str,
                          *args,
+                         network : str = None,
+                         key : str = None,
+                         timeout : int = 4,
                          **kwargs) -> None:
+        network = c.resolve_network(network)
         
         if isinstance(module, str) and fn == None:
             
@@ -4473,15 +4573,10 @@ class c:
             fn = 'forward'
             
         if isinstance(module, str):
-            module = await cls.async_connect(module, network=network, key=key)
+            module = await cls.async_connect(module, network=network, key=key, virtual=False)
             
-        result = getattr(module, fn)
-        if inspect.iscoroutinefunction(result):
-            return await result(*args, **kwargs)
-        elif callable(result):
-            return result(*args, **kwargs)
-        else:
-            return result
+        
+        return module.__call__(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
 
 
     @classmethod
@@ -4506,7 +4601,7 @@ class c:
             
         modules = cls.shuffle(modules)[:n]
         assert isinstance(modules, list), 'modules must be a list'
-        cls.print(f'Calling {fn} on {len(modules)} modules', color='green')
+        c.print(f'Calling {fn} on {len(modules)} modules', color='green')
         jobs = []
         for m in modules:
             job = cls.async_call(m, fn, *args, **kwargs)
@@ -4519,7 +4614,7 @@ class c:
         errors = [r for r in responses if is_error(r)]
         
         if len(successes) == 0:
-            cls.print(f'ERRORS {errors}', color='red')
+            c.print(f'ERRORS {errors}', color='red')
         return successes[0]
     
 
@@ -4663,7 +4758,7 @@ class c:
         reserved_ports =  cls.get(var_path, {}, root=root)
         reserved_ports[str(port)] = {'time': cls.time()}
         cls.put(var_path, reserved_ports, root=root)
-        cls.print(f'reserving {port}')
+        c.print(f'reserving {port}')
         return {'success':f'reserved port {port}', 'reserved': cls.reserved_ports()}
     
     
@@ -4714,7 +4809,7 @@ class c:
             ports = ports[0]
         ports = list(map(str, ports))
         reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-        cls.print(reserved_ports)
+        c.print(reserved_ports)
         cls.put(var_path, reserved_ports, root=root)
         return cls.reserved_ports()
     
@@ -4890,11 +4985,11 @@ class c:
 
         if 'error' in peer_info:
             if verbose:
-                cls.print(f'Error adding peer {peer_address} due to {peer_info["error"]}',color='red')
+                c.print(f'Error adding peer {peer_address} due to {peer_info["error"]}',color='red')
             return None    
         else:
             if verbose:
-                cls.print(f'Successfully added peer {peer_address}', color='green')
+                c.print(f'Successfully added peer {peer_address}', color='green')
         
             
         assert isinstance(peer_info, dict)
@@ -5195,7 +5290,6 @@ class c:
                      reserved_gpus: bool = False,
                      fmt = 'b') -> Dict[int, float]:
         import torch
-        assert max_gpu_ratio <= 1.0 and max_gpu_ratio > 0, 'max_gpu_ratio must be less than 1.0 and greter than 0'
         free_gpu_memory = {}
         
         if fmt == 'gb' or fmt == 'GB':
@@ -5348,7 +5442,7 @@ class c:
                 gpu = np.random.choice(gpus)
                 gpu_memory = free_gpu_memory[gpu]
             elif mode == 'most_free':
-                gpu, gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, return_tuple=True)
+                gpu, gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, mode='tuple')
             else:
                 raise ValueError(f'Invalid mode: {mode}, options are random, most_free')
             
@@ -5451,7 +5545,7 @@ class c:
                         memory = reserved_gpu_memory[gpu]
                     reserved_gpu_memory[gpu] -= memory
                 
-        cls.print(f'unreserving {gpu_memory}')
+        c.print(f'unreserving {gpu_memory}')
         reserved_gpu_memory = {k:v for k,v in reserved_gpu_memory.items() if v > 0}
         cls.put('reserved_gpu_memory', reserved_gpu_memory, root=True)
         return cls.reserved_gpus()
@@ -5766,7 +5860,7 @@ class c:
             auth_keys_file.write(public_key)
             auth_keys_file.write('\n')
             
-        cls.print('Added the key fam')
+        c.print('Added the key fam')
         
     @classmethod
     def ssh_authorized_keys(cls, authorized_keys_file:str='~/authorized_keys'):
@@ -5799,7 +5893,7 @@ class c:
         with open(f"{key_file}.pub", "w") as pub_key_file:
             pub_key_file.write(f"{key.get_name()} {key.get_base64()} Generated by Python")
         
-        cls.print(f"SSH key pair generated and saved to {ssh_key_path}")
+        c.print(f"SSH key pair generated and saved to {ssh_key_path}")
 
     @classmethod
     def miner(cls, 
@@ -5816,7 +5910,7 @@ class c:
         name = f'miner::{wallet}::{network}::{netuid}'
         command = f"pm2 start {miner} --name {name} --interpreter python3 -- --wallet.name {wallet_name} --wallet.hotkey {wallet_hotkey} --axon.port {port} --openai.api_key {api_key} --neuron.no_set_weights --subtensor.network {network} --netuid {netuid} --logging.debug"
         cls.cmd(command)
-        cls.print({'msg': f"Started miner {name} on port {port}"})
+        c.print({'msg': f"Started miner {name} on port {port}"})
         
         
     @staticmethod
@@ -6311,7 +6405,46 @@ class c:
         return c.module('subspace')().register(*args, **kwargs)
     
     
+    @classmethod   
+    def infer_device_map(cls, 
+                         model:str, 
+                         max_memory: dict = None,
+                         block_prefix : str = 'model.layers',
+                         buffer_memory:float = 10e9, # 10GB buffer (bytes)
+                         verbose: bool = False,
+                         **kwargs,
+                         ):
+        model = c.resolve_model(model)
+        param_size_map = c.params_size_map(model, block_prefix=block_prefix, **kwargs)
+        free_gpu_memory = c.free_gpu_memory() if max_memory == None else max_memory
+        device_map = {}
+        gpu = None
+        gpu_memory = 0
+        unallocated_memory = sum(param_size_map.values())
+        
+        c.print(param_size_map)
+        for param_key, param_size in param_size_map.items():
+            # find the most free gpu if gpu is None or if the gpu has less memory than the buffer memory
+        
+            if gpu == None \
+                or (free_gpu_memory[gpu] < buffer_memory)\
+                or (free_gpu_memory[gpu] < param_size):
+                gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
     
+            
+            free_gpu_memory[gpu] -= param_size
+            unallocated_memory -= param_size
+            device_map[param_key] = gpu
+            
+            if verbose:
+                c.print({
+                    'gpu': {'idx': gpu, 'memory': free_gpu_memory[gpu],  'gpu': gpu,'unallocated_memory': unallocated_memory},
+                    'param': {'key': param_key, 'size': param_size}
+                })
+        assert unallocated_memory == 0, f'unallocated memory {unallocated_memory} != 0'
+                
+        return device_map
+        
     
 
         
