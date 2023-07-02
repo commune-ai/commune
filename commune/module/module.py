@@ -52,7 +52,7 @@ class c:
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
-    helper_whitelist = ['info', 'schema',]
+    helper_whitelist = ['info', 'schema','module_name']
     whitelist = []
     blacklist = []
     def __init__(self, 
@@ -1785,7 +1785,6 @@ class c:
                 ignore_error:bool = False,
                 **kwargs ):
         network = c.resolve_network(network)
-        c.print('network', network)
         if key != None:
             key = cls.get_key(key)
             
@@ -2013,6 +2012,17 @@ class c:
         else:
             return True
         
+    @staticmethod
+    async def async_get_peer_name(peer_address):
+        peer = await c.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
+        if peer == None: 
+            return peer
+        module_name =  await peer(fn='module_name',  return_future=True)
+        if c.check_response(module_name):
+            return module_name
+        else:
+            return None
+                
     @classmethod
     def local_namespace(cls, update:bool = False, verbose:bool = False)-> dict:
         '''
@@ -2028,34 +2038,20 @@ class c:
         if update:
 
             peer_registry = {}
-            peer_addresses = cls.get_peer_addresses()  
-            async def async_get_peer_name(peer_address):
-                peer = await cls.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
-                if peer == None: 
-                    return peer
-                module_name =  await peer(fn='getattr', args=['module_name'], return_future=True)
-                if verbose:
-                    c.print('Connecting: ',module_name, color='cyan')
+            peer_addresses = c.get_peer_addresses()  
 
-                if cls.check_response(module_name):
-                    return module_name
-                else:
-                    return None
-                
             # print(namespace)
             
-            peer_names = [async_get_peer_name(p) for p in peer_addresses]
-            peer_names = cls.gather(peer_names)
+            peer_names = [c.async_get_peer_name(p) for p in peer_addresses]
+            peer_names = c.gather(peer_names)
             local_namespace = dict(zip(peer_names, peer_addresses))
-            
             local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
             
-            cls.save_json('local_namespace', local_namespace, root=True)
+            c.put('local_namespace', local_namespace)
             
         else:
-            local_namespace = cls.__dict__.get('_local_namespace', None)
-            if local_namespace == None:
-                local_namespace = cls.get_json('local_namespace', {}, root=True)
+            local_namespace = c.get('local_namespace', {})
+            c.print('brppp', local_namespace)
                 
         # 
         external_ip = cls.external_ip()
