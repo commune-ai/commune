@@ -18,6 +18,7 @@ loss_sigdigs: 3
 max_gpu_ratio: 0.8
 sample_history: 100
 trust_remote_code: True
+buffer_memory: 20gb
 finetune: 1
 optimizer:
   lr: 2.0e-05
@@ -31,7 +32,7 @@ clip_grad_norm: 1.0
 tag: null
 load: false
 refresh_state: false
-device_map: null
+device_map: auto
 max_memory: null
 reserve_gpus: False
 verbose: true
@@ -82,3 +83,7 @@ shortcuts:
   vr: "~/models/gpt-j-6B-vR"
   mosaic: mosaicml/mpt-30b
   falcon_40b_instruct: "tiiuae/falcon-40b-instruct"
+block_prefix: model.layers
+model2block_prefix:
+  mosaic: transformer.blocks
+  

@@ -1,20 +1,40 @@
-# Setup
-from web3 import Web3
+import asyncio
+import websockets
+import commune as c
 
-alchemy_url = "https://eth-mainnet.g.alchemy.com/v2/RrtpZjiUVoViiDEaYxhN9o6m1CSIZvlL"
-w3 = Web3(Web3.HTTPProvider(alchemy_url))
+class WebSocket(c.Module):
+    def __init__(self, **kwargs):
+        self.config = self.set_config(kwargs=kwargs)
 
-# Print if web3 is successfully connected
-print(w3.isConnected())
+    async def handle_connection(self, websocket, path):
+        # Handle WebSocket connection here
+        while True:
+            message = await websocket.recv()
+            print(f"Received message: {message}")
 
-# Get the latest block number
-latest_block = w3.eth.block_number
-print(latest_block)
+            # Process the message and send a response
+            response = f"Processed message: {message}"
+            await websocket.send(response)
 
-# Get the balance of an account
-balance = w3.eth.get_balance('0x742d35Cc6634C0532925a3b844Bc454e4438f44e')
-print(balance)
+    def run(self):
+        server_address = (self.config.get('host', 'localhost'), self.config.get('port', 8080))
+        print(f"WebSocket server started on: {server_address}")
 
-# Get the information of a transaction
-tx = w3.eth.get_transaction('0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060')
-print(tx)
+        start_server = websockets.serve(self.handle_connection, *server_address)
+
+        asyncio.get_event_loop().run_until_complete(start_server)
+        asyncio.get_event_loop().run_forever()
+        
+    @staticmethod
+    async def send_requests():
+        async with websockets.connect('ws://localhost:8080/') as websocket:
+            while True:
+                message = input("Enter a message to send: ")
+                await websocket.send(message)
+                response = await websocket.recv()
+                print("Received response: ", response)
+    @classmethod    
+    def start(cls):
+        cls().run()
+
+WebSocket.start()
