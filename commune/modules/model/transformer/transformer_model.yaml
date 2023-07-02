@@ -32,7 +32,7 @@ clip_grad_norm: 1.0
 tag: null
 load: false
 refresh_state: false
-device_map: auto
+device_map: null
 max_memory: null
 reserve_gpus: False
 verbose: true

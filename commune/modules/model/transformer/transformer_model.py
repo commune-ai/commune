@@ -273,8 +273,10 @@ class TransformerModel(Model):
         c.print('loading model', config.model)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,
-                                                            trust_remote_code=config.trust_remote_code,) 
-                                                        
+                                                            trust_remote_code=config.trust_remote_code,
+                                                             offload_folder="offload", torch_dtype=torch.float16) 
+                                                       
+        c.print('model loaded', config.model) 
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))
         self.device = config.device = config.devices[0]
@@ -770,15 +772,21 @@ class TransformerModel(Model):
         return output_text
     
     @classmethod
-    def infer_device_map(cls, model, 
+    def infer_device_map(cls, model = 'llama13b', 
                          device_map: str = 'auto',
                          max_memory = None,
+                         buffer_memory = '10gb',
                          
                          ) -> str:
         from accelerate import infer_auto_device_map
+        if isinstance(model, str):
+            model = c.resolve_model(model)
+        
         model_size = c.get_model_size(model)
-        max_memory = c.get_max_memory(max_memory, buffer_memory='10gb')
+        max_memory = c.max_gpu_memory(model_size, buffer_memory=buffer_memory, fmt='gb')
+        max_memory = {k: f'{v}GiB' for k, v in max_memory.items()}
 
         device_map = infer_auto_device_map(my_model, max_memory={0: "10GiB", 1: "10GiB", "cpu": "30GiB"})
+        
 
 TransformerModel.run(__name__)
