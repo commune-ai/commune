@@ -159,15 +159,15 @@ class Server(c.Module):
                 passed = True
 
         return {'passed': passed}
-
+    def set_serve(self, ip:str, port:int):
+        self.server = HTTPServer((self.ip, self.port), self.HandlerClass)
+        self.server.timeout = self.timeout
     def start(self) -> 'Server':
         r"""Starts the HTTP server.
         """
         try:
-            server_address = (self.ip, self.port)
-            httpd = HTTPServer(server_address, HTTPRequestHandler)
             logger.success("Server Started:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
-            httpd.serve_forever()
+            self.server.serve_forever()
         except KeyboardInterrupt:
             logger.success("Server Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
 

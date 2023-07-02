@@ -27,7 +27,7 @@ from commune.utils.tokenizer import get_translation_map, translate_logits_to_pro
         encode_topk, decode_topk
  
 """
-Examples 
+Examples fdef
 
 
 
