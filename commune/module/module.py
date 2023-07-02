@@ -5290,6 +5290,8 @@ class c:
                 content = content[start_line:end_line]
 
         return content
+    
+    load_text = get_text
 
 
     @classmethod
