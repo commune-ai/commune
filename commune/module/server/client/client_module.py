@@ -43,7 +43,6 @@ class VirtualModule:
             self.module_client = module
       
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
-        
     
         if return_future:
             return self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)

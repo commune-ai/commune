@@ -1376,15 +1376,19 @@ class c:
                     mode='path', 
                     cache:bool = True,
                     update:bool = False,
+                    verbose:bool = False,
                     max_age:int=60,) -> List[str]:
         
-        if cache and not update:
+        if cache and (not update):
             cache_path = 'module_tree'
             module_tree = c.get(cache_path, max_age=max_age, cache=True)
             if module_tree != None:
                 return module_tree
-            
-            
+            else:
+                update=True
+                
+        if update and verbose:
+            c.print('Building module tree', verbose=verbose)
         assert mode in ['path', 'object']
         module_tree = {}
         if mode == 'path':
@@ -1482,7 +1486,12 @@ class c:
             if file_ext == '.py':
                 dir_path, file_name = os.path.split(file_path)
                 dir_name = os.path.basename(dir_path)
+                previous_dir_path = dir_path.split('/')[-2]
+                
                 if dir_name.lower() == file_name.lower():
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                elif file_name.lower().endswith(dir_name.lower()):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
                 elif file_name.lower().endswith('module'):
@@ -1870,6 +1879,19 @@ class c:
         """
         x = float(x)
         return round(x, sig - int(math.floor(math.log10(max(abs(x), abs(small_value))))) - 1)
+    
+    @classmethod
+    def round_decimals(cls, x:Union[float, int], decimals: int=6, small_value: float=1.0e-9):
+        import math
+        """
+        Rounds x to the number of {sig} digits
+        :param x:
+        :param sig: signifant digit
+        :param small_value: smallest possible value
+        :return:
+        """
+        x = float(x)
+        return round(x, decimals)
 
     @classmethod
     def root_address(cls, name:str='module',
@@ -2337,7 +2359,6 @@ class c:
     def whitelist(self):
         whitelist = c.helper_whitelist
         is_module = c.is_root_module(self)
-        c.print(is_module)
         if not is_module:
             whitelist += self.functions() + self.attributes()
         return whitelist
@@ -3840,13 +3861,22 @@ class c:
     @staticmethod
     def format_data_size(x: Union[int, float], fmt:str='b', prettify:bool=False):
         assert type(x) in [int, float], f'x must be int or float, not {type(x)}'
-        fmts = ['b', 'kb', 'mb', 'gb', 'tb', 'pb']
-        
+        fmt2scale = {
+            'b': 1,
+            'kb': 1000,
+            'mb': 1000**2,
+            'gb': 1000**3,
+            'GiB': 1024**3,
+            'tb': 1000**4,
+        }
+            
         for i, f in enumerate(fmts):
             if fmt == f:
                 break
             else:
                 x = x/1000
+                
+        
         if prettify:
             return f'{x:.2f} {f}'
         else:
@@ -5154,8 +5184,12 @@ class c:
     def update(cls, 
                network: str = None,
                verbose:bool = True,
+               namespace: bool = True,
+               module_tree: bool = True,
                ):
-            c.namespace(network=network,verbose=verbose, update=True)
+        
+        
+        c.namespace(network=network,verbose=verbose, update=True)
         
         
     @classmethod
@@ -5367,27 +5401,22 @@ class c:
         base_module = c.module(base)
         base_code = base_module.code()
         base_config = base_module.config()
-
-        module = module.replace('/','_')
+        module = module.replace('/','_') # replace / with _ for the class name
         
-        module_code_path =f'{module_path}/{module}.py'
         module_config_path = f'{module_path}/{module}.yaml'
-        
+
+        module_code_path =f'{module_path}/{module}.py'
         module_code_lines = []
+        class_name = module[0].upper() + module[1:] # capitalize first letter
+        class_name = ''.join([m.capitalize() for m in module.split('_')])
         for code_ln in base_code.split('\n'):
             if all([ k in code_ln for k in ['class','c.Module', ')', '(']]):
-                class_name = module[0].upper() + module[1:] # capitalize first letter
-                class_name = ''.join([m.capitalize() for m in module.split('_')])
-                c
                 indent = code_ln.split('class')[0]
                 code_ln = f'{indent}class {class_name}(c.Module):'
             module_code_lines.append(code_ln)
-            
         module_code = '\n'.join(module_code_lines)
         c.put_text(module_code_path, module_code)
         c.save_yaml(module_config_path, base_config)
-        
-        
         
     make_dir= mkdir
     @classmethod
@@ -5395,9 +5424,11 @@ class c:
                        mode:str = 'most_free', 
                        min_memory_ratio = 0.0,
                        reserve:bool = False, 
-                       buffer_memory = '10gb',
+                       buffer_memory = '5gb',
                        free_gpu_memory: dict = None,
                        saturate:bool = False,
+                       fmt:str = 'b',
+                       decimals:int = 3,
                        **kwargs):
         
         
@@ -5407,10 +5438,10 @@ class c:
         
         assert memory > 0, f'memory must be greater than 0, got {memory}'
         free_gpu_memory = free_gpu_memory if free_gpu_memory else cls.free_gpu_memory(**kwargs)
-        
+        total_gpu_memory = sum(free_gpu_memory.values())
         # free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
         gpus = list(free_gpu_memory.keys()) 
-        total_gpu_memory = sum(free_gpu_memory.values()) - buffer_memory*len(gpus)
+        total_gpu_memory = total_gpu_memory - buffer_memory*len(gpus)
         
         
         
@@ -5420,18 +5451,19 @@ class c:
         max_memory = {}
         
         
-        
-
+        free_gpu_memory = {k:v-buffer_memory for k,v in free_gpu_memory.items()}
         
         
         selected_gpus = []
+        gpu = None
         gpu_memory = 0
         while unallocated_memory > 0:
-
             if gpu_memory == 0:
                 gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-                gpu_memory =  free_gpu_memory[gpu] - buffer_memory
+                gpu_memory =  free_gpu_memory[gpu]
             
+            c.print({'unallocated_memory':unallocated_memory,'gpu': gpu, 'max_memory':max_memory, 'gpu_memory':gpu_memory, 'free_gpu_memory':free_gpu_memory})
+
             if gpu in max_memory:
                 continue
             
@@ -5440,13 +5472,11 @@ class c:
                 
   
             allocated_memory = min(gpu_memory, unallocated_memory)
-            if allocated_memory>0:
-                max_memory[gpu] = allocated_memory
-                free_gpu_memory[gpu] -= allocated_memory
+            c.print(f'Allocated {allocated_memory} to gpu {gpu}')
             unallocated_memory -= allocated_memory
             max_memory[gpu] = allocated_memory
             free_gpu_memory[gpu] -= allocated_memory
-            
+            gpu_memory = free_gpu_memory[gpu]
         max_memory = {k:int(v) for k,v in max_memory.items() if v > 0}
         
         if reserve:
@@ -5457,6 +5487,10 @@ class c:
         if saturate:
             free_gpu_memory = cls.free_gpu_memory()
             max_memory = {gpu:free_gpu_memory[gpu] for gpu in max_memory.keys()}
+            
+            
+        max_memory = {k:c.round_decimals(c.format_data_size(v, fmt=fmt), decimals=decimals) for k,v in max_memory.items()}
+        
         return max_memory
             
 
