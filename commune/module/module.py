@@ -2051,7 +2051,9 @@ class c:
             
         else:
             local_namespace = c.get('local_namespace', {})
-            c.print('brppp', local_namespace)
+            if len(local_namespace) == 0:
+                c.print('Local namespace empty, updating', color='red')
+                local_namespace = c.local_namespace(update=True)
                 
         # 
         external_ip = cls.external_ip()
