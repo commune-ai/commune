@@ -138,12 +138,15 @@ class TransformerModel(Model):
         return {key:output[key] for key in return_keys}
         
     
-    def encode(self, text:str, token_idx = -1, **kwargs):
+    def encode(self, text:str, token_idx:int = None, **kwargs) -> torch.Tensor:
         kwargs['return_keys'] = ['hidden_states']
         sample = self.tokenize(text)
         kwargs.update(sample)
         hidden_states = self.forward(**kwargs)['hidden_states']
-        return hidden_states[:,token_idx, :]
+        if isinstance(token_idx, int):
+            return hidden_states[:,token_idx, :]
+        else:
+            return hidden_states
     
     embed = encode
     def process_outputs(self, stats:dict, sample:dict, output:dict):
@@ -774,7 +777,7 @@ class TransformerModel(Model):
                          ) -> str:
         from accelerate import infer_auto_device_map
         model_size = c.get_model_size(model)
-        max_memory = c.get_max_memory(max_memory)
+        max_memory = c.get_max_memory(max_memory, buffer_memory='10gb')
 
         device_map = infer_auto_device_map(my_model, max_memory={0: "10GiB", 1: "10GiB", "cpu": "30GiB"})
 

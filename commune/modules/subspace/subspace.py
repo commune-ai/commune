@@ -831,6 +831,8 @@ class Subspace(c.Module):
                                          save=True, 
                                          load=False,
                                          netuid=netuid)
+            
+            self.put('')
         self.put(f'archive/{network}/balances', self.balances())
 
     def load(self, network:str=None, save:bool = False):
@@ -1459,7 +1461,7 @@ class Subspace(c.Module):
             base_spec['balances'] = balances
         if aura_authorities != None:
             base_spec['balances'] = aura_authorities
-        c.put_json( new_chain_path, bascse_spec)
+        c.put_json( new_chain_path, base_spec)
         
         return base_spec
     
@@ -1601,8 +1603,8 @@ class Subspace(c.Module):
        
     @classmethod
     def start_chain(cls, 
-                    users = ['alice','bob', 'charlie'] ,
                     chain:str='dev', 
+                    users = ['alice','bob', 'charlie'] ,
                     verbose:bool = False,
                     reuse_ports : bool = True,
                     sleep :int = 2,
@@ -1790,7 +1792,6 @@ class Subspace(c.Module):
     @classmethod
     def node_id(cls, chain='dev', user='alice'):
         return cls.node_ids(chain=chain)[user]
-    
     
 
    

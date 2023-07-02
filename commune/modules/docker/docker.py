@@ -13,7 +13,8 @@ class Docker(c.Module):
     
     @classmethod
     def dockerfile(cls, path = c.repo_path): 
-        return [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
+        path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
+        return c.get_text(path)
     
     @classmethod
     def resolve_repo_path(cls, path):
@@ -24,9 +25,15 @@ class Docker(c.Module):
         return path
 
     @classmethod
-    def docker_compose(cls, path = c.repo_path): 
+    def resolve_docker_compose_path(cls,path = None):
         path = cls.resolve_repo_path(path)
         return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
+        return path
+
+    @classmethod
+    def docker_compose(cls, path = c.repo_path): 
+        docker_compose_path = cls.resolve_docker_compose_path(path)
+        return c.load_yanl(docker_compose_path)
     
     @classmethod
     def build(cls, path = None, tag = None, sudo=True):
