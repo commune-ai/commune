@@ -52,9 +52,7 @@ class c:
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
-    helper_whitelist = ['getattr', 'functions', 'namespace', 'server_info', 
-                'info', 'ip', 'address','ip_address', 'info', 'schema',
-                'module_name', 'modules', 'help']
+    helper_whitelist = ['info', 'schema',]
     whitelist = []
     blacklist = []
     def __init__(self, 
@@ -2059,6 +2057,7 @@ class c:
             if local_namespace == None:
                 local_namespace = cls.get_json('local_namespace', {}, root=True)
                 
+        # 
         external_ip = cls.external_ip()
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
         return local_namespace
@@ -2339,7 +2338,8 @@ class c:
     @property
     def whitelist(self):
         whitelist = c.helper_whitelist
-        is_module = c.is_module(self)
+        is_module = c.is_root_module(self)
+        c.print(is_module)
         if not is_module:
             whitelist += self.functions() + self.attributes()
         return whitelist
@@ -3716,7 +3716,7 @@ class c:
             
         return lib2version
     @classmethod
-    def version(cls, lib:str):
+    def version(cls, lib:str=library_name):
         lines = [l for l in cls.cmd(f'pip list').split('\n') if l.startswith(lib)]
         if len(lines)>0:
             return lines[0].split(' ')[-1].strip()
@@ -3970,6 +3970,10 @@ class c:
                 c.print(f'Using device: {device} with {device_info["free"]} GB free memory', color='yellow')
         return device  
     
+    @classmethod
+    def param_keys(cls, model:'nn.Module' = None)->List[str]:
+        model = c.resolve_model(model)
+        return list(model.state_dict().keys())
     
     @classmethod
     def params_map(cls, model, fmt='b'):
@@ -4042,7 +4046,11 @@ class c:
 
     
     @classmethod
-    def get_empty_model(cls, model, verbose: bool = False, trust_remote_code:bool=True, **kwargs):
+    def get_empty_model(cls, model,
+                        verbose: bool = False,
+                        trust_remote_code:bool=True,
+                        init_device:str = 'meta',
+                        **kwargs):
         model = c.model_shortcuts().get(model, model)
         from transformers import  AutoModelForCausalLM, AutoModel, AutoConfig
         from accelerate import init_empty_weights
@@ -4054,10 +4062,11 @@ class c:
             if verbose:
                 c.print(f'loading config model from {model}...')
 
-            model_config = AutoConfig.from_pretrained(model, **kwargs)
-            model_config_dict = model_config.to_dict()
+            config = AutoConfig.from_pretrained(model, **kwargs)
+            config.init_device=init_device
+            config_dict = config.to_dict()
             with init_empty_weights():
-                model = AutoModelForCausalLM.from_config(model_config,  **kwargs)
+                model = AutoModelForCausalLM.from_config(config,  **kwargs)
                 
                 
         return model
@@ -4306,6 +4315,7 @@ class c:
     def parse_args(cls, argv = None):
         if argv is None:
             argv = cls.argv()
+
         args = []
         kwargs = {}
         parsing_kwargs = False
@@ -5288,24 +5298,12 @@ class c:
     def free_gpu_memory(cls, 
                      max_gpu_ratio: float = 1.0 ,
                      reserved_gpus: bool = False,
+                     buffer_memory: float = 0,
                      fmt = 'b') -> Dict[int, float]:
         import torch
         free_gpu_memory = {}
         
-        if fmt == 'gb' or fmt == 'GB':
-            scale = 1e9
-            
-        elif fmt == 'mb':
-            scale = 1e6
-        elif fmt == 'kb':
-            scale = 1e3
-        elif fmt == 'b':
-            scale = 1
-        elif fmt in ['%', 'ratio']:
-            scale = 1
-        else:
-            raise ValueError(f'Invalid format: {fmt}, options are gb, mb, kb, b')
-
+        buffer_memory = c.resolve_memory(buffer_memory)
         
         gpu_info_map = cls.gpu_map()
         gpus = [int(gpu) for gpu in gpu_info_map.keys()] 
@@ -5318,26 +5316,13 @@ class c:
                 gpu_info_map[r_gpu]['total'] -= r_gpu_memory
                
         for gpu_id, gpu_info in gpu_info_map.items():
-            if int(gpu_id) in gpus:
-                gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'], 0)
+            if int(gpu_id) in gpus or str(gpu_id) in gpus:
+                gpu_memory = max(gpu_info['total']*max_gpu_ratio - gpu_info['used'] - buffer_memory, 0)
                 if gpu_memory <= 0:
                     continue
-                free_gpu_memory[gpu_id] = int(cls.copy(gpu_memory /scale))
-                if fmt == '%':
-                    free_gpu_memory[gpu_id] =int((free_gpu_memory[gpu_id]/gpu_info['total']) * 100)
-                    free_gpu_memory[gpu_id] = f'{free_gpu_memory[gpu_id]:.2f}%'
-                elif fmt == 'ratio':
-                    free_gpu_memory[gpu_id] = free_gpu_memory[gpu_id]/(gpu_info['total']+1e-10)
-        if fmt == 'GB':
-            free_gpu_memory = {k:f'{int(v)}GB' for k,v in free_gpu_memory.items()}
-            
+                free_gpu_memory[gpu_id] = c.format_data_size(gpu_memory, fmt=fmt)
         
-        try:
-            total_free_memory = sum(free_gpu_memory.values())
-        except TypeError as e:
-            suffix_length = len(fmt) 
-            total_free_memory = sum(list(map(lambda x: float(x[:-suffix_length]), free_gpu_memory.values())))
-        assert total_free_memory > 0, 'No free memory on any GPU, please reduce the buffer ratio'
+        assert sum(free_gpu_memory.values()) > 0, 'No free memory on any GPU, please reduce the buffer ratio'
 
                 
         return cls.copy(free_gpu_memory)
@@ -5410,6 +5395,7 @@ class c:
                        mode:str = 'most_free', 
                        min_memory_ratio = 0.0,
                        reserve:bool = False, 
+                       buffer_memory = '10gb',
                        free_gpu_memory: dict = None,
                        saturate:bool = False,
                        **kwargs):
@@ -5417,13 +5403,15 @@ class c:
         
         memory = cls.resolve_memory(memory)
         min_memory = min_memory_ratio * memory
+        buffer_memory = c.resolve_memory(buffer_memory) # to bytes
         
         assert memory > 0, f'memory must be greater than 0, got {memory}'
         free_gpu_memory = free_gpu_memory if free_gpu_memory else cls.free_gpu_memory(**kwargs)
         
         # free_gpu_memory = {k:v for k,v in free_gpu_memory.items() if v > min_memory}
         gpus = list(free_gpu_memory.keys()) 
-        total_gpu_memory = sum(free_gpu_memory.values())
+        total_gpu_memory = sum(free_gpu_memory.values()) - buffer_memory*len(gpus)
+        
         
         
         assert memory < total_gpu_memory, f'model size {memory} is larger than total gpu memory {total_gpu_memory}, over gpus {gpus}'
@@ -5437,15 +5425,12 @@ class c:
         
         
         selected_gpus = []
+        gpu_memory = 0
         while unallocated_memory > 0:
-            if mode =='random':
-                gpu = np.random.choice(gpus)
-                gpu_memory = free_gpu_memory[gpu]
-            elif mode == 'most_free':
-                gpu, gpu_memory = cls.most_free_gpu(free_gpu_memory=free_gpu_memory, mode='tuple')
-            else:
-                raise ValueError(f'Invalid mode: {mode}, options are random, most_free')
-            
+
+            if gpu_memory == 0:
+                gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
+                gpu_memory =  free_gpu_memory[gpu] - buffer_memory
             
             if gpu in max_memory:
                 continue
@@ -5474,13 +5459,7 @@ class c:
             max_memory = {gpu:free_gpu_memory[gpu] for gpu in max_memory.keys()}
         return max_memory
             
-            
-    scale_map = {
-        'kb': 1e3,
-        'mb': 1e6,
-        'gb': 1e9,
-        'b': 1,
-    }
+
     @classmethod
     def resolve_module(cls, module=None):
         if module == None:
@@ -5492,14 +5471,22 @@ class c:
             
             
     @classmethod
-    def resolve_memory(cls, memory) -> str:
-        
+    def resolve_memory(cls, memory: Union[str, int, float]) -> str:
+                    
+        scale_map = {
+            'kb': 1e3,
+            'mb': 1e6,
+            'gb': 1e9,
+            'b': 1,
+        }
         if isinstance(memory, str):
             scale_found = False
-            for scale_key, scale_value in cls.scale_map.items():
+            for scale_key, scale_value in scale_map.items():
+                
                 
                 if isinstance(memory, str) and memory.lower().endswith(scale_key):
-                    memory = int(int(memory[:-len(scale_key)])*scale_value)
+                    memory = int(int(memory[:-len(scale_key)].strip())*scale_value)
+                    
     
                 if type(memory) in [float, int]:
                     scale_found = True
@@ -6410,18 +6397,20 @@ class c:
                          model:str, 
                          max_memory: dict = None,
                          block_prefix : str = 'model.layers',
-                         buffer_memory:float = 10e9, # 10GB buffer (bytes)
+                         buffer_memory:float = '10gb', # 10GB buffer (bytes)
                          verbose: bool = False,
                          **kwargs,
                          ):
         model = c.resolve_model(model)
         param_size_map = c.params_size_map(model, block_prefix=block_prefix, **kwargs)
+        
         free_gpu_memory = c.free_gpu_memory() if max_memory == None else max_memory
+        buffer_memory  = c.resolve_memory(buffer_memory)
         device_map = {}
         gpu = None
         gpu_memory = 0
         unallocated_memory = sum(param_size_map.values())
-        
+        allocated_gpu_memory = {}
         c.print(param_size_map)
         for param_key, param_size in param_size_map.items():
             # find the most free gpu if gpu is None or if the gpu has less memory than the buffer memory
@@ -6430,17 +6419,21 @@ class c:
                 or (free_gpu_memory[gpu] < buffer_memory)\
                 or (free_gpu_memory[gpu] < param_size):
                 gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
+                allocated_gpu_memory[gpu] = 0
     
             
+            allocated_gpu_memory[gpu] += param_size
             free_gpu_memory[gpu] -= param_size
             unallocated_memory -= param_size
             device_map[param_key] = gpu
             
-            if verbose:
-                c.print({
-                    'gpu': {'idx': gpu, 'memory': free_gpu_memory[gpu],  'gpu': gpu,'unallocated_memory': unallocated_memory},
-                    'param': {'key': param_key, 'size': param_size}
-                })
+            # if verbose:
+            #     c.print({
+            #         'gpu': {'idx': gpu, 'memory': free_gpu_memory[gpu],  'gpu': gpu,'unallocated_memory': unallocated_memory},
+            #         'param': {'key': param_key, 'size': param_size}
+                    
+            #     })
+        c.print(allocated_gpu_memory, c.free_gpu_memory())
         assert unallocated_memory == 0, f'unallocated memory {unallocated_memory} != 0'
                 
         return device_map

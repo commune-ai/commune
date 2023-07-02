@@ -48,16 +48,7 @@ class TransformerModel(Model):
 
         
 
-    def generate(self, 
-                 text:str,
-                 **kwargs) -> List[str]:
-        
-        
-        input_ids = self.tokenize(text)['input_ids']
-        output_ids =  self.model.generate(input_ids, **kwargs)
-        output_text = self.detokenize(output_ids, skip_special_tokens=True)
-        
-        return output_text
+
     
     @classmethod
     def test_generate(cls, *args, **kwargs):
@@ -72,7 +63,7 @@ class TransformerModel(Model):
         # check if logits has nans
         logits_has_nans =  torch.isnan(output.logits).any()
         assert not logits_has_nans, 'logits has nans'
-              
+            
         return logits_has_nans
     
     def _forward(self,  
@@ -134,7 +125,7 @@ class TransformerModel(Model):
         output['hidden_states'] = output.hidden_states[hidden_state_index]
         output['input_ids'] = sample['input_ids']
 
-           
+        
         output['loss'] = loss = self.calculate_loss(**output)
         output['logits']= output.logits[:,-output_length:,:]
         output['topk']=self.encode_topk(output['logits'], topk=topk)
@@ -146,7 +137,7 @@ class TransformerModel(Model):
         
         return {key:output[key] for key in return_keys}
         
-       
+    
     def encode(self, text:str, token_idx = -1, **kwargs):
         kwargs['return_keys'] = ['hidden_states']
         sample = self.tokenize(text)
@@ -237,7 +228,7 @@ class TransformerModel(Model):
 
 
 
-              
+            
         self.stats = stats
     
         output['stats'] = self.munch2dict(stats)
@@ -247,6 +238,7 @@ class TransformerModel(Model):
     def check_config(self, config, ensure_keys=['model_path']):
         for k in ensure_keys:
             assert config[k] == self.config[k], f'{k} in config {config[k]} does not match {k} in model {self.config[k]}'
+
 
     def set_model(self, config) -> None: 
         from transformers import  AutoModelForCausalLM, AutoModel
@@ -260,9 +252,13 @@ class TransformerModel(Model):
         config.tokenizer = config.tokenizer if config.tokenizer else config.model
         self.set_tokenizer(config.tokenizer)
 
-
+        config.block_prefix = config.model2block_prefix.get(config.model, config.block_prefix)
         if config.device_map == None:
-            config.device_map= c.infer_device_map(config.model, max_memory=config.max_memory)
+            config.device_map= c.infer_device_map(config.model,
+                                                buffer_memory=config.buffer_memory,
+                                                block_prefix=config.block_prefix)
+            
+        c.print('device map', config.device_map)
             
         assert config.device_map is not None, f'could not infer device map for {config.model}'
         
@@ -273,7 +269,6 @@ class TransformerModel(Model):
         
         c.print('loading model', config.model)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
-                                                          max_memory=config.max_memory,
                                                             device_map= config.device_map,
                                                             trust_remote_code=config.trust_remote_code,) 
                                                         
@@ -284,7 +279,7 @@ class TransformerModel(Model):
         
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
-          
+        
         if config.load:
             self.load(keys=['model', 'optimizer']) 
             
@@ -389,22 +384,22 @@ class TransformerModel(Model):
         return self.config['tokenizer']
 
     def tokenize(self, 
-                 text: str = 'Whadup',
-                 padding=True, 
-                 truncation=True, 
-                 max_length=64,
-                 return_tensors='pt',
-                 add_special_tokens=False,
-                 device:str = None, 
-                 **kwargs) -> torch.Tensor:
+                text: str = 'Whadup',
+                padding=True, 
+                truncation=True, 
+                max_length=64,
+                return_tensors='pt',
+                add_special_tokens=False,
+                device:str = None, 
+                **kwargs) -> torch.Tensor:
         """ Returns tokenized text as torch tensor. """
         
         sample = self.tokenizer(text, padding=padding, 
-                                      truncation=truncation, 
-                                      max_length=max_length, 
-                                      return_tensors=return_tensors,
-                                      add_special_tokens=add_special_tokens, 
-                                      **kwargs)  # assume tokenizer.padding_side = 'left'
+                                    truncation=truncation, 
+                                    max_length=max_length, 
+                                    return_tensors=return_tensors,
+                                    add_special_tokens=add_special_tokens, 
+                                    **kwargs)  # assume tokenizer.padding_side = 'left'
 
         device = device if device != None else self.device
         
@@ -436,7 +431,7 @@ class TransformerModel(Model):
             cls.dataset_pool = c.connect_pool(dataset)
 
         fail_count = 0
-       
+    
         while not cls.sample_check(sample) and fail_count < max_trials:
             if len(cls.dataset_pool) == 0:
                 cls.dataset_pool = c.connect_pool(dataset)
@@ -497,20 +492,20 @@ class TransformerModel(Model):
 
     @classmethod
     def learn(cls, model = 'gpt125m', 
-             topk:int=512 ,
-             dataset:str = 'dataset.bittensor',
-             num_batches = 1000,
-             batch_delay = 3,
-             sequence_length : int = 256,
-             batch_size: int = 32,
-             autocast : bool = True,
-             train: bool= True,
-             map_logits : bool = False,
-             map_tokens : bool = False,
-             timeout : int= 8,
-             remote:bool = False,
-             **kwargs
-             ):
+            topk:int=512 ,
+            dataset:str = 'dataset.bittensor',
+            num_batches = 1000,
+            batch_delay = 3,
+            sequence_length : int = 256,
+            batch_size: int = 32,
+            autocast : bool = True,
+            train: bool= True,
+            map_logits : bool = False,
+            map_tokens : bool = False,
+            timeout : int= 8,
+            remote:bool = False,
+            **kwargs
+            ):
         
         if remote:
             kwargs = cls.locals2kwargs(locals())
@@ -543,8 +538,8 @@ class TransformerModel(Model):
             output = model.forward(**sample)
             cls.print('STATS: ',output.get('stats', output))
 
-          
-          
+        
+        
     test = evaluate = learn
     
     @property
@@ -553,7 +548,7 @@ class TransformerModel(Model):
             self.config['tag'] = 'base'
             
         return  self.config['tag']
-       
+    
     @tag.setter
     def tag(self, tag):
         self.config['tag'] = tag
@@ -585,8 +580,8 @@ class TransformerModel(Model):
     @classmethod
     def default_models(cls):
         return list(cls.shortcuts.keys())
-          
-          
+        
+        
     fleet_group = {
         
         '0': [ 'gpt125m', 'gpt2.7b', 'opt2.7b','gptj'],
@@ -616,14 +611,14 @@ class TransformerModel(Model):
 
     @classmethod
     def hyperfleet(cls, 
-                     *tags, 
-                     model = 'gptj',
-                     params = {
-                         'optimizer.lr': [1e-4, 1e-5],
-                         'finetune': [1,2,3,4],
-                     }, 
-                     **kwargs
-                     ) -> List[str]:
+                    *tags, 
+                    model = 'gptj',
+                    params = {
+                        'optimizer.lr': [1e-4, 1e-5],
+                        'finetune': [1,2,3,4],
+                    }, 
+                    **kwargs
+                    ) -> List[str]:
         params_configurations = cls.get_configurations(params)
         deployed_models = []
         free_gpu_memory  = cls.free_gpu_memory()
@@ -636,11 +631,11 @@ class TransformerModel(Model):
         return {'deployed': deployed_models}
     @classmethod
     def deploy_fleet(cls, 
-                     *tags, 
-                     model = 'gptj',
-                     max_models = None,
-                     **kwargs
-                     ) -> List[str]:
+                    *tags, 
+                    model = 'gptj',
+                    max_models = None,
+                    **kwargs
+                    ) -> List[str]:
 
         c.update()
         if len(tags) == 0:
@@ -668,40 +663,16 @@ class TransformerModel(Model):
             if cls.exists(f'model.{model}') == False:
                 undeployed_models.append(model)
         return undeployed_models
-       
-    
-    @classmethod   
-    def infer_device_map(cls, model, 
-                         max_memory: dict = None,
-                         **kwargs,
-                         ):
-        from accelerate import infer_auto_device_map
-        if isinstance(model, str):
-            model = cls.get_empty_model(model)
-        if max_memory == None:
-            model_size = cls.get_model_size(model)
-            max_memory = cls.max_gpu_memory(model_size)    
-
-        device_map = infer_auto_device_map(model,  **kwargs) 
-        gpu2layers = {}
-        for layer, gpu in device_map.items():
-            if gpu not in gpu2layers:
-                gpu2layers[gpu] = []
-            gpu2layers[gpu].append(layer)
-        c.print(gpu2layers)
-        c.print(max_memory)
-        # return device_map
-    
     
 
-      
+    
     @classmethod
     def serve(cls,
-               model: str,
-               tag = None,
-               refresh = True,    
-               **kwargs
-              ):
+            model: str,
+            tag = None,
+            refresh = True,    
+            **kwargs
+            ):
         
         config = cls.get_config(kwargs=kwargs)
         config.tag = tag
@@ -721,9 +692,9 @@ class TransformerModel(Model):
         
     @classmethod
     def calculate_loss( cls, logits: torch.Tensor,
-                       input_ids:torch.Tensor,
-                       return_value = False,
-                       **kwargs) -> torch.Tensor:
+                    input_ids:torch.Tensor,
+                    return_value = False,
+                    **kwargs) -> torch.Tensor:
         '''
         Calculate the loss for the model.
         '''
@@ -781,6 +752,30 @@ class TransformerModel(Model):
         for seq in sequences:
             print(f"Result: {seq['generated_text']}")
 
+    def generate(self, text: str, max_length: int = 20, max_new_tokens: int = None,
+                min_length: int = 0, min_new_tokens: int = None,
+                early_stopping: bool or str = True, max_time: float = None, **kwargs) -> List[str]:
+        input_ids = self.tokenize(text)['input_ids']
+        output_ids = self.model.generate(input_ids, 
+                                        max_length=max_length, 
+                                        max_new_tokens=max_new_tokens,
+                                        min_length=min_length, 
+                                        min_new_tokens=min_new_tokens,
+                                        early_stopping=early_stopping,
+                                        max_time=max_time, **kwargs)
+        output_text = self.detokenize(output_ids, skip_special_tokens=True)
+        return output_text
+    
+    @classmethod
+    def infer_device_map(cls, model, 
+                         device_map: str = 'auto',
+                         max_memory = None,
+                         
+                         ) -> str:
+        from accelerate import infer_auto_device_map
+        model_size = c.get_model_size(model)
+        max_memory = c.get_max_memory(max_memory)
 
+        device_map = infer_auto_device_map(my_model, max_memory={0: "10GiB", 1: "10GiB", "cpu": "30GiB"})
 
 TransformerModel.run(__name__)
