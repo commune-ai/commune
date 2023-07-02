@@ -8,13 +8,17 @@ class PokemonFineTune(c.Module):
     def __init__(self):
         super().__init__()
 
-    def fine_tune(self) -> None:
+    @classmethod
+    def setup(cls)
         c.run_command(["git", "clone", "https://github.com/justinpinkney/stable-diffusion.git"])
         c.run_command(["pip", "install", "--upgrade", "pip"])
         c.run_command(["pip", "install", "-r", "stable-diffusion/requirements.txt"])
         c.run_command(["pip", "install", "--upgrade", "keras"])
         c.run_command(["pip", "uninstall", "-y", "torchtext"])
         c.run_command(["nvidia-smi"])
+        
+        
+    def fine_tune(self) -> None:
 
         # Check the dataset
         c.run_command(["pip", "install", "datasets"])

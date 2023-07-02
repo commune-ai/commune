@@ -8,21 +8,24 @@ class FileChangeHandler(FileSystemEventHandler):
         super().__init__()
         self.module = module
 
+
     def on_any_event(self, event):
         if event.is_directory:
             return
         if event.event_type in ['created', 'modified', 'deleted']:
+            c.print(f'File change detected: {event.src_path}')
             c.module_tree(update=True, verbose=True)
 
 class WatchdogModule(c.Module, FileSystemEventHandler):
 
 
 
-    def __init__(self, folder_path:str = c.root_path):
+    def __init__(self, folder_path:str = c.root_path, run:bool = True ):
         super().__init__()
         self.folder_path = folder_path
         self.observer = None
-
+        if run:
+            self.start_server()
     def start_server(self):
         event_handler = FileChangeHandler(self)
         self.observer = Observer()
