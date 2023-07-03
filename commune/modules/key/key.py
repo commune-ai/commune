@@ -195,6 +195,12 @@ class Keypair(c.Module):
             c.print(f'generating key {key_name}')
             cls.add_key(key_name, **kwargs)
     add = add_key
+    
+    @classmethod
+    def key_info(cls, *args, **kwargs):
+        kwargs['json'] = True
+        return cls.get_key(*args, **kwargs)
+    
     @classmethod
     def get_key(cls, 
                 path:str,

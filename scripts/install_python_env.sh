@@ -13,17 +13,8 @@ fi
 # source env/bin/activate
 pip install --upgrade pip
 
-# # install bittensor
-pip install bittensor
-# # python 3.10
-pip install https://github.com/opentensor/cubit/releases/download/v1.1.2/cubit-1.1.2-cp310-cp310-linux_x86_64.whl
-
-# install commune
-pip install -e .
-
 # Deactivate the virtual environment
 echo "Setup is complete. To activate the virtual environment, run 'source myenv/bin/activate'"
-
 
 
 # Install dependencies
