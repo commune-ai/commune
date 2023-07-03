@@ -1589,6 +1589,7 @@ class c:
                              path:str,
                              default:Any=None,
                              root: bool = False,
+                             verbose: bool = False,
                              **kwargs):
 
         from commune.utils.dict import async_get_json
@@ -5194,6 +5195,7 @@ class c:
         
         
         c.namespace(network=network,verbose=verbose, update=True)
+        c.module_tree(verbose=verbose, update=True)
         
         
     @classmethod
@@ -6440,6 +6442,8 @@ class c:
         return 
     
     
+    ## SUBSPACE FNS
+    
     @classmethod
     def register(cls, *args, **kwargs):
         return c.module('subspace')().register(*args, **kwargs)
@@ -6464,6 +6468,18 @@ class c:
     def unstake(cls, *args, **kwargs):
         return c.module('subspace')().stake(*args, **kwargs)
     
+    @classmethod
+    def balance(cls, *args, **kwargs):
+        return c.module('subspace')().balance(*args, **kwargs)
+    get_balance = balance
+    
+    @classmethod
+    def my_balances(cls, *args, **kwargs):
+        return c.module('subspace')().my_balances(*args, **kwargs)
+
+    @classmethod
+    def my_keys(cls, *args, **kwargs):
+        return c.module('subspace')().my_keys(*args, **kwargs)
     
     @classmethod   
     def infer_device_map(cls, 
