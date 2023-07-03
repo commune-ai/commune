@@ -252,7 +252,6 @@ class TransformerModel(Model):
         
         # if we are using a shortcut, we need to set the model path
         config['model'] = self.shortcuts.get(config.model, config.model)
-        config.tokenizer = config.tokenizer if config.tokenizer else config.model
         self.set_tokenizer(config.tokenizer)
 
         config.block_prefix = config.model2block_prefix.get(config.model, config.block_prefix)
@@ -321,7 +320,8 @@ class TransformerModel(Model):
         tokenizer = self.shortcuts.get(tokenizer, tokenizer)
         assert isinstance(tokenizer, str)
         return tokenizer
-    def set_tokenizer(self, tokenizer):
+    def set_tokenizer(self, tokenizer:str=None):
+        tokenizer = tokenizer if self.config.tokenizer else self.config.model
         from transformers import AutoTokenizer, AutoModel
         from commune.utils.tokenizer import prep_tokenizer
         tokenizer = self.resolve_tokenizer(tokenizer)
