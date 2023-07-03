@@ -6,7 +6,7 @@ class HFDataset(c.Module):
         self.set_config(config, kwargs=kwargs)
         self.dataset = load_dataset(**self.config)
         self.split = self.config.split
-        
+    
     def __len__(self):
         return len(self.dataset)
     

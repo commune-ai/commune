@@ -13,14 +13,16 @@ services:
     volumes:
 
       # COMMUNE VOLUME MOUNTS
-      - ./commune:/app/commune
+      - ./commune:/commune/commune
+      - ./commune/subspace:/commune/subspace
+      - ./commune/frontend:/commune/frontend
       # LOCAL COMMUNE MOUNTS AND FILES
-      - ./Makefile:/app/Makefile 
-      - ./setup.py:/app/setup.py
-      - ./commune.sh:/app/commune.sh
-      - ./requirements.txt:/app/requirements.txt
-      - ./README.md:/app/README.md
-      - ./scripts:/app/scripts
+      - ./Makefile:/commune/Makefile 
+      - ./setup.py:/commune/setup.py
+      - ./commune.sh:/commune/commune.sh
+      - ./requirements.txt:/commune/requirements.txt
+      - ./README.md:/commune/README.md
+      - ./scripts:/commune/scripts
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
@@ -31,14 +33,14 @@ services:
       - ~/.commune:/root/.commune
       - ~/.bittensor:/root/.bittensor
 
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
-    command: bash -c "cd /app; chmod +x /app/scripts/*;/app/scripts/startup.sh;"
+    command: bash -c "cd /commune; chmod +x /commune/scripts/*;/commune/scripts/startup.sh;"
 
   

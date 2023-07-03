@@ -101,6 +101,7 @@ class CLI(c.Module):
         'hf': 'huggingface',
         'chain': 'subspace',
         's': 'subspace',
+        'd': 'docker',
         'data.hf': 'dataset.hf'
     }
     @classmethod

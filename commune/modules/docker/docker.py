@@ -13,17 +13,31 @@ class Docker(c.Module):
     
     @classmethod
     def dockerfile(cls, path = c.repo_path): 
-        return [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
+        path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
+        return c.get_text(path)
+    
+    @classmethod
+    def resolve_repo_path(cls, path):
+        if path is None:
+            path = c.repo_path
+        else:
+            path = c.repo_path + '/' + path
+        return path
+
+    @classmethod
+    def resolve_docker_compose_path(cls,path = None):
+        path = cls.resolve_repo_path(path)
+        return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
+        return path
 
     @classmethod
     def docker_compose(cls, path = c.repo_path): 
-        return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
+        docker_compose_path = cls.resolve_docker_compose_path(path)
+        return c.load_yanl(docker_compose_path)
     
-
-    def build(path = c.repo_path, tag = None, sudo=True):
-        
-        if tag is None:
-            tag = os.path.basename(path)
+    @classmethod
+    def build(cls, path = None, tag = None, sudo=True):
+        path = cls.resolve_repo_path(path)
         return c.cmd(f'docker-compose build', sudo=sudo, cwd=path)
     
     

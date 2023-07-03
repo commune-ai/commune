@@ -15,8 +15,7 @@ class EVM(c.Module):
                  config:dict=None, 
                  contract:'c.evm.contract' =None, 
                  network: 'c.evm.network'= None, 
-                 account: 'c.evm.account'=None,
-                 base_dir:str=None
+                 account: 'c.evm.account'=None):
                  
         self.set_network(network)
         self.set_account(account)
@@ -25,9 +24,6 @@ class EVM(c.Module):
     def address(self):
         return self.contract.address
 
-    @propertymap(self):
-        return {f_a
-        return list(self.fu
     def accounts(self):
         return self.account.accounts
 
@@ -226,7 +222,7 @@ class EVM(c.Module):
         is_contract = isinstance(self.contract2address.get(contract), str)
         return bool(is_address or is_contract)
 
-    def get_contract(self,contract=None , web3=None, account:'Account'=None, version=-1, virtual=True):
+    def get_contract(self,contract=None , web3=None, account:str=None, version=-1, virtual=True):
         web3 = self.resolve_web3(web3)
         account = self.resolve_account(account)
 

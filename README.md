@@ -109,3 +109,55 @@ Subspace is a blockchain that Commune uses for several purposes:
 - **DNS for Python**: Decentralized Name Service for deployed objects.
 - **Evaluating Performance through Voting**: Stake-weighted voting system for users to evaluate each other instead of self-reported networks. This provides users with
 
+
+## Register
+
+To register a module, do the following
+
+```python
+c register {module_path} name={module_name (OPTIONAL)}
+```
+
+The module path is specified 
+
+
+Yo, listen up! I'm about to drop some updated knowledge on how to create a dope module and register it on the blockchain. Here's the revised step-by-step guide:
+
+1. **Create Your Module**: Start by creating your own module in Python. It can be anything you want - a model, a service, or some sick functionality. Make sure your module is ready to rock and roll.
+
+2. **Import Commune**: Import the Commune library into your Python code. You'll need it to create and register your module.
+
+```python
+import commune as c
+```
+
+3. **Define Your Module Class**: Create a class that represents your module. Make sure it inherits from `c.Module`.
+
+```python
+class MyDopeModule(c.Module):
+    def __init__(self):
+        super().__init__()
+        # Your module initialization code goes here
+
+    def some_cool_function(self):
+        # Your module's cool functionality goes here
+        return "I'm bringing the heat!"
+```
+
+4. **Register Your Module**: Now it's time to register your module on the blockchain. You have the option to specify a custom name and tag for your module. If you don't provide a custom name, the module will default to the module path. The tag is optional and can be used for versioning or categorization purposes.
+
+To register your module with a custom name and tag, run the following command:
+
+```bash
+c register my_module_path name=my_module tag=1
+```
+
+Replace `my_module_path` with the actual path to your module file (without the class name), `my_module` with the desired name for your module, and `1` with the desired tag. This will register your module on the blockchain with the specified name and tag.
+
+If you prefer to use the default module path as the name, simply omit the `name` parameter:
+
+```bash
+c register my_module_path tag=1
+```
+
+That's it, my friend! You've created a dope module and registered it on the blockchain with the option to customize the name and tag. Now you can share your module with the world and let others benefit from your greatness. Keep on coding and stay fresh!

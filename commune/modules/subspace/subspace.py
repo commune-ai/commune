@@ -301,6 +301,7 @@ class Subspace(c.Module):
         kwargs : dict = None,
         tag_seperator: str = "::", 
         network: str = None,
+        refresh: bool = False,
 
     ) -> bool:
         
@@ -312,17 +313,23 @@ class Subspace(c.Module):
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
             
+        if c.module_exists(module) and not refresh:
+            module_info = c.connect(module).info()
+            address = module_info['address']
+            name = module_info['name']
+            name = c.resolve_server_name(module=module, name=name, tag=tag)
 
-        name = c.resolve_server_name(module=module, name=name, tag=tag)
-        key = key or name
-        key = self.resolve_key(key)
             
-        address = c.free_address()
-        c.serve(module=module, address=address, name=name, kwargs=kwargs)
-
+            
+        else:
+            c.serve(module=module, address=address, name=name, kwargs=kwargs)
+            address = c.free_address()
+            name = c.resolve_server_name(module=module, name=name, tag=tag)
+        key = key if key != None else name
+        key = self.resolve_key(key)
         netuid = self.get_netuid_for_subnet(subnet)
 
-        if self.is_registered(key):
+        if self.is_registered(key, netuid=netuid):
             return self.update_module(key=key, 
                                name=name, 
                                address=address,
@@ -769,10 +776,9 @@ class Subspace(c.Module):
         
         if isinstance(key_ss58, str):
             if c.key_exists( key_ss58 ):
-                key_ss58 = c.get_key( key_ss58 ).ss58_address
+                key_ss58 = c.get_key( key_ss58 )
         elif hasattr(key_ss58, 'ss58_address'):
             key_ss58 = key_ss58.ss58_address
-            
         return key_ss58
     @classmethod
     def resolve_key(cls, key):
@@ -780,7 +786,7 @@ class Subspace(c.Module):
             if not c.key_exists( key ):
                 c.add_key( key)
             key = c.get_key( key )
-        assert hasattr(key, 'ss58_address'), f"Invalid key {key}."
+        assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
         return key
         
     @classmethod
@@ -826,21 +832,22 @@ class Subspace(c.Module):
             
     def save(self, network:str= None):
         network = self.resolve_network(network)
+        subnet_states = {}
+        network_state = {}
         for netuid in self.netuids():
-            state_dict = self.state_dict(network=network, 
-                                         save=True, 
+            subnet_states[netuid] = self.state_dict(network=network, 
+                                         save=False, 
                                          load=False,
                                          netuid=netuid)
-        self.put(f'archive/{network}/balances', self.balances())
+            
+        network_state['balances'] = self.balances()
+        network_state['subnets'] = subnet_states
+        self.put(f'archive/{network}/state', network_state)
 
     def load(self, network:str=None, save:bool = False):
         network = self.resolve_network(network)
         state_dict = {}
-        for netuid in self.netuids():
-            state_dict[netuid] = self.state_dict(network=network, 
-                                         save=False, 
-                                         load=True,
-                                         netuid=netuid)
+        state_dict = self.get(f'archive/{network}/state', state_dict)
         return state_dict
     
 
@@ -852,17 +859,16 @@ class Subspace(c.Module):
                    netuid: int = 1,
                    network:str= network, 
                    load : bool= False,
-                   save : bool = True,
+                   save : bool = False,
                    max_age: str = 60, 
-                   default = None,
-                   cache:bool = True) -> dict:
+                   default = None ) -> dict:
         # network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
         subnet = self.netuid2subnet(netuid)
-        path = f'archive/{network}/state_{subnet}'
+        path = f'archive/{network}/state_dict_net::{netuid}'
         state_dict = {}
         if load:
-            state_dict = self.get(path, default={} ,max_age=max_age, cache=cache)             
+            state_dict = self.get(path, default={} ,max_age=max_age)             
         if len(state_dict) == 0:
             if load:
                 save = True
@@ -874,13 +880,9 @@ class Subspace(c.Module):
                 'block': self.block,
                 'timestamp': c.timestamp(),
             }
-            
-            
         if save:
             self.put(path, state_dict, cache=cache)
-                   
-        state_dict['namespace'] = {m['name']:m['address'] for m in state_dict['modules']}
-
+                
         return state_dict
 
     def subnet_states(self, *args, **kwargs):
@@ -1223,7 +1225,7 @@ class Subspace(c.Module):
         
         network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
-        cache_path = f"archive/{network}.{netuid}/modules"
+        cache_path = f"cache/{network}.{netuid}/modules"
 
         if cache:
             modules = self.get(cache_path, default=[], max_age=max_age)
@@ -1240,8 +1242,6 @@ class Subspace(c.Module):
             weights = self.weights(netuid=netuid)
             stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
             balances = self.balances()
-            
-            
             
             modules = []
             
@@ -1459,7 +1459,7 @@ class Subspace(c.Module):
             base_spec['balances'] = balances
         if aura_authorities != None:
             base_spec['balances'] = aura_authorities
-        c.put_json( new_chain_path, bascse_spec)
+        c.put_json( new_chain_path, base_spec)
         
         return base_spec
     
@@ -1526,15 +1526,6 @@ class Subspace(c.Module):
     def node_prefix(cls):
         return f'{cls.module_path()}.node'
     
-    @classmethod
-    def st_metrics_dict(cls, x, num_columns=3):
-        cols = st.columns(num_columns)
-        if self.is_registered:
-            neuron = self.neuron
-            for i, (k,v) in enumerate(x):
-                if type(v) in [int, float]:
-                    cols[i % num_columns].metric(label=k, value=v)
-                        
        
        
  
@@ -1601,8 +1592,8 @@ class Subspace(c.Module):
        
     @classmethod
     def start_chain(cls, 
-                    users = ['alice','bob', 'charlie'] ,
                     chain:str='dev', 
+                    users = ['alice','bob', 'charlie'] ,
                     verbose:bool = False,
                     reuse_ports : bool = True,
                     sleep :int = 2,
@@ -1791,7 +1782,6 @@ class Subspace(c.Module):
     def node_id(cls, chain='dev', user='alice'):
         return cls.node_ids(chain=chain)[user]
     
-    
 
    
     @classmethod
@@ -1848,11 +1838,14 @@ class Subspace(c.Module):
          
          
     @classmethod
-    def get_key_info(cls, key):
+    def get_key_info(cls, key, netuid=None, network=None):
+        netuid = cls.resolve_netuid(netuid)
+        network = cls.resolve_network(network)
+        key = cls.resolve_key(key)
         
         key_info = {
             'key': key.ss58_address,
-            'is_registered': cls.is_registered(key),
+            'is_registered': cls.is_registered(key, netuid=netuid, network=network),
         }
         return key_info
          
