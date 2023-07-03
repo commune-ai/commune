@@ -4460,6 +4460,10 @@ class c:
          return c.module('key').get_key_for_address(address)
 
     @classmethod
+    def key_info(cls, key:str = None, **kwargs):
+        return c.module('key').key_info(key, **kwargs)
+    
+    @classmethod
     def get_key(cls,key:str = None ,mode='commune', **kwargs) -> None:
      
         mode2module = {
@@ -6424,6 +6428,26 @@ class c:
     @classmethod
     def register(cls, *args, **kwargs):
         return c.module('subspace')().register(*args, **kwargs)
+    
+    @classmethod
+    def transfer(cls, *args, **kwargs):
+        return c.module('subspace')().transfer(*args, **kwargs)
+    
+    @classmethod
+    def stake(cls, *args, **kwargs):
+        return c.module('subspace')().stake(*args, **kwargs)
+    
+    @classmethod
+    def unstake(cls, *args, **kwargs):
+        return c.module('subspace')().stake(*args, **kwargs)
+    
+    @classmethod
+    def my_modules(cls, *args, **kwargs):
+        return c.module('subspace')().my_modules(*args, **kwargs)
+    
+    @classmethod
+    def unstake(cls, *args, **kwargs):
+        return c.module('subspace')().stake(*args, **kwargs)
     
     
     @classmethod   
