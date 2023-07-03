@@ -6446,15 +6446,19 @@ class c:
         unallocated_memory = sum(param_size_map.values())
         allocated_gpu_memory = {}
         c.print(param_size_map)
-        for param_key, param_size in param_size_map.items():
+        
+        gpu = None
+        
+        
+        
+        for param_key, param_size in param_size_map.items():            
             # find the most free gpu if gpu is None or if the gpu has less memory than the buffer memory
         
-            if gpu == None \
-                or (free_gpu_memory[gpu] < buffer_memory)\
-                or (free_gpu_memory[gpu] < param_size):
+            if (gpu == None) or (free_gpu_memory[gpu] < buffer_memory) or (free_gpu_memory[gpu] < param_size):
                 gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
-                allocated_gpu_memory[gpu] = 0
+                llocated_gpu_memory[gpu] = 0
     
+   
             
             allocated_gpu_memory[gpu] += param_size
             free_gpu_memory[gpu] -= param_size

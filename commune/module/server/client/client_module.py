@@ -58,7 +58,7 @@ class VirtualModule:
         if key in self.protected_attributes :
             return getattr(self, key)
         else:
-            return lambda *args, **kwargs: self.remote_call(fn=key, *args, **kwargs)
+            return lambda *args, **kwargs: self.remote_call(remote_fn=key, *args, **kwargs)
 
 
 
