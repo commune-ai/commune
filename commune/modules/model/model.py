@@ -27,7 +27,7 @@ from commune.utils.tokenizer import get_translation_map, translate_logits_to_pro
         encode_topk, decode_topk
  
 """
-Examples 
+Examples fdef
 
 
 
@@ -471,9 +471,9 @@ class Model( nn.Module, commune.Module):
                 
         return total_params
 
-    # @classmethod
-    # def deploy(cls, *args, **kwargs):
-    #     return cls.base_model().deploy(*args, **kwargs)
+    @classmethod
+    def serve(cls, *args, **kwargs):
+        return cls.base_model().serve(*args, **kwargs)
 
 
     @classmethod

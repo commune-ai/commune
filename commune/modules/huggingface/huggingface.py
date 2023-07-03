@@ -7,57 +7,16 @@ from huggingface_hub import HfApi, hf_hub_download
 import transformers
 from transformers import AutoModel, AutoTokenizer
 from datasets import load_dataset, Dataset, load_dataset_builder
-import commune
+import commune as c
 import streamlit as st
 import torch
 from safetensors.torch import save_file, load_file
 
 
-shortcuts =  {
-    # 0-1B models
-    'gpt125m': 'EleutherAI/gpt-neo-125m',
 
-    # 1-3B models
-    'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-    'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-    'opt1.3b': 'facebook/opt-1.3b',
-    'opt2.7b': 'facebook/opt-2.7b',
-    # 'gpt3btuning' : ''
-
-    # 0-7B models
-    'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-    'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-    'gptj': 'EleutherAI/gpt-j-6b',
-    'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-    'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-    'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-    'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-    'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-    'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-    'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-    'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-    'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-    'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-    'opt6.7b': 'facebook/opt-6.7b',
-    'llama': 'decapoda-research/llama-7b-hf',
-    'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-    'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-    'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-    'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-    'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
-    # # > 7B models
-    'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-    'gptneox': 'EleutherAI/gpt-neox-20b',
-    'gpt20b': 'EleutherAI/gpt-neox-20b',
-    'opt13b': 'facebook/opt-13b',
-    'gpt13b': 'cerebras/Cerebras-GPT-13B',
-    
-        }
-
-
-class Huggingface(commune.Module):
-    
-    shortcuts = shortcuts
+class Huggingface(c.Module):
+    cfg = c.get_config('huggingface')
+    shortcuts = cfg['shortcuts']
     def __init__(self, config:dict=None):
         self.set_config(config)
         self.hf_api = HfApi(self.config.get('hub'))
@@ -216,7 +175,7 @@ class Huggingface(commune.Module):
     def model_paths(cls, limit=10, **kwargs):
         dirpath = f'{cls.cache_path}/hub'
         
-        return [p for p in commune.ls(dirpath) if os.path.basename(p).startswith('models')]
+        return [p for p in c.ls(dirpath) if os.path.basename(p).startswith('models')]
     
     
     
@@ -240,7 +199,7 @@ class Huggingface(commune.Module):
     def get_model_snapshots(cls, model):
         model = cls.resolve_model(model)
         root_path = cls.saved_model2path().get(model) + '/snapshots'
-        snapshots = commune.ls(root_path)
+        snapshots = c.ls(root_path)
         return [ snapshot  for snapshot in snapshots]
     
     @classmethod
@@ -348,5 +307,3 @@ class Huggingface(commune.Module):
         cls.model_paths()
 
 Huggingface.class_init()
-if __name__ == '__main__':
-    Huggingface.run()

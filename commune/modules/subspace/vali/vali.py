@@ -9,6 +9,8 @@ class Validator(c.Module):
 
     def __init__(self, config=None,
                  **kwargs):
+        self.count = 0
+        self.w = {}
         self.set_config(config=config, kwargs=locals())
         self.subspace = c.module(self.config.network)()
         self.modules = self.subspace.modules()
@@ -26,22 +28,24 @@ class Validator(c.Module):
         return 1
     
          
-    def eval_module(self, module=None, verbose:bool=True):
+    async def async_eval_module(self, module=None, verbose:bool=True):
         module_state = c.choice(self.modules) if module == None else None
         w = 1
         error = None
         try:
             module_name = module_state['name']
             # get connection
-            module = c.connect(module_state['address'], network=self.config.network, timeout=self.config.timeout)
+            module = await c.async_connect(module_state['address'], 
+                                           network=self.config.network, 
+                                           timeout=self.config.timeout)
             
             # get info
-            if module_name not in module_state:
-                module_state = module.info(timeout=self.config.timeout)
+            # if 'info' not in module_state:
+            module_state['info'] = module.info(timeout=self.config.timeout)
         except Exception as e:
             # something went wrong, set score to 0, 
             w = 0
-            response = {'error': str(e), 'module': module_name, 'w': 0}
+            error = str(e)
 
         w = self.get_score(module) if w != 0 else 0
 
@@ -67,19 +71,16 @@ class Validator(c.Module):
         
         
         tag = self.config.tag if tag == None else tag
-        for m in self.modules:
-            
             
         self.put(f'{tag}/w', self.w)
-        self.put(f'{tag}/response_history', self.response_history)
-        self.put(f'{tag}/network_state', self.response_history)
 
-    def run(self):
+    def run(self, parallel_jobs:int=10):
         
 
         self.running = True
         while self.running:
-            self.eval_module()
+            jobs = [self.async_eval_module() for _ in range(parallel_jobs)]
+            c.gather(jobs)
 
            
     def check_score(self, module):

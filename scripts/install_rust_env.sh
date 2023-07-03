@@ -1,23 +1,22 @@
-#/bin/bash
+#!/usr/bin/env bash
+# This script is meant to be run on Unix/Linux based systems
+set -e
 
 # Install cargo and Rust
 curl https://sh.rustup.rs -sSf | sh -s -- -y
-PATH="/root/.cargo/bin:${PATH}"
 
-apt-get update \
- && DEBIAN_FRONTEND=noninteractive \
-    apt-get install --no-install-recommends --assume-yes \
-      protobuf-compiler
+export PATH="$HOME/.cargo/bin:$PATH"
+. "$HOME/.cargo/env"
+echo "*** Initialized WASM build environment with Rust 1.68.1"
 
+# Install cargo and Rust nightly
+rustup update
 rustup update nightly
-rustup target add wasm32-unknown-unknown --toolchain nightly
-apt-get install make
-apt-get install -y pkg-config
 
-# CONTRACTS STUFF
-apt install binaryen
-apt-get install libssl-dev
-cargo install cargo-dylint dylint-link
-cargo install cargo-contract --force
+rustup install nightly-2023-01-01
+rustup override set nightly-2023-01-01
+rustup target add wasm32-unknown-unknown
 
-rustup component add rust-src --toolchain nightly-x86_64-unknown-linux-gnu
+# Use the "yes" command to automatically provide 'Y' as the answer
+yes | apt-get install libclang-dev
+yes | apt-get install protobuf-compiler
