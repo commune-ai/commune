@@ -777,7 +777,7 @@ class Subspace(c.Module):
         if isinstance(key_ss58, str):
             if c.key_exists( key_ss58 ):
                 key_ss58 = c.get_key( key_ss58 )
-        elif hasattr(key_ss58, 'ss58_address'):
+        if hasattr(key_ss58, 'ss58_address'):
             key_ss58 = key_ss58.ss58_address
         return key_ss58
     @classmethod
@@ -987,6 +987,7 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
         
+        
         try:
             @retry(delay=2, tries=3, backoff=2, max_delay=4)
             def make_substrate_call_with_retry():
@@ -1045,7 +1046,7 @@ class Subspace(c.Module):
         subnets = self.subnets()
         assert subnet in subnets, f"Subnet {subnet} not found in {subnets} for chain {self.chain}"
         return subnet
-    
+
 
     @staticmethod
     def _null_module() -> ModuleInfo:
@@ -1289,7 +1290,7 @@ class Subspace(c.Module):
       
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.namespace(netuid=netuid, **kwargs).keys())
-       
+    
     def my_modules(self, *args, names_only:bool= True,  **kwargs):
         my_modules = []
         address2key = c.address2key()
@@ -1303,6 +1304,15 @@ class Subspace(c.Module):
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return {m['name']: m['key'] for m in modules}
+    
+    def my_keys(self, *args,  **kwargs):
+        modules = self.my_modules(*args, names_only=False, **kwargs)
+        return [m['key'] for m in modules]
+    
+    def my_balances(self, *args,  **kwargs):
+        modules = self.my_modules(*args, names_only=False, **kwargs)
+        return {m['name']: m['balance'] for m in modules}
+    
     my_keys = my_module_keys
     def is_my_module(self, name:str):
         return self.name2module(name=name, *args, **kwargs)
