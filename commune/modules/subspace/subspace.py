@@ -416,10 +416,10 @@ class Subspace(c.Module):
 
         # Check balance.
         with c.status(":satellite: Checking Balance..."):
-            account_balance = self.get_balance( key.ss58_address )
+            account_balance = self.get_balance( key.ss58_address , fmt='nano' )
             existential_deposit = self.get_existential_deposit()
 
-        transfer_balance =  Balance.to_nanos(amount)
+        transfer_balance =  self.to_nanos(amount)
         with c.status(":satellite: Transferring..."):
             with self.substrate as substrate:
                 call = substrate.compose_call(
@@ -436,10 +436,10 @@ class Subspace(c.Module):
                 except Exception as e:
                     c.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
                     payment_info = {
-                        'partialFee': 2e7, # assume  0.02 joule 
+                        'partialFee': 2e7, # assume  0.02 joules
                     }
 
-                fee = transfer_balance.to_nanos(payment_info['partialFee'])
+                fee = payment_info['partialFee']
         
         if not keep_alive:
             # Check if the transfer should keep_alive the account
@@ -785,6 +785,7 @@ class Subspace(c.Module):
     """ Returns the stake under a coldkey - hotkey pairing """
     
     
+    
     @classmethod
     def resolve_key_ss58(cls, key_ss58):
         
@@ -808,9 +809,9 @@ class Subspace(c.Module):
         return x / (10**cls.token_decimals)
     to_token = from_nano
     @classmethod
-    def to_nano(cls,x):
+    def to_nanos(cls,x):
         return x * (10**cls.token_decimals)
-    from_token = to_nano
+    from_token = to_nanos
     @classmethod
     def format_amount(cls, x, fmt='nano'):
         if fmt in ['nano', 'n']:
@@ -1220,6 +1221,11 @@ class Subspace(c.Module):
         if module != module:
             return module2key[module]
         return module2key
+    def module2stake(self,*args, **kwargs) -> Dict[str, str]:
+        
+        module2stake =  { m['name']: m['stake'] for m in self.modules(*args, **kwargs) }
+        
+        return module2stake
         
         
     def module_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
@@ -1236,7 +1242,9 @@ class Subspace(c.Module):
                 update = True,
                 
                 ) -> Dict[str, ModuleInfo]:
-        
+        if fmt != 'nano':
+            cache=False
+            update=False
         
         network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
@@ -1275,16 +1283,11 @@ class Subspace(c.Module):
                     'weight': weights[uid] if uid in weights else [],
                     
                 }
+                for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
+                    module[k] = self.format_amount(module[k], fmt=fmt)
+                
                 modules.append(module)
             
-            # if save:
-            #     self.put('modules', modules, include_timestamp=True)
-            # if detail == False:
-            #     modules = [ m['name'] for m in modules.values()]
-
-            for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
-                for m in modules:
-                    m[k] = self.format_amount(m[k], fmt=fmt)
 
 
         if keys == None:
@@ -1381,12 +1384,11 @@ class Subspace(c.Module):
         # c.print(self.query_map('SubnetNamespace', params=[]).records)
     
 
-    chains = ['dev', 'test', 'main']
     @classmethod
     def build(cls, chain:str = 'dev', verbose:bool=False):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
         
-        for chain in cls.chains:
+        for chain in cls.chains():
             c.print(f'CHAIN: {chain}')
             cls.build_spec(chain)    
         

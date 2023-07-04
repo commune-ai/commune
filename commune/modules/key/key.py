@@ -202,6 +202,10 @@ class Keypair(c.Module):
         return cls.get_key(*args, **kwargs)
     
     @classmethod
+    def key_info_map(cls, *args, **kwargs):
+        return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
+    
+    @classmethod
     def get_key(cls, 
                 path:str,
                 password:str=None, 
