@@ -84,8 +84,7 @@ class Server(ServerServicer, Serializer, c.Module):
         
         
         if name == None:
-            if not hasattr(module, 'module_name'):
-                name = str(module)
+            name = module.module_path()
         self.name = name
         self.timeout = timeout
         self.verbose = verbose
@@ -125,6 +124,9 @@ class Server(ServerServicer, Serializer, c.Module):
 
         self.exceptions_to_raise = exceptions_to_raise
         self.set_module_info()
+        
+        
+        
     def set_event_loop(self, loop: 'asyncio.AbstractEventLoop' = None) -> None:
         if loop == None:
             loop = c.get_event_loop()
@@ -373,7 +375,7 @@ class Server(ServerServicer, Serializer, c.Module):
         lifetime_seconds:int = 0
         
         def print_serve_status():
-            text = f'{str(self.module.module_name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
+            text = f'{str(self.name)} IP::{self.endpoint} LIFETIME(s): {lifetime_seconds}s'
             c.print(text, color='green')
             
         
@@ -472,19 +474,11 @@ class Server(ServerServicer, Serializer, c.Module):
     @classmethod
     def test_server(cls):
         
-        class DemoModule:
-            def __call__(self, data:dict, metadata:dict) -> dict:
-                return {'data': data, 'metadata': {}}
-        
         modules = {}
-        for m in range(10):
-            module = Server(module=DemoModule())
-            # module.start()
-            modules[module.port] = module
+        module = Server(module=c.module('module')(), name='module', port=5000)
+        module.serve(wait_for_termination=True)
         
         
-        c.Client()
-        module.stop()
 
 
     @property
@@ -501,10 +495,11 @@ class Server(ServerServicer, Serializer, c.Module):
         )
         
         
-
-if __name__ == '__main__':
-    import asyncio 
-    import random
-    import streamlit as st
-    Server.test_server()
-    
+    @classmethod
+    def test(self):
+        
+        import asyncio 
+        import random
+        import streamlit as st
+        Server.test_server()
+        
