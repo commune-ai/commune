@@ -2072,7 +2072,7 @@ class BittensorModule(c.Module):
     @classmethod
     def servers(cls, **kwargs):
 
-        return c.modules('server')
+        return c.servers('server')
 
     
     @classmethod

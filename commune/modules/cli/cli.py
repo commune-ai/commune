@@ -16,7 +16,7 @@ class CLI(c.Module):
         self.module = c.Module()
         args, kwargs = self.parse_args()
         
-        module_list = c.module_list()
+        module_list = c.modules()
 
         fn = None
         module = None
@@ -26,7 +26,7 @@ class CLI(c.Module):
             
             
 
-            module_list = self.module_list()
+            module_list = self.modules()
             functions = list(set(self.module.functions()  + self.module.get_attributes()))
         
 
@@ -37,7 +37,7 @@ class CLI(c.Module):
                 fn = args.pop(0)
             else:
             
-                module_list = c.module_list()
+                module_list = c.modules()
                 
                 if args[0] in module_list:
 
