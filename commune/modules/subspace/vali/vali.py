@@ -22,10 +22,10 @@ class Validator(c.Module):
         
         self.running = False
         
-        
-    def get_score(self, module):
+    def calculate_score(self, module):
 
         return 1
+
     
          
     async def async_eval_module(self, module=None, verbose:bool=True):
@@ -47,7 +47,7 @@ class Validator(c.Module):
             w = 0
             error = str(e)
 
-        w = self.get_score(module) if w != 0 else 0
+        w = self.calculate_score(module) if w != 0 else 0
 
         response = {'module': module_name, 'w': w, 'error': error}
         if verbose:
