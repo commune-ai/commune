@@ -582,7 +582,7 @@ class Subspace(c.Module):
         if amount is None:
             amount = old_balance
             
-        amount = self.to_nano(amount)
+        amount = self.to_nanos(amount)
         
         c.print(amount)
         # Get current stake
@@ -637,7 +637,7 @@ class Subspace(c.Module):
         if amount == None:
             amount = old_stake
             
-        amount = self.to_nano(amount)
+        amount = self.to_nanos(amount)
         old_balance = self.get_balance(  key.ss58_address , fmt='nano')
             
             
