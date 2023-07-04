@@ -51,9 +51,9 @@ class ModulePool (c.Module):
     
     def add_modules(self, modules:list):
         if modules == None:
-            modules = c.modules()
+            modules = c.servers()
         if isinstance(modules, str):
-            modules = c.modules(modules)
+            modules = c.servers(modules)
         loop = self.get_event_loop()
         return loop.run_until_complete(asyncio.gather(*[self.async_add_module(m) for m in modules]))
           
