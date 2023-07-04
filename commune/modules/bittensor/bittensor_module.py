@@ -399,7 +399,7 @@ class BittensorModule(c.Module):
                 
         wallets = sorted(wallets)
         return wallets
-    
+    keys = wallets
     @classmethod
     def registered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
         wallets =  cls.wallets(search=search,registered=True, subtensor=subtensor, netuid=netuid)
@@ -903,7 +903,8 @@ class BittensorModule(c.Module):
         cls.fleet(network=network)
             
     @classmethod 
-    def add_coldkey (cls,name,
+    def add_coldkey (cls,
+                    name,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = False) :
