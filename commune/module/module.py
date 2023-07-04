@@ -6497,6 +6497,10 @@ class c:
         return c.module('subspace')().transfer(*args, **kwargs)
     
     @classmethod
+    def vote(cls, *args, **kwargs):
+        return c.module('subspace')().vote(*args, **kwargs)
+    
+    @classmethod
     def stake(cls, *args, **kwargs):
         return c.module('subspace')().stake(*args, **kwargs)
     

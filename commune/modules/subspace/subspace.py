@@ -212,6 +212,20 @@ class Subspace(c.Module):
             return {'verified': False, 'error': 'Key is not registered.'}
         return {'verified': True, 'error': None}
     
+    @classmethod
+    def circle_jerk_vote(cls, *args, remote = True, sleep_interval:str = 100, **kwargs):
+        if remote:
+            c.print('Remote voting...')
+            kwargs['remote'] = False
+            return cls.remote_fn('circle_jerk_vote', args=args, kwargs=kwargs)
+        self = cls()
+        while True:
+            c.print(f'Sleeping for {sleep_interval} seconds...')
+            c.print('Voting...')
+            self.vote(*args, **kwargs)
+
+
+    
     #####################
     #### Set Weights ####
     #####################
@@ -1291,7 +1305,7 @@ class Subspace(c.Module):
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.namespace(netuid=netuid, **kwargs).keys())
     
-    def my_modules(self, *args, names_only:bool= True,  **kwargs):
+    def my_modules(self, *args, names_only:bool= False,  **kwargs):
         my_modules = []
         address2key = c.address2key()
         for module in self.modules(*args, **kwargs):
