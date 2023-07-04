@@ -203,7 +203,7 @@ class SubspaceDashboard(c.Module):
         
     
     def launch_dashboard(self):
-        modules = c.leaves()
+        modules = c.modules()
         module2idx = {m:i for i,m in enumerate(modules)}
 
 
