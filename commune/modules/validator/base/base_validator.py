@@ -42,7 +42,7 @@ class Validator(c.Model):
             
     @classmethod
     def get_models(cls, models=None) -> List[str]:
-        modules = cls.modules()
+        modules = c.servers()
         
         if models is None:
             models = [m for m in modules if m.startswith('model')]
@@ -96,7 +96,7 @@ class Validator(c.Model):
     @classmethod
     def get_dataset(cls, dataset: str) -> None:
         sample = None
-        datasets = c.modules(dataset)
+        datasets = c.servers(dataset)
         for dataset in datasets:
             if isinstance(dataset, str):
                 dataset = c.connect(dataset)

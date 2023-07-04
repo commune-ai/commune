@@ -114,6 +114,9 @@ class c:
     def module_file(cls) -> str:
         # get the file of the module
         return inspect.getfile(cls)
+    @classmethod
+    def module_dirpath(self, simple:bool=False) -> str:
+        return  os.path.dirname(self.module_file(simple=simple))
 
     @classmethod
     def __module_dir__(cls) -> str :
@@ -131,6 +134,12 @@ class c:
         if simple:
             return cls.path2simple(path=module_path)
         return module_path
+    
+    @classmethod
+    def get_module_dirpath(cls, obj=None,  simple:bool=False) -> str:
+       
+        return  os.path.dirname(c.get_module_path(obj=obj, simple=simple))
+    get_module_dir = get_module_dirpath
     
     @classmethod
     def filepath(cls) -> str:
@@ -885,7 +894,7 @@ class c:
 
     
     @classmethod
-    def module_list(cls, search=None)-> List[str]:
+    def modules(cls, search=None)-> List[str]:
         '''
         List of module paths with respect to module.py file
         
@@ -1202,7 +1211,7 @@ class c:
     
     @classmethod
     def kill_all(cls, search= None):
-        for module in cls.modules():
+        for module in c.servers():
             if search != None and search in module:
                 cls.kill(module)
             
@@ -1406,43 +1415,42 @@ class c:
         return module_tree
     
     available_modules = tree = module_tree
-    leaves = lsm = module_list
     @classmethod
     def list_modules(cls, search=None):
         modules = list(cls.module_tree(search).keys())
         return modules
     
     @classmethod
-    def modules(cls, *args, **kwargs) -> List[str]:
+    def servers(cls, *args, **kwargs) -> List[str]:
         modules = list(c.namespace(*args, **kwargs).keys())
         return modules
     
     @classmethod
-    def has_modules(cls, *args, **kwargs):
-        return bool(len(cls.modules(*args, **kwargs)) > 0)
+    def has_servera(cls, *args, **kwargs):
+        return bool(len(c.servers(*args, **kwargs)) > 0)
         
     @classmethod
     def has_module(cls, module):
-        return module in cls.module_list()
+        return module in c.modules()
         
     
     @classmethod
     def valid_module(cls,module,**kwargs ):
-        modules = cls.modules(module, **kwargs)
+        modules = c.servers(module, **kwargs)
         return bool(len(modules) > 0)
     
     @classmethod
     def tasks(cls, task = None, mode='pm2',**kwargs) -> List[str]:
         kwargs['network'] = 'local'
         kwargs['update'] = False
-        modules = cls.modules( **kwargs)
+        modules = c.servers( **kwargs)
         tasks = getattr(cls, f'{mode}_list')(task)
         tasks = list(filter(lambda x: x not in modules, tasks))
         return tasks
     
     @classmethod
     def models(cls, *args, **kwargs) -> List[str]:
-        models = cls.modules(*args, **kwargs)
+        models = c.servers(*args, **kwargs)
         models = [k for k in models if k.startswith('model')]
         return models
     @classmethod
@@ -1491,9 +1499,9 @@ class c:
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                elif file_name.lower().endswith(dir_name.lower()):
-                    # if the dirname is equal to the filename then it is a module
-                    modules.append(f)
+                # elif file_name.lower().endswith(dir_name.lower()):
+                #     # if the dirname is equal to the filename then it is a module
+                #     modules.append(f)
                 elif file_name.lower().endswith('module'):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
@@ -1568,7 +1576,7 @@ class c:
 
     @classmethod
     def module_config_tree(cls):         
-        return {m: cls.simple2config(m) for m in cls.module_list()}
+        return {m: c.simple2config(m) for m in c.modules()}
     
    
     @classmethod
@@ -1918,7 +1926,7 @@ class c:
     @classmethod
     def connect_pool(cls, modules=None, *args, return_dict:bool=False, **kwargs):
         if modules == None:
-            modules = cls.modules(modules)
+            modules = c.servers(modules)
         
         module_clients =  cls.gather([cls.async_connect(m, ignore_error=True,**kwargs) for m in modules])
         if return_dict:
@@ -2209,8 +2217,8 @@ class c:
         return loop
 
     @classmethod
-    def server_exists(cls, name:str) -> bool:
-        return bool(name in cls.servers())
+    def server_exists(cls, name:str, **kwargs) -> bool:
+        return bool(name in cls.servers(**kwargs))
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -3526,7 +3534,7 @@ class c:
         if module is None:
             return cls
         if isinstance(module, str):
-            modules = c.module_list()
+            modules = c.modules()
             if module in modules:
                 return c.get_module(module,**kwargs)
             # elif module in cls.servers():
@@ -3716,7 +3724,14 @@ class c:
     
     @classmethod
     def pip_install(cls, lib:str, verbose:str=True):
+        if lib in c.modules():
+            c.print(f'Installing {lib} Module from local directory')
+            lib = c.resolve_module(lib).dirpath()
+            
         return cls.cmd(f'pip install {lib}', verbose=verbose)
+
+    def install(self, lib:str, verbose:bool=True):
+        return self.pip_install(lib, verbose=verbose)
 
     @classmethod
     def pip_exists(cls, lib:str, verbose:str=True):
@@ -4058,7 +4073,7 @@ class c:
             return cls.remote_fn('update_loop', kwargs=dict(period=period, remote=False), name='update_loop')
         while True:
             c.print('Updating...', color='yellow')
-            modules = cls.modules()
+            modules = c.servers()
             c.print(f'Modules (n): {modules}', color='cyan')
             c.print(modules, color='purple')
             cls.update()
@@ -4610,7 +4625,7 @@ class c:
                 pool_mode = True
                 module = module[:-1]
             if pool_mode:
-                module = cls.modules(module)
+                module = c.servers(module)
             
         if fn == None:
             fn = 'forward'
@@ -4640,7 +4655,7 @@ class c:
         kwargs = kwargs or {}
         
         if isinstance(modules, str) or modules == None:
-            modules = cls.modules(modules)
+            modules = c.servers(modules)
             
         modules = cls.shuffle(modules)[:n]
         assert isinstance(modules, list), 'modules must be a list'
@@ -5197,6 +5212,8 @@ class c:
         c.namespace(network=network,verbose=verbose, update=True)
         c.module_tree(verbose=verbose, update=True)
         
+    
+        
         
     @classmethod
     def peer_registry(cls, peers=None, update: bool = False):
@@ -5384,22 +5401,40 @@ class c:
         
     @classmethod
     def new_module( cls,
-                   module = 'abc_module',
+                   module = None,
                    base = 'base',
+                   repo = None,
                    overwrite = False,
                    module_type='dir'):
         """ Makes directories for path.
         """
+        if module == None: 
+            assert repo != None, 'repo must be specified if module is not specified'
+            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         module_path = 'path'
         module = module.replace('.','/')
         assert c.has_module(module) == False or overwrite, f'Module {module} already exists'
         module_path = os.path.join(c.modules_path, module)
         
         
+        if overwrite: 
+            c.rm(module_path)
+        
+        if repo != None:
+            # Clone the repository
+            c.cmd(f'git clone {repo} {module_path}', verbose=True)
+            # Remove the .git directory
+            c.cmd(f'rm -rf {module_path}/.git', verbose=True)
+        if module == None:
+            assert repo != None, 'repo must be specified if module is not specified'
+            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
+
+
+            
+        
+        
         if module_type == 'dir':
-            if overwrite:
-                c.rm(module_path)
-            c.mkdir(module_path, exist_ok=overwrite)
+            c.mkdir(module_path, exist_ok=True)
             c.print(f'Created module {module} at {module_path}')
         else:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
@@ -5423,6 +5458,8 @@ class c:
         module_code = '\n'.join(module_code_lines)
         c.put_text(module_code_path, module_code)
         c.save_yaml(module_config_path, base_config)
+        
+        c.update()
         
     make_dir= mkdir
     @classmethod
@@ -5499,6 +5536,11 @@ class c:
         
         return max_memory
             
+    @classmethod
+    def resolve_module_path(cls, module=None):
+        module = cls.resolve_module(module)
+        module_path = module.filepath()
+        return module_path
 
     @classmethod
     def resolve_module(cls, module=None):
@@ -5833,7 +5875,9 @@ class c:
     
 
     @classmethod
-    def pull(cls):
+    def pull(cls, stash:bool = True):
+        if stash:
+            cls.cmd('git stash')
         return cls.cmd('git pull')
     
     @classmethod
@@ -6002,7 +6046,7 @@ class c:
     @classmethod
     def module2fn2str(self, code = True, defaults = False, **kwargs):
         module2fn2str = {  }
-        for module in c.module_list():
+        for module in c.modules():
             try:
                 module_class = c.module(module)
                 if hasattr(module_class, 'fn2str'):
@@ -6530,6 +6574,8 @@ class c:
         assert unallocated_memory == 0, f'unallocated memory {unallocated_memory} != 0'
                 
         return device_map
+        
+        
         
     
 

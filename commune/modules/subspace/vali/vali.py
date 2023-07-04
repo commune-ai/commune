@@ -74,10 +74,12 @@ class Validator(c.Module):
             
         self.put(f'{tag}/w', self.w)
 
-    def run(self, parallel_jobs:int=10):
+    def run(self, max_jobs:int=10):
         
 
         self.running = True
+        
+        
         while self.running:
             jobs = [self.async_eval_module() for _ in range(parallel_jobs)]
             c.gather(jobs)
