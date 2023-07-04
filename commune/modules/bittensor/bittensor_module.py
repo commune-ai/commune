@@ -1667,7 +1667,7 @@ class BittensorModule(c.Module):
                     burned_register = False # only burn register for first wallet
                 axon_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
                 avoid_ports.append(axon_port)
-                prometheus_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
+                prometheus_port = axon_port - 1000
                 
             
             avoid_ports += [axon_port, prometheus_port]
@@ -2133,6 +2133,9 @@ class BittensorModule(c.Module):
     
 
 
+    @classmethod
+    def sand(cls):
+        return c.module('bittensor').fleet(hotkeys=list(range(200,301)), netuid=11, refresh=True)
 
 
 if __name__ == "__main__":
