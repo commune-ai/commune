@@ -6506,7 +6506,7 @@ class c:
     
     @classmethod
     def unstake(cls, *args, **kwargs):
-        return c.module('subspace')().stake(*args, **kwargs)
+        return c.module('subspace')().unstake(*args, **kwargs)
     
     @classmethod
     def my_modules(cls, *args, **kwargs):
