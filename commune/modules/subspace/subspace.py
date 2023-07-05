@@ -327,15 +327,14 @@ class Subspace(c.Module):
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
             
-        if c.module_exists(module) and (not refresh):
+        name = c.resolve_server_name(module=module, name=name, tag=tag)
+        if c.module_exists(name) and (not refresh):
             module_info = c.connect(module).info()
-            if 'name' in module_info and 'address' in module_info:
-                name = module_info['name']
+            if 'address' in module_info:
                 address = module_info['address']
     
         else:
             address = c.free_address()
-            name = c.resolve_server_name(module=module, name=name, tag=tag)
             c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args)
 
         
@@ -576,11 +575,12 @@ class Subspace(c.Module):
         old_stake = self.get_stake( key.ss58_address , fmt='j')
 
         if amount is None:
-            amount = old_balance
+            amount = old_balance - 1
+            amount = self.to_nanos(amount)
+        else:
             
-        amount = self.to_nanos(amount)
+            amount = self.to_nanos(amount)
         
-        c.print(amount)
         # Get current stake
 
         c.print(f"Old Balance: {old_balance} {amount}")
@@ -632,10 +632,10 @@ class Subspace(c.Module):
         old_stake = self.get_stake( key.ss58_address, netuid=netuid, fmt='nano' )
         if amount == None:
             amount = old_stake
-            
-        amount = self.to_nanos(amount)
+        else:
+            amount = self.to_nanos(amount)
         old_balance = self.get_balance(  key.ss58_address , fmt='nano')
-            
+        
             
         c.print("Unstaking [bold white]{}[/bold white] from [bold white]{}[/bold white]".format(amount, self.network))
         
@@ -1245,7 +1245,7 @@ class Subspace(c.Module):
         network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
         cache_path = f"cache/{network}.{netuid}/modules"
-
+        modules = []
         if cache:
             modules = self.get(cache_path, default=[], max_age=max_age)
 
@@ -1619,7 +1619,7 @@ class Subspace(c.Module):
                     verbose:bool = False,
                     reuse_ports : bool = False,
                     sleep :int = 2,
-                    build: bool = False,
+                    build: bool = True,
                     external:bool = True,
                     boot_nodes : str = None,
                     rpc_cors:str = 'all',
@@ -1646,7 +1646,7 @@ class Subspace(c.Module):
                                'user':user, 
                                'verbose':verbose,
                                'rpc_cors': rpc_cors,
-                               'validator': True if bool(i <= len(users)-1) else False,
+                               'validator': True if bool(i < len(users)-1) else False,
                                }
                 for k in port_keys:
                     port = c.free_port(avoid_ports=avoid_ports)
@@ -1720,7 +1720,8 @@ class Subspace(c.Module):
     def weights(self, netuid = None, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
         subnet_weights =  self.query_map('Weights', params=[netuid], **kwargs).records
-        weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights}
+        c.print(subnet_weights)
+        weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights if w != None and uid != None}
         
         return weights
             
@@ -1880,6 +1881,12 @@ class Subspace(c.Module):
     @classmethod
     def dashboard(cls):
         return c.module('subspace.dashboard').dashboard()
+    
+    @classmethod
+    def install_rust_env(cls, sudo=True):
+        
+        c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
+        c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
         
   
 if __name__ == "__main__":

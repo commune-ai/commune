@@ -2902,6 +2902,9 @@ class c:
                     cmd += f'--{k} {v}'
             elif isinstance(cmd_kwargs, str):
                 cmd += f'{cmd_kwargs}'
+                
+
+        c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
             
         # c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
         return c.cmd(cmd, verbose=verbose,**kwargs)
@@ -6506,15 +6509,12 @@ class c:
     
     @classmethod
     def unstake(cls, *args, **kwargs):
-        return c.module('subspace')().stake(*args, **kwargs)
+        return c.module('subspace')().unstake(*args, **kwargs)
     
     @classmethod
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
     
-    @classmethod
-    def unstake(cls, *args, **kwargs):
-        return c.module('subspace')().stake(*args, **kwargs)
     
     @classmethod
     def balance(cls, *args, **kwargs):

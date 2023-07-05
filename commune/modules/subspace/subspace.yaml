@@ -4,33 +4,33 @@ chain_info:
     alice:
       boot_nodes: null
       chain: dev
-      port: 2098
+      port: 2063
       rpc_cors: all
-      rpc_port: 2046
+      rpc_port: 2065
       user: alice
       validator: true
       verbose: false
-      ws_port: 2003
+      ws_port: 2028
     bob:
-      boot_nodes: /ip4/162.157.113.207/tcp/2098/p2p/12D3KooWMPAeGEjjCB8nezPkWyqc98kzfpvd8oNaxwRAuRCtzgat
+      boot_nodes: /ip4/162.157.113.207/tcp/2063/p2p/12D3KooWMPAeGEjjCB8nezPkWyqc98kzfpvd8oNaxwRAuRCtzgat
       chain: dev
-      port: 2026
+      port: 2070
       rpc_cors: all
-      rpc_port: 2010
+      rpc_port: 2029
       user: bob
       validator: true
       verbose: false
-      ws_port: 2023
+      ws_port: 2057
     charlie:
-      boot_nodes: /ip4/162.157.113.207/tcp/2026/p2p/12D3KooWRBrUcBJmeGKjvfkZPU1x2t9hA1pDaHWc6qyRTuqzPLGK
+      boot_nodes: /ip4/162.157.113.207/tcp/2070/p2p/12D3KooWRBrUcBJmeGKjvfkZPU1x2t9hA1pDaHWc6qyRTuqzPLGK
       chain: dev
-      port: 2032
+      port: 2020
       rpc_cors: all
-      rpc_port: 2076
+      rpc_port: 2054
       user: charlie
-      validator: true
+      validator: false
       verbose: false
-      ws_port: 2091
+      ws_port: 2010
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
 default_netuid: 1
@@ -40,8 +40,8 @@ key_types:
 - gran
 network: dev
 network2url:
-  dev: 0.0.0.0:2091
-  local: 127.0.0.1:4874
+  dev: 162.157.113.207:2010
+  local: 127.0.0.1:9944
   testnet: 127.0.0.1:4874
 retry_params:
   backoff: 2
