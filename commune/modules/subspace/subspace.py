@@ -312,6 +312,7 @@ class Subspace(c.Module):
         max_allowed_attempts: int = 3,
         update_interval: Optional[int] = None,
         log_verbose: bool = False,
+        args : list = None,
         kwargs : dict = None,
         tag_seperator: str = "::", 
         network: str = None,
@@ -320,27 +321,26 @@ class Subspace(c.Module):
     ) -> bool:
         
         network = self.resolve_network(network)
-        
-        if kwargs is None:
-            kwargs = {}
+        kwargs = kwargs if kwargs is not None else {}
+        args = args if args is not None else []
             
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
             
-        if c.module_exists(module) and not refresh:
+        if c.module_exists(module) and (not refresh):
             module_info = c.connect(module).info()
-            address = module_info['address']
-            name = module_info['name']
-            name = c.resolve_server_name(module=module, name=name, tag=tag)
-
-            
-            
+            if 'name' in module_info and 'address' in module_info:
+                name = module_info['name']
+                address = module_info['address']
+    
         else:
-            c.serve(module=module, address=address, name=name, kwargs=kwargs)
             address = c.free_address()
             name = c.resolve_server_name(module=module, name=name, tag=tag)
-        key = key if key != None else name
-        key = self.resolve_key(key)
+            c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args)
+
+        
+        key = self.resolve_key(key if key != None else name)
+        
         netuid = self.get_netuid_for_subnet(subnet)
 
         if self.is_registered(key, netuid=netuid):
@@ -349,10 +349,6 @@ class Subspace(c.Module):
                                address=address,
                                netuid=netuid, 
                                )
-            
-        # netuid = self.subnet_namespace(network)
-        if address is None:
-            address = f'{c.ip()}:{c.free_port()}'
     
         # Attempt rolling registration.
         call_params = { 
@@ -1289,17 +1285,17 @@ class Subspace(c.Module):
                 modules.append(module)
             
 
-
-        if keys == None:
-            keys = list(modules[0].keys())
-        if isinstance(keys, str):
-            keys = [keys]
-            
-        for i, m in enumerate(modules):
-            modules[i] ={k: m[k] for k in keys}
-            
-        if cache or update:
-            self.put(cache_path, modules)
+        if len(modules) > 0:
+            if keys == None:
+                keys = list(modules[0].keys())
+            if isinstance(keys, str):
+                keys = [keys]
+                
+            for i, m in enumerate(modules):
+                modules[i] ={k: m[k] for k in keys}
+                
+            if cache or update:
+                self.put(cache_path, modules)
                 
         return modules
         
@@ -1570,7 +1566,7 @@ class Subspace(c.Module):
                  purge_chain:bool = True,
                  remote:bool = True,
                  refresh:bool = True,
-                 verbose:bool = False,
+                 verbose:bool = True,
                  rpc_cors:str = 'all',
                  
                  ):
@@ -1621,7 +1617,7 @@ class Subspace(c.Module):
                     chain:str='dev', 
                     users = ['alice','bob', 'charlie'] ,
                     verbose:bool = False,
-                    reuse_ports : bool = True,
+                    reuse_ports : bool = False,
                     sleep :int = 2,
                     build: bool = False,
                     external:bool = True,

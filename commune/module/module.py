@@ -1045,17 +1045,18 @@ class c:
         return port
     
     @classmethod
-    def free_ports(cls, n=10 ) -> List[int]:
+    def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False ) -> List[int]:
         free_ports = []
         for i in range(n):
-            free_ports += [cls.free_port(reserve=True, random_selection=False)]
-            
-        cls.unreserve_ports(free_ports)    
+            free_ports += [cls.free_port(reserve=reserve, 
+                                         random_selection=random_selection, 
+                                         avoid_ports=free_ports)]
+              
         return free_ports
     
     @classmethod
-    def random_port(cls):
-        return cls.choice(cls.free_ports())
+    def random_port(cls, *args, **kwargs):
+        return cls.choice(cls.free_ports(*args, **kwargs))
     
     @staticmethod
     def random_int(*args):
@@ -3030,7 +3031,6 @@ class c:
     def pm2_logs(cls, module:str, start_line=0, end_line=0, verbose=True, mode='cmd'):
         if mode == 'local':
             path = f'{cls.pm2_dir}/logs/{module}-error.log'.replace(':', '-')
-            c.print(f'path: {path}')
             return c.readlines(path, start_line=start_line, end_line=end_line)
         elif mode == 'cmd':
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)

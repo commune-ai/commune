@@ -1,42 +1,46 @@
 chain: subspace
-network: dev
-key: alice
 chain_info:
   dev:
     alice:
       boot_nodes: null
       chain: dev
-      port: 4818
-      rpc_port: 4294
-      user: alice
-      verbose: false
-      ws_port: 4324
-    bob:
-      boot_nodes: /ip4/162.157.13.236/tcp/4818/p2p/12D3KooWCnjyiVkQW3RjxL8EZ3khHUVcwJFxwMpz8g3Qqo25RioZ
-      chain: dev
-      port: 4105
-      rpc_port: 4241
-      user: bob
-      verbose: false
-      ws_port: 4650
-    charlie:
-      boot_nodes: /ip4/162.157.13.236/tcp/4105/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
-      chain: dev
-      port: 4238
+      port: 2098
       rpc_cors: all
-      rpc_port: 4684
-      user: charlie
-      validator: false
+      rpc_port: 2046
+      user: alice
+      validator: true
       verbose: false
-      ws_port: 4647
+      ws_port: 2003
+    bob:
+      boot_nodes: /ip4/162.157.113.207/tcp/2098/p2p/12D3KooWMPAeGEjjCB8nezPkWyqc98kzfpvd8oNaxwRAuRCtzgat
+      chain: dev
+      port: 2026
+      rpc_cors: all
+      rpc_port: 2010
+      user: bob
+      validator: true
+      verbose: false
+      ws_port: 2023
+    charlie:
+      boot_nodes: /ip4/162.157.113.207/tcp/2026/p2p/12D3KooWRBrUcBJmeGKjvfkZPU1x2t9hA1pDaHWc6qyRTuqzPLGK
+      chain: dev
+      port: 2032
+      rpc_cors: all
+      rpc_port: 2076
+      user: charlie
+      validator: true
+      verbose: false
+      ws_port: 2091
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
 default_netuid: 1
+key: alice
 key_types:
 - aura
 - gran
+network: dev
 network2url:
-  dev: 162.157.13.236:4647
+  dev: 0.0.0.0:2091
   local: 127.0.0.1:4874
   testnet: 127.0.0.1:4874
 retry_params:
