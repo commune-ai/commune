@@ -639,6 +639,8 @@ class Subspace(c.Module):
             
         amount = self.to_nanos(amount)
         old_balance = self.get_balance(  key.ss58_address , fmt='nano')
+        
+        c.print(f"Old Balance: {old_balance} {amount}")
             
             
         c.print("Unstaking [bold white]{}[/bold white] from [bold white]{}[/bold white]".format(amount, self.network))
