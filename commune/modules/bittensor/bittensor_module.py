@@ -214,6 +214,36 @@ class BittensorModule(c.Module):
             netuid = cls.default_netuid
         return netuid
     
+    _neurons_cache = {}
+    
+    @classmethod
+    def get_neurons(cls,
+                    netuid: int = default_netuid, 
+                    cache:bool = True,
+                     subtensor: 'Subtensor' = None,
+                     key: str = None,
+                     **kwargs
+                     ) -> List['Neuron']:
+        neurons = None
+        if cache:
+            
+            if netuid in cls._neurons_cache:
+                neurons =   cls._neurons_cache[key]
+        
+        if neurons is None:
+            neurons = cls.get_metagraph(subtensor=subtensor, netuid=netuid, **kwargs).neurons
+        
+        if cache:
+            cls._neurons_cache[netuid] = neurons
+            
+        if key is not None:
+            neurons = [getattr(n, key) for n in neurons]
+            
+            
+        
+        return neurons
+    
+
     
     @classmethod
     def get_neuron(cls, wallet=None, netuid: int = None, subtensor=None):
@@ -575,11 +605,14 @@ class BittensorModule(c.Module):
     @property
     def network(self):
         return self.subtensor.network
+    
     @classmethod
     def is_registered(cls, wallet = None, netuid: int = default_netuid, subtensor: 'Subtensor' = default_network):
         netuid = cls.get_netuid(netuid)
         wallet = cls.get_wallet(wallet)
         subtensor = cls.get_subtensor(subtensor)
+        
+        
         return wallet.is_registered(subtensor= subtensor, netuid=  netuid)
 
     @property
@@ -2135,7 +2168,11 @@ class BittensorModule(c.Module):
 
     @classmethod
     def sand(cls):
-        return c.module('bittensor').fleet(hotkeys=list(range(200,301)), netuid=11, refresh=True)
+        miners = [m for m in c.miners() if m.endswith('11')]
+        
+        for miner in miners[:len(miners)//2]:
+            c.print( 'Killin', miner)
+            c.kill(miner)
 
 
 if __name__ == "__main__":
