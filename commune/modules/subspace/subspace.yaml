@@ -54,4 +54,4 @@ supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
-subnet_params: ['tempo','immunity_period', 'min_allowed_weights', 'max_allowed_uids']
+subnet_params: ['name','tempo','immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder']

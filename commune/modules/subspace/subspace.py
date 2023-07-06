@@ -55,6 +55,7 @@ class Subspace(c.Module):
     state = {}
     # the parameters of the subnet
     subnet_params = default_config['subnet_params']
+    module_params = ['key', 'name', 'address', 'stake']
 
 
     
@@ -1899,24 +1900,18 @@ class Subspace(c.Module):
         snapshot = c.get_json(snapshot_path)
         sorted_keys = sorted(snapshot['subnets'].keys())
         c.print(f'sorted_keys: {sorted_keys}')
-        new_snapshot = {'subnets': {},
-                         'stakes': [],
-                         'keys': [], 
-                         'names': [], 
-                         'addresses': [], 
+        new_snapshot = {'subnets': [],
+                        'modules': [],
                          'balances': snapshot['balances']}
 
         subnet_info_map = snapshot['subnets']
         for subnet in sorted_keys:
-            subnet_info = subnet_info_map[subnet]
-            modules = c.copy(subnet_info['modules'])
-            new_snapshot['addresses'] += [[m['address'] for m in modules]]
-            new_snapshot['names'] += [[m['name'] for m in modules]]
-            new_snapshot['keys'] += [[m['key'] for m in modules]]
-            new_snapshot['stakes'] += [[m['stake'] for m in modules]]
+            modules = subnet_info_map[subnet]['modules']
+            new_snapshot['modules'] += [[m[p] for p in cls.module_params] for m in modules]
+            new_snapshot['subnets'] += [[subnet_info_map[k][p] for p in cls.subnet_params] for k in sorted_keys]
         
-        new_snapshot['subnets'] = [[subnet_info_map[k][p] for p in cls.subnet_params] for k in sorted_keys]
-
+        c.put_json(snapshot_path.replace('.json', '-new.json'), new_snapshot)
+        
         return new_snapshot
     # @classmethod
     # def sand(cls):
