@@ -6580,8 +6580,11 @@ class c:
         return device_map
         
         
-        
-    
+    @classmethod
+    def snap(cls, *args, **kwargs):
+        return c.module('subspace')().snap(*args, **kwargs)
+
+
 
         
     
