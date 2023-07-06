@@ -525,9 +525,9 @@ class Subspace(c.Module):
             c.print(":cross_mark: [red]Invalid arguments[/red]:[bold white]\n  name: {}\n  address: {}\n  netuid: {}[/bold white]".format(name, address, netuid))
             return False     
         if name == None:
-            name = ''
+            name = module['name']
         if address == None:
-            address = ''
+            address = module['address']
         
         with self.substrate as substrate:
             call_params =  {'address': address,
@@ -575,7 +575,7 @@ class Subspace(c.Module):
         old_stake = self.get_stake( key.ss58_address , fmt='j')
 
         if amount is None:
-            amount = old_balance - 1
+            amount = old_balance - 0.1
             amount = self.to_nanos(amount)
         else:
             
@@ -636,11 +636,6 @@ class Subspace(c.Module):
             amount = self.to_nanos(amount)
         old_balance = self.get_balance(  key.ss58_address , fmt='nano')
         
-<<<<<<< HEAD
-        c.print(f"Old Balance: {old_balance} {amount}")
-            
-=======
->>>>>>> 321f8f48b779ee643b06fe2bffbc394dfbc0c486
             
         c.print("Unstaking [bold white]{}[/bold white] from [bold white]{}[/bold white]".format(amount, self.network))
         
@@ -1412,7 +1407,7 @@ class Subspace(c.Module):
   
     @classmethod
     def build_spec(cls,
-                   chain = 'test',
+                   chain = 'dev',
                    raw:bool  = False,
                    disable_default_bootnode = True,
 
@@ -1892,7 +1887,38 @@ class Subspace(c.Module):
         
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
+    
+    subnet_params = ['tempo','immunity_period', 'min_allowed_weights', 'max_allowed_uids']
+
+    @classmethod
+    def snap(cls, netuid=None, network=None, **kwargs):
+        snapshot_path = f'{cls.chain_path}/snapshot.json'
         
+        snapshot = c.get_json(snapshot_path)
+        sorted_keys = sorted(snapshot['subnets'].keys())
+        c.print(f'sorted_keys: {sorted_keys}')
+        new_snapshot = {'subnets': {},
+                         'stakes': [],
+                         'keys': [], 
+                         'names': [], 
+                         'addresses': [], 
+                         'balances': snapshot['balances']}
+
+        subnet_info_map = snapshot['subnets']
+        for subnet in sorted_keys:
+            subnet_info = subnet_info_map[subnet]
+            modules = c.copy(subnet_info['modules'])
+            new_snapshot['addresses'] += [[m['address'] for m in modules]]
+            new_snapshot['names'] += [[m['name'] for m in modules]]
+            new_snapshot['keys'] += [[m['key'] for m in modules]]
+            new_snapshot['stakes'] += [[m['stake'] for m in modules]]
+        
+        new_snapshot['subnets'] = {k: {p:subnet_info_map[k][p] for p in cls.subnet_params} for k in subnet_info_map.keys()}
+
+        return new_snapshot
+    # @classmethod
+    # def sand(cls):
+
   
 if __name__ == "__main__":
     Subspace.run()
