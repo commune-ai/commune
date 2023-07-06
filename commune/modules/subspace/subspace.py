@@ -55,7 +55,7 @@ class Subspace(c.Module):
     state = {}
     # the parameters of the subnet
     subnet_params = default_config['subnet_params']
-    module_params = ['key', 'name', 'address', 'stake']
+    module_params = ['key', 'name', 'address', 'stake','weight' ]
 
 
     
@@ -705,7 +705,8 @@ class Subspace(c.Module):
                   params: Optional[List[object]] = [default_netuid] ,
                   network:str = None,
                   cache = False,
-                  max_age = 60
+                  max_age = 60,
+                  records = False
                   
                   ) -> Optional[object]:
 
@@ -718,6 +719,9 @@ class Subspace(c.Module):
                 params = params,
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
+            
+        if records:
+            return value.records
         
         return value
         
@@ -1256,8 +1260,9 @@ class Subspace(c.Module):
         if len(modules) == 0 :
              
             uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
+            
             uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
-            uid2name = { r[1].value : r[0].value for r in self.query_map('Namespace', params=[netuid]).records}
+            uid2name = { r[0].value : r[1].value for r in self.query_map('Names', params=[netuid]).records}
             
             emission = self.emission(netuid=netuid)
             incentive = self.incentive(netuid=netuid)
@@ -1279,7 +1284,7 @@ class Subspace(c.Module):
                     'incentive': incentive[uid].value,
                     'dividends': dividends[uid].value,
                     'stake': stake[ key],
-                    'balance': balances[key],
+                    'balance': balances.get(key, 0),
                     'weight': weights[uid] if uid in weights else [],
                     
                 }
@@ -1375,7 +1380,6 @@ class Subspace(c.Module):
         c.print(self.get_balance(key.ss58_address))
         
         key2 = cls.get_key('//Bob')
-        c.print(self.get_balance(key2.ss58_address))
         
         self.transfer(key=key, dest=key2.ss58_address, amount=10)
         
@@ -1387,10 +1391,7 @@ class Subspace(c.Module):
     @classmethod
     def build(cls, chain:str = 'dev', verbose:bool=False):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
-        
-        for chain in cls.chains():
-            c.print(f'CHAIN: {chain}')
-            cls.build_spec(chain)    
+        cls.build_spec(chain)    
         
 
     @classmethod   
@@ -1414,13 +1415,13 @@ class Subspace(c.Module):
                    chain = 'dev',
                    raw:bool  = False,
                    disable_default_bootnode = True,
+                   snap:bool = True,
 
                    ):
 
         chain_spec = cls.resolve_chain_spec(chain)
-        
-            
-            
+        if snap:
+            cls.snap()
 
         cmd = f'{cls.chain_release_path} build-spec --chain {chain}'
         
@@ -1629,7 +1630,7 @@ class Subspace(c.Module):
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
         if build:
-            cls.build(verbose=verbose)
+            cls.build(chain=chain, verbose=verbose)
         avoid_ports = []
         
         ip = c.ip(external=external)
@@ -1894,23 +1895,30 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def snap(cls, netuid=None, network=None, **kwargs):
-        snapshot_path = f'{cls.chain_path}/snapshot.json'
+    def snap(cls, 
+             netuid=None, 
+             network=None,
+             snapshot_path = f'{chain_path}/snapshot-old.json', 
+             save_path = f'{chain_path}/snapshot.json',
+             **kwargs):
         
         snapshot = c.get_json(snapshot_path)
-        sorted_keys = sorted(snapshot['subnets'].keys())
+        subnet_info_map = snapshot['subnets']
+        sorted_keys = sorted(subnet_info_map.keys())
+        
         c.print(f'sorted_keys: {sorted_keys}')
+        
         new_snapshot = {'subnets': [],
                         'modules': [],
-                         'balances': snapshot['balances']}
+                         'balances': {k:v for k,v in snapshot['balances'].items() if v > 100000}}
 
-        subnet_info_map = snapshot['subnets']
+        
         for subnet in sorted_keys:
             modules = subnet_info_map[subnet]['modules']
-            new_snapshot['modules'] += [[m[p] for p in cls.module_params] for m in modules]
-            new_snapshot['subnets'] += [[subnet_info_map[k][p] for p in cls.subnet_params] for k in sorted_keys]
+            new_snapshot['modules'] += [[[m[p] for p in cls.module_params] for m in modules]]
+            new_snapshot['subnets'] += [[subnet_info_map[subnet][p] for p in cls.subnet_params]] 
         
-        c.put_json(snapshot_path.replace('.json', '-new.json'), new_snapshot)
+        c.put_json(save_path, new_snapshot)
         
         return new_snapshot
     # @classmethod
