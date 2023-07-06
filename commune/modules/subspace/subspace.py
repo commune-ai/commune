@@ -53,6 +53,9 @@ class Subspace(c.Module):
     default_netuid = default_config['default_netuid']
     key = default_config['key']
     state = {}
+    # the parameters of the subnet
+    subnet_params = default_config['subnet_params']
+
 
     
     def __init__( 
@@ -1888,7 +1891,6 @@ class Subspace(c.Module):
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
-    subnet_params = ['tempo','immunity_period', 'min_allowed_weights', 'max_allowed_uids']
 
     @classmethod
     def snap(cls, netuid=None, network=None, **kwargs):
@@ -1913,7 +1915,7 @@ class Subspace(c.Module):
             new_snapshot['keys'] += [[m['key'] for m in modules]]
             new_snapshot['stakes'] += [[m['stake'] for m in modules]]
         
-        new_snapshot['subnets'] = {k: {p:subnet_info_map[k][p] for p in cls.subnet_params} for k in subnet_info_map.keys()}
+        new_snapshot['subnets'] = [[subnet_info_map[k][p] for p in cls.subnet_params] for k in sorted_keys]
 
         return new_snapshot
     # @classmethod
