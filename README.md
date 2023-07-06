@@ -14,20 +14,69 @@ The overarching goal of Commune is to create a collaborative ecosystem where dev
 
 ## Setup
 
-To use Commune, you need to follow these steps:
 
-1. Clone the Commune repository from GitHub:
-```
+### Setting up Commune with Docker
+
+Install Docker: If you don't have Docker installed on your system, download and install it from the official Docker website: [https://www.docker.com/get-started](https://www.docker.com/get-started).
+
+Clone the Commune Repository: Open your terminal or command prompt and clone the Commune repository from GitHub:
+
+```bash 
 git clone https://github.com/commune-ai/commune.git
 ```
-2. Install Commune:
+
+
+Build the Docker Image: Navigate to the cloned Commune repository and build the Docker image using the provided Dockerfile:
+
+
+```bash
+cd commune
+docker build -t commune .
 ```
-make install
+
+
+Run Commune in Docker: Start a Docker container with the Commune image:
+
+```bash
+docker run -it commune
 ```
-3. Sync Commune with the network:
-```
+
+
+Sync Commune with the Network: Inside the Docker container, run the following command to sync Commune with the network:
+
+```bash
 commune sync
 ```
+
+
+Congratulations! Commune is now set up and running inside a Docker container.
+
+### Setting up Commune Without Docker
+Clone the Commune Repository: Open your terminal or command prompt and clone the Commune repository from GitHub:
+
+```bash
+git clone https://github.com/commune-ai/commune.git
+```
+
+
+Install Dependencies: Navigate to the cloned Commune repository and install the required dependencies:
+
+```bash
+cd commune
+pip install -e ./
+```
+
+
+```bash
+install npm pm2
+```
+
+```bash
+chmod +x ./scripts/*
+sudo ./scripts/install_npm_env.sh
+npm install -g pm2
+```
+Congratulations! Commune is now set up and running wihtou Docker
 
 ## Deploy Your Object From Anywhere
 
