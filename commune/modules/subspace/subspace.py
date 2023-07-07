@@ -315,10 +315,16 @@ class Subspace(c.Module):
         netuid = self.subnet_namespace.get(network, None)
         return netuid
     
-    @classmethod
-    def register_loop(cls, module:str, tags:List[str]=range(10), network=None, **kwargs):
+    def register_loop(self, module:str, tags:List[str]=None,tag:str=None, n:bool=10, network=None, **kwargs):
+        if tags == None: 
+            tags = list(range(n))
+            if tag != None:
+                tags = [f'{tag}{i}' for i in tags]
+
         for t in tags:
-            module.register(tag=t, network=network, **kwargs)
+            self.register(module=module, tag=t, network=network, **kwargs)
+            
+            
     rloop = register_loop
     
     def register(
