@@ -6515,6 +6515,11 @@ class c:
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
     
+    @classmethod
+    def register_loop(cls, *args, **kwargs):
+        return c.module('subspace')().register_loop(*args, **kwargs)
+    
+    rloop = register_loop
     
     @classmethod
     def balance(cls, *args, **kwargs):
@@ -6589,6 +6594,10 @@ class c:
     @classmethod
     def snap(cls, *args, **kwargs):
         return c.module('subspace')().snap(*args, **kwargs)
+    
+    @classmethod
+    def my_balance(cls, *args, **kwargs):
+        return c.module('subspace')().my_balance(*args, **kwargs)
 
     @classmethod
     def nodes(cls, *args, **kwargs):
