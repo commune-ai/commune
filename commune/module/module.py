@@ -6529,6 +6529,12 @@ class c:
     def my_keys(cls, *args, **kwargs):
         return c.module('subspace')().my_keys(*args, **kwargs)
     
+    @classmethod
+    def key_info(self, *args, **kwargs):
+        return c.module('key').key_info(*args, **kwargs)
+    @classmethod
+    def key_info_map(self, *args, **kwargs):
+        return c.module('key').key_info_map(*args, **kwargs)
     @classmethod   
     def infer_device_map(cls, 
                          model:str, 
