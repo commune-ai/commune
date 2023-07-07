@@ -600,7 +600,7 @@ class Subspace(c.Module):
         netuid: int = None,
         immunity_period: int = None,
         min_allowed_weights: int = None,
-        max_allowed_weights: int = None,
+        max_allowed_uids: int = None,
         tempo: int = None,
         founder: str = None,
         wait_for_inclusion: bool = False,
@@ -614,26 +614,24 @@ class Subspace(c.Module):
         params = {
             'immunity_period': immunity_period,
             'min_allowed_weights': min_allowed_weights,
-            'max_allowed_weights': max_allowed_weights,
+            'max_allowed_uids': max_allowed_uids,
             'tempo': tempo,
             'founder': founder,
         }
-        
-        for key, value in params.items():
-            if value == None:
-                params[key] = subnet_state[key]
-         
-        params['stake'] = 0
-        
+        old_params = {}
+        for k, v in params.items():
+            old_params[k] = subnet_state[k]
+            if v == None:
+                params[k] = old_params[k]
+        name = subnet_state['name']
+        call_params = {'netuid': netuid, **params, 'stake':0}
         with self.substrate as substrate:
-            call_params =  {'address': address,
-                            'name': name,
-                            'netuid': netuid,
-                        }
-            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white]',call_params)
+            c.print(f':satellite: Updating Subnet:({name}, id: {netuid})')
+            c.print(f'  [bold yellow]Old Params:[/bold yellow] \n', old_params)
+            c.print(f'  [bold green]New Params:[/bold green] \n',params)
             call = substrate.compose_call(
                 call_module='SubspaceModule',
-                call_function='update_module',
+                call_function='update_network',
                 call_params =call_params
             )
             extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
@@ -641,11 +639,10 @@ class Subspace(c.Module):
             if wait_for_inclusion or wait_for_finalization:
                 response.process_events()
                 if response.is_success:
-                    module = self.get_module( key=key, netuid=netuid )
-                    c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{module}[/bold white]')
+                    c.print(f':white_heavy_check_mark: [green]Updated SubNetwork ({name}, id: {netuid}) [/green]')
                     return True
                 else:
-                    c.print(f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}')
+                    c.print(f':cross_mark: [red]Failed to Change Subnetwork[/red] ({name}, id: {netuid}) error: {response.error_message}')
                     return False
             else:
                 return True
@@ -995,7 +992,10 @@ class Subspace(c.Module):
         blocks = self.archived_blocks(network=network, reverse=True)
         return blocks[-1]
     @classmethod
-    def watchdog(cls, interval=100, cj:bool=True, remote:bool=True):
+    def watchdog(cls, 
+                 interval=100,
+                 cj:bool=True,
+                 remote:bool=True):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False
