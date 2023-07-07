@@ -94,7 +94,7 @@ class Subspace(c.Module):
                 ws_options=None, 
                 auto_discover=True, 
                 auto_reconnect=True, 
-                verbose:bool=True,
+                verbose:bool=False,
                 *args, 
                 **kwargs):
 
@@ -230,7 +230,7 @@ class Subspace(c.Module):
             self.vote_pool(*args, **kwargs)
 
 
-    def my_balance(self, network = None, fmt='j'):
+    def my_balance(self, network = None, fmt='j', decimals=2):
         network = self.resolve_network(network)
         
         balance = 0
@@ -238,7 +238,7 @@ class Subspace(c.Module):
             balance += module['balance']
             balance += module['stake']
             
-        return self.format_amount(balance, fmt=fmt)
+        return c.round_decimals(self.format_amount(balance, fmt=fmt), decimals=2)
             
         
 
@@ -315,6 +315,11 @@ class Subspace(c.Module):
         netuid = self.subnet_namespace.get(network, None)
         return netuid
     
+    @classmethod
+    def register_loop(cls, module:str, tags:List[str]=range(10), network=None, **kwargs):
+        for t in tags:
+            module.register(tag=t, network=network, **kwargs)
+    rloop = register_loop
     
     def register(
         self,
@@ -1030,7 +1035,7 @@ class Subspace(c.Module):
             return substrate.get_block_number(None)
 
 
-    def get_balance(self, key: str, block: int = None, fmt='j', network=None) -> Balance:
+    def get_balance(self, key: str = None, block: int = None, fmt='j', network=None) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -1039,6 +1044,8 @@ class Subspace(c.Module):
             balance (bittensor.utils.balance.Balance):
                 account balance
         """
+        if key is None:
+            return self.my_balance( fmt=fmt, network=network)
         network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
         
