@@ -233,7 +233,7 @@ class Subspace(c.Module):
     #####################
     #### Set Weights ####
     #####################
-    def set_weights(
+    def vote(
         self,
         key: 'c.key' = None,
         uids: Union[torch.LongTensor, list] = None,
@@ -287,7 +287,7 @@ class Subspace(c.Module):
             c.print(  'Set weights <red>Failed: </red>' + str(response.error_message) )
             return False
 
-    vote = set_weights
+    set_weights = vote
 
     @classmethod
     def get_key(cls, uri= None) -> 'c.Key':
