@@ -6595,6 +6595,13 @@ class c:
     def cj(cls, *args, **kwargs):
         return c.module('subspace')().cj(*args, **kwargs)
     j = cj
+    
+    @classmethod
+    def watchdog(cls, *args, **kwargs):
+        return c.module('subspace')().watchdog(*args, **kwargs)
+    
+    watch = watchdog
 Module = c
+
 Module.run(__name__)
     

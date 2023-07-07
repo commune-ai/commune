@@ -868,6 +868,23 @@ class Subspace(c.Module):
         network_state['balances'] = self.balances()
         network_state['subnets'] = subnet_states
         self.put(f'archive/{network}/state', network_state)
+        
+    @classmethod
+    def watchdog(cls, interval=100, cj:bool=True, remote:bool=True):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn('watchdog', kwargs=kwargs)
+            
+        self = cls()
+        while True:
+            self.save()
+            self.cj(remote=False) # verify that we can connect to the node
+            c.sleep(interval)
+            c.log(f"Watchdog: {interval} seconds have passed. Saving state.")
+            
+            
+        
 
     def load(self, network:str=None, save:bool = False):
         network = self.resolve_network(network)
