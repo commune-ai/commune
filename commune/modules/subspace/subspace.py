@@ -396,9 +396,9 @@ class Subspace(c.Module):
     ##################
     def transfer(
         self,
+        key: str,
         dest: str, 
         amount: float , 
-        key: str =  None,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         prompt: bool = False,
