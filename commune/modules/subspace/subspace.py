@@ -608,6 +608,7 @@ class Subspace(c.Module):
         min_allowed_weights: int = None,
         max_allowed_uids: int = None,
         tempo: int = None,
+        name:str = None,
         founder: str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
@@ -623,6 +624,7 @@ class Subspace(c.Module):
             'max_allowed_uids': max_allowed_uids,
             'tempo': tempo,
             'founder': founder,
+            'name': name,
         }
         old_params = {}
         for k, v in params.items():
@@ -630,7 +632,7 @@ class Subspace(c.Module):
             if v == None:
                 params[k] = old_params[k]
         name = subnet_state['name']
-        call_params = {'netuid': netuid, **params, 'stake':0}
+        call_params = {'netuid': netuid, **params}
         with self.substrate as substrate:
             c.print(f':satellite: Updating Subnet:({name}, id: {netuid})')
             c.print(f'  [bold yellow]Old Params:[/bold yellow] \n', old_params)
@@ -977,33 +979,32 @@ class Subspace(c.Module):
             
             
             
-            
-    def archived_blocks(self, network:str=None, reverse:bool = True) -> List[int]:
+    @classmethod
+    def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
         # returns a list of archived blocks 
-        network = self.resolve_network(network)
         
-        blocks =  [f.split('.B')[-1].split('.json')[0] for f in self.glob(f'archive/{network}/state.B*')]
+        blocks =  [f.split('.B')[-1].split('.json')[0] for f in cls.glob(f'archive/{network}/state.B*')]
         blocks = [int(b) for b in blocks]
         sorted_blocks = sorted(blocks, reverse=reverse)
         return sorted_blocks
-    
-    def num_archives(self, network:str=None) -> int:
-        return len(self.archived_blocks(network=network))
-    def oldest_archive_path(self, network:str=None) -> str:
-        network = self.resolve_network(network)
-        oldest_archive_block = self.oldest_archive_block(network=network)
-        return self.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
-    def newest_archive_block(self, network:str=None) -> str:
-        network = self.resolve_network(network)
-        blocks = self.archived_blocks(network=network, reverse=True)
+    @classmethod
+    def num_archives(cls, network:str=network) -> int:
+        return len(cls.archived_blocks(network=network))
+    @classmethod
+    def oldest_archive_path(cls, network:str=network) -> str:
+        oldest_archive_block = cls.oldest_archive_block(network=network)
+        return cls.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
+    @classmethod
+    def newest_archive_block(cls, network:str=network) -> str:
+        blocks = cls.archived_blocks(network=network, reverse=True)
         return blocks[0]
-    def newest_archive_path(self, network:str=None) -> str:
-        network = self.resolve_network(network)
-        oldest_archive_block = self.newest_archive_block(network=network)
-        return self.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
-    def oldest_archive_block(self, network:str=None) -> str:
-        network = self.resolve_network(network)
-        blocks = self.archived_blocks(network=network, reverse=True)
+    @classmethod
+    def newest_archive_path(cls, network:str=network) -> str:
+        oldest_archive_block = cls.newest_archive_block(network=network)
+        return cls.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
+    @classmethod
+    def oldest_archive_block(cls, network:str=network) -> str:
+        blocks = cls.archived_blocks(network=network, reverse=True)
         return blocks[-1]
     @classmethod
     def watchdog(cls, 
@@ -2065,9 +2066,11 @@ class Subspace(c.Module):
              netuid=None, 
              network=None,
              state:dict = None,
-             state_path = f'{chain_path}/snapshot-old.json', 
+             state_path = None, 
              snap_path = f'{chain_path}/snapshot.json',
              **kwargs):
+        if state_path is None:
+            state_path = cls.newest_archive_path()
         
         if state is None:
             state = c.get_json(state_path)
@@ -2080,12 +2083,14 @@ class Subspace(c.Module):
                         'modules': [],
                          'balances': {k:v for k,v in state['balances'].items() if v > 100000}}
 
-        
+
         for subnet in sorted_keys:
             modules = subnet_info_map[subnet]['modules']
             new_snapshot['modules'] += [[[m[p] for p in cls.module_params] for m in modules]]
-            new_snapshot['subnets'] += [[subnet_info_map[subnet][p] for p in cls.subnet_params]] 
-        
+            # subnet_info = { 'max_allowed_uids': 1024, 'min_allowed_weights': 100, 'immunity_period': 40, 'tempo': 1, 'founder': '5HarzAYD37Sp3vJs385CLvhDPN52Cb1Q352yxZnDZchznPaS'}
+            subnet_info = subnet_info_map[subnet]
+            new_snapshot['subnets'] += [[subnet_info[p] for p in cls.subnet_params]] 
+
         c.print('Saving snapshot to', snap_path)
         c.put_json(snap_path, new_snapshot)
         
