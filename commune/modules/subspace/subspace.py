@@ -327,6 +327,10 @@ class Subspace(c.Module):
             
     rloop = register_loop
     
+    def update(self):
+        # self.modules(cache=False)
+        pass
+    
     def register(
         self,
         module:str ,  
@@ -349,6 +353,8 @@ class Subspace(c.Module):
         refresh: bool = False,
 
     ) -> bool:
+        
+        self.update()
         
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
@@ -550,7 +556,7 @@ class Subspace(c.Module):
         wait_for_finalization = True,
         prompt: bool = False,
     ) -> bool:
-            
+        self.update()   
         key = self.resolve_key(key)
         module = self.key2module(key)
         netuid = self.resolve_netuid(netuid)   
@@ -986,6 +992,14 @@ class Subspace(c.Module):
     def oldest_archive_path(self, network:str=None) -> str:
         network = self.resolve_network(network)
         oldest_archive_block = self.oldest_archive_block(network=network)
+        return self.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
+    def newest_archive_block(self, network:str=None) -> str:
+        network = self.resolve_network(network)
+        blocks = self.archived_blocks(network=network, reverse=True)
+        return blocks[0]
+    def newest_archive_path(self, network:str=None) -> str:
+        network = self.resolve_network(network)
+        oldest_archive_block = self.newest_archive_block(network=network)
         return self.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
     def oldest_archive_block(self, network:str=None) -> str:
         network = self.resolve_network(network)
@@ -1426,6 +1440,9 @@ class Subspace(c.Module):
             modules = []
             
             for uid, address in uid2addresses.items():
+                if uid not in uid2key:
+                    c.error(f"Module {uid} has no key")
+                    continue
                 key = uid2key[uid]
                 module= {
                     'uid': uid,
@@ -1613,7 +1630,6 @@ class Subspace(c.Module):
 
     @classmethod
     def spec_exists(cls, chain):
-        c.print(c.exists)
         return c.exists(f'{cls.spec_path}/{chain}.json')
 
 
@@ -1882,7 +1898,6 @@ class Subspace(c.Module):
     def weights(self, netuid = None, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
         subnet_weights =  self.query_map('Weights', params=[netuid], **kwargs).records
-        c.print(subnet_weights)
         weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights if w != None and uid != None}
         
         return weights
@@ -1940,12 +1955,6 @@ class Subspace(c.Module):
         
 
     
-    @classmethod
-    def sand(cls, user='Alice'):
-        c.print(sum([5376343, 5376344, 5376344, 5376344, 5376344, 5376344, 166666666, 5376344, 5376344, 5376344, 5376344, 
-            5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 
-            5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344]))
-                    
 
     def uids(self, netuid = None, **kwargs):
         netuid = self.resolve_netuid(netuid)
@@ -2062,6 +2071,8 @@ class Subspace(c.Module):
         
         if state is None:
             state = c.get_json(state_path)
+            if 'data' in state:
+                state = state['data']
         subnet_info_map = state['subnets']
         sorted_keys = sorted(subnet_info_map.keys())
                 
@@ -2081,9 +2092,9 @@ class Subspace(c.Module):
         return new_snapshot
     
     @classmethod
-    def sand(cls):
-        self = cls()
-        c.print(sum([e.value for e in self.emission()]))
+    def sand(cls, user='Alice'):
+        c.print(len(cls.query('Keys', 0)))
+        c.print(len(cls.query('Emission')[0][1].value))
 
     def vote_pool(self, netuid=None, network=None):
         my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)
