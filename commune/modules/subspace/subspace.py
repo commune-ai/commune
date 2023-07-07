@@ -226,8 +226,21 @@ class Subspace(c.Module):
         while True:
             c.print(f'Sleeping for {sleep_interval} seconds...')
             c.print('Voting...')
+            c.sleep(sleep_interval)
             self.vote_pool(*args, **kwargs)
 
+
+    def my_balance(self, network = None, fmt='j'):
+        network = self.resolve_network(network)
+        
+        balance = 0
+        for module in self.my_modules(network=network):
+            balance += module['balance']
+            balance += module['stake']
+            
+        return self.format_amount(balance, fmt=fmt)
+            
+        
 
     
     #####################
