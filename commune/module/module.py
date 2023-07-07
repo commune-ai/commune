@@ -6605,6 +6605,9 @@ class c:
     @classmethod
     def watchdog(cls, *args, **kwargs):
         return c.module('subspace')().watchdog(*args, **kwargs)
+    @classmethod
+    def n(self, *args, **kwargs):
+        return c.module('subspace')().n(*args, **kwargs)
     
     watch = watchdog
 Module = c
