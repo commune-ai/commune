@@ -35,33 +35,33 @@ chain_info:
     alice:
       boot_nodes: null
       chain: main
-      port: 4515
+      port: 4537
       rpc_cors: all
-      rpc_port: 4690
+      rpc_port: 4713
       user: alice
       validator: true
       verbose: false
-      ws_port: 4159
+      ws_port: 4182
     bob:
-      boot_nodes: /ip4/162.157.13.236/tcp/4515/p2p/12D3KooWS9xnoYH8pKcH9qjECFSV56QpyyBZM6Uh6DAz5hLYsUkY
+      boot_nodes: /ip4/162.157.13.236/tcp/4537/p2p/12D3KooWS9xnoYH8pKcH9qjECFSV56QpyyBZM6Uh6DAz5hLYsUkY
       chain: main
-      port: 4726
+      port: 4748
       rpc_cors: all
-      rpc_port: 4506
+      rpc_port: 4528
       user: bob
       validator: true
       verbose: false
-      ws_port: 4331
+      ws_port: 4354
     charlie:
-      boot_nodes: /ip4/162.157.13.236/tcp/4726/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
       chain: main
-      port: 4544
+      port: 4570
       rpc_cors: all
-      rpc_port: 4040
+      rpc_port: 4063
       user: charlie
       validator: false
       verbose: false
-      ws_port: 4407
+      ws_port: 4430
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
 default_netuid: 0
@@ -73,7 +73,7 @@ network: main
 network2url:
   dev: 162.157.13.236:4573
   local: 127.0.0.1:9944
-  main: 162.157.13.236:4407
+  main: 162.157.13.236:4430
   testnet: 127.0.0.1:4874
 retry_params:
   backoff: 2

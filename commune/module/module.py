@@ -6584,7 +6584,12 @@ class c:
     def snap(cls, *args, **kwargs):
         return c.module('subspace')().snap(*args, **kwargs)
 
-
+    @classmethod
+    def nodes(cls, *args, **kwargs):
+        return c.module('subspace')().nodes(*args, **kwargs)
+    @classmethod
+    def kill_nodes(cls, *args, **kwargs):
+        return c.module('subspace')().kill_nodes(*args, **kwargs)
 
         
     

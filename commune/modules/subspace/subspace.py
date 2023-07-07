@@ -251,9 +251,11 @@ class Subspace(c.Module):
         if weights is None:
             weights = torch.tensor([1 for _ in uids])
             weights = weights / weights.sum()
-        weights = weights * U16_MAX
+            weights = weights * U16_MAX
+            weights = weights.tolist()
+        
         c.print(f'Weights: {weights}')
-        weights = weights.tolist()
+        
         c.print(f'Setting weights for {len(uids)} uids..., {len(weights)}')
         # First convert types.
 
@@ -323,6 +325,10 @@ class Subspace(c.Module):
         refresh: bool = False,
 
     ) -> bool:
+        
+        if tag_seperator in module:
+            module, tag = module.split(tag_seperator)
+            
         
         network = self.resolve_network(network)
         kwargs = kwargs if kwargs is not None else {}
@@ -1389,9 +1395,9 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = 'dev', verbose:bool=False):
+    def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=True ):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
-        cls.build_spec(chain)    
+        cls.build_spec(chain, snap=snap)    
         
 
     @classmethod   
@@ -1415,7 +1421,7 @@ class Subspace(c.Module):
                    chain = 'dev',
                    raw:bool  = False,
                    disable_default_bootnode = True,
-                   snap:bool = True,
+                   snap:bool = False,
 
                    ):
 
@@ -1546,7 +1552,7 @@ class Subspace(c.Module):
     
     
     @classmethod
-    def nodes(cls, chain='dev'):
+    def nodes(cls, chain=network):
         return c.pm2ls(f'{cls.node_prefix()}::{chain}')
 
     @classmethod
@@ -1619,18 +1625,22 @@ class Subspace(c.Module):
        
     @classmethod
     def start_chain(cls, 
-                    chain:str='dev', 
+                    chain:str='main', 
                     users = ['alice','bob', 'charlie'] ,
                     verbose:bool = False,
-                    reuse_ports : bool = False,
+                    reuse_ports : bool = True,
                     sleep :int = 2,
                     build: bool = True,
                     external:bool = True,
                     boot_nodes : str = None,
+                    purge_chain:bool = True,
+                    snap:bool = True,
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
+        
+        cls.kill_nodes()
         if build:
-            cls.build(chain=chain, verbose=verbose)
+            cls.build(chain=chain, verbose=verbose, snap=snap)
         avoid_ports = []
         
         ip = c.ip(external=external)
@@ -1651,6 +1661,7 @@ class Subspace(c.Module):
                                'user':user, 
                                'verbose':verbose,
                                'rpc_cors': rpc_cors,
+                               'purge_chain': purge_chain,
                                'validator': True if bool(i < len(users)-1) else False,
                                }
                 for k in port_keys:
@@ -1785,10 +1796,10 @@ class Subspace(c.Module):
     
     @classmethod
     def sand(cls, user='Alice'):
-        self = cls()
-        auth = self.auth(key='alice')
-        return self.verify(auth)
-        
+        c.print(sum([5376343, 5376344, 5376344, 5376344, 5376344, 5376344, 166666666, 5376344, 5376344, 5376344, 5376344, 
+            5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 
+            5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344, 5376344]))
+                    
 
     def uids(self, netuid = None, **kwargs):
         netuid = self.resolve_netuid(netuid)
@@ -1882,7 +1893,7 @@ class Subspace(c.Module):
     def node_help(cls):
         c.cmd(f'{cls.chain_release_path} --help', verbose=True)
         
-        
+    
     @classmethod
     def dashboard(cls):
         return c.module('subspace.dashboard').dashboard()
@@ -1921,8 +1932,11 @@ class Subspace(c.Module):
         c.put_json(save_path, new_snapshot)
         
         return new_snapshot
-    # @classmethod
-    # def sand(cls):
+    
+    @classmethod
+    def sand(cls):
+        self = cls()
+        c.print(sum([e.value for e in self.emission()]))
 
   
 if __name__ == "__main__":
