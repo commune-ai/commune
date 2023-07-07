@@ -6591,8 +6591,10 @@ class c:
     def kill_nodes(cls, *args, **kwargs):
         return c.module('subspace')().kill_nodes(*args, **kwargs)
 
-        
-    
+    @classmethod
+    def cj(cls, *args, **kwargs):
+        return c.module('subspace')().cj(*args, **kwargs)
+    j = cj
 Module = c
 Module.run(__name__)
     

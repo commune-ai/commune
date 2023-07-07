@@ -217,16 +217,16 @@ class Subspace(c.Module):
         return {'verified': True, 'error': None}
     
     @classmethod
-    def circle_jerk_vote(cls, *args, remote = True, sleep_interval:str = 100, **kwargs):
+    def cj(cls, *args, remote = True, sleep_interval:str = 100, **kwargs):
         if remote:
             c.print('Remote voting...')
             kwargs['remote'] = False
-            return cls.remote_fn('circle_jerk_vote', args=args, kwargs=kwargs)
+            return cls.remote_fn('cj', args=args, kwargs=kwargs)
         self = cls()
         while True:
             c.print(f'Sleeping for {sleep_interval} seconds...')
             c.print('Voting...')
-            self.vote(*args, **kwargs)
+            self.vote_pool(*args, **kwargs)
 
 
     
@@ -1938,6 +1938,16 @@ class Subspace(c.Module):
         self = cls()
         c.print(sum([e.value for e in self.emission()]))
 
+    def vote_pool(self, netuid=None, network=None):
+        my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)
+        for m in my_modules:
+            c.vote(m, netuid=netuid, network=network)
+        return {'success': True, 'msg': f'Voted for all modules {my_modules}'}
+    
+    
+    
+        
+        
   
 if __name__ == "__main__":
     Subspace.run()
