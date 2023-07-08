@@ -4,44 +4,76 @@ chain_info:
     alice:
       boot_nodes: null
       chain: dev
-      port: 2063
+      port: 4298
       rpc_cors: all
-      rpc_port: 2065
+      rpc_port: 4138
       user: alice
       validator: true
       verbose: false
-      ws_port: 2028
+      ws_port: 4291
     bob:
-      boot_nodes: /ip4/162.157.113.207/tcp/2063/p2p/12D3KooWMPAeGEjjCB8nezPkWyqc98kzfpvd8oNaxwRAuRCtzgat
+      boot_nodes: /ip4/162.157.13.236/tcp/4298/p2p/12D3KooWCnjyiVkQW3RjxL8EZ3khHUVcwJFxwMpz8g3Qqo25RioZ
       chain: dev
-      port: 2070
+      port: 4348
       rpc_cors: all
-      rpc_port: 2029
+      rpc_port: 4401
       user: bob
       validator: true
       verbose: false
-      ws_port: 2057
+      ws_port: 4693
     charlie:
-      boot_nodes: /ip4/162.157.113.207/tcp/2070/p2p/12D3KooWRBrUcBJmeGKjvfkZPU1x2t9hA1pDaHWc6qyRTuqzPLGK
+      boot_nodes: /ip4/162.157.13.236/tcp/4348/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
       chain: dev
-      port: 2020
+      port: 4851
       rpc_cors: all
-      rpc_port: 2054
+      rpc_port: 4414
       user: charlie
       validator: false
       verbose: false
-      ws_port: 2010
+      ws_port: 4573
+  main:
+    alice:
+      boot_nodes: null
+      chain: main
+      port: 4537
+      rpc_cors: all
+      rpc_port: 4713
+      user: alice
+      validator: true
+      verbose: false
+      ws_port: 4182
+    bob:
+      boot_nodes: /ip4/162.157.13.236/tcp/4537/p2p/12D3KooWS9xnoYH8pKcH9qjECFSV56QpyyBZM6Uh6DAz5hLYsUkY
+      chain: main
+      port: 4748
+      rpc_cors: all
+      rpc_port: 4528
+      user: bob
+      validator: true
+      verbose: false
+      ws_port: 4354
+    charlie:
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      chain: main
+      port: 4570
+      rpc_cors: all
+      rpc_port: 4063
+      user: charlie
+      validator: false
+      verbose: false
+      ws_port: 4430
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
-default_netuid: 1
+default_netuid: 0
 key: alice
 key_types:
 - aura
 - gran
-network: dev
+network: main
 network2url:
-  dev: 162.157.113.207:2010
+  dev: 162.157.13.236:4573
   local: 127.0.0.1:9944
+  main: 162.157.13.236:4430
   testnet: 127.0.0.1:4874
 retry_params:
   backoff: 2
@@ -50,8 +82,14 @@ retry_params:
   tries: 2
 spec_path: f"{chain_path}/specs"
 subnet: commune
+subnet_params:
+- name
+- tempo
+- immunity_period
+- min_allowed_weights
+- max_allowed_uids
+- founder
 supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
-subnet_params: ['name','tempo','immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder']
