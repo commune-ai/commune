@@ -216,6 +216,9 @@ class BittensorModule(c.Module):
     
     _neurons_cache = {}
     
+    
+    
+    
     @classmethod
     def get_neurons(cls,
                     netuid: int = default_netuid, 
@@ -226,9 +229,7 @@ class BittensorModule(c.Module):
                      ) -> List['Neuron']:
         neurons = None
         if cache:
-            
-            if netuid in cls._neurons_cache:
-                neurons =   cls._neurons_cache[key]
+            neurons =   cls._neurons_cache.get(netuid, None)
         
         if neurons is None:
             neurons = cls.get_metagraph(subtensor=subtensor, netuid=netuid, **kwargs).neurons
@@ -249,11 +250,13 @@ class BittensorModule(c.Module):
     def get_neuron(cls, wallet=None, netuid: int = None, subtensor=None):
         wallet = cls.get_wallet(wallet)
         netuid = cls.get_netuid(netuid)
-        subtensor = cls.get_subtensor(subtensor)
-        neuron_info = wallet.get_neuron(subtensor=subtensor, netuid=netuid)
-        if neuron_info is None:
-            neuron_info = cls.munch({'axon_info': {}, 'prometheus_info': {}})
-            
+        neuron_info = cls.munch({'axon_info': {}, 'prometheus_info': {}})
+
+        c.print(f'Getting neuron info for {wallet.hotkey.ss58_address} on netuid {netuid}', color='green')
+        neurons = cls.get_neurons(netuid=netuid, subtensor=subtensor)
+        for neuron in neurons:
+            if wallet.hotkey.ss58_address == neuron.hotkey:
+                neuron_info =  neuron
         return neuron_info
     
     @classmethod
@@ -407,28 +410,43 @@ class BittensorModule(c.Module):
         return wallet_list
     
     @classmethod
-    def wallets(cls, search = None, registered=False, subtensor=default_network, netuid:int=default_netuid):
-        wallets = []
-        if registered:
-            subtensor = cls.get_subtensor(subtensor)
-            netuid = cls.get_netuid(netuid)
+    def wallets(cls,
+                search = None,
+                registered=False, 
+                unregistered=False,
+                subtensor=default_network, 
+                netuid:int=default_netuid,
+                
+                ):
+        registered_hotkeys = []
+        if unregistered:
+            registered = False
+        elif registered:
+            unregistered = False
+            registered_hotkeys = cls.get_neurons(subtensor=subtensor, netuid=netuid, key='hotkey')
             
+        wallets = []
         for ck in cls.coldkeys():
             for hk in cls.hotkeys(ck):
                 wallet = f'{ck}.{hk}'
-                if registered:
-                    if not cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
-                        continue
-                    
                 
                 if search is not None:
                     if not wallet.startswith(search):
                         continue
                     
+                wallet_obj = cls.get_wallet(wallet)
+                if registered and wallet_obj.hotkey.ss58_address not in registered_hotkeys:
+                        continue
+                if unregistered and wallet_obj.hotkey.ss58_address in registered_hotkeys:
+                        continue
                 wallets.append(wallet)
                 
-        wallets = sorted(wallets)
+                
+        # wallets = sorted(wallets)
         return wallets
+    
+    
+    
     keys = wallets
     @classmethod
     def registered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
@@ -438,10 +456,8 @@ class BittensorModule(c.Module):
     reged = registered_wallets
     @classmethod
     def unregistered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
-        wallets =  cls.wallets(search=search,registered=False, subtensor=subtensor, netuid=netuid)
-        registered_wallets = cls.registered_wallets(search=search, subtensor=subtensor, netuid=netuid)
-        unregistered_wallets = [w for w in wallets if w not in registered_wallets]
-        return unregistered_wallets
+        wallets =  cls.wallets(search=search,unregistered=True, subtensor=subtensor, netuid=netuid)
+        return wallets
     
     unreged = unregistered_wallets
     
@@ -610,10 +626,9 @@ class BittensorModule(c.Module):
     def is_registered(cls, wallet = None, netuid: int = default_netuid, subtensor: 'Subtensor' = default_network):
         netuid = cls.get_netuid(netuid)
         wallet = cls.get_wallet(wallet)
-        subtensor = cls.get_subtensor(subtensor)
+        hotkeys = cls.get_neurons( netuid=netuid, subtensor=subtensor, key='hotkey')
+        return bool(wallet.hotkey.ss58_address in hotkeys)
         
-        
-        return wallet.is_registered(subtensor= subtensor, netuid=  netuid)
 
     @property
     def registered(self):
@@ -1267,7 +1282,7 @@ class BittensorModule(c.Module):
             cls.print(f'fee {fee} is too high, max_fee is {max_fee}')
             time.sleep(1)
             fee = cls.burn_fee(subtensor=subtensor)
-            if wallet.is_registered(netuid=netuid, subtensor=subtensor):
+            if cls.is_registered(wallet=wallet, netuid=netuid, subtensor=subtensor):
                 cls.print(f'wallet {wallet} is already registered on {netuid}')
                 return True
         subtensor.burned_register(
@@ -1524,7 +1539,7 @@ class BittensorModule(c.Module):
         config.wallet.hotkey = hotkey
         wallet = bittensor.wallet(config=config)
         
-        if wallet.is_registered(subtensor=subtensor, netuid=netuid):
+        if cls.is_registered(wallet=wallet, subtensor=subtensor, netuid=netuid):
             cls.print(f'wallet {wallet} is already registered')
             neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
             if not refresh_ports:
@@ -1540,8 +1555,11 @@ class BittensorModule(c.Module):
                                     display_kwargs=kwargs)
         config.logging.debug = debug       
         
+        wallet = bittensor.wallet(config=config)
+        c.print(f'wallet {wallet} is registered')
    
         config.axon.port = cls.resolve_port(port)
+        c.print(f'using port {config.axon.port}')
         neuron_class(config=config).run()
 
     @classmethod
@@ -1648,11 +1666,11 @@ class BittensorModule(c.Module):
             netuid:int= default_netuid,
             network:str=default_network,
             model_name:str= default_model_name,
-            refresh: bool = False,
+            refresh: bool = True,
             burned_register:bool=False, 
             ensure_registration:bool=False,
             device:str = 'cpu',
-            max_fee:float=1.1,
+            max_fee:float=3.5,
             hotkeys:List[str] = None,
             refresh_ports:bool = False,
             n:int = 100,
@@ -1735,7 +1753,7 @@ class BittensorModule(c.Module):
                 network:str =default_network,
                 prefix:str='miner'):
         kwargs =  c.locals2kwargs(locals())
-        return list(cls.wallet2miner( **kwargs).keys())
+        return list(cls.wallet2miner( **kwargs).values())
     
     @classmethod
     def validators(cls, *args, **kwargs):
@@ -1879,7 +1897,7 @@ class BittensorModule(c.Module):
         return logs_dict
 
     @classmethod
-    def miner2logs(cls,  network=default_network, netuid=3, verbose:bool = True):
+    def miner2logs(cls,  network=default_network, netuid=1, verbose:bool = True):
         
         miners = cls.miners()
         jobs = []
@@ -2080,8 +2098,9 @@ class BittensorModule(c.Module):
     @classmethod
     def coldkey_json(cls, coldkey=default_coldkey):
         path = cls.coldkey_path(coldkey)
-        c.print(path)
-        coldkey_json = cls.get_json(path, {})
+        coldkey_json = cls.get_json(path, None)
+        if coldkey_json is None:
+            coldkey_json = cls.coldkeypub_json(coldkey)
         return coldkey_json
     
     @classmethod
@@ -2167,12 +2186,11 @@ class BittensorModule(c.Module):
 
 
     @classmethod
-    def sand(cls):
-        miners = [m for m in c.miners() if m.endswith('11')]
+    def sand(cls, remote=False, **kwargs):
         
-        for miner in miners[:len(miners)//2]:
-            c.print( 'Killin', miner)
-            c.kill(miner)
+        
+        cls.fleet(hotkeys=hotkeys, remote=True, refresh=True, **kwargs)
+        
 
 
 if __name__ == "__main__":
