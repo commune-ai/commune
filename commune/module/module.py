@@ -6403,6 +6403,13 @@ class c:
     @classmethod
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
+    @classmethod
+    def my_stake(cls, *args, **kwargs):
+        return c.module('subspace')().my_stake(*args, **kwargs)
+
+    @classmethod
+    def my_tokens(cls, *args, **kwargs):
+        return c.module('subspace')().my_tokens(*args, **kwargs)
     
     
     @classmethod
