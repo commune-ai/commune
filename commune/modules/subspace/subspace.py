@@ -55,7 +55,7 @@ class Subspace(c.Module):
     state = {}
     # the parameters of the subnet
     subnet_params = default_config['subnet_params']
-    module_params = ['key', 'name', 'address', 'stake','weight' ]
+
 
 
     
@@ -790,8 +790,11 @@ class Subspace(c.Module):
 
     """ Queries subspace named storage with params and block. """
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
-    def query_subspace( self, name: str, block: Optional[int] = None, params: Optional[List[object]] = [], network=None ) -> Optional[object]:
-        self.resolve_network(network)
+    def query_subspace( self, name: str,
+                       block: Optional[int] = None, 
+                       params: Optional[List[object]] = [], 
+                       network=None ) -> Optional[object]:
+        network = self.resolve_network(network)
         
         with self.substrate as substrate:
             return substrate.query(
@@ -959,7 +962,7 @@ class Subspace(c.Module):
         state_dict = self.state_dict(network=network)
         
         save_path = f'archive/{network}/state.B{self.block}.json'
-        self.put(save_path, network_state)
+        self.put(save_path, state_dict)
         if snap:
             self.snap(state = state_dict,
                           network=network, 
@@ -971,8 +974,15 @@ class Subspace(c.Module):
             self.rm_json(self.oldest_archive_path(network=network))
             
             
-            
-            
+    @classmethod
+    def archive_paths(cls, network:str=network) -> List[str]:
+        return cls.glob(f'archive/{network}/state.B*.json')  
+    
+    @classmethod
+    def remove_archives(cls, network:str=network):
+        for path in cls.archive_paths(network=network):
+            c.print(f"Removing archive {path}")
+            cls.rm_json(path)
     @classmethod
     def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
         # returns a list of archived blocks 
@@ -1037,45 +1047,23 @@ class Subspace(c.Module):
         return state_dict
     
 
-    def state_dict(self, network=None):
+    def state_dict(self, network=None, key=None):
         network = self.resolve_network(network)
-        
-
-        state_dict = {'subnets': {}, 
-                      'balances': self.balances(),
+        netuids = self.netuids()
+        state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network) for netuid in netuids], 
+                       'modules': [self.modules(netuid=netuid, network=network) for netuid in netuids],
+                      'balances': self.balances(network=network),
                       'block': self.block,
                       'network': network,
                       }
-        for netuid in self.netuids():
-            state_dict['subnets'][netuid] = self.subnet_state_dict(network=network, 
-                                         save=False, 
-                                         load=False,
-                                         netuid=netuid)
-        
     
         # state_dict = self.get(f'archive/{network}/state', state_dict)
+        
+        if key in state_dict:
+            return state_dict[key]
+    
         return state_dict
 
-    cache = {}
-    def subnet_state_dict(self,
-                   key:str = None, # KEY OF THE ATTRIBUTE, NOT A PRIVATE/PUBLIC KEY PAIR
-                   netuid: int = 1,
-                   network:str= network, 
-                   load : bool= False,
-                   save : bool = False,
-                   max_age: str = 60, 
-                   default = None ) -> dict:
-        # network = self.resolve_network(network, ensure_network=False)
-        netuid = self.resolve_netuid(netuid)
-        subnet = self.netuid2subnet(netuid)
-
-
-        state_dict = {
-            **self.subnet_state(netuid=netuid),
-            'modules': self.modules(netuid=netuid),
-        }
-                
-        return state_dict
 
     def subnet_states(self, *args, **kwargs):
         subnet_states = {}
@@ -1270,7 +1258,7 @@ class Subspace(c.Module):
         
 
     def netuids(self) -> Dict[int, str]:
-        return list(self.subnet_namespace.values())
+        return sorted(list(self.subnet_namespace.values()))
 
 
     
@@ -1314,9 +1302,6 @@ class Subspace(c.Module):
             return subnet2netuid.get(subnet, None)
         return subnet2netuid
         
-    def subnet_netuids(self) -> List[int]:
-        return list(self.subnet_namespace.values())
-    netuids = subnet_netuids
 
     def resolve_netuid(self, netuid: int = None, subspace_namespace:str=None) -> int:
 
@@ -2085,30 +2070,22 @@ class Subspace(c.Module):
              state:dict = None,
              state_path = None, 
              snap_path = f'{chain_path}/snapshot.json',
+             subnet_params =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
+            module_params = ['key', 'name', 'address', 'stake','weight' ],
+            min_balance = 100000,
              **kwargs):
         if state_path is None:
             state_path = cls.newest_archive_path()
         
         if state is None:
-            state = c.get_json(state_path)
-            if 'data' in state:
-                state = state['data']
-        subnet_info_map = state['subnets']
-        sorted_keys = sorted(subnet_info_map.keys())
-                
-        new_snapshot = {'subnets': [],
-                        'modules': [],
-                         'balances': {k:v for k,v in state['balances'].items() if v > 100000}}
-
-
-        for subnet in sorted_keys:
-            modules = subnet_info_map[subnet]['modules']
-            c.print('subnet', subnet, 'modules', modules )
-            new_snapshot['modules'] += [[[m[p] for p in cls.module_params] for m in modules]]
-            # subnet_info = { 'max_allowed_uids': 1024, 'min_allowed_weights': 100, 'immunity_period': 40, 'tempo': 1, 'founder': '5HarzAYD37Sp3vJs385CLvhDPN52Cb1Q352yxZnDZchznPaS'}
-            subnet_info = subnet_info_map[subnet]
-            new_snapshot['subnets'] += [[subnet_info[p] for p in cls.subnet_params]] 
-
+            state = c.get(state_path)
+                    
+        new_snapshot = {
+                        'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
+                        'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
+                        'balances': {k:v for k,v in state['balances'].items() if v > 100000}
+                        }
+                        
         c.print('Saving snapshot to', snap_path)
         c.put_json(snap_path, new_snapshot)
         
