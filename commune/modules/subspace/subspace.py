@@ -230,23 +230,47 @@ class Subspace(c.Module):
             self.vote_pool(*args, **kwargs)
 
 
-    def my_balance(self, network = None, fmt='j', decimals=2):
+
+    def key2stake(self,netuid = None, network = None, fmt='j',  decimals=2):
+        key2stake = {m['name']: c.round_decimals(m['stake'], decimals=decimals) \
+                     for m in self.my_modules(netuid=netuid, network=network, fmt=fmt)}
+        return key2stake
+    def key2balance(self, network = None, fmt='j', decimals=2):
         network = self.resolve_network(network)
         
-        balance = 0
         key2address  = c.key2address()
-        balances = self.balances(network=network)
+        balances = self.balances(network=network, fmt=fmt)
+        key2balance = {}
         
-        
-        for key, address in key2address.items():
+        for key_name, address in key2address.items():
             if address in balances:
-                balance += balances[address]
-                
-        return c.round_decimals(self.format_amount(balance, fmt=fmt), decimals=2)
-            
-        
+                key2balance[key_name]= c.round_decimals(balances[address], decimals=decimals)
+        return key2balance
 
-    
+    def key2tokens(self, network = None, fmt='j', decimals=2):
+        key2tokens = {}
+        key2balance = self.key2balance(network=network, fmt=fmt, decimals=decimals)
+        for key, balance in key2balance.items():
+            if key not in key2tokens:
+                key2tokens[key] = 0
+            key2tokens[key] += balance
+            
+        for netuid in self.netuids():
+            key2stake = self.key2stake(network=network, fmt=fmt, netuid=netuid, decimals=decimals)
+
+            for key, stake in key2stake.items():
+                if key not in key2tokens:
+                    key2tokens[key] = 0
+                key2tokens[key] += stake
+            
+        return key2tokens
+        
+    def my_tokens(self, network = None,fmt='j', decimals=2):
+        return sum(self.key2tokens(network=network, fmt=fmt, decimals=decimals).values())
+    def my_stake(self, network = None, netuid=None, fmt='j', decimals=2):
+        return sum(self.key2stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals).values())
+    def my_balance(self, network = None, fmt='j', decimals=2):
+        return sum(self.key2balance(network=network, fmt=fmt, decimals=decimals).values())
     #####################
     #### Set Weights ####
     #####################
