@@ -957,7 +957,6 @@ class Subspace(c.Module):
         save_path = f'archive/{network}/state.B{self.block}.json'
         self.put(save_path, network_state)
         if snap:
-            snap_path = 
             self.snap(state = state_dict,
                           network=network, 
                           snap_path=f'archive/{network}/snap.B{self.block}.json'
