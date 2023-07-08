@@ -5862,8 +5862,8 @@ class c:
         return c.module('model.transformer').train_fleet(*args, **kwargs)
     
     @classmethod
-    def miners(cls, prefix='miner'):
-        return cls.pm2_list(prefix)
+    def miners(cls, *args, **kwargs):
+        return c.module('bittensor').miners(*args, **kwargs)
     
     @classmethod
     def check_miners(cls, *args, module='bittensor', **kwargs):

@@ -38,7 +38,7 @@ class OpenAIMiner( bittensor.BasePromptingMiner ):
         parser.add_argument('--openai.n', type=int, default=1, help="How many completions to generate for each prompt.")
         parser.add_argument('--openai.presence_penalty', type=float, default=0, help="Penalty for tokens based on their presence in the text so far.")
         parser.add_argument('--openai.frequency_penalty', type=float, default=0, help="Penalty for tokens based on their frequency in the text so far.")
-        parser.add_argument('--openai.model_name', type=str, default='gpt-3.5-turbo', help="OpenAI model to use for completion.")
+        parser.add_argument('--openai.model_name', type=str, default='gpt-3.5-turbo-0613', help="OpenAI model to use for completion.")
 
     def backward( self, messages: List[Dict[str, str]], response: str, rewards: torch.FloatTensor ) -> str: pass
 
