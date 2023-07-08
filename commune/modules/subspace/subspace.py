@@ -234,10 +234,14 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         
         balance = 0
-        for module in self.my_modules(network=network):
-            balance += module['balance']
-            balance += module['stake']
-            
+        key2address  = c.key2address()
+        balances = self.balances(network=network)
+        
+        
+        for key, address in key2address.items():
+            if address in balances:
+                balance += balances[address]
+                
         return c.round_decimals(self.format_amount(balance, fmt=fmt), decimals=2)
             
         
@@ -1489,7 +1493,7 @@ class Subspace(c.Module):
             for i, m in enumerate(modules):
                 modules[i].pop('weight')
         c.print(f"Found {len(modules)} modules")
-        # return modules
+        return modules
         
     
       
