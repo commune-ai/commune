@@ -1814,7 +1814,7 @@ class Subspace(c.Module):
                     external:bool = True,
                     boot_nodes : str = None,
                     purge_chain:bool = True,
-                    snap:bool = True,
+                    snap:bool = False,
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
         
