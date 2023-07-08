@@ -6618,6 +6618,19 @@ class c:
     def n(self, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)
     
+    @classmethod
+    def upgrade_proto(cls, verbose:bool = True):
+        c.cmd('pip install --upgrade protobuf', verbose=verbose)
+        c.cmd('pip install --upgrade grpcio-tools', verbose=verbose)
+        
+    
+    @classmethod
+    def protobuild(cls, *args, **kwargs):
+        src_dir = c.root_path + '/module/server/proto'
+        proto_path = src_dir + '/server.proto'
+        cmd = f"python3 -m grpc.tools.protoc {proto_path}  -I {src_dir}  --python_out={src_dir} --grpc_python_out={src_dir}"
+        c.cmd(cmd, verbose=True)
+    
     watch = watchdog
 Module = c
 

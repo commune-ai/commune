@@ -950,26 +950,17 @@ class Subspace(c.Module):
     def save(self, 
              network:str= None,
              snap:bool=True, 
-             max_archives:int=2):
+             max_archives:int=10):
         network = self.resolve_network(network)
-        subnet_states = {}
-        network_state = {}
-        for netuid in self.netuids():
-            subnet_states[netuid] = self.state_dict(network=network, 
-                                         save=False, 
-                                         load=False,
-                                         netuid=netuid)
-            
-        network_state['balances'] = self.balances()
-        network_state['subnets'] = subnet_states
+        state_dict = self.state_dict(network=network)
+        
         save_path = f'archive/{network}/state.B{self.block}.json'
-        c.print(f"Saving state to {save_path}")
         self.put(save_path, network_state)
         if snap:
-            snap_path = f'archive/{network}/snap.B{self.block}.json'
-            self.snap(state = network_state,
+            snap_path = 
+            self.snap(state = state_dict,
                           network=network, 
-                          snap_path=snap_path
+                          snap_path=f'archive/{network}/snap.B{self.block}.json'
                           )
             
         while self.num_archives(network=network) > max_archives:
@@ -1008,7 +999,8 @@ class Subspace(c.Module):
         return blocks[-1]
     @classmethod
     def watchdog(cls, 
-                 interval=100,
+                 save_interval=100,
+                 vote_interval = 200,
                  cj:bool=True,
                  remote:bool=True):
         if remote:
@@ -1017,11 +1009,20 @@ class Subspace(c.Module):
             return cls.remote_fn('watchdog', kwargs=kwargs)
             
         self = cls()
+        time_start = c.time()
+        time_elapsed = 0
+        counts = { 'save':0, 'vote':0}
         while True:
-            self.save()
-            self.cj(remote=False) # verify that we can connect to the node
-            c.sleep(interval)
-            c.log(f"Watchdog: {interval} seconds have passed. Saving state.")
+            time_elapsed = c.time() - time_start
+            
+            if time_elapsed % save_interval == 0:
+                self.save()
+                counts['save'] += 1
+            if time_elapsed % vote_interval == 0:
+                self.cj(remote=False) # verify that we can connect to the node
+                counts['vote'] += 1
+            if time_elapsed % 10 == 0:
+                c.log(f"Watchdog: {time_elapsed} seconds elapsed COUNTS ->S {counts}")
             
             
         
@@ -1033,10 +1034,27 @@ class Subspace(c.Module):
         return state_dict
     
 
+    def state_dict(self, network=None):
+        network = self.resolve_network(network)
+        
 
+        state_dict = {'subnets': {}, 
+                      'balances': self.balances(),
+                      'block': self.block,
+                      'network': network,
+                      }
+        for netuid in self.netuids():
+            state_dict['subnets'][netuid] = self.subnet_state_dict(network=network, 
+                                         save=False, 
+                                         load=False,
+                                         netuid=netuid)
+        
+    
+        # state_dict = self.get(f'archive/{network}/state', state_dict)
+        return state_dict
 
     cache = {}
-    def state_dict(self,
+    def subnet_state_dict(self,
                    key:str = None, # KEY OF THE ATTRIBUTE, NOT A PRIVATE/PUBLIC KEY PAIR
                    netuid: int = 1,
                    network:str= network, 
@@ -1047,23 +1065,12 @@ class Subspace(c.Module):
         # network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
         subnet = self.netuid2subnet(netuid)
-        path = f'archive/{network}/state_dict_net::{netuid}'
-        state_dict = {}
-        if load:
-            state_dict = self.get(path, default={} ,max_age=max_age)             
-        if len(state_dict) == 0:
-            if load:
-                save = True
-                
 
-            state_dict = {
-                **self.subnet_state(netuid=netuid),
-                'modules': self.modules(netuid=netuid),
-                'block': self.block,
-                'timestamp': c.timestamp(),
-            }
-        if save:
-            self.put(path, state_dict, cache=cache)
+
+        state_dict = {
+            **self.subnet_state(netuid=netuid),
+            'modules': self.modules(netuid=netuid),
+        }
                 
         return state_dict
 
@@ -1406,11 +1413,12 @@ class Subspace(c.Module):
                 netuid: int = default_netuid,
                 fmt='nano', 
                 detail:bool = True,
-                cache:bool = True,
+                cache:bool = False,
                 max_age: int = 60,
                 network = network,
                 keys = None,
                 update = True,
+                weights = True,
                 
                 ) -> Dict[str, ModuleInfo]:
         if fmt != 'nano':
@@ -1458,9 +1466,10 @@ class Subspace(c.Module):
                     'weight': weights[uid] if uid in weights else [],
                     
                 }
-                for k in ['balance', 'stake', 'emission', 'incentive', 'dividends']:
+                for k in ['balance', 'stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
-                
+                for k in ['incentive', 'dividends']:
+                    module[k] = module[k] / (2**16)
                 modules.append(module)
             
 
@@ -1476,7 +1485,12 @@ class Subspace(c.Module):
             if cache or update:
                 self.put(cache_path, modules)
                 
-        return modules
+        if not weights:
+            c.log(f"Removing weights from modules")
+            for i, m in enumerate(modules):
+                modules[i].pop('weight')
+        c.print(f"Found {len(modules)} modules")
+        # return modules
         
     
       
@@ -2086,6 +2100,7 @@ class Subspace(c.Module):
 
         for subnet in sorted_keys:
             modules = subnet_info_map[subnet]['modules']
+            c.print('subnet', subnet, 'modules', modules )
             new_snapshot['modules'] += [[[m[p] for p in cls.module_params] for m in modules]]
             # subnet_info = { 'max_allowed_uids': 1024, 'min_allowed_weights': 100, 'immunity_period': 40, 'tempo': 1, 'founder': '5HarzAYD37Sp3vJs385CLvhDPN52Cb1Q352yxZnDZchznPaS'}
             subnet_info = subnet_info_map[subnet]
@@ -2098,8 +2113,12 @@ class Subspace(c.Module):
     
     @classmethod
     def sand(cls, user='Alice'):
-        c.print(len(cls.query('Keys', 0)))
-        c.print(len(cls.query('Emission')[0][1].value))
+        self = cls()
+        c.print(len(self.modules()))
+        c.print(len(self.query('Names', 0)))
+        c.print(len(self.query('Addresses', 0)))
+        c.print(len(self.query('Emission')[0][1].value))
+        c.print(len(self.query('Incentive')[0][1].value))
 
     def vote_pool(self, netuid=None, network=None):
         my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)
