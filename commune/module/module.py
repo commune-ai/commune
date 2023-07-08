@@ -6158,8 +6158,8 @@ class c:
             return 'class'
     
     @classmethod
-    def build(cls, network:str='subspace'): 
-        return c.module(network).build()
+    def build(cls, *args,**kwargs): 
+        return c.module('subspace').build(*args, **kwargs)
 
     @classmethod
     def play(cls):
@@ -6505,6 +6505,9 @@ class c:
     @classmethod
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
+    @classmethod
+    def update_module(cls, *args, **kwargs):
+        return c.module('subspace')().update_module(*args, **kwargs)
     
     @classmethod
     def vote(cls, *args, **kwargs):
