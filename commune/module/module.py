@@ -6515,6 +6515,11 @@ class c:
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
     
+    @classmethod
+    def register_loop(cls, *args, **kwargs):
+        return c.module('subspace')().register_loop(*args, **kwargs)
+    
+    rloop = register_loop
     
     @classmethod
     def balance(cls, *args, **kwargs):
@@ -6529,6 +6534,12 @@ class c:
     def my_keys(cls, *args, **kwargs):
         return c.module('subspace')().my_keys(*args, **kwargs)
     
+    @classmethod
+    def key_info(self, *args, **kwargs):
+        return c.module('key').key_info(*args, **kwargs)
+    @classmethod
+    def key_info_map(self, *args, **kwargs):
+        return c.module('key').key_info_map(*args, **kwargs)
     @classmethod   
     def infer_device_map(cls, 
                          model:str, 
@@ -6583,11 +6594,50 @@ class c:
     @classmethod
     def snap(cls, *args, **kwargs):
         return c.module('subspace')().snap(*args, **kwargs)
+    
+    @classmethod
+    def my_balance(cls, *args, **kwargs):
+        return c.module('subspace')().my_balance(*args, **kwargs)
 
+    @classmethod
+    def nodes(cls, *args, **kwargs):
+        return c.module('subspace')().nodes(*args, **kwargs)
+    @classmethod
+    def kill_nodes(cls, *args, **kwargs):
+        return c.module('subspace')().kill_nodes(*args, **kwargs)
 
-
+    @classmethod
+    def cj(cls, *args, **kwargs):
+        return c.module('subspace')().cj(*args, **kwargs)
+    j = cj
+    
+    @classmethod
+    def watchdog(cls, *args, **kwargs):
+        return c.module('subspace')().watchdog(*args, **kwargs)
+    @classmethod
+    def n(self, *args, **kwargs):
+        return c.module('subspace')().n(*args, **kwargs)
+    
+    @classmethod
+    def upgrade_proto(cls, verbose:bool = True):
+        c.cmd('pip install --upgrade protobuf', verbose=verbose)
+        c.cmd('pip install --upgrade grpcio-tools', verbose=verbose)
+        
+    @classmethod
+    def fix_proto(cls):
+        cls.upgrade_proto()
+        cls.build_proto()
         
     
+    @classmethod
+    def build_proto(cls, *args, **kwargs):
+        src_dir = c.root_path + '/module/server/proto'
+        proto_path = src_dir + '/server.proto'
+        cmd = f"python3 -m grpc.tools.protoc {proto_path}  -I {src_dir}  --python_out={src_dir} --grpc_python_out={src_dir}"
+        c.cmd(cmd, verbose=True)
+    
+    watch = watchdog
 Module = c
+
 Module.run(__name__)
     
