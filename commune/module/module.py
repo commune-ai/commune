@@ -6623,9 +6623,14 @@ class c:
         c.cmd('pip install --upgrade protobuf', verbose=verbose)
         c.cmd('pip install --upgrade grpcio-tools', verbose=verbose)
         
+    @classmethod
+    def fix_proto(cls):
+        cls.upgrade_proto()
+        cls.build_proto()
+        
     
     @classmethod
-    def protobuild(cls, *args, **kwargs):
+    def build_proto(cls, *args, **kwargs):
         src_dir = c.root_path + '/module/server/proto'
         proto_path = src_dir + '/server.proto'
         cmd = f"python3 -m grpc.tools.protoc {proto_path}  -I {src_dir}  --python_out={src_dir} --grpc_python_out={src_dir}"
