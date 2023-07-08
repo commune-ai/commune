@@ -1585,7 +1585,7 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=True ):
+    def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=False ):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
         
