@@ -411,19 +411,16 @@ class Subspace(c.Module):
         netuid = self.get_netuid_for_subnet(subnet)
 
         if self.is_registered(key, netuid=netuid):
-            return self.update_module(key=key, 
-                               name=name, 
-                               address=address,
-                               netuid=netuid, 
-                               )
+            return {'success': True, 'message': 'Already registered'}
     
-        # Attempt rolling registration.
+        # Attempt to register
         call_params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
                 } 
+        
         c.print(f":satellite: Registering {key} \n Params : ", call_params)
 
         with self.substrate as substrate:
@@ -440,12 +437,12 @@ class Subspace(c.Module):
             # process if registration successful, try again if pow is still valid
             response.process_events()
             
-            if response.is_success:
-                c.print(":white_heavy_check_mark: [green]Success[/green]")
-                return {'success': True, 'message': 'Successfully registered module {} with address {}'.format(name, address)}
-            else:
-                return {'success': False, 'message': response.error_message}
-    
+        if response.is_success:
+            c.print(":white_heavy_check_mark: [green]Success[/green]")
+            return {'success': True, 'message': 'Successfully registered module {} with address {}'.format(name, address)}
+        else:
+            return {'success': False, 'message': response.error_message}
+
             
 
 
@@ -1473,7 +1470,7 @@ class Subspace(c.Module):
                     'emission': emission[uid].value,
                     'incentive': incentive[uid].value,
                     'dividends': dividends[uid].value,
-                    'stake': stake[ key],
+                    'stake': stake[key],
                     'balance': balances.get(key, 0),
                     'weight': weights[uid] if uid in weights else [],
                     
