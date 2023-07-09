@@ -343,7 +343,20 @@ class Subspace(c.Module):
         netuid = self.subnet_namespace.get(network, None)
         return netuid
     
-    def register_loop(self, module:str, tags:List[str]=None,tag:str=None, n:bool=10, network=None, **kwargs):
+    @classmethod
+    def register_loop(cls,
+                      module:str  = 'model.openai', 
+                      tags:List[str]=None,
+                      tag:str=None, 
+                      remote : bool = True ,
+                      n:bool=10, 
+                      network: str =None, 
+                      **kwargs):
+    
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            return cls.remote_fn(fn='register_loop', kwargs=kwargs)
+        self = cls()
         if tags == None: 
             tags = list(range(n))
             if tag != None:
@@ -351,7 +364,6 @@ class Subspace(c.Module):
 
         for t in tags:
             self.register(module=module, tag=t, network=network, **kwargs)
-            
             
     rloop = register_loop
     
@@ -998,6 +1010,7 @@ class Subspace(c.Module):
     @classmethod
     def archive_paths(cls, network:str=network) -> List[str]:
         return cls.glob(f'archive/{network}/state.B*.json')  
+    archives = archive_paths
     
     @classmethod
     def remove_archives(cls, network:str=network):
@@ -1122,7 +1135,7 @@ class Subspace(c.Module):
             }
         return subnet
             
-            
+    subnet = subnet_state
         
     docker_compose_path = f'{chain_path}/docker-compose.yml'
     @classmethod
@@ -1276,6 +1289,7 @@ class Subspace(c.Module):
         if detail:
             subnets = [ self.subnet_state(netuid=subnet) for subnet in subnets]
         return subnets
+    
         
 
     def netuids(self) -> Dict[int, str]:
@@ -1427,7 +1441,7 @@ class Subspace(c.Module):
                 network = network,
                 keys = None,
                 update = True,
-                weights = True,
+                include_weights = True,
                 
                 ) -> Dict[str, ModuleInfo]:
         if fmt != 'nano':
@@ -1451,9 +1465,12 @@ class Subspace(c.Module):
             emission = self.emission(netuid=netuid)
             incentive = self.incentive(netuid=netuid)
             dividends = self.dividends(netuid=netuid)
-            weights = self.weights(netuid=netuid)
             stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
             balances = self.balances()
+            
+            if include_weights:
+                weights = self.weights(netuid=netuid)
+                
             
             modules = []
             
@@ -1470,11 +1487,19 @@ class Subspace(c.Module):
                     'emission': emission[uid].value,
                     'incentive': incentive[uid].value,
                     'dividends': dividends[uid].value,
-                    'stake': stake[key],
+                    'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
-                    'weight': weights[uid] if uid in weights else [],
                     
                 }
+                
+                if include_weights:
+                    if hasattr(weights[uid], 'value'):
+                        
+                        module['weight'] = weights[uid].value
+                    elif isinstance(weights[uid], list):
+                        module['weight'] = weights[uid]
+                    else: 
+                        raise Exception(f"Invalid weight for module {uid}")
                 for k in ['balance', 'stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
                 for k in ['incentive', 'dividends']:
@@ -1487,18 +1512,13 @@ class Subspace(c.Module):
                 keys = list(modules[0].keys())
             if isinstance(keys, str):
                 keys = [keys]
-                
+            keys += ['name', 'uid']
+            keys = list(set(keys))
             for i, m in enumerate(modules):
                 modules[i] ={k: m[k] for k in keys}
-                
             if cache or update:
                 self.put(cache_path, modules)
-                
-        if not weights:
-            c.log(f"Removing weights from modules")
-            for i, m in enumerate(modules):
-                modules[i].pop('weight')
-        c.print(f"Found {len(modules)} modules")
+
         return modules
         
     
@@ -1582,7 +1602,7 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=True ):
+    def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=False ):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
         
@@ -1820,7 +1840,7 @@ class Subspace(c.Module):
                     external:bool = True,
                     boot_nodes : str = None,
                     purge_chain:bool = True,
-                    snap:bool = False,
+                    snap:bool = True,
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
         
@@ -1923,7 +1943,8 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         subnet_weights =  self.query_map('Weights', params=[netuid], **kwargs).records
         weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights if w != None and uid != None}
-        
+        uids = self.uids(netuid=netuid, **kwargs)
+        weights = {uid: weights[uid] if uid in weights else [] for uid in uids}
         return weights
             
         
@@ -1980,10 +2001,18 @@ class Subspace(c.Module):
 
     
 
-    def uids(self, netuid = None, **kwargs):
+    def uids(self, netuid: int = None, reverse: bool =False , **kwargs):
         netuid = self.resolve_netuid(netuid)
-        return [v[1].value for v in self.query_map('Uids',None,  [netuid]).records]
+        return sorted([v[1].value for v in self.query_map('Uids',None,  [netuid]).records], reverse=reverse)
 
+    def uid2key(self, network:str=  None,netuid: int = None, **kwargs):
+        network = self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+        
+        keys = self.query_map('Keys', params=[netuid], **kwargs).records
+        return {k.value:v.value for k, v in keys if k != None and v != None}
+    def key2uid(self, network:str=  None,netuid: int = None, **kwargs):
+        return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
     @classmethod
     def node_ids(cls, chain='dev'):
@@ -2115,9 +2144,9 @@ class Subspace(c.Module):
     @classmethod
     def sand(cls, user='Alice'):
         self = cls()
-        c.print(len(self.modules()))
+        # c.print(len(self.modules()))
         c.print(len(self.query('Names', 0)))
-        c.print(len(self.query('Addresses', 0)))
+        c.print(len(self.query('Address', 0)))
         c.print(len(self.query('Emission')[0][1].value))
         c.print(len(self.query('Incentive')[0][1].value))
 
