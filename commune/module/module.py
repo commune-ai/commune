@@ -1606,7 +1606,8 @@ class c:
         try:
             data = await async_get_json(path, **kwargs)
         except Exception as e:
-            c.print(f'Failed to load json from {path} with error {e}')
+            if verbose:
+                c.print(f'Failed to load json from {path} with error {e}')
             return default
         if isinstance(data, dict):
             if 'data' in data and 'meta' in data:
@@ -2091,19 +2092,6 @@ class c:
         external_ip = cls.external_ip()
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
         return local_namespace
-
-        
-
-    @classmethod
-    def servers(cls, search:str = None, update=False, **kwargs) -> List[str]:
-
-        servers = list(cls.local_namespace(update=update,**kwargs ).keys())
-        if search: 
-            servers = [s for s in servers if search in s]
-        return servers
-
-
-    list_servers = servers
     
     
     @classmethod

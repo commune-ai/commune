@@ -1084,11 +1084,11 @@ class Subspace(c.Module):
         return state_dict
     
 
-    def state_dict(self, network=None, key=None):
+    def state_dict(self, network=None, key=None, inlcude_weights:bool=True):
         network = self.resolve_network(network)
         netuids = self.netuids()
         state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network) for netuid in netuids], 
-                       'modules': [self.modules(netuid=netuid, network=network) for netuid in netuids],
+                       'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights) for netuid in netuids],
                       'balances': self.balances(network=network),
                       'block': self.block,
                       'network': network,
@@ -1444,7 +1444,7 @@ class Subspace(c.Module):
                 network = network,
                 keys = None,
                 update = True,
-                include_weights = True,
+                include_weights = False,
                 
                 ) -> Dict[str, ModuleInfo]:
         if fmt != 'nano':
