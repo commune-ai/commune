@@ -264,9 +264,15 @@ class Subspace(c.Module):
                 key2tokens[key] += stake
             
         return key2tokens
-        
+    
+
     def my_tokens(self, network = None,fmt='j', decimals=2):
         return sum(self.key2tokens(network=network, fmt=fmt, decimals=decimals).values())
+
+    key2value = key2tokens
+    my_value = my_tokens
+    networth = my_tokens
+    
     def my_stake(self, network = None, netuid=None, fmt='j', decimals=2):
         return sum(self.key2stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals).values())
     def my_balance(self, network = None, fmt='j', decimals=2):
@@ -295,7 +301,7 @@ class Subspace(c.Module):
             weights = weights * U16_MAX
             weights = weights.tolist()
         
-        c.print(f'Weights: {weights}')
+        c.print(f'Weights: {weights} from {key}')
         
         c.print(f'Setting weights for {len(uids)} uids..., {len(weights)}')
         # First convert types.
@@ -596,15 +602,17 @@ class Subspace(c.Module):
         self.update()   
         key = self.resolve_key(key)
         module = self.key2module(key)
-        netuid = self.resolve_netuid(netuid)   
-        
-        if  name == None and address == None:
-            c.print(":cross_mark: [red]Invalid arguments[/red]:[bold white]\n  name: {}\n  address: {}\n  netuid: {}[/bold white]".format(name, address, netuid))
-            return False     
+        netuid = self.resolve_netuid(netuid)  
+          
         if name == None:
-            name = module['name']
+            name = module['name'] 
+            
+        local_namespace = c.namespace(network='local')
+        if name not in local_namespace:
+            return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it "}
+ 
         if address == None:
-            address = module['address']
+            address = local_namespace.get(name).replace(c.default_ip, c.ip())
         
         with self.substrate as substrate:
             call_params =  {'address': address,
@@ -1458,7 +1466,6 @@ class Subspace(c.Module):
         if len(modules) == 0 :
              
             uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
-            
             uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
             uid2name = { r[0].value : r[1].value for r in self.query_map('Names', params=[netuid]).records}
             
@@ -1553,7 +1560,7 @@ class Subspace(c.Module):
         return self.name2module(name=name, *args, **kwargs)
     
     def live_keys(self, *args, **kwargs):
-        return [m['key'] for m in self.my_modules(*args, **kwargs)]
+        return [m['name'] for m in self.my_modules(*args, **kwargs)]
                 
 
     def key_alive(self, key:str, *args, **kwargs):
@@ -1606,6 +1613,8 @@ class Subspace(c.Module):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
         
+    def total_supply(self, netuid:int = None):
+        return self.query_map('Subnet', params=[netuid]).records[0].total_supply
 
     @classmethod   
     def purge_chain(cls,
@@ -1625,7 +1634,7 @@ class Subspace(c.Module):
   
     @classmethod
     def build_spec(cls,
-                   chain = 'dev',
+                   chain,
                    raw:bool  = False,
                    disable_default_bootnode = True,
                    snap:bool = False,
@@ -1840,7 +1849,7 @@ class Subspace(c.Module):
                     external:bool = True,
                     boot_nodes : str = None,
                     purge_chain:bool = True,
-                    snap:bool = True,
+                    snap:bool = False,
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
         
@@ -2011,6 +2020,10 @@ class Subspace(c.Module):
         
         keys = self.query_map('Keys', params=[netuid], **kwargs).records
         return {k.value:v.value for k, v in keys if k != None and v != None}
+    
+    
+    
+    
     def key2uid(self, network:str=  None,netuid: int = None, **kwargs):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
@@ -2119,36 +2132,58 @@ class Subspace(c.Module):
              network=None,
              state:dict = None,
              state_path = None, 
-             snap_path = f'{chain_path}/snapshot.json',
+             snap_path = None,
              subnet_params =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
             module_params = ['key', 'name', 'address', 'stake','weight' ],
             min_balance = 100000,
              **kwargs):
+        
         if state_path is None:
             state_path = cls.newest_archive_path()
         
         if state is None:
             state = c.get(state_path)
-                    
-        new_snapshot = {
+            
+        for s in range(len(state['modules'])):
+            for i,m in enumerate(state['modules'][s]):
+                if m['stake'] < 0:
+                    m['stake'] = 0
+                state['modules'][s][i] = m
+                        
+        snap = {
                         'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
                         'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
                         'balances': {k:v for k,v in state['balances'].items() if v > 100000}
                         }
-                        
-        c.print('Saving snapshot to', snap_path)
-        c.put_json(snap_path, new_snapshot)
         
-        return new_snapshot
+
+
+        if snap_path is None:
+            snap_dir = f'{cls.chain_path}/snapshots/{network}'
+            c.mkdir(snap_dir)
+            snap_path = f'{snap_dir}/snapshot.json'
+            c.print('Saving snapshot to', snap_path)
+        # c.print('Saving snapshot to', snap_path)
+        # c.put_json(snap_path, snap)
+        
+        return snap
+    
+    
+    
+    
     
     @classmethod
     def sand(cls, user='Alice'):
         self = cls()
+
         # c.print(len(self.modules()))
-        c.print(len(self.query('Names', 0)))
-        c.print(len(self.query('Address', 0)))
-        c.print(len(self.query('Emission')[0][1].value))
-        c.print(len(self.query('Incentive')[0][1].value))
+        c.print(len(self.query('Keys', 0)), 'keys')
+        c.print(len(self.query('Names', 0)), 'names')
+        c.print(len(self.query('Address', 0)), 'address')
+        c.print(len(self.incentive()), 'incentive')
+        c.print(len(self.uids()), 'uids')
+        c.print(len(self.subnet_stake()), 'stake')
+        c.print(len(self.query('Emission')[0][1].value), 'emission')
 
     def vote_pool(self, netuid=None, network=None):
         my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)

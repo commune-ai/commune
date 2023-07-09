@@ -2290,7 +2290,15 @@ class c:
         return namespace
 
         
+    @classmethod
+    def name2address(cls, name:str, **kwargs) -> str:
+        namespace = cls.namespace(**kwargs)
+        address =  namespace.get(name, None)
+        ip = c.ip()
     
+        address = address.replace(c.default_ip, ip)
+        assert ip in address, f'ip {ip} not in address {address}'
+        return address
         
     @classmethod
     def namespace(cls,
@@ -2977,10 +2985,10 @@ class c:
             rm_list = [name]
         else:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
-        
+        c.print(f'Killing {len(rm_list)} processes', color='red')
+        c.print(f'Killing {rm_list} processes', color='red')
         for n in rm_list:
-            if verbose:
-                c.print(f'Killing {n}', color='red')
+            c.print(f'Killing {n}', color='red')
             cls.run_command(f"pm2 delete {n}", verbose=False)
             
         return name
@@ -3782,12 +3790,13 @@ class c:
         return ip
         
     @classmethod
-    def get_external_ip(cls, *args, **kwargs) ->str:
+    def get_external_ip(cls, *args, max_trials=4, **kwargs) ->str:
+        if max_trials == 0:
+            return None
         try:
             return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
         except Exception as e:
-            c.print(e, color='red')
-            return cls.default_ip
+            return cls.get_external_ip(*args, max_trials=max_trials-1, **kwargs)
             
     @classmethod
     def public_ip(cls, *args, **kwargs):
@@ -6599,6 +6608,16 @@ class c:
     def snap(cls, *args, **kwargs):
         return c.module('subspace')().snap(*args, **kwargs)
     
+    def key2balance(self,  *args, **kwargs):
+        return c.module('subspace')().key2balance( *args, **kwargs)
+
+    def key2stake(self,  *args, **kwargs):
+        return c.module('subspace')().key2balance( *args, **kwargs)
+
+    def live_keys(self,  *args, **kwargs):
+        return c.module('subspace')().live_keys( *args, **kwargs)
+
+
     @classmethod
     def my_balance(cls, *args, **kwargs):
         return c.module('subspace')().my_balance(*args, **kwargs)
@@ -6640,6 +6659,25 @@ class c:
     @classmethod
     def subnet(cls, *args, **kwargs):
         return c.module('subspace')().subnet(*args, **kwargs)
+
+    @classmethod
+    def networth(cls, *args, **kwargs):
+        return c.module('subspace')().networth(*args, **kwargs)
+    total_tokens = networth
+    @classmethod
+    def key2balance(cls, *args, **kwargs):
+        return c.module('subspace')().key2balance(*args, **kwargs)
+    
+    @classmethod
+    def key2tokens(cls, *args, **kwargs):
+        return c.module('subspace')().key2tokens(*args, **kwargs)
+    @classmethod
+    def key2stake(cls, *args, **kwargs):
+        return c.module('subspace')().key2tokens(*args, **kwargs)
+
+    @classmethod
+    def key2stake(cls, *args, **kwargs):
+        return c.module('subspace')().key2tokens(*args, **kwargs)
     
     
         
