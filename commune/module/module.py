@@ -2984,13 +2984,17 @@ class c:
     def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
-        if  name not in pm2_list:
-            return None
-
-        cls.run_command(f"pm2 delete {name}", verbose=False)
         
-        if verbose:
-            c.print(f'KILLED {name}', color='red')
+        if name in pm2_list:
+            rm_list = [name]
+        else:
+            rm_list = [ p for p in pm2_list if p.startswith(name)]
+        
+        for n in rm_list:
+            if verbose:
+                c.print(f'Killing {n}', color='red')
+            cls.run_command(f"pm2 delete {n}", verbose=False)
+            
         return name
     
     
@@ -5657,14 +5661,14 @@ class c:
 
     @classmethod
     def remote_fn(cls, 
-                    fn='train', 
-                    module = None,
-                    args= None,
-                    kwargs = None, 
-                    tag = None,
-                    refresh =True,
-                    tag_seperator= '::',
-                    name=None):
+                    fn: str='train', 
+                    module: str = None,
+                    args : list = None,
+                    kwargs : dict = None, 
+                    tag: str = None,
+                    refresh : bool =True,
+                    tag_seperator : str = '::',
+                    name : str =None):
         
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
@@ -5679,6 +5683,8 @@ class c:
             prefix = cls.resolve_module(module).module_path()
             name = f'{prefix}{tag_seperator}{fn}'
     
+        if 'remote' in kwargs:
+            kwargs['remote'] = False
             
         cls.launch(fn=fn, 
                    module = module,
@@ -6615,6 +6621,7 @@ class c:
     @classmethod
     def kill_nodes(cls, *args, **kwargs):
         return c.module('subspace')().kill_nodes(*args, **kwargs)
+    
 
     @classmethod
     def cj(cls, *args, **kwargs):
@@ -6637,6 +6644,16 @@ class c:
     def fix_proto(cls):
         cls.upgrade_proto()
         cls.build_proto()
+        
+    @classmethod
+    def subnets(cls, *args, **kwargs):
+        return c.module('subspace')().subnets(*args, **kwargs)
+    
+    @classmethod
+    def subnet(cls, *args, **kwargs):
+        return c.module('subspace')().subnet(*args, **kwargs)
+    
+    
         
     
     @classmethod

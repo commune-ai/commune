@@ -225,6 +225,7 @@ class BittensorModule(c.Module):
                     cache:bool = True,
                      subtensor: 'Subtensor' = None,
                      key: str = None,
+                     index: List[int] = None,
                      **kwargs
                      ) -> List['Neuron']:
         neurons = None
@@ -241,9 +242,18 @@ class BittensorModule(c.Module):
             neurons = [getattr(n, key) for n in neurons]
             
             
-        
+        if index != None:
+            if isinstance(index, int):
+                if index < 0:
+                    index = len(neurons) + index
+                neurons = neurons[index]
+                
+            if isinstance(index,list) and len(index) == 2:
+                neurons = neurons[index[0]:index[1]]
+            
         return neurons
     
+    neurons = get_neurons
 
     
     @classmethod
@@ -409,22 +419,24 @@ class BittensorModule(c.Module):
         sorted(wallet_list)
         return wallet_list
     
+    
+    
     @classmethod
     def wallets(cls,
                 search = None,
                 registered=False, 
                 unregistered=False,
+                mode = 'name',
                 subtensor=default_network, 
                 netuid:int=default_netuid,
                 
                 ):
-        registered_hotkeys = []
+        registered_hotkeys = cls.get_neurons(subtensor=subtensor, netuid=netuid, key='hotkey')
+        c.print(registered_hotkeys)
         if unregistered:
             registered = False
         elif registered:
             unregistered = False
-            registered_hotkeys = cls.get_neurons(subtensor=subtensor, netuid=netuid, key='hotkey')
-            
         wallets = []
         for ck in cls.coldkeys():
             for hk in cls.hotkeys(ck):
@@ -439,10 +451,17 @@ class BittensorModule(c.Module):
                         continue
                 if unregistered and wallet_obj.hotkey.ss58_address in registered_hotkeys:
                         continue
-                wallets.append(wallet)
                 
+                if mode in ['obj', 'object']:
+                    wallets.append(wallet_obj)
+                elif mode in ['name', 'path']:
+                    wallets.append(wallet)
+                elif mode in ['address', 'addy','hk']:
+                    wallets.append(wallet_obj.hotkey.ss58_address)
+                else:
+                    raise ValueError(f'Invalid mode: {mode}')
+                    
                 
-        # wallets = sorted(wallets)
         return wallets
     
     
@@ -624,6 +643,7 @@ class BittensorModule(c.Module):
     
     @classmethod
     def is_registered(cls, wallet = None, netuid: int = default_netuid, subtensor: 'Subtensor' = default_network):
+        
         netuid = cls.get_netuid(netuid)
         wallet = cls.get_wallet(wallet)
         hotkeys = cls.get_neurons( netuid=netuid, subtensor=subtensor, key='hotkey')
