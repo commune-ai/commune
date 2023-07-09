@@ -663,7 +663,7 @@ class BittensorModule(c.Module):
                                   sync=True,
                                   save=True)
         
-        
+    save = sync
     @classmethod
     def metagraph_staleness(cls, metagraph=None,
                             subtensor=None, netuid=None):
@@ -2212,6 +2212,30 @@ class BittensorModule(c.Module):
         cls.fleet(hotkeys=hotkeys, remote=True, refresh=True, **kwargs)
         
 
+    @classmethod
+    def watchdog(cls, 
+                 sync_interval:int=5,
+                 print_interval:int = 10,
+                 remote:bool=True):
+        if remote:
+            kwargs = c.locals2kwargs(locals())
+            kwargs['remote'] = False
+            return cls.remote_fn('watchdog', kwargs=kwargs)
+            
+        self = cls()
+        time_start = c.time()
+        time_elapsed = 0
+        counts = { 'save':0}
+        while True:
+            time_elapsed = c.time() - time_start
+            
+            if time_elapsed % sync_interval == 0:
+                self.sync()
+                counts['sync'] += 1
+            if time_elapsed % print_interval == 0:
+                c.log(f"Watchdog: {time_elapsed} seconds elapsed COUNTS ->S {counts}")
+            
+       
 
 if __name__ == "__main__":
     BittensorModule.run()
