@@ -265,6 +265,17 @@ class Subspace(c.Module):
             
         return key2tokens
     
+    def market_cap(self, network = None, fmt='j', decimals=2):
+        state_dict = self.state_dict()
+        
+        market_cap = 0
+        for key, value in state_dict['balances'].items():
+            market_cap += value
+        for modules in state_dict['modules']:
+            for module in modules:
+                market_cap += module['stake']
+        return c.round_decimals(self.format_amount(market_cap, fmt=fmt), decimals=decimals)
+    
 
     def my_tokens(self, network = None,fmt='j', decimals=2):
         return sum(self.key2tokens(network=network, fmt=fmt, decimals=decimals).values())

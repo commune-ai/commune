@@ -4471,6 +4471,7 @@ class c:
     @classmethod
     def key2address(cls,*args, **kwargs ):
         return c.module('key').key2address(*args, **kwargs )
+
     @classmethod
     def address2key(cls,*args, **kwargs ):
         return c.module('key').address2key(*args, **kwargs )
@@ -6611,6 +6612,10 @@ class c:
     def key2balance(self,  *args, **kwargs):
         return c.module('subspace')().key2balance( *args, **kwargs)
 
+    
+    def key2value(self,  *args, **kwargs):
+        return c.module('subspace')().key2value( *args, **kwargs)
+
     def key2stake(self,  *args, **kwargs):
         return c.module('subspace')().key2balance( *args, **kwargs)
 
@@ -6688,6 +6693,10 @@ class c:
         proto_path = src_dir + '/server.proto'
         cmd = f"python3 -m grpc.tools.protoc {proto_path}  -I {src_dir}  --python_out={src_dir} --grpc_python_out={src_dir}"
         c.cmd(cmd, verbose=True)
+        
+    @classmethod
+    def update_network(cls, *args, **kwargs):
+        return c.module('subspace')().update_network(*args, **kwargs)
     
     watch = watchdog
 Module = c
