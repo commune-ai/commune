@@ -885,19 +885,23 @@ class Subspace(c.Module):
     
     """ Gets a constant from subspace with module_name, constant_name, and block. """
     def query_constant( self, 
-                       module_name: str, 
-                       constant_name: str, 
+                        constant_name: str, 
+                       module_name: str = 'SubspaceModule', 
                        block: Optional[int] = None ,
                        network: str = None) -> Optional[object]:
         
         network = self.resolve_network(network)
 
         with self.substrate as substrate:
-            return substrate.get_constant(
-                module_name=module_name,
-                constant_name=constant_name,
+            value =  substrate.query(
+                module=module_name,
+                storage_function=constant_name,
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
+            
+        c.print("Constant: [bold white]{}[/bold white] = [bold green]{}[/bold green]".format(constant_name, value))
+        return value
+            
       
     #####################################
     #### Hyper parameter calls. ####
@@ -1562,6 +1566,11 @@ class Subspace(c.Module):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return [m['key'] for m in modules]
     
+    
+    def my_uids(self, *args,  **kwargs):
+        modules = self.my_modules(*args, names_only=False, **kwargs)
+        return [m['uid'] for m in modules]
+    
     def my_balances(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return {m['name']: m['balance'] for m in modules}
@@ -2137,20 +2146,20 @@ class Subspace(c.Module):
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
 
-    @classmethod
-    def snap(cls, 
+    def snap(self, 
              netuid=None, 
-             network=None,
+             network='main',
              state:dict = None,
              state_path = None, 
              snap_path = None,
              subnet_params =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
             module_params = ['key', 'name', 'address', 'stake','weight' ],
-            min_balance = 100000,
+            min_balance:int = 100000,
              **kwargs):
         
+        
         if state_path is None:
-            state_path = cls.newest_archive_path()
+            state_path = self.newest_archive_path()
         
         if state is None:
             state = c.get(state_path)
@@ -2164,18 +2173,20 @@ class Subspace(c.Module):
         snap = {
                         'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
                         'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
-                        'balances': {k:v for k,v in state['balances'].items() if v > 100000}
+                        'balances': {k:v for k,v in state['balances'].items() if v > 100000},
+                        'block': state['block'],
                         }
         
 
 
         if snap_path is None:
-            snap_dir = f'{cls.chain_path}/snapshots/{network}'
+            snap_dir = f'{self.chain_path}/snapshots'
             c.mkdir(snap_dir)
-            snap_path = f'{snap_dir}/snapshot.json'
+            snap_path = f'{snap_dir}/{network}.json'
+        
             c.print('Saving snapshot to', snap_path)
-        # c.print('Saving snapshot to', snap_path)
-        # c.put_json(snap_path, snap)
+        c.print('Saving snapshot to', snap_path)
+        c.put_json(snap_path, snap)
         
         return snap
     

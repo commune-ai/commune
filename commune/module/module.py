@@ -2985,8 +2985,6 @@ class c:
             rm_list = [name]
         else:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
-        c.print(f'Killing {len(rm_list)} processes', color='red')
-        c.print(f'Killing {rm_list} processes', color='red')
         for n in rm_list:
             c.print(f'Killing {n}', color='red')
             cls.run_command(f"pm2 delete {n}", verbose=False)
@@ -6415,6 +6413,7 @@ class c:
     def my_tokens(cls, *args, **kwargs):
         return c.module('subspace')().my_tokens(*args, **kwargs)
     
+    my_value = my_tokens
     
     @classmethod
     def partial(cls, fn, *args, **kwargs):
@@ -6608,6 +6607,10 @@ class c:
     @classmethod
     def snap(cls, *args, **kwargs):
         return c.module('subspace')().snap(*args, **kwargs)
+
+    @classmethod
+    def save(cls, *args, **kwargs):
+        return c.module('subspace')().save(*args, **kwargs)
     
     def key2balance(self,  *args, **kwargs):
         return c.module('subspace')().key2balance( *args, **kwargs)
@@ -6697,6 +6700,10 @@ class c:
     def update_network(cls, *args, **kwargs):
         return c.module('subspace')().update_network(*args, **kwargs)
     
+    @classmethod
+    def market_cap(cls, *args, **kwargs):
+        return c.module('subspace')().market_cap(*args, **kwargs)
+    mcap = market_cap
     watch = watchdog
 Module = c
 
