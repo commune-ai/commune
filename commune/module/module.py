@@ -6611,7 +6611,6 @@ class c:
     
     def key2balance(self,  *args, **kwargs):
         return c.module('subspace')().key2balance( *args, **kwargs)
-
     
     def key2value(self,  *args, **kwargs):
         return c.module('subspace')().key2value( *args, **kwargs)
