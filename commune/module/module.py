@@ -483,7 +483,8 @@ class c:
                 if timestamp != None:
                     age = c.get_age(timestamp)
                     if age > max_age:
-                        c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
+                        if verbose:
+                            c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
                         return default
         else:
             data = default
@@ -1387,11 +1388,11 @@ class c:
                     cache:bool = True,
                     update:bool = False,
                     verbose:bool = False,
-                    max_age:int=60,) -> List[str]:
+                    max_age:int=1_000_000_000,) -> List[str]:
         
         if cache and (not update):
             cache_path = 'module_tree'
-            module_tree = c.get(cache_path, max_age=max_age, cache=True)
+            module_tree = c.get(cache_path, max_age=max_age, cache=True, verbose=verbose)
             if module_tree != None:
                 return module_tree
             else:
@@ -6703,6 +6704,7 @@ class c:
     @classmethod
     def market_cap(cls, *args, **kwargs):
         return c.module('subspace')().market_cap(*args, **kwargs)
+    
     mcap = market_cap
     watch = watchdog
 Module = c
