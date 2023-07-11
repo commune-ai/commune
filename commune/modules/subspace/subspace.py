@@ -861,6 +861,7 @@ class Subspace(c.Module):
                 )
 
     """ Queries subspace map storage with params and block. """
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def query_map( self, name: str, 
                   *params,
                   block: Optional[int] = None, 
