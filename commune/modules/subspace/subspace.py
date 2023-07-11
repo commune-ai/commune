@@ -82,6 +82,9 @@ class Subspace(c.Module):
             url = prefix + url
         
         return url
+    
+    
+    
     def set_network(self, 
                 network:str,
                 websocket:str=None, 
@@ -425,8 +428,8 @@ class Subspace(c.Module):
             module, tag = module.split(tag_seperator)
             
         name = c.resolve_server_name(module=module, name=name, tag=tag)
-        if c.module_exists(name) and (not refresh):
-            module_info = c.connect(module).info()
+        if c.module_exists(name, network='local') and (not refresh):
+            module_info = c.connect(module, network='local').info()
             if 'address' in module_info:
                 address = module_info['address']
     
@@ -858,15 +861,18 @@ class Subspace(c.Module):
 
     """ Queries subspace map storage with params and block. """
     def query_map( self, name: str, 
+                  *params,
                   block: Optional[int] = None, 
-                  params: Optional[List[object]] = [default_netuid] ,
                   network:str = None,
                   cache = False,
                   max_age = 60,
-                  records = False
+                  page_size=200,
+                  max_results=400,
+                  records = True
                   
                   ) -> Optional[object]:
 
+        params = list(params)
         network = self.resolve_network(network)
         
         with self.substrate as substrate:
@@ -874,11 +880,14 @@ class Subspace(c.Module):
                 module='SubspaceModule',
                 storage_function = name,
                 params = params,
+                page_size = page_size,
+                max_results = max_results,
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
             
         if records:
             return value.records
+            
         
         return value
         
@@ -945,7 +954,7 @@ class Subspace(c.Module):
     """ Returns network Tempo hyper parameter """
     def subnet_stake(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
         netuid = self.resolve_netuid( netuid )
-        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', block, [netuid] ).records}
+        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid, )}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -1332,7 +1341,7 @@ class Subspace(c.Module):
                 return cached_subnet_namespace
             
             
-        records = self.query_map('SubnetNamespace', params=[]).records
+        records = self.query_map('SubnetNamespace')
         
         for r in records:
             name = r[0].value
@@ -1480,9 +1489,9 @@ class Subspace(c.Module):
 
         if len(modules) == 0 :
              
-            uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', params=[netuid]).records}
-            uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', params=[netuid]).records}
-            uid2name = { r[0].value : r[1].value for r in self.query_map('Names', params=[netuid]).records}
+            uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', netuid)}
+            uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', netuid)}
+            uid2name = { r[0].value : r[1].value for r in self.query_map('Names', netuid)}
             
             emission = self.emission(netuid=netuid)
             incentive = self.incentive(netuid=netuid)
@@ -1592,15 +1601,23 @@ class Subspace(c.Module):
         return c.pm2ls('subspace')
     
     @classmethod
-    def kill_nodes(cls):
-        for node in cls.nodes():
+    def kill_nodes(cls, chain=network):
+        for node in cls.nodes(chain=chain):
             c.pm2_kill(node)
     
     @classmethod
     def query(cls, name,  *params,  block=None):
         self = cls()
-        return self.query_map(name=name,params=list(params),block=block).records
-
+        with self.substrate as substrate:
+            value =  substrate.query(
+                module='SubspaceModule',
+                storage_function = name,
+                max_results = max_results,
+                block_hash = None if block == None else substrate.get_block_hash(block)
+            )
+            
+        return value
+        
     @classmethod
     def test(cls, network=subnet):
         subspace = cls()        
@@ -1625,7 +1642,6 @@ class Subspace(c.Module):
         
         c.print(self.get_balance(key2.ss58_address))
         
-        # c.print(self.query_map('SubnetNamespace', params=[]).records)
     
 
     @classmethod
@@ -1634,7 +1650,7 @@ class Subspace(c.Module):
         cls.build_spec(chain, snap=snap)    
         
     def total_supply(self, netuid:int = None):
-        return self.query_map('Subnet', params=[netuid]).records[0].total_supply
+        return self.query_map('Subnet', netuid)[0].total_supply
 
     @classmethod   
     def purge_chain(cls,
@@ -1704,6 +1720,7 @@ class Subspace(c.Module):
     @classmethod
     def spec_exists(cls, chain):
         return c.exists(f'{cls.spec_path}/{chain}.json')
+
 
 
     @classmethod
@@ -1801,7 +1818,7 @@ class Subspace(c.Module):
     @classmethod
     def start_node(cls,
 
-                 chain:int = 'dev',
+                 chain:int = network,
                  port:int=30333,
                  rpc_port:int=9933,
                  ws_port:int=9945,
@@ -1882,9 +1899,6 @@ class Subspace(c.Module):
         chain_info_path = f'chain_info.{chain}'
         chain_info = cls.getc(chain_info_path, default={})
         for i, user in enumerate(users):
-            
-
-            
             if user in chain_info and reuse_ports:
                 node_kwargs = chain_info[user]
                 for k in port_keys:
@@ -1943,7 +1957,7 @@ class Subspace(c.Module):
     
     def keys(self, netuid = None, **kwargs):
         netuid = self.resolve_netuid(netuid)
-        return [r[1].value for r in self.query_map('Keys', params= [netuid], **kwargs).records]
+        return [r[1].value for r in self.query_map('Keys', netuid, **kwargs)]
     
     def registered_keys(self, netuid = None, **kwargs):
         key_addresses = self.keys(netuid=netuid, **kwargs)
@@ -1970,7 +1984,7 @@ class Subspace(c.Module):
         
     def weights(self, netuid = None, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
-        subnet_weights =  self.query_map('Weights', params=[netuid], **kwargs).records
+        subnet_weights =  self.query_map('Weights', netuid, **kwargs)
         weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights if w != None and uid != None}
         uids = self.uids(netuid=netuid, **kwargs)
         weights = {uid: weights[uid] if uid in weights else [] for uid in uids}
@@ -2032,13 +2046,13 @@ class Subspace(c.Module):
 
     def uids(self, netuid: int = None, reverse: bool =False , **kwargs):
         netuid = self.resolve_netuid(netuid)
-        return sorted([v[1].value for v in self.query_map('Uids',None,  [netuid]).records], reverse=reverse)
+        return sorted([v[1].value for v in self.query_map('Uids' , netuid )], reverse=reverse)
 
     def uid2key(self, network:str=  None,netuid: int = None, **kwargs):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         
-        keys = self.query_map('Keys', params=[netuid], **kwargs).records
+        keys = self.query_map('Keys', netuid, **kwargs)
         return {k.value:v.value for k, v in keys if k != None and v != None}
     
     
@@ -2147,7 +2161,6 @@ class Subspace(c.Module):
     
 
     def snap(self, 
-             netuid=None, 
              network='main',
              state:dict = None,
              state_path = None, 
@@ -2199,13 +2212,14 @@ class Subspace(c.Module):
         self = cls()
 
         # c.print(len(self.modules()))
-        c.print(len(self.query('Keys', 0)), 'keys')
-        c.print(len(self.query('Names', 0)), 'names')
-        c.print(len(self.query('Address', 0)), 'address')
+        c.print(len(self.query_map('Keys', 0)), 'keys')
+        c.print(len(self.query_map('Names', 0)), 'names')
+        c.print(len(self.query_map('Address', 0)), 'address')
         c.print(len(self.incentive()), 'incentive')
         c.print(len(self.uids()), 'uids')
         c.print(len(self.subnet_stake()), 'stake')
-        c.print(len(self.query('Emission')[0][1].value), 'emission')
+        c.print(len(self.query_map('Emission')[0][1].value), 'emission')
+        c.print(len(self.query_map('Weights', 0)), 'emission')
 
     def vote_pool(self, netuid=None, network=None):
         my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)
