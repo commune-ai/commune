@@ -395,7 +395,7 @@ class Subspace(c.Module):
         self,
         module:str ,  
         tag:str = None,
-        stake : int = 0,
+        stake : int = None,
         name: str = None, # defaults to module::tag
         address: str = None,
         subnet: str = subnet,
@@ -442,6 +442,7 @@ class Subspace(c.Module):
         
         netuid = self.get_netuid_for_subnet(subnet)
 
+        stake = stake if stake != None else self.get_balance(key, fmt='n')
         if self.is_registered(key, netuid=netuid):
             return {'success': True, 'message': 'Already registered'}
     
@@ -867,7 +868,7 @@ class Subspace(c.Module):
                   cache = False,
                   max_age = 60,
                   page_size=200,
-                  max_results=400,
+                  max_results=10000,
                   records = True
                   
                   ) -> Optional[object]:
@@ -2208,18 +2209,18 @@ class Subspace(c.Module):
     
     
     @classmethod
-    def sand(cls, user='Alice'):
+    def check(cls, netuid=0):
         self = cls()
 
         # c.print(len(self.modules()))
-        c.print(len(self.query_map('Keys', 0)), 'keys')
-        c.print(len(self.query_map('Names', 0)), 'names')
-        c.print(len(self.query_map('Address', 0)), 'address')
+        c.print(len(self.query_map('Keys', netuid)), 'keys')
+        c.print(len(self.query_map('Names', netuid)), 'names')
+        c.print(len(self.query_map('Address', netuid)), 'address')
         c.print(len(self.incentive()), 'incentive')
         c.print(len(self.uids()), 'uids')
         c.print(len(self.subnet_stake()), 'stake')
         c.print(len(self.query_map('Emission')[0][1].value), 'emission')
-        c.print(len(self.query_map('Weights', 0)), 'emission')
+        c.print(len(self.query_map('Weights', netuid)), 'weights')
 
     def vote_pool(self, netuid=None, network=None):
         my_modules = self.my_modules(netuid=netuid, network=network, names_only=True)
