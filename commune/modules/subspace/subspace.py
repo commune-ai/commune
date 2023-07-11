@@ -867,7 +867,7 @@ class Subspace(c.Module):
                   network:str = None,
                   cache = False,
                   max_age = 60,
-                  page_size=200,
+                  page_size=1000,
                   max_results=10000,
                   records = True
                   
@@ -1820,9 +1820,9 @@ class Subspace(c.Module):
     def start_node(cls,
 
                  chain:int = network,
-                 port:int=30333,
-                 rpc_port:int=9933,
-                 ws_port:int=9945,
+                 port:int=None,
+                 rpc_port:int=None,
+                 ws_port:int=None,
                  user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
                  validator: bool = True,          
@@ -1837,10 +1837,18 @@ class Subspace(c.Module):
 
 
         cmd = cls.chain_release_path
-        port = c.resolve_port(port)
-        rpc_port = c.resolve_port(rpc_port)
-        ws_port = c.resolve_port(ws_port)
+
+        free_ports = c.free_ports(n=3)
+
+        if port == None:
+            port = free_ports[0]
+        if rpc_port == None:
+            rpc_port = free_ports[1]
+        if ws_port == None:
+            ws_port = free_ports[2]
+
         base_path = cls.resolve_chain_base_path(user=user)
+
         if purge_chain:
             cls.purge_chain(base_path=base_path)
         
