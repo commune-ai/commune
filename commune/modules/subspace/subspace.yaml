@@ -4,33 +4,33 @@ chain_info:
     alice:
       boot_nodes: null
       chain: dev
-      port: 4298
+      port: 4299
       rpc_cors: all
-      rpc_port: 4138
+      rpc_port: 4139
       user: alice
       validator: true
       verbose: false
-      ws_port: 4291
+      ws_port: 4292
     bob:
-      boot_nodes: /ip4/162.157.13.236/tcp/4298/p2p/12D3KooWCnjyiVkQW3RjxL8EZ3khHUVcwJFxwMpz8g3Qqo25RioZ
+      boot_nodes: /ip4/162.157.13.236/tcp/4299/p2p/12D3KooWCnjyiVkQW3RjxL8EZ3khHUVcwJFxwMpz8g3Qqo25RioZ
       chain: dev
-      port: 4348
+      port: 4349
       rpc_cors: all
-      rpc_port: 4401
+      rpc_port: 4402
       user: bob
       validator: true
       verbose: false
-      ws_port: 4693
+      ws_port: 4694
     charlie:
-      boot_nodes: /ip4/162.157.13.236/tcp/4348/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
+      boot_nodes: /ip4/162.157.13.236/tcp/4349/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
       chain: dev
-      port: 4851
+      port: 4852
       rpc_cors: all
-      rpc_port: 4414
+      rpc_port: 4415
       user: charlie
       validator: false
       verbose: false
-      ws_port: 4573
+      ws_port: 4574
   main:
     alice:
       boot_nodes: null
@@ -71,7 +71,7 @@ key_types:
 - gran
 network: main
 network2url:
-  dev: 162.157.13.236:4573
+  dev: 162.157.13.236:4574
   local: 127.0.0.1:9944
   main: 162.157.13.236:4430
   testnet: 127.0.0.1:4874
