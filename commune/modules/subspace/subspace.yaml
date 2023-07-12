@@ -68,7 +68,7 @@ key: alice
 key_types:
 - aura
 - gran
-network: dev
+network: main
 network2url:
   dev: 162.157.13.236:4574
   local: 127.0.0.1:9944
