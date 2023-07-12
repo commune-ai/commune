@@ -131,7 +131,6 @@ class Subspace(c.Module):
             network = self.network
         self.network = network
         url = self.resolve_network_url(network)
-        c.print(f'Connecting to {network}: {url}...')
         
         self.url = self.chain_endpoint = url
         
@@ -405,7 +404,7 @@ class Subspace(c.Module):
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
-        module:str ,  
+        module:str,  
         tag:str = None,
         stake : int = None,
         name: str = None, # defaults to module::tag
@@ -1659,6 +1658,14 @@ class Subspace(c.Module):
     def dead_keys(self, *args, **kwargs):
         live_keys = self.live_keys(*args, **kwargs)
         return [k for k in self.my_keys(*args, **kwargs) if k not in live_keys]
+
+
+    def register_dead_keys(self, *args, **kwargs):
+        dead_keys = self.dead_keys(*args, **kwargs)
+
+        for key in dead_keys:
+            self.register(module=key, *args, **kwargs)
+        return dead_keys
     
     
     def my_uids(self, *args, reverse_sort:bool = False,**kwargs):
