@@ -868,7 +868,7 @@ class Subspace(c.Module):
                   cache = False,
                   max_age = 60,
                   page_size=1000,
-                  max_results=10000,
+                  max_results=100000,
                   records = True
                   
                   ) -> Optional[object]:
@@ -877,7 +877,7 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         
         with self.substrate as substrate:
-            value =  substrate.query_map(
+            qmap =  substrate.query_map(
                 module='SubspaceModule',
                 storage_function = name,
                 params = params,
@@ -885,12 +885,12 @@ class Subspace(c.Module):
                 max_results = max_results,
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
-            
-        if records:
-            return value.records
-            
+
+            qmap = [(k,v) for k,v  in qmap]
+                
+                
         
-        return value
+        return qmap
         
     
     """ Gets a constant from subspace with module_name, constant_name, and block. """
