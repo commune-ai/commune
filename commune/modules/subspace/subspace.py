@@ -1474,12 +1474,35 @@ class Subspace(c.Module):
         
     def module_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
         return bool(module in self.namespace(netuid=netuid, **kwargs))
+
+    def default_module_info(self, **kwargs):
+    
+        
+        module= {
+                    'uid': -1,
+                    'address': '0.0.0.0:1234',
+                    'name': 'NA',
+                    'key': 'NA',
+                    'emission': 0,
+                    'incentive': 0,
+                    'dividends': 0,
+                    'stake': 0,
+                    'balance': 0,
+                    
+                }
+
+        for k,v in kwargs.items():
+            module[k] = v
+        
+        
+        return module
+    
     
     def modules(self,
                 netuid: int = default_netuid,
                 fmt='nano', 
                 detail:bool = True,
-                cache:bool = False,
+                cache:bool = True,
                 max_age: int = 60,
                 network = network,
                 keys = None,
@@ -1577,14 +1600,57 @@ class Subspace(c.Module):
         if names_only:
             my_modules = [m['name'] for m in my_modules]
         return my_modules
+
+    def my_stats(self, *args, fmt='j', **kwargs):
+        import pandas as pd
+        my_modules = self.my_modules(*args, fmt=fmt, **kwargs)
+        
+        return self.get_stats(my_modules, fmt=fmt, **kwargs)
+
+    def stats(self, *args, fmt='j', **kwargs):
+        import pandas as pd
+        modules = self.modules(*args, fmt=fmt, **kwargs)
+        return self.get_stats(modules, fmt=fmt, **kwargs)
+
+    def get_stats(self,modules = None,  *args, fmt='j', **kwargs):
+        import pandas as pd
+        if modules == None:
+            modules = self.modules(*args, fmt=fmt, **kwargs)
+        sum_keys = ['emission', 'incentive', 'dividends', 'stake', 'balance']
+
+        sum_row = {'name': 'Total','key': 'NAN', 'address': 'NAN', 'uid': 'NAN'}
+        for m in modules:
+            for k in sum_keys:
+                if k not in sum_row:
+                    sum_row[k] = 0
+                sum_row[k] += m[k]
+        
+        modules += [sum_row]
+
+        df = pd.DataFrame(modules)
+        del df['key']
+        del df['address']
+        df.set_index('name', inplace=True)
+        return df
+
     
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return {m['name']: m['key'] for m in modules}
     
     def my_keys(self, *args,  **kwargs):
+
         modules = self.my_modules(*args, names_only=False, **kwargs)
-        return [m['key'] for m in modules]
+        address2module = {m['key']: m for m in modules}
+        address2balances = self.balances()
+        keys = {}
+
+        for address, key in c.address2key().items():
+            if address in address2module or address in address2balances:
+                keys[key] = address
+        return keys
+
+
     
     
     def my_uids(self, *args,  **kwargs):
@@ -1595,7 +1661,7 @@ class Subspace(c.Module):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return {m['name']: m['balance'] for m in modules}
     
-    my_keys = my_module_keys
+    # my_keys = my_module_keys
     def is_my_module(self, name:str):
         return self.name2module(name=name, *args, **kwargs)
     

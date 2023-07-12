@@ -96,7 +96,7 @@ class Keypair(c.Module):
                  crypto_type: int = KeypairType.SR25519,
                  derive_path: str = None,
                  mnemonic: str = None,
-                 path = None,
+                 path:str = None,
                  ):
         """
         Allows generation of Keypairs from a variety of input combination, such as a public/private key combination,
@@ -111,6 +111,7 @@ class Keypair(c.Module):
         seed_hex: hex string of seed
         crypto_type: Use KeypairType.SR25519 or KeypairType.ED25519 cryptography for generating the Keypair
         """
+        self.kwargs = c.locals2kwargs(locals())
 
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
@@ -448,8 +449,8 @@ class Keypair(c.Module):
 
     # def resolve_crypto_type()
     @classmethod
-    def create_from_mnemonic(cls, mnemonic: str, ss58_format=42, crypto_type=KeypairType.SR25519,
-                             language_code: str = MnemonicLanguageCode.ENGLISH) -> 'Keypair':
+    def create_from_mnemonic(cls, mnemonic: str = None, ss58_format=42, crypto_type=KeypairType.SR25519,
+                             language_code: str = MnemonicLanguageCode.ENGLISH, return_kwargs:bool = False) -> 'Keypair':
         """
         Create a Keypair for given memonic
 
@@ -464,6 +465,8 @@ class Keypair(c.Module):
         -------
         Keypair
         """
+        if not mnemonic:
+            mnemonic = cls.generate_mnemonic(language_code=language_code)
 
         if crypto_type == KeypairType.ECDSA:
             if language_code != MnemonicLanguageCode.ENGLISH:
@@ -478,16 +481,29 @@ class Keypair(c.Module):
             keypair = cls.create_from_seed(
                 seed_hex=binascii.hexlify(bytearray(seed_array)).decode("ascii"),
                 ss58_format=ss58_format,
-                crypto_type=crypto_type
+                crypto_type=crypto_type,
+                return_kwargs=return_kwargs
             )
 
+            if return_kwargs:
+                kwargs = keypair
+                return kwargs
+
+
         keypair.mnemonic = mnemonic
+
+
 
         return keypair
 
     @classmethod
     def create_from_seed(
-            cls, seed_hex: Union[bytes, str], ss58_format: Optional[int] = 42, crypto_type=KeypairType.SR25519
+            cls, 
+            seed_hex: Union[bytes, str],
+            ss58_format: Optional[int] = 42, 
+            crypto_type=KeypairType.SR25519,
+            return_kwargs:bool = False
+            
     ) -> 'Keypair':
         """
         Create a Keypair for given seed
@@ -515,10 +531,17 @@ class Keypair(c.Module):
 
         ss58_address = ss58_encode(public_key, ss58_format)
 
-        return cls(
+
+        kwargs =  dict(
             ss58_address=ss58_address, public_key=public_key, private_key=private_key,
             ss58_format=ss58_format, crypto_type=crypto_type, seed_hex=seed_hex
         )
+        
+        if return_kwargs:
+            return kwargs 
+        else:
+            return cls(**kwargs)
+
 
     @classmethod
     def create_from_uri(
@@ -904,7 +927,7 @@ class Keypair(c.Module):
         
     def __repr__(self):
         if self.ss58_address:
-            return f'<Keypair (address={self.ss58_address})>'
+            return f'<Keypair (address={self.ss58_address}) path={self.path})>'
         else:
             return f'<Keypair (public_key=0x{self.public_key.hex()})>'
     def __str__(self):
