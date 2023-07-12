@@ -536,7 +536,7 @@ class c:
         Saves the config to a yaml file
         '''
         config = cls.config()
-        config.pop(k, None)
+        c.dict_rm(config, k)
         cls.save_config(config=config)
    
     delc = rmc
@@ -4344,6 +4344,7 @@ class c:
     def dict_delete(cls, *args, **kwargs):
         dict_delete = cls.import_object('commune.utils.dict.dict_delete')
         return dict_delete(*args, **kwargs)
+    dict_rm = dict_delete
     @classmethod
     def dict_has(cls, *args, **kwargs):
         dict_has = cls.import_object('commune.utils.dict.dict_has')

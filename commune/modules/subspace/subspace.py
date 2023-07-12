@@ -41,8 +41,7 @@ class Subspace(c.Module):
     token_decimals = default_config['token_decimals']
     retry_params = default_config['retry_params']
     network2url = default_config['network2url']
-    chain = default_config['chain']
-    network = default_config['network']
+    network = chain = default_config['network']
     url = network2url[network]
     subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
@@ -1599,12 +1598,8 @@ class Subspace(c.Module):
         return key in self.live_keys(*args, **kwargs)
 
     @classmethod
-    def nodes(cls):
-        return c.pm2ls('subspace')
-    
-    @classmethod
     def kill_nodes(cls, chain=network):
-        for node in cls.nodes(chain=chain):
+        for node in cls.live_nodes(chain=chain):
             c.pm2_kill(node)
     
     @classmethod
@@ -1806,17 +1801,74 @@ class Subspace(c.Module):
     
     
     @classmethod
+    def live_nodes(cls, chain=network):
+        nodes =  c.pm2ls(f'{cls.node_prefix()}::{chain}')
+        return nodes
+
+    @classmethod
     def nodes(cls, chain=network):
-        return c.pm2ls(f'{cls.node_prefix()}::{chain}')
+        return list(cls.chain_info(chain=chain).keys())
+
+    @classmethod
+    def vali_nodes(cls, chain=network):
+        chain_info = cls.chain_info(chain=chain)
+        return [node_info['user'] for node_info in chain_info.values() if node_info['validator'] == True]
+    @classmethod
+    def nonvali_nodes(cls, chain=network):
+        chain_info = cls.chain_info(chain=chain)
+        return [node_info['user'] for node_info in chain_info.values() if node_info['validator'] == False]
+
 
     @classmethod
     def node_prefix(cls):
         return f'{cls.module_path()}.node'
     
-       
-       
- 
-    
+
+
+    @classmethod
+    def chain_info(cls, chain=network, default:dict=None ): 
+        default = {} if default == None else default
+        return cls.getc(f'chain_info.{chain}', default)
+
+
+    @classmethod
+    def node_info(cls, node='alice', chain=network): 
+        return cls.getc(f'chain_info.{chain}.{node}')
+
+    @classmethod
+    def node_info_template(cls, chain:str=chain, vali:bool = False):
+        node = cls.vali_nodes(chain=chain)[-1] if vali else cls.nonvali_nodes(chain=chain)[-1]
+        node_template = cls.node_info(node=node, chain=chain)
+        return node_template
+    @classmethod
+    def add_node(cls, 
+                 nod:str='alice', 
+                 node_info:dict = None,
+                 chain:str=network, 
+                 vali:bool=False): 
+        assert isinstance(node_info, dict) and len(node_info) > 0, '{node_info} is not a valid node info'
+        node_info  =  cls.node_info_template(chain=chain, vali=vali)
+        node_info['user'] = node
+        cls.putc(f'chain_info.{chain}.{node}', node_info)
+        return {'success':True, 'node_info':node_info, 'msg': f'added node_info for {node} on {chain}'}
+
+    @classmethod
+    def has_node(cls, node='alice', chain=chain):
+        return node in cls.nodes(chain=chain)
+    @classmethod
+    def is_vali_node(cls, node='alice', chain=chain):
+        node_info = cls.node_info(node=node, chain=chain)
+        if node_info == None:
+            return False
+        assert 'validator' in node_info, f'node_info for {node} on {chain} does not have a validator key'
+        return node_info['validator']
+
+    @classmethod
+    def rm_node(cls, node='bobby',  chain=network): 
+        cls.rmc(f'chain_info.{chain}.{node}')
+        return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
+
+
     @classmethod
     def start_node(cls,
 
@@ -1897,10 +1949,12 @@ class Subspace(c.Module):
                     boot_nodes : str = None,
                     purge_chain:bool = True,
                     snap:bool = False,
+                    kill_nodes: bool = False,
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
         
-        cls.kill_nodes()
+        if kill_nodes:
+            cls.kill_nodes(chain=chain)
         if build:
             cls.build(chain=chain, verbose=verbose, snap=snap)
         avoid_ports = []
@@ -1933,8 +1987,8 @@ class Subspace(c.Module):
             cls.start_node(**chain_info[user])
 
             cls.sleep(sleep)
-            node_id = cls.node_id(chain=chain, user=user)
-            boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
+            live_node_id = cls.live_node_id(chain=chain, user=user)
+            boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{live_node_id}'
         cls.putc(chain_info_path, chain_info)
 
 
@@ -2072,9 +2126,9 @@ class Subspace(c.Module):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
     @classmethod
-    def node_ids(cls, chain='dev'):
+    def live_node_ids(cls, chain='dev'):
         node_ids = {}
-        for node in cls.nodes(chain=chain):
+        for node in cls.live_nodes(chain=chain):
             node_logs = c.logs(node, start_line=100, mode='local')
             for line in node_logs.split('\n'):
                 if 'Local node identity is: ' in line:
@@ -2083,8 +2137,8 @@ class Subspace(c.Module):
                 
         return node_ids
     @classmethod
-    def node_id(cls, chain='dev', user='alice'):
-        return cls.node_ids(chain=chain)[user]
+    def live_node_id(cls, chain='dev', user='alice'):
+        return cls.live_node_ids(chain=chain)[user]
     
 
    

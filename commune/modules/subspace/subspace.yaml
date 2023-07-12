@@ -1,4 +1,3 @@
-chain: subspace
 chain_info:
   dev:
     alice:
@@ -63,13 +62,13 @@ chain_info:
       verbose: false
       ws_port: 4430
 chain_path: f"{c.repo_path}/subspace"
-chain_release_path: f"{c.repo_path}/subspace/target/release/node-{chain}"
+chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 default_netuid: 0
 key: alice
 key_types:
 - aura
 - gran
-network: main
+network: dev
 network2url:
   dev: 162.157.13.236:4574
   local: 127.0.0.1:9944
