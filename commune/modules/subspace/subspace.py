@@ -131,6 +131,7 @@ class Subspace(c.Module):
             network = self.network
         self.network = network
         url = self.resolve_network_url(network)
+        c.print(f'Connecting to {network}: {url}...')
         
         self.url = self.chain_endpoint = url
         
@@ -399,7 +400,9 @@ class Subspace(c.Module):
     def update(self):
         # self.modules(cache=False)
         pass
-    
+
+
+    @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
         module:str ,  
@@ -411,19 +414,17 @@ class Subspace(c.Module):
         key : str  = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
-        prompt: bool = False,
-        max_allowed_attempts: int = 3,
-        update_interval: Optional[int] = None,
-        log_verbose: bool = False,
         args : list = None,
         kwargs : dict = None,
         tag_seperator: str = "::", 
         network: str = None,
         refresh: bool = False,
+        update: bool = False,
 
     ) -> bool:
         
-        self.update()
+        if update:
+            self.update()
         
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
@@ -441,6 +442,7 @@ class Subspace(c.Module):
             module_info = c.connect(module, network='local').info()
             if 'address' in module_info:
                 address = module_info['address']
+            address = c.ip()+':'+address.split(':')[-1]
     
         else:
             address = c.free_address()
@@ -1636,26 +1638,32 @@ class Subspace(c.Module):
     
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
-        return {m['name']: m['key'] for m in modules}
+        return [m['key'] for m in modules]
     
     def my_keys(self, *args,  **kwargs):
 
         modules = self.my_modules(*args, names_only=False, **kwargs)
         address2module = {m['key']: m for m in modules}
         address2balances = self.balances()
-        keys = {}
+        keys = []
 
         for address, key in c.address2key().items():
             if address in address2module or address in address2balances:
-                keys[key] = address
+                keys += [key]
         return keys
 
 
+    def live_keys(self, *args, **kwargs):
+        return [m['key'] for m in self.my_modules(*args, **kwargs)]
+    
+    def dead_keys(self, *args, **kwargs):
+        live_keys = self.live_keys(*args, **kwargs)
+        return [k for k in self.my_keys(*args, **kwargs) if k not in live_keys]
     
     
-    def my_uids(self, *args,  **kwargs):
-        modules = self.my_modules(*args, names_only=False, **kwargs)
-        return [m['uid'] for m in modules]
+    def my_uids(self, *args, reverse_sort:bool = False,**kwargs):
+        modules = self.my_modules(*args, **kwargs)
+        return sorted([m['uid'] for m in modules], reverse=reverse_sort)
     
     def my_balances(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)

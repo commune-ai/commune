@@ -50,8 +50,8 @@ class Validator(c.Module):
         w = self.calculate_score(module) if w != 0 else 0
 
         response = {'module': module_name, 'w': w, 'error': error}
-        if verbose:
-            c.print(response, color='white')
+        # if verbose:
+        #     c.print(response, color='white')
             
         self.count += 1
         w = response['w']
@@ -65,7 +65,6 @@ class Validator(c.Module):
         module_state[module_name].append(response)
         module_id = module_state['uid']
         self.modules[module_id] = module_state
-        c.print(f'w: {w}')
 
     def save(self, tag=None):
         
@@ -74,7 +73,7 @@ class Validator(c.Module):
             
         self.put(f'{tag}/w', self.w)
 
-    def run(self, max_jobs:int=10):
+    def run(self, parallel_jobs:int=10):
         
 
         self.running = True
