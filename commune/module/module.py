@@ -3770,12 +3770,16 @@ class c:
     def external_ip(cls, *args, **kwargs) -> str:
         if not hasattr(cls, '__external_ip__'):
             cls.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
-        return cls.__external_ip__
+        ip = cls.__external_ip__
+        assert ip != None, 'External IP is None'
+        assert ip not in ['0.0.0.0', '127.0.0.1'], 'External IP is'
+        return ip 
     
     @classmethod
     def ip(cls,external=True, **kwargs) -> str:
         if external:
             ip =  cls.external_ip(**kwargs)
+
         else:
             ip =  '127.0.0.1'
         return ip
@@ -6534,6 +6538,11 @@ class c:
     def my_modules(cls, *args, **kwargs):
         return c.module('subspace')().my_modules(*args, **kwargs)
     
+    @classmethod
+    def my_keys(cls, *args, **kwargs):
+        return c.module('subspace')().my_modules(*args, **kwargs)
+    
+
     @classmethod
     def register_loop(cls, *args, **kwargs):
         return c.module('subspace')().register_loop(*args, **kwargs)
