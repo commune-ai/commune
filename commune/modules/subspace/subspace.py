@@ -68,10 +68,11 @@ class Subspace(c.Module):
     @classmethod
     def get_network_url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        return cls.network2url.get(network)
-    @classmethod
-    def url2network(cls, url:str) -> str:
-        return {v: k for k, v in cls.network2url.items()}.get(url, None)
+        url =  cls.network2url.get(network)
+        if isinstance(url, list):
+            return c.choice(url)
+        elif isinstance(url, str):
+            return url
     
     @classmethod
     def resolve_network_url(cls, network:str , prefix='ws://'):    
@@ -367,7 +368,7 @@ class Subspace(c.Module):
                       module:str  = 'model.openai', 
                       tags:List[str]=None,
                       tag:str=None, 
-                      remote : bool = True ,
+                      remote : bool = False ,
                       n:bool=10, 
                       network: str =None, 
                       **kwargs):
@@ -736,7 +737,7 @@ class Subspace(c.Module):
         old_stake = self.get_stake( key.ss58_address , fmt='j')
 
         if amount is None:
-            amount = old_balance - 0.1
+            amount = old_balance
             amount = self.to_nanos(amount)
         else:
             
@@ -1599,8 +1600,8 @@ class Subspace(c.Module):
 
     @classmethod
     def kill_nodes(cls, chain=network):
-        for node in cls.live_nodes(chain=chain):
-            c.pm2_kill(node)
+        for node_path in cls.live_node_paths(chain=chain):
+            c.pm2_kill(node_path)
     
     @classmethod
     def query(cls, name,  *params,  block=None):
@@ -1801,13 +1802,32 @@ class Subspace(c.Module):
     
     
     @classmethod
-    def live_nodes(cls, chain=network):
+    def live_node_paths(cls, chain=chain):
         nodes =  c.pm2ls(f'{cls.node_prefix()}::{chain}')
         return nodes
+    
+    @classmethod
+    def live_nodes(cls, chain=chain):
+        prefix = f'{cls.node_prefix()}::{chain}::'
+        return [node.replace(prefix, '') for node in cls.live_node_paths(chain=chain)]
 
     @classmethod
-    def nodes(cls, chain=network):
-        return list(cls.chain_info(chain=chain).keys())
+    def nodes(cls, chain=network, validator=False):
+        if validator:
+            return cls.vali_nodes(chain=chain)
+        else:
+            return cls.nonvali_nodes(chain=chain)
+
+    @classmethod
+    def node_urls(cls, chain=network, validator=False, live:bool = False):
+        chain_info = cls.chain_info(chain=chain)
+        ip = c.ip()
+        nodes = cls.nodes(chain=chain, validator=validator)
+        if live:
+            live_nodes = cls.live_nodes(chain=chain)
+            nodes = [node for node in nodes if node in live_nodes]
+            
+        return [f"{ip}:{chain_info[node]['ws_port']}" for node in nodes]
 
     @classmethod
     def vali_nodes(cls, chain=network):
@@ -1840,16 +1860,59 @@ class Subspace(c.Module):
         node = cls.vali_nodes(chain=chain)[-1] if vali else cls.nonvali_nodes(chain=chain)[-1]
         node_template = cls.node_info(node=node, chain=chain)
         return node_template
+
+    @classmethod
+    def add_nodes(cls, *nodes, **kwargs):
+        for node in nodes:
+            cls.add_node(node=node, **kwargs)
+
+    @classmethod
+    def run_node(cls, node, chain=chain): 
+        node_info = cls.node_info(node=node, chain=chain)
+        cls.getc('network')
+        cls.start_node(**node_info)
+
+    def run_nodes(self, *node, chain=chain): 
+        if len(node) == 0:
+            nodes = self.nodes(chain=chain)
+        live_nodes = self.live_nodes(chain=chain)
+
+        for node in nodes:
+            if node in live_nodes:
+                c.print(f'node {node} is already running', color='yellow')
+                continue
+            c.print(f'running node {node}', color='green')
+            self.run_node(node=node, chain=chain)
+            live_nodes.append(node)
+
+
     @classmethod
     def add_node(cls, 
-                 nod:str='alice', 
-                 node_info:dict = None,
+                 node:str='alice', 
+                 tag = None,
                  chain:str=network, 
                  vali:bool=False): 
-        assert isinstance(node_info, dict) and len(node_info) > 0, '{node_info} is not a valid node info'
+
+        chain_info = cls.chain_info(chain=chain)
+
+        avoid_ports = []
+        for node_info in chain_info.values():
+            avoid_ports.append(node_info['port'])
+            avoid_ports.append(node_info['ws_port'])
+            avoid_ports.append(node_info['rpc_port'])
+
+
         node_info  =  cls.node_info_template(chain=chain, vali=vali)
+
+        free_ports = c.free_ports(avoid_ports=avoid_ports, n=3)
+        node_info['port'] = free_ports[0]
+        node_info['ws_port'] = free_ports[1]
+        node_info['rpc_port'] = free_ports[2]
+
         node_info['user'] = node
         cls.putc(f'chain_info.{chain}.{node}', node_info)
+        saved_node_info = cls.node_info(node=node, chain=chain)
+        assert saved_node_info['user'] == node, f'node_info for {node} on {chain} was not saved'
         return {'success':True, 'node_info':node_info, 'msg': f'added node_info for {node} on {chain}'}
 
     @classmethod
@@ -1936,7 +1999,7 @@ class Subspace(c.Module):
     @classmethod
     def release_exists(cls):
         return c.exists(cls.chain_release_path)
-       
+    
     @classmethod
     def start_chain(cls, 
                     chain:str='main', 
@@ -1947,7 +2010,7 @@ class Subspace(c.Module):
                     build: bool = True,
                     external:bool = True,
                     boot_nodes : str = None,
-                    purge_chain:bool = True,
+                    purge_chain:bool = False,
                     snap:bool = False,
                     kill_nodes: bool = False,
                     rpc_cors:str = 'all',
@@ -1989,11 +2052,13 @@ class Subspace(c.Module):
             cls.sleep(sleep)
             live_node_id = cls.live_node_id(chain=chain, user=user)
             boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{live_node_id}'
+
+
+        
         cls.putc(chain_info_path, chain_info)
 
 
-        cls.putc(f'network2url.{chain}', f'{ip}:{node_kwargs["ws_port"]}')
-        
+
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
@@ -2128,11 +2193,11 @@ class Subspace(c.Module):
     @classmethod
     def live_node_ids(cls, chain='dev'):
         node_ids = {}
-        for node in cls.live_nodes(chain=chain):
-            node_logs = c.logs(node, start_line=100, mode='local')
+        for node_path in cls.live_node_paths(chain=chain):
+            node_logs = c.logs(node_path, start_line=100, mode='local')
             for line in node_logs.split('\n'):
                 if 'Local node identity is: ' in line:
-                    node_ids[node.split('::')[-1]] = line.split('Local node identity is: ')[1].strip()
+                    node_ids[node_path.split('::')[-1]] = line.split('Local node identity is: ')[1].strip()
                     break
                 
         return node_ids
