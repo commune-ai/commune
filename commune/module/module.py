@@ -6714,6 +6714,12 @@ class c:
     @classmethod
     def n(cls, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)
+
+    def stats(self, *args, **kwargs):
+        return c.module('subspace')().stats(*args, **kwargs)
+
+    def my_stats(self, *args, **kwargs):
+        return c.module('subspace')().my_stats(*args, **kwargs)
     
 
     
