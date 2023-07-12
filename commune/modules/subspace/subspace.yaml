@@ -30,6 +30,46 @@ chain_info:
       validator: false
       verbose: false
       ws_port: 4574
+    eve:
+      boot_nodes: /ip4/162.157.13.236/tcp/4349/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
+      chain: dev
+      port: 4000
+      rpc_cors: all
+      rpc_port: 4002
+      user: eve
+      validator: false
+      verbose: false
+      ws_port: 4001
+    ferdie:
+      boot_nodes: /ip4/162.157.13.236/tcp/4349/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
+      chain: dev
+      port: 4003
+      rpc_cors: all
+      rpc_port: 4005
+      user: ferdie
+      validator: false
+      verbose: false
+      ws_port: 4004
+    one:
+      boot_nodes: /ip4/162.157.13.236/tcp/4349/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
+      chain: dev
+      port: 4006
+      rpc_cors: all
+      rpc_port: 4008
+      user: one
+      validator: false
+      verbose: false
+      ws_port: 4007
+    two:
+      boot_nodes: /ip4/162.157.13.236/tcp/4349/p2p/12D3KooWC6raqdkAiK7vToZbkfeVcxtpZdGwpto7PStYRc2W9s2y
+      chain: dev
+      port: 4009
+      rpc_cors: all
+      rpc_port: 4011
+      user: two
+      validator: false
+      verbose: false
+      ws_port: 4010
   main:
     alice:
       boot_nodes: null
@@ -61,6 +101,56 @@ chain_info:
       validator: false
       verbose: false
       ws_port: 4430
+    dave:
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      chain: main
+      port: 4003
+      rpc_cors: all
+      rpc_port: 4005
+      user: dave
+      validator: false
+      verbose: false
+      ws_port: 4004
+    eve:
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      chain: main
+      port: 4006
+      rpc_cors: all
+      rpc_port: 4008
+      user: eve
+      validator: false
+      verbose: false
+      ws_port: 4007
+    ferdie:
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      chain: main
+      port: 4000
+      rpc_cors: all
+      rpc_port: 4002
+      user: ferdie
+      validator: false
+      verbose: false
+      ws_port: 4001
+    one:
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      chain: main
+      port: 4009
+      rpc_cors: all
+      rpc_port: 4011
+      user: one
+      validator: false
+      verbose: false
+      ws_port: 4010
+    two:
+      boot_nodes: /ip4/162.157.13.236/tcp/4748/p2p/12D3KooWNbX2dBTxdskKCqj39KE2byJNjhfDdj81DtcQgnurChZk
+      chain: main
+      port: 4012
+      rpc_cors: all
+      rpc_port: 4014
+      user: two
+      validator: false
+      verbose: false
+      ws_port: 4013
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 default_netuid: 0
@@ -72,7 +162,7 @@ network: main
 network2url:
   dev: 162.157.13.236:4574
   local: 127.0.0.1:9944
-  main: 162.157.13.236:4430
+  main: ['162.157.13.236:4430', '162.157.13.236:4004', '162.157.13.236:4007', '162.157.13.236:4001', '162.157.13.236:4010', '162.157.13.236:4013']
   testnet: 127.0.0.1:4874
 retry_params:
   backoff: 2
@@ -92,3 +182,12 @@ supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
+users:
+- alice
+- bob
+- dave
+- charlie
+- eve
+- ferdie
+- one
+- two

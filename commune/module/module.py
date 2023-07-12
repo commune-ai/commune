@@ -1046,12 +1046,14 @@ class c:
         return port
     
     @classmethod
-    def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False ) -> List[int]:
+    def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False, **kwargs ) -> List[int]:
         free_ports = []
+        avoid_ports = kwargs.pop('avoid_ports', [])
         for i in range(n):
             free_ports += [cls.free_port(reserve=reserve, 
                                          random_selection=random_selection, 
-                                         avoid_ports=free_ports)]
+                                         avoid_ports=avoid_ports, **kwargs)]
+            avoid_ports += [free_ports[-1]]
               
         return free_ports
     
@@ -5694,8 +5696,10 @@ class c:
     @classmethod
     def choice(cls, options:Union[list, dict])->list:
         import random
+        options = c.copy(options) # copy to avoid changing the original
         if isinstance(options, dict):
             options = list(options.values())
+
         assert isinstance(options, list),'options must be a list'
         return random.choice(options)
     
@@ -6705,9 +6709,14 @@ class c:
     @classmethod
     def market_cap(cls, *args, **kwargs):
         return c.module('subspace')().market_cap(*args, **kwargs)
+
+    @classmethod
+    def market_cap(cls, *args, **kwargs):
+        return c.module('subspace')().n(*args, **kwargs)
     
     mcap = market_cap
     watch = watchdog
+    
 Module = c
 
 Module.run(__name__)
