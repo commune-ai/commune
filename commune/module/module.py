@@ -6729,6 +6729,10 @@ class c:
 
     def my_stats(self, *args, **kwargs):
         return c.module('subspace')().my_stats(*args, **kwargs)
+
+    @classmethod
+    def register_dead_keys(cls, *args, **kwargs):
+        return c.module('subspace')().register_dead_keys(*args, **kwargs)
     
 
     
