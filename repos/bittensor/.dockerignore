@@ -1,0 +1,14 @@
+**/data/
+*.log
+*.png
+*.pstats
+**/bittensor.egg-info/*
+**/lib/*
+**/build/*
+**/dist/*
+**/runs/*
+**/env/*
+**/venv/*
+./circleci/*
+./github/*
+.ipynb

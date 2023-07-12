@@ -1,0 +1,13 @@
+[workspace]
+members = [
+    "integration-tests",
+    "node",
+    "pallets/subtensor",
+    "runtime",
+]
+
+[profile.release]
+panic = "unwind"
+
+[profile.test]
+opt-level = 3
