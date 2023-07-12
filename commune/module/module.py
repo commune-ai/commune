@@ -6651,6 +6651,7 @@ class c:
     @classmethod
     def watchdog(cls, *args, **kwargs):
         return c.module('subspace')().watchdog(*args, **kwargs)
+    watch = watchdog
     @classmethod
     def n(self, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)
@@ -6709,13 +6710,12 @@ class c:
     @classmethod
     def market_cap(cls, *args, **kwargs):
         return c.module('subspace')().market_cap(*args, **kwargs)
-
+    mcap = market_cap
     @classmethod
-    def market_cap(cls, *args, **kwargs):
+    def n(cls, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)
     
-    mcap = market_cap
-    watch = watchdog
+
     
 Module = c
 

@@ -269,7 +269,7 @@ class Subspace(c.Module):
         return key2tokens
     
     def market_cap(self, network = None, fmt='j', decimals=2):
-        state_dict = self.state_dict()
+        state_dict = self.state_dict(network=network)
         
         market_cap = 0
         for key, value in state_dict['balances'].items():
@@ -278,6 +278,15 @@ class Subspace(c.Module):
             for module in modules:
                 market_cap += module['stake']
         return c.round_decimals(self.format_amount(market_cap, fmt=fmt), decimals=decimals)
+    
+    def total_stake(self, network = None, fmt='j', decimals=2):
+        state_dict = self.state_dict(network=network)
+        total_stake = 0
+        for modules in state_dict['modules']:
+            for module in modules:
+                if len(module['weights']) > 0:
+                    total_stake += module['stake']
+        return c.round_decimals(self.format_amount(total_stake, fmt=fmt), decimals=decimals)
     
 
     def my_tokens(self, network = None,fmt='j', decimals=2):
@@ -1904,6 +1913,7 @@ class Subspace(c.Module):
 
         node_info  =  cls.node_info_template(chain=chain, vali=vali)
 
+        # get the ports for the node
         free_ports = c.free_ports(avoid_ports=avoid_ports, n=3)
         node_info['port'] = free_ports[0]
         node_info['ws_port'] = free_ports[1]
@@ -2066,7 +2076,6 @@ class Subspace(c.Module):
         
     
     
-    key_store_path = '/tmp/subspace/keys'
 
     @classmethod
     def resolve_node_keystore_path(cls, node):
