@@ -1659,6 +1659,12 @@ class Subspace(c.Module):
         live_keys = self.live_keys(*args, **kwargs)
         return [k for k in self.my_keys(*args, **kwargs) if k not in live_keys]
 
+    def voted_modules(self, *args, **kwargs):
+        return [m['name'] for m in self.my_modules(*args, **kwargs) if m['dividends'] > 0]
+    def non_voted_modules(self, *args, **kwargs):
+        return [m['name'] for m in self.my_modules(*args, **kwargs) if m['dividends'] == 0]
+    
+
 
     def register_dead_keys(self, *args, **kwargs):
         dead_keys = self.dead_keys(*args, **kwargs)
@@ -2445,6 +2451,12 @@ class Subspace(c.Module):
         for m in my_modules:
             c.vote(m, netuid=netuid, network=network)
         return {'success': True, 'msg': f'Voted for all modules {my_modules}'}
+
+    def ensure_vote(self, netuid=None, network=None):
+        modules = self.non_voted_modules(netuid=netuid, network=network)
+        for m in modules:
+            c.vote(m, netuid=netuid, network=network)
+        return {'success': True, 'msg': f'Voted for all modules {modules}'}
     
     
     

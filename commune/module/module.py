@@ -721,6 +721,11 @@ class c:
     @classmethod
     def add_key(cls, *args, **kwargs):
         return c.module('key').add_key(*args, **kwargs)
+    # KEY LAND
+    @classmethod
+    def rename_key(cls, *args, **kwargs):
+        return c.module('key').rename_key(*args, **kwargs)
+    mv_key = rename_key
     @classmethod
     def add_keys(cls, *args, **kwargs):
         return c.module('key').add_keys(*args, **kwargs)
@@ -2088,7 +2093,8 @@ class c:
         else:
             local_namespace = c.get('local_namespace', {})
             if len(local_namespace) == 0:
-                c.print('Local namespace empty, updating', color='red')
+                if verbose:
+                    c.print('Local namespace empty, updating', color='red')
                 local_namespace = c.local_namespace(update=True)
                 
         # 
@@ -2096,6 +2102,9 @@ class c:
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
         return local_namespace
     
+    def non_voted_modules(self, *args, **kwargs):
+        kwargs['include_weights'] = True
+        return [m for m in self.modules(*args, **kwargs) if not m.voted]
     
     @classmethod
     def rename_server(cls, name:str, new_name:str) -> Dict:
@@ -6638,6 +6647,8 @@ class c:
 
     def live_keys(self,  *args, **kwargs):
         return c.module('subspace')().live_keys( *args, **kwargs)
+    def dead_keys(self,  *args, **kwargs):
+        return c.module('subspace')().dead_keys( *args, **kwargs)
 
 
     @classmethod
