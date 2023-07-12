@@ -134,7 +134,6 @@ class OpenAILLM(c.Module):
             messages=messages,
             **params
         )
-        
         # update token stats
         for k,v in response['usage'].items():
             self.stats[k] = self.stats.get(k, 0) + v

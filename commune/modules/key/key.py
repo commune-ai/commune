@@ -111,12 +111,20 @@ class Keypair(c.Module):
         seed_hex: hex string of seed
         crypto_type: Use KeypairType.SR25519 or KeypairType.ED25519 cryptography for generating the Keypair
         """
-        self.kwargs = c.locals2kwargs(locals())
+
+        # If no arguments are provided, generate a random keypair
+        if ss58_address == None and public_key == None and private_key == None and seed_hex == None and mnemonic == None:
+            key = self.gen()
+            seed_hex = key.__dict__.get('seed_hex', seed_hex)
+            private_key = key.__dict__.get('private_key', private_key)
+
 
         self.crypto_type = crypto_type
         self.seed_hex = seed_hex
         self.derive_path = None
         self.path = path 
+        self.ss58_format = ss58_format
+
 
         if crypto_type != KeypairType.ECDSA and ss58_address and not public_key:
             public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
@@ -153,8 +161,6 @@ class Keypair(c.Module):
             if not ss58_address:
                 ss58_address = ss58_encode(public_key, ss58_format=ss58_format)
 
-        self.ss58_format: int = ss58_format
-
         self.public_key: bytes = public_key
 
         self.ss58_address: str = ss58_address
@@ -185,15 +191,16 @@ class Keypair(c.Module):
         key_json = cls.get_key(path).to_json()
         cls.put(new_path, key_json)
         cls.rm_key(path)
-            
-        
-        return cls.get_key(path)
+        return cls.get_key(new_path)
+    
+    rename_key = mv_key
     
     @classmethod
-    def add_keys(cls, name, n=100, **kwargs):
+    def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
         for i in range(n):
             key_name = f'{name}.{i}'
-            c.print(f'generating key {key_name}')
+            if bool == True:
+                c.print(f'generating key {key_name}')
             cls.add_key(key_name, **kwargs)
     add = add_key
     
@@ -353,11 +360,13 @@ class Keypair(c.Module):
             private_key:str = None,
             crypto_type: Union[int,str] = 'SR25519', 
             json: bool = False,
+            verbose:bool=False,
             **kwargs):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
-        c.print(f'generating {crypto_type} keypair, {suri}', color='green')
+        if verbose:
+            c.print(f'generating {crypto_type} keypair, {suri}', color='green')
 
         crypto_type = cls.resolve_crypto_type(crypto_type)
 
@@ -848,6 +857,11 @@ class Keypair(c.Module):
         
         return password
     
+    def resolve_encryption_password(self, password: str = None) -> str:
+        if password is None:
+            password = self.private_key
+        return password
+    
     
     def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
         password = self.resolve_encryption_password(password)
@@ -920,10 +934,42 @@ class Keypair(c.Module):
         
     @classmethod
     def test(cls):
-        key = cls.gen('test')
-        sig = key.sign('test')
-        assert key.verify('test',sig, bytes.fromhex(key.public_key.hex()))
-        assert key.verify('test',sig, key.public_key)
+        self = cls.create_from_uri('//Alice')
+        test_fns = [fn for fn in dir(self) if fn.startswith('test_')]
+        num_tests = len(test_fns)
+        for i, fn in enumerate(test_fns):
+            try:
+                getattr(self, fn)()
+            except Exception as e:
+                c.print(f'Failed ({i+1}/{num_tests}) {fn} due to {e}', color='red')
+            c.print(f'Passed ({i+1}/{num_tests}) {fn}', color='green')
+
+        
+
+    def test_signing(self):
+        sig = self.sign('test')
+        assert self.verify('test',sig, bytes.fromhex(self.public_key.hex()))
+        assert self.verify('test',sig, self.public_key)
+
+    def test_encryption(self):
+        auth = self.encrypt('test')
+        assert self.decrypt(auth) == 'test'
+
+    def test_key_management(self):
+        if self.key_exists('test'):
+            self.rm_key('test')
+        key1 = self.add_key('test')
+        assert self.key_exists('test'), f'Key management failed, key still exists'
+        key2 = self.mv_key('test', 'test2')
+        assert key1.ss58_address == key2.ss58_address, f'Key management failed, {key1.ss58_address} != {key2.ss58_address}'
+        assert self.key_exists('test2'), f'Key management failed, key does not exist'
+        assert not self.key_exists('test'), f'Key management failed, key still exists'
+        self.mv_key('test2', 'test')
+        assert self.key_exists('test'), f'Key management failed, key does not exist'
+        assert not self.key_exists('test2'), f'Key management failed, key still exists'
+        self.rm_key('test')
+        assert not self.key_exists('test'), f'Key management failed, key still exists'
+
         
     def __repr__(self):
         if self.ss58_address:
