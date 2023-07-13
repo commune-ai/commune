@@ -748,7 +748,7 @@ class Subspace(c.Module):
 
         if amount is None:
             amount = old_balance
-            amount = self.to_nanos(amount)
+            amount = self.to_nanos(amount - 0.1)
         else:
             
             amount = self.to_nanos(amount)
@@ -1125,7 +1125,7 @@ class Subspace(c.Module):
         return state_dict
     
 
-    def state_dict(self, network=None, key=None, inlcude_weights:bool=True):
+    def state_dict(self, network=None, key=None, inlcude_weights:bool=False):
         network = self.resolve_network(network)
         netuids = self.netuids()
         state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network) for netuid in netuids], 
@@ -1606,12 +1606,14 @@ class Subspace(c.Module):
         import pandas as pd
         my_modules = self.my_modules(*args, fmt=fmt, **kwargs)
         
-        return self.get_stats(my_modules, fmt=fmt, **kwargs)
+        df =  self.get_stats(my_modules, fmt=fmt, **kwargs)
+        return df
 
     def stats(self, *args, fmt='j', **kwargs):
         import pandas as pd
         modules = self.modules(*args, fmt=fmt, **kwargs)
         return self.get_stats(modules, fmt=fmt, **kwargs)
+
 
     def get_stats(self,modules = None,  *args, fmt='j', **kwargs):
         import pandas as pd
@@ -2391,7 +2393,7 @@ class Subspace(c.Module):
              state_path = None, 
              snap_path = None,
              subnet_params =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
-            module_params = ['key', 'name', 'address', 'stake','weight' ],
+            module_params = ['key', 'name', 'address', 'stake' ],
             min_balance:int = 100000,
              **kwargs):
         
