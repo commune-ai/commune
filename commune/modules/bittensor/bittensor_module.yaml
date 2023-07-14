@@ -1,7 +1,7 @@
 coldkey: alice
 model_name: server
 module: BittensorModule
-netuid: 1
+netuid: 11
 network: finney
 network2endpoint:
   finney: wss://entrypoint-finney.opentensor.ai:443

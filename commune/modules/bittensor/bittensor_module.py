@@ -90,7 +90,6 @@ class BittensorModule(c.Module):
     def get_endpoint(cls, network:str):
         return cls.network2endpoint.get(network, None)
        
-
        
     @classmethod
     def is_endpoint(cls, endpoint):
@@ -371,6 +370,18 @@ class BittensorModule(c.Module):
 
         return miners
         
+    @classmethod
+    def stats(cls, **kwargs):
+        wallet2stats =cls.wallet2stats(**kwargs)
+        
+        rows = []
+        for w_name, w_stats in wallet2stats.items():
+            w_stats['name'] = w_name
+            rows.append(w_stats)
+        
+        df = c.df(rows)
+        return df
+
     
     @classmethod
     def wallet2stats(cls, coldkey=default_coldkey, netuid=None , key=['emission', 'incentive']):
@@ -528,6 +539,15 @@ class BittensorModule(c.Module):
     def wallet2hotkey(cls, *args, **kwargs):
         kwargs['mode'] = 'object'
         wallets = cls.wallets(*args, **kwargs)
+
+        return {w.name+'.'+w.hotkey_str: w.hotkey.ss58_address for w in wallets}
+    
+    
+    @classmethod
+    def hotkey2miner(cls, *args, **kwargs):
+        kwargs['mode'] = 'object'
+        wallet2hotkey = cls.wallet2hotkeys()
+
 
         return {w.name+'.'+w.hotkey_str: w.hotkey.ss58_address for w in wallets}
 
@@ -2135,6 +2155,7 @@ class BittensorModule(c.Module):
                      reged : bool = False,
                      unreged:bool = False,
                      miners_only:bool = False,
+                     no_miners: bool = False,
                      path:str = None,
                      network:str = default_network,
                      netuid:int=default_netuid):
@@ -2161,8 +2182,16 @@ class BittensorModule(c.Module):
         coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
 
             
-        if miners_only:
-            miners = cls.miners(netuid=netuid, network=network)
+        if miners_only or no_miners:
+            miners = cls.miners(netuid=netuid, network=network, reged=reged)
+            c.print()
+
+            if no_miners:
+                assert miners_only == False
+            if  miners_only:
+                assert no_miners == False
+
+        
             
         template = 'btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
         for hk, hk_mnemonic in hotkey_map.items():
@@ -2172,6 +2201,9 @@ class BittensorModule(c.Module):
                 if wallet not in miners :
                     continue
                 
+            if no_miners:
+                if wallet in miners :
+                    continue
             info = template.format(mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
             
             coldkey_info.append(info)
@@ -2290,7 +2322,15 @@ class BittensorModule(c.Module):
                   refresh=True, 
                   refresh_ports=True, 
                   netuid=netuid, 
+
                   **kwargs)
+
+
+        
+
+    @classmethod
+    def num_miners(cls,**kwargs):
+        return len(cls.miners(**kwargs))
         
 
     @classmethod
