@@ -648,8 +648,7 @@ class c:
         '''
         kwargs = kwargs if kwargs != None else {}
         kwargs.pop('kwargs', None)
-                
-        if isinstance(config, str) or config == None:
+        if isinstance(config, str):
             try:
                 config = cls.load_config(path=config)
             except FileNotFoundError as e:
@@ -661,8 +660,11 @@ class c:
             default_config = cls.load_config()
             default_config.update(config)
             config = default_config
+
+        elif config == None:
+            config = cls.load_config()
             
-        assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
+        assert isinstance(config, dict), f'config must be a dict, not {config}'
         
         kwargs = kwargs if kwargs != None else {}
         kwargs.update(kwargs.pop('kwargs', {}))

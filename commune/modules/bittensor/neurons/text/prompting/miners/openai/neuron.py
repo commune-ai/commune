@@ -42,9 +42,25 @@ class OpenAIMiner( bittensor.BasePromptingMiner ):
 
     def backward( self, messages: List[Dict[str, str]], response: str, rewards: torch.FloatTensor ) -> str: pass
 
+    @staticmethod
+    def resolve_api_key(config):
+        if isinstance(config.openai.api_key, list):
+            api_key = c.choice(config.openai.api_key)
+        else:
+            api_key = config.openai.api_key
+    
+        assert isinstance(api_key, str), f'{api_key} is not string'
+        return api_key
     def __init__( self , config):
+
+        api_key = self.resolve_api_key(config)
+
+
         super( OpenAIMiner, self ).__init__(config=config)
-        self.config.openai.api_key = os.getenv(self.config.openai.api_key, self.config.openai.api_key)
+
+
+
+        self.config.openai.api_key = api_key
         openai.api_key = self.config.openai.api_key
 
     def forward( self, messages: List[Dict[str, str]]  ) -> str:
