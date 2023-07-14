@@ -472,6 +472,12 @@ class BittensorModule(c.Module):
         wallets =  cls.wallets(search=search,registered=True, subtensor=subtensor, netuid=netuid)
         return wallets
 
+    keys = wallets
+    @classmethod
+    def registered_hotkeys(cls, coldkey=default_coldkey,  subtensor=default_network, netuid:int=None):
+        hks =  [w.split('.')[-1] for w in cls.wallets(search=coldkey,registered=True, subtensor=subtensor, netuid=netuid)]
+        return hks
+
     reged = registered_wallets
     @classmethod
     def unregistered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
@@ -2060,20 +2066,25 @@ class BittensorModule(c.Module):
     @classmethod
     def mems(cls,
                      coldkey:str=default_coldkey, 
+                     reged : bool = False,
                      unreged:bool = False,
                      miners_only:bool = False,
                      path:str = None,
                      network:str = default_network,
                      netuid:int=default_netuid):
         coldkeypub = True # prevents seeing the private key of the coldkey
-
-        if unreged:
+        if reged:
+            hotkeys = cls.registered_hotkeys(coldkey, netuid=netuid)
+            unreged = False
+        elif unreged:
             hotkeys = cls.unregistered_hotkeys(coldkey, netuid=netuid) 
         else:
             hotkeys =  cls.hotkeys(coldkey)
         
-        wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
-        
+        wallets = [cls.wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys]
+        wallets = [w for w in wallets if w != None]
+
+
         hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
         
         coldkey_json = cls.coldkeypub_json(coldkey)
@@ -2082,7 +2093,6 @@ class BittensorModule(c.Module):
             coldkey_json = cls.coldkey_json(coldkey)
             
         
-        c.print(coldkey_json)
         coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
 
             
@@ -2149,9 +2159,10 @@ class BittensorModule(c.Module):
 
     
     @classmethod
-    async def async_wallet_json(cls, wallet):
+    def wallet_json(cls, wallet):
         path = cls.get_wallet_path(wallet)
         return cls.get_json(path)
+
     
     @classmethod
     def sandbox(cls):
