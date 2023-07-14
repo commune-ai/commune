@@ -239,7 +239,13 @@ class BittensorModule(c.Module):
             cls._neurons_cache[netuid] = neurons
             
         if key is not None:
-            neurons = [getattr(n, key) for n in neurons]
+            if isinstance(key, list):
+                neurons = [{k:getattr(n, k) for k in key} for n in neurons]
+            elif isinstance(key, str):
+                neurons = [getattr(n, key) for n in neurons]
+            else:
+                raise NotImplemented
+                
             
             
         if index != None:
@@ -254,6 +260,12 @@ class BittensorModule(c.Module):
         return neurons
     
     neurons = get_neurons
+
+    @classmethod
+    def hotkey2stats(cls, *args, key=['emission', 'incentive','dividends'],  **kwargs):
+        key = list(set(key + ['hotkey']))
+        neurons = cls.neurons(*args,key=key,**kwargs)
+        return {n['hotkey']: n for n in neurons}
 
     
     @classmethod
@@ -306,14 +318,10 @@ class BittensorModule(c.Module):
     
     
     @classmethod
-    def stats(cls, *args, columns = ['incentive', 'trust', 'stake'], sigdigs=3, **kwargs):
+    def stats(cls, *args, sigdigs=3,keys=['emission', 'hotkey'], **kwargs):
         import pandas as pd
-        wallet2neuron = cls.wallet2neuron(*args, **kwargs)
+        wallet2neuron = cls.neurons(keys=keys, **kwargs)
         rows = []
-        for w, n in wallet2neuron.items():
-            row = {c: cls.round(getattr(n, c), sigdigs) for c in columns}
-            row['wallet'] = w
-            rows.append(row)
         df = pd.DataFrame(rows)
         df = df.set_index('wallet')
         return df
@@ -351,15 +359,31 @@ class BittensorModule(c.Module):
     
     w2p = wallet2port
     
+
+    @classmethod
+    def zero_emission_miners(cls, coldkey=default_coldkey, **kwargs):
+        miners = []
+        wallet2stats = cls.wallet2stats(coldkey=coldkey, **kwargs)
+        for k, stats in wallet2stats.items():
+
+            if stats['emission'] == 0:
+                miners.append(k)
+
+        return miners
+        
     
     @classmethod
-    def wallet2stats(cls, *args, **kwargs):
-        kwargs['registered'] = True
-        wallet2neuron = {}
-        for w  in cls.wallets(*args, **kwargs):
-            wallet2neuron[w] = cls.get_neuron(wallet=w)
+    def wallet2stats(cls, coldkey=default_coldkey, netuid=None , key=['emission', 'incentive']):
+        wallet2hotkey = cls.wallet2hotkey(coldkey=coldkey, netuid=netuid)
+        hotkey2stats = cls.hotkey2stats(key=key, netuid=netuid)
+
+        wallet2stats = {}
+        for w,hk in wallet2hotkey.items():
+            if hk in hotkey2stats:
+                wallet2stats[w] = hotkey2stats[hk]
+                
             
-        return wallet2neuron
+        return wallet2stats
     
     w2n = wallet2neuron
             
@@ -421,24 +445,31 @@ class BittensorModule(c.Module):
     
     
     
+    
     @classmethod
     def wallets(cls,
                 search = None,
                 registered=False, 
                 unregistered=False,
                 mode = 'name',
+                coldkey = default_coldkey,
                 subtensor=default_network, 
                 netuid:int=default_netuid,
-                
+                registered_hotkeys = None
                 ):
-        registered_hotkeys = cls.get_neurons(subtensor=subtensor, netuid=netuid, key='hotkey')
-        c.print(registered_hotkeys)
+                
         if unregistered:
             registered = False
         elif registered:
             unregistered = False
         wallets = []
-        for ck in cls.coldkeys():
+
+        if coldkey == None:
+            coldkeys = cls.coldkeys()
+        elif isinstance(coldkey, str):
+            coldkeys = [coldkey]
+
+        for ck in coldkeys:
             for hk in cls.hotkeys(ck):
                 wallet = f'{ck}.{hk}'
                 
@@ -447,11 +478,15 @@ class BittensorModule(c.Module):
                         continue
                     
                 wallet_obj = cls.get_wallet(wallet)
-                if registered and wallet_obj.hotkey.ss58_address not in registered_hotkeys:
-                        continue
-                if unregistered and wallet_obj.hotkey.ss58_address in registered_hotkeys:
-                        continue
-                
+                if registered or unregistered:
+                    if registered_hotkeys == None:
+                        registered_hotkeys = cls.get_neurons(subtensor=subtensor, netuid=netuid, key='hotkey')
+
+                    if registered and wallet_obj.hotkey.ss58_address not in registered_hotkeys:
+                            continue
+                    if unregistered and wallet_obj.hotkey.ss58_address in registered_hotkeys:
+                            continue
+                    
                 if mode in ['obj', 'object']:
                     wallets.append(wallet_obj)
                 elif mode in ['name', 'path']:
@@ -467,6 +502,9 @@ class BittensorModule(c.Module):
     
     
     keys = wallets
+
+
+
     @classmethod
     def registered_wallets(cls, search=None,  subtensor=default_network, netuid:int=None):
         wallets =  cls.wallets(search=search,registered=True, subtensor=subtensor, netuid=netuid)
@@ -480,7 +518,13 @@ class BittensorModule(c.Module):
     
     unreged = unregistered_wallets
     
-    
+    @classmethod
+    def wallet2hotkey(cls, *args, **kwargs):
+        kwargs['mode'] = 'object'
+        wallets = cls.wallets(*args, **kwargs)
+
+        return {w.name+'.'+w.hotkey_str: w.hotkey.ss58_address for w in wallets}
+
     @classmethod
     def unregistered_hotkeys(cls, coldkey=default_coldkey,  subtensor=default_network, netuid:int=None):
         return [w.split('.')[-1] for w in cls.unregistered_wallets(search=coldkey, subtensor=subtensor, netuid=netuid)]
@@ -1151,6 +1195,7 @@ class BittensorModule(c.Module):
             cls.unregister_wallet_params(wallet_name=wallet_name)
     
 
+
     @classmethod  
     def sandbox(cls):
         
@@ -1408,6 +1453,8 @@ class BittensorModule(c.Module):
             neuron_class = cls.module('bittensor.miner.server')
         return neuron_class
 
+
+
     # @classmethod
     # def deploy_servers(cls, num_servers=3):
     #     return cls.server_class.deploy_servers()
@@ -1544,7 +1591,14 @@ class BittensorModule(c.Module):
         neuron_class = cls.neuron_class(netuid=netuid)
         config = neuron_class.config()
         config.merge(bittensor.BaseMinerNeuron.config())
+        if hasattr(config, 'openai'):
+            api_key = cls.get('api_key', 'OPENAI_API_KEY')
+            if isinstance(api_key, list):
+                api_key = c.choice(api_key)
 
+            assert api_key.startswith('sk-')
+            config.openai.api_key = api_key
+            c.print(config.openai)
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
@@ -1685,16 +1739,22 @@ class BittensorModule(c.Module):
             name:str=default_coldkey, 
             netuid:int= default_netuid,
             network:str=default_network,
-            model_name:str= default_model_name,
             refresh: bool = True,
             burned_register:bool=False, 
             ensure_registration:bool=False,
             device:str = 'cpu',
             max_fee:float=3.5,
+            refresh_ports:bool = True,
             hotkeys:List[str] = None,
-            refresh_ports:bool = False,
-            n:int = 100,
-            remote:bool=True): 
+            remote: bool = False,
+            n:int = 1000):
+
+        if remote:
+            kwargs = c.localswkwargs(locals())
+            kwargs['remote'] = False
+            cls.remote_fn('fleet', kwargs=kwargs)
+
+
     
         
         # address = cls.address(name)
@@ -1725,8 +1785,14 @@ class BittensorModule(c.Module):
             if cls.is_registered(wallet, subtensor=subtensor, netuid=netuid):
                 cls.print(f'{wallet} is already registered on {subtensor} {netuid}!')
                 neuron = cls.get_neuron(wallet=wallet, subtensor=subtensor, netuid=netuid)
-                axon_port = neuron.axon_info.port
-                prometheus_port = neuron.prometheus_info.port
+
+                if refresh_ports:
+                    axon_port = cls.free_port(reserve=False, avoid_ports=avoid_ports)
+                    avoid_ports.append(axon_port)
+                    prometheus_port = axon_port - 1000
+                else:
+                    axon_port = neuron.axon_info.port
+                    prometheus_port = neuron.prometheus_info.port
             else:
                 # ensure registration
                 if ensure_registration:
@@ -1747,7 +1813,7 @@ class BittensorModule(c.Module):
 
             cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
             cls.mine(wallet=wallet,
-                        remote=remote, 
+                        remote=True, 
                         netuid=netuid,
                         device=device, 
                         refresh=refresh,
@@ -2057,58 +2123,7 @@ class BittensorModule(c.Module):
         cls.add_servers(refresh=refresh_servers) # add servers job
         cls.fleet(refresh=refresh_miners) # fleet job
         cls.unstake2pool() # unstake2pool job
-    @classmethod
-    def mems(cls,
-                     coldkey:str=default_coldkey, 
-                     unreged:bool = False,
-                     miners_only:bool = False,
-                     path:str = None,
-                     network:str = default_network,
-                     netuid:int=default_netuid):
-        coldkeypub = True # prevents seeing the private key of the coldkey
 
-        if unreged:
-            hotkeys = cls.unregistered_hotkeys(coldkey, netuid=netuid) 
-        else:
-            hotkeys =  cls.hotkeys(coldkey)
-        
-        wallets = cls.gather([cls.async_wallet_json(f'{coldkey}.{hotkey}' ) for hotkey in hotkeys])
-        
-        hotkey_map = {hotkeys[i]: w['secretPhrase'] for i, w in enumerate(wallets)}
-        
-        coldkey_json = cls.coldkeypub_json(coldkey)
-        
-        if 'ss58Address' not in coldkey_json:
-            coldkey_json = cls.coldkey_json(coldkey)
-            
-        
-        c.print(coldkey_json)
-        coldkey_info = [f"btcli regen_coldkeypub --ss58 {coldkey_json['ss58Address']} --wallet.name {coldkey}"]
-
-            
-        if miners_only:
-            miners = cls.miners(netuid=netuid, network=network)
-            
-        template = 'btcli regen_hotkey --wallet.name {coldkey} --wallet.hotkey {hotkey} --mnemonic {mnemonic}'
-        for hk, hk_mnemonic in hotkey_map.items():
-            wallet = f'{coldkey}.{hk}'
-            
-            if miners_only:
-                if wallet not in miners :
-                    continue
-                
-            info = template.format(mnemonic=hk_mnemonic, coldkey=coldkey, hotkey=hk)
-            
-            coldkey_info.append(info)
-            
-        coldkey_info_text = '\n'.join(coldkey_info)
-        if path is not None:
-            cls.put_text(path, coldkey_info_text)
-        # return coldkey_info
-        
-        return coldkey_info_text
-    
-    
     @classmethod
     def wallet_json(cls, wallet):
         path = cls.get_wallet_path(wallet)
@@ -2206,10 +2221,15 @@ class BittensorModule(c.Module):
 
 
     @classmethod
-    def sand(cls, remote=False, **kwargs):
-        
-        
-        cls.fleet(hotkeys=hotkeys, remote=True, refresh=True, **kwargs)
+    def redeploy_zero_miners(cls, netuid=11, coldkey=default_coldkey, **kwargs):
+        zero_miners = cls.zero_emission_miners(coldkey=coldkey, netuid=netuid)
+        hotkeys = [int(m.split('.')[-1]) for m in zero_miners]
+        cls.fleet(
+                   hotkeys=hotkeys, 
+                  refresh=True, 
+                  refresh_ports=True, 
+                  netuid=netuid, 
+                  **kwargs)
         
 
     @classmethod

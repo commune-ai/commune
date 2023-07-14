@@ -23,8 +23,8 @@ class OpenAILLM(c.Module):
                 ):
         
         
-        if load:
-            config = self.load(password=password)
+        # if load:
+        #     config = self.load(password=password)
         config = self.set_config(config, kwargs=kwargs)
         self.set_tag(tag)
         self.set_stats(config.stats)
