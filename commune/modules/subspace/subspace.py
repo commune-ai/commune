@@ -1476,6 +1476,10 @@ class Subspace(c.Module):
     def module_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
         return bool(module in self.namespace(netuid=netuid, **kwargs))
 
+    def get_module(self, module:str, netuid: int = None, **kwargs) -> ModuleInfo:
+        return self.name2module(module, netuid=netuid, **kwargs)
+
+
     def default_module_info(self, **kwargs):
     
         
@@ -1743,6 +1747,11 @@ class Subspace(c.Module):
     @classmethod
     def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=False ):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
+        cls.build_spec(chain, snap=snap)    
+
+    @classmethod
+    def test_chain(cls, chain:str = 'dev', verbose:bool=False, snap:bool=False ):
+        cls.cmd('cargo test', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
         
     def total_supply(self, netuid:int = None):
