@@ -1598,7 +1598,7 @@ class BittensorModule(c.Module):
                max_fee:int = 2.0,
                refresh=True,
                miner_name:str = None,
-               refresh_ports:bool = False
+               refresh_ports:bool = True
                ):
         
         
@@ -1848,7 +1848,7 @@ class BittensorModule(c.Module):
                         miner_name = miner_name,
                         prometheus_port = prometheus_port,
                         burned_register=burned_register,
-                        
+                        refresh_ports=refresh_ports,
                         max_fee=max_fee)
             
             n -= 1 
@@ -1991,9 +1991,8 @@ class BittensorModule(c.Module):
 
 
     @classmethod
-    def logs(cls, *arg, **kwargs):
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_logs(*arg, **kwargs))
+    def logs(cls, wallet,  **kwargs):
+        return c.logs(cls.wallet2miner(**kwargs).get(wallet))
 
     @classmethod
     async def async_logs(cls, wallet, network=default_network, netuid=3):
@@ -2009,18 +2008,16 @@ class BittensorModule(c.Module):
         return logs_dict
 
     @classmethod
-    def miner2logs(cls,  network=default_network, netuid=1, verbose:bool = True):
+    def miner2logs(cls, 
+                    network=default_network,
+                    netuid=1, 
+                    verbose:bool = True):
         
         miners = cls.miners()
-        jobs = []
+        miner2logs = {}
         for miner in miners:
-            jobs += [cls.async_logs(wallet=miner, network=network, netuid=netuid)]
-            
+            miner2logs[miner] = c.pm2_logs(miner, start_line=-10, mode='local')
         
-        loop = cls.get_event_loop()
-        miner_logs = loop.run_until_complete(asyncio.gather(*jobs))
-        
-        miner2logs = dict(zip(miners, miner_logs))
         
         if verbose:
             for miner, logs in miner2logs.items():
@@ -2029,7 +2026,7 @@ class BittensorModule(c.Module):
                 cls.print(pad,f'\n{miner}\n', pad, color=color)
                 cls.print( logs, '\n\n', color=color)
             
-        return miner2logs
+        # return miner2logs
 
 
     check_miners = miner2logs
