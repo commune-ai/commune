@@ -3039,10 +3039,10 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str, start_line=0, end_line=0, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=0, end_line=-1, verbose=True, mode='cmd'):
         if mode == 'local':
-            path = f'{cls.pm2_dir}/logs/{module}-error.log'.replace(':', '-')
-            return c.readlines(path, start_line=start_line, end_line=end_line)
+            path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
+            return c.get_text(path, start_line=start_line, end_line=end_line)
         elif mode == 'cmd':
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
@@ -4243,7 +4243,6 @@ class c:
     
     @classmethod
     def logs(cls, *args, **kwargs):
-
         return cls.pm2_logs(*args, **kwargs)
 
     @classmethod
@@ -5340,8 +5339,8 @@ class c:
                  path: str, 
                  start_byte:int = 0,
                  end_byte:int = 0,
-                 start_line :int= 0,
-                 end_line:int = 0,
+                 start_line :int= None,
+                 end_line:int = None,
                   root=False, ) -> str:
         # Get the absolute path of the file
         
@@ -5359,10 +5358,15 @@ class c:
             chunk_size = end_byte - start_byte + 1
             file.seek(start_byte)
             content = file.read(chunk_size).decode()
-            
-            if start_line != 0 or end_line != 0:
+            c.print(path)
+            if start_line != None or end_line != None:
+                if end_line == None:
+                    end_line = len(content) 
+                if start_line == None:
+                    start_line = 0
                 content = content.split('\n')
-                content = content[start_line:end_line]
+                content = '\n'.join(content[start_line:end_line])
+
 
         return content
     
