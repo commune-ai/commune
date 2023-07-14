@@ -603,7 +603,6 @@ pub mod pallet {
 		StakeAlreadyAdded, // --- Thrown when the caller requests adding stake for a hotkey to the total stake which already added.
 		MaxWeightExceeded, // --- Thrown when the dispatch attempts to set weights on chain with where any normalized weight is more than MaxWeightLimit.
 		StorageValueOutOfRange, // --- Thrown when the caller attempts to set a storage value outside of its allowed range.
-		TempoHasNotSet, // --- Thrown when tempo has not set.
 		InvalidTempo, // --- Thrown when tempo is not valid.
 		EmissionValuesDoesNotMatchNetworks, // --- Thrown when number or recieved emission rates does not match number of networks.
 		InvalidEmissionValues, // --- Thrown when emission ratios are not valid (did not sum up to 10^9).
@@ -1674,6 +1673,8 @@ impl<T: Config + Send + Sync + TypeInfo> SubtensorSignedExtension<T> where
 	}
 
 	pub fn u64_to_balance( input: u64 ) -> Option<<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance> { input.try_into().ok() }
+
+
 
 }
 

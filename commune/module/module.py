@@ -5746,7 +5746,7 @@ class c:
         return cls.choice(cls.tags())
     
     @classmethod
-    def gather(cls,jobs:list, mode='asyncio', loop=None)-> list:
+    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = None)-> list:
         if not isinstance(jobs, list):
             jobs = [jobs]
         assert isinstance(jobs, list)
@@ -5755,6 +5755,8 @@ class c:
         
         if mode == 'asyncio':
             loop = loop if loop != None else cls.get_event_loop()
+            if timeout is not None:
+                jobs = [asyncio.wait_for(job, timeout=timeout) for job in jobs]
             results = loop.run_until_complete(asyncio.gather(*jobs))
             
         else:
