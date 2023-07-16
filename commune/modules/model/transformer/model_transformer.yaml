@@ -80,9 +80,10 @@ shortcuts:
   gptjvr: "~/models/gpt-j-6B-vR"
   stablellm7b: StabilityAI/stablelm-tuned-alpha-7b
   fish: "~/fish_model"
-  vr: "~/models/gpt-j-6B-vR"
+  vr: ~/models/gpt-j-6B-vR
   mosaic: mosaicml/mpt-30b
-  falcon_40b_instruct: "tiiuae/falcon-40b-instruct"
+  falcon_40b_instruct: tiiuae/falcon-40b-instruct
+  falcon_uncensored: ehartford/WizardLM-Uncensored-Falcon-40b
 block_prefix: model.layers
 model2block_prefix:
   mosaic: transformer.blocks

@@ -73,6 +73,7 @@ class OpenAILLM(c.Module):
             api_keys = cls.api_keys()
             assert len(api_keys) > 0, "No API keys found"
             api_key = c.choice(api_keys)
+            c.log(f"Using API key {api_key}")
 
         if isinstance(api_key, str):
             api_key = os.getenv(api_key, api_key)
@@ -132,7 +133,6 @@ class OpenAILLM(c.Module):
         except Exception as e:
             c.print(e)
             self.params['model'] = c.choice(self.config.models)
-            openai.api_key = self.random_api_key()
 
         
             
