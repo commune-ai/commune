@@ -292,7 +292,9 @@ class c:
         path = cls.resolve_path(path, root=root)
         
         from commune.utils.dict import load_yaml
-        return load_yaml(path)
+        config = load_yaml(path)
+        c.print(config, 'bro')
+        return config
 
 
 
@@ -380,10 +382,12 @@ class c:
     
     
     @classmethod
-    def resolve_config_path(cls, module= None, root:bool=False) -> str:
+    
+    def resolve_config_path(cls, module= None) -> str:
         
-        module_tree = cls.module_tree()
-        if module in module_tree: 
+        
+        if module != None: 
+            module_tree = cls.module_tree()
             path = module_tree[module].replace('.py', '.yaml')
         else:
             path = cls.__config_file__()
@@ -399,10 +403,9 @@ class c:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-        
-        path = cls.resolve_config_path(path, root=root)
-        
-            
+        path = cls.resolve_config_path(path)
+        c.print('Loading config', path, root)
+
         config = cls.load_yaml(path)
 
         if to_munch:
@@ -656,13 +659,14 @@ class c:
                 config = {}
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
-            
+            c.print('config is a dict', config)
             default_config = cls.load_config()
             default_config.update(config)
             config = default_config
 
         elif config == None:
             config = cls.load_config()
+            c.print('config is None, loading default config', config)
             
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
@@ -702,6 +706,10 @@ class c:
         '''
         Set the config as well as its local params
         '''
+        kwargs = kwargs if kwargs != None else {}
+        kwargs = c.locals2kwargs(kwargs)
+            
+
         config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
         if add_attributes:
@@ -1398,14 +1406,6 @@ class c:
                     update:bool = False,
                     verbose:bool = False,
                     max_age:int=1_000_000_000,) -> List[str]:
-        
-        if cache and (not update):
-            cache_path = 'module_tree'
-            module_tree = c.get(cache_path, max_age=max_age, cache=True, verbose=verbose)
-            if module_tree != None:
-                return module_tree
-            else:
-                update=True
                 
         if update and verbose:
             c.print('Building module tree', verbose=verbose)
@@ -2074,6 +2074,7 @@ class c:
         it will register itself with the local_namespace dictionary.
         '''
         # from copy import deepcopy
+        # update = False
         
 
         address2module = {}
@@ -2425,7 +2426,7 @@ class c:
             port = int(address.split(':')[-1])
             
         # we want to make sure that the module is loco
-        cls.update(network='local')
+        # cls.update(network='local')
     
         module = cls.resolve_module(module)
             
@@ -3594,6 +3595,9 @@ class c:
             
         # return module
 
+
+    m = module
+
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
     @classmethod
@@ -4003,10 +4007,6 @@ class c:
             # OSX does not have sched_getaffinity
             return os.cpu_count()
 
-    def resolve_tag(self, tag:str = None) -> str:
-        if tag is None:
-            tag = self.tag
-        return tag
 
     @classmethod
     def resolve_device(cls, device:str = None, verbose:bool=True, find_least_used:bool = True) -> str:
@@ -5227,7 +5227,6 @@ class c:
         
         
         c.namespace(network=network,verbose=verbose, update=True)
-        c.module_tree(verbose=verbose, update=True)
         
     
         
@@ -6127,7 +6126,6 @@ class c:
         self.tag = tag
         return default_tag
         
-        
     def resolve_tag(self, tag:str=None, default_tag='base'):
         if tag == None:
             tag = default_tag
@@ -6780,7 +6778,21 @@ class c:
         return c.module('subspace')().register_dead_keys(*args, **kwargs)
     
 
-    
+    @classmethod
+    def shortcuts(cls) -> Dict[str, str]:
+        return c.getc('shortcuts')
+
+    @classmethod
+    def add_shortcut(cls, shortcut, name) -> Dict[str, str]:
+        shortcuts =  c.getc('shortcuts')
+        shortcuts[shortcut] = name
+        c.putc('shortcuts', shortcuts)
+        return {'success': True, 'msg': f'added shortcut {shortcut} -> {name}'}
+
+    @classmethod
+    def resolve_shortcut(cls, name:str) -> str:
+        return c.getc('shortcuts').get(name, name)
+        
 Module = c
 
 Module.run(__name__)

@@ -6,3 +6,11 @@ networks:
 - subspace
 - local
 - global
+shortcuts:
+  bt: bittensor
+  chain: subspace
+  d: docker
+  data.hf: dataset.hf
+  hf: huggingface
+  openai: model.openai
+  s: subspace

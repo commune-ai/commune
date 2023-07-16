@@ -1,9 +1,9 @@
-api: AESKEY::XUko0xsxN7pb0Tn6kdCONt3gS4LNdvTvlT88swKCPz0=
 frequency_penalty: 0.0
-max_tokens: 10
+max_tokens: 100
 model: gpt-3.5-turbo
 presence_penalty: 0.0
 stats: {}
 temperature: 0.9
 tokenizer: gpt2
 top_p: 1
+models: ['gpt-3.5-turbo-0613', 'gpt-3.5-turbo']
