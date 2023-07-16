@@ -494,6 +494,45 @@ class c:
                 data = data['data']
         return data
     
+
+        
+    @classmethod
+    def get_ts(cls,
+            key:str, 
+            default: Any=None, 
+            password: str=None, 
+            mode:str = 'json',
+            max_age:str = None,
+            cache :bool = True,
+            **kwargs) -> Any:
+        
+        '''
+        Puts a value in sthe config, with the option to encrypt it
+
+        Return the value
+        '''
+        if cache:
+            if key in cls.cache:
+                return cls.cache[key]
+        
+        verbose = kwargs.get('verbose', False)
+        data = getattr(cls, f'get_{mode}')(key,default=default, **kwargs)
+        if data == None: 
+            data = default
+        encrypted = c.is_encrypted(data)
+        if encrypted:
+            data = cls.decrypt(data, password=password)
+        if isinstance(data, dict):
+            if max_age != None:
+                timestamp = data.get('timestamp', None)
+                if timestamp != None:
+                    age = c.get_age(timestamp)
+                    if age > max_age:
+                        if verbose:
+                            c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
+                        return default
+        return data['timestamp']
+    
     @staticmethod
     def get_age(timestamp:int=0):
         return c.time() - timestamp
