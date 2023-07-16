@@ -1034,7 +1034,7 @@ class Subspace(c.Module):
     def save(self, 
              network:str= None,
              snap:bool=True, 
-             max_archives:int=10):
+             max_archives:int=100000000000):
         network = self.resolve_network(network)
         state_dict = self.state_dict(network=network)
         
@@ -1043,12 +1043,14 @@ class Subspace(c.Module):
         if snap:
             self.snap(state = state_dict,
                           network=network, 
-                          snap_path=f'archive/{network}/snap.B{self.block}.json'
+                          path=f'archive/{network}/snap.B{self.block}.json'
                           )
             
         while self.num_archives(network=network) > max_archives:
             c.print(f"Removing oldest archive {self.oldest_archive_path(network=network)}")
             self.rm_json(self.oldest_archive_path(network=network))
+
+        c.print(f"Saved state to {save_path}")
             
             
     @classmethod
@@ -1705,7 +1707,7 @@ class Subspace(c.Module):
         return key in self.live_keys(*args, **kwargs)
 
     @classmethod
-    def kill_nodes(cls, chain=network):
+    def kill_nodes(cls, chain=chain):
         for node_path in cls.live_node_paths(chain=chain):
             c.pm2_kill(node_path)
     
@@ -1749,12 +1751,12 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = 'dev', verbose:bool=False, snap:bool=False ):
+    def build(cls, chain:str = chain, verbose:bool=False, snap:bool=False ):
         cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
 
     @classmethod
-    def test_chain(cls, chain:str = 'dev', verbose:bool=False, snap:bool=False ):
+    def test_chain(cls, chain:str = chain, verbose:bool=False, snap:bool=False ):
         cls.cmd('cargo test', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
         
@@ -1763,7 +1765,7 @@ class Subspace(c.Module):
 
     @classmethod   
     def purge_chain(cls,
-                    chain:str = 'dev',
+                    chain:str = chain,
                     user:str = 'alice',
                     base_path:str = None,
                     sudo = False):
@@ -1841,7 +1843,7 @@ class Subspace(c.Module):
     @classmethod
     def new_chain_spec(self, 
                        chain,
-                       base_chain:str = 'dev', 
+                       base_chain:str = chain, 
                        balances : 'List[str, int]' = None,
                        aura_authorities: 'List[str, int]' = None,
                        grandpa_authorities: 'List[str, int]' = None,
@@ -1923,14 +1925,14 @@ class Subspace(c.Module):
         return [node.replace(prefix, '') for node in cls.live_node_paths(chain=chain)]
 
     @classmethod
-    def nodes(cls, chain=network, validator=False):
+    def nodes(cls, chain=chain, validator=False):
         if validator:
             return cls.vali_nodes(chain=chain)
         else:
             return cls.nonvali_nodes(chain=chain)
 
     @classmethod
-    def node_urls(cls, chain=network, validator=False, live:bool = False):
+    def node_urls(cls, chain=chain, validator=False, live:bool = False):
         chain_info = cls.chain_info(chain=chain)
         ip = c.ip()
         nodes = cls.nodes(chain=chain, validator=validator)
@@ -1941,11 +1943,11 @@ class Subspace(c.Module):
         return [f"{ip}:{chain_info[node]['ws_port']}" for node in nodes]
 
     @classmethod
-    def vali_nodes(cls, chain=network):
+    def vali_nodes(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
         return [node_info['user'] for node_info in chain_info.values() if node_info['validator'] == True]
     @classmethod
-    def nonvali_nodes(cls, chain=network):
+    def nonvali_nodes(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
         return [node_info['user'] for node_info in chain_info.values() if node_info['validator'] == False]
 
@@ -1957,13 +1959,13 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def chain_info(cls, chain=network, default:dict=None ): 
+    def chain_info(cls, chain=chain, default:dict=None ): 
         default = {} if default == None else default
         return cls.getc(f'chain_info.{chain}', default)
 
 
     @classmethod
-    def node_info(cls, node='alice', chain=network): 
+    def node_info(cls, node='alice', chain=chain): 
         return cls.getc(f'chain_info.{chain}.{node}')
 
     @classmethod
@@ -2039,7 +2041,7 @@ class Subspace(c.Module):
         return node_info['validator']
 
     @classmethod
-    def rm_node(cls, node='bobby',  chain=network): 
+    def rm_node(cls, node='bobby',  chain=chain): 
         cls.rmc(f'chain_info.{chain}.{node}')
         return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
 
@@ -2302,7 +2304,7 @@ class Subspace(c.Module):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
     @classmethod
-    def live_node_ids(cls, chain='dev'):
+    def live_node_ids(cls, chain=chain):
         node_ids = {}
         for node_path in cls.live_node_paths(chain=chain):
             node_logs = c.logs(node_path, start_line=100, mode='local')
@@ -2313,7 +2315,7 @@ class Subspace(c.Module):
                 
         return node_ids
     @classmethod
-    def live_node_id(cls, chain='dev', user='alice'):
+    def live_node_id(cls, chain=chain, user='alice'):
         return cls.live_node_ids(chain=chain)[user]
     
 
@@ -2401,22 +2403,21 @@ class Subspace(c.Module):
     
 
     def snap(self, 
-             network='main',
              state:dict = None,
-             state_path = None, 
-             snap_path = None,
-             subnet_params =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
-            module_params = ['key', 'name', 'address', 'stake' ],
+             network : str =network,
+             path : str  = None,
+             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
+            module_params : List[str] = ['key', 'name', 'address', 'stake'],
+            save: bool = True, 
             min_balance:int = 100000,
              **kwargs):
         
+        if isinstance(state, str):
+            c.print('Loading statepath from state', path)
+            state = c.get(state)
+        elif state is None:
+            state = c.get(self.newest_archive_path())
         
-        if state_path is None:
-            state_path = self.newest_archive_path()
-        
-        if state is None:
-            state = c.get(state_path)
-            
         for s in range(len(state['modules'])):
             for i,m in enumerate(state['modules'][s]):
                 if m['stake'] < 0:
@@ -2426,20 +2427,23 @@ class Subspace(c.Module):
         snap = {
                         'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
                         'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
-                        'balances': {k:v for k,v in state['balances'].items() if v > 100000},
+                        'balances': {k:v for k,v in state['balances'].items() if v > min_balance},
                         'block': state['block'],
                         }
+        # add weights if not already in module params
+        if 'weights' not in module_params:
+            snap['modules'] = [[m + c.copy([[]]) for m in modules] for modules in snap['modules']]
         
+        # save snapshot into subspace/snapshots/{network}.json
+        if save:
+            if path is None:
+                snap_dir = f'{self.chain_path}/snapshots'
+                c.mkdir(snap_dir)
+                path = f'{snap_dir}/{network}.json'
+            c.print('Saving snapshot to', path)
+            c.put_json(path, snap)
 
-
-        if snap_path is None:
-            snap_dir = f'{self.chain_path}/snapshots'
-            c.mkdir(snap_dir)
-            snap_path = f'{snap_dir}/{network}.json'
         
-            c.print('Saving snapshot to', snap_path)
-        c.print('Saving snapshot to', snap_path)
-        c.put_json(snap_path, snap)
         
         return snap
     
