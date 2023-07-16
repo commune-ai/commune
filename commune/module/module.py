@@ -293,7 +293,6 @@ class c:
         
         from commune.utils.dict import load_yaml
         config = load_yaml(path)
-        c.print(config, 'bro')
         return config
 
 
@@ -404,7 +403,6 @@ class c:
             to_munch: If true, then convert the config to a munch
         '''
         path = cls.resolve_config_path(path)
-        c.print('Loading config', path, root)
 
         config = cls.load_yaml(path)
 
@@ -694,7 +692,6 @@ class c:
             try:
                 config = cls.load_config(path=config)
             except FileNotFoundError as e:
-                c.print(f'config not found at {config}, loading default config')
                 config = {}
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
@@ -705,7 +702,6 @@ class c:
 
         elif config == None:
             config = cls.load_config()
-            c.print('config is None, loading default config', config)
             
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
@@ -1241,7 +1237,6 @@ class c:
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
         
-        cls.update_local_namespace()
 
     @classmethod
     def restart_server(cls, module:str, mode:str = 'pm2'):
@@ -2019,10 +2014,6 @@ class c:
     
 
     @classmethod
-    def update_local_namespace(cls) -> None:
-        local_namespace = cls.local_namespace(update=True)
-
-    @classmethod
     def port2module(cls, *args, **kwargs):
         namespace = c.namespace(*args, **kwargs)
         port2module =  {}
@@ -2106,7 +2097,7 @@ class c:
             return None
                 
     @classmethod
-    def local_namespace(cls, update:bool = False, verbose:bool = False)-> dict:
+    def local_namespace(cls, verbose:bool = False, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -2114,32 +2105,8 @@ class c:
         '''
         # from copy import deepcopy
         # update = False
-        
-
         address2module = {}
-
-        if update:
-
-            peer_registry = {}
-            peer_addresses = c.get_peer_addresses()  
-
-            # print(namespace)
-            
-            peer_names = [c.async_get_peer_name(p) for p in peer_addresses]
-            peer_names = c.gather(peer_names)
-            local_namespace = dict(zip(peer_names, peer_addresses))
-            local_namespace = {p_n:p_a for p_n, p_a in local_namespace.items() if p_n != None}
-            
-            c.put('local_namespace', local_namespace)
-            
-        else:
-            local_namespace = c.get('local_namespace', {})
-            if len(local_namespace) == 0:
-                if verbose:
-                    c.print('Local namespace empty, updating', color='red')
-                local_namespace = c.local_namespace(update=True)
-                
-        # 
+        local_namespace = c.get('local_namespace', {})
         external_ip = cls.external_ip()
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
         return local_namespace
@@ -2282,7 +2249,7 @@ class c:
         
         start_time = cls.time()
         time_waiting = 0
-        cls.local_namespace(update=True)
+        cls.local_namespace()
 
         while not cls.server_exists(name):
             cls.sleep(sleep_interval)
@@ -2326,8 +2293,8 @@ class c:
     def global_namespace(cls, update=False) -> Dict:
         
         global_namespace = {
-            **cls.local_namespace(update=update),
-            **cls.remote_namespace(update=update)
+            **cls.local_namespace(),
+            **cls.remote_namespace()
         }
         
         return global_namespace
@@ -2441,12 +2408,11 @@ class c:
               wait_for_server_timeout:int = 30, # timeout for waiting for the server to start
               wait_for_server_sleep_interval: int = 1, # sleep interval for waiting for the server to start
               verbose:bool = False, # prints out information about the server
-              reserve_port:bool = False,
-              tag_seperator: str = '::',
-              remote:bool = True,
-              args:list = None,
-              kwargs:dict = None, 
-              update: bool = False
+              reserve_port:bool = False, # reserves the port for the server
+              tag_seperator: str = '::', # seperator for the tag
+              remote:bool = True, # runs the server remotely (pm2, ray)
+              args:list = None,  # args for the module
+              kwargs:dict = None,  # kwargs for the module
               
               ):
         '''
@@ -2478,7 +2444,6 @@ class c:
         
         
             
-                
         '''check if the server exists'''
         c.print(f'Checking if server {name} exists {self}')
         if self.server_exists(name): 
