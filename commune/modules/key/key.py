@@ -187,10 +187,9 @@ class Keypair(c.Module):
     def mv_key(cls, path, new_path):
         
         assert cls.key_exists(path), f'key does not exist at {path}'
-
-        key_json = cls.get_key(path).to_json()
-        cls.put(new_path, key_json)
+        cls.put(new_path, cls.get_key(path).to_json())
         cls.rm_key(path)
+        assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         return cls.get_key(new_path)
     
     rename_key = mv_key
@@ -354,9 +353,18 @@ class Keypair(c.Module):
         return crypto_type
     
     @classmethod
-    def gen(cls,
+    def gen_n(cls, n=10, **kwargs):
+        keys = []
+        for i in range(n):
+            keys.append(cls.gen(**kwargs))
+            
+        return keys
+        
+    
+    @classmethod
+    def gen(cls, 
+            mnemonic:str = None,
             suri:str = None, 
-            mnemonic:str = None, 
             private_key:str = None,
             crypto_type: Union[int,str] = 'SR25519', 
             json: bool = False,
@@ -365,6 +373,10 @@ class Keypair(c.Module):
         '''
         yo rody, this is a class method you can gen keys whenever fam
         '''
+        mnemonic = kwargs.pop('m', mnemonic)
+
+        if mnemonic == None:
+            mnemonic = cls.generate_mnemonic()
         if verbose:
             c.print(f'generating {crypto_type} keypair, {suri}', color='green')
 
@@ -412,7 +424,7 @@ class Keypair(c.Module):
     @classmethod
     def sand(cls):
         
-        for k in cls.gen(2):
+        for k in cls.gen(suri=2):
             
             password = 'fam'
             enc = cls.encrypt(k, password=password)
@@ -504,6 +516,9 @@ class Keypair(c.Module):
 
 
         return keypair
+
+    from_mem = create_from_mnemonic
+    mem = create_from_mnemonic
 
     @classmethod
     def create_from_seed(
