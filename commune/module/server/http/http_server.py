@@ -183,4 +183,35 @@ class Server(c.Module):
         server.start()
 
 
+    def test(self):
+        # Define your test data
+        test_data = {
+            'fn': 'your_function_name',
+            'args': [1,2,],
+            'kwargs': {'key1': 1, 'key2': 2},
+        }
+
+        # Make the test request
+        response = self.__call__(data=test_data, metadata={})
+
+        # Process the response
+        result = response['data']['result']
+        info = response['data']['info']
+        success = info['success']
+        latency = info['latency']
+        upload_bps = info['upload_bps']
+        download_bps = info['download_bps']
+
+        # Perform your assertions or print the results
+        if success:
+            print("Test passed!")
+            print("Result:", result)
+            print("Latency:", latency)
+            print("Upload BPS:", upload_bps)
+            print("Download BPS:", download_bps)
+        else:
+            print("Test failed!")
+
+
+
 
