@@ -21,6 +21,7 @@ import argparse
 import bittensor
 from typing import List, Dict
 import os
+import commune as c
 
 class OpenAIMiner( bittensor.BasePromptingMiner ):
 
@@ -42,38 +43,31 @@ class OpenAIMiner( bittensor.BasePromptingMiner ):
 
     def backward( self, messages: List[Dict[str, str]], response: str, rewards: torch.FloatTensor ) -> str: pass
 
-    @staticmethod
-    def resolve_api_key(config):
-        if isinstance(config.openai.api_key, list):
-            api_key = c.choice(config.openai.api_key)
-        else:
-            api_key = config.openai.api_key
-    
-        assert isinstance(api_key, str), f'{api_key} is not string'
-        return api_key
     def __init__( self , config):
-
-        api_key = self.resolve_api_key(config)
 
 
         super( OpenAIMiner, self ).__init__(config=config)
-
-
-
-        self.config.openai.api_key = api_key
+        self.config.openai.api_key = c.module('model.openai')().random_api_key()
         openai.api_key = self.config.openai.api_key
 
     def forward( self, messages: List[Dict[str, str]]  ) -> str:
-        resp = openai.ChatCompletion.create(
-            model = self.config.openai.model_name,
-            messages = messages,
-            temperature = self.config.openai.temperature,
-            max_tokens = self.config.openai.max_tokens,
-            top_p = self.config.openai.top_p,
-            frequency_penalty = self.config.openai.frequency_penalty,
-            presence_penalty = self.config.openai.presence_penalty,
-            n = self.config.openai.n,
-        )['choices'][0]['message']['content']
+
+        try:
+            resp = openai.ChatCompletion.create(
+                model = self.config.openai.model_name,
+                messages = messages,
+                temperature = self.config.openai.temperature,
+                max_tokens = self.config.openai.max_tokens,
+                top_p = self.config.openai.top_p,
+                frequency_penalty = self.config.openai.frequency_penalty,
+                presence_penalty = self.config.openai.presence_penalty,
+                n = self.config.openai.n,
+            )['choices'][0]['message']['content']
+        except Exception as e:
+            c.print(e)
+            self.config.openai.model_name = c.choice(['gpt-3.5-turbo-0613', 'gpt-3.5-turbo'])
+            openai.api_key = c.module('model.openai')().random_api_key()
+            
         return resp
 
 if __name__ == "__main__":

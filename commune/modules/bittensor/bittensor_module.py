@@ -1222,19 +1222,6 @@ class BittensorModule(c.Module):
     
 
 
-    @classmethod  
-    def sandbox(cls):
-        
-        processes_per_gpus = 2
-        for i in range(processes_per_gpus):
-            for dev_id in c.gpus():
-                cls.launch(fn='register_wallet', name=f'reg.{i}.gpu{dev_id}', kwargs=dict(dev_id=dev_id), mode='pm2')
-        
-        # print(cls.launch(f'register_{1}'))
-        # self = cls(wallet=None)
-        # self.create_wallets()
-        # # st.write(dir(self.subtensor))
-        # st.write(self.register(dev_id=0))
         
     # Streamlit Landing Page    
     selected_wallets = []
@@ -1579,6 +1566,7 @@ class BittensorModule(c.Module):
         name = f'miner::{wallet}::{network}::{netuid}'
 
         return name
+    
 
     @classmethod
     def mine(cls, 
@@ -1598,7 +1586,9 @@ class BittensorModule(c.Module):
                max_fee:int = 2.0,
                refresh=True,
                miner_name:str = None,
-               refresh_ports:bool = True
+               refresh_ports:bool = False,
+               vpermit_required: bool = False,
+               min_allowed_stake: float = 15000
                ):
         
         
@@ -1617,14 +1607,8 @@ class BittensorModule(c.Module):
         neuron_class = cls.neuron_class(netuid=netuid)
         config = neuron_class.config()
         config.merge(bittensor.BaseMinerNeuron.config())
-        if hasattr(config, 'openai'):
-            api_key = cls.get('api_key', 'OPENAI_API_KEY')
-            if isinstance(api_key, list):
-                api_key = c.choice(api_key)
-
-            assert api_key.startswith('sk-')
-            config.openai.api_key = api_key
-            c.print(config.openai)
+        config.neuron.blacklist.vpermit_required = vpermit_required
+        config.neuron.blacklist.min_allowed_stake = min_allowed_stake
         # model things
         config.neuron.no_set_weights = no_set_weights
         config.netuid = netuid 
@@ -1632,6 +1616,8 @@ class BittensorModule(c.Module):
         # network
         subtensor = bittensor.subtensor(network=network)
         bittensor.utils.version_checking()
+
+
         
         # wallet
         coldkey, hotkey = wallet.split('.')
@@ -1770,7 +1756,7 @@ class BittensorModule(c.Module):
             ensure_registration:bool=False,
             device:str = 'cpu',
             max_fee:float=3.5,
-            refresh_ports:bool = True,
+            refresh_ports:bool = False,
             hotkeys:List[str] = None,
             remote: bool = False,
             n:int = 1000):
@@ -2328,7 +2314,8 @@ class BittensorModule(c.Module):
     @classmethod
     def num_miners(cls,**kwargs):
         return len(cls.miners(**kwargs))
-        
+    
+    n_miners = num_miners
 
     @classmethod
     def watchdog(cls, 
