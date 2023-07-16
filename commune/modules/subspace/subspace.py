@@ -1053,8 +1053,12 @@ class Subspace(c.Module):
             
     @classmethod
     def archive_paths(cls, network:str=network) -> List[str]:
-        return cls.glob(f'archive/{network}/state.B*.json')  
+        return sorted(cls.glob(f'archive/{network}/state.B*.json'))
     archives = archive_paths
+
+    @classmethod
+    def archive_times(cls, network:str=network) -> List[str]:
+        return {f: c.get_ts(f) for f in cls.archive_paths(network=network)}
     
     @classmethod
     def remove_archives(cls, network:str=network):
