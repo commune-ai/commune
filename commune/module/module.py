@@ -695,7 +695,6 @@ class c:
                 config = {}
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
-            c.print('config is a dict', config)
             default_config = cls.load_config()
             default_config.update(config)
             config = default_config
@@ -899,7 +898,7 @@ class c:
                     line_count_idx += 1
                     stdout_text += (new_line+ch).decode()
                     if verbose:
-                        
+            
                         c.print(new_line.decode(), color=color)
                     new_line = b''
                     continue
@@ -2427,12 +2426,14 @@ class c:
             remote_kwargs['remote'] = False
             return cls.remote_fn('serve', name=name, kwargs=remote_kwargs, )
         
-        if address != None and port == None and ip == None:
+        if address != None and port == None:
             port = int(address.split(':')[-1])
-            
-        # we want to make sure that the module is loco
-        # cls.update(network='local')
-        
+        # ensure the port is free
+        if port == None:
+            port = cls.free_port(reserve=reserve_port)
+
+        port = int(port)
+    
         module = cls.resolve_module(module)
         c.print('bro')
         self = module(*args, **kwargs)
@@ -2441,15 +2442,12 @@ class c:
             whitelist = self.whitelist
         if blacklist == None:
             blacklist = self.blacklist
-        
-        
-        
-        '''check if the server exists'''
-        c.print(f'Checking if server {name} exists {self}')
+    
         if self.server_exists(name): 
+            c.print(f'Server {name} already exists', color='yellow')
             if refresh:
                 if verbose:
-                    c.print(f'Stopping server {name}')
+                    c.print(f'Stopping existing server {name}', color='yellow')
                 self.kill_server(name)
             else: 
                 raise Exception(f'The server {name} already exists on port {existing_server_port}')
@@ -2459,13 +2457,8 @@ class c:
             if k not in self.__dict__:
                 self.__dict__[k] = name
 
-        Server = c.module('module.server')
-    
-        # ensure the port is free
-        if port == None:
-            port = cls.free_port(reserve=reserve_port)
             
-        server = Server(ip=ip, 
+        server = c.module('module.server')(ip=ip, 
                         port=port,
                         module = self,
                         name= name,
@@ -4749,6 +4742,17 @@ class c:
         key = self.resolve_key(key)
         return key.sign(data) 
     
+
+    def timestamp_to_iso(timestamp):
+        import datetime
+        # Convert timestamp to datetime object
+        dt = datetime.datetime.fromtimestamp(timestamp)
+
+        # Format datetime object as ISO date string
+        iso_date = dt.date().isoformat()
+
+        return iso_date
+
        
     
     @classmethod
@@ -5421,14 +5425,27 @@ class c:
         module = module.replace('.','/')
         module_path = os.path.join(c.modules_path, module)
         self.rm(module_path)
+
+    @staticmethod
+    def repo2module( repo, module = None):
+        if module == None:
+            module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         
+        c.new_module(module=module, repo=repo)
+        return {'module':module, 'repo':repo, 'status':'success'}
+        
+    
+    def rm_module_code(cls, module):
+        module = module.replace('.','/')
+        module_path = c.resolve_module_path(module)
+        cls.rm(module_path)
     @classmethod
     def new_module( cls,
-                   module = None,
-                   base = 'base',
-                   repo = None,
-                   overwrite = False,
-                   module_type='dir'):
+                   module : str = None,
+                   repo : str = None,
+                   base : str = 'base',
+                   overwrite : bool  = False,
+                   module_type : str ='dir'):
         """ Makes directories for path.
         """
         if module == None: 
@@ -5451,10 +5468,6 @@ class c:
         if module == None:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-
-
-            
-        
         
         if module_type == 'dir':
             c.mkdir(module_path, exist_ok=True)
@@ -5561,8 +5574,10 @@ class c:
             
     @classmethod
     def resolve_module_path(cls, module=None):
-        module = cls.resolve_module(module)
-        module_path = module.filepath()
+        module_path = 'module'
+        if isinstance(module, str):
+            module_path = c.modules_path + '/' + module.replace('.','/')
+        
         return module_path
 
     @classmethod
@@ -6574,6 +6589,14 @@ class c:
         return c.module('subspace')().stake(*args, **kwargs)
     
     @classmethod
+    def snap(cls, *args, **kwargs):
+        return c.module('subspace')().snap(*args, **kwargs)   
+
+    @classmethod
+    def build_spec(cls, *args, **kwargs): 
+        return c.module('subspace').build_spec(*args, **kwargs) 
+    
+    @classmethod
     def unstake(cls, *args, **kwargs):
         return c.module('subspace')().unstake(*args, **kwargs)
     
@@ -6630,7 +6653,6 @@ class c:
         gpu_memory = 0
         unallocated_memory = sum(param_size_map.values())
         allocated_gpu_memory = {}
-        c.print(param_size_map)
         
         gpu = None
         
@@ -6650,12 +6672,6 @@ class c:
             unallocated_memory -= param_size
             device_map[param_key] = gpu
             
-            # if verbose:
-            #     c.print({
-            #         'gpu': {'idx': gpu, 'memory': free_gpu_memory[gpu],  'gpu': gpu,'unallocated_memory': unallocated_memory},
-            #         'param': {'key': param_key, 'size': param_size}
-                    
-            #     })
         c.print(allocated_gpu_memory, c.free_gpu_memory())
         assert unallocated_memory == 0, f'unallocated memory {unallocated_memory} != 0'
                 
