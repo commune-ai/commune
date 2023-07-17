@@ -9,8 +9,7 @@ class TransformerModel(c.Module):
 
         self.config.model = self.config.shortcuts.get(self.config.model, self.config.model)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model, use_fast=True)
-        c.print('after bro')
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config.model)
         self.pipeline = transformers.pipeline(
             "text-generation",
             model=self.config.model,
@@ -56,3 +55,22 @@ class TransformerModel(c.Module):
 
 
             
+    @classmethod
+    def serve(cls,
+            model: str,
+            tag = None,
+            refresh = True,    
+            **kwargs
+            ):
+        
+        config = cls.get_config(kwargs=kwargs)
+        config.tag = tag
+        config.model = model
+        c.print(config)
+        c.serve(module=cls.module_path(),
+                name= f'model.{model}',
+                tag = tag,
+                kwargs={'config': config},
+                refresh = refresh,
+                verbose=True, **kwargs)
+        
