@@ -12,10 +12,6 @@ pipeline = transformers.pipeline(
     torch_dtype=torch.bfloat16,
     trust_remote_code=True,
     device_map="auto",
-<<<<<<< HEAD
-    max_memory = {0: '30GiB' , 1: '30Gib', 2: '30Gib', 3: '30Gib'}
-=======
->>>>>>> d9bb17a8f2330f6403b35de549c217e317cd1584
 )
 sequences = pipeline(
    "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:",
