@@ -4613,7 +4613,7 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls,  *args, loop=None, **kwargs) -> None:
+    def call(cls, *args,  **kwargs) -> None:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
@@ -6810,6 +6810,11 @@ class c:
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
+
+    @classmethod
+    def talk(cls,module, *args, **kwargs):
+        c.print(f'talking to {module}')
+        return c.connect(module).talk('hey')
         
 Module = c
 

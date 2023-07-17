@@ -45,6 +45,9 @@ shortcuts:
   falcon_40b_instruct: tiiuae/falcon-40b-instruct
   falcon_uncensored: ehartford/WizardLM-Uncensored-Falcon-40b
   open_llama_13b: openlm-research/open_llama_13b
+  # code
+  starcoder: bigcode/starcoder
+  wizardcoder: WizardLM/WizardCoder-15B-V1.0
 
 block_prefix: model.layers
 model2block_prefix:
