@@ -251,6 +251,7 @@ class OpenAILLM(c.Module):
     @classmethod
     def add_api_key(cls, api_key, k=api_key_path):
         api_keys = cls.get(k, [])
+        c.print(api_keys)
         if api_key in api_keys:
             return {'error': f'api_key {api_key} already added'}
         verified = cls.verify_api_key(api_key)
@@ -264,7 +265,7 @@ class OpenAILLM(c.Module):
 
 
     @classmethod
-    def add_api_keys(cls, keys):
+    def add_api_keys(cls, *keys):
         for k in keys:
             cls.add_api_key(k)
 
@@ -294,7 +295,9 @@ class OpenAILLM(c.Module):
 
         return {'msg': f'removed api_key {api_key}', 'api_keys': api_keys}
 
-
+    @classmethod
+    def update(cls):
+        cls.set_api_keys(cls.valid_api_keys())
     
     @classmethod
     def valid_api_keys(cls, verbose:bool = True):
@@ -305,11 +308,8 @@ class OpenAILLM(c.Module):
                 c.print(f'Verifying API key: {api_key}', color='blue')
             if cls.is_valid_api_key(api_key):
                 valid_api_keys.append(api_key)
-            else:
-                msg =  f'API key {api_key} not valid'
-                c.print(f'API key {api_key} not valid for ' , color='red')
         return valid_api_keys
-    verify_api_keys = valid_api_keys    
+    valid_keys = verify_api_keys = valid_api_keys
 
     @classmethod
     def num_valid_api_keys(cls):
@@ -342,17 +342,16 @@ class OpenAILLM(c.Module):
 
     
     @classmethod
-    def is_valid_api_key(cls, api_key:str):
+    def is_valid_api_key(cls, api_key:str, text:str='ping'):
         model = cls(api=api_key)
-        output = model.forward('What is the meaning of life?', max_tokens=1)
-
+        output = model.forward(text, max_tokens=1)
         if 'error' in output:
             c.print(output['error'], color='red')
             return False
         else:
             c.print(f'API key {api_key} is valid {output}', color='green')
         return True
-    verify_api_key = is_valid_api_key 
+    verify_key = verify_api_key = is_valid_api_key 
 
     @classmethod
     def restart_miners(cls, *args,**kwargs):
