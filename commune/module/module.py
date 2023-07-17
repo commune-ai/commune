@@ -6879,6 +6879,7 @@ class c:
     @classmethod
     def talk(cls, *args, **kwargs):
         return c.module('model.transformer').talk(*args, **kwargs)
+    chat = talk
 
 
 
