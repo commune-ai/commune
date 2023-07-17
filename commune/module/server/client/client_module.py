@@ -42,8 +42,9 @@ class VirtualModule:
         else:
             self.module_client = module
       
-    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
-    
+    def remote_call(self,*args, return_future= False, timeout=None, **kwargs):
+        c.log(f"remote_call: {args}, {kwargs}")
+        remote_fn = kwargs.pop('remote_fn', None)
         if return_future:
             return self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
         else:
@@ -58,6 +59,7 @@ class VirtualModule:
         if key in self.protected_attributes :
             return getattr(self, key)
         else:
+            
             return lambda *args, **kwargs: self.remote_call(remote_fn=key, *args, **kwargs)
 
 
