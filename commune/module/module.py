@@ -2187,8 +2187,13 @@ class c:
     
     
     @classmethod
-    def register_server(cls, name: str, ip: str,port: int, **kwargs)-> dict:
+    def register_server(cls, name: str, ip: str,port: int = None, **kwargs)-> dict:
         local_namespace = cls.local_namespace()    
+
+        if c.is_address(ip):
+            port = int(ip.split(':')[-1])
+            ip = ip.split(':')[0]
+            
         
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
@@ -2276,7 +2281,8 @@ class c:
 
     @classmethod
     def server_exists(cls, name:str, **kwargs) -> bool:
-        return bool(name in cls.servers(**kwargs))
+        
+        return bool(name in cls.servers(**kwargs)) and name in cls.pm2_list()
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -2491,12 +2497,13 @@ class c:
 
         self = module(*args, **kwargs)
 
+
         if whitelist == None:
             whitelist = self.whitelist
         if blacklist == None:
             blacklist = self.blacklist
     
-        if self.server_exists(name): 
+        if c.server_exists(name): 
             c.print(f'Server {name} already exists', color='yellow')
             if refresh:
                 if verbose:
@@ -6868,16 +6875,10 @@ class c:
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
 
+
     @classmethod
-    def talk(cls, text: str, module:str = 'model.wizardcoder' , max_tokens=100, max_length=10, **kwargs):
-        model = c.connect(module)
-        for i in range(max_tokens):
-            # c.print(f'input: {text}')
-            output =  model.talk(text, max_length=max_length)
-            c.print(output)
-            output_text  = output['output'][0]
-            text = output_text
-            # c.print(output_text)
+    def talk(cls, *args, **kwargs):
+        return c.module('model.transformer').talk(*args, **kwargs)
 
 
 

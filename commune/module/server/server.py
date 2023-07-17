@@ -372,7 +372,7 @@ class Server(ServerServicer, Serializer, c.Module):
               wait_for_termination:bool=False,
               update_period:int = 10, 
               verbose:bool= True,
-              register=True):
+              register:bool=True):
         '''
         Serve the server and loop it until termination.
         '''
@@ -392,7 +392,6 @@ class Server(ServerServicer, Serializer, c.Module):
                                           port=self.port)
 
  
-        c.unreserve_port(self.port)
         
         
         try:
