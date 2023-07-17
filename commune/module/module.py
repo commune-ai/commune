@@ -2488,7 +2488,7 @@ class c:
         port = int(port)
     
         module = cls.resolve_module(module)
-        c.print('bro')
+
         self = module(*args, **kwargs)
 
         if whitelist == None:
@@ -3047,10 +3047,11 @@ class c:
         else:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
         for n in rm_list:
-            c.print(f'Killing {n}', color='red')
+            if verbose:
+                c.print(f'Killing {n}', color='red')
             cls.run_command(f"pm2 delete {n}", verbose=False)
             
-        return name
+        return {'killed': pm2_list}
     
     
     @classmethod
@@ -6868,18 +6869,15 @@ class c:
         return c.getc('shortcuts').get(name, name)
 
     @classmethod
-    def talk(cls, text: str, module:str = 'model.falcon' , max_tokens=100, max_length=5, **kwargs):
+    def talk(cls, text: str, module:str = 'model.wizardcoder' , max_tokens=100, max_length=10, **kwargs):
         model = c.connect(module)
-
         for i in range(max_tokens):
-            input_text =  text
-            output =  model.talk(input_text, max_length=max_length)
-
-            # c.print(output)
-            text = output['output'][0]
-            text = text.replace(input_text, '')
-            c.print(text)
-            input_text = input_text + text
+            # c.print(f'input: {text}')
+            output =  model.talk(text, max_length=max_length)
+            c.print(output)
+            output_text  = output['output'][0]
+            text = output_text
+            # c.print(output_text)
 
 
 
