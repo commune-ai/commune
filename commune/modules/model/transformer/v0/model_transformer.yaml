@@ -1,9 +1,49 @@
 
-model: falcon
+model: gpt125m
+tag: base
+tokenizer: null
+save: true # save on epoch 
+device: null
+stats: null
 device_map: auto
-trust_remote_code: true
-max_memory : null
-half: true
+epoch_length: 500
+accumulate_grad_batches: 1
+patience_epochs: 10
+best_epoch_loss_delta: 0.0
+default_metric: 12
+reset_stats: false
+hidden_size: 768
+vocab_size: 50258
+loss_sigdigs: 3
+max_gpu_ratio: 0.8
+sample_history: 100
+trust_remote_code: True
+buffer_memory: 20gb
+finetune: 1
+optimizer:
+  lr: 2.0e-05
+  module: torch.optim.Adam
+load_in_8bit: False
+stats: {}
+model_inflation_ratio: 1.5
+output_length: 4
+max_sequence_length: 256
+clip_grad_norm: 1.0
+tag: null
+load: false
+refresh_state: false
+device_map: auto
+max_memory: null
+reserve_gpus: False
+verbose: true
+test: false
+train: True
+max_epochs_since_saved: 2
+default_metric: 12
+hidden_size: 768
+vocab_size: 50258
+loss_sigdigs: 3
+
 shortcuts:
   gpt125m: EleutherAI/gpt-neo-125m
   gpt2.7b: EleutherAI/gpt-neo-2.7B
@@ -44,7 +84,6 @@ shortcuts:
   mosaic: mosaicml/mpt-30b
   falcon_40b_instruct: tiiuae/falcon-40b-instruct
   falcon_uncensored: ehartford/WizardLM-Uncensored-Falcon-40b
-  open_llama_13b: openlm-research/open_llama_13b
 block_prefix: model.layers
 model2block_prefix:
   mosaic: transformer.blocks

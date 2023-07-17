@@ -2432,9 +2432,9 @@ class c:
             
         # we want to make sure that the module is loco
         # cls.update(network='local')
-    
+        
         module = cls.resolve_module(module)
-            
+        c.print('bro')
         self = module(*args, **kwargs)
 
         if whitelist == None:
@@ -2443,7 +2443,7 @@ class c:
             blacklist = self.blacklist
         
         
-            
+        
         '''check if the server exists'''
         c.print(f'Checking if server {name} exists {self}')
         if self.server_exists(name): 
@@ -3552,7 +3552,8 @@ class c:
         if isinstance(module, str):
             modules = c.modules()
             if module in modules:
-                return c.get_module(module,**kwargs)
+                module =  c.get_module(module,**kwargs)
+                return module
             # elif module in cls.servers():
             #     return c.connect(module,**kwargs)
     
@@ -3910,12 +3911,9 @@ class c:
             'tb': 1000**4,
         }
             
-        for i, f in enumerate(fmts):
-            if fmt == f:
-                break
-            else:
-                x = x/1000
-                
+        assert fmt in fmt2scale.keys(), f'fmt must be one of {fmt2scale.keys()}'
+        scale = fmt2scale[fmt] 
+        x = x/scale 
         
         if prettify:
             return f'{x:.2f} {f}'
