@@ -2083,6 +2083,42 @@ class c:
             return False
         else:
             return True
+    
+    @classmethod
+    def check_connection(cls, *args, **kwargs):
+        return c.gather(cls.async_check_connection(*args, **kwargs))
+
+    @classmethod
+    def module2connection(cls, network=None):
+        modules = c.servers(network=network)
+        connections = c.gather([ c.async_check_connection(m) for m in modules])
+
+        module2connection = dict(zip(modules, connections))
+    
+        return module2connection
+
+
+    @classmethod
+    def dead_servers(cls, network=None):
+        module2connection = cls.module2connection(network=network)
+        dead_servers = [m for m, c in module2connection.items() if not c]
+        return dead_servers
+
+
+        
+
+
+    @classmethod
+    async def async_check_connection(cls, module, timeout=5, **kwargs):
+        try:
+            module = await c.async_connect(module, return_future=False, virtual=False, **kwargs)
+        except Exception as e:
+            return False
+        module_name =  await module(fn='module_name',  return_future=True)
+        if c.check_response(module_name):
+            return True
+        else:
+            return False
         
     @staticmethod
     async def async_get_peer_name(peer_address):
@@ -2096,7 +2132,7 @@ class c:
             return None
                 
     @classmethod
-    def local_namespace(cls, verbose:bool = False, **kwargs)-> dict:
+    def local_namespace(cls, verbose:bool = False, update=True, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -2107,7 +2143,24 @@ class c:
         address2module = {}
         local_namespace = c.get('local_namespace', {})
         external_ip = cls.external_ip()
+        # for k,v in local_namespace.items(): 
+
+        if update :
+            updated_dict = False
+            module2connection = cls.module2connection(network='local')
+            for module, connection in module2connection.items():
+                if connection == False:
+                    del local_namespace[module]
+                    updated_dict = True
+            
+            if updated_dict:
+                c.put('local_namespace', local_namespace)
+            
+
+
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
+
+
         return local_namespace
     
     @classmethod
@@ -3045,6 +3098,8 @@ class c:
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
+
+
 
     @classmethod
     def argparse(cls, verbose: bool = False):
@@ -5768,20 +5823,21 @@ class c:
     @classmethod
     def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = None)-> list:
         if not isinstance(jobs, list):
+            singleton = True
             jobs = [jobs]
+        else:
+            singleton = False
         assert isinstance(jobs, list)
-        
-        
-        
         if mode == 'asyncio':
             loop = loop if loop != None else cls.get_event_loop()
             if timeout is not None:
                 jobs = [asyncio.wait_for(job, timeout=timeout) for job in jobs]
             results = loop.run_until_complete(asyncio.gather(*jobs))
-            
         else:
             raise NotImplementedError
-        
+
+        if singleton:
+            return results[0]
         return results
     @classmethod
     def addresses(cls, *args, **kwargs) -> List[str]:
@@ -6812,9 +6868,17 @@ class c:
         return c.getc('shortcuts').get(name, name)
 
     @classmethod
-    def talk(cls,module, *args, **kwargs):
-        c.print(f'talking to {module}')
-        return c.connect(module).talk('hey')
+    def talk(cls, text: str, module:str = 'model.falcon' , max_tokens=100, max_length=5, **kwargs):
+        model = c.connect(module)
+
+        for i in range(max_tokens):
+            output =  model.talk(text, max_length=max_length)
+            c.print(output)
+            text = output['output'][0]
+            c.print(text)
+
+
+
         
 Module = c
 

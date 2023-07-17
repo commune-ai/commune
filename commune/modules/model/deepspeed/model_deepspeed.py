@@ -27,6 +27,7 @@ class DeepSpeed(c.Module):
         config = self.config
         c.print(config)
         config.model = config.shortcuts.get(config.model, config.model)
+
         if not config.ds_inference and config.world_size > 1:
             raise RuntimeError("Only `--num_gpus 1` supported for non-DeepSpeed uses")
 
@@ -84,38 +85,6 @@ class DeepSpeed(c.Module):
             see_memory_usage("after init_inference", True)
 
         self.config = config
-
-    
-    
-    
-    def test(self):
-        input_sentences = [
-            "DeepSpeed is a machine learning framework",
-            "He is working on",
-            "He has a",
-            "He got all",
-            "Everyone is happy and I can",
-            "The new movie that got Oscar this year",
-            "In the far far distance from our galaxy,",
-            "Peace is the only way"
-        ]
-
-        if config.batch_size > len(input_sentences):
-            # dynamically extend to support larger bs by repetition
-            input_sentences *= math.ceil(config.batch_size / len(input_sentences))
-
-        inputs = input_sentences[:config.batch_size]
-        iters = config.test.iters  # warmup
-
-        times = []
-        for i in range(iters):
-            response = self.forward(inputs, num_tokens=config.max_new_tokens, do_sample=(not config.greedy))
-            times.append(response['latency'])
-        print(f"generation time is {times[-1]} sec")
-        if config.local_rank == 0:
-            for i, o in zip(inputs, outputs):
-                print(f"\nin={i}\nout={o}\n{'-'*60}")
-            self.print_perf_stats(map(lambda t: t / config.max_new_tokens, times), pipe.model.config)
 
     def forward(self,
                 inputs=["test"],
@@ -193,4 +162,37 @@ class DeepSpeed(c.Module):
         outputs = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
         return outputs
+
+    
+    
+    
+    def test(self):
+        input_sentences = [
+            "DeepSpeed is a machine learning framework",
+            "He is working on",
+            "He has a",
+            "He got all",
+            "Everyone is happy and I can",
+            "The new movie that got Oscar this year",
+            "In the far far distance from our galaxy,",
+            "Peace is the only way"
+        ]
+
+        if config.batch_size > len(input_sentences):
+            # dynamically extend to support larger bs by repetition
+            input_sentences *= math.ceil(config.batch_size / len(input_sentences))
+
+        inputs = input_sentences[:config.batch_size]
+        iters = config.test.iters  # warmup
+
+        times = []
+        for i in range(iters):
+            response = self.forward(inputs, num_tokens=config.max_new_tokens, do_sample=(not config.greedy))
+            times.append(response['latency'])
+        print(f"generation time is {times[-1]} sec")
+        if config.local_rank == 0:
+            for i, o in zip(inputs, outputs):
+                print(f"\nin={i}\nout={o}\n{'-'*60}")
+            self.print_perf_stats(map(lambda t: t / config.max_new_tokens, times), pipe.model.config)
+
 
