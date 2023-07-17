@@ -6872,10 +6872,15 @@ class c:
         model = c.connect(module)
 
         for i in range(max_tokens):
-            output =  model.talk(text, max_length=max_length)
-            c.print(output)
+            input_text =  text
+            output =  model.talk(input_text, max_length=max_length)
+
+            # c.print(output)
             text = output['output'][0]
+            text = text.replace(input_text, '')
             c.print(text)
+            input_text = input_text + text
+
 
 
 
