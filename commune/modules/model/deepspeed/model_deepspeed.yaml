@@ -1,9 +1,24 @@
-
-model: stablellm7b
-device_map: auto
+model: "llama"
+checkpoint_path: null
+save_mp_checkpoint_path: null
+batch_size: 1
+dtype: "float16"
+ds_inference: false
 trust_remote_code: true
-max_memory : null
-half: true
+padding_side: left
+use_kernel: false
+replace_method: ""
+max_tokens: 1024
+max_new_tokens: 50
+greedy: false
+use_meta_tensor: false
+use_cache: true
+test_performance: false
+local_rank: 0
+world_size: 1
+tp_presharded_models :  ["microsoft/bloom-deepspeed-inference-int8", "microsoft/bloom-deepspeed-inference-fp16"]
+test:
+    iter: 10
 shortcuts:
   gpt125m: EleutherAI/gpt-neo-125m
   gpt2.7b: EleutherAI/gpt-neo-2.7B
@@ -45,11 +60,4 @@ shortcuts:
   falcon_40b_instruct: tiiuae/falcon-40b-instruct
   falcon_uncensored: ehartford/WizardLM-Uncensored-Falcon-40b
   open_llama_13b: openlm-research/open_llama_13b
-  # code
-  starcoder: bigcode/starcoder
-  wizardcoder: WizardLM/WizardCoder-15B-V1.0
 
-block_prefix: model.layers
-model2block_prefix:
-  mosaic: transformer.blocks
-  
