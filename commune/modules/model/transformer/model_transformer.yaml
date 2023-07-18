@@ -45,9 +45,11 @@ shortcuts:
   falcon_40b_instruct: tiiuae/falcon-40b-instruct
   falcon_uncensored: ehartford/WizardLM-Uncensored-Falcon-40b
   open_llama_13b: openlm-research/open_llama_13b
+  lazarus30b: CalderaAI/30B-Lazarus
   # code
   starcoder: bigcode/starcoder
   wizardcoder: WizardLM/WizardCoder-15B-V1.0
+  replit_code: replit/replit-code-v1-3b
 
 block_prefix: model.layers
 model2block_prefix:

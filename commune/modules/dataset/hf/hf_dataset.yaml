@@ -2,8 +2,14 @@ path: super_glue
 name: null
 streaming: False
 split: train
+
+categories: 
+  general:
+    - Hello-SimpleAI/HC3
+    - squad_v2
+    - squad
+    - glue
+
 datasets: 
-  - squad_v2
-  - squad
-  - glue
+
   - super_glue

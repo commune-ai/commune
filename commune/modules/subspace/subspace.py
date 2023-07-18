@@ -2246,12 +2246,18 @@ class Subspace(c.Module):
             cls.add_vali_node(node=node, chain=chain)
 
     @classmethod
-    def vali_node_keys(cls,chain=chain):
+    def vali_nodes(cls,chain=chain):
         return c.keys(f'vali_node.{chain}')
     
     @classmethod
     def vali_node_key2address(cls,chain=chain):
         key2address =  c.key2address(f'vali_node.{chain}')
+        return key2address
+
+
+    @classmethod
+    def vali_node_keys(cls,chain=chain):
+        return {k:c.get_key(k) for k in c.keys(f'vali_node.{chain}')}
 
     @classmethod
     def valid_nodes(cls,chain=chain):

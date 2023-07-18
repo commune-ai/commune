@@ -119,7 +119,7 @@ class TransformerModel(c.Module):
                 break
 
     @classmethod
-    def talk(cls, text, module = 'model.wizardcoder', verbose:bool= True , *args, **kwargs):
+    def talk(cls, text, module = 'model.lazarus30b', verbose:bool= True , *args, **kwargs):
         text_generator = cls.text_generator(text, module, **kwargs)
         output_text = ''
         for text in text_generator:
