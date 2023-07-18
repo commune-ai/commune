@@ -2083,6 +2083,42 @@ class c:
             return False
         else:
             return True
+    
+    @classmethod
+    def check_connection(cls, *args, **kwargs):
+        return c.gather(cls.async_check_connection(*args, **kwargs))
+
+    @classmethod
+    def module2connection(cls, network=None):
+        modules = c.servers(network=network)
+        connections = c.gather([ c.async_check_connection(m) for m in modules])
+
+        module2connection = dict(zip(modules, connections))
+    
+        return module2connection
+
+
+    @classmethod
+    def dead_servers(cls, network=None):
+        module2connection = cls.module2connection(network=network)
+        dead_servers = [m for m, c in module2connection.items() if not c]
+        return dead_servers
+
+
+        
+
+
+    @classmethod
+    async def async_check_connection(cls, module, timeout=5, **kwargs):
+        try:
+            module = await c.async_connect(module, return_future=False, virtual=False, **kwargs)
+        except Exception as e:
+            return False
+        module_name =  await module(fn='module_name',  return_future=True)
+        if c.check_response(module_name):
+            return True
+        else:
+            return False
         
     @staticmethod
     async def async_get_peer_name(peer_address):
@@ -2096,7 +2132,7 @@ class c:
             return None
                 
     @classmethod
-    def local_namespace(cls, verbose:bool = False, **kwargs)-> dict:
+    def local_namespace(cls, verbose:bool = False, update=True, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -2107,7 +2143,24 @@ class c:
         address2module = {}
         local_namespace = c.get('local_namespace', {})
         external_ip = cls.external_ip()
+        # for k,v in local_namespace.items(): 
+
+        if update :
+            updated_dict = False
+            module2connection = cls.module2connection(network='local')
+            for module, connection in module2connection.items():
+                if connection == False:
+                    del local_namespace[module]
+                    updated_dict = True
+            
+            if updated_dict:
+                c.put('local_namespace', local_namespace)
+            
+
+
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
+
+
         return local_namespace
     
     @classmethod
@@ -2134,8 +2187,13 @@ class c:
     
     
     @classmethod
-    def register_server(cls, name: str, ip: str,port: int, **kwargs)-> dict:
+    def register_server(cls, name: str, ip: str,port: int = None, **kwargs)-> dict:
         local_namespace = cls.local_namespace()    
+
+        if c.is_address(ip):
+            port = int(ip.split(':')[-1])
+            ip = ip.split(':')[0]
+            
         
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
@@ -2223,7 +2281,8 @@ class c:
 
     @classmethod
     def server_exists(cls, name:str, **kwargs) -> bool:
-        return bool(name in cls.servers(**kwargs))
+        
+        return bool(name in cls.servers(**kwargs)) and name in cls.pm2_list()
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -2435,15 +2494,16 @@ class c:
         port = int(port)
     
         module = cls.resolve_module(module)
-            
+
         self = module(*args, **kwargs)
+
 
         if whitelist == None:
             whitelist = self.whitelist
         if blacklist == None:
             blacklist = self.blacklist
     
-        if self.server_exists(name): 
+        if c.server_exists(name): 
             c.print(f'Server {name} already exists', color='yellow')
             if refresh:
                 if verbose:
@@ -2994,10 +3054,11 @@ class c:
         else:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
         for n in rm_list:
-            c.print(f'Killing {n}', color='red')
+            if verbose:
+                c.print(f'Killing {n}', color='red')
             cls.run_command(f"pm2 delete {n}", verbose=False)
             
-        return name
+        return {'killed': pm2_list}
     
     
     @classmethod
@@ -3045,6 +3106,8 @@ class c:
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
+
+
 
     @classmethod
     def argparse(cls, verbose: bool = False):
@@ -3545,7 +3608,8 @@ class c:
         if isinstance(module, str):
             modules = c.modules()
             if module in modules:
-                return c.get_module(module,**kwargs)
+                module =  c.get_module(module,**kwargs)
+                return module
             # elif module in cls.servers():
             #     return c.connect(module,**kwargs)
     
@@ -3903,12 +3967,9 @@ class c:
             'tb': 1000**4,
         }
             
-        for i, f in enumerate(fmts):
-            if fmt == f:
-                break
-            else:
-                x = x/1000
-                
+        assert fmt in fmt2scale.keys(), f'fmt must be one of {fmt2scale.keys()}'
+        scale = fmt2scale[fmt] 
+        x = x/scale 
         
         if prettify:
             return f'{x:.2f} {f}'
@@ -4615,7 +4676,7 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls,  *args, loop=None, **kwargs) -> None:
+    def call(cls, *args,  **kwargs) -> None:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call(*args, **kwargs))
     
@@ -5770,20 +5831,21 @@ class c:
     @classmethod
     def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = None)-> list:
         if not isinstance(jobs, list):
+            singleton = True
             jobs = [jobs]
+        else:
+            singleton = False
         assert isinstance(jobs, list)
-        
-        
-        
         if mode == 'asyncio':
             loop = loop if loop != None else cls.get_event_loop()
             if timeout is not None:
                 jobs = [asyncio.wait_for(job, timeout=timeout) for job in jobs]
             results = loop.run_until_complete(asyncio.gather(*jobs))
-            
         else:
             raise NotImplementedError
-        
+
+        if singleton:
+            return results[0]
         return results
     @classmethod
     def addresses(cls, *args, **kwargs) -> List[str]:
@@ -6812,6 +6874,16 @@ class c:
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
+
+
+    @classmethod
+    def talk(cls, *args, **kwargs):
+        return c.module('model.transformer').talk(*args, **kwargs)
+    chat = talk
+
+
+
+
         
 Module = c
 

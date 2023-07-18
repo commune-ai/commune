@@ -70,7 +70,7 @@ class OpenAILLM(c.Module):
     @classmethod
     def resolve_api_key(cls, api_key:str = None) -> str:
         if api_key == None:
-            api_keys = cls.api_keys()
+            api_keys = cls.valid_api_keys()
             assert len(api_keys) > 0, "No API keys found"
             api_key = c.choice(api_keys)
             c.log(f"Using API key {api_key}")
@@ -107,7 +107,17 @@ class OpenAILLM(c.Module):
         prompt = prompt.format(**kwargs)
         return prompt
     
-    def ask(self, question:str, max_tokens:int = 1000, ) : 
+    def ask(self, question:str, max_tokens:int = 1000) : 
+        '''
+        Ask a question and return the answer
+        
+        Args:
+            question (str): The question to ask
+            max_tokens (int, optional): The maximum number of tokens to generate. Defaults to 1000.
+        Returns:
+            str: The answer to the question
+        '''
+
         prompt = """
 
         Given a question, answer it as a json
@@ -131,8 +141,16 @@ class OpenAILLM(c.Module):
             )
             return response
         except Exception as e:
-            c.print(e)
+            return {'error': str(e)}
+
             self.params['model'] = c.choice(self.config.models)
+
+
+    def is_error(self, response):
+        return 'error' in response
+
+    def is_success(self, response):
+        return not self.is_error(response)
 
         
             
@@ -160,6 +178,10 @@ class OpenAILLM(c.Module):
         params = self.resolve_params(locals())
         messages = [{"role": role, "content": prompt}]
         response = self.create(messages=messages, **params)
+        if self.is_error(response):
+            return response
+
+        assert 'usage' in response, f"Response must contain usage stats: {response}"
         # update token stats
         for k,v in response['usage'].items():
             self.stats[k] = self.stats.get(k, 0) + v
@@ -229,16 +251,21 @@ class OpenAILLM(c.Module):
     @classmethod
     def add_api_key(cls, api_key, k=api_key_path):
         api_keys = cls.get(k, [])
-        assert api_key in api_keys, f"API key {api_key} not added"
-        assert cls.verify_api_key(api_key), f"Invalid API key {api_key}"
+        c.print(api_keys)
+        if api_key in api_keys:
+            return {'error': f'api_key {api_key} already added'}
+        verified = cls.verify_api_key(api_key)
+        if not verified:
+            return {'error': f'api_key {api_key} not verified'}
         api_keys.append(api_key)
         api_keys = list(set(api_keys))
         cls.put(k, api_keys)
+        assert api_key in cls.api_keys(), f"API key {api_key} not added"
         return {'msg': f'added api_key {api_key}'}
 
 
     @classmethod
-    def add_api_keys(cls, keys):
+    def add_api_keys(cls, *keys):
         for k in keys:
             cls.add_api_key(k)
 
@@ -251,35 +278,38 @@ class OpenAILLM(c.Module):
 
     @classmethod
     def rm_api_key(cls, api_key, k=api_key_path):
-        api_keys = []
-        found_key = False
-        for i, api_k in enumerate(cls.get('api_keys', [])):
+
+        api_keys = cls.get('api_keys', [])
+        if api_key not in api_keys:
+            return {'error': f'api_key {api_key} not found', 'api_keys': api_keys}
+
+        api_idx = None
+        for i, api_k in enumerate(api_keys):
             if api_key != api_k:
-                api_keys.append(api_key)
-            else:
-                found_key = True
-        # cls.set_api_keys(api_keys)
+                api_idx = i
+        if api_idx == None:
+            return {'error': f'api_key {api_key} not found', 'api_keys': api_keys}
 
-        if not found_key:
-            return {'msg': f'api_key {api_key} not found', 'api_keys': api_keys}
-        else:
-            cls.set_api_keys(api_keys)
-            return {'msg': f'removed api_key {api_key}', 'api_keys': api_keys}
+        del api_keys[api_idx]
+        cls.set_api_keys(api_keys)
 
+        return {'msg': f'removed api_key {api_key}', 'api_keys': api_keys}
 
+    @classmethod
+    def update(cls):
+        cls.set_api_keys(cls.valid_api_keys())
     
     @classmethod
-    def valid_api_keys(cls):
+    def valid_api_keys(cls, verbose:bool = True):
         api_keys = cls.api_keys()
         valid_api_keys = []
         for api_key in api_keys:
+            if verbose:
+                c.print(f'Verifying API key: {api_key}', color='blue')
             if cls.is_valid_api_key(api_key):
                 valid_api_keys.append(api_key)
-            else:
-                c.print('Invalid API key: ' + api_key, color='red')
-
         return valid_api_keys
-                
+    valid_keys = verify_api_keys = valid_api_keys
 
     @classmethod
     def num_valid_api_keys(cls):
@@ -290,7 +320,7 @@ class OpenAILLM(c.Module):
         return cls.get('api_keys', [])
 
 
-    def check_api_keys(self):
+    def remove_invalid_api_keys(self):
         verify_api_keys = self.valid_api_keys()
         self.set_api_keys(verify_api_keys)
         return {'msg': f'Verified {len(verify_api_keys)} api_keys', 'api_keys': verify_api_keys}
@@ -312,15 +342,16 @@ class OpenAILLM(c.Module):
 
     
     @classmethod
-    def is_valid_api_key(cls, api_key:str):
+    def is_valid_api_key(cls, api_key:str, text:str='ping'):
         model = cls(api=api_key)
-        try:
-            output = model.forward('What is the meaning of life?', max_tokens=4)
-        except Exception as e:
-            c.print(str(e), color='red')
+        output = model.forward(text, max_tokens=1)
+        if 'error' in output:
+            c.print(output['error'], color='red')
             return False
+        else:
+            c.print(f'API key {api_key} is valid {output}', color='green')
         return True
-    verify_api_key = is_valid_api_key 
+    verify_key = verify_api_key = is_valid_api_key 
 
     @classmethod
     def restart_miners(cls, *args,**kwargs):
