@@ -91,7 +91,7 @@ class Keypair(c.Module):
                  ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
                  private_key: Union[bytes, str] = None, 
-                 ss58_format: int = None, 
+                 ss58_format: int = 42, 
                  seed_hex: Union[str, bytes] = None,
                  crypto_type: int = KeypairType.SR25519,
                  derive_path: str = None,
@@ -117,6 +117,14 @@ class Keypair(c.Module):
             key = self.gen()
             seed_hex = key.__dict__.get('seed_hex', seed_hex)
             private_key = key.__dict__.get('private_key', private_key)
+            crypto_type = key.__dict__.get('crypto_type', crypto_type)
+            derive_path = key.__dict__.get('derive_path', derive_path)
+            ss58_address = key.__dict__.get('ss58_address', ss58_address)
+            path = key.__dict__.get('path', path)
+            public_key = key.__dict__.get('public_key', public_key)
+            ss58_format = key.__dict__.get('ss58_format', ss58_format)
+            mnemonic = key.__dict__.get('mnemonic', mnemonic)
+
 
 
         self.crypto_type = crypto_type
@@ -143,6 +151,8 @@ class Keypair(c.Module):
                 private_key_obj = PrivateKey(private_key)
                 public_key = private_key_obj.public_key.to_address()
                 ss58_address = private_key_obj.public_key.to_checksum_address()
+            
+            
        
         
         if not public_key:
@@ -168,6 +178,8 @@ class Keypair(c.Module):
         self.private_key: bytes = private_key
 
         self.mnemonic = mnemonic
+
+
     
     @classmethod
     def add_key(cls, path, password=None, refresh=False, **kwargs):
@@ -323,6 +335,9 @@ class Keypair(c.Module):
         assert c.exists(key2path[key]) == False, 'key not deleted'
         
         return {'deleted':[key]}
+    @property
+    def crypto_name(self):
+        return self.crypto_type2name(self.crypto_type)
         
         
     @classmethod
@@ -339,13 +354,34 @@ class Keypair(c.Module):
                     removed_keys.append(key)
             
         return {'removed_keys':rm_keys}
-        
+    crypto_types = ['ED25519', 'SR25519', 'ECDSA']
+
+    @classmethod
+    def crypto_type_map(cls):
+        crypto_type_map =  {k:v for k,v in KeypairType.__dict__.items() if k in cls.crypto_types }
+        return crypto_type_map
+
+    @classmethod
+    def crypto_name2type(cls, name:str):
+        crypto_type_map = cls.crypto_type_map()
+        name = name.upper()
+        for k,v in crypto_type_map.items():
+            if k.startswith(name.upper()):
+                return v
+        return crypto_type_map[name.upper()]
+         
+    @classmethod
+    def crypto_type2name(cls, crypto_type:str):
+        crypto_type_map ={v:k for k,v  in cls.crypto_type_map().items()}
+        return crypto_type_map[crypto_type]
+         
         
     @classmethod
     def resolve_crypto_type(cls, crypto_type):
+            
         if isinstance(crypto_type, str):
             crypto_type = crypto_type.upper()
-            crypto_type = KeypairType.__dict__[crypto_type]
+            crypto_type = cls.crypto_name2type(crypto_type)
         elif isinstance(crypto_type, int):
             assert crypto_type in list(KeypairType.__dict__.values()), f'crypto_type {crypto_type} not supported'
             
@@ -366,7 +402,7 @@ class Keypair(c.Module):
             mnemonic:str = None,
             suri:str = None, 
             private_key:str = None,
-            crypto_type: Union[int,str] = 'SR25519', 
+            crypto_type: Union[int,str] = 'sr25519', 
             json: bool = False,
             verbose:bool=False,
             **kwargs):
@@ -992,11 +1028,8 @@ class Keypair(c.Module):
         else:
             return f'<Keypair (public_key=0x{self.public_key.hex()})>'
     def __str__(self):
-        if self.ss58_address:
-            return f'<Keypair (address={self.ss58_address}, path={self.path})>'
-        else:
-            return f'<Keypair (public_key=0x{self.public_key.hex()})>'
-        
+        return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type})>'
+
         
         
     def state_dict(self):
