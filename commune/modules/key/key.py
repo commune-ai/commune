@@ -1022,15 +1022,11 @@ class Keypair(c.Module):
         assert not self.key_exists('test'), f'Key management failed, key still exists'
 
         
-    def __repr__(self):
-        if self.ss58_address:
-            return f'<Keypair (address={self.ss58_address}) path={self.path})>'
-        else:
-            return f'<Keypair (public_key=0x{self.public_key.hex()})>'
     def __str__(self):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_name})>'
 
-        
+    def __repr__(self):
+        return self.__str__()
         
     def state_dict(self):
         return self.__dict__
