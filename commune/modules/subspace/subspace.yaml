@@ -182,12 +182,14 @@ supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
-users:
+nodes:
 - alice
 - bob
-- dave
-- charlie
-- eve
-- ferdie
-- one
-- two
+- chris
+- huck
+- snoop
+- elon
+- fam
+- bruh
+- satoshi
+- sal

@@ -1,2 +1,9 @@
-path: squad_v2
+path: super_glue
+name: null
+streaming: False
 split: train
+datasets: 
+  - squad_v2
+  - squad
+  - glue
+  - super_glue
