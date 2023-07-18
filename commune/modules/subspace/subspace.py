@@ -1770,13 +1770,21 @@ class Subspace(c.Module):
                     base_path:str = None,
                     sudo = False):
         if base_path == None:
-            base_path = cls.resolve_chain_base_path(user=user)
+            base_path = cls.resolve_base_path(node=node)
         return c.rm(base_path)
     
     
     @classmethod
-    def resolve_chain_base_path(cls, user='alice'):
-        return cls.resolve_path(f'{user}')
+    def resolve_base_path(cls, node='alice'):
+        return cls.resolve_path(f'{node}')
+
+    
+    @classmethod
+    def resolve_node_keystore_path(cls, node='alice', chain=chain):
+        path =  cls.resolve_base_path(node) + f'/chains/commune/keystore'
+        if not c.exists(path):
+            c.mkdir(path)
+        return path
 
   
     @classmethod
@@ -2077,7 +2085,7 @@ class Subspace(c.Module):
         if ws_port == None:
             ws_port = free_ports[2]
 
-        base_path = cls.resolve_chain_base_path(user=user)
+        base_path = cls.resolve_base_path(node=node)
 
         if purge_chain:
             cls.purge_chain(base_path=base_path)
@@ -2181,22 +2189,9 @@ class Subspace(c.Module):
     
     
 
-    @classmethod
-    def resolve_node_keystore_path(cls, node):
-        path = cls.resolve_path(f'nodes/{node}')
-        if not c.exists(path):
-            c.mkdir(path)
-        return path
+
     
-    @classmethod
-    def gen_node_keys(cls, path, **kwargs):
-        key_class = c.module('key')
-        node_path = f'node.{path}'
-        c.print(key_class.add_key(path=f'{node_path}.aura', crypto_type='Sr25519'))
-        key_class.add_key(path=f'{node_path}.gran',crypto_type='Ed25519')
-        return key_class.keys(node_path, **kwargs)
-    
-    
+
     def keys(self, netuid = None, **kwargs):
         netuid = self.resolve_netuid(netuid)
         return [r[1].value for r in self.query_map('Keys', netuid, **kwargs)]
@@ -2243,45 +2238,50 @@ class Subspace(c.Module):
         return self.query_subnet('Dividends', netuid=netuid, network=network,  **kwargs)
         
         
-    
+    @classmethod
+    def add_vali_nodes(cls, *nodes, chain=chain):
+        if len(nodes) == 0:
+            nodes = cls.getc('nodes')
+        for node in nodes:
+            cls.add_vali_node(node=node, chain=chain)
+
+    @classmethod
+    def vali_node_keys(cls,chain=chain):
+        return c.keys(f'vali_node.{chain}')
     
     @classmethod
-    def get_node_keys(cls, path):
-        for key in cls.gen_node_keys(path):
-            c.print(key)
-        
-    
+    def vali_node_key2address(cls,chain=chain):
+        key2address =  c.key2address(f'vali_node.{chain}')
+
     @classmethod
-    def add_keystore(cls,
-                     suri = None ,
+    def valid_nodes(cls,chain=chain):
+        return list(set([k.split('.')[-2] for k in c.keys(f'vali_node.{chain}')]))
+
+    @classmethod
+    def add_vali_node(cls,
                      node = 'alice',
-                     chain = 'main',
-                     key_type = 'gran',
-                     schema = 'Ed25519',
-                     password_interactive = False,):
+                     chain = chain):
         
+
+        for key_type in ['gran', 'aura']:
+
+            if key_type == 'gran':
+                schema = 'Ed25519'
+            elif key_type == 'aura':
+                schema = 'Sr25519'
         
-        if suri is None:
-            suri = c.module('key').gen().mnemonic
-        base_path = cls.resolve_node_keystore_path(node)
-        if key_type == 'gran':
-            schema = 'Ed25519'
-        elif key_type == 'aura':
-            schema = 'Sr25519'
-        else:
-            raise Exception(f'Unknown key type {key_type}')
-        cmd  = f'''
-        {cls.chain_release_path} key insert --base-path {base_path}\
-        --chain {chain} \
-        --scheme {schema} \
-        --suri "{suri}" \
-        --key-type {key_type}
-        '''
-        
-        if password_interactive:
-            cmd = cmd + ' --password-interactive'
-        
-        return c.cmd(cmd, verbose=True)
+            key = c.get_key(f'vali_node.{chain}.{node}.{key_type}',crypto_type=schema)
+            base_path = cls.resolve_base_path(node)
+
+            cmd  = f'''
+            {cls.chain_release_path} key insert --base-path {base_path}\
+            --chain {chain} \
+            --scheme {schema} \
+            --suri "{key.mnemonic}" \
+            --key-type {key_type}
+            '''
+            
+        return c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
 
     

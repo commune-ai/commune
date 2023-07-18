@@ -1251,13 +1251,12 @@ class c:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
 
     @staticmethod
-    def kill_all_servers(bro, verbose: bool = True) -> {'bro': ['str','Text'], 'bro2': 'Text'}:
+    def kill_all_servers( *args, **kwargs):
         '''
         Kill all of the servers
         '''
-        for module in c.servers():
-            if verbose:
-                c.print(f'Killing {module}', color='red')
+        for module in c.servers(*args, **kwargs):
+            c.print(f'Killing {module}', color='red')
             c.kill_server(module)
             
     

@@ -1028,7 +1028,7 @@ class Keypair(c.Module):
         else:
             return f'<Keypair (public_key=0x{self.public_key.hex()})>'
     def __str__(self):
-        return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type})>'
+        return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_name})>'
 
         
         
