@@ -1,0 +1,11 @@
+
+model: stablellm7b
+device_map: auto
+trust_remote_code: true
+max_memory : null
+half: true
+shortcuts:
+
+use_safetensors: true
+use_triton: false
+  

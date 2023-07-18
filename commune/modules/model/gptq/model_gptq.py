@@ -3,7 +3,8 @@ import transformers
 import torch
 import commune as c
 
-class TransformerModel(c.Module):
+
+class GPTQ(c.Module):
     def __init__(self, config = None, **kwargs):
         self.set_config(config, kwargs=kwargs)
 
@@ -14,8 +15,11 @@ class TransformerModel(c.Module):
         self.model = AutoModelForCausalLM.from_pretrained(self.config.model, 
                                                         torch_dtype=torch.bfloat16, 
                                                         trust_remote_code=self.config.trust_remote_code,
+                                                        use_triton=self.config.use_triton,
+                                                        use_safetensors=self.config.use_safetensors,
                                                          device_map=self.config.device_map, 
                                                          max_memory = self.config.max_memory)
+
 
         if self.config.half:
             self.model = self.model.half()
@@ -129,5 +133,10 @@ class TransformerModel(c.Module):
         print('\n')
 
         # return output_text
+
+    @classmethod
+    def install_env(cls):
+        c.cmd('pip install auto-gptq')
+        c.cmd('pip install einops')
 
           
