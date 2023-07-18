@@ -14,3 +14,4 @@ shortcuts:
   hf: huggingface
   openai: model.openai
   s: subspace
+  textgen: text_generator
