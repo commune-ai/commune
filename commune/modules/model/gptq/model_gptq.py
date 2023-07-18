@@ -136,7 +136,7 @@ class GPTQ(c.Module):
 
     @classmethod
     def install_env(cls):
-        c.cmd('pip install auto-gptq')
-        c.cmd('pip install einops')
+        c.cmd('pip install auto-gptq', verbose=True)
+        c.cmd('pip install einops', verbose=True)
 
           

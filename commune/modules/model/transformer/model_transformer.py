@@ -70,7 +70,6 @@ class TransformerModel(c.Module):
         return output
 
 
-    talk = chat = forward = generate
 
 
     def test(self):

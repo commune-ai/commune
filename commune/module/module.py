@@ -1256,8 +1256,9 @@ class c:
         Kill all of the servers
         '''
         for module in c.servers(*args, **kwargs):
-            c.print(f'Killing {module}', color='red')
             c.kill_server(module)
+
+        c.update(network='local')
             
     
     @classmethod
@@ -1265,6 +1266,7 @@ class c:
         for module in c.servers():
             if search != None and search in module:
                 cls.kill(module)
+        
             
         
 
@@ -5293,8 +5295,8 @@ class c:
                module_tree: bool = True,
                ):
         
-        
-        c.namespace(network=network,verbose=verbose, update=True)
+        # update local namespace
+        c.namespace(network=network, update=True)
         
     
         

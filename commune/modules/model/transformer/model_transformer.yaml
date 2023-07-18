@@ -10,7 +10,7 @@ shortcuts:
 
   vicuna.33b : lmsys/vicuna-33b-v1.3
   vicuna.13b: lmsys/vicuna-13b-v1.3
-  vicuna.7b: lmsys/vicuna-7b-delta-v0
+  vicuna.7b: lmsys/vicuna-7b-v1.3
 
   llama: openlm-research/open_llama_7b
   llama13b: openlm-research/open_llama_13b
