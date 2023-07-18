@@ -80,8 +80,6 @@ class HFDataset(commune.Module):
         config.name = name if name != None else self.default_name()
         config.path = path if path != None else self.default_path
         
-        
-        
         for k,v in config.items():
             if k in ['path', 'name', 'split', 'streaming']:
                 kwargs[k] = config.get(k, None) 

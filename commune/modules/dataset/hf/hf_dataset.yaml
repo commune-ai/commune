@@ -4,11 +4,10 @@ streaming: False
 split: train
 
 categories: 
-  general:
-    - Hello-SimpleAI/HC3
-    - squad_v2
-    - squad
-    - glue
+  - Hello-SimpleAI/HC3 # human and chatbot responses to a question
+  - squad_v2
+  - squad
+  - glue
 
 datasets: 
 
