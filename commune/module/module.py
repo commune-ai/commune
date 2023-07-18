@@ -880,7 +880,7 @@ class c:
             
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
-                                    # stderr=subprocess.PIPE, 
+                                    stderr=subprocess.PIPE, 
                                     env={**os.environ, **env}, **kwargs)
 
             
@@ -891,20 +891,34 @@ class c:
         last_time_line_printed = time.time()
  
         try:
-            for ch in iter(lambda: process.stdout.read(1), b""):
-                
-
-                if  ch == b'\n':
-                    line_count_idx += 1
-                    stdout_text += (new_line+ch).decode()
-                    if verbose:
+            stdout_len = 0
             
+            for ch in iter(lambda: process.stdout.read(1), b""):
+                stdout_len += 1
+                
+                if  ch == b'\n':
+                    stdout_text += (new_line+ch).decode()
+                    line_count_idx += 1
+                    if verbose:
                         c.print(new_line.decode(), color=color)
                     new_line = b''
                     continue
-                
+
                 new_line += ch
-  
+
+            if len(stdout_text) == 0:
+                for ch in iter(lambda: process.stderr.read(1), b""):
+                    
+                    stdout_text += (new_line+ch).decode()
+                    if  ch == b'\n':
+                        line_count_idx += 1
+                        if verbose:
+                            c.print(new_line.decode(), color=color)
+                        new_line = b''
+                        continue
+
+                    new_line += ch
+
         except KeyboardInterrupt:
             kill_process(process)
         
@@ -4158,7 +4172,7 @@ class c:
     
     @classmethod
     def model_shortcuts(cls, **kwargs):
-        return  c.module('model.transformer').shortcuts
+        return  c.module('model.transformer').getc('shortcuts')
     
     
 
@@ -4174,7 +4188,7 @@ class c:
         from accelerate import init_empty_weights
         
         kwargs['trust_remote_code'] = trust_remote_code
-        model = c.module('model.transformer').shortcuts.get(model, model)
+        model = c.model_shortcuts().get(model, model)
 
         if isinstance(model, str):
             if verbose:
@@ -5562,6 +5576,11 @@ class c:
         c.update()
         
     make_dir= mkdir
+
+    def get_model_gpus(self, model):
+        model = c.namespace
+        return model.gpus
+
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
                        mode:str = 'most_free', 
@@ -6879,7 +6898,8 @@ class c:
 
     @classmethod
     def talk(cls, *args, **kwargs):
-        return c.module('model.transformer').talk(*args, **kwargs)
+        c.module('text_generator').talk(*args, **kwargs)
+        c.print('\n')
     chat = talk
 
     @classmethod
