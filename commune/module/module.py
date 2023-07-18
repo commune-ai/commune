@@ -2089,8 +2089,9 @@ class c:
         return c.gather(cls.async_check_connection(*args, **kwargs))
 
     @classmethod
-    def module2connection(cls, network=None):
-        modules = c.servers(network=network)
+    def module2connection(cls,modules = None, network=None):
+        if modules == None:
+            modules = c.servers(network=network)
         connections = c.gather([ c.async_check_connection(m) for m in modules])
 
         module2connection = dict(zip(modules, connections))
@@ -2138,28 +2139,26 @@ class c:
         When a module is served "module.serve())"
         it will register itself with the local_namespace dictionary.
         '''
-        # from copy import deepcopy
-        # update = False
-        address2module = {}
-        local_namespace = c.get('local_namespace', {})
-        external_ip = cls.external_ip()
-        # for k,v in local_namespace.items(): 
 
-        if update :
+        local_namespace = c.get('local_namespace', {}) # get local namespace from redis
+        modules = list(local_namespace.keys()) # list of modules in local namespace
+
+        if update : 
+        
+           # if update is true, check if modules are still running
             updated_dict = False
-            module2connection = cls.module2connection(network='local')
+            module2connection = cls.module2connection(modules=modules,network='local')
             for module, connection in module2connection.items():
                 if connection == False:
+                    # if modules are not running, remove them from local namespace
                     del local_namespace[module]
-                    updated_dict = True
+            updated_dict = True
             
             if updated_dict:
+                # if modules are not running, update local namespace
                 c.put('local_namespace', local_namespace)
             
-
-
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
-
 
         return local_namespace
     
@@ -4689,6 +4688,7 @@ class c:
                          key : str = None,
                          timeout : int = 4,
                          **kwargs) -> None:
+                         
         network = c.resolve_network(network)
         
         if isinstance(module, str) and fn == None:
@@ -6880,6 +6880,10 @@ class c:
     def talk(cls, *args, **kwargs):
         return c.module('model.transformer').talk(*args, **kwargs)
     chat = talk
+
+    @classmethod
+    def ask(cls, *args, **kwargs):
+        return c.module('model.transformer').talk(*args, **kwargs)
 
 
 
