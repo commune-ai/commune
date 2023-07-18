@@ -1,2 +1,14 @@
-path: squad_v2
+path: super_glue
+name: null
+streaming: False
 split: train
+
+categories: 
+  - Hello-SimpleAI/HC3 # human and chatbot responses to a question
+  - squad_v2
+  - squad
+  - glue
+
+datasets: 
+
+  - super_glue

@@ -332,6 +332,7 @@ class Server(ServerServicer, Serializer, c.Module):
         if hasattr(self, 'server'):
             self.stop()
 
+
     
     @property
     def id(self) -> str:
@@ -434,11 +435,13 @@ class Server(ServerServicer, Serializer, c.Module):
     def stop(self) -> 'Server':
         r""" Stop the axon grpc server.
         """
+        c.deregister_server(name=self.name)
         if self.server != None:
             print('stopping server', self.server.__dict__)
             self.server.stop( grace = 1 )
             logger.success("Server Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
         self.started = False
+
 
         return self
 
