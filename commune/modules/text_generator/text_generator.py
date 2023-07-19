@@ -1,5 +1,4 @@
 import commune as c
-from text_generation import Client
 class TextGenerator(c.Module):
     image = 'text_generator'
     
@@ -103,6 +102,8 @@ class TextGenerator(c.Module):
 
         if not address.startswith('http://'):
             address = 'http://'+address
+            
+        from text_generation import Client
         client = Client(address)
         generated_text = client.generate_stream(prompt, max_new_tokens=max_new_tokens, **kwargs)
         output_text = ''
