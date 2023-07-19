@@ -8,22 +8,17 @@ class GPTQ(c.Module):
     def __init__(self, config = None, **kwargs):
         self.set_config(config, kwargs=kwargs)
 
-        self.config.model = self.config.shortcuts.get(self.config.model, self.config.model)
+        from transformers import AutoTokenizer, pipeline, logging
+        from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model)
-        self.eos_token = self.tokenizer.eos_token
-        self.model = AutoModelForCausalLM.from_pretrained(self.config.model, 
-                                                        torch_dtype=torch.bfloat16, 
-                                                        trust_remote_code=self.config.trust_remote_code,
-                                                        use_triton=self.config.use_triton,
-                                                        use_safetensors=self.config.use_safetensors,
-                                                         device_map=self.config.device_map, 
-                                                         max_memory = self.config.max_memory)
 
-
-        if self.config.half:
-            self.model = self.model.half()
-
+        self.model = AutoGPTQForCausalLM.from_quantized(self.config.name,
+                model_basename=self.config.basename,
+                use_safetensors=True,
+                trust_remote_code=True,
+                use_triton=self.config.use_triton,
+                quantize_config=None)
 
 
 
@@ -58,20 +53,7 @@ class GPTQ(c.Module):
 
         sequences = self.tokenizer.batch_decode(outputs, skip_special_tokens=False)
 
-
-        c.print(sequences)
-        if len(sequences) == 1:
-            output = {'input': prompt,
-                    'output': sequences[0]}
-        else:
-        
-            output =  {'input': prompt,
-                    'output': sequences}
-
-        output['eos'] = self.eos_token in output['output']
-        if output['eos']:
-            output['output'] = output['output'].split(self.eos_token)[0]
-        return output
+        return sequences
 
 
     talk = chat = forward = generate
@@ -135,8 +117,8 @@ class GPTQ(c.Module):
         # return output_text
 
     @classmethod
-    def install_env(cls):
+    def install(cls):
         c.cmd('pip install auto-gptq', verbose=True)
-        c.cmd('pip install einops', verbose=True)
+        c.cmd('pip install auto-gptq', verbose=True)
 
           
