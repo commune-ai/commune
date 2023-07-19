@@ -46,6 +46,7 @@ class TextGenerator(c.Module):
         c.print(cmd)
 
 
+
         if 'Conflict. The container name' in output_text:
             c.print(f'container {name} already exists, restarting...')
             contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()

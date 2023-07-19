@@ -689,6 +689,8 @@ class c:
         '''
         Set the config as well as its local params
         '''
+        if not cls.has_config():
+            return {}
         kwargs = kwargs if kwargs != None else {}
         kwargs.pop('kwargs', None)
         if isinstance(config, str):
@@ -844,9 +846,9 @@ class c:
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
-                    verbose:bool = False, 
+                    verbose:bool = True, 
                     env:Dict[str, str] = {}, 
-                    output_text:bool = True,
+                    output_text:bool = False,
                     sudo:bool = False,
                     password: bool = None,
                     color: str = 'white',
@@ -1328,33 +1330,32 @@ class c:
         
         
         simple_path = simple_path.replace('/', '.')[1:]
-        if compress:
-            simple_path = cls.compress_name(simple_path, seperator='.')
-        
-        if simple_path.startswith('modules.'):
-            simple_path = simple_path.replace('modules.', '')
-        return simple_path
-    
 
-            
-    @staticmethod
-    def compress_name( name, seperator='.', suffixes = ['_module', 'module']):
-        '''
-        
-        '''
-        chunks = name.split(seperator)
+        # compress nae
+        chunks = simple_path.split('.')
         new_chunks = []
         for i, chunk in enumerate(chunks):
             if len(new_chunks)>0:
                 if new_chunks[-1] == chunks[i]:
                     continue
-                elif any([chunks[i].endswith(s) for s in suffixes]):
+                elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
                     continue
             new_chunks.append(chunk)
+        simple_path = '.'.join(new_chunks)
+        
+        # remove the modules prefix
+        if simple_path.startswith('modules.'):
+            simple_path = simple_path.replace('modules.', '')
+
+        # remove any files to compress the name even further for
+        if len(simple_path.split('.')) > 2:
             
-        return seperator.join(new_chunks)
+            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
+                simple_path = '.'.join(simple_path.split('.')[:-1])
+        return simple_path
     
-    
+
+
     @classmethod
     def path2localpath(cls, path:str) -> str:
         local_path = path.replace(cls.repo_path, cls.root_dir)
@@ -1573,10 +1574,10 @@ class c:
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                # elif file_name.lower().endswith(dir_name.lower()):
-                #     # if the dirname is equal to the filename then it is a module
-                #     modules.append(f)
-                elif file_name.lower().endswith('module'):
+                if file_name.lower().endswith(dir_name.lower()):
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                if file_name.lower().endswith('module'):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
                     
@@ -2182,7 +2183,7 @@ class c:
                 if connection == False:
                     # if modules are not running, remove them from local namespace
                     del local_namespace[module]
-            updated_dict = True
+                    updated_dict = True
             
             if updated_dict:
                 # if modules are not running, update local namespace
@@ -2503,8 +2504,10 @@ class c:
               
               ):
         '''
+        
         Servers the module on a specified port
         '''
+        cls.update()
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
@@ -3898,7 +3901,7 @@ class c:
     @classmethod
     def get_external_ip(cls, *args, max_trials=4, **kwargs) ->str:
         if max_trials == 0:
-            return None
+            return c.default_ip
         try:
             return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
         except Exception as e:
@@ -5478,7 +5481,6 @@ class c:
             chunk_size = end_byte - start_byte + 1
             file.seek(start_byte)
             content = file.read(chunk_size).decode()
-            c.print(path)
             if start_line != None or end_line != None:
                 if end_line == None:
                     end_line = len(content) 
@@ -5577,9 +5579,9 @@ class c:
         
         if repo != None:
             # Clone the repository
-            c.cmd(f'git clone {repo} {module_path}', verbose=True)
+            c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
-            c.cmd(f'rm -rf {module_path}/.git', verbose=True)
+            c.cmd(f'rm -rf {module_path}/.git')
         if module == None:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
