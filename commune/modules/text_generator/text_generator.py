@@ -57,11 +57,13 @@ class TextGenerator(c.Module):
         return c.cmd(f'sudo docker logs {name}', cwd=self.dirpath())
 
 
-    def namespace(self):
+    def namespace(self, external_ip = False):
         output_text = c.cmd('sudo docker ps')
         names = [l.split('  ')[-1].strip() for l in output_text.split('\n')[1:-1]]
         addresses = [l.split('  ')[-2].split('->')[0].strip() for l in output_text.split('\n')[1:-1]]
         namespace = {k:v for k,v in  dict(zip(names, addresses)).items() if k.startswith(self.image)}
+        if external_ip:
+            namespace = {k:v.replace(c.default_ip, c.external_ip()) for k,v in namespace.items()}
         return namespace
 
     
