@@ -1061,7 +1061,14 @@ class Keypair(c.Module):
     @classmethod
     def key2type(cls):
         keys = cls.keys(object=True)
-        return [k.path: v.crypto_type_name for k in keys]
+        return {k.path: k.crypto_type_name for k in keys}
+    @classmethod
+    def type2keys(cls):
+        type2keys = {}
+        key2type = cls.key2type()
+        for k,t in key2type.items():
+            type2keys[t] = type2keys.get(t, []) + [k]
+        return type2keys
         
 
         
