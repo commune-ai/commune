@@ -1,4 +1,6 @@
 
+import warnings
+warnings.filterwarnings("ignore")
 import commune as c
 
 class CLI(c.Module):

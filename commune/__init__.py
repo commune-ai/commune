@@ -7,6 +7,8 @@ from .module.config import Config
 from .modules.cli import cli
 # from .model import Model
 config = Config
+import warnings
+warnings.filterwarnings("ignore")
 
 # Substrate ss58_format
 __ss58_format__ = 42

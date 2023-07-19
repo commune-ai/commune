@@ -1,5 +1,5 @@
 
-model: falcon_uncensored
+model: llama2
 device_map: auto
 trust_remote_code: true
 max_memory : null
@@ -7,7 +7,7 @@ half: true
 shortcuts:
 
   oa.pythia.12b: OpenAssistant/oasst-sft-1-pythia-12b
-
+  llama2: meta-llama/Llama-2-70b-chat-hf num_shard=3
   vicuna.33b : lmsys/vicuna-33b-v1.3
   vicuna.13b: lmsys/vicuna-13b-v1.3
   vicuna.7b: lmsys/vicuna-7b-v1.3

@@ -306,16 +306,21 @@ class Keypair(c.Module):
         return key2path
 
     @classmethod
-    def keys(cls, search = None, detail=False):
+    def keys(cls, search : str = None, 
+             detail:bool=False, 
+             object:bool=False):
         keys = list(cls.key2path().keys())
         if search != None:
             keys = [key for key in keys if search in key]
             
         # sort keys
         keys = sorted(keys)
-        
+
+        assert not (detail and object) , 'detail and object cannot both be true'
         if detail:
             keys = {key: cls.get_key(key).to_dict()  for key in keys}
+        if object:
+            keys = [cls.get_key(key)  for key in keys]
             
         return keys
     
@@ -336,7 +341,7 @@ class Keypair(c.Module):
         
         return {'deleted':[key]}
     @property
-    def crypto_name(self):
+    def crypto_type_name(self):
         return self.crypto_type2name(self.crypto_type)
         
         
@@ -1023,7 +1028,7 @@ class Keypair(c.Module):
 
         
     def __str__(self):
-        return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_name})>'
+        return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
     def __repr__(self):
         return self.__str__()
@@ -1052,6 +1057,13 @@ class Keypair(c.Module):
             buttons[key_name]['sign'] = st.button('Sign', key_name)
                 
         st.write(self.keys())
+
+    @classmethod
+    def key2type(cls):
+        keys = cls.keys(object=True)
+        return [k.path: v.crypto_type_name for k in keys]
+        
+
         
 Keypair.run(__name__)
         

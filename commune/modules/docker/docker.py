@@ -5,12 +5,8 @@ import json
 
 class Docker(c.Module): 
 
-    def ps(sudo=False):
+    def ps(self, sudo=False):
         return c.cmd('docker ps -a', sudo=sudo)
-
-    def ps():
-        return c.cmd('sudo docker ps -a')
-    
     @classmethod
     def dockerfile(cls, path = c.repo_path): 
         path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
@@ -36,10 +32,28 @@ class Docker(c.Module):
         return c.load_yanl(docker_compose_path)
     
     @classmethod
-    def build(cls, path = None, tag = None, sudo=True):
+    def build(cls, path = None, tag = None, sudo=False):
         path = cls.resolve_repo_path(path)
         return c.cmd(f'docker-compose build', sudo=sudo, cwd=path)
     
+
+    @classmethod
+    def rm_sudo(cls, sudo:bool=True, verbose:bool=True):
+        '''
+        To remove the requirement for sudo when using Docker, you can configure Docker to run without superuser privileges. Here's how you can do it:
+        Create a Docker group (if it doesn't exist) and add your user to that group:
+        bash
+        Copy code
+        sudo groupadd docker
+        sudo usermod -aG docker $USER
+        return c.cmd(f'docker rm -f {name}', sudo=True)
+        '''
+        c.cmd(f'groupadd docker', sudo=sudo, verbose=verbose)
+        c.cmd(f'usermod -aG docker $USER', sudo=sudo, verbose=verbose)
+        c.cmd(f'chmod 666 /var/run/docker.sock', sudo=sudo, verbose=verbose)
+
+
+
     
     @classmethod
     def containers(cls,  sudo:bool = True):
@@ -61,3 +75,7 @@ class Docker(c.Module):
 
         
         return [parse_container_info(container_str) for container_str in data if container_str]
+
+
+
+    
