@@ -85,20 +85,23 @@ class TextGenerator(c.Module):
     @classmethod
     def generate(cls, 
                 prompt = 'what is up, how is it going bro what are you saying?', 
-                model:str = None, 
+                model:str = None,
                 max_new_tokens:int=100, 
                 timeout = 6,
                 **kwargs):
 
         self = cls()
-                
-        if model != None:
-            address = self.namespace()[model]
+        namespace = self.namespace()
+        if model in namespace:
+            address = namespace[model]
+        elif model in list(namespace.values()):
+            address = model
         else:
             address = self.random_address()
-        c.print(f'generating from {address}')
 
-        client = Client('http://'+address)
+        if not address.startswith('http://'):
+            address = 'http://'+address
+        client = Client(address)
         generated_text = client.generate_stream(prompt, max_new_tokens=max_new_tokens, **kwargs)
         output_text = ''
 
