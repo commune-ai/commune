@@ -91,7 +91,6 @@ class TransformerModel(c.Module):
         config = cls.get_config(kwargs=kwargs)
         config.tag = tag
         config.model = model
-        c.print(config)
         c.serve(module=cls.module_path(),
                 name= f'model.{model}',
                 tag = tag,

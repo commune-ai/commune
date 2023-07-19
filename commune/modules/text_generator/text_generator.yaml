@@ -7,7 +7,8 @@ half: true
 shortcuts:
 
   oa.pythia.12b: OpenAssistant/oasst-sft-1-pythia-12b
-  llama2: meta-llama/Llama-2-70b-chat-hf num_shard=3
+  llama2.70b: meta-llama/Llama-2-70b-chat-hf
+  llama2.7b: meta-llama/Llama-2-7b
   vicuna.33b : lmsys/vicuna-33b-v1.3
   vicuna.13b: lmsys/vicuna-13b-v1.3
   vicuna.7b: lmsys/vicuna-7b-v1.3

@@ -2,17 +2,26 @@ import commune as c
 class TextGenerator(c.Module):
     image = 'text_generator'
     
-    def serve(self,tag = None,
-                    num_shard=2, 
-                    gpus='all',
+    def serve(self, model = None,
+                    tag = None,
+                    num_shard=1, 
+                    gpus=None,
                     shm_size='100g',
                     volume=None, 
                     build:bool = True,
-                    model = None,
                     sudo = True,
                     port=None):
+
+        
         if model == None:
             model = self.config.model
+
+        if gpus == None:
+            gpus = c.model_gpus(model=model, num_shard=num_shard)
+        
+        if isinstance(gpus, list):
+            gpus = ','.join(map(str, gpus))
+        
         name =  self.image +"_"+ model
 
         if tag != None:
@@ -33,7 +42,8 @@ class TextGenerator(c.Module):
         cmd = f'docker run -d --gpus \'"device={gpus}"\' --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
 
         
-        output_text = c.cmd(cmd, sudo=sudo, output_text=True)
+        output_text = c.cmd(cmd, sudo=sudo,verbose=True)
+        c.print(cmd)
 
 
         if 'Conflict. The container name' in output_text:
@@ -41,6 +51,7 @@ class TextGenerator(c.Module):
             contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
             c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
             c.cmd(cmd, sudo=sudo, verbose=True)
+
     # def fleet(self, num_shards = 2, buffer=5_000_000_000, **kwargs):
     #     model_size = c.get_model_size(self.config.model)
     #     model_shard_size = (model_size // num_shards ) + buffer
@@ -68,13 +79,26 @@ class TextGenerator(c.Module):
         addresses = [l.split('  ')[-2].split('->')[0].strip() for l in output_text.split('\n')[1:-1]]
         namespace = {k:v for k,v in  dict(zip(names, addresses)).items() if k.startswith(self.image)}
         if external_ip:
-            namespace = {k:v.replace(c.default_ip, c.external_ip()) for k,v in namespace.items()}
+            namespace = {k.replace(self.image+'_', ''):v.replace(c.default_ip, c.external_ip()) for k,v in namespace.items()}
         return namespace
 
     
     def servers(self):
         return list(self.namespace().keys())
+    models = servers
     
+    def server_exists(self, model):
+        servers = self.servers()
+        return model in servers
+
+    model_exists = server_exists
+
+
+    def kill(self, model):
+        c.cmd(f'docker rm -f {self.image}_{model}', verbose=True)
+        assert not self.server_exists(model), f'failed to kill {model}'
+        return {'status':'killed', 'model':model}
+
     def addresses(self):
         return list(self.namespace().values())
     
@@ -100,9 +124,9 @@ class TextGenerator(c.Module):
         self = cls()
         namespace = self.namespace()
 
-        if model == None and address==None:
+        if model == None:
             assert len(namespace) > 0, f'No models found, please run {self.image}.serve() to start a model server'
-            address = self.random_address()
+            model = self.random_server()
             
         address = namespace.get(model, model)
 

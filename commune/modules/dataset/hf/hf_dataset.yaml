@@ -9,6 +9,8 @@ categories:
   - squad
   - glue
 
+shortcuts: {}
+
 datasets: 
 
   - super_glue
