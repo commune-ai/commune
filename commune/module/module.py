@@ -13,7 +13,8 @@ import sys
 import argparse
 import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
-
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 @classmethod
 def cache_result(cls, func):
@@ -148,13 +149,15 @@ class c:
         '''
         return cls.get_module_path(simple=False)
     pythonpath = pypath =  filepath
+
     @classmethod
     def configpath(cls) -> str:
         '''
         removes the PWD with respect to where module.py is located
         '''
         return cls.get_module_config_path()
-    cfgpath = configpath
+    cfgpath = config_path = configpath
+
     
     @classmethod
     def dirpath(cls) -> str:
@@ -852,6 +855,8 @@ class c:
         Runs  a command in the shell.
         
         '''
+        if output_text : 
+            verbose = False
         if isinstance(command, list):
             kwargs = c.locals2kwargs(locals())
             for idx,cmd in enumerate(command):
@@ -900,7 +905,7 @@ class c:
                     stdout_text += (new_line+ch).decode()
                     line_count_idx += 1
                     if verbose:
-                        c.print(new_line.decode(), color=color)
+                        c.print(new_line.decode(), color='cyan')
                     new_line = b''
                     continue
 
@@ -913,7 +918,7 @@ class c:
                     if  ch == b'\n':
                         line_count_idx += 1
                         if verbose:
-                            c.print(new_line.decode(), color=color)
+                            c.print(new_line.decode(), color='red')
                         new_line = b''
                         continue
 
@@ -1485,8 +1490,16 @@ class c:
         return modules
     
     @classmethod
-    def has_servera(cls, *args, **kwargs):
+    def has_server(cls, *args, **kwargs):
         return bool(len(c.servers(*args, **kwargs)) > 0)
+
+    @classmethod
+    def has_config(cls) -> bool:
+        config_path = cls.configpath()
+        return c.exists(config_path)
+
+        
+        
         
     @classmethod
     def has_module(cls, module):
@@ -6907,6 +6920,7 @@ class c:
         return c.module('model.transformer').talk(*args, **kwargs)
 
 
+    
 
 
         

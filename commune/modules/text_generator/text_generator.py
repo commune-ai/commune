@@ -9,8 +9,11 @@ class TextGenerator(c.Module):
                     shm_size='100g',
                     volume=None, 
                     build:bool = True,
+                    model = None,
+                    sudo = True,
                     port=None):
-        model = self.config.model
+        if model == None:
+            model = self.config.model
         name =  self.image +"_"+ model
 
         if tag != None:
@@ -30,12 +33,15 @@ class TextGenerator(c.Module):
         cmd_args = f'--num-shard {num_shard} --model-id {model_id}'
         cmd = f'docker run -d --gpus \'"device={gpus}"\' --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
 
-        output_text = c.cmd(cmd, sudo=True, output_text=True)
+        
+        output_text = c.cmd(cmd, sudo=sudo, output_text=True)
+
+
         if 'Conflict. The container name' in output_text:
             c.print(f'container {name} already exists, restarting...')
             contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
-            c.cmd(f'docker rm -f {contianer_id}', sudo=True, verbose=True)
-            c.cmd(cmd, sudo=True, verbose=True)
+            c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
+            c.cmd(cmd, sudo=sudo, verbose=True)
     # def fleet(self, num_shards = 2, buffer=5_000_000_000, **kwargs):
     #     model_size = c.get_model_size(self.config.model)
     #     model_shard_size = (model_size // num_shards ) + buffer
@@ -49,16 +55,16 @@ class TextGenerator(c.Module):
         
         
 
-    def build(self):
-        cmd = f'sudo docker build -t {self.image} .'
+    def build(self, ):
+        cmd = f'docker build -t {self.image} .'
         c.cmd(cmd, cwd=self.dirpath(), verbose=True)
 
-    def logs(self, name):
-        return c.cmd(f'sudo docker logs {name}', cwd=self.dirpath())
+    def logs(self, name, sudo=False):
+        return c.cmd(f'docker logs {name}', cwd=self.dirpath())
 
 
     def namespace(self, external_ip = True ):
-        output_text = c.cmd('sudo docker ps')
+        output_text = c.cmd('docker ps', )
         names = [l.split('  ')[-1].strip() for l in output_text.split('\n')[1:-1]]
         addresses = [l.split('  ')[-2].split('->')[0].strip() for l in output_text.split('\n')[1:-1]]
         namespace = {k:v for k,v in  dict(zip(names, addresses)).items() if k.startswith(self.image)}
