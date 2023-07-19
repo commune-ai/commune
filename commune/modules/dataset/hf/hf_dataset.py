@@ -4,6 +4,7 @@ from datasets import load_dataset
 from typing import Dict, List
 
 class HFDataset(c.Module):
+    
     def __init__(self, config = None, **kwargs):
         self.set_config(config, kwargs=kwargs)
         self.set_dataset(self.config)
@@ -81,7 +82,7 @@ class HFDataset(c.Module):
             
     @classmethod
     def get_dataset_builder( cls, path:str=None, factory_module_path:str=None):
-        path = cls.shortcuts.get(path, path)
+        path = cls.getc('shortcuts').get(path, path)
         if path == None:
             path = cls.getc('path')
         if factory_module_path == None:

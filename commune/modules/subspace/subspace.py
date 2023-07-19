@@ -1814,9 +1814,7 @@ class Subspace(c.Module):
 
     @classmethod
     def chain_specs(cls):
-        specs = c.ls(f'{cls.spec_path}/')
-        
-        return [spec for spec in specs if '_raw' not in spec]
+        return c.ls(f'{cls.spec_path}/')
     
     @classmethod
     def chains(cls)-> str:

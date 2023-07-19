@@ -899,9 +899,8 @@ class c:
             stdout_len = 0
             
             for ch in iter(lambda: process.stdout.read(1), b""):
-                stdout_len += 1
-                
                 if  ch == b'\n':
+                    
                     stdout_text += (new_line+ch).decode()
                     line_count_idx += 1
                     if verbose:
@@ -912,9 +911,10 @@ class c:
                 new_line += ch
 
             if len(stdout_text) == 0:
+                stderror_text = ''
                 for ch in iter(lambda: process.stderr.read(1), b""):
                     
-                    stdout_text += (new_line+ch).decode()
+                    stderror_text += (new_line+ch).decode()
                     if  ch == b'\n':
                         line_count_idx += 1
                         if verbose:
@@ -923,6 +923,8 @@ class c:
                         continue
 
                     new_line += ch
+
+                stdout_text = stderror_text
 
         except KeyboardInterrupt:
             kill_process(process)
@@ -4189,6 +4191,32 @@ class c:
     
     
 
+    @classmethod
+    def model_gpu_memory(cls, model:str, num_shard = 2):
+        model_size = cls.get_model_size(model)
+        size_per_shard = model_size/num_shard
+        free_gpu_memory = cls.free_gpu_memory()
+        model_gpu_memory = {}
+        for i in range(num_shard):
+            for gpu_id in c.copy(list(free_gpu_memory.keys())):
+                gpu_memory  = free_gpu_memory[gpu_id]
+                if gpu_memory > size_per_shard:
+                    model_gpu_memory[gpu_id] = size_per_shard 
+                    free_gpu_memory.pop(gpu_id)
+                    break
+            # assert i in model_gpu_memory, f'Not enough memory to allocate model shard {i}'
+        
+        return model_gpu_memory
+
+
+    @classmethod
+    def model_gpus(cls, model, num_shard=2):
+        return list(cls.model_gpu_memory(model,num_shard).keys())
+        
+
+
+            
+
     
     @classmethod
     def get_empty_model(cls, model,
@@ -4321,11 +4349,7 @@ class c:
         console = cls.resolve_console()
         return console.critical(*args, **kwargs)
     
-    @classmethod
-    def log(cls, *args, **kwargs):
-        console = cls.resolve_console()
-        return console.log(*args, **kwargs)
-    
+
     @classmethod
     def logs(cls, *args, **kwargs):
         return cls.pm2_logs(*args, **kwargs)
@@ -5590,9 +5614,6 @@ class c:
         
     make_dir= mkdir
 
-    def get_model_gpus(self, model):
-        model = c.namespace
-        return model.gpus
 
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
@@ -6900,9 +6921,12 @@ class c:
     @classmethod
     def add_shortcut(cls, shortcut, name) -> Dict[str, str]:
         shortcuts =  c.getc('shortcuts')
+        name2shortcut = c.reverse_map(shortcuts)
+        if name in name2shortcut:
+            del shortcuts[name2shortcut[name]]
         shortcuts[shortcut] = name
         c.putc('shortcuts', shortcuts)
-        return {'success': True, 'msg': f'added shortcut {shortcut} -> {name}'}
+        return {'success': True, 'msg': f'added shortcut ({shortcut} -> {name})'}
 
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
