@@ -84,9 +84,9 @@ class TextGenerator(c.Module):
 
     @classmethod
     def generate(cls, 
-                prompt = 'what is up', 
-                max_new_tokens:int=100, 
+                prompt = 'what is up, how is it going bro what are you saying?', 
                 model:str = None, 
+                max_new_tokens:int=100, 
                 timeout = 6,
                 **kwargs):
 
