@@ -57,7 +57,7 @@ class TextGenerator(c.Module):
         return c.cmd(f'sudo docker logs {name}', cwd=self.dirpath())
 
 
-    def namespace(self, external_ip = False):
+    def namespace(self, external_ip = True ):
         output_text = c.cmd('sudo docker ps')
         names = [l.split('  ')[-1].strip() for l in output_text.split('\n')[1:-1]]
         addresses = [l.split('  ')[-2].split('->')[0].strip() for l in output_text.split('\n')[1:-1]]
@@ -94,12 +94,12 @@ class TextGenerator(c.Module):
 
         self = cls()
         namespace = self.namespace()
-        if model in namespace:
-            address = namespace[model]
-        elif model in list(namespace.values()):
-            address = model
-        else:
+
+        if model == None and address==None:
+            assert len(namespace) > 0, f'No models found, please run {self.image}.serve() to start a model server'
             address = self.random_address()
+            
+        address = namespace.get(model, model)
 
         if not address.startswith('http://'):
             address = 'http://'+address
