@@ -1459,9 +1459,12 @@ class BittensorModule(c.Module):
         return cls.server_class(*args, **kwargs)
     
     @classmethod
-    def neuron_class(cls, netuid=default_netuid):
+    def neuron_class(cls, netuid=default_netuid, model='openai'):
         if netuid in [1, 11]:
-            neuron_class = c.import_object('commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
+            if model == 'openai':
+                neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
+            if model == 'textgen':
+                neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.textgen.neuron.TextGenMiner')
         elif netuid == 3:
             neuron_class = cls.module('bittensor.miner.server')
         return neuron_class
@@ -1573,6 +1576,7 @@ class BittensorModule(c.Module):
                wallet='alice.1',
                network =default_network,
                netuid=default_netuid,
+               model = 'openai',
                port = None,
                prometheus_port:int = None,
                device:int = None,
@@ -1604,7 +1608,7 @@ class BittensorModule(c.Module):
             return cls.remote_fn(fn='mine',name=miner_name,  kwargs=kwargs, refresh=refresh)
 
             
-        neuron_class = cls.neuron_class(netuid=netuid)
+        neuron_class = cls.neuron_class(netuid=netuid, model=model)
         config = neuron_class.config()
         config.merge(bittensor.BaseMinerNeuron.config())
         config.neuron.blacklist.vpermit_required = vpermit_required
@@ -2118,13 +2122,12 @@ class BittensorModule(c.Module):
                                  wait_for_finalization=wait_for_finalization, 
                                  prompt=prompt )
         
-        
-
-
     @classmethod
-    def sandbox(cls):
-        self = cls(network='local')
-        cls.pritn(self.reged(subtensor='local'))
+    def sand(cls):
+        reged = cls.reged()
+        reged = reged[:len(reged)//2]
+        for wallet in reged:
+            cls.mine(wallet)
         
     @classmethod
     def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
@@ -2244,13 +2247,6 @@ class BittensorModule(c.Module):
         return cls.get_json(path)
 
     
-    @classmethod
-    def sandbox(cls):
-        for wallet in cls.wallets(default_coldkey):
-            if '.Hot' not in wallet:
-                ck, hk = wallet.split('.')
-                cls.rename_wallet(wallet, f'{ck}.Hot{hk}')
-                
                 
     @classmethod
     def get_top_uids(cls, k:int=100, 
