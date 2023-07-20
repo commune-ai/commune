@@ -8,3 +8,7 @@ network2endpoint:
   local: ws://0.0.0.0:9944
   test: wss://test.finney.opentensor.ai:443
 pool_address: null
+neurons:
+  openai: commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner
+  openai.free: commune.modules.bittensor.neurons.text.prompting.miners.openai_freew.neuron.OpenAIFreeMiner
+  commune: commune.modules.bittensor.neurons.text.prompting.miners.commune.neuron.MaoMiner

@@ -2151,17 +2151,44 @@ class c:
             return True
         else:
             return False
+
+    @classmethod
+    def get_peer_name(cls, *args,**kwargs):
+        return c.gather(c.async_get_peer_name(*args,**kwargs))
         
     @staticmethod
-    async def async_get_peer_name(peer_address):
-        peer = await c.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
-        if peer == None: 
-            return peer
-        module_name =  await peer(fn='module_name',  return_future=True)
-        if c.check_response(module_name):
-            return module_name
-        else:
-            return None
+    async def async_get_peer_name(peer_address, connect_timeout=1, **kwargs):
+
+        try:
+            peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
+            if peer == None: 
+                return peer
+            module_name =  await peer(fn='module_name',  return_future=True)
+            if c.check_response(module_name):
+                return module_name
+            else:
+                return None
+        except Exception as e:
+            return {'error':str(e)}
+
+    @classmethod
+    def build_local_namespace(cls):
+        jobs = []
+        addresses = []
+        names = []
+        for p in cls.get_used_ports():
+            c.print(f'Checking port {p}')
+            addresses.append(f'{cls.default_ip}:{p}')
+            name = c.gather(cls.async_get_peer_name(addresses[-1]))
+            if isinstance(name, dict) and 'error' in name:
+                name.append(name)
+            names.append(name)
+        c.print(names[-1000:])
+
+        local_namespace = dict(zip(names, addresses))
+
+        return local_namespace
+            
                 
     @classmethod
     def local_namespace(cls, verbose:bool = False, update=True, **kwargs)-> dict:
@@ -2176,18 +2203,8 @@ class c:
 
         if update : 
         
-           # if update is true, check if modules are still running
-            updated_dict = False
-            module2connection = cls.module2connection(modules=modules,network='local')
-            for module, connection in module2connection.items():
-                if connection == False:
-                    # if modules are not running, remove them from local namespace
-                    del local_namespace[module]
-                    updated_dict = True
-            
-            if updated_dict:
-                # if modules are not running, update local namespace
-                c.put('local_namespace', local_namespace)
+            local_namespace = c.build_local_namespace()
+            c.put('local_namespace', local_namespace)
             
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
 
@@ -3140,7 +3157,7 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str, start_line=0, end_line=-1, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
         if mode == 'local':
             path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
             return c.get_text(path, start_line=start_line, end_line=end_line)
@@ -5897,7 +5914,11 @@ class c:
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
+        
+        
         import random
+        if type(x) in [float, int]:
+            x = list(range(int(x)))
         assert len(x)>0
         if ratio == 1:
             return x
@@ -6323,9 +6344,9 @@ class c:
         return code_dict
     
     @classmethod
-    def pool(cls , n=5):
+    def pool(cls , n=5, **kwargs):
         for i in range(n):
-            cls.deploy(tag=str(i))
+            cls.serve(tag=str(i), **kwargs)
         
 
     @classmethod
@@ -6966,10 +6987,15 @@ class c:
 
 
     @classmethod
-    def talk(cls, *args, **kwargs):
-        c.module('text_generator').talk(*args, **kwargs)
-        c.print('\n')
+    def talk(cls,prompt, module= 'model.bt', *args, **kwargs):
+        model = c.connect('model')
+        c.print('Selecting: ', model)
+        return model.talk(prompt, *args, **kwargs)
     chat = talk
+
+
+    def x(self, y=1):
+        c.print('fam', y)
 
     @classmethod
     def ask(cls, *args, **kwargs):

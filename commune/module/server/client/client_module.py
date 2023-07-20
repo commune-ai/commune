@@ -41,6 +41,7 @@ class VirtualModule:
             self.success = self.module_client.success
         else:
             self.module_client = module
+        self.module_client.name = self.module_name()
       
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
         if return_future:
@@ -48,7 +49,11 @@ class VirtualModule:
         else:
             return self.module_client(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
             
-            
+    def __str__(self):
+        return f'<VirtualClient(name={self.module_client.name}, address={self.module_client.address})>'
+
+    def __repr__(self):
+        return self.__str__()
 
 
     protected_attributes = [ 'module_client', 'remote_call']
