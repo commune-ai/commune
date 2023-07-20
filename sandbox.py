@@ -1,2 +1,3 @@
 import commune as c
-c.module('model.openai.free')()
+model = c.connect('model.openai.free')
+c.print(model.talk('hello'))

@@ -56,6 +56,8 @@ class TransformerModel(c.Module):
 
         return output
 
+    text = generate
+
 
 
 
@@ -102,17 +104,5 @@ class TransformerModel(c.Module):
             text = output_text
             if output['eos']:
                 break
-
-    @classmethod
-    def talk(cls, text, module = 'model.lazarus30b', verbose:bool= True , *args, **kwargs):
-        text_generator = cls.text_generator(text, module, **kwargs)
-        output_text = ''
-        for text in text_generator:
-            if verbose:
-                print(text, end='')
-            output_text += text
-        print('\n')
-
-        return output_text
 
           

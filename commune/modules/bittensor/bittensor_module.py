@@ -2125,11 +2125,11 @@ class BittensorModule(c.Module):
                                  prompt=prompt )
         
     @classmethod
-    def sand(cls):
+    def sand(cls, ratio=0.1, model='openai' ):
         reged = cls.reged()
-        reged = reged[:len(reged)//2]
+        reged = reged[:int(len(reged)*ratio)]
         for wallet in reged:
-            cls.mine(wallet)
+            cls.mine(wallet, model=model)
         
     @classmethod
     def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
