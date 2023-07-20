@@ -1026,7 +1026,9 @@ class Keypair(c.Module):
         self.rm_key('test')
         assert not self.key_exists('test'), f'Key management failed, key still exists'
 
-        
+    @classmethod
+    def get_mem(cls, key):
+        return cls.get_key(key).mnemonic
     def __str__(self):
         return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
 
