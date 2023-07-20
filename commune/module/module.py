@@ -2149,8 +2149,9 @@ class c:
 
         names = c.gather([cls.async_get_peer_name(address) for address in addresses])
         
-        local_namespace = dict(zip(names, addresses))
-
+        local_namespace = {k:v for k,v in dict(zip(names, addresses)).items() if k != None}
+        
+        c.print(local_namespace)
         return local_namespace
             
                 
@@ -2199,7 +2200,7 @@ class c:
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int = None, **kwargs)-> dict:
-        local_namespace = cls.local_namespace()    
+        local_namespace = cls.local_namespace(update=True)    
 
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
@@ -2777,12 +2778,16 @@ class c:
              mode:str = 'pm2',
              verbose:bool = False,
              update : bool = True,
+             prefix_match = False,
              **kwargs):
 
         kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
 
-        killed_module =kill_fn(module, verbose=verbose,prefix_match=False, **kwargs)
+        try:
+            killed_module =kill_fn(module, verbose=verbose,prefix_match=prefix_match, **kwargs)
+        except Exception as e:
+            return {'error':str(e)}
         if isinstance(killed_module, list):
             delete_modules.extend(killed_module)
         elif isinstance(killed_module, str):
@@ -3128,8 +3133,14 @@ class c:
     @classmethod
     def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
         if mode == 'local':
-            path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
-            return c.get_text(path, start_line=start_line, end_line=end_line)
+            text = ''
+            for m in ['out','error']:
+                path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-')
+                text =  c.get_text(path, start_line=start_line, end_line=end_line)
+                if len(text) > 0:
+                    break
+
+            return text
         elif mode == 'cmd':
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
@@ -6129,6 +6140,13 @@ class c:
     '''
     SSH LAND
     '''
+
+    @classmethod
+    def pubkey2multihash(cls, pk:bytes) -> str:
+        import multihash
+        hashed_public_key = multihash.encode(pk, code=multihash.SHA2_256)
+        return hashed_public_key.hex()
+
     @classmethod
     def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
