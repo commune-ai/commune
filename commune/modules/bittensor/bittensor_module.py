@@ -1763,21 +1763,26 @@ class BittensorModule(c.Module):
             refresh_ports:bool = False,
             hotkeys:List[str] = None,
             remote: bool = False,
+            reged = False,
             n:int = 1000):
 
         if remote:
             kwargs = c.localswkwargs(locals())
             kwargs['remote'] = False
             cls.remote_fn('fleet', kwargs=kwargs)
-
-
-    
         
-        # address = cls.address(name)
-        if hotkeys == None:
-            wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
+        if reged:
+            wallets = cls.reged(netuid=netuid)
         else:
-            wallets  = [f'{name}.{h}' for h in hotkeys]
+        
+            # address = cls.address(name)
+
+            if hotkeys == None:
+                wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
+            else:
+                wallets  = [f'{name}.{h}' for h in hotkeys]
+
+
             
                 
         subtensor = cls.get_subtensor(network)
@@ -1982,7 +1987,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     def logs(cls, wallet,  **kwargs):
-        return c.logs(cls.wallet2miner(**kwargs).get(wallet))
+        return c.logs(cls.wallet2miner(**kwargs).get(wallet), mode='local', start_line=-10, end_line=-1)
 
     @classmethod
     async def async_logs(cls, wallet, network=default_network, netuid=3):

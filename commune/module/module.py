@@ -2172,7 +2172,7 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_local_namespace(cls):
+    def build_local_namespace(cls, ignore=['miner']):
         jobs = []
         addresses = []
         names = []
@@ -3157,7 +3157,7 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=-100, end_line=0, verbose=True, mode='cmd'):
         if mode == 'local':
             path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
             return c.get_text(path, start_line=start_line, end_line=end_line)
@@ -5521,7 +5521,7 @@ class c:
             file.seek(start_byte)
             content = file.read(chunk_size).decode()
             if start_line != None or end_line != None:
-                if end_line == None:
+                if end_line == None or end_line == 0 :
                     end_line = len(content) 
                 if start_line == None:
                     start_line = 0
@@ -6987,7 +6987,7 @@ class c:
 
 
     @classmethod
-    def talk(cls,prompt, module= 'model.bt', *args, **kwargs):
+    def talk(cls,prompt, module= 'model.bt',  *args, **kwargs):
         model = c.connect('model')
         c.print('Selecting: ', model)
         return model.talk(prompt, *args, **kwargs)
