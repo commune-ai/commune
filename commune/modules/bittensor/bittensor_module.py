@@ -69,7 +69,6 @@ class BittensorModule(c.Module):
 
 
     def __init__(self,
-
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] =default_network,
                 netuid: int = default_netuid,
@@ -114,11 +113,10 @@ class BittensorModule(c.Module):
                       netuid = default_netuid, 
                       network=default_network, 
                       subtensor = None,
-                      cache= True,
-                      sync:bool = True,
+                      sync:bool = False,
                       load:bool = True,
                       save:bool = False,
-                      block:bool = None,):
+                      block:bool = None):
         
         if subtensor == None:
             subtensor = cls.get_subtensor(network=network)
@@ -129,6 +127,10 @@ class BittensorModule(c.Module):
             metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid)
         except TypeError as e:
             metagraph = bittensor.metagraph(netuid=netuid)
+
+
+        if save:
+            load = False
         if load:
             try:
                 metagraph.load()

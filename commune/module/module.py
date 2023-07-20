@@ -6977,10 +6977,12 @@ class c:
 
 
     @classmethod
-    def talk(cls,prompt, module= 'model.bt', *args, **kwargs):
-        model = c.connect('model')
+    def talk(cls , *args, module = 'model.bt', **kwargs):
+        model = c.connect(module, virtual=False)
         c.print('Selecting: ', model)
-        return model.talk(prompt, *args, **kwargs)
+        return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))
+
+
     chat = talk
 
 
