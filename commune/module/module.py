@@ -846,7 +846,7 @@ class c:
                     command:Union[str, list],
                     verbose:bool = False, 
                     env:Dict[str, str] = {}, 
-                    output_text:bool = True,
+                    output_text:bool = False,
                     sudo:bool = False,
                     password: bool = None,
                     color: str = 'white',
@@ -885,7 +885,6 @@ class c:
             
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
-                                    stderr=subprocess.PIPE, 
                                     env={**os.environ, **env}, **kwargs)
 
             
@@ -896,12 +895,12 @@ class c:
         last_time_line_printed = time.time()
  
         try:
-            stdout_len = 0
             
             for ch in iter(lambda: process.stdout.read(1), b""):
+                
+
                 if  ch == b'\n':
-                    
-                    stdout_text += (new_line+ch).decode()
+                    stdout_text += (new_line + ch).decode()
                     line_count_idx += 1
                     if verbose:
                         c.print(new_line.decode(), color='cyan')
@@ -910,21 +909,6 @@ class c:
 
                 new_line += ch
 
-            if len(stdout_text) == 0:
-                stderror_text = ''
-                for ch in iter(lambda: process.stderr.read(1), b""):
-                    
-                    stderror_text += (new_line+ch).decode()
-                    if  ch == b'\n':
-                        line_count_idx += 1
-                        if verbose:
-                            c.print(new_line.decode(), color='red')
-                        new_line = b''
-                        continue
-
-                    new_line += ch
-
-                stdout_text = stderror_text
 
         except KeyboardInterrupt:
             kill_process(process)
@@ -4827,6 +4811,10 @@ class c:
     @classmethod  
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
+
+    @classmethod  
+    def get_mem(cls, *args, **kwargs):
+        return c.module('key').get_mem(*args, **kwargs)
     
 
 

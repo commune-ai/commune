@@ -1463,7 +1463,7 @@ class BittensorModule(c.Module):
         if netuid in [1, 11]:
             if model == 'openai':
                 neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
-            if model == 'textgen':
+            if model == 'commune ':
                 neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.textgen.neuron.TextGenMiner')
         elif netuid == 3:
             neuron_class = cls.module('bittensor.miner.server')
@@ -1755,6 +1755,7 @@ class BittensorModule(c.Module):
             name:str=default_coldkey, 
             netuid:int= default_netuid,
             network:str=default_network,
+            model : str = 'commune',
             refresh: bool = True,
             burned_register:bool=False, 
             ensure_registration:bool=False,
@@ -1763,6 +1764,7 @@ class BittensorModule(c.Module):
             refresh_ports:bool = False,
             hotkeys:List[str] = None,
             remote: bool = False,
+            reged : bool = False,
             n:int = 1000):
 
         if remote:
@@ -1770,14 +1772,13 @@ class BittensorModule(c.Module):
             kwargs['remote'] = False
             cls.remote_fn('fleet', kwargs=kwargs)
 
-
-    
-        
-        # address = cls.address(name)
-        if hotkeys == None:
-            wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
+        if reged:
+            wallets = cls.reged(name)
         else:
-            wallets  = [f'{name}.{h}' for h in hotkeys]
+            if hotkeys == None:
+                wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
+            else:
+                wallets  = [f'{name}.{h}' for h in hotkeys]
             
                 
         subtensor = cls.get_subtensor(network)
@@ -1830,6 +1831,7 @@ class BittensorModule(c.Module):
             cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
             cls.mine(wallet=wallet,
                         remote=True, 
+                        model=model,
                         netuid=netuid,
                         device=device, 
                         refresh=refresh,
@@ -2006,7 +2008,7 @@ class BittensorModule(c.Module):
         miners = cls.miners()
         miner2logs = {}
         for miner in miners:
-            miner2logs[miner] = c.pm2_logs(miner, start_line=-10, mode='local')
+            miner2logs[miner] = c.pm2_logs(miner, start_lin=10, mode='local')
         
         
         if verbose:
