@@ -1458,15 +1458,15 @@ class BittensorModule(c.Module):
     def server(cls, *args, **kwargs):
         return cls.server_class(*args, **kwargs)
     
+
+
     @classmethod
-    def neuron_class(cls, netuid=default_netuid, model='openai'):
+    def neuron_class(cls,  model='openai', netuid=default_netuid):
         if netuid in [1, 11]:
-            if model == 'openai':
-                neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
-            if model == 'commune ':
-                neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.textgen.neuron.TextGenMiner')
-        elif netuid == 3:
-            neuron_class = cls.module('bittensor.miner.server')
+            neuron_path = cls.getc('neurons').get(model)
+            neuron_class = c.import_object(neuron_path)
+        else: 
+            raise ValueError(f'netuid {netuid} not supported')
         return neuron_class
 
 
@@ -1576,7 +1576,7 @@ class BittensorModule(c.Module):
                wallet='alice.1',
                network =default_network,
                netuid=default_netuid,
-               model = 'openai',
+               model = 'commune',
                port = None,
                prometheus_port:int = None,
                device:int = None,
@@ -2125,11 +2125,11 @@ class BittensorModule(c.Module):
                                  prompt=prompt )
         
     @classmethod
-    def sand(cls):
+    def sand(cls, ratio=1.0, model='commune' ):
         reged = cls.reged()
-        reged = reged[:len(reged)//2]
+        reged = reged[:int(len(reged)*ratio)]
         for wallet in reged:
-            cls.mine(wallet)
+            cls.mine(wallet, model=model)
         
     @classmethod
     def allinone(cls, overwrite_keys=False, refresh_miners=False, refresh_servers= False):
@@ -2241,7 +2241,6 @@ class BittensorModule(c.Module):
     def servers(cls, **kwargs):
 
         return c.servers('server')
-
     
     @classmethod
     def wallet_json(cls, wallet):
@@ -2338,10 +2337,32 @@ class BittensorModule(c.Module):
             if time_elapsed % print_interval == 0:
                 c.log(f"Watchdog: {time_elapsed} seconds elapsed COUNTS ->S {counts}")
             
-       
 
-if __name__ == "__main__":
-    BittensorModule.run()
+    _reged_wallets = None
+       
+    def talk(self, prompt = 'what is the whether', role='assistant',  timeout=2, n=10, trials=3, **kwargs):
+        assert trials > 0, 'trials must be greater than 0'
+        if self._reged_wallets == None:
+            reged = self.reged()
+            self._reged_wallets = [self.get_wallet(r) for r in reged]
+        wallet = c.choice(self._reged_wallets)
+        d = bittensor.text_prompting_pool(keypair=wallet.hotkey, metagraph=self.metagraph)
+        uids = c.shuffle(list(range(self.metagraph.n)))[:n]
+        response = d.forward(roles=[role], messages=[prompt], timeout=timeout, uids=uids)
+        success_responses = [r.completion.strip() for r in response if r.return_code == 1]
+        if len(success_responses) == 0:
+            c.print(f'No successful responses for prompt {prompt} role {role} timeout {timeout} n {n}')
+            return self.talk(prompt=prompt, role=role, timeout=timeout, n=n, trials=trials-1, **kwargs)
+        return success_responses[0]
+
+
+    @classmethod
+    def model_fleet(cls, n=20):
+        free_ports = c.free_ports(n=n)
+        for i in range(n):
+            cls.serve( name=f'model.bt.{i}', port=free_ports[i])
+
+
 
 
 

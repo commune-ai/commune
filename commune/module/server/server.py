@@ -329,8 +329,11 @@ class Server(ServerServicer, Serializer, c.Module):
     def __del__(self):
         r""" Called when this axon is deleted, ensures background threads shut down properly.
         """
+        c.print('deregister')
+        c.deregister_server(name=self.name)
         if hasattr(self, 'server'):
             self.stop()
+
 
 
     

@@ -689,6 +689,8 @@ class c:
         '''
         Set the config as well as its local params
         '''
+        if not cls.has_config():
+            return {}
         kwargs = kwargs if kwargs != None else {}
         kwargs.pop('kwargs', None)
         if isinstance(config, str):
@@ -844,7 +846,7 @@ class c:
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
-                    verbose:bool = False, 
+                    verbose:bool = True, 
                     env:Dict[str, str] = {}, 
                     output_text:bool = False,
                     sudo:bool = False,
@@ -1312,33 +1314,32 @@ class c:
         
         
         simple_path = simple_path.replace('/', '.')[1:]
-        if compress:
-            simple_path = cls.compress_name(simple_path, seperator='.')
-        
-        if simple_path.startswith('modules.'):
-            simple_path = simple_path.replace('modules.', '')
-        return simple_path
-    
 
-            
-    @staticmethod
-    def compress_name( name, seperator='.', suffixes = ['_module', 'module']):
-        '''
-        
-        '''
-        chunks = name.split(seperator)
+        # compress nae
+        chunks = simple_path.split('.')
         new_chunks = []
         for i, chunk in enumerate(chunks):
             if len(new_chunks)>0:
                 if new_chunks[-1] == chunks[i]:
                     continue
-                elif any([chunks[i].endswith(s) for s in suffixes]):
+                elif any([chunks[i].endswith(s) for s in ['_module', 'module']]):
                     continue
             new_chunks.append(chunk)
+        simple_path = '.'.join(new_chunks)
+        
+        # remove the modules prefix
+        if simple_path.startswith('modules.'):
+            simple_path = simple_path.replace('modules.', '')
+
+        # remove any files to compress the name even further for
+        if len(simple_path.split('.')) > 2:
             
-        return seperator.join(new_chunks)
+            if simple_path.split('.')[-1].endswith(simple_path.split('.')[-2]):
+                simple_path = '.'.join(simple_path.split('.')[:-1])
+        return simple_path
     
-    
+
+
     @classmethod
     def path2localpath(cls, path:str) -> str:
         local_path = path.replace(cls.repo_path, cls.root_dir)
@@ -1557,10 +1558,10 @@ class c:
                 if dir_name.lower() == file_name.lower():
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
-                # elif file_name.lower().endswith(dir_name.lower()):
-                #     # if the dirname is equal to the filename then it is a module
-                #     modules.append(f)
-                elif file_name.lower().endswith('module'):
+                if file_name.lower().endswith(dir_name.lower()):
+                    # if the dirname is equal to the filename then it is a module
+                    modules.append(f)
+                if file_name.lower().endswith('module'):
                     # if the dirname is equal to the filename then it is a module
                     modules.append(f)
                     
@@ -2134,17 +2135,44 @@ class c:
             return True
         else:
             return False
+
+    @classmethod
+    def get_peer_name(cls, *args,**kwargs):
+        return c.gather(c.async_get_peer_name(*args,**kwargs))
         
     @staticmethod
-    async def async_get_peer_name(peer_address):
-        peer = await c.async_connect(peer_address, namespace={}, timeout=5, virtual=False, ignore_error=True)
-        if peer == None: 
-            return peer
-        module_name =  await peer(fn='module_name',  return_future=True)
-        if c.check_response(module_name):
-            return module_name
-        else:
-            return None
+    async def async_get_peer_name(peer_address, connect_timeout=1, **kwargs):
+
+        try:
+            peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
+            if peer == None: 
+                return peer
+            module_name =  await peer(fn='module_name',  return_future=True)
+            if c.check_response(module_name):
+                return module_name
+            else:
+                return None
+        except Exception as e:
+            return {'error':str(e)}
+
+    @classmethod
+    def build_local_namespace(cls):
+        jobs = []
+        addresses = []
+        names = []
+        for p in cls.get_used_ports():
+            c.print(f'Checking port {p}')
+            addresses.append(f'{cls.default_ip}:{p}')
+            name = c.gather(cls.async_get_peer_name(addresses[-1]))
+            if isinstance(name, dict) and 'error' in name:
+                name.append(name)
+            names.append(name)
+        c.print(names[-1000:])
+
+        local_namespace = dict(zip(names, addresses))
+
+        return local_namespace
+            
                 
     @classmethod
     def local_namespace(cls, verbose:bool = False, update=True, **kwargs)-> dict:
@@ -2159,18 +2187,8 @@ class c:
 
         if update : 
         
-           # if update is true, check if modules are still running
-            updated_dict = False
-            module2connection = cls.module2connection(modules=modules,network='local')
-            for module, connection in module2connection.items():
-                if connection == False:
-                    # if modules are not running, remove them from local namespace
-                    del local_namespace[module]
-            updated_dict = True
-            
-            if updated_dict:
-                # if modules are not running, update local namespace
-                c.put('local_namespace', local_namespace)
+            local_namespace = c.build_local_namespace()
+            c.put('local_namespace', local_namespace)
             
         local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
 
@@ -2487,8 +2505,10 @@ class c:
               
               ):
         '''
+        
         Servers the module on a specified port
         '''
+        cls.update()
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
@@ -2772,7 +2792,7 @@ class c:
 
 
     @classmethod
-    def kill(cls, *modules,
+    def kill(cls, module,
              mode:str = 'pm2',
              verbose:bool = False,
              update : bool = True,
@@ -2780,17 +2800,24 @@ class c:
 
         kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
-        for module in modules:
-            killed_module =kill_fn(module, verbose=verbose, **kwargs)
-            if isinstance(killed_module, list):
-                delete_modules.extend(killed_module)
-            elif isinstance(killed_module, str):
-                delete_modules.append(killed_module)
-            else:
-                raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
+
+        killed_module =kill_fn(module, verbose=verbose, **kwargs)
+        if isinstance(killed_module, list):
+            delete_modules.extend(killed_module)
+        elif isinstance(killed_module, str):
+            delete_modules.append(killed_module)
+        else:
+            raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
         # update modules
+        
+        if module in c.servers():
+            c.deregister_server(module)
+
+        assert c.module_exists(module) == False, f'module {module} still exists'
+
         cls.update(network='local')
-        return {'killed': delete_modules}
+
+        return {'servers': delete_modules}
 
     delete = kill
     def destroy(self):
@@ -3061,17 +3088,20 @@ class c:
     def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
-        
         if name in pm2_list:
             rm_list = [name]
         else:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
+
+        if len(rm_list) == 0:
+            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
+            return []
         for n in rm_list:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.run_command(f"pm2 delete {n}", verbose=False)
             
-        return {'killed': pm2_list}
+        return rm_list
     
     
     @classmethod
@@ -3083,7 +3113,7 @@ class c:
             if module.startswith(name) or name in ['all']:
                 if verbose:
                     c.print(f'Restarting {module}', color='cyan')
-                cls.run_command(f"pm2 restart {module}")
+                c.cmd(f"pm2 restart {module}", verbose=verbose)
                 restarted_modules.append(module)
 
             
@@ -3098,7 +3128,7 @@ class c:
     
     
     @classmethod
-    def restart(cls, name:str, mode:str='pm2', verbose:bool = True):
+    def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose)
         return refreshed_modules
     refresh = reset = restart
@@ -3111,7 +3141,7 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str, start_line=0, end_line=-1, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
         if mode == 'local':
             path = f'{cls.pm2_dir}/logs/{module}-out.log'.replace(':', '-')
             return c.get_text(path, start_line=start_line, end_line=end_line)
@@ -3882,7 +3912,7 @@ class c:
     @classmethod
     def get_external_ip(cls, *args, max_trials=4, **kwargs) ->str:
         if max_trials == 0:
-            return None
+            return c.default_ip
         try:
             return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
         except Exception as e:
@@ -3939,7 +3969,7 @@ class c:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_memory(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -3951,8 +3981,19 @@ class c:
                 'total': mem_info[1]
             }
         return gpu_info
+
+    @classmethod
+    def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
+        import torch
+        return {k:v['total'] for k,v in c.gpu_info_map().items()}
     
-    gpu_info = gpu_memory_map = gpu_map = gpu_memory
+
+    @classmethod
+    def gpu_total(cls, idx=0, fmt='b') -> Dict[int, Dict[str, float]]:
+        import torch
+        return c.format_data_size(c.gpu_total_map()[idx])
+    
+    gpu_map =gpu_info_map
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -4166,6 +4207,7 @@ class c:
             cls.update()
             cls.sleep(period)
             
+    
     def model_size(self, **kwargs ):
         return self.get_model_size(model=self, **kwargs)
     
@@ -5466,7 +5508,6 @@ class c:
             chunk_size = end_byte - start_byte + 1
             file.seek(start_byte)
             content = file.read(chunk_size).decode()
-            c.print(path)
             if start_line != None or end_line != None:
                 if end_line == None:
                     end_line = len(content) 
@@ -5565,9 +5606,9 @@ class c:
         
         if repo != None:
             # Clone the repository
-            c.cmd(f'git clone {repo} {module_path}', verbose=True)
+            c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
-            c.cmd(f'rm -rf {module_path}/.git', verbose=True)
+            c.cmd(f'rm -rf {module_path}/.git')
         if module == None:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
@@ -5602,6 +5643,15 @@ class c:
         
     make_dir= mkdir
 
+    @classmethod
+    def model_max_gpu_memory(cls, model, *args, **kwargs):
+        model_size = c.get_model_size(model)
+        return c.max_gpu_memory(model_size,  *args, **kwargs)
+
+    @classmethod
+    def model_max_gpus(cls, model, *args, **kwargs):
+        return list(c.model_max_gpu_memory(model,  *args, **kwargs).keys())
+
 
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
@@ -5614,6 +5664,8 @@ class c:
                        fmt:str = 'b',
                        decimals:int = 3,
                        **kwargs):
+
+            
         
         
         memory = cls.resolve_memory(memory)
@@ -5646,8 +5698,6 @@ class c:
                 gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
                 gpu_memory =  free_gpu_memory[gpu]
             
-            c.print({'unallocated_memory':unallocated_memory,'gpu': gpu, 'max_memory':max_memory, 'gpu_memory':gpu_memory, 'free_gpu_memory':free_gpu_memory})
-
             if gpu in max_memory:
                 continue
             
@@ -5656,7 +5706,6 @@ class c:
                 
   
             allocated_memory = min(gpu_memory, unallocated_memory)
-            c.print(f'Allocated {allocated_memory} to gpu {gpu}')
             unallocated_memory -= allocated_memory
             max_memory[gpu] = allocated_memory
             free_gpu_memory[gpu] -= allocated_memory
@@ -5853,7 +5902,11 @@ class c:
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
+        
+        
         import random
+        if type(x) in [float, int]:
+            x = list(range(int(x)))
         assert len(x)>0
         if ratio == 1:
             return x
@@ -6279,9 +6332,9 @@ class c:
         return code_dict
     
     @classmethod
-    def pool(cls , n=5):
+    def pool(cls , n=5, **kwargs):
         for i in range(n):
-            cls.deploy(tag=str(i))
+            cls.serve(tag=str(i), **kwargs)
         
 
     @classmethod
@@ -6922,14 +6975,24 @@ class c:
 
 
     @classmethod
-    def talk(cls, *args, **kwargs):
-        c.module('text_generator').talk(*args, **kwargs)
-        c.print('\n')
+    def talk(cls,prompt, module= 'model.bt', *args, **kwargs):
+        model = c.connect('model')
+        c.print('Selecting: ', model)
+        return model.talk(prompt, *args, **kwargs)
     chat = talk
+
+
+    def x(self, y=1):
+        c.print('fam', y)
 
     @classmethod
     def ask(cls, *args, **kwargs):
         return c.module('model.transformer').talk(*args, **kwargs)
+
+
+    @classmethod
+    def containers(cls):
+        return c.module('docker').containers()
 
 
     

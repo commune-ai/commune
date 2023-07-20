@@ -13,6 +13,10 @@ shortcuts:
   vicuna.7b: lmsys/vicuna-7b-v1.3
 
   llama: openlm-research/open_llama_7b
+  
+  llama2.70b: meta-llama/Llama-2-70b-chat-hf
+  llama2.7b: meta-llama/Llama-2-7b
+
   llama13b: openlm-research/open_llama_13b
   llama-trl: trl-lib/llama-7b-se-rl-peft
 
@@ -34,3 +38,4 @@ block_prefix: model.layers
 model2block_prefix:
   mosaic: transformer.blocks
   
+`
