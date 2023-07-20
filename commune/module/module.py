@@ -887,7 +887,6 @@ class c:
             
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
-                                    stderr=subprocess.PIPE, 
                                     env={**os.environ, **env}, **kwargs)
 
             
@@ -898,12 +897,12 @@ class c:
         last_time_line_printed = time.time()
  
         try:
-            stdout_len = 0
             
             for ch in iter(lambda: process.stdout.read(1), b""):
+                
+
                 if  ch == b'\n':
-                    
-                    stdout_text += (new_line+ch).decode()
+                    stdout_text += (new_line + ch).decode()
                     line_count_idx += 1
                     if verbose:
                         c.print(new_line.decode(), color='cyan')
@@ -912,21 +911,6 @@ class c:
 
                 new_line += ch
 
-            if len(stdout_text) == 0:
-                stderror_text = ''
-                for ch in iter(lambda: process.stderr.read(1), b""):
-                    
-                    stderror_text += (new_line+ch).decode()
-                    if  ch == b'\n':
-                        line_count_idx += 1
-                        if verbose:
-                            c.print(new_line.decode(), color='red')
-                        new_line = b''
-                        continue
-
-                    new_line += ch
-
-                stdout_text = stderror_text
 
         except KeyboardInterrupt:
             kill_process(process)
@@ -1244,21 +1228,6 @@ class c:
         elif mode == 'bash':
             return cls.run_command('kill -9 $(lsof -ti:{port})')
 
-    @classmethod
-    def kill_server(cls, module:str,mode:str = 'pm2'):
-        '''
-        Kill the server by the name
-        '''
-        server_info = cls.get_server_info(module)
-        if 'external_ip' in server_info:
-            server_info.get('external_ip') == cls.external_ip()
-        if isinstance(module, int) or mode == 'local':
-            cls.kill_port(server_info['port'])
-        if mode == 'pm2':
-            cls.pm2_kill(module)
-        else:
-            raise NotImplementedError(f"Mode: {mode} is not implemented")
-        
 
     @classmethod
     def restart_server(cls, module:str, mode:str = 'pm2'):
@@ -1279,7 +1248,7 @@ class c:
         Kill all of the servers
         '''
         for module in c.servers(*args, **kwargs):
-            c.kill_server(module)
+            c.kill(module)
 
         c.update(network='local')
             
@@ -2172,19 +2141,14 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_local_namespace(cls, ignore=['miner']):
-        jobs = []
-        addresses = []
-        names = []
-        for p in cls.get_used_ports():
-            c.print(f'Checking port {p}')
-            addresses.append(f'{cls.default_ip}:{p}')
-            name = c.gather(cls.async_get_peer_name(addresses[-1]))
-            if isinstance(name, dict) and 'error' in name:
-                name.append(name)
-            names.append(name)
-        c.print(names[-1000:])
+    def build_local_namespace(cls):
+        used_ports = cls.get_used_ports()
+        ip = cls.default_ip
+        c.print(len(used_ports))
+        addresses = [ f'{ip}:{p}' for p in used_ports]
 
+        names = c.gather([cls.async_get_peer_name(address) for address in addresses])
+        
         local_namespace = dict(zip(names, addresses))
 
         return local_namespace
@@ -2518,13 +2482,15 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               args:list = None,  # args for the module
               kwargs:dict = None,  # kwargs for the module
+              update: bool = False
               
               ):
         '''
         
         Servers the module on a specified port
         '''
-        cls.update()
+        if update:
+            cls.update()
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
@@ -2557,7 +2523,7 @@ class c:
             if refresh:
                 if verbose:
                     c.print(f'Stopping existing server {name}', color='yellow')
-                self.kill_server(name)
+                c.kill(name)
             else: 
                 raise Exception(f'The server {name} already exists on port {existing_server_port}')
 
@@ -2733,7 +2699,6 @@ class c:
                     continue
             fn_obj = getattr(obj, fn )
             if callable(fn_obj):
-                c.print(f'getting schema for {fn}')
                 function_schema_map[fn] = cls.get_function_schema(fn, defaults=defaults, code=code, docs=docs)
         return function_schema_map
     
@@ -2817,7 +2782,7 @@ class c:
         kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
 
-        killed_module =kill_fn(module, verbose=verbose, **kwargs)
+        killed_module =kill_fn(module, verbose=verbose,prefix_match=False, **kwargs)
         if isinstance(killed_module, list):
             delete_modules.extend(killed_module)
         elif isinstance(killed_module, str):
@@ -2831,11 +2796,12 @@ class c:
 
         assert c.module_exists(module) == False, f'module {module} still exists'
 
-        cls.update(network='local')
+        if update:
+            cls.update(network='local')
 
-        return {'servers': delete_modules}
+        return {'server_killed': delete_modules, 'update': update}
 
-    delete = kill
+    delete = kill_server = kill
     def destroy(self):
         self.kill(self.module_name)
         return path
@@ -3091,8 +3057,7 @@ class c:
         if verbose:
             c.print(f'Launching {module} with command: {command}', color='green')
             
-        stdout = cls.run_command(command, env=env, verbose=verbose)
-        # c.print(f'STDOUT: \n {stdout}', color='green')
+        stdout = c.cmd(command, env=env, verbose=False)
         return stdout
     
     
@@ -3101,16 +3066,20 @@ class c:
         return c.module('subspace')().register(*args,**kwargs)
     
     @classmethod
-    def pm2_kill(cls, name:str, verbose:bool = True):
+    def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
         if name in pm2_list:
             rm_list = [name]
         else:
-            rm_list = [ p for p in pm2_list if p.startswith(name)]
+            if prefix_match:
+                rm_list = [ p for p in pm2_list if p.startswith(name)]
+            else:
+                raise Exception(f'pm2 process {name} not found')
 
         if len(rm_list) == 0:
-            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
+            if verbose:
+                c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
             return []
         for n in rm_list:
             if verbose:
@@ -3716,7 +3685,7 @@ class c:
         # return module
 
 
-    m = module
+    m = mod = module
 
     # UNDER CONSTRUCTION (USE WITH CAUTION)
     
@@ -4869,6 +4838,10 @@ class c:
     @classmethod  
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
+
+    @classmethod  
+    def get_mem(cls, *args, **kwargs):
+        return c.module('key').get_mem(*args, **kwargs)
     
 
 
@@ -5257,7 +5230,9 @@ class c:
         return {'msg': module,
                 'address': module_info['address'], 
                 'module': module_info}
-    
+
+
+        
     @classmethod
     def rm_module(cls, module, cache_path='remote_modules'):
         remote_modules = c.get(cache_path, {})
@@ -5862,10 +5837,10 @@ class c:
                     module: str = None,
                     args : list = None,
                     kwargs : dict = None, 
+                    name : str =None,
                     tag: str = None,
                     refresh : bool =True,
-                    tag_seperator : str = '::',
-                    name : str =None):
+                    tag_seperator : str = '::',):
         
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
@@ -5879,6 +5854,9 @@ class c:
         if name == None:
             prefix = cls.resolve_module(module).module_path()
             name = f'{prefix}{tag_seperator}{fn}'
+
+        if tag != None:
+            name = f'{name}{tag_seperator}{tag}'
     
         if 'remote' in kwargs:
             kwargs['remote'] = False
@@ -5953,6 +5931,18 @@ class c:
 
         if singleton:
             return results[0]
+        return results
+
+    @classmethod
+    def split_gather(cls,jobs:list, n=3,  **kwargs)-> list:
+        if len(jobs) < n:
+            return c.gather(jobs, **kwargs)
+        gather_jobs = [asyncio.gather(*job_chunk) for job_chunk in c.chunk(jobs, num_chunks=n)]
+        gather_results = c.gather(gather_jobs, **kwargs)
+        results = []
+        for gather_result in gather_results:
+            results += gather_result
+        
         return results
     @classmethod
     def addresses(cls, *args, **kwargs) -> List[str]:
@@ -6987,10 +6977,12 @@ class c:
 
 
     @classmethod
-    def talk(cls,prompt, module= 'model.bt',  *args, **kwargs):
-        model = c.connect('model')
+    def talk(cls , *args, module = 'model.bt', **kwargs):
+        model = c.connect(module, virtual=False)
         c.print('Selecting: ', model)
-        return model.talk(prompt, *args, **kwargs)
+        return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))
+
+
     chat = talk
 
 
@@ -7007,10 +6999,30 @@ class c:
         return c.module('docker').containers()
 
 
-    
+    @staticmethod
+    def chunk(sequence:list = [0,2,3,4,5,6,67,],
+            chunk_size:int=None,
+            num_chunks:int= None):
+        assert chunk_size != None or num_chunks != None, 'must specify chunk_size or num_chunks'
+        if chunk_size == None:
+            chunk_size = len(sequence) // num_chunks
+
+        if chunk_size > len(sequence):
+            return [sequence]
+        if num_chunks == None:
+            num_chunks = len(sequence) // chunk_size
 
 
-        
+        chunks = [[] for i in range(num_chunks)]
+        for i, element in enumerate(sequence):
+            idx = i % num_chunks
+            chunks[idx].append(element)
+        return chunks
+    @classmethod
+    def batch(cls, x: list, batch_size:int=8): 
+        return c.chunk(x, chunk_size=batch_size)
+
+
 Module = c
 
 Module.run(__name__)

@@ -69,7 +69,6 @@ class BittensorModule(c.Module):
 
 
     def __init__(self,
-
                 wallet:Union[bittensor.wallet, str] = None,
                 network: Union[bittensor.subtensor, str] =default_network,
                 netuid: int = default_netuid,
@@ -114,11 +113,10 @@ class BittensorModule(c.Module):
                       netuid = default_netuid, 
                       network=default_network, 
                       subtensor = None,
-                      cache= True,
-                      sync:bool = True,
+                      sync:bool = False,
                       load:bool = True,
                       save:bool = False,
-                      block:bool = None,):
+                      block:bool = None):
         
         if subtensor == None:
             subtensor = cls.get_subtensor(network=network)
@@ -129,6 +127,10 @@ class BittensorModule(c.Module):
             metagraph = bittensor.metagraph(subtensor=subtensor, netuid=netuid)
         except TypeError as e:
             metagraph = bittensor.metagraph(netuid=netuid)
+
+
+        if save:
+            load = False
         if load:
             try:
                 metagraph.load()
@@ -1109,18 +1111,10 @@ class BittensorModule(c.Module):
             cls.add_hotkey(coldkey=coldkey, hotkey=hk, **kwargs)  
         
 
-    def find_unused_hotkey(cls, coldkey=default_coldkey):
-        hotkeys = cls.hotkeys(coldkey)
-        for i in range(100):
-            i = str(i)
-            if i not in hotkeys:
-                return i
-        raise ValueError('No unused hotkeys found.')
-
     @classmethod 
     def add_hotkey (cls,
                         coldkey = default_coldkey,
-                         hotkey = None,
+                       hotkey = None,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = False) :
@@ -1461,7 +1455,7 @@ class BittensorModule(c.Module):
 
 
     @classmethod
-    def neuron_class(cls,  model='openai', netuid=default_netuid):
+    def neuron_class(cls,  model='commune', netuid=default_netuid):
         if netuid in [1, 11]:
             neuron_path = cls.getc('neurons').get(model)
             neuron_class = c.import_object(neuron_path)
@@ -1755,6 +1749,7 @@ class BittensorModule(c.Module):
             name:str=default_coldkey, 
             netuid:int= default_netuid,
             network:str=default_network,
+            model : str = 'commune',
             refresh: bool = True,
             burned_register:bool=False, 
             ensure_registration:bool=False,
@@ -1763,26 +1758,21 @@ class BittensorModule(c.Module):
             refresh_ports:bool = False,
             hotkeys:List[str] = None,
             remote: bool = False,
-            reged = False,
+            reged : bool = False,
             n:int = 1000):
 
         if remote:
             kwargs = c.localswkwargs(locals())
             kwargs['remote'] = False
             cls.remote_fn('fleet', kwargs=kwargs)
-        
-        if reged:
-            wallets = cls.reged(netuid=netuid)
-        else:
-        
-            # address = cls.address(name)
 
+        if reged:
+            wallets = cls.reged(name)
+        else:
             if hotkeys == None:
                 wallets = [f'{name}.{h}' for h in cls.hotkeys(name)]
             else:
                 wallets  = [f'{name}.{h}' for h in hotkeys]
-
-
             
                 
         subtensor = cls.get_subtensor(network)
@@ -1835,6 +1825,7 @@ class BittensorModule(c.Module):
             cls.print(f'Deploying -> Miner: {miner_name} Device: {device} Axon_port: {axon_port}, Prom_port: {prometheus_port}')
             cls.mine(wallet=wallet,
                         remote=True, 
+                        model=model,
                         netuid=netuid,
                         device=device, 
                         refresh=refresh,
@@ -2011,7 +2002,7 @@ class BittensorModule(c.Module):
         miners = cls.miners()
         miner2logs = {}
         for miner in miners:
-            miner2logs[miner] = c.pm2_logs(miner, start_line=-10, mode='local')
+            miner2logs[miner] = c.pm2_logs(miner, start_lin=10, mode='local')
         
         
         if verbose:
@@ -2343,15 +2334,28 @@ class BittensorModule(c.Module):
 
     _reged_wallets = None
        
-    def talk(self, prompt = 'what is the whether', role='assistant',  timeout=2, n=10, trials=3, **kwargs):
+    def talk(self, 
+             prompt:str = 'what is the whether', 
+             role:str='assistant',  
+            timeout:int=4, 
+            n:int=10, 
+            trials:int=3,
+            n_jobs:int = 2,
+            **kwargs):
         assert trials > 0, 'trials must be greater than 0'
         if self._reged_wallets == None:
             reged = self.reged()
             self._reged_wallets = [self.get_wallet(r) for r in reged]
+        assert len(self._reged_wallets) > 0, 'No registered wallets found'
         wallet = c.choice(self._reged_wallets)
         d = bittensor.text_prompting_pool(keypair=wallet.hotkey, metagraph=self.metagraph)
         uids = c.shuffle(list(range(self.metagraph.n)))[:n]
-        response = d.forward(roles=[role], messages=[prompt], timeout=timeout, uids=uids)
+        
+        jobs = [d.async_forward(roles=[role], messages=[prompt], timeout=timeout, uids=uids) for i in range(n_jobs)]
+        response = []
+        for r in c.gather(jobs):
+            response.extend(r)
+        
         success_responses = [r.completion.strip() for r in response if r.return_code == 1]
         if len(success_responses) == 0:
             c.print(f'No successful responses for prompt {prompt} role {role} timeout {timeout} n {n}')

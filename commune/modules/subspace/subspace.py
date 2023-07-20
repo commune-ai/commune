@@ -1751,9 +1751,9 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = chain, verbose:bool=False, snap:bool=False ):
-        cls.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
-        cls.build_spec(chain, snap=snap)    
+    def build(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
+        c.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
+        cls.build_spec(chain, snap=snap)  
 
     @classmethod
     def test_chain(cls, chain:str = chain, verbose:bool=False, snap:bool=False ):
@@ -1796,7 +1796,8 @@ class Subspace(c.Module):
 
                    ):
 
-        chain_spec = cls.resolve_chain_spec(chain)
+
+        chain_spec_path = cls.resolve_chain_spec_path(chain)
         if snap:
             cls.snap()
 
@@ -1805,12 +1806,25 @@ class Subspace(c.Module):
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
         if raw:
-            assert c.exists(chain_spec), f'Chain {chain_spec} does not exist.'
+            assert c.exists(chain_spec_path), f'Chain {chain_spec_path} does not exist.'
             cmd += ' --raw'
-            spec_path =chain_spec.replace('.json', '_raw.json')
+            spec_path =chain_spec_path.replace('.json', '_raw.json')
 
-        cmd += f' > {chain_spec}'
-        return c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
+
+        cmd += f' > {chain_spec_path}'
+        c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
+
+        # add vali nodes
+        vali_node_keys = cls.vali_node_keys(chain)
+        spec = c.get_json(chain_spec_path)
+        spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
+        # TODO, have custom votes per grandpa node
+        spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
+        c.print(spec['genesis']['runtime']['grandpa'])
+        c.print(chain_spec_path)
+        c.put_json(chain_spec_path, spec)
+
+
 
     @classmethod
     def chain_specs(cls):
@@ -1830,7 +1844,7 @@ class Subspace(c.Module):
     specs = chain_specs
     @classmethod
     def get_spec(cls, chain:str):
-        chain = cls.resolve_chain_spec(chain)
+        chain = cls.resolve_chain_spec_path(chain)
         
         return c.get_json(chain)
 
@@ -1841,7 +1855,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def resolve_chain_spec(cls, chain = None):
+    def resolve_chain_spec_path(cls, chain = None):
         if chain == None:
             chain = cls.network
         return cls.chain2spec(chain)
@@ -1869,7 +1883,7 @@ class Subspace(c.Module):
 
     @classmethod
     def rm_chain(self, chain):
-        return c.rm(self.resolve_chain_spec(chain))
+        return c.rm(self.resolve_chain_spec_path(chain))
     
     @classmethod
     def insert_node_key(cls,
@@ -1881,7 +1895,7 @@ class Subspace(c.Module):
                    password_interactive = False,
                    ):
         
-        chain = cls.resolve_chain_spec(chain)
+        chain_spec_path = cls.resolve_chain_spec_path(chain)
         node_path = f'/tmp/{node}'
         
         if key_type == 'aura':
@@ -1895,7 +1909,7 @@ class Subspace(c.Module):
         cmd = f'{cls.chain_release_path} key insert --base-path {node_path}'
         cmd += f' --suri "{suri}"'
         cmd += f' --scheme {scheme}'
-        cmd += f' --chain {chain}'
+        cmd += f' --chain {chain_spec_path}'
         assert key_type in cls.key_types, f'key_type ({key_type})must be in {cls.key_types}'
         cmd += f' --key-type {key_type}'
         if password_interactive:
@@ -2054,23 +2068,21 @@ class Subspace(c.Module):
 
     @classmethod
     def start_node(cls,
-
                  chain:int = network,
+                 node : str = 'alice',
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
-                 user : str = 'alice',
                  telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
                  validator: bool = True,          
-                 boot_nodes : str = None,       
                  purge_chain:bool = True,
                  remote:bool = True,
                  refresh:bool = True,
                  verbose:bool = True,
-                 rpc_cors:str = 'all',
+                 boot_nodes = None,
+                 node_key = None
                  
                  ):
-
 
         cmd = cls.chain_release_path
 
@@ -2088,13 +2100,12 @@ class Subspace(c.Module):
         if purge_chain:
             cls.purge_chain(base_path=base_path)
         
-        chain_spec = cls.resolve_chain_spec(chain)
+        chain_spec_path = cls.resolve_chain_spec_path(chain)
         cmd_kwargs = f' --base-path {base_path}'
-        cmd_kwargs += f' --chain {chain_spec}'
+        cmd_kwargs += f' --chain {chain_spec_path}'
         
         if validator :
             cmd_kwargs += ' --validator'
-            cmd_kwargs += f' --{user}'
         else:
             cmd_kwargs += ' --ws-external --rpc-external'
         cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
@@ -2103,13 +2114,14 @@ class Subspace(c.Module):
             
         if boot_nodes != None:
             cmd_kwargs += f' --bootnodes {boot_nodes}'
-            
+        if node_key != None:
+            cmd_kwargs += f' --node-key {node_key}'
             
         cmd_kwargs += f' --rpc-cors=all'
 
         if remote:
             cmd = c.pm2_start(path=cls.chain_release_path, 
-                              name=f'{cls.node_prefix()}::{chain}::{user}',
+                              name=f'{cls.node_prefix()}::{chain}::{node}',
                               cmd_kwargs=cmd_kwargs,
                               refresh=refresh,
                               verbose=verbose)
@@ -2123,8 +2135,8 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str='main', 
-                    users = ['alice','bob', 'charlie'] ,
                     verbose:bool = False,
+                    num_nonvali : int = 2,
                     reuse_ports : bool = True,
                     sleep :int = 2,
                     build: bool = True,
@@ -2135,43 +2147,62 @@ class Subspace(c.Module):
                     kill_nodes: bool = False,
                     rpc_cors:str = 'all',
                     port_keys: list = ['port','rpc_port','ws_port'],):
+
+        # resolve the validator and non validator nodes
+        vali_nodes_keys = cls.vali_node_keys(chain=chain)
+        vali_nodes = list(vali_nodes_keys.keys())
+        if len(vali_nodes) == 0:
+            cls.add_vali_nodes(chain=chain)
+            vali_nodes = cls.vali_nodes(chain=chain)
+
+        non_valis = vali_nodes[-num_nonvali:]
+        assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
         
+        # build the chain
         if kill_nodes:
             cls.kill_nodes(chain=chain)
         if build:
             cls.build(chain=chain, verbose=verbose, snap=snap)
+
+
         avoid_ports = []
-        
         ip = c.ip(external=external)
         chain_info_path = f'chain_info.{chain}'
         chain_info = cls.getc(chain_info_path, default={})
-        for i, user in enumerate(users):
-            if user in chain_info and reuse_ports:
-                node_kwargs = chain_info[user]
+
+        for node in (vali_nodes + non_valis):
+            node_key = c.get_key(f'{cls.node_key_prefix}.{node}.gran')
+
+            if node in chain_info and reuse_ports:
+                node_kwargs = chain_info[node]
                 for k in port_keys:
                     node_kwargs[k] = c.resolve_port(node_kwargs[k])
                 
             else:
+                
                 node_kwargs = {
                                'chain':chain, 
-                               'user':user, 
+                               'node':node, 
                                'verbose':verbose,
-                               'rpc_cors': rpc_cors,
                                'purge_chain': purge_chain,
-                               'validator': True if bool(i < len(users)-1) else False,
+                               'validator': bool(node in vali_nodes),
+                               'boot_nodes': boot_nodes,
+                               'node_key' : node_key.private_key
+                               
                                }
                 for k in port_keys:
                     port = c.free_port(avoid_ports=avoid_ports)
                     avoid_ports.append(port)
                     node_kwargs[k] = port
             
-            node_kwargs['boot_nodes'] = boot_nodes
-            chain_info[user] = c.copy(node_kwargs)
-            cls.start_node(**chain_info[user])
 
-            cls.sleep(sleep)
-            live_node_id = cls.live_node_id(chain=chain, user=user)
-            boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{live_node_id}'
+            node_kwargs['boot_nodes'] = boot_nodes
+
+            chain_info[node] = c.copy(node_kwargs)
+            cls.start_node(**chain_info[node])
+            # chain_info[node].pop('node_key')
+            if boot_nodes == None:
+                boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_key.public_key}'
 
 
         
@@ -2243,27 +2274,37 @@ class Subspace(c.Module):
         for node in nodes:
             cls.add_vali_node(node=node, chain=chain)
 
+    node_key_prefix = 'subspace.node'
     @classmethod
     def vali_nodes(cls,chain=chain):
-        return c.keys(f'vali_node.{chain}')
+        return list(set([k.split('.')[-2] for k in c.keys(f'{cls.node_key_prefix}.{chain}')]))
     
     @classmethod
     def vali_node_key2address(cls,chain=chain):
-        key2address =  c.key2address(f'vali_node.{chain}')
+        key2address =  c.key2address(f'{cls.node_key_prefix}.{chain}')
         return key2address
 
 
     @classmethod
     def vali_node_keys(cls,chain=chain):
-        return {k:c.get_key(k) for k in c.keys(f'vali_node.{chain}')}
+        vali_node_keys = {}
+        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
+            name = key_name.split('.')[-2]
+            role = key_name.split('.')[-1]
+            key = c.get_key(key_name)
+            if name not in vali_node_keys:
+                vali_node_keys[name] = { }
+            vali_node_keys[name][role] =  key.ss58_address
+        return vali_node_keys
 
     @classmethod
     def valid_nodes(cls,chain=chain):
-        return list(set([k.split('.')[-2] for k in c.keys(f'vali_node.{chain}')]))
+        return list(set([k.split('.')[-2] for k in c.keys(f'{cls.node_key_prefix}.{chain}')]))
 
     @classmethod
     def add_vali_node(cls,
                      node = 'alice',
+                     refresh:bool = True,
                      chain = chain):
         
 
@@ -2274,7 +2315,7 @@ class Subspace(c.Module):
             elif key_type == 'aura':
                 schema = 'Sr25519'
         
-            key = c.get_key(f'vali_node.{chain}.{node}.{key_type}',crypto_type=schema)
+            key = c.get_key(f'{cls.node_key_prefix}.{chain}.{node}.{key_type}',crypto_type=schema)
             base_path = cls.resolve_base_path(node)
 
             cmd  = f'''
@@ -2311,7 +2352,7 @@ class Subspace(c.Module):
     def live_node_ids(cls, chain=chain):
         node_ids = {}
         for node_path in cls.live_node_paths(chain=chain):
-            node_logs = c.logs(node_path, start_line=100, mode='local')
+            node_logs = c.logs(node_path, start_line=300, mode='local')
             for line in node_logs.split('\n'):
                 if 'Local node identity is: ' in line:
                     node_ids[node_path.split('::')[-1]] = line.split('Local node identity is: ')[1].strip()

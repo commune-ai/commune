@@ -1,15 +1,13 @@
 import commune as c
-import torch
-import bittensor
-from typing import List, Dict, Union, Tuple
+c.module('model.openai')
 
-
-cbt = c.module('bittensor')
-reged = cbt.reged()
-wallets = [cbt.get_wallet(r) for r in reged]
+bt = c.module('bittensor')
+reged = bt.reged()
+wallets = [bt.get_wallet(r) for r in reged]
 wallet = c.choice(wallets)
 
-
+metagraph = bt.get_metagraph()
 d = bittensor.text_prompting_pool(keypair=wallet.hotkey, metagraph=cbt.get_metagraph())
 response = d.forward(roles=['system', 'assistant'], messages=['you are chat bot', 'what is the whether'], timeout=6)
+response = range(self.metagraph.n
 c.print(response)
