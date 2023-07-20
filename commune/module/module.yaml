@@ -2,6 +2,7 @@ boot_peers:
 - 162.157.13.236:9057
 - 162.157.13.236:9402
 network: local
+network2url: {}
 networks:
 - subspace
 - local

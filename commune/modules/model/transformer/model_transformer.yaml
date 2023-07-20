@@ -37,5 +37,3 @@ shortcuts:
 block_prefix: model.layers
 model2block_prefix:
   mosaic: transformer.blocks
-  
-`
