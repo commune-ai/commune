@@ -23,7 +23,7 @@ from typing import List, Dict
 import os
 import commune as c
 
-class TextGenMiner( bittensor.BasePromptingMiner ):
+class MaoMiner( bittensor.BasePromptingMiner ):
 
     def __init__( self , config):
         super( TextGenMiner, self ).__init__(config=config)

@@ -26,7 +26,7 @@ class TransformerModel(c.Module):
 
     def generate(self, 
                 prompt, 
-                 max_length=200, 
+                 max_new_tokens=200, 
                  do_sample=False, 
                  top_k=10, 
                  num_return_sequences=1,
@@ -43,10 +43,9 @@ class TransformerModel(c.Module):
         outputs = self.model.generate(
             input_ids = inputs['input_ids'],
             attention_mask = inputs['attention_mask'],
-            max_length=max_length,
             eos_token_id=self.model.config.eos_token_id,
             early_stopping=early_stopping,
-            max_new_tokens=max_length,
+            max_new_tokens=max_new_tokens,
             do_sample=do_sample, 
             top_k=top_k, 
             **kwargs
@@ -56,7 +55,7 @@ class TransformerModel(c.Module):
 
         return output
 
-    text = generate
+    talk = chat = text = generate
 
 
 
