@@ -3131,7 +3131,7 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=-100, end_line=0, verbose=True, mode='cmd'):
         if mode == 'local':
             text = ''
             for m in ['out','error']:
@@ -5507,7 +5507,7 @@ class c:
             file.seek(start_byte)
             content = file.read(chunk_size).decode()
             if start_line != None or end_line != None:
-                if end_line == None:
+                if end_line == None or end_line == 0 :
                     end_line = len(content) 
                 if start_line == None:
                     start_line = 0
