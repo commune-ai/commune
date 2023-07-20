@@ -2344,6 +2344,7 @@ class BittensorModule(c.Module):
         if self._reged_wallets == None:
             reged = self.reged()
             self._reged_wallets = [self.get_wallet(r) for r in reged]
+        assert len(self._reged_wallets) > 0, 'No registered wallets found'
         wallet = c.choice(self._reged_wallets)
         d = bittensor.text_prompting_pool(keypair=wallet.hotkey, metagraph=self.metagraph)
         uids = c.shuffle(list(range(self.metagraph.n)))[:n]
