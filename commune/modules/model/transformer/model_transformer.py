@@ -26,7 +26,7 @@ class TransformerModel(c.Module):
 
     def generate(self, 
                 prompt, 
-                 max_length=200, 
+                 max_new_tokens=200, 
                  do_sample=False, 
                  top_k=10, 
                  num_return_sequences=1,
@@ -39,35 +39,23 @@ class TransformerModel(c.Module):
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
 
-
+        c.print('INPUT_KEYS',inputs.keys())
         outputs = self.model.generate(
-            **inputs,
-            max_length=max_length,
+            input_ids = inputs['input_ids'],
+            attention_mask = inputs['attention_mask'],
             eos_token_id=self.model.config.eos_token_id,
-            pad_token=self.model.config.pad_token_id,
             early_stopping=early_stopping,
-            max_new_tokens=max_length,
+            max_new_tokens=max_new_tokens,
             do_sample=do_sample, 
             top_k=top_k, 
             **kwargs
         )
 
-        sequences = self.tokenizer.batch_decode(outputs, skip_special_tokens=False)
+        output = self.tokenizer.batch_decode(outputs, skip_special_tokens=False)
 
-
-        c.print(sequences)
-        if len(sequences) == 1:
-            output = {'input': prompt,
-                    'output': sequences[0]}
-        else:
-        
-            output =  {'input': prompt,
-                    'output': sequences}
-
-        output['eos'] = self.eos_token in output['output']
-        if output['eos']:
-            output['output'] = output['output'].split(self.eos_token)[0]
         return output
+
+    talk = chat = text = generate
 
 
 
@@ -115,17 +103,5 @@ class TransformerModel(c.Module):
             text = output_text
             if output['eos']:
                 break
-
-    @classmethod
-    def talk(cls, text, module = 'model.lazarus30b', verbose:bool= True , *args, **kwargs):
-        text_generator = cls.text_generator(text, module, **kwargs)
-        output_text = ''
-        for text in text_generator:
-            if verbose:
-                print(text, end='')
-            output_text += text
-        print('\n')
-
-        # return output_text
 
           

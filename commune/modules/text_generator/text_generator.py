@@ -1,50 +1,74 @@
 import commune as c
 class TextGenerator(c.Module):
     image = 'text_generator'
+
+
+    def fleet(self, model = 'vicuna.13b', n=2):
+        free_gpu_memory = c.free_gpu_memory()
+        fleet_gpus = {}
+        if isinstance(model, str):
+            models = [model]*n
+        elif isinstance(model, list):
+            models = model
+        else:
+            raise ValueError(f'model must be a str or list, got {type(model)}')
+
+
+        for i, model in enumerate(models):
+            model_gpu_memory = c.model_max_gpu_memory(model, free_gpu_memory=free_gpu_memory)
+            model_gpus = list(model_gpu_memory.keys())
+            for k,v in model_gpu_memory.items():
+                free_gpu_memory[k] -= v
+                if free_gpu_memory[k] < 0:
+                    free_gpu_memory[k] = 0
+
+            c.print(f'model {i} gpus: {model_gpus}')
+
+
+            self.serve(model, gpus=model_gpus, tag=str(i))
+
     
-    def serve(self, model = None,
-                    tag = None,
-                    num_shard=1, 
-                    gpus=None,
-                    shm_size='100g',
-                    volume=None, 
-                    build:bool = True,
-                    sudo = True,
+    def serve(self, model :str = None,
+                    tag: str = None,
+                    num_shard:int=None, 
+                    gpus:list=None,
+                    shm_size : str='100g',
+                    volume:str = 'data',
+                    build:bool = False,
+                    max_shard_ratio = 0.5,
+                    refresh:bool = False,
+                    sudo = False,
                     port=None):
 
-        
         if model == None:
             model = self.config.model
+        tag = str(tag)
+        name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
+        if self.server_exists(name) and refresh == False:
+            c.print(f'{name} already exists')
+            return
+
+        if build:
+            self.build()
 
         if gpus == None:
-            gpus = c.model_gpus(model=model, num_shard=num_shard)
+            gpus = c.model_max_gpus(model)
         
-        if isinstance(gpus, list):
-            gpus = ','.join(map(str, gpus))
+        num_shard = len(gpus)
+        gpus = ','.join(map(str, gpus))
         
-        name =  self.image +"_"+ model
-
-        if tag != None:
-            name = f'{name}_{tag}'
-        
-
         model_id = self.config.shortcuts.get(model, model)
-        
         if port == None:
             port = c.resolve_port(port)
 
-        if volume == None:
-            volume = self.resolve_path('data')
+        volume = self.resolve_path(volume)
+        if not c.exists(volume):
             c.mkdir(volume)
-        # if build:
-        #     self.build(tag=tag)
+
         cmd_args = f'--num-shard {num_shard} --model-id {model_id}'
         cmd = f'docker run -d --gpus \'"device={gpus}"\' --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
 
-        
         output_text = c.cmd(cmd, sudo=sudo,verbose=True)
-        c.print(cmd)
-
 
         if 'Conflict. The container name' in output_text:
             c.print(f'container {name} already exists, restarting...')
@@ -52,34 +76,39 @@ class TextGenerator(c.Module):
             c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
             c.cmd(cmd, sudo=sudo, verbose=True)
 
-    # def fleet(self, num_shards = 2, buffer=5_000_000_000, **kwargs):
-    #     model_size = c.get_model_size(self.config.model)
-    #     model_shard_size = (model_size // num_shards ) + buffer
-    #     max_gpu_memory = c.max_gpu_memory(model_size)
-    #     c.print(max_gpu_memory, model_shard_size)
-
-
-    #     c.print(gpus)
-
-
-        
+        self.update()
         
 
-    def build(self, ):
+    def build(self ):
         cmd = f'docker build -t {self.image} .'
         c.cmd(cmd, cwd=self.dirpath(), verbose=True)
 
-    def logs(self, name, sudo=False):
-        return c.cmd(f'docker logs {name}', cwd=self.dirpath())
+    def logs(self, name, sudo=False, follow=False):
+        return c.cmd(f'docker {"-f" if follow else ""} logs text_generator_{name}', cwd=self.dirpath(), verbose=False)
 
+    def server2logs(self, sudo=False):
+        return {k:self.logs(k, sudo=sudo, follow=False)[-50:] for k in self.servers()}
 
-    def namespace(self, external_ip = True ):
-        output_text = c.cmd('docker ps', )
+    def update(self):
+        return self.namespace(load=False, save=True)
+        
+
+    def namespace(self, external_ip = True , load=True, save=False ):
+
+        if load and save == False:
+            namespace = self.get('namespace', {})
+            if len(namespace) > 0:
+                return namespace
+
+        output_text = c.cmd('docker ps', verbose=False)
         names = [l.split('  ')[-1].strip() for l in output_text.split('\n')[1:-1]]
         addresses = [l.split('  ')[-2].split('->')[0].strip() for l in output_text.split('\n')[1:-1]]
         namespace = {k:v for k,v in  dict(zip(names, addresses)).items() if k.startswith(self.image)}
         if external_ip:
             namespace = {k.replace(self.image+'_', ''):v.replace(c.default_ip, c.external_ip()) for k,v in namespace.items()}
+        if save:
+            self.put('namespace', namespace)
+
         return namespace
 
     
@@ -95,9 +124,18 @@ class TextGenerator(c.Module):
 
 
     def kill(self, model):
+        assert self.server_exists(model), f'{model} does not exist'
         c.cmd(f'docker rm -f {self.image}_{model}', verbose=True)
+        self.update()
         assert not self.server_exists(model), f'failed to kill {model}'
         return {'status':'killed', 'model':model}
+
+
+
+    def purge(self):
+        for model in self.servers():
+            if self.server_exists(model):
+                self.kill(model)
 
     def addresses(self):
         return list(self.namespace().values())
@@ -114,10 +152,11 @@ class TextGenerator(c.Module):
 
 
     @classmethod
-    def generate(cls, 
+    def generate_stream(cls, 
                 prompt = 'what is up, how is it going bro what are you saying?', 
                 model:str = None,
                 max_new_tokens:int=100, 
+                trials = 4,
                 timeout = 6,
                 **kwargs):
 
@@ -132,10 +171,25 @@ class TextGenerator(c.Module):
 
         if not address.startswith('http://'):
             address = 'http://'+address
-            
+
+        c.print(f'address: {address}')   
         from text_generation import Client
-        client = Client(address)
-        generated_text = client.generate_stream(prompt, max_new_tokens=max_new_tokens, **kwargs)
+
+        try:
+            client = Client(address)
+            generated_text = client.generate_stream(prompt, max_new_tokens=max_new_tokens, **kwargs)
+        except Exception as e:
+            c.print(f'error generating text, retrying -> {trials} left...')
+            trials -= 1
+            if trials > 0:
+                return cls.generate(prompt=prompt, 
+                            model=model, 
+                            max_new_tokens=max_new_tokens, 
+                            trials=trials, 
+                            timeout=timeout, 
+                            **kwargs)
+            else:
+                raise Exception(f'error generating text, retrying -> {trials} left...')
         output_text = ''
 
         start_time = c.time()
@@ -147,6 +201,51 @@ class TextGenerator(c.Module):
             c.print(text, end='')
 
 
+        return output_text
+
+
+    @classmethod
+    def generate(cls, 
+                prompt = 'what is up, how is it going bro what are you saying?', 
+                model:str = None,
+                max_new_tokens:int=10, 
+                trials = 4,
+                ignore_errors = False,
+                timeout = 6,
+                **kwargs):
+
+        self = cls()
+        namespace = self.namespace()
+
+        if model == None:
+            assert len(namespace) > 0, f'No models found, please run {self.image}.serve() to start a model server'
+            model = self.random_server()
+            
+        address = namespace.get(model, model)
+
+        if not address.startswith('http://'):
+            address = 'http://'+address
+
+        c.print(f'address: {address}')   
+        from text_generation import Client
+
+        try:
+            client = Client(address)
+            output_text = client.generate(prompt, max_new_tokens=max_new_tokens, **kwargs).generated_text
+        except Exception as e:
+            c.print(f'error generating text, retrying -> {trials} left...')
+            trials -= 1
+            if trials > 0:
+                return cls.generate(prompt=prompt, 
+                            model=None, 
+                            max_new_tokens=max_new_tokens, 
+                            trials=trials, 
+                            timeout=timeout, 
+                            **kwargs)
+            else:
+                if ignore_errors:
+                    raise Exception(f'error generating text, retrying -> {trials} left...')
+                return  'Well, I actually do not really know? but you know what? We are going to find out!'
         return output_text
 
     talk = generate
