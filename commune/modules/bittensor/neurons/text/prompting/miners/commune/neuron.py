@@ -26,8 +26,7 @@ import commune as c
 class MaoMiner( bittensor.BasePromptingMiner ):
 
     def __init__( self , config):
-        super( TextGenMiner, self ).__init__(config=config)
-        self.textgen = c.module('text_generator')()
+        super( MaoMiner, self ).__init__(config=config)
 
     @classmethod
     def check_config( cls, config: 'bittensor.Config' ):
@@ -43,10 +42,9 @@ class MaoMiner( bittensor.BasePromptingMiner ):
 
         msg = messages[-1]['content']
         num_trials = 4
-        timeout = 10
+        timeout = 6
 
-        c.new_event_loop()
-        msg = msg[-1000:]
+        c.get_event_loop()
         
         for i in range(num_trials):
             try:
