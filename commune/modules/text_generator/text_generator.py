@@ -126,8 +126,16 @@ class TextGenerator(c.Module):
     def kill(self, model):
         assert self.server_exists(model), f'{model} does not exist'
         c.cmd(f'docker rm -f {self.image}_{model}', verbose=True)
+        self.update()
         assert not self.server_exists(model), f'failed to kill {model}'
         return {'status':'killed', 'model':model}
+
+
+
+    def purge(self):
+        for model in self.servers():
+            if self.server_exists(model):
+                self.kill(model)
 
     def addresses(self):
         return list(self.namespace().values())
@@ -144,7 +152,7 @@ class TextGenerator(c.Module):
 
 
     @classmethod
-    def generate(cls, 
+    def generate_stream(cls, 
                 prompt = 'what is up, how is it going bro what are you saying?', 
                 model:str = None,
                 max_new_tokens:int=100, 
@@ -193,6 +201,51 @@ class TextGenerator(c.Module):
             c.print(text, end='')
 
 
+        return output_text
+
+
+    @classmethod
+    def generate(cls, 
+                prompt = 'what is up, how is it going bro what are you saying?', 
+                model:str = None,
+                max_new_tokens:int=10, 
+                trials = 4,
+                ignore_errors = False,
+                timeout = 6,
+                **kwargs):
+
+        self = cls()
+        namespace = self.namespace()
+
+        if model == None:
+            assert len(namespace) > 0, f'No models found, please run {self.image}.serve() to start a model server'
+            model = self.random_server()
+            
+        address = namespace.get(model, model)
+
+        if not address.startswith('http://'):
+            address = 'http://'+address
+
+        c.print(f'address: {address}')   
+        from text_generation import Client
+
+        try:
+            client = Client(address)
+            output_text = client.generate(prompt, max_new_tokens=max_new_tokens, **kwargs).generated_text
+        except Exception as e:
+            c.print(f'error generating text, retrying -> {trials} left...')
+            trials -= 1
+            if trials > 0:
+                return cls.generate(prompt=prompt, 
+                            model=None, 
+                            max_new_tokens=max_new_tokens, 
+                            trials=trials, 
+                            timeout=timeout, 
+                            **kwargs)
+            else:
+                if ignore_errors:
+                    raise Exception(f'error generating text, retrying -> {trials} left...')
+                return  'Well, I actually do not really know? but you know what? We are going to find out!'
         return output_text
 
     talk = generate
