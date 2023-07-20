@@ -1,5 +1,5 @@
 
-model: llama2
+model: vicuna.13b
 device_map: auto
 trust_remote_code: true
 max_memory : null

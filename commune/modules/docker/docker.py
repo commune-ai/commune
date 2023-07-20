@@ -56,13 +56,12 @@ class Docker(c.Module):
 
     
     @classmethod
-    def containers(cls,  sudo:bool = True):
-        data = [f for f in c.cmd('docker ps -a', sudo=sudo).split('\n')[1:]]
+    def ps(cls,  sudo:bool = False):
+        data = [f for f in c.cmd('docker ps', sudo=sudo, verbose=False).split('\n')[1:]]
         def parse_container_info(container_str):
             container_info = {}
             fields = container_str.split()
 
-            c.print(fields)
             container_info['container_id'] = fields[0]
             container_info['image'] = fields[1]
             container_info['command'] = fields[2]
@@ -75,6 +74,11 @@ class Docker(c.Module):
 
         
         return [parse_container_info(container_str) for container_str in data if container_str]
+
+
+    @classmethod
+    def containers(cls,  sudo:bool = False):
+        return [container['name'] for container in cls.ps(sudo=sudo)]
 
 
 

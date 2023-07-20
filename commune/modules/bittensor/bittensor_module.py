@@ -1463,7 +1463,9 @@ class BittensorModule(c.Module):
         if netuid in [1, 11]:
             if model == 'openai':
                 neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.openai.neuron.OpenAIMiner')
-            if model == 'textgen':
+            elif model == 'openai.free':
+                neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.openai_freew.neuron.OpenAIFreeMiner')
+            elif model == 'textgen':
                 neuron_class = c.import_object(f'commune.modules.bittensor.neurons.text.prompting.miners.textgen.neuron.TextGenMiner')
         elif netuid == 3:
             neuron_class = cls.module('bittensor.miner.server')
@@ -1576,7 +1578,7 @@ class BittensorModule(c.Module):
                wallet='alice.1',
                network =default_network,
                netuid=default_netuid,
-               model = 'openai',
+               model = 'textgen',
                port = None,
                prometheus_port:int = None,
                device:int = None,
