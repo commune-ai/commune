@@ -1978,7 +1978,7 @@ class BittensorModule(c.Module):
 
     @classmethod
     def logs(cls, wallet,  **kwargs):
-        return c.logs(cls.wallet2miner(**kwargs).get(wallet))
+        return c.logs(cls.wallet2miner(**kwargs).get(wallet), mode='local', start_line=-10, end_line=-1)
 
     @classmethod
     async def async_logs(cls, wallet, network=default_network, netuid=3):
