@@ -1109,18 +1109,10 @@ class BittensorModule(c.Module):
             cls.add_hotkey(coldkey=coldkey, hotkey=hk, **kwargs)  
         
 
-    def find_unused_hotkey(cls, coldkey=default_coldkey):
-        hotkeys = cls.hotkeys(coldkey)
-        for i in range(100):
-            i = str(i)
-            if i not in hotkeys:
-                return i
-        raise ValueError('No unused hotkeys found.')
-
     @classmethod 
     def add_hotkey (cls,
                         coldkey = default_coldkey,
-                         hotkey = None,
+                       hotkey = None,
                        mnemonic:str = None,
                        use_password=False,
                        overwrite:bool = False) :
@@ -1461,7 +1453,7 @@ class BittensorModule(c.Module):
 
 
     @classmethod
-    def neuron_class(cls,  model='openai', netuid=default_netuid):
+    def neuron_class(cls,  model='commune', netuid=default_netuid):
         if netuid in [1, 11]:
             neuron_path = cls.getc('neurons').get(model)
             neuron_class = c.import_object(neuron_path)
@@ -2340,7 +2332,14 @@ class BittensorModule(c.Module):
 
     _reged_wallets = None
        
-    def talk(self, prompt = 'what is the whether', role='assistant',  timeout=2, n=10, trials=3, **kwargs):
+    def talk(self, 
+             prompt:str = 'what is the whether', 
+             role:str='assistant',  
+            timeout:int=4, 
+            n:int=10, 
+            trials:int=3,
+            n_jobs:int = 2,
+            **kwargs):
         assert trials > 0, 'trials must be greater than 0'
         if self._reged_wallets == None:
             reged = self.reged()
@@ -2348,7 +2347,12 @@ class BittensorModule(c.Module):
         wallet = c.choice(self._reged_wallets)
         d = bittensor.text_prompting_pool(keypair=wallet.hotkey, metagraph=self.metagraph)
         uids = c.shuffle(list(range(self.metagraph.n)))[:n]
-        response = d.forward(roles=[role], messages=[prompt], timeout=timeout, uids=uids)
+        
+        jobs = [d.async_forward(roles=[role], messages=[prompt], timeout=timeout, uids=uids) for i in range(n_jobs)]
+        response = []
+        for r in c.gather(jobs):
+            response.extend(r)
+        
         success_responses = [r.completion.strip() for r in response if r.return_code == 1]
         if len(success_responses) == 0:
             c.print(f'No successful responses for prompt {prompt} role {role} timeout {timeout} n {n}')

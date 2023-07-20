@@ -32,8 +32,7 @@ class Miner(commune.Module):
             raise ValueError(f'Invalid model type: {type(model)}')
         
         self.model = model
-            
-            
+           
     def set_subspace(self, subspace = None ) -> None:
         module_class = commune.get_module('subspace')
         if isinstance(subspace, str):
@@ -47,14 +46,10 @@ class Miner(commune.Module):
         
         self.subspace  = module_class(**kwargs)
 
-
-
-
     def set_stats(self, stats: Dict[str, Any]) -> None:
         if stats is None:
             stats = {}
         self.stats = stats
-         
     
     def validate_model(self, model_key: str = None, **kwargs):
         model_key = model_key if model_key else self.random_model_key()
@@ -70,8 +65,6 @@ class Miner(commune.Module):
         # calculate metric
         metric = self.calculate_metric(output)
         
-        
-
         model_stat={ 
                         'metric': metric,
                         'timestamp': commune.time(),
@@ -79,9 +72,7 @@ class Miner(commune.Module):
                         'sample_metadata': self.get_sample_metatdata(sample),
                              }
         
-        
         self.set_stat(key=model_key, stat = model_stat)
-        
         
         return metric
 
