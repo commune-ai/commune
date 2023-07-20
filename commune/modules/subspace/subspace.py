@@ -1765,9 +1765,9 @@ class Subspace(c.Module):
 
     @classmethod   
     def purge_chain(cls,
+                    base_path:str = None,
                     chain:str = chain,
                     user:str = 'alice',
-                    base_path:str = None,
                     sudo = False):
         if base_path == None:
             base_path = cls.resolve_base_path(node=node)

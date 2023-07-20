@@ -39,12 +39,12 @@ class TransformerModel(c.Module):
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
 
-
+        c.print('INPUT_KEYS',inputs.keys())
         outputs = self.model.generate(
-            **inputs,
+            input_ids = inputs['input_ids'],
+            attention_mask = inputs['attention_mask'],
             max_length=max_length,
             eos_token_id=self.model.config.eos_token_id,
-            pad_token=self.model.config.pad_token_id,
             early_stopping=early_stopping,
             max_new_tokens=max_length,
             do_sample=do_sample, 
@@ -52,21 +52,8 @@ class TransformerModel(c.Module):
             **kwargs
         )
 
-        sequences = self.tokenizer.batch_decode(outputs, skip_special_tokens=False)
+        output = self.tokenizer.batch_decode(outputs, skip_special_tokens=False)
 
-
-        c.print(sequences)
-        if len(sequences) == 1:
-            output = {'input': prompt,
-                    'output': sequences[0]}
-        else:
-        
-            output =  {'input': prompt,
-                    'output': sequences}
-
-        output['eos'] = self.eos_token in output['output']
-        if output['eos']:
-            output['output'] = output['output'].split(self.eos_token)[0]
         return output
 
 
@@ -126,6 +113,6 @@ class TransformerModel(c.Module):
             output_text += text
         print('\n')
 
-        # return output_text
+        return output_text
 
           

@@ -2791,7 +2791,7 @@ class c:
 
 
     @classmethod
-    def kill(cls, *modules,
+    def kill(cls, module,
              mode:str = 'pm2',
              verbose:bool = False,
              update : bool = True,
@@ -2799,17 +2799,24 @@ class c:
 
         kill_fn = getattr(cls, f'{mode}_kill')
         delete_modules = []
-        for module in modules:
-            killed_module =kill_fn(module, verbose=verbose, **kwargs)
-            if isinstance(killed_module, list):
-                delete_modules.extend(killed_module)
-            elif isinstance(killed_module, str):
-                delete_modules.append(killed_module)
-            else:
-                raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
+
+        killed_module =kill_fn(module, verbose=verbose, **kwargs)
+        if isinstance(killed_module, list):
+            delete_modules.extend(killed_module)
+        elif isinstance(killed_module, str):
+            delete_modules.append(killed_module)
+        else:
+            raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
         # update modules
+        
+        if module in c.servers():
+            c.deregister_server(module)
+
+        assert c.module_exists(module) == False, f'module {module} still exists'
+
         cls.update(network='local')
-        return {'killed': delete_modules}
+
+        return {'servers': delete_modules}
 
     delete = kill
     def destroy(self):
@@ -3080,17 +3087,20 @@ class c:
     def pm2_kill(cls, name:str, verbose:bool = True):
         output_list = []
         pm2_list = cls.pm2_list()
-        
         if name in pm2_list:
             rm_list = [name]
         else:
             rm_list = [ p for p in pm2_list if p.startswith(name)]
+
+        if len(rm_list) == 0:
+            c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
+            return []
         for n in rm_list:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.run_command(f"pm2 delete {n}", verbose=False)
             
-        return {'killed': pm2_list}
+        return rm_list
     
     
     @classmethod
@@ -3102,7 +3112,7 @@ class c:
             if module.startswith(name) or name in ['all']:
                 if verbose:
                     c.print(f'Restarting {module}', color='cyan')
-                cls.run_command(f"pm2 restart {module}")
+                c.cmd(f"pm2 restart {module}", verbose=verbose)
                 restarted_modules.append(module)
 
             
@@ -3117,7 +3127,7 @@ class c:
     
     
     @classmethod
-    def restart(cls, name:str, mode:str='pm2', verbose:bool = True):
+    def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose)
         return refreshed_modules
     refresh = reset = restart
@@ -3958,7 +3968,7 @@ class c:
         import torch
         return torch.cuda.is_available()
     @classmethod
-    def gpu_memory(cls) -> Dict[int, Dict[str, float]]:
+    def gpu_info_map(cls) -> Dict[int, Dict[str, float]]:
         import torch
         gpu_info = {}
         for gpu_id in cls.gpus():
@@ -3970,8 +3980,19 @@ class c:
                 'total': mem_info[1]
             }
         return gpu_info
+
+    @classmethod
+    def gpu_total_map(cls) -> Dict[int, Dict[str, float]]:
+        import torch
+        return {k:v['total'] for k,v in c.gpu_info_map().items()}
     
-    gpu_info = gpu_memory_map = gpu_map = gpu_memory
+
+    @classmethod
+    def gpu_total(cls, idx=0, fmt='b') -> Dict[int, Dict[str, float]]:
+        import torch
+        return c.format_data_size(c.gpu_total_map()[idx])
+    
+    gpu_map =gpu_info_map
  
     @classmethod
     def total_gpu_memory(cls) -> int:
@@ -4185,6 +4206,7 @@ class c:
             cls.update()
             cls.sleep(period)
             
+    
     def model_size(self, **kwargs ):
         return self.get_model_size(model=self, **kwargs)
     
@@ -5616,6 +5638,15 @@ class c:
         
     make_dir= mkdir
 
+    @classmethod
+    def model_max_gpu_memory(cls, model, *args, **kwargs):
+        model_size = c.get_model_size(model)
+        return c.max_gpu_memory(model_size,  *args, **kwargs)
+
+    @classmethod
+    def model_max_gpus(cls, model, *args, **kwargs):
+        return list(c.model_max_gpu_memory(model,  *args, **kwargs).keys())
+
 
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
@@ -5628,6 +5659,8 @@ class c:
                        fmt:str = 'b',
                        decimals:int = 3,
                        **kwargs):
+
+            
         
         
         memory = cls.resolve_memory(memory)
@@ -5660,8 +5693,6 @@ class c:
                 gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
                 gpu_memory =  free_gpu_memory[gpu]
             
-            c.print({'unallocated_memory':unallocated_memory,'gpu': gpu, 'max_memory':max_memory, 'gpu_memory':gpu_memory, 'free_gpu_memory':free_gpu_memory})
-
             if gpu in max_memory:
                 continue
             
@@ -5670,7 +5701,6 @@ class c:
                 
   
             allocated_memory = min(gpu_memory, unallocated_memory)
-            c.print(f'Allocated {allocated_memory} to gpu {gpu}')
             unallocated_memory -= allocated_memory
             max_memory[gpu] = allocated_memory
             free_gpu_memory[gpu] -= allocated_memory
@@ -6944,6 +6974,11 @@ class c:
     @classmethod
     def ask(cls, *args, **kwargs):
         return c.module('model.transformer').talk(*args, **kwargs)
+
+
+    @classmethod
+    def containers(cls):
+        return c.module('docker').containers()
 
 
     
