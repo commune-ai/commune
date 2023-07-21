@@ -21,7 +21,8 @@ from lit_gpt.utils import lazy_load, check_valid_checkpoint_dir, quantization
 
 class LitGpt(c.Module):
     def __init__(self,**kwargs):
-        config = self.set_config(config=kwargs)
+        config = self.set_config(kwargs=kwargs)
+        torch.set_float32_matmul_precision(config.float32_matmul_precision)
         self.set_model(model=config.model,
                         quantize=config.quantize, 
                         strategy=config.strategy, 
@@ -70,7 +71,7 @@ class LitGpt(c.Module):
             raise NotImplementedError
         if quantize == "gptq.int4":
             model_file = "lit_model_gptq.4bit.pth"
-            if not (checkpoint_dir + '/' +  model_file).is_file():
+            if not (checkpoint_dir /  model_file).is_file():
                 raise ValueError("Please run `python quantize/gptq.py` first")
         else:
             model_file = "lit_model.pth"
@@ -122,7 +123,7 @@ class LitGpt(c.Module):
 
         import os
         path2model_id = lambda x: os.path.dirname(x).replace(checkpoint_dirpath, '')
-        return {path2model_id(p): os.path.dirname(p).replace(self.dirpath()+'/', '') for p in c.walk(checkpoint_dirpath) if p.endswith('lit_config.json')}
+        return {path2model_id(p): os.path.dirname(p) for p in c.walk(checkpoint_dirpath) if p.endswith('lit_config.json')}
     
 
     
@@ -130,12 +131,15 @@ class LitGpt(c.Module):
     @torch.no_grad()
     def generate(self,
         prompt: str,
-        max_new_tokens: int = 100,
+        max_new_tokens: int = 256,
         max_seq_length: int = 256,
         temperature: float = 1.0,
         top_k: Optional[int] = None,
         eos_id: Optional[int] = None,
+        return_dict : bool = True,
+        **kwargs
     ) -> torch.Tensor:
+        
         """Takes a conditioning sequence (prompt) as input and continues to generate as many tokens as requested.
 
         The implementation of this function is modified from A. Karpathy's nanoGPT.
@@ -148,6 +152,8 @@ class LitGpt(c.Module):
             top_k: If specified, only sample among the tokens with the k highest probabilities.
             eos_id: If specified, stop generating any more token once the <eos> token is triggered.
         """
+
+        t_start = c.time()
         fabric = self.fabric
         model = self.model
 
@@ -159,6 +165,8 @@ class LitGpt(c.Module):
             model.config.block_size,
         )  # maximum rope cache length
 
+        if len(encoded) > max_seq_length:
+            encoded = encoded[-max_seq_length:]
         idx = encoded
 
         T = idx.size(0)
@@ -202,9 +210,22 @@ class LitGpt(c.Module):
 
             # if <eos> token is triggered, return the output (stop generation)
             if idx_next == eos_id:
-                return idx[:input_pos]  # include the EOS token
-            
-        return self.tokenizer.decode(idx)
+                idx =  idx[:input_pos]  # include the EOS token
+                break
+
+        output_text =  self.tokenizer.decode(idx)
+        if return_dict:
+            output = {
+                'text': output_text,
+                'input_tokens': prompt_length,
+                'output_tokens': idx.size(0) - prompt_length,
+                'time': c.round(c.time() - t_start, 4),
+            }
+            output['tokens_per_second'] = c.round(output['output_tokens'] / output['time'], 4)
+
+            return output
+  
+        return text
 
 
     def resolve_model(self, model) -> str:
@@ -227,8 +248,9 @@ class LitGpt(c.Module):
         
         for i in range(num_samples):
             y = self.generate(prompt)
-            fabric.print(y, file=sys.stderr)
+            c.print(f'--- TEXT ({i}) ---',y.pop('text'), '---')
+            c.print(y)
         if fabric.device.type == "cuda":
-            fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB", file=sys.stderr)
+            c.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB", file=sys.stderr)
 
 

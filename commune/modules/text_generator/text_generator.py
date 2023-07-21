@@ -42,7 +42,8 @@ class TextGenerator(c.Module):
 
         if model == None:
             model = self.config.model
-        tag = str(tag)
+        if tag != None:
+            tag = str(tag)
         name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
         if self.server_exists(name) and refresh == False:
             c.print(f'{name} already exists')
@@ -56,6 +57,8 @@ class TextGenerator(c.Module):
         
         num_shard = len(gpus)
         gpus = ','.join(map(str, gpus))
+
+        c.print(f'gpus: {gpus}')
         
         model_id = self.config.shortcuts.get(model, model)
         if port == None:
@@ -66,15 +69,19 @@ class TextGenerator(c.Module):
             c.mkdir(volume)
 
         cmd_args = f'--num-shard {num_shard} --model-id {model_id}'
-        cmd = f'docker run -d --gpus \'"device={gpus}"\' --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
+        cmd = f'docker run -d --gpus device={gpus} --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
 
-        output_text = c.cmd(cmd, sudo=sudo,verbose=True)
+        c.print(cmd)
+        output_text = c.cmd(cmd, sudo=sudo, output_text=True)
 
         if 'Conflict. The container name' in output_text:
             c.print(f'container {name} already exists, restarting...')
             contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
             c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
             c.cmd(cmd, sudo=sudo, verbose=True)
+        else: 
+            c.print(output_text)
+
 
         self.update()
         
