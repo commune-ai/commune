@@ -20,24 +20,30 @@ from lit_gpt.utils import lazy_load, check_valid_checkpoint_dir, quantization
 
 
 class LitGpt(c.Module):
-    def __init__(self,**kwargs):
-        config = self.set_config(kwargs=kwargs)
+    def __init__(self,config= None, **kwargs):
+        config = self.set_config(config=config, kwargs=kwargs)
         torch.set_float32_matmul_precision(config.float32_matmul_precision)
         self.set_model(model=config.model,
                         quantize=config.quantize, 
                         strategy=config.strategy, 
                         devices=config.devices, 
                         precision=config.precision,
-                        seed = config.seed
+                        seed = config.seed,
+                        test = config.test
                         )
+        if config.test:
+            self.test(model=self)
+        
+    
 
     def set_model(self,
-        model: str = "vicuna.13b",
+        model: str = 'vicuna.13b',
         quantize: Optional[Literal["bnb.nf4", "bnb.nf4-dq", "bnb.fp4", "bnb.fp4-dq", "bnb.int8", "gptq.int4"]] = None,
         strategy: str = "auto",
-        devices: int = 1,
+        devices: int = None,
         precision: str = "bf16-true",
-        seed = 42,
+        seed : bool = 42,
+        test: bool = False,
     ) -> None:
         """Generates text samples based on a pre-trained model and tokenizer.
 
@@ -53,6 +59,10 @@ class LitGpt(c.Module):
             precision: Indicates the Fabric precision setting to use.
         """
         model = self.resolve_model(model) # lets get the model boys
+        if devices is None:
+            devices = c.model_max_gpus(model)
+
+        c.print(f'Using {devices} devices for model {model}', color='green')
         checkpoint_dir = Path(self.get_model_checkpoint(model))
         if strategy == "fsdp":
             strategy = FSDPStrategy(auto_wrap_policy={Block}, cpu_offload=False)
@@ -67,7 +77,7 @@ class LitGpt(c.Module):
         with open(checkpoint_dir / "lit_config.json") as fp:
             config = Config(**json.load(fp))
 
-        if quantize is not None and devices > 1:
+        if quantize is not None and ((isinstance(devices, list) and len(devices) > 1) or (isinstance(devices, int) and devices > 1)):
             raise NotImplementedError
         if quantize == "gptq.int4":
             model_file = "lit_model_gptq.4bit.pth"
@@ -79,9 +89,12 @@ class LitGpt(c.Module):
 
         fabric.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}", file=sys.stderr)
         t0 = time.time()
+
         with fabric.init_module(empty_init=True), quantization(quantize):
             model = GPT(config)
         fabric.print(f"Time to instantiate model: {time.time() - t0:.02f} seconds.", file=sys.stderr)
+
+
 
         t0 = time.time()
         with lazy_load(checkpoint_path) as checkpoint:
@@ -92,15 +105,16 @@ class LitGpt(c.Module):
         self.model = fabric.setup_module(model)
         self.tokenizer = Tokenizer(checkpoint_dir)
         L.seed_everything(seed)
+        # if test:
+        #     self.test(model=self)
+        self.device = c.copy(fabric.device)
 
-
-    def install(self, install_torch :bool= True , install_flash:bool = False):
-        if install_torch:
-            c.cmd("pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.1.0dev'", verbose=True)
-        if install_flash:
-            c.cmd("MAX_JOBS=4 pip install 'flash-attn>=2.0.0.post1' --no-build-isolation")
-        
-        return c.cmd('pip install -e ./', cwd=self.dirpath(), verbose=True)
+    @classmethod
+    def install(cls, install_torch :bool= True , install_flash:bool = False):
+        c.cmd("pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.1.0dev'", verbose=True)
+        c.cmd("pip install 'flash-attn>=2.0.0.post1' --no-build-isolation")
+        c.cmd("pip install -U 'bitsandbytes>=0.40.0'")
+        return c.cmd('pip install -e ./', cwd=cls.dirpath(), verbose=True)
     
     def download(self, model='vicuna.13b'):
         model = c.model_shortcuts().get(model, model)
@@ -127,11 +141,10 @@ class LitGpt(c.Module):
     
 
     
-
     @torch.no_grad()
     def generate(self,
         prompt: str,
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 10,
         max_seq_length: int = 256,
         temperature: float = 1.0,
         top_k: Optional[int] = None,
@@ -152,12 +165,10 @@ class LitGpt(c.Module):
             top_k: If specified, only sample among the tokens with the k highest probabilities.
             eos_id: If specified, stop generating any more token once the <eos> token is triggered.
         """
-
-        t_start = c.time()
-        fabric = self.fabric
         model = self.model
+        t_start = c.time()
+        encoded = self.tokenizer.encode(prompt)
 
-        encoded = self.tokenizer.encode(prompt, device=fabric.device)
         prompt_length = encoded.size(0)
         max_returned_tokens = prompt_length + max_new_tokens
         assert max_returned_tokens <= model.config.block_size, (
@@ -178,17 +189,23 @@ class LitGpt(c.Module):
         idx = empty
         input_pos = torch.arange(0, T, device=device)
 
+
+        idx = self.fabric.to_device(idx)
+        input_pos = self.fabric.to_device(input_pos)
+
+
         if idx.device.type == "xla":
             import torch_xla.core.xla_model as xm
 
             xm.mark_step()
-
         # generate up to a fixed number of tokens
         for _ in range(max_returned_tokens - T):
             x = idx.index_select(0, input_pos).view(1, -1)
 
+            c.print(x, input_pos, idx, prompt_length, device)
+
             # forward
-            logits = model(x, max_seq_length, input_pos)
+            logits =self.model(x, max_seq_length, input_pos)
             logits = logits[0, -1] / temperature
 
             # optionally crop the logits to only the top k options
@@ -226,6 +243,8 @@ class LitGpt(c.Module):
             return output
   
         return text
+    
+    chat = talk = generate
 
 
     def resolve_model(self, model) -> str:
@@ -242,15 +261,57 @@ class LitGpt(c.Module):
     
 
     @classmethod
-    def test(cls, prompt = 'What is the difference between an einsum and a matrix multiplicaation?', num_samples = 10):
-        self = cls() 
-        fabric = self.fabric
-        
+    def test(cls, module=None,  
+                prompt = 'What is the difference between an einsum and a matrix multiplicaation?',
+                num_samples = 2,
+                max_new_tokens=10,
+                **kwargs):
+        if module is None:
+            module = cls(test=False)
         for i in range(num_samples):
-            y = self.generate(prompt)
-            c.print(f'--- TEXT ({i}) ---',y.pop('text'), '---')
-            c.print(y)
-        if fabric.device.type == "cuda":
-            c.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB", file=sys.stderr)
+            output = module.generate(prompt, max_new_tokens=max_new_tokens, **kwargs)
+            c.print(output)
+            excepted_keys = ['text', 'input_tokens', 'output_tokens', 'time', 'tokens_per_second']
+            for k in excepted_keys:
+                assert k in output, f'{k} not in output'
+        return output
 
 
+    @classmethod
+    def test_remote(cls, module=None,  
+                prompt = 'What is the difference between an einsum and a matrix multiplicaation?',
+                num_samples = 2,
+                max_new_tokens=10,
+                **kwargs):
+        for i in range(num_samples):
+            output = module.generate(prompt, max_new_tokens=max_new_tokens, **kwargs)
+            c.print(output)
+            excepted_keys = ['text', 'input_tokens', 'output_tokens', 'time', 'tokens_per_second']
+            for k in excepted_keys:
+                assert k in output, f'{k} not in output'
+        return output
+
+    @classmethod
+    def serve(cls, model='vicuna.7b', 
+                remote=False,
+                refresh=False,
+                tag=None,  
+                devices=None, 
+                  **kwargs):
+
+        if '::' in model:
+            # extract model name from path
+            name = c.copy(model)
+            model = '::'.join(model.split('::')[:-1])
+        else:
+            name = f'model.{model}'
+
+        if tag is not None:
+            name = f'{name}::{tag}'
+        kwargs['model'] = model
+
+        # resolve the device
+        if devices == None:
+            devices = c.model_max_gpus(model)
+        kwargs['devices'] = devices
+        c.serve(module=cls.module_path(), name=name, kwargs=kwargs, remote=remote, refresh=refresh)

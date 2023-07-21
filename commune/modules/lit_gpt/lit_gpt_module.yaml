@@ -5,8 +5,9 @@ max_new_tokens: 50
 top_k: 200
 temperature: 0.8
 quantize: gptq.int4
-strategy: "auto"
+strategy: auto
 devices: 1
-precision: "bf16-true"
+precision: bf16-true
 seed: 42
 float32_matmul_precision: high
+test: false
