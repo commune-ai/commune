@@ -5681,6 +5681,8 @@ class c:
     def model_max_gpus(cls, model, *args, **kwargs):
         return list(c.model_max_gpu_memory(model,  *args, **kwargs).keys())
 
+    infer_gpus = model_max_gpus
+
 
     @classmethod
     def max_gpu_memory(cls, memory:Union[str,int] = None,
@@ -6755,15 +6757,35 @@ class c:
     
     
     
-    
-    def tokenizer(self, tokenizer='gpt2', *args, **kwargs):
+    def ensure_self_attr(self, attr, default=None):
+        if not hasattr(self, attr):
+            setattr(self, attr, default)
+    @classmethod
+    def ensure_class_attr(cls, attr, default=None):
+        if not hasattr(cls, attr):
+            setattr(cls, attr, default)
+
+    tokenizer_cache = {}
+    @classmethod
+    def tokenizer(cls, tokenizer='gpt2', cache = True,  **kwargs):
+        if cache and tokenizer in cls.tokenizer_cache:
+            return cls.tokenizer_cache[tokenizer]
         from transformers import AutoTokenizer
-        return AutoTokenizer.from_pretrained(tokenizer, *args, **kwargs)
-    
-    def tokenize(self, text, tokenizer='gpt2', *args, **kwargs):
-        return self.tokenizer(tokenizer, *args, **kwargs).encode(text)
-    def detokenize(self, tokens, tokenizer='gpt2', *args, **kwargs):
-        return self.tokenizer(tokenizer, *args, **kwargs).decode(tokens)
+        tokenizer_obj =  AutoTokenizer.from_pretrained(tokenizer,**kwargs)
+        if cache:
+            cls.tokenizer_cache[tokenizer] = tokenizer_obj
+        return tokenizer_obj
+        
+    @classmethod
+    def tokenize(cls, text, tokenizer='gpt2', *args, **kwargs):
+        return cls.tokenizer(tokenizer, *args, **kwargs).encode(text)
+    @classmethod
+    def detokenize(cls, tokens, tokenizer='gpt2', *args, **kwargs):
+        return cls.tokenizer(tokenizer, *args, **kwargs).decode(tokens)
+
+    @classmethod
+    def num_tokens(cls, text, **kwargs):
+        return len(cls.tokenize(text, **kwargs))
 
     
     def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
@@ -7031,7 +7053,7 @@ class c:
 
 
     @classmethod
-    def talk(cls , *args, module = 'model.bt', **kwargs):
+    def talk(cls , *args, module = 'model', **kwargs):
         model = c.connect(module, virtual=False)
         c.print('Selecting: ', model)
         return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))

@@ -3,7 +3,9 @@ class TextGenerator(c.Module):
     image = 'text_generator'
 
 
-    def fleet(self, model = 'vicuna.13b', n=2):
+    def fleet(self, model = 'vicuna.7b', n=None):
+        if n == None:
+            n = c.num_gpus()
         free_gpu_memory = c.free_gpu_memory()
         fleet_gpus = {}
         if isinstance(model, str):
@@ -25,10 +27,10 @@ class TextGenerator(c.Module):
             c.print(f'model {i} gpus: {model_gpus}')
 
 
-            self.serve(model, gpus=model_gpus, tag=str(i))
+            self.deploy_server(model, gpus=model_gpus, tag=str(i))
 
     
-    def serve(self, model :str = None,
+    def deploy_server(self, model :str = None,
                     tag: str = None,
                     num_shard:int=None, 
                     gpus:list=None,
@@ -213,9 +215,9 @@ class TextGenerator(c.Module):
 
     @classmethod
     def generate(cls, 
-                prompt = 'what is up, how is it going bro what are you saying?', 
+                prompt = 'what is up, how is it going bro what are you saying? A: ', 
                 model:str = None,
-                max_new_tokens:int=10, 
+                max_new_tokens:int=128, 
                 trials = 4,
                 ignore_errors = False,
                 timeout = 6,
@@ -236,24 +238,18 @@ class TextGenerator(c.Module):
         c.print(f'address: {address}')   
         from text_generation import Client
 
-        try:
-            client = Client(address)
-            output_text = client.generate(prompt, max_new_tokens=max_new_tokens, **kwargs).generated_text
-        except Exception as e:
-            c.print(f'error generating text, retrying -> {trials} left...')
-            trials -= 1
-            if trials > 0:
-                return cls.generate(prompt=prompt, 
-                            model=None, 
-                            max_new_tokens=max_new_tokens, 
-                            trials=trials, 
-                            timeout=timeout, 
-                            **kwargs)
-            else:
-                if ignore_errors:
-                    raise Exception(f'error generating text, retrying -> {trials} left...')
-                return  'Well, I actually do not really know? but you know what? We are going to find out!'
-        return output_text
+        # try:
+        client = Client(address)
+        t = c.time()
+        output_text = client.generate(prompt, max_new_tokens=max_new_tokens, **kwargs).generated_text
+        stats = {
+            'time': c.time() - t,
+            'model': model,
+            'output_tokens': len(c.tokenize(c.copy(output_text))),
+        }
+        stats['tokens_per_second'] = stats['output_tokens'] / stats['time']
+
+        return {'text' : output_text, **stats}
 
     talk = generate
 
