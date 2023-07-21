@@ -7,6 +7,8 @@ import torch
 
 class Tokenizer:
     def __init__(self, checkpoint_dir: Path) -> None:
+        if isinstance(checkpoint_dir, str):
+            checkpoint_dir = Path(checkpoint_dir)
         # some checkpoints have both files, `.model` takes precedence
         if (vocabulary_path := checkpoint_dir / "tokenizer.model").is_file():
             from sentencepiece import SentencePieceProcessor
