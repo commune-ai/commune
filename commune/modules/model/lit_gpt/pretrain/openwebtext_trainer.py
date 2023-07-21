@@ -149,8 +149,8 @@ def main(devices: int = 1, precision: Optional[str] = None, tpu: bool = False) -
     model = LightningGPTModule(config)
     trainer.print(f"Time to instantiate model: {time.time() - t0:.02f} seconds.")
 
-    train_data = Dataset(str(data_dir / "train.bin"), config.block_size, rank=trainer.global_rank)
-    val_data = Dataset(str(data_dir / "val.bin"), config.block_size, rank=trainer.global_rank)
+    train_data = Dataset(str(data_dir + "/" + "train.bin"), config.block_size, rank=trainer.global_rank)
+    val_data = Dataset(str(data_dir + "/" + "val.bin"), config.block_size, rank=trainer.global_rank)
 
     t0 = time.time()
     trainer.fit(model, train_data, val_data, ckpt_path="last")

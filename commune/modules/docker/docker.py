@@ -79,6 +79,14 @@ class Docker(c.Module):
     @classmethod
     def containers(cls,  sudo:bool = False):
         return [container['name'] for container in cls.ps(sudo=sudo)]
+    
+    @classmethod 
+    def chmod_scripts(cls):
+        c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
+
+    def install_gpus(self):
+        self.chmod_scripts
+        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True)
 
 
 

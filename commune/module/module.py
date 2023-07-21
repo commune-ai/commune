@@ -45,7 +45,8 @@ class c:
     user = None
     default_ip = '0.0.0.0'
     address = None
-    root_path  = root = libpath = os.path.dirname(os.path.dirname(__file__))
+    root_path  = root  = os.path.dirname(os.path.dirname(__file__))
+    libpath = os.path.dirname(root_path)
     modules_path = os.path.join(root_path, 'modules')
     repo_path  = os.path.dirname(root_path)
     library_name = root_dir = root_path.split('/')[-1]
@@ -558,7 +559,7 @@ class c:
     def mutc(cls, k, v, password:str=None, new_password:str=None):
         old_v = cls.getc(k, password=password)
         password = password if new_password == None else new_password
-        v = cls.put_v(old_v, password=password)
+        cls.put_v(v, password=password)
         
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
@@ -852,6 +853,7 @@ class c:
                     sudo:bool = False,
                     password: bool = None,
                     color: str = 'white',
+                    bash : bool = False,
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -885,8 +887,11 @@ class c:
             command = f'sudo {command}'
             
             
+        if bash:
+            command = f'bash -c "{command}"'
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
+                                    stderr=subprocess.STDOUT,
                                     env={**os.environ, **env}, **kwargs)
 
             
@@ -3838,15 +3843,23 @@ class c:
     
     ensure_package = ensure_lib
     @classmethod
-    def pip_install(cls, lib:str, verbose:str=True):
+    def pip_install(cls, lib:str= None, verbose:str=True, e=False):
         if lib in c.modules():
             c.print(f'Installing {lib} Module from local directory')
             lib = c.resolve_module(lib).dirpath()
-            
-        return cls.cmd(f'pip install {lib}', verbose=verbose)
+        if lib == None:
+            lib = c.libpath
+        if e:
+            cmd = f'pip install -e {lib}'
+        else:
+            cmd = f'pip install {lib}'
+        return cls.cmd(cmd, verbose=verbose)
 
-    def install(self, lib:str, verbose:bool=True):
+    def install(self, lib:str = None, verbose:bool=True):
         return self.pip_install(lib, verbose=verbose)
+
+    
+
 
     @classmethod
     def pip_exists(cls, lib:str, verbose:str=True):
@@ -4209,9 +4222,27 @@ class c:
     
     @classmethod
     def model_shortcuts(cls, **kwargs):
-        return  c.module('model.transformer').getc('shortcuts')
+        return  c.module('huggingface').getc('shortcuts')
+    @classmethod
+    def resolve_model_shortcut(cls, model):
+        model_shortcuts = c.model_shortcuts()
+        return model_shortcuts.get(model,model)
+            
     
-    
+    @classmethod
+    def add_model_shortcut(cls, *args, **kwargs):
+        return  c.module('huggingface').add_model_shortcut(*args, **kwargs)    
+    @classmethod
+    def rm_model_shortcut(cls, *args, **kwargs):
+        return  c.module('huggingface').rm_model_shortcut(*args, **kwargs)
+
+    @classmethod
+    def model_options(cls):
+        return list(c.model_shortcuts().keys())
+
+    @classmethod
+    def shortcut2model(cls, shortcut:str):
+        return c.model_shortcuts()[shortcut]
 
     @classmethod
     def model_gpu_memory(cls, model:str, num_shard = 2):
@@ -6992,6 +7023,11 @@ class c:
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
+    
+    @classmethod
+    def model_menu(cls):
+        return c.model_shortcuts()
+    
 
 
     @classmethod
@@ -7039,6 +7075,16 @@ class c:
     @classmethod
     def batch(cls, x: list, batch_size:int=8): 
         return c.chunk(x, chunk_size=batch_size)
+
+    
+    @classmethod 
+    def chmod_scripts(cls):
+        c.cmd(f'chmod +x {c.libpath}/scripts/*', verbose=True, bash=True)
+
+    def install_docker_gpus(self):
+        self.chmod_scripts
+        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
+
 
 
 Module = c
