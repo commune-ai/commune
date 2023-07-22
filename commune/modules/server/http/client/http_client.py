@@ -7,6 +7,7 @@ import asyncio
 import requests
 from functools import partial
 import commune as c
+import aiohttp
 
 class Client(c.Module):
 
@@ -31,7 +32,10 @@ class Client(c.Module):
         c.print(f"Connecting to {self.ip}:{self.port}", color='green')
         self.address = f"{self.ip}:{self.port}"
        
-        
+
+    def resolve_client(self, ip: str = None, port: int = None) -> None:
+        if ip != None or port != None:
+            self.set_client(ip =ip,port = port)
 
 
     async def async_forward(self,
@@ -40,28 +44,37 @@ class Client(c.Module):
         kwargs = None,
         ip: str = None,
         port : int= None,
-        timeout: int = None):
+        timeout: int = 4,
+        return_error: bool = False,
+         **extra_kwargs):
 
-        if ip != None or port != None:
-            self.set_client(ip =ip,port = port)
-
+        self.resolve_client(ip=ip, port=port)
         args = args if args else []
         kwargs = kwargs if kwargs else {}
+        url = f"http://{self.address}/{fn}"
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, json= { "args": args,"kwargs": kwargs,}) as response:
+                    response = await asyncio.wait_for(response.json(), timeout=timeout)
+        except Exception as e:
+            if return_error:
+                response = {'error': str(e)}
+            else: 
+                raise e
 
-        request_data = { "args": args,"kwargs": kwargs,}
-
-        response = requests.get(f"http://{self.address}/{fn}", json=request_data)
-
-        return response.json()
-
+        return response
 
     
-    def forward(self,*args, **kwargs):
-        try:
-            return self.loop.run_until_complete(self.async_forward(*args, **kwargs))
-        except Exception as e:
-            raise e
-            return {'error': str(e)}
+    def forward(self,*args,return_future=False, **kwargs):
+        forward_future =  self.async_forward(*args, **kwargs)
+        if return_future:
+            return forward_future
+        else:
+            # asyncio.wait_for(forward_future, timeout=timeout)
+
+            return self.loop.run_until_complete(forward_future)
+        
+    __call__ = forward
 
     def __str__ ( self ):
         return "Client({})".format(self.address) 
