@@ -19,54 +19,9 @@ from copy import deepcopy
 import commune as c
 
 
-Serializer = c.module('module.server.serializer')
 
 
-class VirtualModule:
-    def __init__(self, module: str ='ReactAgentModule',
-                 include_hiddden: bool = False):
-
-        self.synced_attributes = []
-
-        '''
-        VirtualModule is a wrapper around a Commune module.
-        
-        Args:f
-            module (str): Name of the module.
-            include_hiddden (bool): If True, include hidden attributes.
-        '''
-        if isinstance(module, str):
-            import commune
-            self.module_client = c.connect(module)
-            self.success = self.module_client.success
-        else:
-            self.module_client = module
-        self.module_client.name = self.module_name()
-      
-    def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
-        if return_future:
-            return self.module_client.async_forward(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
-        else:
-            return self.module_client(fn=remote_fn, args=args, kwargs=kwargs, timeout=timeout)
-            
-    def __str__(self):
-        return f'<VirtualClient(name={self.module_client.name}, address={self.module_client.address})>'
-
-    def __repr__(self):
-        return self.__str__()
-
-
-    protected_attributes = [ 'module_client', 'remote_call']
-    def __getattr__(self, key):
-
-        if key in self.protected_attributes :
-            return getattr(self, key)
-        else:
-            return lambda *args, **kwargs : partial(self.remote_call, (key))( *args, **kwargs)
-
-
-
-class Client( Serializer, c.Module):
+class Client(c.Module):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
     """
     default_ip = '0.0.0.0'
@@ -82,7 +37,6 @@ class Client( Serializer, c.Module):
             key: 'Key' = None,
             network : 'Network' = c.default_network,
             stats = None,
-            virtual = False,
         ):
         self.set_client(ip =ip,
                         port = port ,
@@ -92,6 +46,8 @@ class Client( Serializer, c.Module):
         self.key = key
         self.network = network
         self.set_stats(stats)
+        self.serializer =c.module('serializer')
+
 
         
     def set_stats(self, stats=None): 
@@ -267,7 +223,7 @@ class Client( Serializer, c.Module):
         try:
             # Serialize the request
             t = c.timer()
-            grpc_request = self.serialize(data=data, metadata=metadata)
+            grpc_request = self.serializer.serialize(data=data, metadata=metadata)
             fn_stats['latency_serial'] = t.seconds
             
             # Send the request
@@ -275,12 +231,13 @@ class Client( Serializer, c.Module):
             asyncio_future = self.stub.Forward(request = grpc_request, timeout = timeout)
             response = await asyncio_future
             fn_stats['latency_fn'] = t.seconds
-            
-            
+
             # Deserialize the response
-            t = c.timer()
-            response = self.deserialize(response)
+            t.start()
+            response = self.serializer.deserialize(response)
             fn_stats['latency_deserial'] =  t.seconds
+
+            # Update the stats
             fn_stats['latency'] = fn_stats['latency_serial'] + fn_stats['latency_fn'] + fn_stats['latency_deserial']
             fn_stats['calls'] = fn_stats.get('calls', 0) + 1
             fn_stats['last_called'] = self.time()
@@ -341,7 +298,6 @@ class Client( Serializer, c.Module):
         }
 
     def virtual(self):
-        module = VirtualModule(module = self) 
-        return module
+        return c.virtual_client(module = self)
     
 
