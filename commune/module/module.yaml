@@ -1,4 +1,4 @@
-boot_peers:
+iboot_peers:
 - 162.157.13.236:9057
 - 162.157.13.236:9402
 network: local

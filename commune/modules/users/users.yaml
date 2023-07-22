@@ -1,5 +1,4 @@
 name: Alice
-name2address: {}
 users:
   bro:
     network: commune
