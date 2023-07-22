@@ -26,6 +26,7 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
+        key = None,
     ) -> 'Server':
         if isinstance(module, str):
             module = c.module(module)()
@@ -44,6 +45,7 @@ class HTTPServer(c.Module):
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
         self.set_api()
+        self.key = c.get_key(name)
 
 
     def state_dict(self) -> Dict:

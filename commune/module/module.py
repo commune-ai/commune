@@ -2282,7 +2282,6 @@ class c:
 
     @classmethod
     def server_exists(cls, name:str, **kwargs) -> bool:
-        
         return bool(name in cls.servers(**kwargs)) and name in cls.pm2_list()
     
     @classmethod
@@ -2311,6 +2310,7 @@ class c:
         cls.local_namespace()
 
         while not cls.server_exists(name):
+            c.update()
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
             c.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
@@ -2453,6 +2453,8 @@ class c:
             whitelist += self.functions() + self.attributes()
         return whitelist
             
+    wl = whitelist
+    bl = blacklist = []
     
     
     
@@ -2565,6 +2567,7 @@ class c:
 
         functions = list(set(functions))
         
+
         if isinstance(search, str):
             functions = [f for f in functions if search in f]
             

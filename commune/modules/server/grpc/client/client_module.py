@@ -24,7 +24,6 @@ import commune as c
 class Client(c.Module):
     """ Create and init the receptor object, which encapsulates a grpc connection to an axon endpoint
     """
-    default_ip = '0.0.0.0'
     
     def __init__( 
             self,
@@ -97,7 +96,7 @@ class Client(c.Module):
             ):
         # if ip == c.external_ip():
         #     ip = '0.0.0.0'
-        from commune.modules.server.grpc.proto  import ServerStub
+        from commune.module.server.proto  import ServerStub
         # hopeful the only tuple i output, tehe
         if len(ip.split(":")) ==2:
             ip, port = ip.split(":")
