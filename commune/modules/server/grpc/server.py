@@ -14,14 +14,11 @@ import sys
 import os
 import asyncio
 import commune as c
-from commune.module.server.interceptor import ServerInterceptor
-from commune.module.server.serializer import Serializer
-from commune.module.server.proto import ServerServicer
-from commune.module.server.proto import DataBlock
+from commune.modules.server.grpc.interceptor import ServerInterceptor
+from commune.modules.server.grpc.serializer import Serializer
+from commune.modules.server.grpc.proto import ServerServicer
+from commune.modules.server.grpc.proto import DataBlock
 import signal
-
-if os.getenv('USE_STREAMLIT'):
-    import streamlit as st
 from munch import Munch
 
 
@@ -112,7 +109,7 @@ class Server(ServerServicer, Serializer, c.Module):
         
         # set the server compression algorithm
         self.server = server
-        from commune.module.server.proto import add_ServerServicer_to_server
+        from commune.modules.server.grpc.proto import add_ServerServicer_to_server
         add_ServerServicer_to_server( self, server )
         self.full_address = str( ip ) + ":" + str( port )
         self.server.add_insecure_port( self.full_address )
@@ -221,12 +218,22 @@ class Server(ServerServicer, Serializer, c.Module):
         kwargs = data.get('kwargs', {})
         args = data.get('args', [])
         user = data.get('user', [])
+        auth = data.get('auth', None)
+        if auth != None:
+            c.print(auth)
         try:
             
             self.check_call(fn=fn, args=args, kwargs=kwargs, user=user)
 
             c.print('Calling Function: '+fn, color='cyan')
-            output_data = getattr(self.module, fn)(*args,**kwargs)
+            fn_obj = getattr(self.module, fn)
+            
+            if callable(fn_obj):
+                # if the function is callable (an actual function)
+                output_data = fn_obj(*args, **kwargs)
+            else:
+                # if the function is an attribute
+                output_data = fn_obj
             
             success = True
 
@@ -322,8 +329,12 @@ class Server(ServerServicer, Serializer, c.Module):
     def __del__(self):
         r""" Called when this axon is deleted, ensures background threads shut down properly.
         """
+        c.print('deregister')
+        c.deregister_server(name=self.name)
         if hasattr(self, 'server'):
             self.stop()
+
+
 
     
     @property
@@ -365,7 +376,7 @@ class Server(ServerServicer, Serializer, c.Module):
               wait_for_termination:bool=False,
               update_period:int = 10, 
               verbose:bool= True,
-              register=True):
+              register:bool=True):
         '''
         Serve the server and loop it until termination.
         '''
@@ -385,7 +396,6 @@ class Server(ServerServicer, Serializer, c.Module):
                                           port=self.port)
 
  
-        c.unreserve_port(self.port)
         
         
         try:
@@ -428,11 +438,13 @@ class Server(ServerServicer, Serializer, c.Module):
     def stop(self) -> 'Server':
         r""" Stop the axon grpc server.
         """
+        c.deregister_server(name=self.name)
         if self.server != None:
             print('stopping server', self.server.__dict__)
             self.server.stop( grace = 1 )
             logger.success("Server Stopped:".ljust(20) + "<blue>{}</blue>", self.ip + ':' + str(self.port))
         self.started = False
+
 
         return self
 
@@ -503,9 +515,4 @@ class Server(ServerServicer, Serializer, c.Module):
         
         
 
-if __name__ == '__main__':
-    import asyncio 
-    import random
-    import streamlit as st
-    Server.test_server()
     

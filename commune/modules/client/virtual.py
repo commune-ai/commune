@@ -11,7 +11,7 @@ class VirtualClient:
             self.success = self.module_client.success
         else:
             self.module_client = module
-        self.module_client.name = self.module_name()
+        # self.module_client.name = self.module_name()
     
     def remote_call(self, remote_fn: str, *args, return_future= False, timeout=None, **kwargs):
         if return_future:
