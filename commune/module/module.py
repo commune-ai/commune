@@ -2119,6 +2119,7 @@ class c:
             if peer == None: 
                 return peer
             module_name =  await peer(fn='module_name',  return_future=True)
+
             if c.check_response(module_name):
                 return module_name
             else:
@@ -2130,14 +2131,14 @@ class c:
     def build_local_namespace(cls):
         used_ports = cls.get_used_ports()
         ip = cls.default_ip
-        c.print(len(used_ports))
         addresses = [ f'{ip}:{p}' for p in used_ports]
-
+        local_namespace = {}
         names = c.gather([cls.async_get_peer_name(address) for address in addresses])
-        
-        local_namespace = {k:v for k,v in dict(zip(names, addresses)).items() if k != None}
-        
-        c.print(local_namespace)
+        for i in range(len(names)):
+            c.print(f'{names[i]} is running on {addresses[i]}')
+            if isinstance(names[i], str):
+
+                local_namespace[names[i]] = addresses[i]
         return local_namespace
             
                 
@@ -5369,7 +5370,6 @@ class c:
             cls.add_peers(peers)
         
         peer_registry = c.get('peer_registry', {})
-        c.print(f'Peer registry: {peer_registry}')
         return peer_registry
 
     @classmethod
