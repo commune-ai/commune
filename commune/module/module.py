@@ -16,29 +16,6 @@ from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-@classmethod
-def cache_result(cls, func):
-    import functools
-    
-    def wrapper(*args, **kwargs):
-        fn_name = func.__name__
-        cache = kwargs.pop('cache', True)
-        update = kwargs.pop('update', False)
-        max_age = kwargs.pop('max_age', 60)
-
-        if cache and not update:
-            cls.get(fn_name, max_age=max_age, cache=cache)
-
-        result = func(*args, **kwargs)
-        
-        if cache:
-            cls.put(fn_name, result, cache=cache)
-
-        return result
-
-    return wrapper
-
-
 class c:
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
@@ -3072,15 +3049,14 @@ class c:
             if isinstance(device, list):
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
                 
-                
-                
         if refresh:
             cls.pm2_kill(name)  
 
         if verbose:
             c.print(f'Launching {module} with command: {command}', color='green')
             
-        stdout = c.cmd(command, env=env, verbose=False)
+        c.print(f'{command}', color='green')
+        stdout = c.cmd(command, env=env, verbose=True)
         return stdout
     
     
@@ -7053,6 +7029,7 @@ class c:
         return c.module('docker').containers()
 
 
+
     @staticmethod
     def chunk(sequence:list = [0,2,3,4,5,6,67,],
             chunk_size:int=None,
@@ -7086,8 +7063,29 @@ class c:
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
 
 
+    @classmethod
+    def cache_result(cls, func):
+        import functools
+        
+        def wrapper(*args, **kwargs):
+            fn_name = func.__name__
+            cache = kwargs.pop('cache', True)
+            update = kwargs.pop('update', False)
+            max_age = kwargs.pop('max_age', 60)
+
+            if cache and not update:
+                cls.get(fn_name, max_age=max_age, cache=cache)
+
+            result = func(*args, **kwargs)
+            
+            if cache:
+                cls.put(fn_name, result, cache=cache)
+
+            return result
+
+        return wrapper
+
 
 Module = c
-
 Module.run(__name__)
     
