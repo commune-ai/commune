@@ -32,18 +32,6 @@ class Users(c.Module):
     def save(self, path=None):
         self.save_config(self.config)
     
-
-    def set_network(self,network) -> Dict:
-        assert isinstance(network, str)
-        self.config['network'] = network
-        return {'network': self.config['network'], 'success': True}
-       
-    
-    def resolve_network(self, network:str = None) -> str:
-        if network == None:
-            network  = self.default_network
-        assert isinstance(network, str)
-        return network
     
     def resolve_role(self, role:str = None) -> str:
         if role == None:
@@ -231,8 +219,8 @@ class Users(c.Module):
             **extra_field) -> Dict:
         
         role = self.resolve_role(role)
-        network = self.resolve_network(network)
-        ip = self.resolve_ip(ip)
+        network = c.resolve_network(network)
+        ip = c.ip()
         
         return {
             'name': name,

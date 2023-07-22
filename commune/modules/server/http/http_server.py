@@ -15,9 +15,6 @@ from munch import Munch
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
-
-
-
 class HTTPServer(c.Module):
     def __init__(
         self,
@@ -30,9 +27,15 @@ class HTTPServer(c.Module):
         whitelist: List[str] = None,
         blacklist: List[str] = None,
     ) -> 'Server':
-        self.module = c.resolve_module(module)()
+        if isinstance(module, str):
+            module = c.module(module)()
+        elif module is None:
+            module = c.module('module')()
+        self.module = module
         if name == None:
             name = self.module.name()
+
+        c.print('MODULE',self.module, color='green')
         self.name = name
         self.timeout = timeout
         self.verbose = verbose
@@ -64,6 +67,7 @@ class HTTPServer(c.Module):
 
         from fastapi import FastAPI
         import requests
+        import uvicorn
 
         self.app = FastAPI()
 
@@ -71,11 +75,8 @@ class HTTPServer(c.Module):
         def forward_wrapper(fn: str = None, args: List = None, kwargs: Dict = None):
             return self.forward(fn, args, kwargs)
         
-        import uvicorn
         c.register_server(self.name, self.ip, self.port)
         uvicorn.run(self.app, host=self.ip, port=self.port)
-
-
 
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):
@@ -85,12 +86,18 @@ class HTTPServer(c.Module):
             if kwargs is None:
                 kwargs = {}
             c.print(f'FORWARDING {fn} {args} {kwargs}, {self.module}', color='green')
-            response = getattr(self.module, fn)(*args, **kwargs)
+            c.print(self.module, color='green')
+            obj = getattr(self.module, fn)
+            if callable(obj):
+                response = obj(*args, **kwargs)
+            else:
+                response = obj
+            return response
         except Exception as e:
-            response = {'error': str(e)}
+            raise e
+            # c.print(response, color='red')
 
         return response
-    
 
 
     def __del__(self):

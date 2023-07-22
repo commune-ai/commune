@@ -4,6 +4,7 @@ import grpc
 
 from . import server_pb2 as server__pb2
 
+
 class ServerStub(object):
     """Service definition for tensor processing servers.
     """

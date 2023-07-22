@@ -19,7 +19,7 @@ class Client(c.Module):
         ):
         self.loop = c.get_event_loop()
         self.set_client(ip =ip,port = port)
-        self.serialzer = c.module('module.server.serializer')()
+        self.serialzer = c.module('serializer')()
 
     def set_client(self,
             ip: str =None,

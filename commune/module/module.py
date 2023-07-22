@@ -1038,7 +1038,6 @@ class c:
         '''
         
         
-        
         if path.startswith('/'):
             return path
         elif path.startswith('~/'):
@@ -2556,7 +2555,8 @@ class c:
 
         module_class = c.module(f'server.{mode}')
 
-            
+        c.print(f'Serving {name} on port {port}', color='yellow')
+        c.print(module_class)
         server = module_class(ip=ip, port=port,module = self,name= name,
                              whitelist=whitelist,blacklist=blacklist)
         
@@ -4795,7 +4795,7 @@ class c:
                          **kwargs) -> None:
                          
         
-        module = cls.connect(module)
+        module = cls.connect(module, virtual=False)
         return module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
 
 
@@ -4966,12 +4966,6 @@ class c:
     def rm_user(cls, user: str = None):
         self.users.pop(user, None)  
         
-    @classmethod
-    def users(self):
-        return self._users
-    
-    
-    
     
     
     @classmethod
@@ -5190,7 +5184,6 @@ class c:
     def add_peer(cls, *args, **kwargs)-> List:
         loop = cls.get_event_loop()
         peer = loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
-        
         return peer
     
     
@@ -5357,10 +5350,10 @@ class c:
     
     @classmethod
     def resolve_network(cls, network=None):
-        config = c.config()
         if network == None:
-            network = config['network']
+            network = c.getc('network')
         return network
+
     get_network = resolve_network
     @classmethod
     def set_network(cls, network=None):
@@ -5369,6 +5362,7 @@ class c:
         config['network'] = network
         c.save_config(config)
         return network
+
     setnet = set_network
     
     @classmethod
@@ -5376,6 +5370,7 @@ class c:
         config = self.config()
         network = config['network']
         return network
+
     getnet = get_network
     resnet = resolve_network
     
@@ -5390,18 +5385,16 @@ class c:
         # update local namespace
         c.namespace(network=network, update=True)
         
-    
-        
-        
     @classmethod
     def peer_registry(cls, peers=None, update: bool = False):
         if update:
             if peers == None:
                 peers = cls.peers()
             cls.add_peers(peers)
-        return c.get_json('peer_registry', default={})
-    
-    
+        
+        peer_registry = c.get('peer_registry', {})
+        c.print(f'Peer registry: {peer_registry}')
+        return peer_registry
 
     @classmethod
     def run_jobs(cls, jobs: List, mode ='asyncio',**kwargs):

@@ -14,7 +14,7 @@ import asyncio
 from copy import deepcopy
 from munch import Munch
 
-from commune.module.server.proto import DataBlock
+from commune.modules.server.grpc.proto import DataBlock
 import commune as c
 import json
 
