@@ -16,4 +16,4 @@ shortcuts:
   lit: lit_gpt
   openai: model.openai
   s: subspace
-  tg: text_generator
+  tg: textgen
