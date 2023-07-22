@@ -1,0 +1,20 @@
+[workspace]
+members = [
+    "benchmark",
+    "router",
+    "router/client",
+    "router/grpc-metadata",
+    "launcher"
+]
+
+[workspace.package]
+version = "0.9.3"
+edition = "2021"
+authors = ["Olivier Dehaene"]
+homepage = "https://github.com/huggingface/text-generation-inference"
+
+[profile.release]
+debug = 1
+incremental = true
+lto = "off"
+panic = "abort"
