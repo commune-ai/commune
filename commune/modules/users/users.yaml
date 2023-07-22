@@ -1,4 +1,5 @@
 name: Alice
+roles: [admin, user]
 users:
   bro:
     network: commune
