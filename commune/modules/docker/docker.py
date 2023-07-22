@@ -89,5 +89,83 @@ class Docker(c.Module):
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True)
 
 
+    def build_commune(self, sudo=False):
+        self.build(path=self.libpath, sudo=sudo)
+
+    @classmethod
+    def build(cls, tag = None,  path = None  , sudo=False):
+        if path is None:
+            path = c.libpath
+            tag = c.libpath.split('/')[-1]
+        assert tag is not None, 'tag must be specified'
+
+        path = c.resolve_path(path)
+        cmd = f'docker build -t {tag} .'
+
+        c.print(path, cmd)
+        c.cmd(cmd, cwd=path, verbose=True, sudo=sudo, bash=True)
+    
+    def launch(self, model :str = None,
+                    tag: str = None,
+                    num_shard:int=None, 
+                    gpus:list='all',
+                    shm_size : str='100g',
+                    volume:str = 'data',
+                    build:bool = True,
+                    max_shard_ratio = 0.5,
+                    refresh:bool = False,
+                    sudo = False,
+                    port=None):
+
+        if model == None:
+            model = self.config.model
+        if tag != None:
+            tag = str(tag)
+        name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
+        if self.server_exists(name) and refresh == False:
+            c.print(f'{name} already exists')
+            return
+
+        if build:
+            self.build()
+
+        if gpus == None:
+            gpus = c.model_max_gpus(model)
+        
+        num_shard = len(gpus)
+        gpus = ','.join(map(str, gpus))
+
+        c.print(f'gpus: {gpus}')
+        
+        model_id = self.config.shortcuts.get(model, model)
+        if port == None:
+            port = c.resolve_port(port)
+
+        volume = self.resolve_path(volume)
+        if not c.exists(volume):
+            c.mkdir(volume)
+
+        cmd_args = f'--num-shard {num_shard} --model-id {model_id}'
+
+
+
+        cmd = f'docker run -d --gpus device={gpus} --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
+
+        c.print(cmd)
+        output_text = c.cmd(cmd, sudo=sudo, output_text=True)
+
+        if 'Conflict. The container name' in output_text:
+            c.print(f'container {name} already exists, restarting...')
+            contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
+            c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
+            c.cmd(cmd, sudo=sudo, verbose=True)
+        else: 
+            c.print(output_text)
+
+
+        self.update()
+       
+
+
 
     

@@ -2854,7 +2854,7 @@ class c:
         return shortcut
     ## PM2 LAND
     @classmethod
-    def deploy(cls, 
+    def launch(cls, 
                module:str = None,
                fn: str = 'serve',
                args : list = None,
@@ -2934,7 +2934,6 @@ class c:
 
         return name
 
-    launch = deploy
     
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
@@ -3453,16 +3452,6 @@ class c:
         assert isinstance(actor, ray.actor.ActorHandle)
         return actor.__dict__['_ray_actor_id'].hex()
 
-    @classmethod
-    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
-        if actor_list == None:
-            actor_kwargs_list = [kwargs]*replicas
-
-        actors = []
-        for actor_kwargs in actor_kwargs_list:
-            actors.append(cls.deploy(**a_kwargs))
-
-        return ActorPool(actors=actors)
 
     @classmethod
     def virtual_actor(cls, actor):
@@ -6440,8 +6429,11 @@ class c:
             return 'class'
     
     @classmethod
-    def build(cls, *args,**kwargs): 
-        return c.module('subspace').build(*args, **kwargs)
+    def build(cls): 
+        docker_module = c.module('docker')
+        docker_module.build(c.libpath)
+        docker_module.build(f'{c.libpath}/subspace')
+
 
     @classmethod
     def play(cls):
