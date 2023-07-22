@@ -101,7 +101,7 @@ class LitGpt(c.Module):
             model.load_state_dict(checkpoint.get("model", checkpoint), strict=quantize is None)
         fabric.print(f"Time to load the model weights: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
-        model.eval()
+        model.eval()git
         self.model = fabric.setup_module(model)
         self.tokenizer = Tokenizer(checkpoint_dir)
         L.seed_everything(seed)

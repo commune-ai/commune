@@ -97,6 +97,7 @@ class Client( Serializer, c.Module):
             loop: 'Loop' = None,
             key: 'Key' = None,
             network : 'Network' = None,
+            virtual: bool = False,
             stats = None,
         ):
         self.set_network(network)     
@@ -106,6 +107,8 @@ class Client( Serializer, c.Module):
                         timeout = timeout,
                         loop = loop)
         self.set_stats(stats)
+        if virtual:
+            self = self.virtual()
         
     def set_stats(self, stats=None): 
         if stats is None:     

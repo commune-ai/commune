@@ -57,6 +57,10 @@ class c:
     helper_whitelist = ['info', 'schema','module_name']
     whitelist = []
     blacklist = []
+    client_module_path = 'module.server.client'
+    server_module_path = 'module.server'
+    server_mode = 'http'
+    
     def __init__(self, 
                  config:Dict=None,
                  **kwargs):
@@ -1845,38 +1849,39 @@ class c:
                 port:int=None , 
                 network : str = None,
                 namespace = None,
+                mode = server_mode,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
                 trials = 3, 
                 verbose: bool = False, 
                 key = None,
                 ignore_error:bool = False,
+                update = False,
                 **kwargs ):
+
+        t = c.time()
         network = c.resolve_network(network)
         if key != None:
             key = cls.get_key(key)
             
+        # if we are not given a name, ip, or port then we need to raise an error
         if (name == None and ip == None and port == None):
-            return cls.root_module()
+            raise ValueError('Must specify either name, ip, or port')
         
+        # wait for the server to be ready before connecting
         if wait_for_server:
             cls.wait_for_server(name)
         
+        
+        # if we are given a name then we need to resolve the ip and port
         if namespace == None :
-            namespace = c.namespace(network, update=False)
-        namespace = cls.copy(namespace)
-
-        # local namespace  
-
-
+            namespace = c.namespace(network, update=update)
+        namespace = c.copy(namespace)
 
         if isinstance(name, str):
-      
             found_modules = []
-
-            if cls.is_address(name):
+            if c.is_address(name):
                 found_modules = [name]
-            
             else:
                 modules = list(namespace.keys())
                 module_addresses = list(namespace.values())
@@ -1890,24 +1895,22 @@ class c:
                         found_modules += [n]
                       
             if len(found_modules)>0:
-                name = cls.choice(found_modules)
+                name = c.choice(found_modules)
                 name = namespace.get(name, name)
                 
             else:
                 if ignore_error:
                     return None
                 raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
-            
-            port = int(name.split(':')[-1])
-
             ip = name.split(':')[0]
+            port = int(name.split(':')[-1])
 
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
+        connection_latency = c.time() - t
         if verbose:
-            c.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-        client= cls.get_client(ip=ip, port=int(port), virtual=virtual, key=key)
-        
+            c.print(f'Connected to {name} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
         return client
      
     @classmethod
@@ -1983,16 +1986,18 @@ class c:
             return dict(zip(modules, module_clients))
         return module_clients
 
-    client_module_path = 'module.server.client'
-    server_module_path = 'module.server'
     @classmethod
-    def get_client(cls, *args,virtual:bool = True, **kwargs):
+    def get_client(cls, ip = None, port = None ,virtual:bool = True, mode=server_mode, **kwargs):
         
-        client_class = c.module(cls.client_module_path)
-        client = client_class(*args, **kwargs)
+        client_class = c.module(f'server.{mode}.client')
+
+        client = client_class(ip=ip, port=port,**kwargs)
+
         if virtual:
-            client =  client.virtual()
+            client = c.virtual_client(client)
+        
         return client
+
     
    
     nest_asyncio_enabled : bool = False
@@ -2215,6 +2220,8 @@ class c:
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
         return local_namespace
+
+
     
     @classmethod
     def deregister_server(cls, name: str)-> dict:
@@ -2391,6 +2398,14 @@ class c:
         address = address.replace(c.default_ip, ip)
         assert ip in address, f'ip {ip} not in address {address}'
         return address
+
+
+    @classmethod
+    def virtual_client(cls, module=None): 
+        virtual_client =  c.import_object('commune.modules.client.virtual.VirtualClient')
+        if module != None:
+            return virtual_client(module)
+        return virtual_client
         
     @classmethod
     def namespace(cls,
@@ -2488,7 +2503,8 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               args:list = None,  # args for the module
               kwargs:dict = None,  # kwargs for the module
-              update: bool = False
+              update: bool = False,
+              mode:str = server_mode,
               
               ):
         '''
@@ -2538,13 +2554,11 @@ class c:
             if k not in self.__dict__:
                 self.__dict__[k] = name
 
+        module_class = c.module(f'server.{mode}')
+
             
-        server = c.module('module.server')(ip=ip, 
-                        port=port,
-                        module = self,
-                        name= name,
-                        whitelist=whitelist,
-                        blacklist=blacklist)
+        server = module_class(ip=ip, port=port,module = self,name= name,
+                             whitelist=whitelist,blacklist=blacklist)
         
         # register the server
         self.server_info = server.info
@@ -4768,42 +4782,21 @@ class c:
         key = self.resolve_key(key)
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
+    # @classmethod
+    # def call(cls, *args,  **kwargs) -> None:
+    #     loop = cls.get_event_loop()
+    #     return loop.run_until_complete(cls.async_call(*args, **kwargs))
+
+
     @classmethod
-    def call(cls, *args,  **kwargs) -> None:
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_call(*args, **kwargs))
-    
-    @classmethod
-    async def async_call(cls,
-                         module : str,
-                         fn : str,
+    def call(cls,module : str, fn : str,
                          *args,
-                         network : str = None,
-                         key : str = None,
                          timeout : int = 4,
                          **kwargs) -> None:
                          
-        network = c.resolve_network(network)
         
-        if isinstance(module, str) and fn == None:
-            
-            module, fn = '.'.join(module.split('.')[:-1]),  module.split('.')[-1],
-            pool_mode = False
-            
-            while module.endswith('.'):
-                pool_mode = True
-                module = module[:-1]
-            if pool_mode:
-                module = c.servers(module)
-            
-        if fn == None:
-            fn = 'forward'
-            
-        if isinstance(module, str):
-            module = await cls.async_connect(module, network=network, key=key, virtual=False)
-            
-        
-        return module.__call__(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        module = cls.connect(module)
+        return module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
 
 
     @classmethod
