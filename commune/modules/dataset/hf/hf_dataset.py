@@ -35,7 +35,7 @@ class HFDataset(c.Module):
         return self.available_names()[0]
         
     def set_dataset(self, config):
-        config.path = self.shortcuts.get(config.path, config.path)
+        config.path = self.config.shortcuts.get(config.path, config.path)
         self.dataset_builder = self.get_dataset_builder(path=config.path)
         config.name = self.default_name() if config.name == None else config.name
         self.dataset = load_dataset(path=config.path,
@@ -48,7 +48,7 @@ class HFDataset(c.Module):
         return self.dataset
 
     @property
-    def info(self):
+    def data_info(self):
         return self.dataset._info.__dict__
 
     @property
@@ -58,7 +58,7 @@ class HFDataset(c.Module):
 
     @property
     def splits(self):
-        available_splits =self.config['available_splits'] = self.config.get('available_splits', list(self.info['splits'].keys()))
+        available_splits =self.config['available_splits'] = self.config.get('available_splits', list(self.data_info['splits'].keys()))
         return available_splits
     
     available_splits = splits
@@ -147,23 +147,7 @@ class HFDataset(c.Module):
         x = self.sample()
         print(x)
 
-    shortcuts =  {
-        'pile': 'EleutherAI/the_pile',
-        'wiki': 'wikitext',
-        'glue': 'glue'
-    }
     
-    tokenizer_shortcuts =  {
-        'gptj': 'EleutherAI/gpt-j-6b',
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-         'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-        'gpt125m': 'EleutherAI/gpt-neo-125M',
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptneox': 'EleutherAI/gpt-neox-20b',
-        'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b',
-        'gpt2': 'gpt2',
-         }
 
     @classmethod
     def available_datasets(cls, prefix:str='dataset') -> List[str]:

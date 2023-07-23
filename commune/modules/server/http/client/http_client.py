@@ -48,7 +48,7 @@ class Client(c.Module):
         port : int= None,
         timeout: int = 4,
         return_error: bool = False,
-        asyn: bool = True,
+        asyn: bool = False,
         headers : dict ={'Content-Type': 'application/json'},
          **extra_kwargs):
 
@@ -73,7 +73,8 @@ class Client(c.Module):
                 response = requests.post(url, json=request_data, headers=headers)
                 response = response.json()
 
-            response = self.serializer.deserialize(response)
+            assert 'data' in response, f"response must have a data key, not {response.keys()}"
+            response = self.serializer.deserialize(response['data'])
         except Exception as e:
             if return_error:
                 response = {'error': str(e)}

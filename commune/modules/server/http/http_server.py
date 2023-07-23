@@ -83,7 +83,7 @@ class HTTPServer(c.Module):
 
             result =  self.forward(fn=fn, args=args, kwargs=kwargs)
 
-            return self.serializer.serialize(result)
+            return {'data':self.serializer.serialize(result)}
         
         c.register_server(self.name, self.ip, self.port)
         uvicorn.run(self.app, host=self.ip, port=self.port)
