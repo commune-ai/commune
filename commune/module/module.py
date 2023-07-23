@@ -2128,14 +2128,14 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_local_namespace(cls):
+    def build_local_namespace(cls, verbose:bool = False):
         used_ports = cls.get_used_ports()
         ip = cls.default_ip
         addresses = [ f'{ip}:{p}' for p in used_ports]
         local_namespace = {}
         names = c.gather([cls.async_get_peer_name(address) for address in addresses])
         for i in range(len(names)):
-            c.print(f'{names[i]} is running on {addresses[i]}')
+            c.print(f'{names[i]} is running on {addresses[i]}', verbose=verbose)
             if isinstance(names[i], str):
 
                 local_namespace[names[i]] = addresses[i]
@@ -2482,7 +2482,7 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               args:list = None,  # args for the module
               kwargs:dict = None,  # kwargs for the module
-              update: bool = False,
+              update: bool = True,
               mode:str = server_mode,
               
               ):
@@ -2558,7 +2558,7 @@ class c:
         server.serve(wait_for_termination=wait_for_termination,register=True)
         if wait_for_server:
             cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
-        
+
     serve_module = serve
     @classmethod
     def functions(cls, search = None, 
@@ -4872,9 +4872,9 @@ class c:
         return c.module('key').add_key(key, *args, **kwargs)
     
 
-    def sign(self, data:dict  = None, key: str = None) -> bool:
+    def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
-        return key.sign(data) 
+        return key.sign(data, **kwargs)
     
 
     def timestamp_to_iso(timestamp):
@@ -5039,22 +5039,15 @@ class c:
     def client(cls, *args, **kwargs) -> 'Client':
         return c.module('module.client')(*args, **kwargs)
     
-    # @classmethod
-    # def serializer(cls, *args, **kwargs) -> 'Serializer':
-    #     return c.module('module.server.serializer')(*args, **kwargs)
-
+    @classmethod
+    def serialize(cls, x, **kwargs):
+        serializer = c.module('serializer')()
+        return serializer.serialize(x, **kwargs)
     
     @classmethod
-    def serialize(cls, data, metadata=None,to_json = False, **kwargs):
-        metadata = metadata or {}
-        if not isinstance(data, dict):
-            data = dict(value=data)
-        serializer = c.module('serializer')
-        proto_data =  serializer.serialize(data=data, metadata=metadata ,**kwargs)
-        if to_json:
-            proto_data = cls.proto2json(proto_data)
-            
-        return proto_data
+    def deserialize(cls, x, **kwargs):
+        serializer = c.module('serializer')()
+        return serializer.deserialize(x, **kwargs)
 
     @classmethod
     def proto2json(cls, data):

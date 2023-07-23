@@ -23,45 +23,80 @@ class Serializer(c.Module):
     r""" Bittensor base serialization object for converting between DataBlock and their
     various python tensor equivalents. i.e. torch.Tensor or tensorflow.Tensor
     """
-
-    def serialize(self, data: object, mode='bytes') -> 'DataBlock':
-        data = c.copy(data)
-        data_type = self.get_str_type(data)
-        block_ref_paths = []
-        if data_type in ['dict']:
-            object_map = self.get_non_json_objects(x=data, object_map={})
-            for k_index ,k in enumerate(object_map.keys()):
-                v = object_map[k]
-                block_ref_path = list(map(lambda x: int(x) if x.isdigit() else str(x), k.split('.')))
-                
-                
-                c.dict_put(data, block_ref_path , self.serialize(data=v, mode='str'))
-                block_ref_paths.append(block_ref_path)
+    @staticmethod
+    def resolve_key_list(x):
+        if isinstance(x, dict):
+            k_list = list(x.keys())
+        elif isinstance(x, list):
+            k_list = list(range(len(x)))
+        elif type(x) in [tuple, set]: 
+            # convert to list, to format as json
+            x = list(x) 
+            k_list = list(range(len(x)))
         else:
-            data = getattr(self, f'serialize_{data_type}')(data)
-            data = self.bytes2str(data) if mode == 'str' else data
-        return {
-            'data': data,
-            'block_ref_paths': block_ref_paths,
-            'data_type': data_type
-        }
+            raise Exception(f'{type(x)} not supported to get the keylist fam')
+
+    python_types = [int, bool, float, tuple, dict, list, str, type(None)]
+    def serialize(self,x:dict):
+        x = c.copy(x)
+        k_list = []
+        if isinstance(x, dict):
+            k_list = list(x.keys())
+        elif isinstance(x, list):
+            k_list = list(range(len(x)))
+        elif type(x) in [tuple, set]: 
+            # convert to list, to format as json
+            x = list(x) 
+            k_list = list(range(len(x)))
+
+        for k in k_list:
+            v = x[k]
+            v_type = type(v)
+            if v_type in [dict, list, tuple, set]:
+                x[k] = self.serialize(x=v)
+            else:
+                str_v_type = self.get_str_type(data=v)
+                if hasattr(self, f'serialize_{str_v_type}'):
+                    v = getattr(self, f'serialize_{str_v_type}')(data=v)
+                    x[k] = {'data': v, 'data_type': str_v_type,  'serialized': True}
+
+        return x
 
 
-    def deserialize(self, data: 'DataBlock') -> object:
+    def is_serialized(self, data):
+        if isinstance(data, dict) and \
+                data.get('serialized', False) == True and \
+                    'data' in data and 'data_type' in data:
+            return True
+        else:
+            return False
+
+    def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
-        
-        block_ref_paths = data['block_ref_paths'] 
-        data = data['data']
-        if len(block_ref_paths) > 0:
-            for block_ref_path in block_ref_paths:
-                block = c.dict_get(data, block_ref_path)
-                data_type = block['data_type']
-                block['data'] = self.str2bytes(block['data'])
-                deserialized_data = getattr(self, f'deserialize_{data_type}')(data =block['data'])
-                c.dict_put(data, block_ref_path, deserialized_data)
 
-        return data
+        k_list = []
+        if isinstance(x, dict):
+            k_list = list(x.keys())
+        elif isinstance(x, list):
+            k_list = list(range(len(x)))
+        elif type(x) in [tuple, set]: 
+            # convert to list, to format as json
+            x = list(x) 
+            k_list = list(range(len(x)))
+
+        for k in k_list:
+            v = x[k]
+            c.print(k, self.is_serialized(v))
+            if type(v) in [dict, list, tuple, set]:
+                x[k] = self.deserialize(x=v)
+            if self.is_serialized(v):
+                data_type = v['data_type']
+                data = v['data']
+                if hasattr(self, f'deserialize_{data_type}'):
+                    x[k] = getattr(self, f'deserialize_{data_type}')(data=data)
+
+        return x
 
     """
     ################ BIG DICT LAND ############################
@@ -160,39 +195,6 @@ class Serializer(c.Module):
         
         return data_type
 
-    python_types = [int, bool, float, tuple, dict, list, str, type(None)]
-    def get_non_json_objects(self,x:dict, 
-                             object_map:dict=None, 
-                             root_key:str=None, 
-                             python_types:Optional[list]=python_types):
-        object_map = object_map if object_map != None else {}
-        k_list = []
-        if isinstance(x, dict):
-            k_list = list(x.keys())
-        elif isinstance(x, list):
-            k_list = list(range(len(x)))
-        elif type(x) in [tuple, set]: 
-            # convert to list, to format as json
-            x = list(x) 
-            k_list = list(range(len(x)))
-
-        for k in k_list:
-            v = x[k]
-            v_type = type(v)
-
-            current_root_key = f'{root_key}.{k}' if root_key else k
-
-            if v_type not in python_types:
-                object_map[current_root_key] = v
-            
-            if v_type in [dict, list, tuple]:
-                self.get_non_json_objects(x=v, object_map=object_map, root_key=current_root_key)
-
-
-
-        return object_map
-    
-
     @classmethod
     def test_serialize(cls):
         module = Serializer()
@@ -216,18 +218,21 @@ class Serializer(c.Module):
     def test(cls):
         module = cls()
         stats = {}
-        data = {'bro': {'fam': torch.randn(50,1000), 'bro': [torch.ones(1,1)]}}
+        data = {'bro': {'fam': torch.randn(1000,2000), 'bro': [torch.ones(1,1)]}}
         # c.print(type(c.dict_get(data, 'bro.fam.data')))
         
 
         t = c.time()
-        proto = module.serialize(data)
+        serialized_data = module.serialize(data)
         # c.print('proto', proto)
-        module.deserialize(proto)
+        deserialized_data = module.deserialize(serialized_data)
+    
+        assert deserialized_data['bro']['fam'].shape == data['bro']['fam'].shape
+        assert deserialized_data['bro']['bro'][0].shape == data['bro']['bro'][0].shape
 
         stats['elapsed_time'] = c.time() - t
         stats['size_bytes'] = c.sizeof(data)
-        stats['size_bytes_compressed'] = c.sizeof(proto)
+        stats['size_bytes_compressed'] = c.sizeof(serialized_data)
         stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
         stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
         c.print(stats)

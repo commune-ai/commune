@@ -9,6 +9,8 @@ from functools import partial
 import commune as c
 import aiohttp
 
+
+
 class Client(c.Module):
 
     def __init__( 
@@ -20,7 +22,7 @@ class Client(c.Module):
         ):
         self.loop = c.get_event_loop()
         self.set_client(ip =ip,port = port)
-        self.serialzer = c.module('serializer')()
+        self.serializer = c.module('serializer')()
 
     def set_client(self,
             ip: str =None,
@@ -51,11 +53,19 @@ class Client(c.Module):
         self.resolve_client(ip=ip, port=port)
         args = args if args else []
         kwargs = kwargs if kwargs else {}
-        url = f"http://{self.address}/{fn}"
+        url = f"http://{self.address}/{fn}/"
+
+        request_data =  { "args": c.python2str(args),
+                         "kwargs": c.python2str(kwargs)}
+        c.print(request_data)
+        
+
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, json= { "args": args,"kwargs": kwargs,}) as response:
-                    response = await asyncio.wait_for(response.json(), timeout=timeout)
+            # async with aiohttp.ClientSession() as session:
+            #     async with session.post(url, json= { "args": args,"kwargs": kwargs}) as response:
+            #         response = await asyncio.wait_for(response.json(), timeout=timeout)
+            response = requests.post(url, json=request_data, headers={'Content-Type': 'application/json'})
+            response = response.json()
         except Exception as e:
             if return_error:
                 response = {'error': str(e)}
