@@ -71,16 +71,16 @@ class TextGenerator(c.Module):
             c.mkdir(volume)
 
         cmd_args = f'--num-shard {num_shard} --model-id {model_id}'
-        cmd = f'docker run -d --gpus device={gpus} --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
+        cmd = f'docker run -d --gpus \'"device={gpus}"\' --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
 
-        c.print(cmd)
+        c.print(cmd, 'BROOOO')
         output_text = c.cmd(cmd, sudo=sudo, output_text=True)
-
         if 'Conflict. The container name' in output_text:
             c.print(f'container {name} already exists, restarting...')
             contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
             c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
             c.cmd(cmd, sudo=sudo, verbose=True)
+
         else: 
             c.print(output_text)
 
@@ -252,5 +252,12 @@ class TextGenerator(c.Module):
         return {'text' : output_text, **stats}
 
     talk = generate
+
+
+    @classmethod
+    def client_fleet(cls, n=10):
+        for i in range(n):
+            cls.serve(name=f'model.textgen.{i}')
+
 
     
