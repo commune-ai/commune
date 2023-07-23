@@ -303,6 +303,7 @@ class Subspace(c.Module):
     #####################
     #### Set Weights ####
     #####################
+    @retry(delay=0, tries=4, backoff=0, max_delay=0)
     def vote(
         self,
         key: 'c.key' = None,
@@ -318,6 +319,15 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         if uids is None:
             uids = self.uids()
+        
+        max_allowed_uids = self.max_allowed_weights( netuid = netuid )
+    
+        if len(uids) == 0:
+            c.print(f'No uids to vote on.')
+            return False
+        if len(uids) > max_allowed_uids:
+            c.print(f'Only {max_allowed_uids} uids are allowed to be voted on.')
+            uids = uids[:max_allowed_uids]
         if weights is None:
             weights = torch.tensor([1 for _ in uids])
             weights = weights / weights.sum()
@@ -340,7 +350,10 @@ class Subspace(c.Module):
                 }
             )
         # Period dictates how long the extrinsic will stay as part of waiting pool
+        c.print(key)
         extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
+
+        c.print(f'Submitting extrinsic: {extrinsic}')
         response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion,
                                               wait_for_finalization = wait_for_finalization )
         # We only wait here if we expect finalization.
@@ -938,11 +951,10 @@ class Subspace(c.Module):
     def min_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
         return self.query_subspace("MinAllowedWeights", block, [netuid] ).value
-
-    """ Returns network MaxWeightsLimit hyper parameter """
-    def max_weight_limit (self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+    """ Returns network MinAllowedWeights hyper parameter """
+    def max_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
+        return self.query_subspace("MaxAllowedWeights", block, [netuid] ).value
 
     """ Returns network SubnetN hyper parameter """
     def n (self, netuid: int = None, block: Optional[int] = None ) -> int:
@@ -1179,6 +1191,7 @@ class Subspace(c.Module):
                 'tempo': self.tempo( netuid = netuid ),
                 'immunity_period': self.immunity_period( netuid = netuid ),
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid ),
+                'max_allowed_weights': self.max_allowed_weights( netuid = netuid ),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid ),
                 'ratio': subnet_stake / total_stake,
                 'founder': subnet_founder
@@ -2206,7 +2219,17 @@ class Subspace(c.Module):
             chain_info[node] = c.copy(node_kwargs)
             cls.start_node(**chain_info[node])
             if boot_nodes == None:
-                node_id = cls.get_node_id(node=node, chain=chain)
+                c.sleep(2)
+                trials = 3
+                while trials > 0:
+                    try:
+                        node_id = cls.get_node_id(node=node, chain=chain)
+                        break
+                    except Exception as e:
+                        c.print(f'Error getting node id for {node} on {chain}, trying aga ', color='red')
+                        trials -= 1
+                        continue
+
                 boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
 
 
@@ -2359,13 +2382,15 @@ class Subspace(c.Module):
         node_path = node2path[node]
         node_id = None
         node_logs = c.logs(node_path, end_line=400, mode='local')
+        c.print(len(node_logs))
         for line in node_logs.split('\n'):
+            c.print(line)
             if 'Local node identity is: ' in line:
                 node_id = line.split('Local node identity is: ')[1].strip()
                 break
 
         if node_id == None:
-            raise Exception(f'Could not find node_id for {user} on {chain}')
+            raise Exception(f'Could not find node_id for {node} on {chain}')
 
         return node_id
         
