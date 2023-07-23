@@ -101,9 +101,8 @@ class HTTPServer(c.Module):
                 response = obj
             return response
         except Exception as e:
-            raise e
-            # c.print(response, color='red')
-
+            response = {'error': str(e)}
+            c.print(e, color='red')
         return response
 
 
