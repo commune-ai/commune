@@ -1,12 +1,13 @@
 import commune as c
 
-# data = c.connect('dataset.hf')
 data = c.connect('dataset.hf')
+
 c.print(data.info())
 
 t = c.time()
-num_steps = 10000
+num_steps = 10
 for i in range(num_steps):
-    data.sample()
+    x = data.sample(idx=[0,1,2,3])
+    c.print(x)
 
     c.print(i/(c.time() - t))
