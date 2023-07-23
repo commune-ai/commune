@@ -14,13 +14,13 @@ import asyncio
 from copy import deepcopy
 from munch import Munch
 
-from commune.module.server.proto import DataBlock
+from commune.modules.server.grpc.proto import DataBlock
 from commune.utils.dict import dict_put, dict_get
 import commune
 import json
 
 if os.getenv('USE_STREAMLIT'):
-    import streamlit as st
+    import streamlit as stw
 
 class Serializer(commune.Module):
     r""" Bittensor base serialization object for converting between DataBlock and their
@@ -30,6 +30,8 @@ class Serializer(commune.Module):
     def serialize (self, data: object, metadata:dict) -> DataBlock:
         data_type = self.get_str_type(data)
         sub_blocks = []
+
+        data_type = data_type.replace('.', '_')
         
                 
         if data_type in ['dict']:
@@ -141,6 +143,15 @@ class Serializer(commune.Module):
         metadata['requires_grad'] = data.requires_grad
         data = self.torch2bytes(data=data)
         return  data,  metadata
+
+    def serialize_torch_device(self, data: torch.Tensor, metadata:dict) -> DataBlock:
+        metadata['dtype'] =  'torch.device'
+        # convert torch device to an int
+        data = data.index
+        return  data,  metadata
+    def deserrialize_torch_device(self, data: torch.Tensor, metadata:dict) -> DataBlock:
+        
+        return  torch.device(data),  metadata
 
     def deserialize_torch(self, data: bytes, metadata: dict) -> torch.Tensor:
 

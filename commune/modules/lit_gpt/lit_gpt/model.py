@@ -37,6 +37,7 @@ class GPT(nn.Module):
         self.rope_cache: Optional[RoPECache] = None
         self.mask_cache: Optional[torch.Tensor] = None
         self.kv_caches: List[KVCache] = []
+        self.device = self.transformer.wte.weight.device
 
     def _init_weights(self, module: nn.Module) -> None:
         if isinstance(module, nn.Linear):
@@ -60,6 +61,7 @@ class GPT(nn.Module):
             self.rope_cache = None
             self.mask_cache = None
 
+    @torch.no_grad()
     def forward(
         self, idx: torch.Tensor, max_seq_length: Optional[int] = None, input_pos: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
@@ -67,6 +69,13 @@ class GPT(nn.Module):
         use_kv_cache = input_pos is not None
 
         block_size = self.config.block_size
+        device = self.device
+        og_device = idx.device
+        if idx.device != device:
+            idx = idx.to(device)
+        if input_pos is not None and input_pos.device != device:
+            input_pos = input_pos.to(device)
+
         if max_seq_length is None:
             max_seq_length = block_size
         if use_kv_cache:  # not relevant otherwise
@@ -108,7 +117,7 @@ class GPT(nn.Module):
 
         x = self.transformer.ln_f(x)
 
-        return self.lm_head(x)  # (b, t, vocab_size)
+        return self.lm_head(x).to(og_device)  # (b, t, vocab_size)
 
     @classmethod
     def from_name(cls, name: str, **kwargs: Any) -> Self:

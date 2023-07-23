@@ -79,6 +79,100 @@ class Docker(c.Module):
     @classmethod
     def containers(cls,  sudo:bool = False):
         return [container['name'] for container in cls.ps(sudo=sudo)]
+    
+    @classmethod 
+    def chmod_scripts(cls):
+        c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
+
+    def install_gpus(self):
+        self.chmod_scripts
+        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True)
+
+
+    def build_commune(self, sudo=False):
+        self.build(path=self.libpath, sudo=sudo)
+
+    @classmethod
+    def build(cls, tag = None,  path = None  , sudo=False):
+        if path is None:
+            path = c.libpath
+            tag = c.libpath.split('/')[-1]
+        assert tag is not None, 'tag must be specified'
+
+        path = c.resolve_path(path)
+        cmd = f'docker build -t {tag} .'
+
+        c.print(path, cmd)
+        c.cmd(cmd, cwd=path, verbose=True, sudo=sudo, bash=True)
+    
+    def launch(self, 
+                    image : str,
+                    tag: str = None,
+                    gpus:list='all',
+                    shm_size : str='100g',
+                    volume:str = 'data',
+                    build:bool = True,
+                    max_shard_ratio = 0.5,
+                    refresh:bool = False,
+                    sudo:bool = False,
+                    port:int=None,
+                    volumes = None,
+                    internal_port:int=None):
+
+        if tag != None:
+            tag = str(tag)
+        if build:
+            self.build(image)
+
+        cmd = f'docker run'
+
+        if deamon:
+            cmd += '-d'
+
+        # ADD THE GPUS
+        if gpus == None:
+            gpus = c.gpus()
+        gpus = ','.join(map(str, gpus))     
+        if gpus != None:
+            cmd += f' --gpus device={gpus}'
+        
+        # ADD THE SHM SIZE
+        if shm_size != None:
+            cmd += f' --shm-size {shm_size}'
+        
+        # ADD THE PORTS
+        if port == None:
+            port = c.resolve_port(port)
+        if internal_port == None:
+            internal_port = port
+        if port != None:
+            cmd += f' -p {port}:{internal_port}'
+            
+
+
+        # ADD THE VOLUMES
+        if volumes is not None:
+            if isinstance(volumes, list):
+                volumes = {v:v for v in volumes}
+            for v_from, v_to in volumes.items():
+                cmd += f'-v {v_from}:{v_to}'
+
+        cmd += '--name {name} {self.image} {cmd_args}'
+
+        c.print(cmd)
+        output_text = c.cmd(cmd, sudo=sudo, output_text=True)
+
+        if 'Conflict. The container name' in output_text:
+            c.print(f'container {name} already exists, restarting...')
+            contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
+            c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
+            c.cmd(cmd, sudo=sudo, verbose=True)
+        else: 
+            c.print(output_text)
+
+
+        self.update()
+       
 
 
 

@@ -306,4 +306,26 @@ class Huggingface(c.Module):
     def test(cls):
         cls.model_paths()
 
+
+    @classmethod
+    def shortcut_exists(cls, model_name,):
+        config = cls.config()
+        return model_name in config['shortcuts']
+
+
+    @classmethod
+    def add_model_shortcut(cls, model_name, model_path):
+        config = cls.config()
+        config['shortcuts'][model_name] = model_path
+        cls.save_config(config)
+        return {'added shortcut':model_name}
+    
+    
+    @classmethod
+    def rm_model_shortcut(cls, model_name):
+        config = cls.config()
+        config['shortcuts'].pop(model_name)
+        cls.save_config(config)
+        return {'removed shortcut':model_name}
+
 Huggingface.class_init()

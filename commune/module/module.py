@@ -16,36 +16,14 @@ from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-@classmethod
-def cache_result(cls, func):
-    import functools
-    
-    def wrapper(*args, **kwargs):
-        fn_name = func.__name__
-        cache = kwargs.pop('cache', True)
-        update = kwargs.pop('update', False)
-        max_age = kwargs.pop('max_age', 60)
-
-        if cache and not update:
-            cls.get(fn_name, max_age=max_age, cache=cache)
-
-        result = func(*args, **kwargs)
-        
-        if cache:
-            cls.put(fn_name, result, cache=cache)
-
-        return result
-
-    return wrapper
-
-
 class c:
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
     user = None
     default_ip = '0.0.0.0'
     address = None
-    root_path  = root = libpath = os.path.dirname(os.path.dirname(__file__))
+    root_path  = root  = os.path.dirname(os.path.dirname(__file__))
+    libpath = os.path.dirname(root_path)
     modules_path = os.path.join(root_path, 'modules')
     repo_path  = os.path.dirname(root_path)
     library_name = root_dir = root_path.split('/')[-1]
@@ -56,6 +34,10 @@ class c:
     helper_whitelist = ['info', 'schema','module_name']
     whitelist = []
     blacklist = []
+    client_module_path = 'module.server.client'
+    server_module_path = 'module.server'
+    server_mode = 'http'
+    
     def __init__(self, 
                  config:Dict=None,
                  **kwargs):
@@ -558,7 +540,7 @@ class c:
     def mutc(cls, k, v, password:str=None, new_password:str=None):
         old_v = cls.getc(k, password=password)
         password = password if new_password == None else new_password
-        v = cls.put_v(old_v, password=password)
+        cls.put_v(v, password=password)
         
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
@@ -852,6 +834,7 @@ class c:
                     sudo:bool = False,
                     password: bool = None,
                     color: str = 'white',
+                    bash : bool = False,
                     **kwargs) -> 'subprocess.Popen':
         '''
         Runs  a command in the shell.
@@ -885,8 +868,11 @@ class c:
             command = f'sudo {command}'
             
             
+        if bash:
+            command = f'bash -c "{command}"'
         process = subprocess.Popen(shlex.split(command),
                                     stdout=subprocess.PIPE, 
+                                    stderr=subprocess.STDOUT,
                                     env={**os.environ, **env}, **kwargs)
 
             
@@ -1027,7 +1013,6 @@ class c:
         The path is determined by the module path 
         
         '''
-        
         
         
         if path.startswith('/'):
@@ -1234,9 +1219,6 @@ class c:
         '''
         Kill the server by the name
         '''
-        server_info = cls.get_server_info(module)
-        if 'external_ip' in server_info:
-            assert server_info.get('external_ip') == cls.external_ip()
         if mode == 'pm2':
             return cls.pm2_restart(module)
         else:
@@ -1840,38 +1822,39 @@ class c:
                 port:int=None , 
                 network : str = None,
                 namespace = None,
+                mode = server_mode,
                 virtual:bool = True, 
                 wait_for_server:bool = False,
                 trials = 3, 
                 verbose: bool = False, 
                 key = None,
                 ignore_error:bool = False,
+                update = False,
                 **kwargs ):
+
+        t = c.time()
         network = c.resolve_network(network)
         if key != None:
             key = cls.get_key(key)
             
+        # if we are not given a name, ip, or port then we need to raise an error
         if (name == None and ip == None and port == None):
-            return cls.root_module()
+            raise ValueError('Must specify either name, ip, or port')
         
+        # wait for the server to be ready before connecting
         if wait_for_server:
             cls.wait_for_server(name)
         
+        
+        # if we are given a name then we need to resolve the ip and port
         if namespace == None :
-            namespace = c.namespace(network, update=False)
-        namespace = cls.copy(namespace)
-
-        # local namespace  
-
-
+            namespace = c.namespace(network, update=update)
+        namespace = c.copy(namespace)
 
         if isinstance(name, str):
-      
             found_modules = []
-
-            if cls.is_address(name):
+            if c.is_address(name):
                 found_modules = [name]
-            
             else:
                 modules = list(namespace.keys())
                 module_addresses = list(namespace.values())
@@ -1885,24 +1868,22 @@ class c:
                         found_modules += [n]
                       
             if len(found_modules)>0:
-                name = cls.choice(found_modules)
+                name = c.choice(found_modules)
                 name = namespace.get(name, name)
                 
             else:
                 if ignore_error:
                     return None
                 raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
-            
-            port = int(name.split(':')[-1])
-
             ip = name.split(':')[0]
+            port = int(name.split(':')[-1])
 
         assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
         assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
+        connection_latency = c.time() - t
         if verbose:
-            c.print(f'Connecting to {name} on {ip}:{port}', color='yellow')
-        client= cls.get_client(ip=ip, port=int(port), virtual=virtual, key=key)
-        
+            c.print(f'Connected to {name} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
         return client
      
     @classmethod
@@ -1978,16 +1959,18 @@ class c:
             return dict(zip(modules, module_clients))
         return module_clients
 
-    client_module_path = 'module.server.client'
-    server_module_path = 'module.server'
     @classmethod
-    def get_client(cls, *args,virtual:bool = True, **kwargs):
+    def get_client(cls, ip = None, port = None ,virtual:bool = True, mode=server_mode, **kwargs):
         
-        client_class = c.module(cls.client_module_path)
-        client = client_class(*args, **kwargs)
+        client_class = c.module(f'server.{mode}.client')
+
+        client = client_class(ip=ip, port=port,**kwargs)
+
         if virtual:
-            client =  client.virtual()
+            client = c.virtual_client(client)
+        
         return client
+
     
    
     nest_asyncio_enabled : bool = False
@@ -2133,6 +2116,7 @@ class c:
             if peer == None: 
                 return peer
             module_name =  await peer(fn='module_name',  return_future=True)
+
             if c.check_response(module_name):
                 return module_name
             else:
@@ -2141,17 +2125,17 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_local_namespace(cls):
+    def build_local_namespace(cls, verbose:bool = False):
         used_ports = cls.get_used_ports()
         ip = cls.default_ip
-        c.print(len(used_ports))
         addresses = [ f'{ip}:{p}' for p in used_ports]
-
+        local_namespace = {}
         names = c.gather([cls.async_get_peer_name(address) for address in addresses])
-        
-        local_namespace = {k:v for k,v in dict(zip(names, addresses)).items() if k != None}
-        
-        c.print(local_namespace)
+        for i in range(len(names)):
+            c.print(f'{names[i]} is running on {addresses[i]}', verbose=verbose)
+            if isinstance(names[i], str):
+
+                local_namespace[names[i]] = addresses[i]
         return local_namespace
             
                 
@@ -2210,6 +2194,8 @@ class c:
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
         return local_namespace
+
+
     
     @classmethod
     def deregister_server(cls, name: str)-> dict:
@@ -2293,7 +2279,6 @@ class c:
 
     @classmethod
     def server_exists(cls, name:str, **kwargs) -> bool:
-        
         return bool(name in cls.servers(**kwargs)) and name in cls.pm2_list()
     
     @classmethod
@@ -2322,6 +2307,7 @@ class c:
         cls.local_namespace()
 
         while not cls.server_exists(name):
+            c.update()
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
             c.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
@@ -2386,6 +2372,14 @@ class c:
         address = address.replace(c.default_ip, ip)
         assert ip in address, f'ip {ip} not in address {address}'
         return address
+
+
+    @classmethod
+    def virtual_client(cls, module=None): 
+        virtual_client =  c.import_object('commune.modules.client.virtual.VirtualClient')
+        if module != None:
+            return virtual_client(module)
+        return virtual_client
         
     @classmethod
     def namespace(cls,
@@ -2456,6 +2450,8 @@ class c:
             whitelist += self.functions() + self.attributes()
         return whitelist
             
+    wl = whitelist
+    bl = blacklist = []
     
     
     
@@ -2483,7 +2479,8 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               args:list = None,  # args for the module
               kwargs:dict = None,  # kwargs for the module
-              update: bool = False
+              update: bool = True,
+              mode:str = server_mode,
               
               ):
         '''
@@ -2533,13 +2530,12 @@ class c:
             if k not in self.__dict__:
                 self.__dict__[k] = name
 
-            
-        server = c.module('module.server')(ip=ip, 
-                        port=port,
-                        module = self,
-                        name= name,
-                        whitelist=whitelist,
-                        blacklist=blacklist)
+        module_class = c.module(f'server.{mode}')
+
+        c.print(f'Serving {name} on port {port}', color='yellow')
+        c.print(module_class)
+        server = module_class(ip=ip, port=port,module = self,name= name,
+                             whitelist=whitelist,blacklist=blacklist)
         
         # register the server
         self.server_info = server.info
@@ -2559,7 +2555,7 @@ class c:
         server.serve(wait_for_termination=wait_for_termination,register=True)
         if wait_for_server:
             cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
-        
+
     serve_module = serve
     @classmethod
     def functions(cls, search = None, 
@@ -2568,6 +2564,7 @@ class c:
 
         functions = list(set(functions))
         
+
         if isinstance(search, str):
             functions = [f for f in functions if search in f]
             
@@ -2849,7 +2846,7 @@ class c:
         return shortcut
     ## PM2 LAND
     @classmethod
-    def deploy(cls, 
+    def launch(cls, 
                module:str = None,
                fn: str = 'serve',
                args : list = None,
@@ -2929,7 +2926,6 @@ class c:
 
         return name
 
-    launch = deploy
     
     @classmethod
     def pm2_kill_all(cls, verbose:bool = True):
@@ -3054,15 +3050,13 @@ class c:
             if isinstance(device, list):
                 env['CUDA_VISIBLE_DEVICES']=','.join(list(map(str, device)))
                 
-                
-                
         if refresh:
             cls.pm2_kill(name)  
 
         if verbose:
             c.print(f'Launching {module} with command: {command}', color='green')
             
-        stdout = c.cmd(command, env=env, verbose=False)
+        stdout = c.cmd(command, env=env, verbose=verbose)
         return stdout
     
     
@@ -3452,16 +3446,6 @@ class c:
         assert isinstance(actor, ray.actor.ActorHandle)
         return actor.__dict__['_ray_actor_id'].hex()
 
-    @classmethod
-    def create_pool(cls, replicas=3, actor_kwargs_list=[], **kwargs):
-        if actor_list == None:
-            actor_kwargs_list = [kwargs]*replicas
-
-        actors = []
-        for actor_kwargs in actor_kwargs_list:
-            actors.append(cls.deploy(**a_kwargs))
-
-        return ActorPool(actors=actors)
 
     @classmethod
     def virtual_actor(cls, actor):
@@ -3842,15 +3826,23 @@ class c:
     
     ensure_package = ensure_lib
     @classmethod
-    def pip_install(cls, lib:str, verbose:str=True):
+    def pip_install(cls, lib:str= None, verbose:str=True, e=False):
         if lib in c.modules():
             c.print(f'Installing {lib} Module from local directory')
             lib = c.resolve_module(lib).dirpath()
-            
-        return cls.cmd(f'pip install {lib}', verbose=verbose)
+        if lib == None:
+            lib = c.libpath
+        if e:
+            cmd = f'pip install -e {lib}'
+        else:
+            cmd = f'pip install {lib}'
+        return cls.cmd(cmd, verbose=verbose)
 
-    def install(self, lib:str, verbose:bool=True):
+    def install(self, lib:str = None, verbose:bool=True):
         return self.pip_install(lib, verbose=verbose)
+
+    
+
 
     @classmethod
     def pip_exists(cls, lib:str, verbose:str=True):
@@ -4213,9 +4205,27 @@ class c:
     
     @classmethod
     def model_shortcuts(cls, **kwargs):
-        return  c.module('model.transformer').getc('shortcuts')
+        return  c.module('huggingface').getc('shortcuts')
+    @classmethod
+    def resolve_model_shortcut(cls, model):
+        model_shortcuts = c.model_shortcuts()
+        return model_shortcuts.get(model,model)
+            
     
-    
+    @classmethod
+    def add_model_shortcut(cls, *args, **kwargs):
+        return  c.module('huggingface').add_model_shortcut(*args, **kwargs)    
+    @classmethod
+    def rm_model_shortcut(cls, *args, **kwargs):
+        return  c.module('huggingface').rm_model_shortcut(*args, **kwargs)
+
+    @classmethod
+    def model_options(cls):
+        return list(c.model_shortcuts().keys())
+
+    @classmethod
+    def shortcut2model(cls, shortcut:str):
+        return c.model_shortcuts()[shortcut]
 
     @classmethod
     def model_gpu_memory(cls, model:str, num_shard = 2):
@@ -4534,8 +4544,11 @@ class c:
     
     # STRING2BYTES
     @classmethod
-    def str2bytes(cls, data: str, mode: str = 'utf-8') -> bytes:
-        return bytes(data, mode)
+    def str2bytes(cls, data: str, mode: str = 'hex') -> bytes:
+        if mode in ['utf-8']:
+            return bytes(data, mode)
+        elif mode in ['hex']:
+            return bytes.fromhex(data)
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
@@ -4752,42 +4765,21 @@ class c:
         key = self.resolve_key(key)
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
+    # @classmethod
+    # def call(cls, *args,  **kwargs) -> None:
+    #     loop = cls.get_event_loop()
+    #     return loop.run_until_complete(cls.async_call(*args, **kwargs))
+
+
     @classmethod
-    def call(cls, *args,  **kwargs) -> None:
-        loop = cls.get_event_loop()
-        return loop.run_until_complete(cls.async_call(*args, **kwargs))
-    
-    @classmethod
-    async def async_call(cls,
-                         module : str,
-                         fn : str,
+    def call(cls,module : str, fn : str,
                          *args,
-                         network : str = None,
-                         key : str = None,
                          timeout : int = 4,
                          **kwargs) -> None:
                          
-        network = c.resolve_network(network)
         
-        if isinstance(module, str) and fn == None:
-            
-            module, fn = '.'.join(module.split('.')[:-1]),  module.split('.')[-1],
-            pool_mode = False
-            
-            while module.endswith('.'):
-                pool_mode = True
-                module = module[:-1]
-            if pool_mode:
-                module = c.servers(module)
-            
-        if fn == None:
-            fn = 'forward'
-            
-        if isinstance(module, str):
-            module = await cls.async_connect(module, network=network, key=key, virtual=False)
-            
-        
-        return module.__call__(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        module = cls.connect(module, virtual=False)
+        return module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
 
 
     @classmethod
@@ -4883,9 +4875,10 @@ class c:
         return c.module('key').add_key(key, *args, **kwargs)
     
 
-    def sign(self, data:dict  = None, key: str = None) -> bool:
+    def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
-        return key.sign(data) 
+        signature =  key.sign(data, **kwargs)
+        return signature
     
 
     def timestamp_to_iso(timestamp):
@@ -4957,12 +4950,6 @@ class c:
     def rm_user(cls, user: str = None):
         self.users.pop(user, None)  
         
-    @classmethod
-    def users(self):
-        return self._users
-    
-    
-    
     
     
     @classmethod
@@ -5056,22 +5043,18 @@ class c:
     def client(cls, *args, **kwargs) -> 'Client':
         return c.module('module.client')(*args, **kwargs)
     
-    # @classmethod
-    # def serializer(cls, *args, **kwargs) -> 'Serializer':
-    #     return c.module('module.server.serializer')(*args, **kwargs)
+    @classmethod
+    def serialize(cls, x, **kwargs):
+        serializer = c.serializer()
+        return serializer.serialize(x, **kwargs)
 
+    @classmethod
+    def serializer(cls, *args, **kwargs):
+        return  c.module('serializer')(*args, **kwargs)
     
     @classmethod
-    def serialize(cls, data, metadata=None,to_json = False, **kwargs):
-        metadata = metadata or {}
-        if not isinstance(data, dict):
-            data = dict(value=data)
-        serializer = c.module('serializer')
-        proto_data =  serializer.serialize(data=data, metadata=metadata ,**kwargs)
-        if to_json:
-            proto_data = cls.proto2json(proto_data)
-            
-        return proto_data
+    def deserialize(cls, x, **kwargs):
+        return c.serializer().deserialize(x, **kwargs)
 
     @classmethod
     def proto2json(cls, data):
@@ -5181,7 +5164,6 @@ class c:
     def add_peer(cls, *args, **kwargs)-> List:
         loop = cls.get_event_loop()
         peer = loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
-        
         return peer
     
     
@@ -5348,10 +5330,10 @@ class c:
     
     @classmethod
     def resolve_network(cls, network=None):
-        config = c.config()
         if network == None:
-            network = config['network']
+            network = c.getc('network')
         return network
+
     get_network = resolve_network
     @classmethod
     def set_network(cls, network=None):
@@ -5360,6 +5342,7 @@ class c:
         config['network'] = network
         c.save_config(config)
         return network
+
     setnet = set_network
     
     @classmethod
@@ -5367,6 +5350,7 @@ class c:
         config = self.config()
         network = config['network']
         return network
+
     getnet = get_network
     resnet = resolve_network
     
@@ -5381,18 +5365,15 @@ class c:
         # update local namespace
         c.namespace(network=network, update=True)
         
-    
-        
-        
     @classmethod
     def peer_registry(cls, peers=None, update: bool = False):
         if update:
             if peers == None:
                 peers = cls.peers()
             cls.add_peers(peers)
-        return c.get_json('peer_registry', default={})
-    
-    
+        
+        peer_registry = c.get('peer_registry', {})
+        return peer_registry
 
     @classmethod
     def run_jobs(cls, jobs: List, mode ='asyncio',**kwargs):
@@ -5653,6 +5634,8 @@ class c:
     @classmethod
     def model_max_gpus(cls, model, *args, **kwargs):
         return list(c.model_max_gpu_memory(model,  *args, **kwargs).keys())
+
+    infer_gpus = model_max_gpus
 
 
     @classmethod
@@ -6411,8 +6394,16 @@ class c:
             return 'class'
     
     @classmethod
-    def build(cls, *args,**kwargs): 
-        return c.module('subspace').build(*args, **kwargs)
+    def build(cls): 
+        docker_module = c.module('docker')
+        docker_module.build(c.libpath)
+        docker_module.build(f'{c.libpath}/subspace')
+
+    
+    @classmethod
+    def up(cls): 
+        return c.cmd('docker-compose up -d', cwd=c.libpath)
+
 
     @classmethod
     def play(cls):
@@ -6728,15 +6719,35 @@ class c:
     
     
     
-    
-    def tokenizer(self, tokenizer='gpt2', *args, **kwargs):
+    def ensure_self_attr(self, attr, default=None):
+        if not hasattr(self, attr):
+            setattr(self, attr, default)
+    @classmethod
+    def ensure_class_attr(cls, attr, default=None):
+        if not hasattr(cls, attr):
+            setattr(cls, attr, default)
+
+    tokenizer_cache = {}
+    @classmethod
+    def tokenizer(cls, tokenizer='gpt2', cache = True,  **kwargs):
+        if cache and tokenizer in cls.tokenizer_cache:
+            return cls.tokenizer_cache[tokenizer]
         from transformers import AutoTokenizer
-        return AutoTokenizer.from_pretrained(tokenizer, *args, **kwargs)
-    
-    def tokenize(self, text, tokenizer='gpt2', *args, **kwargs):
-        return self.tokenizer(tokenizer, *args, **kwargs).encode(text)
-    def detokenize(self, tokens, tokenizer='gpt2', *args, **kwargs):
-        return self.tokenizer(tokenizer, *args, **kwargs).decode(tokens)
+        tokenizer_obj =  AutoTokenizer.from_pretrained(tokenizer,**kwargs)
+        if cache:
+            cls.tokenizer_cache[tokenizer] = tokenizer_obj
+        return tokenizer_obj
+        
+    @classmethod
+    def tokenize(cls, text, tokenizer='gpt2', *args, **kwargs):
+        return cls.tokenizer(tokenizer, *args, **kwargs).encode(text)
+    @classmethod
+    def detokenize(cls, tokens, tokenizer='gpt2', *args, **kwargs):
+        return cls.tokenizer(tokenizer, *args, **kwargs).decode(tokens)
+
+    @classmethod
+    def num_tokens(cls, text, **kwargs):
+        return len(cls.tokenize(text, **kwargs))
 
     
     def generate_completions(self, past_tokens = 10, future_tokens = 10, tokenizer:str='gpt2', mode:str='lines', **kwargs):
@@ -6996,10 +7007,15 @@ class c:
     @classmethod
     def resolve_shortcut(cls, name:str) -> str:
         return c.getc('shortcuts').get(name, name)
+    
+    @classmethod
+    def model_menu(cls):
+        return c.model_shortcuts()
+    
 
 
     @classmethod
-    def talk(cls , *args, module = 'model.bt', **kwargs):
+    def talk(cls , *args, module = 'model', **kwargs):
         model = c.connect(module, virtual=False)
         c.print('Selecting: ', model)
         return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))
@@ -7019,6 +7035,7 @@ class c:
     @classmethod
     def containers(cls):
         return c.module('docker').containers()
+
 
 
     @staticmethod
@@ -7044,8 +7061,39 @@ class c:
     def batch(cls, x: list, batch_size:int=8): 
         return c.chunk(x, chunk_size=batch_size)
 
+    
+    @classmethod 
+    def chmod_scripts(cls):
+        c.cmd(f'chmod +x {c.libpath}/scripts/*', verbose=True, bash=True)
+
+    def install_docker_gpus(self):
+        self.chmod_scripts
+        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
+
+
+    @classmethod
+    def cache_result(cls, func):
+        import functools
+        
+        def wrapper(*args, **kwargs):
+            fn_name = func.__name__
+            cache = kwargs.pop('cache', True)
+            update = kwargs.pop('update', False)
+            max_age = kwargs.pop('max_age', 60)
+
+            if cache and not update:
+                cls.get(fn_name, max_age=max_age, cache=cache)
+
+            result = func(*args, **kwargs)
+            
+            if cache:
+                cls.put(fn_name, result, cache=cache)
+
+            return result
+
+        return wrapper
+
 
 Module = c
-
 Module.run(__name__)
     
