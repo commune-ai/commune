@@ -3131,7 +3131,11 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-100, end_line=0, verbose=True, mode='cmd'):
+    def pm2_logs_ls(cls):
+        return {'-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':'):l for l in c.ls(f'{cls.pm2_dir}/logs/')}
+
+    @classmethod
+    def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
         if mode == 'local':
             text = ''
             for m in ['out','error']:
