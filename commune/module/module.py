@@ -5041,13 +5041,16 @@ class c:
     
     @classmethod
     def serialize(cls, x, **kwargs):
-        serializer = c.module('serializer')()
+        serializer = c.serializer()
         return serializer.serialize(x, **kwargs)
+
+    @classmethod
+    def serializer(cls, *args, **kwargs):
+        return  c.module('serializer')(*args, **kwargs)
     
     @classmethod
     def deserialize(cls, x, **kwargs):
-        serializer = c.module('serializer')()
-        return serializer.deserialize(x, **kwargs)
+        return c.serializer().deserialize(x, **kwargs)
 
     @classmethod
     def proto2json(cls, data):

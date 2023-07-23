@@ -22,7 +22,7 @@ class Client(c.Module):
         ):
         self.loop = c.get_event_loop()
         self.set_client(ip =ip,port = port)
-        self.serializer = c.module('serializer')()
+        self.serializer = c.serializer()
 
     def set_client(self,
             ip: str =None,
@@ -48,6 +48,7 @@ class Client(c.Module):
         port : int= None,
         timeout: int = 4,
         return_error: bool = False,
+        asyn: bool = True,
          **extra_kwargs):
 
         self.resolve_client(ip=ip, port=port)
@@ -55,17 +56,23 @@ class Client(c.Module):
         kwargs = kwargs if kwargs else {}
         url = f"http://{self.address}/{fn}/"
 
-        request_data =  { "args": c.python2str(args),
-                         "kwargs": c.python2str(kwargs)}
-        c.print(request_data)
-        
+        request_data =  { "args": args,
+                         "kwargs": kwargs}
+
+ 
+        request_data = {k:self.serializer.serialize(v) for k,v in request_data.items()}
+
 
         try:
-            # async with aiohttp.ClientSession() as session:
-            #     async with session.post(url, json= { "args": args,"kwargs": kwargs}) as response:
-            #         response = await asyncio.wait_for(response.json(), timeout=timeout)
-            response = requests.post(url, json=request_data, headers={'Content-Type': 'application/json'})
-            response = response.json()
+            if asyn == True:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=request_data) as response:
+                        response = await asyncio.wait_for(response.json(), timeout=timeout)
+            else:
+                response = requests.post(url, json=request_data, headers={'Content-Type': 'application/json'})
+                response = response.json()
+                
+            response = self.serializer.deserialize(response)
         except Exception as e:
             if return_error:
                 response = {'error': str(e)}
