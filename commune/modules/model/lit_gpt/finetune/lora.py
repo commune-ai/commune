@@ -86,8 +86,8 @@ def main(fabric: L.Fabric, data_dir: Path, checkpoint_dir: Path, out_dir: Path):
     if fabric.global_rank == 0:
         os.makedirs(out_dir, exist_ok=True)
 
-    train_data = torch.load(data_dir / "train.pt")
-    val_data = torch.load(data_dir / "test.pt")
+    train_data = torch.load(data_dir + "/" + "train.pt")
+    val_data = torch.load(data_dir + "/" + "test.pt")
 
     if not any((lora_query, lora_key, lora_value, lora_projection, lora_mlp, lora_head)):
         fabric.print("Warning: all LoRA layers are disabled!")
@@ -130,7 +130,7 @@ def main(fabric: L.Fabric, data_dir: Path, checkpoint_dir: Path, out_dir: Path):
     fabric.print(f"Training time: {(time.time()-train_time):.2f}s")
 
     # Save the final LoRA checkpoint at the end of training
-    save_path = out_dir / "lit_model_lora_finetuned.pth"
+    save_path = out_dir + "/" + "lit_model_lora_finetuned.pth"
     save_lora_checkpoint(fabric, model, save_path)
 
 

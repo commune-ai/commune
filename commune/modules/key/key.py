@@ -290,10 +290,6 @@ class Keypair(c.Module):
     @classmethod
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
-    
-    def serve(self, key=None):
-        if key == None:
-            key
             
     
     @classmethod
@@ -853,14 +849,17 @@ class Keypair(c.Module):
         """
         if isinstance(data, dict):
             if 'data' in data:
-                data = data['data']
-                crypto = data['crypto']
+                crypto = int(data['crypto'])
                 signature = data['signature']
                 public_key = data['public_key']
+                data = data['data']
                 
                 
         if public_key == None:
             public_key = self.public_key
+
+        if isinstance(public_key, str):
+            public_key = bytes.fromhex(public_key.replace('0x', ''))
 
         if type(data) is ScaleBytes:
             data = bytes(data.data)
@@ -871,6 +870,8 @@ class Keypair(c.Module):
 
         if type(signature) is str and signature[0:2] == '0x':
             signature = bytes.fromhex(signature[2:])
+        elif type(signature) is str:
+            signature = bytes.fromhex(signature)
 
         if type(signature) is not bytes:
             raise TypeError("Signature should be of type bytes or a hex-string")

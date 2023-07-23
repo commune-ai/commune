@@ -220,8 +220,8 @@ def get_batch(fabric: L.Fabric, data: np.ndarray, block_size: int) -> Tuple[torc
 
 
 def load_datasets(data_dir: Path) -> Tuple[np.ndarray, np.ndarray]:
-    train_data = np.memmap(str(data_dir / "train.bin"), dtype=np.uint16, mode="r")
-    val_data = np.memmap(str(data_dir / "val.bin"), dtype=np.uint16, mode="r")
+    train_data = np.memmap(str(data_dir + "/" + "train.bin"), dtype=np.uint16, mode="r")
+    val_data = np.memmap(str(data_dir + "/" + "val.bin"), dtype=np.uint16, mode="r")
     return train_data, val_data
 
 

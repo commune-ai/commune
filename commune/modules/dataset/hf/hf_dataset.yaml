@@ -9,8 +9,10 @@ categories:
   - squad
   - glue
 
-shortcuts: {}
+shortcuts: 
+  pile: EleutherAI/the_pile
+  wiki: wikitext 
+  glue': glue
 
 datasets: 
-
   - super_glue
