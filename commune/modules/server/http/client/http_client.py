@@ -49,6 +49,7 @@ class Client(c.Module):
         timeout: int = 4,
         return_error: bool = False,
         asyn: bool = True,
+        headers : dict ={'Content-Type': 'application/json'},
          **extra_kwargs):
 
         self.resolve_client(ip=ip, port=port)
@@ -66,12 +67,12 @@ class Client(c.Module):
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=request_data) as response:
+                    async with session.post(url, json=request_data, headers=headers) as response:
                         response = await asyncio.wait_for(response.json(), timeout=timeout)
             else:
-                response = requests.post(url, json=request_data, headers={'Content-Type': 'application/json'})
+                response = requests.post(url, json=request_data, headers=headers)
                 response = response.json()
-                
+
             response = self.serializer.deserialize(response)
         except Exception as e:
             if return_error:
