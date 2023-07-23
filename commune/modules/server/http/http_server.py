@@ -40,7 +40,7 @@ class HTTPServer(c.Module):
         self.name = name
         self.timeout = timeout
         self.verbose = verbose
-
+        self.serializer = c.serializer()
         self.ip = c.resolve_ip(ip, external=False)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
@@ -76,11 +76,14 @@ class HTTPServer(c.Module):
 
         @self.app.post("/{fn}")
         async def forward_wrapper(fn, input:dict[str, str]):
+            for k,v in input.items():
+                input[k] = self.serializer.deserialize(v)
+            args = input.get('args', [])
+            kwargs = input.get('kwargs', {})
 
-            args = c.str2python(input.get('args', '[]'))
-            kwargs = c.str2python(input.get('kwargs', '{}'))
-            c.print({'fn': fn, 'args': args, 'kwargs':kwargs}, color='green')
-            return self.forward(fn=fn, args=args, kwargs=kwargs)
+            result =  self.forward(fn=fn, args=args, kwargs=kwargs)
+
+            return self.serializer.serialize(result)
         
         c.register_server(self.name, self.ip, self.port)
         uvicorn.run(self.app, host=self.ip, port=self.port)

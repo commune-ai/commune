@@ -37,7 +37,7 @@ class Serializer(c.Module):
             raise Exception(f'{type(x)} not supported to get the keylist fam')
 
     python_types = [int, bool, float, tuple, dict, list, str, type(None)]
-    def serialize(self,x:dict):
+    def serialize(self,x:dict, mode = 'str'):
         x = c.copy(x)
         k_list = []
         if isinstance(x, dict):
@@ -53,14 +53,24 @@ class Serializer(c.Module):
             v = x[k]
             v_type = type(v)
             if v_type in [dict, list, tuple, set]:
-                x[k] = self.serialize(x=v)
+                x[k] = self.serialize(x=v, mode=None)
             else:
                 str_v_type = self.get_str_type(data=v)
                 if hasattr(self, f'serialize_{str_v_type}'):
                     v = getattr(self, f'serialize_{str_v_type}')(data=v)
                     x[k] = {'data': v, 'data_type': str_v_type,  'serialized': True}
 
+        if mode == 'str':
+            x = self.dict2str(x)
+        elif mode == 'bytes':
+            x = self.dict2bytes(x)
+        elif mode == None:
+            pass
+        else:
+            raise Exception(f'{mode} not supported')
+            
         return x
+
 
 
     def is_serialized(self, data):
@@ -74,7 +84,8 @@ class Serializer(c.Module):
     def deserialize(self, x) -> object:
         """Serializes a torch object to DataBlock wire format.
         """
-
+        if isinstance(x, str):
+            x = self.str2dict(x)
         k_list = []
         if isinstance(x, dict):
             k_list = list(x.keys())
@@ -87,7 +98,6 @@ class Serializer(c.Module):
 
         for k in k_list:
             v = x[k]
-            c.print(k, self.is_serialized(v))
             if type(v) in [dict, list, tuple, set]:
                 x[k] = self.deserialize(x=v)
             if self.is_serialized(v):
@@ -130,14 +140,24 @@ class Serializer(c.Module):
         data_json_str = json.dumps(data)
         data_json_bytes = msgpack.packb(data_json_str)
         return data_json_bytes
+    def dict2str(self, data:dict) -> bytes:
+        data_json_str = json.dumps(data)
+        return data_json_str
+    def str2dict(self, data:str) -> bytes:
+        data_json_str = json.loads(data)
+        return data_json_str
     
     @classmethod
-    def bytes2str(cls, x, **kwargs):
-        return msgpack.unpackb(x, **kwargs)
+    def hex2str(cls, x, **kwargs):
+        return x.hex()
+
+    bytes2str = hex2str
     
     @classmethod
-    def str2bytes(cls, x, **kwargs):
-        return msgpack.packb(x, **kwargs)
+    def str2hex(cls, x, **kwargs):
+        return bytes.fromhex(x)
+
+    str2bytes = str2hex
         
 
 
@@ -177,14 +197,19 @@ class Serializer(c.Module):
         output = msgpack.unpackb(data, object_hook=msgpack_numpy.decode)
         return output
 
-    def serialize_torch(self, data: torch.Tensor) -> DataBlock:
 
-        output =   self.torch2bytes(data=data)
-        return output
+
+
+    def serialize_torch(self, data: torch.Tensor) -> DataBlock:     
+        from safetensors.torch import save
+        output = save({'data':data})  
+        return self.bytes2str(output)
     
-    def deserialize_torch(self, data: bytes) -> torch.Tensor:
-        data =  self.bytes2torch(data=data )
-        return data
+    def deserialize_torch(self, data: dict) -> torch.Tensor:
+        from safetensors.torch import load
+        data = self.str2bytes(data)
+        data = load(data)
+        return data['data']
 
     def get_str_type(self, data):
         data_type = str(type(data)).split("'")[1]
@@ -215,17 +240,15 @@ class Serializer(c.Module):
         # return True
     
     @classmethod
-    def test(cls):
-        module = cls()
+    def test(cls, size=1):
+        self = cls()
         stats = {}
-        data = {'bro': {'fam': torch.randn(1000,2000), 'bro': [torch.ones(1,1)]}}
-        # c.print(type(c.dict_get(data, 'bro.fam.data')))
-        
+        data = {'bro': {'fam': torch.randn(size,size), 'bro': [torch.ones(1,1)]}}
 
         t = c.time()
-        serialized_data = module.serialize(data)
-        # c.print('proto', proto)
-        deserialized_data = module.deserialize(serialized_data)
+        serialized_data = self.serialize(data)
+        assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
+        deserialized_data = self.deserialize(serialized_data)
     
         assert deserialized_data['bro']['fam'].shape == data['bro']['fam'].shape
         assert deserialized_data['bro']['bro'][0].shape == data['bro']['bro'][0].shape
@@ -233,6 +256,7 @@ class Serializer(c.Module):
         stats['elapsed_time'] = c.time() - t
         stats['size_bytes'] = c.sizeof(data)
         stats['size_bytes_compressed'] = c.sizeof(serialized_data)
+        stats['size_deserialized_data'] = c.sizeof(deserialized_data)
         stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
         stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
         c.print(stats)
