@@ -1219,9 +1219,6 @@ class c:
         '''
         Kill the server by the name
         '''
-        server_info = cls.get_server_info(module)
-        if 'external_ip' in server_info:
-            assert server_info.get('external_ip') == cls.external_ip()
         if mode == 'pm2':
             return cls.pm2_restart(module)
         else:
@@ -3059,8 +3056,7 @@ class c:
         if verbose:
             c.print(f'Launching {module} with command: {command}', color='green')
             
-        c.print(f'{command}', color='green')
-        stdout = c.cmd(command, env=env, verbose=True)
+        stdout = c.cmd(command, env=env, verbose=verbose)
         return stdout
     
     
@@ -4544,8 +4540,11 @@ class c:
     
     # STRING2BYTES
     @classmethod
-    def str2bytes(cls, data: str, mode: str = 'utf-8') -> bytes:
-        return bytes(data, mode)
+    def str2bytes(cls, data: str, mode: str = 'hex') -> bytes:
+        if mode in ['utf-8']:
+            return bytes(data, mode)
+        elif mode in ['hex']:
+            return bytes.fromhex(data)
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
@@ -4874,7 +4873,8 @@ class c:
 
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
-        return key.sign(data, **kwargs)
+        signature =  key.sign(data, **kwargs)
+        return signature
     
 
     def timestamp_to_iso(timestamp):

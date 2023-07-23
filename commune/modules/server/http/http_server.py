@@ -40,12 +40,13 @@ class HTTPServer(c.Module):
         self.name = name
         self.timeout = timeout
         self.verbose = verbose
-        self.serializer = c.serializer()
+        self.serializer = c.module('server.http.serializer')()
         self.ip = c.resolve_ip(ip, external=False)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
+        self.key = c.get_key(name) if key == None else key
+
         self.set_api()
-        self.key = c.get_key(name)
 
 
     def state_dict(self) -> Dict:
@@ -65,6 +66,16 @@ class HTTPServer(c.Module):
         c.print(self.state_dict(), color='green')
         return self
 
+    
+    def verify(self, data: dict) -> bool:
+        r""" Verify the data is signed with the correct key.
+        """
+        assert isinstance(data, dict), f"Data must be a dict, not {type(data)}"
+        assert 'data' in data, f"Data not included"
+        assert 'signature' in data, f"Data not signed"
+        assert self.key.verify(data), f"Data not signed with correct key"
+        return True
+
     def set_api(self):
 
         from fastapi import FastAPI
@@ -75,15 +86,26 @@ class HTTPServer(c.Module):
 
 
         @self.app.post("/{fn}")
-        async def forward_wrapper(fn, input:dict[str, str]):
-            for k,v in input.items():
-                input[k] = self.serializer.deserialize(v)
-            args = input.get('args', [])
-            kwargs = input.get('kwargs', {})
+        async def forward_wrapper(fn:str, input:dict[str, str]):
+            # verify key
+            self.verify(input)
 
-            result =  self.forward(fn=fn, args=args, kwargs=kwargs)
+            # deserialize data
+            data = self.serializer.deserialize(input.pop('data'))
+            
+            # forward
+            result =  self.forward(fn=fn, 
+                                    args=data.get('args', []), 
+                                    kwargs=data.get('kwargs', {})
+                                    )
+            # serialize result
+            result_data = self.serializer.serialize(result)
 
-            return {'data':self.serializer.serialize(result)}
+            # sign result data (str)
+            result =  self.key.sign(result_data, return_json=True)
+
+            # send result to client
+            return result
         
         c.register_server(self.name, self.ip, self.port)
         uvicorn.run(self.app, host=self.ip, port=self.port)

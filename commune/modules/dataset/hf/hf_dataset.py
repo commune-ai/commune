@@ -33,6 +33,7 @@ class HFDataset(c.Module):
         
     def default_name(self):
         return self.available_names()[0]
+
         
     def set_dataset(self, config):
         config.path = self.config.shortcuts.get(config.path, config.path)
