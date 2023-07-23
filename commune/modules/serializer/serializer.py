@@ -14,7 +14,6 @@ import asyncio
 from copy import deepcopy
 from munch import Munch
 
-from commune.modules.server.grpc.proto import DataBlock
 import commune as c
 import json
 
@@ -112,26 +111,29 @@ class Serializer(c.Module):
     ################ BIG DICT LAND ############################
     """
     
-    def serialize_dict(self, data: dict) -> 'DataBlock':
+    def serialize_dict(self, data: dict) -> str :
         data = self.dict2bytes(data=data)
         return  data
 
-    def deserialize_dict(self, data: bytes) -> 'DataBlock':
+    def deserialize_dict(self, data: bytes) -> dict:
         data = self.bytes2dict(data=data)
         return data
 
-    def serialize_bytes(self, data: dict) -> 'DataBlock':
-        return  data
-    
+    def serialize_bytes(self, data: dict) -> bytes:
+        data =  data
+        
     def deserialize_bytes(self, data: bytes) -> 'DataBlock':
+        if isinstance(data, str):
+            data = self.str2bytes(data)
         return data
 
-    def serialize_munch(self, data: dict) -> 'DataBlock':
+    def serialize_munch(self, data: dict) -> str:
         data=self.munch2dict(data)
-        data = self.dict2bytes(data=data)
+        data = self.dict2str(data=data)
         return  data
 
-    def deserialize_munch(self, data: bytes) -> 'DataBlock':
+    def deserialize_munch(self, data: bytes) -> 'Munch':
+
         data = self.bytes2dict(data=data)
         data = self.dict2munch(data)
         return data
@@ -200,14 +202,18 @@ class Serializer(c.Module):
 
 
 
-    def serialize_torch(self, data: torch.Tensor) -> DataBlock:     
+    def serialize_torch(self, data: torch.Tensor) -> 'DataBlock':     
         from safetensors.torch import save
         output = save({'data':data})  
         return self.bytes2str(output)
+
+
+
     
     def deserialize_torch(self, data: dict) -> torch.Tensor:
         from safetensors.torch import load
-        data = self.str2bytes(data)
+        if isinstance(data, str):
+            data = self.str2bytes(data)
         data = load(data)
         return data['data']
 

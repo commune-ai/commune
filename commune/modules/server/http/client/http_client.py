@@ -18,26 +18,39 @@ class Client(c.Module):
             ip: str ='0.0.0.0',
             port: int = 50053 ,
             virtual: bool = True,
+            key = None,
             **kwargs
         ):
         self.loop = c.get_event_loop()
         self.set_client(ip =ip,port = port)
         self.serializer = c.serializer()
+        self.key = c.get_key(key)
 
     def set_client(self,
             ip: str =None,
             port: int = None ,
+            verbose: bool = False
             ):
         self.ip = ip if ip else c.default_ip
         self.port = port if port else c.free_port() 
-
-        c.print(f"Connecting to {self.ip}:{self.port}", color='green')
+        if verbose:
+            c.print(f"Connecting to {self.ip}:{self.port}", color='green')
         self.address = f"{self.ip}:{self.port}"
        
 
     def resolve_client(self, ip: str = None, port: int = None) -> None:
         if ip != None or port != None:
             self.set_client(ip =ip,port = port)
+
+    
+    def verify(self, data: dict) -> bool:
+        r""" Verify the data is signed with the correct key.
+        """
+        assert isinstance(data, dict), f"Data must be a dict, not {type(data)}"
+        assert 'data' in data, f"Data not included"
+        assert 'signature' in data, f"Data not signed"
+        assert self.key.verify(data), f"Data not signed with correct key"
+        return True
 
 
     async def async_forward(self,
@@ -60,20 +73,19 @@ class Client(c.Module):
         request_data =  { "args": args,
                          "kwargs": kwargs}
 
- 
-        request_data = {k:self.serializer.serialize(v) for k,v in request_data.items()}
-
+        request_data = self.serializer.serialize( { "args": args, "kwargs": kwargs})
+        request = self.key.sign(request_data, return_json=True)
 
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=request_data, headers=headers) as response:
+                    async with session.post(url, json=request, headers=headers) as response:
                         response = await asyncio.wait_for(response.json(), timeout=timeout)
             else:
-                response = requests.post(url, json=request_data, headers=headers)
+                response = requests.post(url, json=request, headers=headers)
                 response = response.json()
 
-            assert 'data' in response, f"response must have a data key, not {response.keys()}"
+            self.verify(response)
             response = self.serializer.deserialize(response['data'])
         except Exception as e:
             if return_error:
