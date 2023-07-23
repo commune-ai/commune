@@ -6395,6 +6395,11 @@ class c:
         docker_module.build(c.libpath)
         docker_module.build(f'{c.libpath}/subspace')
 
+    
+    @classmethod
+    def up(cls): 
+        return c.cmd('docker-compose up -d', cwd=c.libpath)
+
 
     @classmethod
     def play(cls):
