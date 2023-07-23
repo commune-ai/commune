@@ -2488,7 +2488,7 @@ class c:
         Servers the module on a specified port
         '''
         if update:
-            cls.update()
+            c.update()
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
