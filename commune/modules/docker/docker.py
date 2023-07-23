@@ -105,51 +105,59 @@ class Docker(c.Module):
         c.print(path, cmd)
         c.cmd(cmd, cwd=path, verbose=True, sudo=sudo, bash=True)
     
-    def launch(self, model :str = None,
+    def launch(self, 
+                    image : str,
                     tag: str = None,
-                    num_shard:int=None, 
                     gpus:list='all',
                     shm_size : str='100g',
                     volume:str = 'data',
                     build:bool = True,
                     max_shard_ratio = 0.5,
                     refresh:bool = False,
-                    sudo = False,
-                    port=None):
+                    sudo:bool = False,
+                    port:int=None,
+                    volumes = None,
+                    internal_port:int=None):
 
-        if model == None:
-            model = self.config.model
         if tag != None:
             tag = str(tag)
-        name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
-        if self.server_exists(name) and refresh == False:
-            c.print(f'{name} already exists')
-            return
-
         if build:
-            self.build()
+            self.build(image)
 
+        cmd = f'docker run'
+
+        if deamon:
+            cmd += '-d'
+
+        # ADD THE GPUS
         if gpus == None:
-            gpus = c.model_max_gpus(model)
+            gpus = c.gpus()
+        gpus = ','.join(map(str, gpus))     
+        if gpus != None:
+            cmd += f' --gpus device={gpus}'
         
-        num_shard = len(gpus)
-        gpus = ','.join(map(str, gpus))
-
-        c.print(f'gpus: {gpus}')
+        # ADD THE SHM SIZE
+        if shm_size != None:
+            cmd += f' --shm-size {shm_size}'
         
-        model_id = self.config.shortcuts.get(model, model)
+        # ADD THE PORTS
         if port == None:
             port = c.resolve_port(port)
-
-        volume = self.resolve_path(volume)
-        if not c.exists(volume):
-            c.mkdir(volume)
-
-        cmd_args = f'--num-shard {num_shard} --model-id {model_id}'
-
+        if internal_port == None:
+            internal_port = port
+        if port != None:
+            cmd += f' -p {port}:{internal_port}'
+            
 
 
-        cmd = f'docker run -d --gpus device={gpus} --shm-size {shm_size} -p {port}:80 -v {volume}:/data --name {name} {self.image} {cmd_args}'
+        # ADD THE VOLUMES
+        if volumes is not None:
+            if isinstance(volumes, list):
+                volumes = {v:v for v in volumes}
+            for v_from, v_to in volumes.items():
+                cmd += f'-v {v_from}:{v_to}'
+
+        cmd += '--name {name} {self.image} {cmd_args}'
 
         c.print(cmd)
         output_text = c.cmd(cmd, sudo=sudo, output_text=True)
