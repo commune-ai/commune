@@ -73,13 +73,17 @@ class HTTPServer(c.Module):
 
         self.app = FastAPI()
 
-        @self.app.get("/{fn}")
-        def forward_wrapper(fn: str = None, args: List = None, kwargs: Dict = None):
-            return self.forward(fn, args, kwargs)
+
+        @self.app.post("/{fn}")
+        async def forward_wrapper(fn, input:dict[str, str]):
+
+            args = c.str2python(input.get('args', '[]'))
+            kwargs = c.str2python(input.get('kwargs', '{}'))
+            c.print({'fn': fn, 'args': args, 'kwargs':kwargs}, color='green')
+            return self.forward(fn=fn, args=args, kwargs=kwargs)
         
         c.register_server(self.name, self.ip, self.port)
         uvicorn.run(self.app, host=self.ip, port=self.port)
-
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):
         try: 
@@ -87,8 +91,6 @@ class HTTPServer(c.Module):
                 args = []
             if kwargs is None:
                 kwargs = {}
-            c.print(f'FORWARDING {fn} {args} {kwargs}, {self.module}', color='green')
-            c.print(self.module, color='green')
             obj = getattr(self.module, fn)
             if callable(obj):
                 response = obj(*args, **kwargs)

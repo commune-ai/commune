@@ -26,7 +26,7 @@ class Users(c.Module):
         '''
         users : dict(network:str, name)
         '''
-        return self.config['users']
+        return list(self.config['users'].keys())
     
     def save(self, path=None):
         self.save_config(self.config)

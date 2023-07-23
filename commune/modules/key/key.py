@@ -290,10 +290,6 @@ class Keypair(c.Module):
     @classmethod
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
-    
-    def serve(self, key=None):
-        if key == None:
-            key
             
     
     @classmethod
@@ -802,6 +798,7 @@ class Keypair(c.Module):
         signature in bytes
 
         """
+        c.print(f'signing data {data}')
         if not isinstance(data, str):
             data = c.python2str(data)
         if type(data) is ScaleBytes:
