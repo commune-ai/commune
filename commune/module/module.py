@@ -2488,7 +2488,7 @@ class c:
         Servers the module on a specified port
         '''
         if update:
-            cls.update()
+            c.update()
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
@@ -7015,10 +7015,11 @@ class c:
 
 
     @classmethod
-    def talk(cls , *args, module = 'model', **kwargs):
-        model = c.connect(module, virtual=False)
-        c.print('Selecting: ', model)
-        return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))
+    def talk(cls , *args, module = 'textgen', **kwargs):
+        # model = c.connect(module, virtual=False)
+        # c.print('Selecting: ', model)
+        # return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))
+        return c.module(module).talk(*args, **kwargs)
 
 
     chat = talk
