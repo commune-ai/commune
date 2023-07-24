@@ -6,7 +6,7 @@ import sys
 import time
 from concurrent import futures
 from typing import Dict, List, Callable, Optional, Tuple, Union
-import torch
+# import torch
 import commune as c
 from loguru import logger
 from munch import Munch
