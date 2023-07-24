@@ -4,102 +4,102 @@ chain_info:
       boot_nodes: null
       chain: main
       node: alice
-      port: 4293
+      port: 4671
       purge_chain: true
-      rpc_port: 4803
+      rpc_port: 4474
       validator: true
       verbose: false
-      ws_port: 4656
+      ws_port: 4725
     bob:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
       chain: main
       node: bob
-      port: 4029
+      port: 4392
       purge_chain: true
-      rpc_port: 4117
+      rpc_port: 4623
       validator: true
       verbose: false
-      ws_port: 4607
+      ws_port: 4843
     bruh:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
       chain: main
       node: bruh
-      port: 4420
-      purge_chain: true
-      rpc_port: 4000
-      validator: true
-      verbose: false
-      ws_port: 4160
-    chris:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
-      chain: main
-      node: chris
-      port: 4482
-      purge_chain: true
-      rpc_port: 4614
-      validator: true
-      verbose: false
-      ws_port: 4587
-    elon:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
-      chain: main
-      node: elon
-      port: 4558
-      purge_chain: true
-      rpc_port: 4534
-      validator: true
-      verbose: false
-      ws_port: 4405
-    fam:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
-      chain: main
-      node: fam
       port: 4399
       purge_chain: true
-      rpc_port: 4400
+      rpc_port: 4639
       validator: true
       verbose: false
-      ws_port: 4512
+      ws_port: 4315
+    chris:
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      chain: main
+      node: chris
+      port: 4861
+      purge_chain: true
+      rpc_port: 4414
+      validator: true
+      verbose: false
+      ws_port: 4787
+    elon:
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      chain: main
+      node: elon
+      port: 4182
+      purge_chain: true
+      rpc_port: 4841
+      validator: true
+      verbose: false
+      ws_port: 4686
+    fam:
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      chain: main
+      node: fam
+      port: 4544
+      purge_chain: true
+      rpc_port: 4243
+      validator: true
+      verbose: false
+      ws_port: 4557
     huck:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
       chain: main
       node: huck
-      port: 4087
+      port: 4235
       purge_chain: true
-      rpc_port: 4221
+      rpc_port: 4808
       validator: true
       verbose: false
-      ws_port: 4849
+      ws_port: 4258
     sal:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
       chain: main
       node: sal
-      port: 4058
+      port: 4126
       purge_chain: true
-      rpc_port: 4248
+      rpc_port: 4833
       validator: false
       verbose: false
-      ws_port: 4182
+      ws_port: 4358
     satoshi:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
       chain: main
       node: satoshi
-      port: 4588
+      port: 4683
       purge_chain: true
-      rpc_port: 4842
+      rpc_port: 4885
       validator: false
       verbose: false
-      ws_port: 4102
+      ws_port: 4124
     snoop:
-      boot_nodes: /ip4/162.157.13.236/tcp/4293/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
+      boot_nodes: /ip4/162.157.13.236/tcp/4671/p2p/12D3KooWAiBYiWUbUm1YGWv3tvpxu4DqUJK9rTC1Ajg117DTAZ6g
       chain: main
       node: snoop
-      port: 4735
+      port: 4207
       purge_chain: true
-      rpc_port: 4654
+      rpc_port: 4502
       validator: false
       verbose: false
-      ws_port: 4071
+      ws_port: 4468
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 default_netuid: 0
@@ -114,7 +114,9 @@ network2url:
   local:
   - 127.0.0.1:9944
   main:
-  - 127.0.0.1:4749
+  - ws://162.157.13.236:4358
+  - ws://162.157.13.236:4124
+  - ws://162.157.13.236:4468
   testnet: 127.0.0.1:4874
 nodes:
 - alice

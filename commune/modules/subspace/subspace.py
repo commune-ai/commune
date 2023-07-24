@@ -1789,7 +1789,8 @@ class Subspace(c.Module):
                     sudo = False):
         if base_path == None:
             base_path = cls.resolve_base_path(node=node)
-        return c.rm(base_path)
+        
+        return c.rm(base_path+'/chains/commune/db')
     
     
     @classmethod
@@ -2090,8 +2091,8 @@ class Subspace(c.Module):
 
     @classmethod
     def start_node(cls,
-                 chain:int = network,
                  node : str = 'alice',
+                 chain:int = network,
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
@@ -2118,6 +2119,8 @@ class Subspace(c.Module):
             ws_port = free_ports[2]
 
         base_path = cls.resolve_base_path(node=node)
+
+
         c.print(f'base_path: {base_path}', color='green')
 
         if purge_chain:
@@ -2149,7 +2152,7 @@ class Subspace(c.Module):
                               refresh=refresh,
                               verbose=verbose)
         else:
-            cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=False)
+            cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=True)
 
         if validator == False:
             network2url = cls.getc('network2url', {})
@@ -2359,7 +2362,7 @@ class Subspace(c.Module):
             --key-type {key_type}
             '''
             
-        return c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
 
     
