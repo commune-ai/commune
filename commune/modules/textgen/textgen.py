@@ -1,6 +1,6 @@
 import commune as c
 class TextGenerator(c.Module):
-    image = 'text_generator'
+    image = 'textgen'
 
 
     def fleet(self, model = 'vicuna.7b', n=None):
