@@ -177,3 +177,24 @@ class Docker(c.Module):
 
 
     
+    def psdf(self,load=True, save=False ):
+        output_text = c.cmd('docker ps', verbose=False)
+
+        rows = []
+        for i, row in enumerate(output_text.split('\n')[:-1]):
+            if i == 0:
+                columns = [l.lower().strip() for l in row.split('   ') if len(l) > 0]
+            else:
+                NA_SPACE = "           "
+                if len(row.split(NA_SPACE)) > 1:
+                    row_splits = row.split(NA_SPACE)
+                    row = row_splits[0] + '  NA  ' + ' '.join(row_splits[1:])
+                row = [_.strip() for _ in row.split('  ') if len(_) > 0]
+                rows.append(row)
+
+        df = pd.DataFrame(rows, columns=columns)
+        # c.print(df)
+        return df   
+    def ps(self):
+        df = self.psdf()
+        return self.psdf()['names'].tolist()
