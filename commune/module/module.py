@@ -3755,7 +3755,6 @@ class c:
         try:
             nest_asyncio.apply()
         except RuntimeError as e:
-            c.print('Broooo, nest-asyncio doesnt work fam')
             pass
         
         

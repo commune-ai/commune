@@ -220,7 +220,7 @@ class TextGenerator(c.Module):
     def generate(cls, 
                 prompt = 'what is up, how is it going bro what are you saying? A: ', 
                 model:str = None,
-                max_new_tokens:int=128, 
+                max_new_tokens:int=256, 
                 trials = 4,
                 ignore_errors = False,
                 timeout = 6,

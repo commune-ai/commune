@@ -49,10 +49,12 @@ class MaoMiner( bittensor.BasePromptingMiner ):
         
         for i in range(num_trials):
             try:
+                c.print(f'Input : {msg}')
                 resp = c.talk(msg + suffix, timeout=timeout)
                 if isinstance(resp, dict) and 'text' in resp:
                     resp = resp['text']                
                 assert isinstance(resp, str), f'Invalid response type: {type(resp)} ({resp})'
+                c.print(f'Generated response: {resp}')
                 return resp
             except Exception as e:
                 c.print(f'Error : {str(e)}')
