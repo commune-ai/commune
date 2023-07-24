@@ -224,6 +224,8 @@ class TextGenerator(c.Module):
                 trials = 4,
                 ignore_errors = False,
                 timeout = 6,
+                return_dict:bool = False,
+
                 **kwargs):
 
         self = cls()
@@ -251,8 +253,10 @@ class TextGenerator(c.Module):
             'output_tokens': len(c.tokenize(c.copy(output_text))),
         }
         stats['tokens_per_second'] = stats['output_tokens'] / stats['time']
-
-        return {'text' : output_text, **stats}
+        if return_dict:
+            return {'text' : output_text, **stats}
+        else:
+            return output_text
 
     talk = generate
 
