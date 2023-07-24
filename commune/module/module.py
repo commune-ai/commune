@@ -26,7 +26,7 @@ class c:
     libpath = os.path.dirname(root_path)
     modules_path = os.path.join(root_path, 'modules')
     repo_path  = os.path.dirname(root_path)
-    library_name = root_dir = root_path.split('/')[-1]
+    library_name = libname = lib = root_dir = root_path.split('/')[-1]
     default_network = 'subspace'
     pwd = os.getenv('PWD')
     console = Console()
