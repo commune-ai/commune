@@ -177,3 +177,41 @@ class Docker(c.Module):
 
 
     
+    def psdf(self,load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
+        output_text = c.cmd('docker ps', verbose=False)
+
+        rows = []
+        for i, row in enumerate(output_text.split('\n')[:-1]):
+            if i == 0:
+                columns = [l.lower().strip().replace(' ', '_') for l in row.split('   ') if len(l) > 0]
+            else:
+                NA_SPACE = "           "
+                if len(row.split(NA_SPACE)) > 1:
+                    row_splits = row.split(NA_SPACE)
+                    row = row_splits[0] + '  NA  ' + ' '.join(row_splits[1:])
+                row = [_.strip() for _ in row.split('  ') if len(_) > 0]
+                rows.append(row)
+
+        df = pd.DataFrame(rows, columns=columns)
+        df['ports'] = df['ports'].apply(lambda x: x.split('->')[0].strip() if len(x.split('->')) > 1 else x)
+        df = df[keys]
+        df.set_index(idx_key, inplace=True)
+        return df   
+    def ps(self):
+        df = self.psdf()
+        return self.psdf()['names'].tolist()
+    
+
+
+    @classmethod
+    def dockerfiles(cls, path = None):
+       if path is None:
+           path = c.libpath + '/'
+       return [l.replace(path, '') for l in c.walk(path) if l.endswith('Dockerfile')]
+    
+
+    @classmethod
+    def dockercomposefiles(cls, path = None):
+       if path is None:
+           path = c.libpath + '/'
+       return [l.replace(path, '') for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]

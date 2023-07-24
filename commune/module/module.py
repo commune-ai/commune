@@ -1805,7 +1805,7 @@ class c:
 
     @classmethod
     def connect(cls, *args, **kwargs):
-        
+
         return_future = kwargs.pop('return_future', False)
         loop = kwargs.get('loop', cls.get_event_loop())
         future = cls.async_connect(*args, **kwargs)
@@ -1867,6 +1867,7 @@ class c:
                         # get all the modules lol
                         found_modules += [n]
                       
+            found_modules = list(set(found_modules))
             if len(found_modules)>0:
                 name = c.choice(found_modules)
                 name = namespace.get(name, name)
@@ -2106,36 +2107,38 @@ class c:
 
     @classmethod
     def get_peer_name(cls, *args,**kwargs):
-        return c.gather(c.async_get_peer_name(*args,**kwargs))
+        return c.gather(c.async_get_peer_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_peer_name(peer_address, connect_timeout=1, **kwargs):
-
+    async def async_get_peer_name(peer_address, connect_timeout=1, fn_timeout=1,**kwargs):
         try:
             peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
             if peer == None: 
                 return peer
-            module_name =  await peer(fn='module_name',  return_future=True)
-
+            c.print(f'{peer_address}')
+            module_name = peer(fn='module_name',  return_future=True)
+            module_name = await asyncio.wait_for(module_name, timeout=fn_timeout)
+            c.print(f'Found {module_name} on {peer_address}')
             if c.check_response(module_name):
                 return module_name
             else:
-                return None
+                return module_name
         except Exception as e:
             return {'error':str(e)}
 
     @classmethod
     def build_local_namespace(cls, verbose:bool = False):
+        import torch # THIS IS A HACK TO AVOID THE _C not found error lol
+
         used_ports = cls.get_used_ports()
         ip = cls.default_ip
         addresses = [ f'{ip}:{p}' for p in used_ports]
         local_namespace = {}
         names = c.gather([cls.async_get_peer_name(address) for address in addresses])
         for i in range(len(names)):
-            c.print(f'{names[i]} is running on {addresses[i]}', verbose=verbose)
             if isinstance(names[i], str):
-
                 local_namespace[names[i]] = addresses[i]
+        
         return local_namespace
             
                 
@@ -2425,18 +2428,19 @@ class c:
     
     @classmethod
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
-        if module == None:
-            module = cls 
         if name == None:
+            if module == None:
+                module = cls 
             if isinstance(module, str):
                 module = c.module(module)
             if hasattr(module, 'module_path'):
                 name = module.module_path()
             else:
                 name = module.__name__
+
                 
-                
-            assert name != None, f'Could not resolve name for module {module}'
+        assert name != None, f'Could not resolve name for module {module}'
+
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
         return name
@@ -2444,10 +2448,19 @@ class c:
     
     @property
     def whitelist(self):
+        if hasattr(self, '_whitelist'):
+            return self._whitelist
         whitelist = c.helper_whitelist
         is_module = c.is_root_module(self)
         if not is_module:
             whitelist += self.functions() + self.attributes()
+        return whitelist
+    
+
+    @whitelist.setter
+    def whitelist(self, whitelist:List[str]):
+        self._whitelist = whitelist
+        
         return whitelist
             
     wl = whitelist
@@ -2462,59 +2475,44 @@ class c:
               name:str=None, 
               tag:str=None,
               # networking 
-              address:str = None,
               ip:str=None, 
               port:int=None ,
-              key = None, # key for server's identity
               refresh:bool = True, # refreshes the server's key
               whitelist:List[str] = None, # list of addresses that can connect to the server
               blacklist:List[str] = None, # list of addresses that cannot connect to the server
-              wait_for_termination:bool = True, # waits for the server to terminate before returning
               wait_for_server:bool = False, # waits for the server to start before returning
-              wait_for_server_timeout:int = 30, # timeout for waiting for the server to start
-              wait_for_server_sleep_interval: int = 1, # sleep interval for waiting for the server to start
               verbose:bool = False, # prints out information about the server
-              reserve_port:bool = False, # reserves the port for the server
-              tag_seperator: str = '::', # seperator for the tag
               remote:bool = True, # runs the server remotely (pm2, ray)
               args:list = None,  # args for the module
               kwargs:dict = None,  # kwargs for the module
-              update: bool = True,
+              update: bool = False,
               mode:str = server_mode,
+              key = None, # key for server's identity
+
               
               ):
         '''
+
+        
         
         Servers the module on a specified port
         '''
-        if update:
-            c.update()
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
         tag = None
+
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
             return cls.remote_fn('serve', name=name, kwargs=remote_kwargs, )
-        
-        if address != None and port == None:
-            port = int(address.split(':')[-1])
-        # ensure the port is free
-        if port == None:
-            port = cls.free_port(reserve=reserve_port)
+        import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
-        port = int(port)
-    
-        module = cls.resolve_module(module)
+        if update:
+            c.update()
 
-        self = module(*args, **kwargs)
-
-
-        if whitelist == None:
-            whitelist = self.whitelist
-        if blacklist == None:
-            blacklist = self.blacklist
+        self = cls.resolve_module(module)(*args, **kwargs)
+        port = c.resolve_port(port)
     
         if c.server_exists(name): 
             c.print(f'Server {name} already exists', color='yellow')
@@ -2523,38 +2521,14 @@ class c:
                     c.print(f'Stopping existing server {name}', color='yellow')
                 c.kill(name)
             else: 
-                raise Exception(f'The server {name} already exists on port {existing_server_port}')
-
-        # ensure that the module has a name
-        for k in ['module_name', 'module_id', 'my_name', 'el_namo', 'name']:
-            if k not in self.__dict__:
-                self.__dict__[k] = name
-
-        module_class = c.module(f'server.{mode}')
-
-        c.print(f'Serving {name} on port {port}', color='yellow')
-        c.print(module_class)
-        server = module_class(ip=ip, port=port,module = self,name= name,
-                             whitelist=whitelist,blacklist=blacklist)
+                
+                raise Exception(f'The server {name} already exists')
+        c.print(f'Serving {name} on port {port} (Mode : {mode})', color='yellow')
+        c.module(f'server.{mode}')(ip=ip, port=port,module = self,name= name,whitelist=whitelist,blacklist=blacklist)
+        c.print('fam')
         
-        # register the server
-        self.server_info = server.info
-        self.ip = server.ip
-        self.port = server.port
-        self.address = self.ip_address = self.ip_addy =  server.address
-        
-        if (not hasattr(self, 'config')) or callable(self.config):
-            self.config = cls.munch({})
-            
-        self.config['info'] = self.info()
-        
-
-        # self.set_key(key)
-            
-        # serve the server
-        server.serve(wait_for_termination=wait_for_termination,register=True)
         if wait_for_server:
-            cls.wait_for_server(name=module_name, timeout=wait_for_server_timeout, sleep_interval=wait_for_server_sleep_interval)
+            cls.wait_for_server(name=name)
 
     serve_module = serve
     @classmethod
@@ -2798,8 +2772,11 @@ class c:
 
         assert c.module_exists(module) == False, f'module {module} still exists'
 
-        if update:
-            cls.update(network='local')
+        servers = c.servers()
+        for m in delete_modules:
+            if m in servers:
+                c.deregister_server(m)
+        
 
         return {'server_killed': delete_modules, 'update': update}
 
@@ -3782,7 +3759,6 @@ class c:
         try:
             nest_asyncio.apply()
         except RuntimeError as e:
-            c.print('Broooo, nest-asyncio doesnt work fam')
             pass
         
         
@@ -5029,12 +5005,9 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls, *tags, n=1, **kwargs):
-        if len(tags) == 0:
-            tags = list(range(n))
-            
-        for tag in tags: 
-            cls.serve(tag=tag, **kwargs)
+    def fleet(cls,n=2, **kwargs):
+        for i in range(n):
+            cls.serve(tag=str(i), **kwargs)
 
 
 
@@ -7015,11 +6988,21 @@ class c:
 
 
     @classmethod
-    def talk(cls , *args, module = 'textgen', **kwargs):
-        # model = c.connect(module, virtual=False)
-        # c.print('Selecting: ', model)
-        # return c.gather(model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=10))
-        return c.module(module).talk(*args, **kwargs)
+    def talk(cls , *args, module = 'model', num_jobs=1, timeout=6, **kwargs):
+        jobs = []
+        for i in range(num_jobs):
+            model = c.connect(module, virtual=False)
+            c.print('Selecting: ', model)
+            job = model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=timeout)
+            jobs += [job]
+
+        results = c.gather(jobs, timeout=timeout)
+        for r in results:
+            if c.is_success(r):
+                if isinstance(r, str) and len(r) > 0:
+                    return r
+
+        return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
 
     chat = talk

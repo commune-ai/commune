@@ -1,23 +1,13 @@
-import argparse
-import asyncio
-import os
-import signal
-import sys
-import time
-from concurrent import futures
-from typing import Dict, List, Callable, Optional, Tuple, Union
-import torch
-import commune as c
-from loguru import logger
-from munch import Munch
 
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Dict, List, Optional, Union
+import commune as c
+import torch 
 
 
 class HTTPServer(c.Module):
     def __init__(
         self,
-        module: Union[c.Module, object] = None,
+        module: Union[c.Module, object],
         name: str = None,
         ip: Optional[str] = None,
         port: Optional[int] = None,
@@ -27,15 +17,8 @@ class HTTPServer(c.Module):
         blacklist: List[str] = None,
         key = None,
     ) -> 'Server':
-        if isinstance(module, str):
-            module = c.module(module)()
-        elif module is None:
-            module = c.module('module')()
-        self.module = module
-        if name == None:
-            name = self.module.name()
+        
 
-        self.name = name
         self.timeout = timeout
         self.verbose = verbose
         self.serializer = c.module('server.http.serializer')()
@@ -43,8 +26,30 @@ class HTTPServer(c.Module):
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
         self.key = c.get_key(name) if key == None else key
+        self.whitelist = getattr( module, 'whitelist', []) if whitelist == None else whitelist
+        self.blacklist = getattr( module, 'blacklist', []) if blacklist == None else blacklist
+        # ensure that the module has a name
 
+        if isinstance(module, str):
+            module = c.module(module)()
+        elif isinstance(module, type):
+            module = module()
+
+        if name == None:
+            name = module.name()
+
+        self.name = name
+        for k in ['module_name', 'module_id', 'name']:
+            if k not in module.__dict__:
+                module.__dict__[k] = name
+        # register the server
+        module.ip = self.ip
+        module.port = self.port
+        module.address  = self.address
+        self.module = module
         self.set_api()
+        self.serve()
+
 
 
     def state_dict(self) -> Dict:
@@ -77,8 +82,6 @@ class HTTPServer(c.Module):
     def set_api(self):
 
         from fastapi import FastAPI
-        import requests
-        import uvicorn
 
         self.app = FastAPI()
 
@@ -106,6 +109,9 @@ class HTTPServer(c.Module):
             return result
         
         c.register_server(self.name, self.ip, self.port)
+
+    def serve(self, **kwargs):
+        import uvicorn
         uvicorn.run(self.app, host=self.ip, port=self.port)
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):

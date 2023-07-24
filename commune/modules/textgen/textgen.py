@@ -1,6 +1,6 @@
 import commune as c
 class TextGenerator(c.Module):
-    image = 'textgen'
+    image = 'text_generator'
 
 
     def fleet(self, model = 'vicuna.7b', n=None):
@@ -47,6 +47,9 @@ class TextGenerator(c.Module):
         if tag != None:
             tag = str(tag)
         name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
+
+
+
         if self.server_exists(name) and refresh == False:
             c.print(f'{name} already exists')
             return
@@ -217,10 +220,12 @@ class TextGenerator(c.Module):
     def generate(cls, 
                 prompt = 'what is up, how is it going bro what are you saying? A: ', 
                 model:str = None,
-                max_new_tokens:int=128, 
+                max_new_tokens:int=256, 
                 trials = 4,
                 ignore_errors = False,
                 timeout = 6,
+                return_dict:bool = False,
+
                 **kwargs):
 
         self = cls()
@@ -248,8 +253,10 @@ class TextGenerator(c.Module):
             'output_tokens': len(c.tokenize(c.copy(output_text))),
         }
         stats['tokens_per_second'] = stats['output_tokens'] / stats['time']
-
-        return {'text' : output_text, **stats}
+        if return_dict:
+            return {'text' : output_text, **stats}
+        else:
+            return output_text
 
     talk = generate
 
