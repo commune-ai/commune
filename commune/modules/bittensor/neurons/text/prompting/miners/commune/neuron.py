@@ -55,7 +55,7 @@ class MaoMiner( bittensor.BasePromptingMiner ):
                 assert isinstance(resp, str), f'Invalid response type: {type(resp)} ({resp})'
                 break
             except Exception as e:
-                c.print('Error generating response')
+                c.print(f'Error : {str(e)}')
                 c.print('\n INPUT ',messages)
                 raise e
                 

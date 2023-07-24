@@ -2002,7 +2002,7 @@ class BittensorModule(c.Module):
         miners = cls.miners()
         miner2logs = {}
         for miner in miners:
-            miner2logs[miner] = c.pm2_logs(miner, start_lin=10, mode='local')
+            miner2logs[miner] = c.pm2_logs(miner, end_line=200, mode='local')
         
         
         if verbose:
