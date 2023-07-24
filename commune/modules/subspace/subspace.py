@@ -536,41 +536,15 @@ class Subspace(c.Module):
 
 
         # Check balance.
-        with c.status(":satellite: Checking Balance..."):
-            account_balance = self.get_balance( key.ss58_address , fmt='nano' )
-            existential_deposit = self.get_existential_deposit()
+        account_balance = self.get_balance( key.ss58_address , fmt='nano' )
+        transfer_balance = self.to_nanos(amount)
 
-        transfer_balance =  self.to_nanos(amount)
-        with c.status(":satellite: Transferring..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='Balances',
-                    call_function='transfer',
-                    call_params={
-                        'dest': dest, 
-                        'value': transfer_balance
-                    }
-                )
-
-                try:
-                    payment_info = substrate.get_payment_info( call = call, keypair = key )
-                except Exception as e:
-                    c.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
-                    payment_info = {
-                        'partialFee': 2e7, # assume  0.02 joules
-                    }
-
-                fee = payment_info['partialFee']
+        if transfer_balance > account_balance:
+            c.print(":cross_mark: [red]Insufficient balance[/red]:[bold white]\n  {}[/bold white]".format(account_balance))
+            return
         
-        if not keep_alive:
-            # Check if the transfer should keep_alive the account
-            existential_deposit = 0
 
-        # Check if we have enough balance.
-        if account_balance < (transfer_balance + fee + existential_deposit):
-            c.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
-            return False
-
+        c.print(f"Balance: {account_balance} {transfer_balance}")
 
         with c.status(":satellite: Transferring to {}"):
             with self.substrate as substrate:
@@ -596,7 +570,8 @@ class Subspace(c.Module):
                     c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                     block_hash = response.block_hash
                     c.print("[green]Block Hash: {}[/green]".format( block_hash ))
-                    new_balance = self.get_balance( key.ss58_address )
+                    new_balance = self.get_balance( key.ss58_address , fmt='j')
+                    account_balance = self.format_amount(account_balance, fmt='j')
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
                     return {'success': True, 'message': 'Successfully transferred {} to {}'.format(amount, dest)}
                 else:
