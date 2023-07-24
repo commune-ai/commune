@@ -1,7 +1,7 @@
 
 from typing import Dict, List, Optional, Union
 import commune as c
-
+import torch 
 
 
 class HTTPServer(c.Module):
@@ -18,15 +18,7 @@ class HTTPServer(c.Module):
         key = None,
     ) -> 'Server':
         
-        if isinstance(module, str):
-            module = c.module(module)()
-        elif isinstance(module, type):
-            module = module()
 
-        if name == None:
-            name = module.name()
-
-        self.name = name
         self.timeout = timeout
         self.verbose = verbose
         self.serializer = c.module('server.http.serializer')()
@@ -37,16 +29,23 @@ class HTTPServer(c.Module):
         self.whitelist = getattr( module, 'whitelist', []) if whitelist == None else whitelist
         self.blacklist = getattr( module, 'blacklist', []) if blacklist == None else blacklist
         # ensure that the module has a name
+
+        if isinstance(module, str):
+            module = c.module(module)()
+        elif isinstance(module, type):
+            module = module()
+
+        if name == None:
+            name = module.name()
+
+        self.name = name
         for k in ['module_name', 'module_id', 'name']:
-            if k not in self.__dict__:
-                self.__dict__[k] = name
+            if k not in module.__dict__:
+                module.__dict__[k] = name
         # register the server
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        if (not hasattr(self, 'config')) or callable(self.config):
-            module.config = cls.config()
-        module.config['info'] = module.info()
         self.module = module
         self.set_api()
         self.serve()
