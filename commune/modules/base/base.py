@@ -5,4 +5,5 @@ class Base(c.Module):
         config = self.set_config(config=kwargs)
     def run(self):
         print('Base run')
-    
+
+

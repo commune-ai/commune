@@ -4,7 +4,6 @@
 # Do whatever you want with this code
 # Dont pull up with your homies if it dont work.
 import numpy as np
-import torch
 import msgpack
 import msgpack_numpy
 from typing import Tuple, List, Union, Optional
@@ -16,6 +15,7 @@ from munch import Munch
 
 import commune as c
 import json
+import torch
 
 
 class Serializer(c.Module):

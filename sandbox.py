@@ -1,4 +1,5 @@
 import commune as c
+import torch
 
 data = c.connect('dataset.hf')
 
