@@ -2477,6 +2477,7 @@ class c:
               # networking 
               ip:str=None, 
               port:int=None ,
+              address: str = None,
               refresh:bool = True, # refreshes the server's key
               whitelist:List[str] = None, # list of addresses that can connect to the server
               blacklist:List[str] = None, # list of addresses that cannot connect to the server
@@ -2510,7 +2511,9 @@ class c:
 
         if update:
             c.update()
-
+        if address != None:
+            ip = address.split(':')[0]
+            port = int(address.split(':')[-1])
         self = cls.resolve_module(module)(*args, **kwargs)
         port = c.resolve_port(port)
     
@@ -2524,8 +2527,12 @@ class c:
                 
                 raise Exception(f'The server {name} already exists')
         c.print(f'Serving {name} on port {port} (Mode : {mode})', color='yellow')
-        c.module(f'server.{mode}')(ip=ip, port=port,module = self,name= name,whitelist=whitelist,blacklist=blacklist)
+
+        server = c.module(f'server.{mode}')(ip=ip, port=port,module = self,name= name,whitelist=whitelist,blacklist=blacklist)
         c.print('fam')
+
+
+        
         
         if wait_for_server:
             cls.wait_for_server(name=name)
