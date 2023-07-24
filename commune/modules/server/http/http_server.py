@@ -6,9 +6,8 @@ import sys
 import time
 from concurrent import futures
 from typing import Dict, List, Callable, Optional, Tuple, Union
-
-import commune as c
 import torch
+import commune as c
 from loguru import logger
 from munch import Munch
 
@@ -36,7 +35,6 @@ class HTTPServer(c.Module):
         if name == None:
             name = self.module.name()
 
-        c.print('MODULE',self.module, color='green')
         self.name = name
         self.timeout = timeout
         self.verbose = verbose
@@ -85,7 +83,7 @@ class HTTPServer(c.Module):
         self.app = FastAPI()
 
 
-        @self.app.post("/{fn}")
+        @self.app.post("/{fn}/")
         async def forward_wrapper(fn:str, input:dict[str, str]):
             # verify key
             self.verify(input)

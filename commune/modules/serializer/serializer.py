@@ -170,10 +170,10 @@ class Serializer(c.Module):
     """
     ################ BIG TORCH LAND ############################
     """
-    def torch2bytes(self, data:torch.Tensor)-> bytes:
+    def torch2bytes(self, data:'torch.Tensor')-> bytes:
         return self.numpy2bytes(self.torch2numpy(data))
     
-    def torch2numpy(self, data:torch.Tensor)-> np.ndarray:
+    def torch2numpy(self, data:'torch.Tensor')-> np.ndarray:
         if data.requires_grad:
             data = data.detach()
         data = data.cpu().numpy()
@@ -184,7 +184,7 @@ class Serializer(c.Module):
         output = msgpack.packb(data, default=msgpack_numpy.encode)
         return output
     
-    def bytes2torch(self, data:bytes, ) -> torch.Tensor:
+    def bytes2torch(self, data:bytes, ) -> 'torch.Tensor':
         numpy_object = self.bytes2numpy(data)
         
         int64_workaround = bool(numpy_object.dtype == np.int64)
