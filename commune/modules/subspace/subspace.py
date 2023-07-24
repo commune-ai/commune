@@ -418,6 +418,10 @@ class Subspace(c.Module):
     def up(cls):
         c.cmd('docker-compose up -d', cwd=cls.chain_path)
 
+    @classmethod
+    def enter(cls):
+        c.cmd('make enter', cwd=cls.chain_path)
+
 
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(

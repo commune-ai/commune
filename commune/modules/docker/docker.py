@@ -1,7 +1,8 @@
-import commune as c
+
 import os
 import pandas as pd
-import json
+from typing import List
+import commune as c
 
 class Docker(c.Module): 
 
@@ -14,10 +15,14 @@ class Docker(c.Module):
     
     @classmethod
     def resolve_repo_path(cls, path):
+
         if path is None:
             path = c.repo_path
         else:
-            path = c.repo_path + '/' + path
+            if not path.startswith('/') or not path.startswith('~') or not path.startswith('.'):
+                path = c.repo_path + '/' + path
+            else:
+                path = os.path.abspath(path)
         return path
 
     @classmethod
@@ -32,9 +37,11 @@ class Docker(c.Module):
         return c.load_yanl(docker_compose_path)
     
     @classmethod
-    def build(cls, path = None, tag = None, sudo=False):
-        path = cls.resolve_repo_path(path)
-        return c.cmd(f'docker-compose build', sudo=sudo, cwd=path)
+    def build(cls, path , tag = None , sudo=False, verbose=True):
+        path = cls.resolve_docker_path(path)
+        if tag is None:
+            tag = path.split('/')[-2]
+        return c.cmd(f'docker build -t {tag} .', sudo=sudo, cwd=os.path.dirname(path),  verbose=verbose)
     
 
     @classmethod
@@ -89,21 +96,22 @@ class Docker(c.Module):
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True)
 
 
-    def build_commune(self, sudo=False):
-        self.build(path=self.libpath, sudo=sudo)
+    # def build_commune(self, sudo=False):
+    #     self.build(path=self.libpath, sudo=sudo)
 
     @classmethod
-    def build(cls, tag = None,  path = None  , sudo=False):
-        if path is None:
-            path = c.libpath
-            tag = c.libpath.split('/')[-1]
+    def build(cls,path:str = None, tag:str = None,  sudo=False):
+        path = cls.resolve_dockerfile(path)
+
+        if tag is None:
+            tag = path.split('/')[-2]
         assert tag is not None, 'tag must be specified'
 
         path = c.resolve_path(path)
         cmd = f'docker build -t {tag} .'
-
-        c.print(path, cmd)
-        c.cmd(cmd, cwd=path, verbose=True, sudo=sudo, bash=True)
+        dockerfile_dir = os.path.dirname(path)
+        c.print(cmd)
+        c.cmd(cmd,cwd = dockerfile_dir, env={'DOCKER_BUILDKIT':'1'}, verbose=True, sudo=sudo, bash=False)
     
     def launch(self, 
                     image : str,
@@ -111,12 +119,10 @@ class Docker(c.Module):
                     gpus:list='all',
                     shm_size : str='100g',
                     volume:str = 'data',
-                    build:bool = True,
-                    max_shard_ratio = 0.5,
-                    refresh:bool = False,
                     sudo:bool = False,
                     port:int=None,
-                    volumes = None,
+                    volumes:List[str] = None,
+                    net : str = 'host',
                     internal_port:int=None):
 
         if tag != None:
@@ -125,6 +131,11 @@ class Docker(c.Module):
             self.build(image)
 
         cmd = f'docker run'
+
+
+        cmd += f' --net {net}'
+        
+
 
         if deamon:
             cmd += '-d'
@@ -207,8 +218,23 @@ class Docker(c.Module):
     def dockerfiles(cls, path = None):
        if path is None:
            path = c.libpath + '/'
-       return [l.replace(path, '') for l in c.walk(path) if l.endswith('Dockerfile')]
+       return [l for l in c.walk(path) if l.endswith('Dockerfile')]
     
+    @classmethod
+    def name2file(cls, path = None):
+       return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in cls.dockerfiles(path)}
+    
+    @classmethod
+    def resolve_dockerfile(cls, name):
+        
+        if c.exists(name):
+            return name
+        name2file = cls.name2file()
+        if name in name2file:
+            return name2file[name]
+        else:
+            raise ValueError(f'Could not find docker file for {name}')
+
 
     @classmethod
     def dockercomposefiles(cls, path = None):
