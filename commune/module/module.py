@@ -2523,7 +2523,7 @@ class c:
                     c.print(f'Stopping existing server {name}', color='yellow')
                 c.kill(name)
             else: 
-                raise Exception(f'The server {name} already exists on port {existing_server_port}')
+                raise Exception(f'The server {name} already exists')
 
         # ensure that the module has a name
         for k in ['module_name', 'module_id', 'my_name', 'el_namo', 'name']:
@@ -2531,9 +2531,7 @@ class c:
                 self.__dict__[k] = name
 
         module_class = c.module(f'server.{mode}')
-
         c.print(f'Serving {name} on port {port}', color='yellow')
-        c.print(module_class)
         server = module_class(ip=ip, port=port,module = self,name= name,
                              whitelist=whitelist,blacklist=blacklist)
         
@@ -2542,10 +2540,8 @@ class c:
         self.ip = server.ip
         self.port = server.port
         self.address = self.ip_address = self.ip_addy =  server.address
-        
         if (not hasattr(self, 'config')) or callable(self.config):
             self.config = cls.munch({})
-            
         self.config['info'] = self.info()
         
 

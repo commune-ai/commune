@@ -14,10 +14,6 @@ from lightning.fabric.strategies import FSDPStrategy
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
-from lit_gpt import GPT, Tokenizer, Config
-from lit_gpt.model import Block
-from lit_gpt.utils import lazy_load, check_valid_checkpoint_dir, quantization
-
 
 class LitGpt(c.Module):
     def __init__(self,config= None, **kwargs):
@@ -58,6 +54,11 @@ class LitGpt(c.Module):
             devices: How many devices to use.
             precision: Indicates the Fabric precision setting to use.
         """
+        from lit_gpt import GPT, Tokenizer, Config
+        from lit_gpt.model import Block
+        from lit_gpt.utils import lazy_load, check_valid_checkpoint_dir, quantization
+
+
         model = self.resolve_model(model) # lets get the model boys
         if devices is None:
             devices = c.model_max_gpus(model)
@@ -101,7 +102,7 @@ class LitGpt(c.Module):
             model.load_state_dict(checkpoint.get("model", checkpoint), strict=quantize is None)
         fabric.print(f"Time to load the model weights: {time.time() - t0:.02f} seconds.", file=sys.stderr)
 
-        model.eval()git
+        model.eval()
         self.model = fabric.setup_module(model)
         self.tokenizer = Tokenizer(checkpoint_dir)
         L.seed_everything(seed)

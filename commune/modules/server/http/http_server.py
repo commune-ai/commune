@@ -43,8 +43,8 @@ class HTTPServer(c.Module):
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
         self.key = c.get_key(name) if key == None else key
-
         self.set_api()
+        self.serve()
 
 
     def state_dict(self) -> Dict:
@@ -106,6 +106,8 @@ class HTTPServer(c.Module):
             return result
         
         c.register_server(self.name, self.ip, self.port)
+
+    def serve(self, **kwargs):
         uvicorn.run(self.app, host=self.ip, port=self.port)
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):

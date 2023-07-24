@@ -69,12 +69,12 @@ class GPT(nn.Module):
         use_kv_cache = input_pos is not None
 
         block_size = self.config.block_size
-        device = self.device
-        og_device = idx.device
-        if idx.device != device:
-            idx = idx.to(device)
-        if input_pos is not None and input_pos.device != device:
-            input_pos = input_pos.to(device)
+        # device = self.device
+        # og_device = idx.device
+        # if idx.device != device:
+        #     idx = idx.to(device)
+        # if input_pos is not None and input_pos.device != device:
+        #     input_pos = input_pos.to(device)
 
         if max_seq_length is None:
             max_seq_length = block_size
@@ -116,8 +116,10 @@ class GPT(nn.Module):
                 x, self.kv_caches[i] = block(x, (cos, sin), max_seq_length, mask, input_pos, self.kv_caches[i])
 
         x = self.transformer.ln_f(x)
-
-        return self.lm_head(x).to(og_device)  # (b, t, vocab_size)
+        output_logits = self.lm_head(x)
+        # if og_device != device:
+        #     output_logits = output_logits.to(og_device)
+        return self.lm_head(output_logits) # (b, t, vocab_size)
 
     @classmethod
     def from_name(cls, name: str, **kwargs: Any) -> Self:

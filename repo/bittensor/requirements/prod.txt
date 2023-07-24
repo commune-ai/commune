@@ -22,7 +22,7 @@ numpy>=1.21.6,<=1.24.2
 pandas==1.5.2
 password_strength==0.0.3.post2
 prometheus_client==0.14.1
-protobuf==3.19.5
+protobuf>=3.19.5
 psutil==5.9.4
 python-levenshtein==0.12.1
 pyyaml==6.0
@@ -32,7 +32,7 @@ rich==12.5.1
 scalecodec==1.2.0
 substrate-interface==1.5.0
 termcolor==2.1.1
-torch>=1.13.1,<=2.0.1
+torch>=1.13.1
 transformers>=4.20.1,<=4.28.0
 tqdm==4.64.1
 wheel==0.37.1
