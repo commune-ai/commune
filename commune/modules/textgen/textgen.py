@@ -1,6 +1,6 @@
 import commune as c
 class TextGenerator(c.Module):
-    image = 'textgen'
+    image = 'text_generator'
 
 
     def fleet(self, model = 'vicuna.7b', n=None):
@@ -47,6 +47,9 @@ class TextGenerator(c.Module):
         if tag != None:
             tag = str(tag)
         name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
+
+
+
         if self.server_exists(name) and refresh == False:
             c.print(f'{name} already exists')
             return
