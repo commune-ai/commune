@@ -2116,7 +2116,6 @@ class c:
                 return peer
             module_name = peer(fn='module_name',  return_future=True)
             module_name = await asyncio.wait_for(module_name, timeout=fn_timeout)
-            c.print(f'Found module {module_name} at {peer_address}', color='green')
             if c.check_response(module_name):
                 return module_name
             else:
@@ -2511,8 +2510,9 @@ class c:
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
+            c.print(remote_kwargs)
             remote_kwargs['remote'] = False
-            return cls.remote_fn('serve',module=module, name=name, kwargs=remote_kwargs,  )
+            return cls.remote_fn('serve',name=name, kwargs=remote_kwargs,  )
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         if update:
@@ -2520,7 +2520,7 @@ class c:
         if address != None:
             ip = address.split(':')[0]
             port = int(address.split(':')[-1])
-        self = cls.resolve_module(module)(*args, **kwargs)
+        self = c.resolve_module(module)(*args, **kwargs)
         port = c.resolve_port(port)
 
 
