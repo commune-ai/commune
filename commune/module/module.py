@@ -1480,12 +1480,10 @@ class c:
         models = [k for k in models if k.startswith('model')]
         return models
     @classmethod
-    def datasets(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(c.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
+    def datasets(cls, **kwargs) -> List[str]:
+        return c.servers('data',  **kwargs)
+    datas = datasets
     
-    @classmethod
-    def datasets(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(c.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
@@ -2121,6 +2119,7 @@ class c:
             else:
                 return module_name
         except Exception as e:
+
             return {'error':str(e)}
 
     @classmethod

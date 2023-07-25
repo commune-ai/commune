@@ -1,0 +1,13 @@
+
+
+
+network: subspace # global or local network
+sleep: 0.1 # sleep time between each forward call
+load: False # if true, load the dataset
+stats: {} # if true, print the stats
+max_stats_history: 100
+save_interval: 10
+alpha: 0.9
+timeout: 3
+tag: base
+run: True

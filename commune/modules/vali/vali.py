@@ -3,6 +3,7 @@
 import commune as c
 c.new_event_loop()
 
+# Validator = c.module('vali')
 
 
 class Validator(c.Module):
@@ -10,45 +11,20 @@ class Validator(c.Module):
     def __init__(self, config=None,
                  **kwargs):
         self.count = 0
-        self.w = {}
         self.set_config(config=config, kwargs=locals())
-        self.modules = self.subspace.modules()
+        
         self.subspace = c.module(self.config.network)()
-
-        if self.config.load == True:
-            self.load(self.config.tag)
-        if self.config.run:
-            self.run()
-        
-        
-        self.running = False
-        
-    def calculate_score(self, module):
-
-        return 1
-
-    
+        self.modules = self.subspace.modules()
+        self.n = len(self.modules)
+        self.subspace = c.module(self.config.network)()
          
-    async def async_eval_module(self, module=None, verbose:bool=True):
-        module_state = c.choice(self.modules) if module == None else None
-        w = 1
-        error = None
-        try:
-            module_name = module_state['name']
-            # get connection
-            module = await c.async_connect(module_state['address'], 
-                                           network=self.config.network, 
-                                           timeout=self.config.timeout)
-            
-            # get info
-            # if 'info' not in module_state:
-            module_state['info'] = module.info(timeout=self.config.timeout)
-        except Exception as e:
-            # something went wrong, set score to 0, 
-            w = 0
-            error = str(e)
 
-        w = self.calculate_score(module) if w != 0 else 0
+    async def eval_module(self, module=None, verbose:bool=True):
+        module_state = c.choice(self.modules) if module == None else None
+        module_name = module_state['name']
+        module = await c.async_connect(module_state['address'], 
+                                        network=self.config.network, 
+                                        timeout=self.config.timeout)
 
         response = {'module': module_name, 'w': w, 'error': error}
         # if verbose:
