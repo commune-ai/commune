@@ -442,7 +442,7 @@ class Subspace(c.Module):
             module, tag = module.split(tag_seperator)
             
         name = c.resolve_server_name(module=module, name=name, tag=tag)
-        if c.module_exists(name, network='local') and (not refresh):
+        if c.server_exists(name, network='local') and (not refresh):
             module_info = c.connect(module, network='local').info()
             if 'address' in module_info:
                 address = module_info['address']
@@ -1484,7 +1484,7 @@ class Subspace(c.Module):
         return module2stake
         
         
-    def module_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
+    def server_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
         return bool(module in self.namespace(netuid=netuid, **kwargs))
 
     def get_module(self, module:str, netuid: int = None, **kwargs) -> ModuleInfo:
