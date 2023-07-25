@@ -2183,7 +2183,7 @@ class c:
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int = None, **kwargs)-> dict:
-        local_namespace = cls.local_namespace(update=True)    
+        local_namespace = cls.local_namespace(update=False)    
 
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
@@ -4464,9 +4464,15 @@ class c:
         return bittensor
          
     @classmethod  
-    def time( cls) -> float:
+    def time( cls, t=None) -> float:
         import time
-        return time.time()
+        if t is not None:
+            return time.time() - t
+        else:
+            return time.time()
+    @classmethod
+    def delta_t(cls, t):
+        return t - c.time()
     @classmethod
     def timestamp(cls) -> float:
         return int(cls.time())
@@ -5906,7 +5912,7 @@ class c:
         return cls.choice(cls.tags())
     
     @classmethod
-    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 10)-> list:
+    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 20)-> list:
         if not isinstance(jobs, list):
             singleton = True
             jobs = [jobs]
@@ -7095,6 +7101,22 @@ class c:
             return result
 
         return wrapper
+
+
+    @classmethod
+    def ss58_encode(cls, data:Union[str, bytes], ss58_format=42, **kwargs):
+        from scalecodec.utils.ss58 import ss58_encode
+        if type(data) is str:
+            data = bytes.fromhex(data.replace('0x', ''))
+        return ss58_encode(data, ss58_format=ss58_format, **kwargs)
+
+
+    @classmethod
+    def ss58_decode(cls, data:Union[str, bytes],**kwargs):
+        from scalecodec.utils.ss58 import ss58_decode
+        return ss58_decode(data,  **kwargs)
+
+
 
 
 Module = c
