@@ -2114,10 +2114,9 @@ class c:
             peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
             if peer == None: 
                 return peer
-            c.print(f'{peer_address}')
             module_name = peer(fn='module_name',  return_future=True)
             module_name = await asyncio.wait_for(module_name, timeout=fn_timeout)
-            c.print(f'Found {module_name} on {peer_address}')
+            c.print(f'Found module {module_name} at {peer_address}', color='green')
             if c.check_response(module_name):
                 return module_name
             else:
@@ -2523,6 +2522,8 @@ class c:
             port = int(address.split(':')[-1])
         self = cls.resolve_module(module)(*args, **kwargs)
         port = c.resolve_port(port)
+
+
     
         if c.server_exists(name): 
             c.print(f'Server {name} already exists', color='yellow')
@@ -2535,8 +2536,9 @@ class c:
                 raise Exception(f'The server {name} already exists')
         c.print(f'Serving {name} on port {port} (Mode : {mode})', color='yellow')
 
+
         server = c.module(f'server.{mode}')(module=self, ip=ip, port=port,name= name,whitelist=whitelist,blacklist=blacklist)
-        c.print('fam')
+
 
 
         
