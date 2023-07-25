@@ -251,7 +251,26 @@ class Docker(c.Module):
 
 
     @classmethod
-    def dockercomposefiles(cls, path = None):
+    def composefiles(cls, path = None):
        if path is None:
            path = c.libpath + '/'
        return [l.replace(path, '') for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
+    
+    @classmethod
+    def name2composefile(cls, path=None):
+        composefiles = cls.composefiles(path)
+        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in composefiles}
+    
+    @classmethod
+    def compose(cls, name, daemon=True):
+        name2composefile = cls.name2composefile()
+        compose_file = name2composefile[name]
+        cmd = f'docker-compose -f {compose_file} up'
+        if daemon:
+            cmd += ' -d'
+        return c.cmd(cmd, verbose=True)
+
+    @classmethod
+    def logs(cls, name, sudo=False, follow=False):
+        return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=True)
+
