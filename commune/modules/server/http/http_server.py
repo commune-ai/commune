@@ -15,6 +15,8 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
+        save_history_interval: int = 100,
+        max_request_staleness: int = 100,
         key = None,
     ) -> 'Server':
         
@@ -28,6 +30,9 @@ class HTTPServer(c.Module):
         self.key = c.get_key(name) if key == None else key
         self.whitelist = getattr( module, 'whitelist', []) if whitelist == None else whitelist
         self.blacklist = getattr( module, 'blacklist', []) if blacklist == None else blacklist
+        self.save_history_interval = save_history_interval
+        self.max_request_staleness = max_request_staleness
+        self.history = []
         # ensure that the module has a name
 
         if isinstance(module, str):
@@ -70,14 +75,24 @@ class HTTPServer(c.Module):
         return self
 
     
-    def verify(self, data: dict) -> bool:
+    def verify_input(self, input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
-        assert isinstance(data, dict), f"Data must be a dict, not {type(data)}"
-        assert 'data' in data, f"Data not included"
-        assert 'signature' in data, f"Data not signed"
-        assert self.key.verify(data), f"Data not signed with correct key"
-        return True
+        try:
+            assert isinstance(input, dict), f"Data must be a dict, not {type(data)}"
+            assert 'data' in input, f"Data not included"
+            assert 'signature' in input, f"Data not signed"
+            assert self.key.verify(input), f"Data not signed with correct key"
+
+            # deserialize data
+            data = self.serializer.deserialize(input.pop('data'))
+            request_timestamp = data.get('timestamp', 0)
+            request_staleness = c.timestamp() - request_timestamp
+            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+            return data
+        except Exception as e:
+            c.print(e, color='red')
+            return {'error': str(e)}
 
     def set_api(self):
 
@@ -88,28 +103,46 @@ class HTTPServer(c.Module):
 
         @self.app.post("/{fn}/")
         async def forward_wrapper(fn:str, input:dict[str, str]):
-            # verify key
-            self.verify(input)
-
-            # deserialize data
-            data = self.serializer.deserialize(input.pop('data'))
-            
+            # verify data
+            data = self.verify_input(input)
+            if 'error' in data:
+                return data
             # forward
             result =  self.forward(fn=fn, 
                                     args=data.get('args', []), 
                                     kwargs=data.get('kwargs', {})
                                     )
+            
             # serialize result
             result_data = self.serializer.serialize(result)
 
             # sign result data (str)
             result =  self.key.sign(result_data, return_json=True)
 
+
+            self.history.append({
+                'fn': fn,
+                'ip': data.pop('ip', None),
+                'address': input.pop('address', None),
+                'timestamp': data.pop('timestamp', None),
+            }
+            )
+
+            if len(self.history) > 100:
+                self.history = self.history[-100:]
+
+
             # send result to client
             return result
         
         c.register_server(self.name, self.ip, self.port)
 
+
+    def save(self, data: dict):
+        r"""Save the history of the server.
+        """
+        og_history = self.get(f'history/{self.name}', [])
+        og_history.extend(self.history)
     def serve(self, **kwargs):
         import uvicorn
         try:
