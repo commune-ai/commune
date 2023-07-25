@@ -24,6 +24,15 @@ class Git(c.Module):
                    prefix='https://raw.githubusercontent.com'):
         return c.module('web').rget(url=f'{prefix}/{url}')
     
+
+    @classmethod
+    def addsub(cls, repo, name=None):
+        if name == None:
+            name = repo.split('/')[-1].split('.')[0]
+            name = f'{c.repo_path}/{name}'
+        cmd = f'git submodule add {repo} {name}'
+
+        c.print(cmd)
     
         
     

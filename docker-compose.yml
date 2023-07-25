@@ -6,7 +6,7 @@ services:
     network_mode: host
     container_name: commune
     build: ./
-    shm_size: '20gb' # for the shared memory size
+    shm_size: '100gb' # for the shared memory size
     environment:
       - RAY_PORT=6378
 
@@ -14,8 +14,8 @@ services:
 
       # COMMUNE VOLUME MOUNTS
       - ./commune:/commune/commune
-      - ./commune/subspace:/commune/subspace
-      - ./commune/frontend:/commune/frontend
+      - ./subspace:/commune/subspace
+      - ./frontend:/commune/frontend
       # LOCAL COMMUNE MOUNTS AND FILES
       - ./Makefile:/commune/Makefile 
       - ./setup.py:/commune/setup.py
