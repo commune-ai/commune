@@ -112,7 +112,13 @@ class HTTPServer(c.Module):
 
     def serve(self, **kwargs):
         import uvicorn
-        uvicorn.run(self.app, host=self.ip, port=self.port)
+        try:
+            uvicorn.run(self.app, host=self.ip, port=self.port)
+        except Exception as e:
+            c.deregister_server(self.name)
+        finally:
+            c.deregister_server(self.name)
+        
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):
         try: 
