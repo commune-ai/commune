@@ -6,9 +6,9 @@ import warnings
 from pathlib import Path
 from typing import Optional, Literal
 
-import lightning as L
+
 import torch
-from lightning.fabric.strategies import FSDPStrategy
+
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
@@ -54,6 +54,8 @@ class LitGpt(c.Module):
             devices: How many devices to use.
             precision: Indicates the Fabric precision setting to use.
         """
+        from lightning.fabric.strategies import FSDPStrategy
+        import lightning as L
         from lit_gpt import GPT, Tokenizer, Config
         from lit_gpt.model import Block
         from lit_gpt.utils import lazy_load, check_valid_checkpoint_dir, quantization
@@ -112,6 +114,7 @@ class LitGpt(c.Module):
 
     @classmethod
     def install(cls, install_torch :bool= True , install_flash:bool = False):
+        c.cmd('pip install pytorch-lightning', verbose=True)
         c.cmd("pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.1.0dev'", verbose=True)
         c.cmd("pip install 'flash-attn>=2.0.0.post1' --no-build-isolation")
         c.cmd("pip install -U 'bitsandbytes>=0.40.0'")

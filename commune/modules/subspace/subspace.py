@@ -1611,6 +1611,18 @@ class Subspace(c.Module):
             my_modules = [m['name'] for m in my_modules]
         return my_modules
 
+    def unregistered_servers(self, *args, **kwargs):
+        servers = c.servers()
+        my_module_names = self.my_modules(names_only=True)
+
+    def idle_registered(self, *args, **kwargs):
+        servers = c.servers()
+        my_module_names = [m for m in self.my_modules(names_only=True) if m not in servers]
+        return my_module_names
+
+
+
+        return [s for s in servers if s not in my_module_names]
     def my_stats(self, *args, fmt='j', **kwargs):
         import pandas as pd
         my_modules = self.my_modules(*args, fmt=fmt, **kwargs)

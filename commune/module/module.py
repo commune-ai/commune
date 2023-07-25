@@ -2488,6 +2488,7 @@ class c:
               kwargs:dict = None,  # kwargs for the module
               update: bool = False,
               mode:str = server_mode,
+              tag_seperator:str='::',
               key = None, # key for server's identity
 
               
@@ -2500,13 +2501,17 @@ class c:
         '''
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
+
+        if isinstance(module, str) and tag_seperator in module:
+            module, tag = module.split(tag_seperator)
+
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
         tag = None
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
-            return cls.remote_fn('serve', name=name, kwargs=remote_kwargs, )
+            return cls.remote_fn('serve',module=module, name=name, kwargs=remote_kwargs,  )
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         if update:
@@ -2528,7 +2533,7 @@ class c:
                 raise Exception(f'The server {name} already exists')
         c.print(f'Serving {name} on port {port} (Mode : {mode})', color='yellow')
 
-        server = c.module(f'server.{mode}')(ip=ip, port=port,module = self,name= name,whitelist=whitelist,blacklist=blacklist)
+        server = c.module(f'server.{mode}')(module=self, ip=ip, port=port,name= name,whitelist=whitelist,blacklist=blacklist)
         c.print('fam')
 
 

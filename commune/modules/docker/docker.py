@@ -1,7 +1,7 @@
 
 import os
 import pandas as pd
-from typing import List
+from typing import List, Dict
 import commune as c
 
 class Docker(c.Module): 
@@ -43,6 +43,12 @@ class Docker(c.Module):
             tag = path.split('/')[-2]
         return c.cmd(f'docker build -t {tag} .', sudo=sudo, cwd=os.path.dirname(path),  verbose=verbose)
     
+    def kill(self, name, sudo=False, verbose=True):
+        c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
+        c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
+
+    def exists(self, name:str):
+        return name in self.ps()
 
     @classmethod
     def rm_sudo(cls, sudo:bool=True, verbose:bool=True):
@@ -92,8 +98,8 @@ class Docker(c.Module):
         c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
 
     def install_gpus(self):
-        self.chmod_scripts
-        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True)
+        self.chmod_scripts()
+        c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
 
 
     # def build_commune(self, sudo=False):
@@ -107,57 +113,61 @@ class Docker(c.Module):
             tag = path.split('/')[-2]
         assert tag is not None, 'tag must be specified'
 
-        path = c.resolve_path(path)
         cmd = f'docker build -t {tag} .'
         dockerfile_dir = os.path.dirname(path)
-        c.print(cmd)
+
         c.cmd(cmd,cwd = dockerfile_dir, env={'DOCKER_BUILDKIT':'1'}, verbose=True, sudo=sudo, bash=False)
     
-    def launch(self, 
+    def run(self, 
                     image : str,
-                    tag: str = None,
+                    name: str = None,
                     gpus:list='all',
                     shm_size : str='100g',
                     volume:str = 'data',
                     sudo:bool = False,
-                    port:int=None,
+                    build:bool = True,
+                    ports:Dict[str, int]=None,
                     volumes:List[str] = None,
                     net : str = 'host',
-                    internal_port:int=None):
-
-        if tag != None:
-            tag = str(tag)
-        if build:
-            self.build(image)
+                    daemon:bool = True):
+        if name is None:
+            name = image
 
         cmd = f'docker run'
 
 
-        cmd += f' --net {net}'
+        cmd += f' --net {net} '
+
+        if build:
+
+            self.build(image, tag=name)
         
 
 
-        if deamon:
-            cmd += '-d'
+        if daemon:
+            cmd += ' -d '
 
         # ADD THE GPUS
         if gpus == None:
             gpus = c.gpus()
-        gpus = ','.join(map(str, gpus))     
-        if gpus != None:
-            cmd += f' --gpus device={gpus}'
+        if isinstance(gpus, list):
+            gpus = ','.join(map(str, gpus))  
+            cmd += f' --gpus \'"device={gpus}"\''   
+        else:
+            cmd += f' --gpus "{gpus}"'
         
         # ADD THE SHM SIZE
         if shm_size != None:
             cmd += f' --shm-size {shm_size}'
         
         # ADD THE PORTS
-        if port == None:
-            port = c.resolve_port(port)
-        if internal_port == None:
-            internal_port = port
-        if port != None:
-            cmd += f' -p {port}:{internal_port}'
+        if ports == None:
+            port = c.free_port()
+            ports = {port:port}
+
+        if ports != None:
+            for external_port, internal_port in ports.items():
+                cmd += f' -p {external_port}:{internal_port}'
             
 
 
@@ -168,7 +178,7 @@ class Docker(c.Module):
             for v_from, v_to in volumes.items():
                 cmd += f'-v {v_from}:{v_to}'
 
-        cmd += '--name {name} {self.image} {cmd_args}'
+        cmd += f' --name {name} {image}'
 
         c.print(cmd)
         output_text = c.cmd(cmd, sudo=sudo, output_text=True)
@@ -176,13 +186,14 @@ class Docker(c.Module):
         if 'Conflict. The container name' in output_text:
             c.print(f'container {name} already exists, restarting...')
             contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
+
             c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
             c.cmd(cmd, sudo=sudo, verbose=True)
         else: 
             c.print(output_text)
 
 
-        self.update()
+        # self.update()
        
 
 
@@ -234,6 +245,9 @@ class Docker(c.Module):
             return name2file[name]
         else:
             raise ValueError(f'Could not find docker file for {name}')
+        
+    
+
 
 
     @classmethod
