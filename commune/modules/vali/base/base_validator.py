@@ -811,7 +811,7 @@ class Validator(c.Model):
             device = cls.most_free_gpu()
 
 
-        if cls.module_exists(model):
+        if cls.server_exists(model):
             module =  cls.module(model)
             neuron = module.neuron(wallet=wallet, subtensor=subtensor, config=config, netuid=netuid)
         else:

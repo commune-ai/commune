@@ -61,7 +61,7 @@ class Client(c.Module):
         port : int= None,
         timeout: int = 4,
         return_error: bool = False,
-        asyn: bool = False,
+        asyn: bool = True,
         headers : dict ={'Content-Type': 'application/json'},
          **extra_kwargs):
 

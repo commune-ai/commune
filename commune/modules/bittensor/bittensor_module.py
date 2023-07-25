@@ -1525,7 +1525,7 @@ class BittensorModule(c.Module):
         
         for tag in range(n):
             name = f'{prefix}::{model}::{tag}'
-            if cls.module_exists(name):
+            if c.server_exists(name):
                 if refresh:
                     cls.kill(name)
                 else:

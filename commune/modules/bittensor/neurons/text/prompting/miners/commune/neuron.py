@@ -1,3 +1,4 @@
+
 # The MIT License (MIT)
 # Copyright © 2023 Yuma Rao
 
@@ -21,6 +22,7 @@ import argparse
 import bittensor
 from typing import List, Dict
 import os
+import freegpt
 import commune as c
 
 class MaoMiner( bittensor.BasePromptingMiner ):
