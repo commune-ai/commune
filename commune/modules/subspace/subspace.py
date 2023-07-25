@@ -158,48 +158,7 @@ class Subspace(c.Module):
         return f'<Subspace: network={self.network}, url={self.url}>'
     
     
-    cache = {}
-    def auth(self,
-             module:str = None, 
-             fn:str = None,
-             args: list = None,
-             kwargs: dict = None,
-             key:str = key,
-             network:str=network, netuid = None,
-             include_ip:str = True,
-             ):
-        netuid = self.resolve_netuid(netuid)
-    
-        key = self.resolve_key(key)
-        data = {
-            'network': network,
-            'subnet': netuid,
-            'module': module,
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs,
-            'timestamp': int(c.time()),
-            'block': self.block, 
-            
-        }
-        if include_ip:
-            ip = c.ip()
-            if 'ip' in self.cache:
-                external_ip = self.cache.get('ip', ip)
-                self.cache['ip'] = ip
-            data['ip'] = ip
-       
-        # data = c.python2str(data)
-        auth =  {
-            'address': key.ss58_address,
-            'signature': key.sign(data).hex(),
-            'public_key': key.public_key.hex(),
-            'data': data,
-        }
-        
-     
-        return auth
-    
+
     def verify(self, 
                auth,
                max_staleness=100,
@@ -1428,6 +1387,15 @@ class Subspace(c.Module):
         namespace = { m['name']: m['address'] for m in modules}
         return namespace
     
+
+        
+    def servers(self, name=None, **kwargs) -> Dict[str, str]:
+        servers = list(self.namespace( **kwargs).keys())
+        servers = [s for s in servers if name in s]
+        return servers
+        
+        
+    
     
     def name2uid(self, name: str = None, netuid: int = None) -> int:
         
@@ -1511,7 +1479,6 @@ class Subspace(c.Module):
     def modules(self,
                 netuid: int = default_netuid,
                 fmt='nano', 
-                detail:bool = True,
                 cache:bool = True,
                 max_age: int = 60,
                 network = network,
