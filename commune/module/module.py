@@ -610,7 +610,7 @@ class c:
         return c.is_encrypted(v)
     @classmethod
     def frontend(cls):
-        c.cmd('yarn start', cwd=f'{c.repo_path}/frontend', verbose=True)
+        return c.compose('frontend')
       
     @classmethod
     def popc(cls, key:str):
@@ -6400,7 +6400,15 @@ class c:
     
     @classmethod
     def up(cls): 
-        return c.cmd('docker-compose up -d', cwd=c.libpath)
+        docker = c.module('docker')
+        path = docker.
+        compose_file = docker.get_compose('commune')
+        if 
+        # return c.compose('commune')
+
+    @classmethod
+    def compose(cls, *args, **kwargs):
+        return c.module('docker').compose(*args, **kwargs)
 
 
     @classmethod
