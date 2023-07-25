@@ -6396,19 +6396,21 @@ class c:
         docker_module = c.module('docker')
         docker_module.build(c.libpath)
         docker_module.build(f'{c.libpath}/subspace')
-
+    @classmethod
+    def has_gpus(cls): 
+        return bool(len(c.gpus())>0)
     
     @classmethod
     def up(cls): 
         docker = c.module('docker')
         path = docker.get_compose_path('commune')
         compose_dict = docker.get_compose(path)
-        if len(c.gpus()) == 0:
+
+        # create temporary compose file to toggle gpu options
+        if c.has_gpus():
             del compose_dict['services']['commune']['deploy']
-
-
         tmp_path = path.replace('docker-compose', 'docker-compose-tmp')
-        docker.put_compose(tmp_path, compose_dict)
+        c.save_yaml(tmp_path, compose_dict)
 
         docker.compose(tmp_path)
         c.rm(tmp_path)
