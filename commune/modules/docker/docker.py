@@ -265,7 +265,7 @@ class Docker(c.Module):
     def compose(cls, name, daemon=True):
         name2composefile = cls.name2composefile()
         compose_file = name2composefile[name]
-        cmd = f'docker-compose -f {compose_file} up'
+        cmd = f'docker compose -f {compose_file} up'
         if daemon:
             cmd += ' -d'
         return c.cmd(cmd, verbose=True)
@@ -273,4 +273,11 @@ class Docker(c.Module):
     @classmethod
     def logs(cls, name, sudo=False, follow=False):
         return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=True)
+
+    
+
+    @classmethod
+    def install(cls):
+        c.cmd('./scripts/install_docker.sh', cwd=c.repo_path)
+        cls.rm_sudo()
 
