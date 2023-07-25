@@ -2026,7 +2026,6 @@ class c:
     @classmethod
     def remote_namespace(cls,  
                          seperator = '::', 
-                         verbose: bool = False, 
                          update:bool = False,
                          prefix:bool = 'R')-> dict:
     
@@ -2294,10 +2293,13 @@ class c:
     resolve_port = get_port
     
     @classmethod
-    def module_exists(cls, name:str, **kwargs) -> bool:
+    def server_exists(cls, name:str, **kwargs) -> bool:
         namespace = c.namespace(**kwargs)
         return bool(name in namespace)
-    
+
+    @classmethod
+    def module_exists(cls, name:str, **kwargs) -> bool:
+        return bool(name in c.modules(**kwargs))
     
     @classmethod
     def wait_for_server(cls,
@@ -2770,7 +2772,7 @@ class c:
         if module in c.servers():
             c.deregister_server(module)
 
-        assert c.module_exists(module) == False, f'module {module} still exists'
+        assert c.server_exists(module) == False, f'module {module} still exists'
 
         servers = c.servers()
         for m in delete_modules:
@@ -5535,6 +5537,10 @@ class c:
         module = module.replace('.','/')
         module_path = c.resolve_module_path(module)
         cls.rm(module_path)
+
+    def new_modules(self, *modules, **kwargs):
+        for module in modules:
+            self.new_module(module=module, **kwargs)
     @classmethod
     def new_module( cls,
                    module : str = None,
@@ -5553,7 +5559,7 @@ class c:
         module_path = os.path.join(c.modules_path, module)
         
         
-        if overwrite: 
+        if overwrite and c.server_exists(module_path): 
             c.rm(module_path)
         
         if repo != None:
@@ -5561,6 +5567,8 @@ class c:
             c.cmd(f'git clone {repo} {module_path}')
             # Remove the .git directory
             c.cmd(f'rm -rf {module_path}/.git')
+
+
         if module == None:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
@@ -5881,7 +5889,7 @@ class c:
         return cls.choice(cls.tags())
     
     @classmethod
-    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = None)-> list:
+    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 10)-> list:
         if not isinstance(jobs, list):
             singleton = True
             jobs = [jobs]
@@ -5890,9 +5898,7 @@ class c:
         assert isinstance(jobs, list)
         if mode == 'asyncio':
             loop = loop if loop != None else cls.get_event_loop()
-            if timeout is not None:
-                jobs = [asyncio.wait_for(job, timeout=timeout) for job in jobs]
-            results = loop.run_until_complete(asyncio.gather(*jobs))
+            results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
         else:
             raise NotImplementedError
 
@@ -6989,7 +6995,7 @@ class c:
         for i in range(num_jobs):
             model = c.connect(module, virtual=False)
             c.print('Selecting: ', model)
-            job = model.async_forward(fn='talk', args=args, kwargs=kwargs, timeout=timeout)
+            job = model.async_forward(fn='talk', args=args, kwargs=kwargs)
             jobs += [job]
 
         results = c.gather(jobs, timeout=timeout)
