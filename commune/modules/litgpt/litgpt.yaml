@@ -1,4 +1,4 @@
-model: stablellm7b
+
 num_samples: 1
 model: vicuna.7b
 max_new_tokens: 50

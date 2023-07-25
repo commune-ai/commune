@@ -23,11 +23,11 @@ from typing import List, Dict
 import os
 import commune as c
 
-class TextGenMiner( bittensor.BasePromptingMiner ):
+class TextgenMiner( bittensor.BasePromptingMiner ):
 
     def __init__( self , config):
-        super( TextGenMiner, self ).__init__(config=config)
-        self.textgen = c.module('text_generator')()
+        super( TextgenMiner, self ).__init__(config=config)
+        self.textgen = c.module('textgen')()
 
     @classmethod
     def check_config( cls, config: 'bittensor.Config' ):
@@ -42,24 +42,10 @@ class TextGenMiner( bittensor.BasePromptingMiner ):
     def forward( self, messages: List[Dict[str, str]] ) -> str:
 
         msg = messages[-1]['content']
-        num_trials = 4
         timeout = 10
-
-        c.new_event_loop()
-        msg = msg[-1000:]
-        
-        for i in range(num_trials):
-            try:
-                resp = c.talk(msg, timeout=timeout)
-                assert isinstance(resp, str), f'Invalid response type: {type(resp)} ({resp})'
-                break
-            except Exception as e:
-                c.print('Error generating response')
-                c.print('\n INPUT ',messages)
-                raise e
-                
+        prompt = f'{msg} \n\n RESPONSE: '
+        verbose_limit = 100
+        c.print('Prompt: ', prompt[-verbose_limit:], color='yellow')
+        resp = self.textgen.talk(prompt, timeout=timeout)
+        c.print('Response: ', resp[:verbose_limit], color='green')
         return resp
-
-if __name__ == "__main__":
-    bittensor.utils.version_checking()
-    OpenAIMiner().run()
