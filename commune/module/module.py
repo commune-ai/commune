@@ -6401,8 +6401,17 @@ class c:
     @classmethod
     def up(cls): 
         docker = c.module('docker')
-        path = docker.name2composefile('commune')
-        compose_file = c.load_yaml(docker.name2composefile('commune'))
+        path = docker.get_compose_path('commune')
+        compose_dict = docker.get_compose(path)
+        if len(c.gpus()) == 0:
+            del compose_dict['services']['commune']['deploy']
+
+
+        tmp_path = path.replace('docker-compose', 'docker-compose-tmp')
+        docker.put_compose(tmp_path, compose_dict)
+
+        docker.compose(tmp_path)
+        c.rm(tmp_path)
         # return c.compose('commune')
 
     @classmethod

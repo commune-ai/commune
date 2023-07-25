@@ -139,11 +139,8 @@ class Docker(c.Module):
         cmd += f' --net {net} '
 
         if build:
-
             self.build(image, tag=name)
         
-
-
         if daemon:
             cmd += ' -d '
 
@@ -168,8 +165,6 @@ class Docker(c.Module):
         if ports != None:
             for external_port, internal_port in ports.items():
                 cmd += f' -p {external_port}:{internal_port}'
-            
-
 
         # ADD THE VOLUMES
         if volumes is not None:
@@ -195,9 +190,6 @@ class Docker(c.Module):
 
         # self.update()
        
-
-
-
     
     def psdf(self,load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
@@ -219,6 +211,8 @@ class Docker(c.Module):
         df = df[keys]
         df.set_index(idx_key, inplace=True)
         return df   
+
+
     def ps(self):
         df = self.psdf()
         return self.psdf()['names'].tolist()
@@ -251,36 +245,42 @@ class Docker(c.Module):
 
 
     @classmethod
-    def composefiles(cls, path = None):
+    def compose_paths(cls, path = None):
        if path is None:
            path = c.libpath + '/'
        return [l for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
     
     @classmethod
-    def name2composefile(cls, path=None):
-        composefiles = cls.composefiles(path)
-        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in composefiles}
+    def name2compose(cls, path=None):
+        compose_paths = cls.compose_paths(path)
+        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in compose_paths}
     
     @classmethod
-    def get_compose(cls, name:str):
-        path = cls.name2composefile().get(name)
-        return c.load_yaml(path)
+    def get_compose_path(cls, path:str):
+        path = cls.name2compose().get(path, path)
+        return path
+
     @classmethod
-    def put_compose(cls, name:str, compose_dict:dict):
-        path = cls.name2composefile().get(name)
+    def get_compose(cls, path:str):
+        path = cls.get_compose_path(path)
+        return c.load_yaml(path)
+
+    @classmethod
+    def put_compose(cls, path:str, compose_dict:dict):
+        path = cls.get_compose_path(path)
         return c.save_yaml(path, compose_dict)
+
+
+
+
         
 
     @classmethod
     def compose(cls, name, daemon=True):
-        name2composefile = cls.name2composefile()
-        compose_file = name2composefile[name]
-        cmd = f'docker-compose -f {compose_file} up'
-
+        compose_path = cls.get_compose_path(name)
+        cmd = f'docker-compose -f {compose_path} up'
         if daemon:
             cmd += ' -d'
-
-        c.print(cmd)
         return c.cmd(cmd, verbose=True)
 
     @classmethod
