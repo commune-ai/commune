@@ -303,6 +303,7 @@ class Subspace(c.Module):
     #####################
     #### Set Weights ####
     #####################
+    @retry(delay=0, tries=4, backoff=0, max_delay=0)
     def vote(
         self,
         key: 'c.key' = None,
@@ -318,6 +319,15 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         if uids is None:
             uids = self.uids()
+        
+        max_allowed_uids = self.max_allowed_weights( netuid = netuid )
+    
+        if len(uids) == 0:
+            c.print(f'No uids to vote on.')
+            return False
+        if len(uids) > max_allowed_uids:
+            c.print(f'Only {max_allowed_uids} uids are allowed to be voted on.')
+            uids = uids[:max_allowed_uids]
         if weights is None:
             weights = torch.tensor([1 for _ in uids])
             weights = weights / weights.sum()
@@ -340,7 +350,10 @@ class Subspace(c.Module):
                 }
             )
         # Period dictates how long the extrinsic will stay as part of waiting pool
+        c.print(key)
         extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
+
+        c.print(f'Submitting extrinsic: {extrinsic}')
         response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion,
                                               wait_for_finalization = wait_for_finalization )
         # We only wait here if we expect finalization.
@@ -404,6 +417,10 @@ class Subspace(c.Module):
     @classmethod
     def up(cls):
         c.cmd('docker-compose up -d', cwd=cls.chain_path)
+
+    @classmethod
+    def enter(cls):
+        c.cmd('make enter', cwd=cls.chain_path)
 
 
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -523,41 +540,15 @@ class Subspace(c.Module):
 
 
         # Check balance.
-        with c.status(":satellite: Checking Balance..."):
-            account_balance = self.get_balance( key.ss58_address , fmt='nano' )
-            existential_deposit = self.get_existential_deposit()
+        account_balance = self.get_balance( key.ss58_address , fmt='nano' )
+        transfer_balance = self.to_nanos(amount)
 
-        transfer_balance =  self.to_nanos(amount)
-        with c.status(":satellite: Transferring..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='Balances',
-                    call_function='transfer',
-                    call_params={
-                        'dest': dest, 
-                        'value': transfer_balance
-                    }
-                )
-
-                try:
-                    payment_info = substrate.get_payment_info( call = call, keypair = key )
-                except Exception as e:
-                    c.print(":cross_mark: [red]Failed to get payment info[/red]:[bold white]\n  {}[/bold white]".format(e))
-                    payment_info = {
-                        'partialFee': 2e7, # assume  0.02 joules
-                    }
-
-                fee = payment_info['partialFee']
+        if transfer_balance > account_balance:
+            c.print(":cross_mark: [red]Insufficient balance[/red]:[bold white]\n  {}[/bold white]".format(account_balance))
+            return
         
-        if not keep_alive:
-            # Check if the transfer should keep_alive the account
-            existential_deposit = 0
 
-        # Check if we have enough balance.
-        if account_balance < (transfer_balance + fee + existential_deposit):
-            c.print(":cross_mark: [red]Not enough balance[/red]:[bold white]\n  balance: {}\n  amount: {}\n  for fee: {}[/bold white]".format( account_balance, transfer_balance, fee ))
-            return False
-
+        c.print(f"Balance: {account_balance} {transfer_balance}")
 
         with c.status(":satellite: Transferring to {}"):
             with self.substrate as substrate:
@@ -583,7 +574,8 @@ class Subspace(c.Module):
                     c.print(":white_heavy_check_mark: [green]Finalized[/green]")
                     block_hash = response.block_hash
                     c.print("[green]Block Hash: {}[/green]".format( block_hash ))
-                    new_balance = self.get_balance( key.ss58_address )
+                    new_balance = self.get_balance( key.ss58_address , fmt='j')
+                    account_balance = self.format_amount(account_balance, fmt='j')
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
                     return {'success': True, 'message': 'Successfully transferred {} to {}'.format(amount, dest)}
                 else:
@@ -681,6 +673,7 @@ class Subspace(c.Module):
         netuid: int = None,
         immunity_period: int = None,
         min_allowed_weights: int = None,
+        max_allowed_weights: int = None,
         max_allowed_uids: int = None,
         tempo: int = None,
         name:str = None,
@@ -697,6 +690,7 @@ class Subspace(c.Module):
             'immunity_period': immunity_period,
             'min_allowed_weights': min_allowed_weights,
             'max_allowed_uids': max_allowed_uids,
+            'max_allowed_weights': max_allowed_weights,
             'tempo': tempo,
             'founder': founder,
             'name': name,
@@ -943,11 +937,10 @@ class Subspace(c.Module):
     def min_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
         return self.query_subspace("MinAllowedWeights", block, [netuid] ).value
-
-    """ Returns network MaxWeightsLimit hyper parameter """
-    def max_weight_limit (self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+    """ Returns network MinAllowedWeights hyper parameter """
+    def max_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        return U16_NORMALIZED_FLOAT( self.query_subspace('MaxWeightsLimit', block, [netuid] ).value )
+        return self.query_subspace("MaxAllowedWeights", block, [netuid] ).value
 
     """ Returns network SubnetN hyper parameter """
     def n (self, netuid: int = None, block: Optional[int] = None ) -> int:
@@ -1184,6 +1177,7 @@ class Subspace(c.Module):
                 'tempo': self.tempo( netuid = netuid ),
                 'immunity_period': self.immunity_period( netuid = netuid ),
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid ),
+                'max_allowed_weights': self.max_allowed_weights( netuid = netuid ),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid ),
                 'ratio': subnet_stake / total_stake,
                 'founder': subnet_founder
@@ -1776,7 +1770,8 @@ class Subspace(c.Module):
                     sudo = False):
         if base_path == None:
             base_path = cls.resolve_base_path(node=node)
-        return c.rm(base_path)
+        
+        return c.rm(base_path+'/chains/commune/db')
     
     
     @classmethod
@@ -2077,8 +2072,8 @@ class Subspace(c.Module):
 
     @classmethod
     def start_node(cls,
-                 chain:int = network,
                  node : str = 'alice',
+                 chain:int = network,
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
@@ -2105,6 +2100,8 @@ class Subspace(c.Module):
             ws_port = free_ports[2]
 
         base_path = cls.resolve_base_path(node=node)
+
+
         c.print(f'base_path: {base_path}', color='green')
 
         if purge_chain:
@@ -2136,7 +2133,7 @@ class Subspace(c.Module):
                               refresh=refresh,
                               verbose=verbose)
         else:
-            cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=False)
+            cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=True)
 
         if validator == False:
             network2url = cls.getc('network2url', {})
@@ -2211,7 +2208,17 @@ class Subspace(c.Module):
             chain_info[node] = c.copy(node_kwargs)
             cls.start_node(**chain_info[node])
             if boot_nodes == None:
-                node_id = cls.get_node_id(node=node, chain=chain)
+                c.sleep(2)
+                trials = 3
+                while trials > 0:
+                    try:
+                        node_id = cls.get_node_id(node=node, chain=chain)
+                        break
+                    except Exception as e:
+                        c.print(f'Error getting node id for {node} on {chain}, trying aga ', color='red')
+                        trials -= 1
+                        continue
+
                 boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
 
 
@@ -2336,7 +2343,7 @@ class Subspace(c.Module):
             --key-type {key_type}
             '''
             
-        return c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
 
     
@@ -2364,13 +2371,15 @@ class Subspace(c.Module):
         node_path = node2path[node]
         node_id = None
         node_logs = c.logs(node_path, end_line=400, mode='local')
+        c.print(len(node_logs))
         for line in node_logs.split('\n'):
+            c.print(line)
             if 'Local node identity is: ' in line:
                 node_id = line.split('Local node identity is: ')[1].strip()
                 break
 
         if node_id == None:
-            raise Exception(f'Could not find node_id for {user} on {chain}')
+            raise Exception(f'Could not find node_id for {node} on {chain}')
 
         return node_id
         
