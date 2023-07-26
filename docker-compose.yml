@@ -33,6 +33,9 @@ services:
       - ~/.commune:/root/.commune
       - ~/.bittensor:/root/.bittensor
 
+      # PM2
+      - /root/.pm2:/root/.pm2
+
     deploy:
       resources:
         reservations:

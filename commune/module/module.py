@@ -1583,7 +1583,10 @@ class c:
 
         if seperate_args:
             args = locals_dict.pop('args', [])
+            assert isinstance(args, list), f'args must be a list, got {type(args)}'
             return args, kwargs
+
+        assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
         
         return kwargs
     
@@ -3817,19 +3820,28 @@ class c:
     
     ensure_package = ensure_lib
     @classmethod
-    def pip_install(cls, lib:str= None, verbose:str=True, e=False):
+    def pip_install(cls, 
+                    lib:str= None,
+                    upgrade:bool=True ,
+                    verbose:str=True,
+                    ):
+        
+
         if lib in c.modules():
             c.print(f'Installing {lib} Module from local directory')
             lib = c.resolve_module(lib).dirpath()
         if lib == None:
             lib = c.libpath
-        if e:
-            cmd = f'pip install -e {lib}'
+
+        if c.exists(lib):
+            cmd = f'pip install -e'
         else:
-            cmd = f'pip install {lib}'
+            cmd = f'pip install'
+            if upgrade:
+                cmd += ' --upgrade'
         return cls.cmd(cmd, verbose=verbose)
 
-    def install(self, lib:str = None, verbose:bool=True):
+    def install(self, lib:str = None, verbose:bool=True, upgrade=True):
         return self.pip_install(lib, verbose=verbose)
 
     
@@ -3881,6 +3893,11 @@ class c:
         else:
             ip =  '127.0.0.1'
         return ip
+
+    @classmethod
+    def queue(cls, size=-1, *args, **kwargs):
+        import queue
+        return queue.Queue(size, *args, **kwargs)
     
     @classmethod
     def resolve_ip(cls, ip=None, external:bool=True) -> str:
@@ -5835,10 +5852,14 @@ class c:
                     module: str = None,
                     args : list = None,
                     kwargs : dict = None, 
+                    locals = None,
                     name : str =None,
                     tag: str = None,
                     refresh : bool =True,
                     tag_seperator : str = '::',):
+
+        if locals != None:
+            kwargs = c.locals2kwargs(locals)
         
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
@@ -6396,20 +6417,34 @@ class c:
         docker_module = c.module('docker')
         docker_module.build(c.libpath)
         docker_module.build(f'{c.libpath}/subspace')
-
+    @classmethod
+    def has_gpus(cls): 
+        return bool(len(c.gpus())>0)
     
     @classmethod
     def up(cls): 
         docker = c.module('docker')
-        path = docker.
-        compose_file = docker.get_compose('commune')
-        if 
+        path = docker.get_compose_path('commune')
+        compose_dict = docker.get_compose(path)
+
+        # create temporary compose file to toggle gpu options
+        if c.has_gpus():
+            del compose_dict['services']['commune']['deploy']
+        tmp_path = path.replace('docker-compose', 'docker-compose-tmp')
+        c.save_yaml(tmp_path, compose_dict)
+
+        docker.compose(tmp_path)
+        c.rm(tmp_path)
         # return c.compose('commune')
 
     @classmethod
     def compose(cls, *args, **kwargs):
         return c.module('docker').compose(*args, **kwargs)
 
+
+    @classmethod
+    def ps(cls, *args, **kwargs):
+        return c.module('docker').ps(*args, **kwargs)
 
     @classmethod
     def play(cls):
@@ -6930,6 +6965,10 @@ class c:
     def upgrade_proto(cls, verbose:bool = True):
         c.cmd('pip install --upgrade protobuf', verbose=verbose)
         c.cmd('pip install --upgrade grpcio-tools', verbose=verbose)
+
+    @classmethod
+    def upgrade(cls, lib):
+        c.cmd(f'pip install --upgrade {lib}', verbose=True)
         
     @classmethod
     def fix_proto(cls):
