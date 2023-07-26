@@ -825,14 +825,14 @@ class Keypair(c.Module):
         if return_json:
             return {
                 'data': data.decode(),
-                'crypto': self.crypto_type,
+                'crypto_type': self.crypto_type,
                 'signature': signature.hex(),
-                'public_key': self.public_key.hex(),
+                'address': self.ss58_address,
             }
 
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto = None) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto_type = None) -> bool:
         
         """
         Verifies data with specified signature
@@ -849,9 +849,9 @@ class Keypair(c.Module):
         """
         if isinstance(data, dict):
             if 'data' in data:
-                crypto = int(data['crypto'])
+                crypto_type = int(data['crypto_type'])
                 signature = data['signature']
-                public_key = data['public_key']
+                public_key = c.ss58_decode(data['address'])
                 data = data['data']
                 
                 

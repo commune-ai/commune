@@ -17,7 +17,7 @@ class Client(c.Module):
             self,
             ip: str ='0.0.0.0',
             port: int = 50053 ,
-            virtual: bool = True,
+            network: bool = None,
             key = None,
             **kwargs
         ):
@@ -25,6 +25,8 @@ class Client(c.Module):
         self.set_client(ip =ip,port = port)
         self.serializer = c.serializer()
         self.key = c.get_key(key)
+        self.my_ip = c.ip()
+        self.network = c.resolve_network(network)
 
     def set_client(self,
             ip: str =None,
@@ -42,15 +44,6 @@ class Client(c.Module):
         if ip != None or port != None:
             self.set_client(ip =ip,port = port)
 
-    
-    def verify(self, data: dict) -> bool:
-        r""" Verify the data is signed with the correct key.
-        """
-        assert isinstance(data, dict), f"Data must be a dict, not {type(data)}"
-        assert 'data' in data, f"Data not included"
-        assert 'signature' in data, f"Data not signed"
-        assert self.key.verify(data), f"Data not signed with correct key"
-        return True
 
 
     async def async_forward(self,
@@ -70,11 +63,17 @@ class Client(c.Module):
         kwargs = kwargs if kwargs else {}
         url = f"http://{self.address}/{fn}/"
 
-        request_data =  { "args": args,
-                         "kwargs": kwargs}
+        request_data =  { 
+            
+                        "args": args,
+                         "kwargs": kwargs,
+                         "ip": self.my_ip,
+                         "timestamp": c.timestamp(),
+                         }
 
-        request_data = self.serializer.serialize( { "args": args, "kwargs": kwargs})
+        request_data = self.serializer.serialize( request_data)
         request = self.key.sign(request_data, return_json=True)
+        assert self.key.verify(request)
 
         try:
             if asyn == True:
@@ -85,7 +84,7 @@ class Client(c.Module):
                 response = requests.post(url, json=request, headers=headers)
                 response = response.json()
 
-            self.verify(response)
+            assert self.key.verify(response), f"Response not signed with correct key"
             response = self.serializer.deserialize(response['data'])
         except Exception as e:
             if return_error:

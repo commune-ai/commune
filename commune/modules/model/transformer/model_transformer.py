@@ -10,7 +10,6 @@ class TransformerModel(c.Module):
         self.config.model = self.config.shortcuts.get(self.config.model, self.config.model)
 
         self.tokenizer = AutoTokenizer.from_pretrained(self.config.model)
-        self.eos_token = self.tokenizer.eos_token
         self.model = AutoModelForCausalLM.from_pretrained(self.config.model, 
                                                         torch_dtype=torch.bfloat16, 
                                                         trust_remote_code=self.config.trust_remote_code,
@@ -29,17 +28,12 @@ class TransformerModel(c.Module):
                  max_new_tokens=200, 
                  do_sample=False, 
                  top_k=10, 
-                 num_return_sequences=1,
                  early_stopping=True,
                  **kwargs):
 
-        generation_config = dict(
-
-        )
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
 
-        c.print('INPUT_KEYS',inputs.keys())
         outputs = self.model.generate(
             input_ids = inputs['input_ids'],
             attention_mask = inputs['attention_mask'],

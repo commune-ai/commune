@@ -1,14 +1,17 @@
 import commune as c
 import torch
 
-data = c.connect('dataset.hf')
+module = c.connect('module')
 
-c.print(data.info())
 
 t = c.time()
 num_steps = 10
+jobs = []
 for i in range(num_steps):
-    x = data.sample(idx=[0,1,2,3])
-    c.print(x)
+    x = module.info(return_future=True)
+    jobs.append(x)
 
-    c.print(i/(c.time() - t))
+jobs = c.gather(jobs)
+
+jobs_per_second = len(jobs)/(c.time() - t)
+c.print(jobs_per_second, color='green')

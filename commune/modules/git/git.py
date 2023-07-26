@@ -34,6 +34,8 @@ class Git(c.Module):
 
         c.cmd(f'git submodule add {url} {name}')
 
+    addsub = add_submodule
+
         
 
     

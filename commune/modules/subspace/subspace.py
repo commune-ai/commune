@@ -158,48 +158,7 @@ class Subspace(c.Module):
         return f'<Subspace: network={self.network}, url={self.url}>'
     
     
-    cache = {}
-    def auth(self,
-             module:str = None, 
-             fn:str = None,
-             args: list = None,
-             kwargs: dict = None,
-             key:str = key,
-             network:str=network, netuid = None,
-             include_ip:str = True,
-             ):
-        netuid = self.resolve_netuid(netuid)
-    
-        key = self.resolve_key(key)
-        data = {
-            'network': network,
-            'subnet': netuid,
-            'module': module,
-            'fn': fn,
-            'args': args,
-            'kwargs': kwargs,
-            'timestamp': int(c.time()),
-            'block': self.block, 
-            
-        }
-        if include_ip:
-            ip = c.ip()
-            if 'ip' in self.cache:
-                external_ip = self.cache.get('ip', ip)
-                self.cache['ip'] = ip
-            data['ip'] = ip
-       
-        # data = c.python2str(data)
-        auth =  {
-            'address': key.ss58_address,
-            'signature': key.sign(data).hex(),
-            'public_key': key.public_key.hex(),
-            'data': data,
-        }
-        
-     
-        return auth
-    
+
     def verify(self, 
                auth,
                max_staleness=100,
@@ -1129,37 +1088,61 @@ class Subspace(c.Module):
         return state_dict
     
 
-    def state_dict(self, network=None, key=None, inlcude_weights:bool=False):
+    def state_dict(self, network=None, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
+
         network = self.resolve_network(network)
-        netuids = self.netuids()
-        state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network) for netuid in netuids], 
-                       'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights) for netuid in netuids],
-                      'balances': self.balances(network=network),
-                      'block': self.block,
-                      'network': network,
-                      }
-    
-        # state_dict = self.get(f'archive/{network}/state', state_dict)
-        
+        cache_path = f'state_dict/{network}'
+        # cache and update are mutually exclusive 
+        if cache and not update:
+            c.print('Loading state_dict from cache', verbose=verbose)
+            state_dict = self.get(cache_path, {})
+        if len(state_dict) == 0:
+            netuids = self.netuids()
+            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network) for netuid in netuids], 
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights) for netuid in netuids],
+                        'balances': self.balances(network=network),
+                        'block': self.block,
+                        'network': network,
+                        }
+        if cache:
+            c.print(f'Saving state_dict to {cache_path}', verbose=verbose)
+            self.put(cache_path, state_dict)
+
         if key in state_dict:
             return state_dict[key]
-    
+        
         return state_dict
 
 
+    
+    def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        network = self.resolve_network(network)
+        self.state_dict(update=True, network=network)
+        return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
+
+
     def subnet_states(self, *args, **kwargs):
+        update = kwargs.get('update', False)
+        cache = kwargs.get('cache', True)
+    
+        if cache and not update:
+            return self.state_dict(key='subnets')
         subnet_states = {}
         for netuid in self.netuids():
             subnet_state = self.subnet_state(*args,  netuid=netuid, **kwargs)
             subnet_states[subnet_state['name']] = subnet_state
         return subnet_states
             
-            
+    
     def subnet_state(self, 
-                    include_modules:bool = True,
-                    block: Optional[int] = None,
-                    netuid=None,
+                    netuid=0,
+                    cache: bool = True,
+                    update: bool = False,
                     network = None) -> list:
+        
+        if cache and not update:
+            c.print('Loading subnet_state from cache')
+            return self.state_dict(network=network, key='subnets')[netuid]
         
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
@@ -1272,7 +1255,15 @@ class Subspace(c.Module):
 
     balance =  get_balance
 
-    def get_balances(self, block: int = None, fmt:str = 'n', network = None) -> Dict[str, Balance]:
+
+
+
+
+    def get_balances(self,fmt:str = 'n', network = None, block: int = None, ) -> Dict[str, Balance]:
+
+
+
+
         
         network = self.resolve_network(network)
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -1333,10 +1324,8 @@ class Subspace(c.Module):
         return module
 
 
-    def subnets(self, detail=False) -> Dict[int, str]:
-        subnets = list(self.subnet_namespace.keys())
-        if detail:
-            subnets = [ self.subnet_state(netuid=subnet) for subnet in subnets]
+    def subnets(self, **kwargs) -> Dict[int, str]:
+        subnets = [s['name'] for s in self.subnet_states(**kwargs)]
         return subnets
     
         
@@ -1422,11 +1411,22 @@ class Subspace(c.Module):
         return { m['name']: m['key'] for m in modules}
         
         
-    def namespace(self, netuid: int = None, **kwargs) -> Dict[str, str]:
+    def namespace(self, **kwargs) -> Dict[str, str]:
         
-        modules = self.modules(netuid=netuid, **kwargs)
+        modules = self.modules( **kwargs)
         namespace = { m['name']: m['address'] for m in modules}
         return namespace
+    
+
+        
+    def servers(self, name=None, **kwargs) -> Dict[str, str]:
+        servers = list(self.namespace( **kwargs).keys())
+
+        if name != None:
+            servers = [s for s in servers if name in s]
+        return servers
+        
+        
     
     
     def name2uid(self, name: str = None, netuid: int = None) -> int:
@@ -1507,32 +1507,33 @@ class Subspace(c.Module):
         
         return module
     
-    
+    # @c.timeit
     def modules(self,
                 netuid: int = default_netuid,
                 fmt='nano', 
-                detail:bool = True,
                 cache:bool = True,
                 max_age: int = 60,
                 network = network,
                 keys = None,
-                update = True,
+                update = False,
                 include_weights = False,
+                names_only:bool = False,
+                df = False,
                 
                 ) -> Dict[str, ModuleInfo]:
-        if fmt != 'nano':
-            cache=False
-            update=False
         
         network = self.resolve_network(network, ensure_network=False)
         netuid = self.resolve_netuid(netuid)
-        cache_path = f"cache/{network}.{netuid}/modules"
-        modules = []
-        # if cache:
-        #     modules = self.get(cache_path, default=[], max_age=max_age)
 
-        if len(modules) == 0 :
-             
+        modules = []
+        if cache and not update:
+            # 
+            modules = self.state_dict(key='modules', network=network)[netuid]
+        
+    
+        if len(modules) == 0:
+
+ 
             uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', netuid)}
             uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', netuid)}
             uid2name = { r[0].value : r[1].value for r in self.query_map('Names', netuid)}
@@ -1545,9 +1546,6 @@ class Subspace(c.Module):
             
             if include_weights:
                 weights = self.weights(netuid=netuid)
-                
-            
-            modules = []
             
             for uid, address in uid2addresses.items():
                 if uid not in uid2key:
@@ -1579,20 +1577,23 @@ class Subspace(c.Module):
                     module[k] = self.format_amount(module[k], fmt=fmt)
                 for k in ['incentive', 'dividends']:
                     module[k] = module[k] / (2**16)
+
                 modules.append(module)
             
+
 
         if len(modules) > 0:
             if keys == None:
                 keys = list(modules[0].keys())
             if isinstance(keys, str):
                 keys = [keys]
-            keys += ['name', 'uid']
             keys = list(set(keys))
             for i, m in enumerate(modules):
                 modules[i] ={k: m[k] for k in keys}
-            if cache or update:
-                self.put(cache_path, modules)
+
+ 
+        if df:
+            modules = c.df(modules)
 
         return modules
         
@@ -1601,19 +1602,21 @@ class Subspace(c.Module):
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.namespace(netuid=netuid, **kwargs).keys())
     
-    def my_modules(self, *args, names_only:bool= False,  **kwargs):
+    def my_modules(self, *args, **kwargs):
         my_modules = []
         address2key = c.address2key()
         for module in self.modules(*args, **kwargs):
             if module['key'] in address2key:
                 my_modules += [module]
-        if names_only:
-            my_modules = [m['name'] for m in my_modules]
         return my_modules
+    
+    def my_modules_names(self, *args, **kwargs):
+        my_modules = self.my_modules(*args, **kwargs)
+        return [m['name'] for m in my_modules]
 
     def unregistered_servers(self, *args, **kwargs):
         servers = c.servers()
-        my_module_names = self.my_modules(names_only=True)
+        my_module_names = self.my_modules_names(*args, **kwargs)
 
     def idle_registered(self, *args, **kwargs):
         servers = c.servers()
@@ -1661,22 +1664,25 @@ class Subspace(c.Module):
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return [m['key'] for m in modules]
-    
-    def my_keys(self, *args,  **kwargs):
+
+    def my_keys(self, *args, mode='all' , **kwargs):
 
         modules = self.my_modules(*args, names_only=False, **kwargs)
         address2module = {m['key']: m for m in modules}
         address2balances = self.balances()
         keys = []
-
-        for address, key in c.address2key().items():
-            if address in address2module or address in address2balances:
+        address2key = c.address2key()
+        for address, key in address2key.items():
+            
+            if mode == 'live' and (address in address2module):
                 keys += [key]
+            elif mode == 'dead' and (address not in address2module and address in address2balances):
+                keys += [key]
+            elif mode == 'all' and (address in address2module or address in address2balances):
+                keys += [key]
+            
         return keys
-
-
-    def live_keys(self, *args, **kwargs):
-        return [m['key'] for m in self.my_modules(*args, **kwargs)]
+    
     
     def dead_keys(self, *args, **kwargs):
         live_keys = self.live_keys(*args, **kwargs)
