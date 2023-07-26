@@ -47,9 +47,7 @@ class HTTPServer(c.Module):
         module.port = self.port
         module.address  = self.address
         self.module = module
-        self.set_api()
-        self.serve()
-
+        self.set_api(ip=self.ip, port=self.port)
 
 
     def state_dict(self) -> Dict:
@@ -79,15 +77,13 @@ class HTTPServer(c.Module):
         assert self.key.verify(data), f"Data not signed with correct key"
         return True
 
-    def set_api(self):
-
+    def set_api(self, ip = None, port = None):
+        ip = self.ip if ip == None else ip
+        port = self.port if port == None else port
         from fastapi import FastAPI
-
         self.app = FastAPI()
-
-
         @self.app.post("/{fn}/")
-        async def forward_wrapper(fn:str, input:dict[str, str]):
+        async def forward_api(fn:str, input:dict[str, str]):
             # verify key
             self.verify(input)
 
@@ -108,10 +104,7 @@ class HTTPServer(c.Module):
             # send result to client
             return result
         
-        c.register_server(self.name, self.ip, self.port)
-
-    def serve(self, **kwargs):
-        import uvicorn
+        c.register_server(self.name, ip, port)
         uvicorn.run(self.app, host=self.ip, port=self.port)
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):
