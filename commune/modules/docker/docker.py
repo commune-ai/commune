@@ -38,7 +38,8 @@ class Docker(c.Module):
         path = cls.resolve_docker_path(path)
         if tag is None:
             tag = path.split('/')[-2]
-        return c.cmd(f'docker build -t {tag} .', sudo=sudo, cwd=os.path.dirname(path),  verbose=verbose)
+
+        return c.cmd(f'docker build -t {tag} .', sudo=sudo, env={'DOCKER_BUILDKIT':'1'},cwd=os.path.dirname(path),  verbose=verbose)
     
     def kill(self, name, sudo=False, verbose=True):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)

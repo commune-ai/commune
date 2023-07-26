@@ -6451,10 +6451,8 @@ class c:
             return 'class'
     
     @classmethod
-    def build(cls): 
-        docker_module = c.module('docker')
-        docker_module.build(c.libpath)
-        docker_module.build(f'{c.libpath}/subspace')
+    def build(cls, *args, **kwargs): 
+        return c.module('docker').build(*args, **kwargs)
     @classmethod
     def has_gpus(cls): 
         return bool(len(c.gpus())>0)
