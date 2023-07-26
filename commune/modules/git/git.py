@@ -24,6 +24,18 @@ class Git(c.Module):
                    prefix='https://raw.githubusercontent.com'):
         return c.module('web').rget(url=f'{prefix}/{url}')
     
+    submodule_path = c.repo_path + '/repos'
+    def add_submodule(self, url, name=None, prefix=submodule_path):
+        if name == None:
+            name = url.split('/')[-1].split('.')[0].lower()
+        
+        if prefix != None:
+            name = f'{prefix}/{name}'
+
+        c.cmd(f'git submodule add {url} {name}')
+
+        
+
     
         
     

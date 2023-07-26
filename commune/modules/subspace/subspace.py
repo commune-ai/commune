@@ -1528,8 +1528,8 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         cache_path = f"cache/{network}.{netuid}/modules"
         modules = []
-        if cache:
-            modules = self.get(cache_path, default=[], max_age=max_age)
+        # if cache:
+        #     modules = self.get(cache_path, default=[], max_age=max_age)
 
         if len(modules) == 0 :
              
@@ -2113,9 +2113,6 @@ class Subspace(c.Module):
 
         base_path = cls.resolve_base_path(node=node)
 
-
-        c.print(f'base_path: {base_path}', color='green')
-
         if purge_chain:
             cls.purge_chain(base_path=base_path)
         
@@ -2147,12 +2144,14 @@ class Subspace(c.Module):
         else:
             cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=True)
 
+        url = f'ws://{c.ip(external=True)}:{ws_port}'
+
         if validator == False:
             network2url = cls.getc('network2url', {})
-            url = f'ws://{c.ip(external=True)}:{ws_port}'
-            network2url[chain] = network2url.get(chain, []) + [url]
+            network2url[chain] = list(set(network2url.get(chain, []) + [url]))
             cls.putc('network2url', network2url)
-            c.print(f'Node {node} is not a validator, so it will not be added to the chain', color='yellow')
+        
+        c.print({'url':  url, 'chain': chain, 'validator': validator}, color='yellow')
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
        
     @classmethod
@@ -2170,7 +2169,11 @@ class Subspace(c.Module):
                     purge_chain:bool = True,
                     snap:bool = False,
                     kill_nodes: bool = False,
-                    port_keys: list = ['port','rpc_port','ws_port'],):
+                    port_keys: list = ['port','rpc_port','ws_port'],
+                    
+                    ):
+        
+        
 
         # resolve the validator and non validator nodes
         vali_nodes_keys = cls.vali_node_keys(chain=chain)
@@ -2183,7 +2186,8 @@ class Subspace(c.Module):
         vali_nodes = vali_nodes[:-num_nonvali]
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
-        c.putc('network2url', {})
+        cls.putc(f'network2url.{chain}', [])
+        
         
         # build the chain
         if kill_nodes:
@@ -2194,18 +2198,19 @@ class Subspace(c.Module):
 
         avoid_ports = []
         ip = c.ip(external=external)
-        chain_info = {}
+        chain_info = {'nodes': {}, 'boot_nodes': []}
 
 
         for node in (vali_nodes + non_valis):
             node_key = c.get_key(f'{cls.node_key_prefix}.{node}.gran')
+            is_vali = bool(node in vali_nodes)
 
             node_kwargs = {
                             'chain':chain, 
                             'node':node, 
                             'verbose':verbose,
                             'purge_chain': purge_chain,
-                            'validator': bool(node in vali_nodes),
+                            'validator': is_vali,
                             'boot_nodes': boot_nodes,
                             
                             }
@@ -2219,21 +2224,10 @@ class Subspace(c.Module):
             node_kwargs['boot_nodes'] = boot_nodes
             chain_info[node] = c.copy(node_kwargs)
             cls.start_node(**chain_info[node])
-            if boot_nodes == None:
-                c.sleep(2)
-                trials = 3
-                while trials > 0:
-                    try:
-                        node_id = cls.get_node_id(node=node, chain=chain)
-                        break
-                    except Exception as e:
-                        c.print(f'Error getting node id for {node} on {chain}, trying aga ', color='red')
-                        trials -= 1
-                        continue
-
-                boot_nodes = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
-
-
+            if is_vali:
+                node_id = cls.get_node_id(node=node, chain=chain)
+                boot_node = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
+                chain_info['boot_nodes'] += [boot_node]
         
         cls.putc(f'chain_info.{chain}', chain_info)
 
@@ -2333,7 +2327,6 @@ class Subspace(c.Module):
     @classmethod
     def add_vali_node(cls,
                      node = 'alice',
-                     refresh:bool = True,
                      chain = chain):
         
 
@@ -2347,13 +2340,7 @@ class Subspace(c.Module):
             key = c.get_key(f'{cls.node_key_prefix}.{chain}.{node}.{key_type}',crypto_type=schema)
             base_path = cls.resolve_base_path(node)
 
-            cmd  = f'''
-            {cls.chain_release_path} key insert --base-path {base_path}\
-            --chain {chain} \
-            --scheme {schema} \
-            --suri "{key.mnemonic}" \
-            --key-type {key_type}
-            '''
+            cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             
             c.cmd(cmd, verbose=True, cwd=cls.chain_path)
         
@@ -2378,14 +2365,22 @@ class Subspace(c.Module):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
     @classmethod
-    def get_node_id(cls, chain=chain, node='alice'):
+    def get_node_id(cls, chain=chain, node='alice', max_trials=4, sleep_interval=1):
         node2path = cls.node2path(chain=chain)
         node_path = node2path[node]
         node_id = None
-        node_logs = c.logs(node_path, end_line=400, mode='local')
+        node_logs = ''
+        indicator = 'Local node identity is: '
+
+        while indicator not in node_logs and max_trials > 0:
+            node_logs = c.logs(node_path, end_line=400, mode='local')
+            if indicator in node_logs:
+                break
+            max_trials -= 1
+            c.sleep(sleep_interval)
         c.print(len(node_logs))
         for line in node_logs.split('\n'):
-            c.print(line)
+            # c.print(line)
             if 'Local node identity is: ' in line:
                 node_id = line.split('Local node identity is: ')[1].strip()
                 break
