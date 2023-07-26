@@ -95,7 +95,7 @@ class TextGenerator(c.Module):
 
     def build(self ):
         cmd = f'docker build -t {self.image} .'
-        c.cmd(cmd, cwd=self.dirpath(), verbose=True)
+        c.cmd(cmd, cwd=self.dirpath(), env={'DOCKER_BUILDKIT':'1'},verbose=True)
 
     def logs(self, name, sudo=False, follow=False):
         return c.cmd(f'docker {"-f" if follow else ""} logs text_generator_{name}', cwd=self.dirpath(), verbose=False)

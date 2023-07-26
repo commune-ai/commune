@@ -1773,7 +1773,8 @@ class Subspace(c.Module):
         cls.build_spec(chain, snap=snap)  
 
     @classmethod
-    def test_chain(cls, chain:str = chain, verbose:bool=False, snap:bool=False ):
+    def test_chain(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
+
         cls.cmd('cargo test', cwd=cls.chain_path, verbose=verbose)
         cls.build_spec(chain, snap=snap)    
         
