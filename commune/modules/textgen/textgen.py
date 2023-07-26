@@ -48,6 +48,8 @@ class TextGenerator(c.Module):
             tag = str(tag)
         name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
 
+        c.print('name: ', name, model)
+
 
 
         if self.server_exists(name) and refresh == False:
@@ -221,8 +223,6 @@ class TextGenerator(c.Module):
                 prompt = 'what is up, how is it going bro what are you saying? A: ', 
                 model:str = None,
                 max_new_tokens:int=256, 
-                trials = 4,
-                ignore_errors = False,
                 timeout = 6,
                 return_dict:bool = False,
 
@@ -253,6 +253,7 @@ class TextGenerator(c.Module):
             'output_tokens': len(c.tokenize(c.copy(output_text))),
         }
         stats['tokens_per_second'] = stats['output_tokens'] / stats['time']
+        c.print(output_text)
         if return_dict:
             return {'text' : output_text, **stats}
         else:

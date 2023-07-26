@@ -610,7 +610,7 @@ class c:
         return c.is_encrypted(v)
     @classmethod
     def frontend(cls):
-        c.cmd('yarn start', cwd=f'{c.repo_path}/frontend', verbose=True)
+        return c.compose('frontend')
       
     @classmethod
     def popc(cls, key:str):
@@ -933,6 +933,10 @@ class c:
         return obj
     
     get_object = importobj = import_object
+
+
+
+    
     
 
     
@@ -1480,12 +1484,10 @@ class c:
         models = [k for k in models if k.startswith('model')]
         return models
     @classmethod
-    def datasets(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(c.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
+    def datasets(cls, **kwargs) -> List[str]:
+        return c.servers('data',  **kwargs)
+    datas = datasets
     
-    @classmethod
-    def datasets(cls, *args, **kwargs) -> List[str]:
-        return [k for k in list(c.namespace(*args, **kwargs).keys()) if k.startswith('dataset')]
     @staticmethod
     def module_config_tree() -> List[str]:
         return [f.replace('.py', '.yaml')for f in  c.get_module_python_paths()]
@@ -1567,6 +1569,34 @@ class c:
     def timer(cls, *args, **kwargs):
         from commune.utils.time import Timer
         return Timer(*args, **kwargs)
+
+    @staticmethod
+    def timeit(fn):
+        from commune.utils.time import Timer
+        def wrapper(self, *args, **kwargs):
+            t = c.time()
+
+            result = fn(self, *args, **kwargs)
+            c.print(f'Finished {fn.__name__} in {c.time() - t:.2f} seconds')
+            # return result
+        
+        return wrapper
+    
+    @staticmethod
+    def remotewrap(fn):
+        '''
+        WARNNG IN PROGRSS, USE WITH CAUTION
+        '''
+        
+        def wrapper(self, *args, **kwargs):
+            
+            c.remote_fn(module=self, fn=fn.__name__, args=args, kwargs=kwargs)
+            result = fn(self, *args, **kwargs)
+            c.print(f'Finished {fn.__name__} in {c.time() - t:.2f} seconds')
+            # return result
+        
+        return wrapper
+    
     
     @classmethod
     def locals2kwargs(cls,
@@ -1585,7 +1615,10 @@ class c:
 
         if seperate_args:
             args = locals_dict.pop('args', [])
+            assert isinstance(args, list), f'args must be a list, got {type(args)}'
             return args, kwargs
+
+        assert isinstance(kwargs, dict), f'kwargs must be a dict, got {type(kwargs)}'
         
         return kwargs
     
@@ -2114,15 +2147,14 @@ class c:
             peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
             if peer == None: 
                 return peer
-            c.print(f'{peer_address}')
             module_name = peer(fn='module_name',  return_future=True)
             module_name = await asyncio.wait_for(module_name, timeout=fn_timeout)
-            c.print(f'Found {module_name} on {peer_address}')
             if c.check_response(module_name):
                 return module_name
             else:
                 return module_name
         except Exception as e:
+
             return {'error':str(e)}
 
     @classmethod
@@ -2186,13 +2218,11 @@ class c:
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int = None, **kwargs)-> dict:
-        local_namespace = cls.local_namespace(update=True)    
+        local_namespace = cls.local_namespace(update=False)    
 
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
             ip = ip.split(':')[0]
-            
-        
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
         return local_namespace
@@ -2512,8 +2542,9 @@ class c:
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
+            c.print(remote_kwargs)
             remote_kwargs['remote'] = False
-            return cls.remote_fn('serve',module=module, name=name, kwargs=remote_kwargs,  )
+            return cls.remote_fn('serve',name=name, kwargs=remote_kwargs,  )
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         if update:
@@ -2521,8 +2552,10 @@ class c:
         if address != None:
             ip = address.split(':')[0]
             port = int(address.split(':')[-1])
-        self = cls.resolve_module(module)(*args, **kwargs)
+        self = c.resolve_module(module)(*args, **kwargs)
         port = c.resolve_port(port)
+
+
     
         if c.server_exists(name): 
             c.print(f'Server {name} already exists', color='yellow')
@@ -2535,8 +2568,9 @@ class c:
                 raise Exception(f'The server {name} already exists')
         c.print(f'Serving {name} on port {port} (Mode : {mode})', color='yellow')
 
+
         server = c.module(f'server.{mode}')(module=self, ip=ip, port=port,name= name,whitelist=whitelist,blacklist=blacklist)
-        c.print('fam')
+
 
 
         
@@ -3104,6 +3138,7 @@ class c:
     
     @classmethod
     def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
+        c.deregister_server(name)
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose)
         return refreshed_modules
     refresh = reset = restart
@@ -3816,19 +3851,28 @@ class c:
     
     ensure_package = ensure_lib
     @classmethod
-    def pip_install(cls, lib:str= None, verbose:str=True, e=False):
+    def pip_install(cls, 
+                    lib:str= None,
+                    upgrade:bool=True ,
+                    verbose:str=True,
+                    ):
+        
+
         if lib in c.modules():
             c.print(f'Installing {lib} Module from local directory')
             lib = c.resolve_module(lib).dirpath()
         if lib == None:
             lib = c.libpath
-        if e:
-            cmd = f'pip install -e {lib}'
+
+        if c.exists(lib):
+            cmd = f'pip install -e'
         else:
-            cmd = f'pip install {lib}'
+            cmd = f'pip install'
+            if upgrade:
+                cmd += ' --upgrade'
         return cls.cmd(cmd, verbose=verbose)
 
-    def install(self, lib:str = None, verbose:bool=True):
+    def install(self, lib:str = None, verbose:bool=True, upgrade=True):
         return self.pip_install(lib, verbose=verbose)
 
     
@@ -3880,6 +3924,11 @@ class c:
         else:
             ip =  '127.0.0.1'
         return ip
+
+    @classmethod
+    def queue(cls, size=-1, *args, **kwargs):
+        import queue
+        return queue.Queue(size, *args, **kwargs)
     
     @classmethod
     def resolve_ip(cls, ip=None, external:bool=True) -> str:
@@ -4463,9 +4512,15 @@ class c:
         return bittensor
          
     @classmethod  
-    def time( cls) -> float:
+    def time( cls, t=None) -> float:
         import time
-        return time.time()
+        if t is not None:
+            return time.time() - t
+        else:
+            return time.time()
+    @classmethod
+    def delta_t(cls, t):
+        return t - c.time()
     @classmethod
     def timestamp(cls) -> float:
         return int(cls.time())
@@ -4835,6 +4890,9 @@ class c:
     @classmethod  
     def keys(cls, *args, **kwargs):
         return c.module('key').keys(*args, **kwargs)
+
+
+    
 
     @classmethod  
     def get_mem(cls, *args, **kwargs):
@@ -5351,6 +5409,10 @@ class c:
         
         # update local namespace
         c.namespace(network=network, update=True)
+
+    @classmethod
+    def sync(cls, *args, **kwargs):
+        return c.module('subspace')().sync( *args, **kwargs)
         
     @classmethod
     def peer_registry(cls, peers=None, update: bool = False):
@@ -5828,10 +5890,14 @@ class c:
                     module: str = None,
                     args : list = None,
                     kwargs : dict = None, 
+                    locals = None,
                     name : str =None,
                     tag: str = None,
                     refresh : bool =True,
                     tag_seperator : str = '::',):
+
+        if locals != None:
+            kwargs = c.locals2kwargs(locals)
         
         if len(fn.split('.'))>1:
             module = '.'.join(fn.split('.')[:-1])
@@ -5905,7 +5971,7 @@ class c:
         return cls.choice(cls.tags())
     
     @classmethod
-    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 10)-> list:
+    def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 20)-> list:
         if not isinstance(jobs, list):
             singleton = True
             jobs = [jobs]
@@ -6389,12 +6455,34 @@ class c:
         docker_module = c.module('docker')
         docker_module.build(c.libpath)
         docker_module.build(f'{c.libpath}/subspace')
-
+    @classmethod
+    def has_gpus(cls): 
+        return bool(len(c.gpus())>0)
     
     @classmethod
     def up(cls): 
-        return c.cmd('docker-compose up -d', cwd=c.libpath)
+        docker = c.module('docker')
+        path = docker.get_compose_path('commune')
+        compose_dict = docker.get_compose(path)
 
+        # create temporary compose file to toggle gpu options
+        if c.has_gpus():
+            del compose_dict['services']['commune']['deploy']
+        tmp_path = path.replace('docker-compose', 'docker-compose-tmp')
+        c.save_yaml(tmp_path, compose_dict)
+
+        docker.compose(tmp_path)
+        c.rm(tmp_path)
+        # return c.compose('commune')
+
+    @classmethod
+    def compose(cls, *args, **kwargs):
+        return c.module('docker').compose(*args, **kwargs)
+
+
+    @classmethod
+    def ps(cls, *args, **kwargs):
+        return c.module('docker').ps(*args, **kwargs)
 
     @classmethod
     def play(cls):
@@ -6791,8 +6879,8 @@ class c:
     
     @classmethod
     def my_keys(cls, *args, **kwargs):
-        return c.module('subspace')().my_modules(*args, **kwargs)
-    
+        return c.module('subspace')().my_keys(*args, **kwargs)
+    wallets = my_keys
 
     @classmethod
     def register_loop(cls, *args, **kwargs):
@@ -6915,6 +7003,10 @@ class c:
     def upgrade_proto(cls, verbose:bool = True):
         c.cmd('pip install --upgrade protobuf', verbose=verbose)
         c.cmd('pip install --upgrade grpcio-tools', verbose=verbose)
+
+    @classmethod
+    def upgrade(cls, lib):
+        c.cmd(f'pip install --upgrade {lib}', verbose=True)
         
     @classmethod
     def fix_proto(cls):
@@ -7094,6 +7186,22 @@ class c:
             return result
 
         return wrapper
+
+
+    @classmethod
+    def ss58_encode(cls, data:Union[str, bytes], ss58_format=42, **kwargs):
+        from scalecodec.utils.ss58 import ss58_encode
+        if type(data) is str:
+            data = bytes.fromhex(data.replace('0x', ''))
+        return ss58_encode(data, ss58_format=ss58_format, **kwargs)
+
+
+    @classmethod
+    def ss58_decode(cls, data:Union[str, bytes],**kwargs):
+        from scalecodec.utils.ss58 import ss58_decode
+        return ss58_decode(data,  **kwargs)
+
+
 
 
 Module = c

@@ -5,9 +5,6 @@ from typing import List, Dict
 import commune as c
 
 class Docker(c.Module): 
-
-    def ps(self, sudo=False):
-        return c.cmd('docker ps -a', sudo=sudo)
     @classmethod
     def dockerfile(cls, path = c.repo_path): 
         path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
@@ -68,26 +65,6 @@ class Docker(c.Module):
 
 
     
-    @classmethod
-    def ps(cls,  sudo:bool = False):
-        data = [f for f in c.cmd('docker ps', sudo=sudo, verbose=False).split('\n')[1:]]
-        def parse_container_info(container_str):
-            container_info = {}
-            fields = container_str.split()
-
-            container_info['container_id'] = fields[0]
-            container_info['image'] = fields[1]
-            container_info['command'] = fields[2]
-            container_info['created'] = fields[3] + ' ' + fields[4]
-            container_info['status'] = ' '.join(fields[5:fields.index('ago') + 1])
-            container_info['ports'] = ' '.join(fields[fields.index('ago') + 2:-1])
-            container_info['name'] = fields[-1]
-
-            return container_info
-
-        
-        return [parse_container_info(container_str) for container_str in data if container_str]
-
 
     @classmethod
     def containers(cls,  sudo:bool = False):
@@ -139,11 +116,8 @@ class Docker(c.Module):
         cmd += f' --net {net} '
 
         if build:
-
             self.build(image, tag=name)
         
-
-
         if daemon:
             cmd += ' -d '
 
@@ -168,8 +142,6 @@ class Docker(c.Module):
         if ports != None:
             for external_port, internal_port in ports.items():
                 cmd += f' -p {external_port}:{internal_port}'
-            
-
 
         # ADD THE VOLUMES
         if volumes is not None:
@@ -195,11 +167,9 @@ class Docker(c.Module):
 
         # self.update()
        
-
-
-
     
-    def psdf(self,load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
+    @classmethod
+    def psdf(cls,load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
 
         rows = []
@@ -219,9 +189,11 @@ class Docker(c.Module):
         df = df[keys]
         df.set_index(idx_key, inplace=True)
         return df   
-    def ps(self):
-        df = self.psdf()
-        return self.psdf()['names'].tolist()
+
+    @classmethod
+    def ps(cls):
+        df = cls.psdf()
+        return df['names'].tolist()
     
 
 
@@ -251,7 +223,40 @@ class Docker(c.Module):
 
 
     @classmethod
-    def dockercomposefiles(cls, path = None):
+    def compose_paths(cls, path = None):
        if path is None:
            path = c.libpath + '/'
-       return [l.replace(path, '') for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
+       return [l for l in c.walk(path) if l.endswith('docker-compose.yaml') or l.endswith('docker-compose.yml')]
+    
+    @classmethod
+    def name2compose(cls, path=None):
+        compose_paths = cls.compose_paths(path)
+        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in compose_paths}
+    
+    @classmethod
+    def get_compose_path(cls, path:str):
+        path = cls.name2compose().get(path, path)
+        return path
+
+    @classmethod
+    def get_compose(cls, path:str):
+        path = cls.get_compose_path(path)
+        return c.load_yaml(path)
+
+    @classmethod
+    def put_compose(cls, path:str, compose_dict:dict):
+        path = cls.get_compose_path(path)
+        return c.save_yaml(path, compose_dict)
+
+    @classmethod
+    def compose(cls, name, daemon=True):
+        compose_path = cls.get_compose_path(name)
+        cmd = f'docker compose -f {compose_path} up'
+        if daemon:
+            cmd += ' -d'
+        return c.cmd(cmd, verbose=True)
+
+    @classmethod
+    def logs(cls, name, sudo=False, follow=False):
+        return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=True)
+

@@ -17,56 +17,11 @@ class BittensorModule(c.Module):
     default_coldkey = default_config['coldkey']
     default_network = default_config['network']
     wallets_path = os.path.expanduser('~/.bittensor/wallets/')
-    default_model_name = default_config['model_name']
+    default_model = default_config['model']
     default_netuid = default_config['netuid']
     network2endpoint = default_config['network2endpoint'] 
     default_pool_address = default_config['pool_address']
-    chain_repo = f'{c.repo_path}/subtensor'
-    shortcuts =  {
-        # 0-1B models
-        'gpt125m': 'EleutherAI/gpt-neo-125m',
-
-        # 1-3B models
-        'gpt2.7b': 'EleutherAI/gpt-neo-2.7B',
-        'gpt3b': 'EleutherAI/gpt-neo-2.7B',
-        'opt1.3b': 'facebook/opt-1.3b',
-        'opt2.7b': 'facebook/opt-2.7b',
-        # 'gpt3btuning' : ''
-
-        # 0-7B models
-        'gptjt': 'togethercomputer/GPT-JT-6B-v1',
-        'gptjt_mod': 'togethercomputer/GPT-JT-Moderation-6B',
-        'gptj': 'EleutherAI/gpt-j-6b',
-        'gptj.pyg6b': 'PygmalionAI/pygmalion-6b',
-        'gpt6b': 'cerebras/Cerebras-GPT-6.7B',
-        'gptj.instruct': 'nlpcloud/instruct-gpt-j-fp16',
-        'gptj.codegen': 'moyix/codegen-2B-mono-gptj',
-        'gptj.hivemind': 'hivemind/gpt-j-6B-8bit',
-        'gptj.adventure': 'KoboldAI/GPT-J-6B-Adventure',
-        'gptj.pygppo': 'TehVenom/GPT-J-Pyg_PPO-6B', 
-        'gptj.alpaca.gpt4': 'vicgalle/gpt-j-6B-alpaca-gpt4',
-        'gptj.alpaca': 'bertin-project/bertin-gpt-j-6B-alpaca',
-        'oa.galactia.6.7b': 'OpenAssistant/galactica-6.7b-finetuned',
-        'opt6.7b': 'facebook/opt-6.7b',
-        'llama': 'decapoda-research/llama-7b-hf',
-        'vicuna.13b': 'lmsys/vicuna-13b-delta-v0',
-        'vicuna.7b': 'lmsys/vicuna-7b-delta-v0',
-        'llama-trl': 'trl-lib/llama-7b-se-rl-peft',
-        'opt.nerybus': 'KoboldAI/OPT-6.7B-Nerybus-Mix',
-        'pygmalion-6b': 'PygmalionAI/pygmalion-6b',
-        # # > 7B models
-        'oa.pythia.12b': 'OpenAssistant/oasst-sft-1-pythia-12b',
-        'gptneox': 'EleutherAI/gpt-neox-20b',
-        'gpt20b': 'EleutherAI/gpt-neox-20b',
-        'opt13b': 'facebook/opt-13b',
-        'gpt13b': 'cerebras/Cerebras-GPT-13B',
-        'gptjvr': os.path.expanduser('~/models/gpt-j-6B-vR'),
-        'stablellm7b': 'StabilityAI/stablelm-tuned-alpha-7b',
-        'fish': os.path.expanduser('~/fish_model'),
-        'vr': os.path.expanduser('~/models/gpt-j-6B-vR')
-        
-            }
-
+    chain_repo = f'{c.repo_path}/repos/subtensor'
 
     def __init__(self,
                 wallet:Union[bittensor.wallet, str] = None,
@@ -1445,17 +1400,7 @@ class BittensorModule(c.Module):
     
 
     @classmethod
-    def server_class(cls, *args, **kwargs):
-        return cls.module('bittensor.miner.server')
-    
-    @classmethod
-    def server(cls, *args, **kwargs):
-        return cls.server_class(*args, **kwargs)
-    
-
-
-    @classmethod
-    def neuron_class(cls,  model='commune', netuid=default_netuid):
+    def neuron_class(cls,  model=default_model, netuid=default_netuid):
         if netuid in [1, 11]:
             neuron_path = cls.getc('neurons').get(model)
             neuron_class = c.import_object(neuron_path)
@@ -1465,81 +1410,6 @@ class BittensorModule(c.Module):
 
 
 
-    # @classmethod
-    # def deploy_servers(cls, num_servers=3):
-    #     return cls.server_class.deploy_servers()
-    
-    @classmethod
-    def server_fleet(cls, model='server'):
-        for gpu in cls.gpus():
-            device = f'cuda:{gpu}'
-            cls.deploy_server(device=device, tag=gpu)
-    
-    @classmethod
-    def deploy_server(cls, 
-                       model_name='vr',
-                     name= None,
-                       tag = 0,
-                       device = None,
-                       refresh=True,
-                       free_gpu_memory = None,
-                       authocast = True):
-        free_gpu_memory = cls.free_gpu_memory()
-        server_class = cls.server_class()
-
-
-        config = server_class.config()
-        config.neuron.model_name = cls.shortcuts.get(model_name, model_name)
-        config.neuron.tag = tag
-        config.neuron.autocast = authocast
-        if device == None:
-            if torch.cuda.is_available():
-            
-                gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-                device = f'cuda:{gpu}'
-            else :
-                device = 'cpu'
-            
-        config.neuron.device = device
-        config.neuron.local_train = False
-        
-        if name == None:
-            name = f'server::{model_name}::{tag}'
-
-        server_class.deploy( kwargs=dict(config=config), name=name)
-        
-    add_server = deploy_server
-    
-    
-    @classmethod
-    def deploy_servers(cls, 
-                    model = 'fish',
-                    n = None,
-                    refresh:bool = True,
-                    prefix='server'):
-        tag = 0
-        deployed_names =  []
-        free_gpu_memory = cls.free_gpu_memory()
-        if n == None:
-            n = c.num_gpus()
-        
-        for tag in range(n):
-            name = f'{prefix}::{model}::{tag}'
-            if c.server_exists(name):
-                if refresh:
-                    cls.kill(name)
-                else:
-                    continue
-        for tag in range(n):
-            name = f'{prefix}::{model}::{tag}'  
-            gpu = cls.most_free_gpu(free_gpu_memory=free_gpu_memory)
-            device = f'cuda:{gpu}'
-            free_gpu_memory[gpu] = 0
-            c.print(f'deploying server {name} on gpu {device}')
-            cls.deploy_server(name=name, device=device, model_name=model)
-            deployed_names.append(name)
-    add_servers = deploy_servers
-    
     @classmethod
     def neuron(cls, *args, mode=None, netuid=3, **kwargs):
         
@@ -1570,7 +1440,7 @@ class BittensorModule(c.Module):
                wallet='alice.1',
                network =default_network,
                netuid=default_netuid,
-               model = 'commune',
+               model = default_model,
                port = None,
                prometheus_port:int = None,
                device:int = None,
@@ -1745,11 +1615,11 @@ class BittensorModule(c.Module):
         return wallet in miners
 
     @classmethod
-    def fleet(cls, 
+    def fleet(cls,  
             name:str=default_coldkey, 
             netuid:int= default_netuid,
             network:str=default_network,
-            model : str = 'commune',
+            model : str = default_model,
             refresh: bool = True,
             burned_register:bool=False, 
             ensure_registration:bool=False,
@@ -2119,7 +1989,7 @@ class BittensorModule(c.Module):
                                  prompt=prompt )
         
     @classmethod
-    def sand(cls, ratio=1.0, model='commune' ):
+    def sand(cls, ratio=1.0, model=default_model ):
         reged = cls.reged()
         reged = reged[:int(len(reged)*ratio)]
         for wallet in reged:
