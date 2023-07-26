@@ -55,6 +55,10 @@ class WS(c.Module):
         await websocket.send('END')
 
 
+    def client(self, address):
+        client = 
+
+
 
 
     @classmethod

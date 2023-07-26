@@ -2191,8 +2191,6 @@ class c:
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
             ip = ip.split(':')[0]
-            
-        
         local_namespace[name] = f'{ip}:{port}'
         cls.put_json('local_namespace', local_namespace, root=True) 
         return local_namespace
@@ -3108,6 +3106,7 @@ class c:
     
     @classmethod
     def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
+        c.deregister_server(name)
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose)
         return refreshed_modules
     refresh = reset = restart

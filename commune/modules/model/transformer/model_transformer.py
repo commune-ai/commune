@@ -39,7 +39,6 @@ class TransformerModel(c.Module):
 
         inputs = self.tokenizer(prompt, return_tensors="pt")
 
-        c.print('INPUT_KEYS',inputs.keys())
         outputs = self.model.generate(
             input_ids = inputs['input_ids'],
             attention_mask = inputs['attention_mask'],

@@ -27,7 +27,12 @@ class HTTPServer(c.Module):
         self.ip = c.resolve_ip(ip, external=False)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
+
+        # KEY FOR SIGNING DATA
         self.key = c.get_key(name) if key == None else key
+
+        # WHITE AND BLACK LIST FUNCTIONS
+        
         self.whitelist = getattr( module, 'whitelist', []) if whitelist == None else whitelist
         self.blacklist = getattr( module, 'blacklist', []) if blacklist == None else blacklist
         self.save_history_interval = save_history_interval
@@ -135,7 +140,6 @@ class HTTPServer(c.Module):
             # send result to client
             return result
         
-        c.register_server(self.name, self.ip, self.port)
 
 
     def save(self, data: dict):
@@ -146,6 +150,7 @@ class HTTPServer(c.Module):
     def serve(self, **kwargs):
         import uvicorn
         try:
+            c.register_server(name=self.name, ip=self.ip, port=self.port)
             uvicorn.run(self.app, host=self.ip, port=self.port)
         except Exception as e:
             c.deregister_server(self.name)
