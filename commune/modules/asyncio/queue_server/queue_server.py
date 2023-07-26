@@ -1,11 +1,8 @@
 import ray
 import os,sys
-from commune.block.ray.queue import Queue
-from commune import Module
-from commune.utils import dict_put,dict_get,dict_has,dict_delete
-from copy import deepcopy
 import asyncio
 import nest_asyncio
+import commune as c
 
 """
 
@@ -14,9 +11,8 @@ Background Actor for Message Brokers Between Quees
 """
 
 import threading
-class AsyncQueueServer(Module):
+class AsyncQueueServer(c.Module):
     def __init__(self, loop=None, **kwargs):
-        Module.__init__(self)
         # loop = asyncio.new_event_loop()
         # self.set_event_loop()
         # asyncio.set_event_loop(loop)

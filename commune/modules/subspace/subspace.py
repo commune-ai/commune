@@ -1391,7 +1391,9 @@ class Subspace(c.Module):
         
     def servers(self, name=None, **kwargs) -> Dict[str, str]:
         servers = list(self.namespace( **kwargs).keys())
-        servers = [s for s in servers if name in s]
+
+        if name != None:
+            servers = [s for s in servers if name in s]
         return servers
         
         

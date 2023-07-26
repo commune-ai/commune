@@ -48,6 +48,8 @@ class TextGenerator(c.Module):
             tag = str(tag)
         name =  (self.image +"_"+ model) + ('_'+tag if tag  else '')
 
+        c.print('name: ', name, model)
+
 
 
         if self.server_exists(name) and refresh == False:

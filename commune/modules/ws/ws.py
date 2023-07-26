@@ -6,57 +6,41 @@ class WS(c.Module):
     
     
     def __init__(self,
+                 ip = '0.0.0.0',
                  port:int=None,
-                 buffer_size:int=-1):
-        self.set_queue(buffer_size=buffer_size)
-        self.queue.put(1000)
-        self.set_server(port=port)
-    
-    @staticmethod
-    async def send_file(filename, address):
-        async with websockets.connect(address) as websocket:
-            with open(filename, 'rb') as file:
-                while True:
-                    chunk = file.read(1024)
-                    if not chunk:
-                        break
-                    await websocket.send(chunk)
-                await websocket.send('END')
+                 queue_size:int=-1,
+                 verbose:bool = True):
+        self.set_server(ip=ip, port=port, queue_size=queue_size, verbose=verbose)
 
     @staticmethod
-    async def recv(address):
-        chunks = []
-        async with websockets.connect(address) as websocket:
-            chunk = await websocket.recv(address)
-            chunks.append(chunk)
+    def start(**kwargs):
+        WS(**kwargs)
+
+    def set_server(self, ip = '0.0.0.0', port = None, queue_size = -1, verbose = False):
+        self.ip = c.resolve_ip(ip)
+        self.port = c.resolve_port(port)
+        self.queue = c.queue(queue_size)
+        self.address = f'ws://{self.ip}:{self.port}'
+        self.server = websockets.serve(self.forward, self.ip, self.port)
+        c.print(f'Starting Server on {self.ip}:{self.port}')
+        asyncio.get_event_loop().run_until_complete(self.server)
+        asyncio.get_event_loop().run_forever()
+
 
     def put(self, chunk):
         return self.queue.put(chunk)
     
-    
     async def forward(self, websocket):
+        c.print(f'Starting Server Forwarding from {self.ip}:{self.port}')
+
         while True:
-            chunk = self.queue.get()
-            if not chunk:
-                break
-            await websocket.send(chunk)
-        
-        await websocket.send('END')
-
-    def set_queue(self, buffer_size:int):
-        import queue
-        self.queue = queue.Queue(buffer_size)
-        
-
-    def set_server(self,port=None, ip = '0.0.0.0'):
-        port = self.resolve_port(port)  
-        start_server = websockets.serve(self.forward, ip, port)
-        self.print(f'Serving on {ip}:{port}')
-        
-        asyncio.get_event_loop().run_until_complete(start_server)
-        asyncio.get_event_loop().run_forever()
+            try:
+                c.print('waiting for data')
+                data = await websocket.recv()
+                c.print(f'chunk -> {data}')
+                await websocket.send(data)
+                c.print(f'sent -> {data}')
+            except Exception as e:
+                c.print(f'An error occurred: {e}')  
 
 
-
-if __name__ == "__main__":
-    ws = WS()
