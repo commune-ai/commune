@@ -5,6 +5,7 @@ import torch
 
 
 class HTTPServer(c.Module):
+    access_modes = ['public', 'root', 'subspace']
     def __init__(
         self,
         module: Union[c.Module, object],
@@ -15,18 +16,22 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
+        access:str = 'public',
         save_history_interval: int = 100,
         max_request_staleness: int = 100,
         key = None,
+        root_key = None,
     ) -> 'Server':
         
-
+        self.root_key = c.get_key(root_key)
         self.timeout = timeout
         self.verbose = verbose
         self.serializer = c.module('server.http.serializer')()
         self.ip = c.resolve_ip(ip, external=False)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
+        self.set_access(access)
+
 
         # KEY FOR SIGNING DATA
         self.key = c.get_key(name) if key == None else key
@@ -60,6 +65,9 @@ class HTTPServer(c.Module):
         self.set_api(ip=self.ip, port=self.port)
         self.serve()
 
+    def set_access(self, access: str) -> None:
+        assert access in self.access_modes, f"Access mode must be one of {self.access_modes}"
+        self.access = access
 
     def state_dict(self) -> Dict:
         return {
@@ -77,22 +85,40 @@ class HTTPServer(c.Module):
         # Test the server here if needed
         c.print(self.state_dict(), color='green')
         return self
-
     
-    def verify_input(self, input: dict) -> bool:
-        r""" Verify the data is signed with the correct key.
-        """
-        try:
+    def verify_access(self, input) -> bool:
+        if self.access != 'public':
             assert isinstance(input, dict), f"Data must be a dict, not {type(data)}"
             assert 'data' in input, f"Data not included"
             assert 'signature' in input, f"Data not signed"
             assert self.key.verify(input), f"Data not signed with correct key"
+            address = input.get('address', None)
 
-            # deserialize data
+
+            if self.access == 'root':
+                assert address == self.root_key.ss58_address, f"Data not signed with correct key"
+            else:
+                raise NotImplementedError(f"Access mode {self.access} not implemented")
+            
+        else:
+            return True
+
+
+    
+    def get_request_data(self, input: dict) -> bool:
+        r""" Verify the data is signed with the correct key.
+        """
+        try:
+            self.verify_access(input)
             data = self.serializer.deserialize(input.pop('data'))
-            request_timestamp = data.get('timestamp', 0)
-            request_staleness = c.timestamp() - request_timestamp
-            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+
+            if self.access != 'public':
+                request_timestamp = data.get('timestamp', 0)
+                request_staleness = c.timestamp() - request_timestamp
+                assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+
+
+
             return data
         except Exception as e:
             c.print(e, color='red')
@@ -105,32 +131,37 @@ class HTTPServer(c.Module):
         self.app = FastAPI()
         @self.app.post("/{fn}/")
         async def forward_api(fn:str, input:dict[str, str]):
-            # verify key
-            data = self.verify_input(input)
 
-            # forward
-            result =  self.forward(fn=fn, 
-                                    args=data.get('args', []), 
-                                    kwargs=data.get('kwargs', {})
-                                    )
-            
-            # serialize result
-            result_data = self.serializer.serialize(result)
+            try:
+                # verify key
+                data = self.get_request_data(input)
+                # forward
+                result =  self.forward(fn=fn, 
+                                        args=data.get('args', []), 
+                                        kwargs=data.get('kwargs', {})
+                                        )
+                
+                # serialize result
+                result_data = self.serializer.serialize(result)
 
-            # sign result data (str)
-            result =  self.key.sign(result_data, return_json=True)
+                # sign result data (str)
+                result =  self.key.sign(result_data, return_json=True)
 
 
-            self.history.append({
-                'fn': fn,
-                'ip': data.pop('ip', None),
-                'address': input.pop('address', None),
-                'timestamp': data.pop('timestamp', None),
-            }
-            )
+                self.history.append({
+                    'fn': fn,
+                    'ip': data.pop('ip', None),
+                    'address': input.pop('address', None),
+                    'timestamp': data.pop('timestamp', None),
+                }
+                )
 
-            if len(self.history) > 100:
-                self.history = self.history[-100:]
+                if len(self.history) > 100:
+                    self.history = self.history[-100:]
+
+            except Exception as e:
+                c.print(e, color='red')
+                result = {'error': str(e)}
 
 
             # send result to client
@@ -158,20 +189,15 @@ class HTTPServer(c.Module):
         
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):
-        try: 
-            if args is None:
-                args = []
-            if kwargs is None:
-                kwargs = {}
-            obj = getattr(self.module, fn)
-            if callable(obj):
-                response = obj(*args, **kwargs)
-            else:
-                response = obj
-            return response
-        except Exception as e:
-            response = {'error': str(e)}
-            c.print(e, color='red')
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = {}
+        obj = getattr(self.module, fn)
+        if callable(obj):
+            response = obj(*args, **kwargs)
+        else:
+            response = obj
         return response
 
 
