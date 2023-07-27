@@ -112,7 +112,7 @@ class LitGpt(c.Module):
 
     @classmethod
     def install(cls, install_torch :bool= True , install_flash:bool = False):
-        c.cmd("pip install --index-url https://download.pytorch.org/whl/nightly/cu118 --pre 'torch>=2.1.0dev'", verbose=True)
+        c.cmd("pip install --index-url https://download.pytorch.org/whl/nightly/cu120 --pre 'torch>=2.1.0dev'", verbose=True)
         c.cmd("pip install 'flash-attn>=2.0.0.post1' --no-build-isolation")
         c.cmd("pip install -U 'bitsandbytes>=0.40.0'")
         return c.cmd('pip install -e ./', cwd=cls.dirpath(), verbose=True)
