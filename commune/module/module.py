@@ -2558,7 +2558,6 @@ class c:
 
     
         if c.server_exists(name): 
-            c.print(f'Server {name} already exists', color='yellow')
             if refresh:
                 if verbose:
                     c.print(f'Stopping existing server {name}', color='yellow')

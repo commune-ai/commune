@@ -106,11 +106,8 @@ class HTTPServer(c.Module):
         @self.app.post("/{fn}/")
         async def forward_api(fn:str, input:dict[str, str]):
             # verify key
-            self.verify(input)
+            data = self.verify_input(input)
 
-            # deserialize data
-            data = self.serializer.deserialize(input.pop('data'))
-            
             # forward
             result =  self.forward(fn=fn, 
                                     args=data.get('args', []), 

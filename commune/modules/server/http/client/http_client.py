@@ -70,15 +70,15 @@ class Client(c.Module):
                          "ip": self.my_ip,
                          "timestamp": c.timestamp(),
                          }
-
+        
         request_data = self.serializer.serialize( request_data)
         request = self.key.sign(request_data, return_json=True)
-        assert self.key.verify(request)
-
+        assert self.key.verify(request), f"Request not signed with correct key"
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, json=request, headers=headers) as response:
+                        # c.print(response.__dict__)
                         response = await asyncio.wait_for(response.json(), timeout=timeout)
             else:
                 response = requests.post(url, json=request, headers=headers)
