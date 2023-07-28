@@ -2356,10 +2356,14 @@ class Subspace(c.Module):
             # cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             
             # cmds.append(cmd)
+            return key
 
 
-        for cmd in cmds:
-            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+
+
+        # for cmd in cmds:
+        #     c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+
 
 
     def uids(self, netuid: int = None, reverse: bool =False , **kwargs):

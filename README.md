@@ -210,3 +210,25 @@ c register my_module_path tag=1
 ```
 
 That's it, my friend! You've created a dope module and registered it on the blockchain with the option to customize the name and tag. Now you can share your module with the world and let others benefit from your greatness. Keep on coding and stay fresh!
+
+
+
+# Subspace Node
+
+To setup subspace, you can use local or via docker.
+
+
+
+## Local
+
+cd subspace
+
+Install the rust environment located in commune/scripts or commune/subspace/script. Thay are the same file
+
+
+```
+# You may need to make them executable
+sudo chmod +x ./scripts/*
+```
+
+./scripts 
