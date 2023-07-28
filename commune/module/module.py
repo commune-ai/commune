@@ -6909,6 +6909,14 @@ class c:
     @classmethod
     def key_info_map(self, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
+
+    @classmethod
+    def node_keys(cls, *args, **kwargs):
+        return c.module('subspace').node_keys(*args, **kwargs)
+
+    @classmethod
+    def add_node(cls, *args, **kwargs):
+        return c.module('subspace').add_node(*args, **kwargs)
     
 
     @classmethod   
