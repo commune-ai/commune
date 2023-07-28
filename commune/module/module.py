@@ -27,15 +27,12 @@ class c:
     modules_path = os.path.join(root_path, 'modules')
     repo_path  = os.path.dirname(root_path)
     library_name = libname = lib = root_dir = root_path.split('/')[-1]
-    default_network = 'subspace'
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
     helper_whitelist = ['info', 'schema','module_name']
     whitelist = []
     blacklist = []
-    client_module_path = 'module.server.client'
-    server_module_path = 'module.server'
     server_mode = 'http'
     
     def __init__(self, 
@@ -1051,7 +1048,7 @@ class c:
     @classmethod
     def get_available_ports(cls, port_range: List[int] = None , ip:str =None) -> int:
         port_range = cls.resolve_port_range(port_range)
-        ip = ip if ip else cls.default_ip
+        ip = ip if ip else c.default_ip
         
         available_ports = []
         # return only when the port is available
@@ -1158,7 +1155,7 @@ class c:
             
             
             
-        ip = ip if ip else cls.default_ip
+        ip = ip if ip else c.default_ip
 
         if random_selection:
             ports = cls.shuffle(ports)
@@ -2026,7 +2023,7 @@ class c:
     def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
         used_local_ports = cls.get_used_ports() 
         if ip == None:
-            ip = cls.default_ip
+            ip = c.default_ip
         peer_addresses = []
         for port in used_local_ports:
             peer_addresses.append(f'{ip}:{port}')
@@ -2168,7 +2165,7 @@ class c:
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         used_ports = cls.get_used_ports()
-        ip = cls.default_ip
+        ip = c.default_ip
         addresses = [ f'{ip}:{p}' for p in used_ports]
         local_namespace = {}
         names = c.gather([cls.async_get_peer_name(address) for address in addresses])
@@ -2195,7 +2192,7 @@ class c:
             local_namespace = c.build_local_namespace()
             c.put('local_namespace', local_namespace)
             
-        local_namespace = {k:cls.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
+        local_namespace = {k:c.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
 
         return local_namespace
     
@@ -2494,16 +2491,16 @@ class c:
             whitelist += self.functions() + self.attributes()
         return whitelist
     
-
     @whitelist.setter
     def whitelist(self, whitelist:List[str]):
         self._whitelist = whitelist
         
         return whitelist
-            
+    whitelist = []
     wl = whitelist
     bl = blacklist = []
     
+
     
     
     @classmethod
@@ -4432,7 +4429,9 @@ class c:
 
     @classmethod
     def logs(cls, *args, **kwargs):
+        
         return cls.pm2_logs(*args, **kwargs)
+
 
     @classmethod
     def print(cls, *text:str, 
@@ -5258,7 +5257,7 @@ class c:
         peer_port = int(peer_info['address'].split(':')[-1])
         
         # relace default local ip with external_ip
-        peer_info['namespace'] = {k:v.replace(cls.default_ip,peer_ip) for k,v in peer_info['namespace'].items()}
+        peer_info['namespace'] = {k:v.replace(c.default_ip,peer_ip) for k,v in peer_info['namespace'].items()}
 
         peer_registry[peer_address] = peer_info
             
@@ -6910,6 +6909,8 @@ class c:
     @classmethod
     def key_info_map(self, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
+    
+
     @classmethod   
     def infer_device_map(cls, 
                          model:str, 
