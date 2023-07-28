@@ -5951,6 +5951,19 @@ class c:
 
         assert isinstance(options, list),'options must be a list'
         return random.choice(options)
+
+    @classmethod
+    def chown(cls, path:str = None, sudo:bool =True):
+        path = cls.resolve_path(path)
+        user = c.env('USER')
+        cmd = f'chown -R {user}:{user} {path}'
+        c.cmd(cmd , sudo=sudo, verbose=True)
+        return {'success':True, 'message':f'chown cache {path}'}
+
+    @classmethod
+    def chown_cache(cls, sudo:bool = True):
+        return c.chown(c.cache_path(), sudo=sudo)
+        
     
     
     @classmethod
@@ -5963,6 +5976,8 @@ class c:
         return random.choice(cls.colors())
 
     random_colour = random_color
+
+
 
     @classmethod
     def random_ratio_selection(cls, x:list, ratio:float = 0.5)->list:
