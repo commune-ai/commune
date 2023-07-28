@@ -100,14 +100,14 @@ class Docker(c.Module):
     def run(cls, 
                     image : str,
                     name: str = None,
-                    gpus:list='all',
+                    volumes:List[str] = None,
+                    cmd : str = None,
+                    gpus:list=False,
                     shm_size : str='100g',
                     sudo:bool = False,
                     build:bool = True,
                     ports:Dict[str, int]=None,
-                    volumes:List[str] = None,
                     net : str = 'host',
-                    cmd : str = None,
                     daemon:bool = True,
                     run: bool = True):
         
@@ -118,50 +118,49 @@ class Docker(c.Module):
         if name is None:
             name = image
 
-        cmd = f'docker run'
+        docker_cmd = f'docker run'
 
 
-        cmd += f' --net {net} '
+        docker_cmd += f' --net {net} '
 
         if build:
             cls.build(image, tag=name)
         
         if daemon:
-            cmd += ' -d '
+            docker_cmd += ' -d '
 
-        # ADD THE GPUS
-        if gpus == None:
-            gpus = c.gpus()
         if isinstance(gpus, list):
             gpus = ','.join(map(str, gpus))  
-            cmd += f' --gpus \'"device={gpus}"\''   
+            docker_cmd += f' --gpus \'"device={gpus}"\''   
+        elif isinstance(gpus, str):
+            docker_cmd += f' --gpus "{gpus}"'
         else:
-            cmd += f' --gpus "{gpus}"'
+            pass
+            
         
         # ADD THE SHM SIZE
         if shm_size != None:
-            cmd += f' --shm-size {shm_size}'
+            docker_cmd += f' --shm-size {shm_size}'
         
-        # ADD THE PORTS
-        if ports == None:
-            port = c.free_port()
-            ports = {port:port}
-
         if ports != None:
             for external_port, internal_port in ports.items():
-                cmd += f' -p {external_port}:{internal_port}'
+                docker_cmd += f' -p {external_port}:{internal_port}'
 
         # ADD THE VOLUMES
         if volumes is not None:
+            if isinstance(volumes, str):
+                volumes = [volumes]
             if isinstance(volumes, list):
                 volumes = {v:v for v in volumes}
             elif isinstance(volumes, dict):
                 for v_from, v_to in volumes.items():
-                    cmd += f'-v {v_from}:{v_to}'
+                    docker_cmd += f'-v {v_from}:{v_to}'
 
-        cmd += f' --name {name} {image}'
+        docker_cmd += f' --name {name} {image}'
+
+        
         if run:
-            return c.cmd(cmd, sudo=sudo, output_text=True)
+            return c.cmd(docker_cmd, sudo=sudo, output_text=True)
         else:
             return cmd
 
@@ -170,7 +169,7 @@ class Docker(c.Module):
        
     
     @classmethod
-    def psdf(cls,load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
+    def psdf(cls, load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
 
         rows = []
@@ -192,9 +191,13 @@ class Docker(c.Module):
         return df   
 
     @classmethod
-    def ps(cls):
+    def ps(cls, path = None):
         df = cls.psdf()
-        return df['names'].tolist()
+        paths =  df['names'].tolist()
+        if path != None:
+            paths = [p for p in paths if path in p]
+
+        return paths
     
 
 
@@ -205,20 +208,24 @@ class Docker(c.Module):
        return [l for l in c.walk(path) if l.endswith('Dockerfile')]
     
     @classmethod
-    def name2file(cls, path = None):
+    def name2dockerfile(cls, path = None):
        return {l.split('/')[-2] if len(l.split('/'))>1 else c.lib:l for l in cls.dockerfiles(path)}
+    
     
     @classmethod
     def resolve_dockerfile(cls, name):
         
         if c.exists(name):
             return name
-        name2file = cls.name2file()
-        if name in name2file:
-            return name2file[name]
+        name2dockerfile = cls.name2dockerfile()
+        if name in name2dockerfile:
+            return name2dockerfile[name]
         else:
             raise ValueError(f'Could not find docker file for {name}')
         
+    get_dockerfile = resolve_dockerfile
+
+
     
 
 
@@ -260,6 +267,7 @@ class Docker(c.Module):
                 dash:bool = True,
                 cmd : str = None,
                 build: bool = True,
+                project_name: str = None,
                 cwd : str = None):
         
 
@@ -277,7 +285,8 @@ class Docker(c.Module):
         if isinstance(path, str):
             path = cls.get_compose(path)
         
-
+        if project_name != None:
+            cmd += f' --project-name {project_name}'
         cmd +=  f' -f {tmp_path} up'
 
         if daemon:
@@ -290,16 +299,20 @@ class Docker(c.Module):
             c.cmd(f'docker-compose -f {tmp_path} build', verbose=True)
             
         text_output = c.cmd(cmd, verbose=True)
-        c.rm(tmp_path)
 
+        if 'Conflict. The container name' in text_output:
+            contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
+            c.cmd(f'docker rm -f {contianer_id}', verbose=True)
+            text_output = c.cmd(cmd, verbose=True)
 
         if "unknown shorthand flag: 'f' in -f" in text_output:
             cmd = cmd.replace('docker compose', 'docker-compose')
             text_output = c.cmd(cmd, verbose=True)
 
+        c.rm(tmp_path)
 
 
     @classmethod
-    def logs(cls, name, sudo=False, follow=False):
-        return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=True)
+    def logs(cls, name, sudo=False, follow=False, verbose=False):
+        return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=verbose)
 

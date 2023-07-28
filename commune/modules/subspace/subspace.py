@@ -1959,9 +1959,15 @@ class Subspace(c.Module):
         nodes =  c.pm2ls(f'{cls.node_prefix()}::{chain}')
         return nodes
     @classmethod
-    def node2path(cls, chain=chain):
-        nodes =  c.pm2ls(f'{cls.node_prefix()}::{chain}')
-        return {n.split('::')[-1]: n for n in nodes}
+    def node2path(cls, chain=chain, mode = 'docker'):
+        if mode == 'docker':
+            path = f'{cls.node_prefix()}::{chain}'.replace('::', '_')
+            nodes =  c.module('docker').ps(path)
+            return {n.split('_')[-1]: n for n in nodes}
+        elif mode == 'pm2':
+        
+            nodes =  c.pm2ls(f'{cls.node_prefix()}::{chain}')
+            return {n.split('::')[-1]: n for n in nodes}
     
     @classmethod
     def live_nodes(cls, chain=chain):
@@ -1974,6 +1980,7 @@ class Subspace(c.Module):
             return cls.vali_nodes(chain=chain)
         else:
             return cls.nonvali_nodes(chain=chain)
+
 
     @classmethod
     def node_urls(cls, chain=chain, validator=False, live:bool = False):
@@ -2106,7 +2113,7 @@ class Subspace(c.Module):
                  boot_nodes = None,
                  node_key = None,
                  mode :str = 'docker',
-                 build: bool = True,
+                 build: bool = False,
                  
                  ):
         cmd = cls.chain_release_path
@@ -2158,31 +2165,12 @@ class Subspace(c.Module):
 
             cache_path = c.cache_path()
             cache_path_inner = cache_path.replace(c.tilde_path(), '')
-            volumes = [f'{cache_path}:{cache_path_inner}']
-            docker = c.module('docker')
-            compose = docker.get_compose(cls.chain_name)
             cmd = cmd + cmd_kwargs
-            cmd = 'bash -c "'+cmd.replace(c.repo_path, '') + '"'
-            name = name.replace('::', '_')
-            compose['services'][name] = compose['services'][cls.chain_name].copy()
-            del compose['services'][cls.chain_name]
-            compose['services'][name]['command'] = cmd
-            compose['services'][name]['volumes'] = volumes
-            # compose['services'][cls.chain_name]['ports'] = [f'{port}:{port}', f'{rpc_port}:{rpc_port}', f'{ws_port}:{ws_port}']
-            compose['services'][name]['environment'] = ['RUST_LOG=debug', 'RUST_BACKTRACE=1']
+            cmd = cmd.replace(cache_path, cache_path_inner)
+            volumes = f'{cache_path}:{cache_path_inner}'
+            docker = c.module('docker')
 
-            # name
-            compose['services'][name]['container_name'] = name
-
-
-            c.print(compose)
-            cmd = docker.compose(path='subspace', 
-                            compose=compose,
-                            cmd=cmd,
-                            daemon=True,
-                            build=build)
-
-            c.print(cmd)
+            docker.run(image = cls.chain_name, name = name.replace('::', '_'), volumes=volumes, cmd=cmd)
         else: 
             raise Exception(f'unknown mode {mode}')
             
@@ -2424,7 +2412,7 @@ class Subspace(c.Module):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
     @classmethod
-    def get_node_id(cls, chain=chain, node='alice', max_trials=4, sleep_interval=1):
+    def get_node_id(cls, chain=chain, node='alice', max_trials=4, sleep_interval=1, mode='docker'):
         node2path = cls.node2path(chain=chain)
         node_path = node2path[node]
         node_id = None
@@ -2432,12 +2420,16 @@ class Subspace(c.Module):
         indicator = 'Local node identity is: '
 
         while indicator not in node_logs and max_trials > 0:
-            node_logs = c.logs(node_path, end_line=400, mode='local')
+            if mode == 'docker':
+                node_path = node2path[node]
+                node_logs = c.module('docker').logs(node_path)
+            elif mode == 'pm2':
+                node_logs = c.logs(node_path, end_line=400, mode='local')
+
             if indicator in node_logs:
                 break
             max_trials -= 1
             c.sleep(sleep_interval)
-        c.print(len(node_logs))
         for line in node_logs.split('\n'):
             # c.print(line)
             if 'Local node identity is: ' in line:
