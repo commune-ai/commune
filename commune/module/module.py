@@ -2830,6 +2830,11 @@ class c:
 
         return {'server_killed': delete_modules, 'update': update}
 
+    @classmethod
+    def kill_prefix(cls, prefix:str, **kwargs):
+        return cls.kill(prefix, prefix_match=True, **kwargs)
+    killpre = kill_prefix
+        
     delete = kill_server = kill
     def destroy(self):
         self.kill(self.module_name)
@@ -5543,7 +5548,15 @@ class c:
                 end_byte = file_size - end_byte 
             chunk_size = end_byte - start_byte + 1
             file.seek(start_byte)
-            content = file.read(chunk_size).decode()
+            content_bytes = file.read(chunk_size)
+            try:
+                content = content_bytes.decode()
+            except UnicodeDecodeError as e:
+                if hasattr(content_bytes, 'hex'):
+                    content = content_bytes.hex()
+                else:
+                    raise e
+                
             if start_line != None or end_line != None:
                 if end_line == None or end_line == 0 :
                     end_line = len(content) 
