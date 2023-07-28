@@ -151,18 +151,28 @@ class Docker(c.Module):
             if isinstance(volumes, str):
                 volumes = [volumes]
             if isinstance(volumes, list):
-                volumes = {v:v for v in volumes}
+                docker_cmd += ' '.join([f' -v {v}' for v in volumes])
             elif isinstance(volumes, dict):
                 for v_from, v_to in volumes.items():
-                    docker_cmd += f'-v {v_from}:{v_to}'
+                    docker_cmd += f' -v {v_from}:{v_to}'
 
         docker_cmd += f' --name {name} {image}'
 
+
+        if cmd is not None:
+            docker_cmd += f' bash -c "{cmd}"'
         
-        if run:
-            return c.cmd(docker_cmd, sudo=sudo, output_text=True)
-        else:
-            return cmd
+        c.print(docker_cmd)
+        text_output =  c.cmd(docker_cmd, sudo=sudo, output_text=True)
+
+        if 'Conflict. The container name' in text_output:
+            contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
+            c.cmd(f'docker rm -f {contianer_id}', verbose=True)
+            text_output = c.cmd(docker_cmd, verbose=True)
+        
+
+
+
 
 
         # self.update()
@@ -310,7 +320,9 @@ class Docker(c.Module):
             text_output = c.cmd(cmd, verbose=True)
 
         c.rm(tmp_path)
-
+    @classmethod
+    def rm_container(self, name):
+        c.cmd(f'docker rm -f {name}', verbose=True)
 
     @classmethod
     def logs(cls, name, sudo=False, follow=False, verbose=False):

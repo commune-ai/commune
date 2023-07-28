@@ -42,7 +42,8 @@ class Subspace(c.Module):
     token_decimals = default_config['token_decimals']
     retry_params = default_config['retry_params']
     network2url = default_config['network2url']
-    network = chain = default_config['network']
+    network = default_config['network']
+    chain = network
     url = network2url[network]
     subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
@@ -52,6 +53,7 @@ class Subspace(c.Module):
     supported_schemas = default_config['supported_schemas']
     default_netuid = default_config['default_netuid']
     key = default_config['key']
+    server_mode = default_config['server_mode']
     state = {}
     # the parameters of the subnet
     subnet_params = default_config['subnet_params']
@@ -1727,6 +1729,7 @@ class Subspace(c.Module):
     @classmethod
     def kill_nodes(cls, chain=chain):
         for node_path in cls.live_node_paths(chain=chain):
+            c.print(f'killing {node_path}')
             c.pm2_kill(node_path)
     
     @classmethod
@@ -1968,39 +1971,15 @@ class Subspace(c.Module):
         
             nodes =  c.pm2ls(f'{cls.node_prefix()}::{chain}')
             return {n.split('::')[-1]: n for n in nodes}
-    
     @classmethod
-    def live_nodes(cls, chain=chain):
-        prefix = f'{cls.node_prefix()}::{chain}::'
-        return [node.replace(prefix, '') for node in cls.live_node_paths(chain=chain)]
-
-    @classmethod
-    def nodes(cls, chain=chain, validator=False):
-        if validator:
-            return cls.vali_nodes(chain=chain)
-        else:
-            return cls.nonvali_nodes(chain=chain)
-
-
-    @classmethod
-    def node_urls(cls, chain=chain, validator=False, live:bool = False):
+    def nonvali_nodes(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
-        ip = c.ip()
-        nodes = cls.nodes(chain=chain, validator=validator)
-        if live:
-            live_nodes = cls.live_nodes(chain=chain)
-            nodes = [node for node in nodes if node in live_nodes]
-            
-        return [f"{ip}:{chain_info[node]['ws_port']}" for node in nodes]
+        return [node_info['node'] for node_info in chain_info.values() if node_info['validator'] == False]
 
     @classmethod
     def vali_nodes(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
-        return [node_info['user'] for node_info in chain_info.values() if node_info['validator'] == True]
-    @classmethod
-    def nonvali_nodes(cls, chain=chain):
-        chain_info = cls.chain_info(chain=chain)
-        return [node_info['user'] for node_info in chain_info.values() if node_info['validator'] == False]
+        return [node_info['node'] for node_info in chain_info.values() if node_info['validator'] == True]
 
 
     @classmethod
@@ -2035,19 +2014,6 @@ class Subspace(c.Module):
         node_info = cls.node_info(node=node, chain=chain)
         cls.getc('network')
         cls.start_node(**node_info)
-
-    def run_nodes(self, *node, chain=chain): 
-        if len(node) == 0:
-            nodes = self.nodes(chain=chain)
-        live_nodes = self.live_nodes(chain=chain)
-
-        for node in nodes:
-            if node in live_nodes:
-                c.print(f'node {node} is already running', color='yellow')
-                continue
-            c.print(f'running node {node}', color='green')
-            self.run_node(node=node, chain=chain)
-            live_nodes.append(node)
 
 
     @classmethod
@@ -2096,7 +2062,6 @@ class Subspace(c.Module):
         cls.rmc(f'chain_info.{chain}.{node}')
         return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
 
-
     @classmethod
     def start_node(cls,
                  node : str = 'alice',
@@ -2112,7 +2077,7 @@ class Subspace(c.Module):
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
-                 mode :str = 'docker',
+                 mode :str = server_mode,
                  build: bool = False,
                  
                  ):
@@ -2133,6 +2098,7 @@ class Subspace(c.Module):
             cls.purge_chain(base_path=base_path)
         
         chain_spec_path = cls.resolve_chain_spec_path(chain)
+
         cmd_kwargs = f' --base-path {base_path}'
         cmd_kwargs += f' --chain {chain_spec_path}'
         
@@ -2164,13 +2130,17 @@ class Subspace(c.Module):
         elif mode == 'docker':
 
             cache_path = c.cache_path()
-            cache_path_inner = cache_path.replace(c.tilde_path(), '')
+            tilde_path = c.tilde_path()
+            cache_path_inner = cache_path.replace(tilde_path, '')
             cmd = cmd + cmd_kwargs
+            
+            cmd = cmd.replace(c.repo_path, '')
             cmd = cmd.replace(cache_path, cache_path_inner)
+            c.print(cmd, cache_path, cache_path_inner)
             volumes = f'{cache_path}:{cache_path_inner}'
             docker = c.module('docker')
 
-            docker.run(image = cls.chain_name, name = name.replace('::', '_'), volumes=volumes, cmd=cmd)
+            docker.run(image = cls.chain_name, name = name.replace('::', '_'), volumes=volumes, cmd='ls /', build=True, run=False, daemon=False)
         else: 
             raise Exception(f'unknown mode {mode}')
             
@@ -2181,7 +2151,6 @@ class Subspace(c.Module):
             network2url[chain] = list(set(network2url.get(chain, []) + [url]))
             cls.putc('network2url', network2url)
         
-        c.print({'url':  url, 'chain': chain, 'validator': validator}, color='yellow')
 
 
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
@@ -2323,15 +2292,15 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_vali_nodes(cls, *nodes, chain=chain):
+    def add_vali_node_keys(cls, *nodes, chain=chain):
         if len(nodes) == 0:
             nodes = cls.getc('nodes')
         for node in nodes:
-            cls.add_vali_node(node=node, chain=chain)
+            cls.add_vali_node_keys(node=node, chain=chain)
 
     node_key_prefix = 'subspace.node'
     @classmethod
-    def vali_nodes(cls,chain=chain):
+    def nodes(cls,chain=chain):
         return list(set([k.split('.')[-2] for k in c.keys(f'{cls.node_key_prefix}.{chain}')]))
     
     @classmethod
@@ -2341,7 +2310,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def vali_node_keys(cls,chain=chain):
+    def node_keys(cls,chain=chain):
         vali_node_keys = {}
         for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
             name = key_name.split('.')[-2]
@@ -2352,24 +2321,23 @@ class Subspace(c.Module):
             vali_node_keys[name][role] =  key.ss58_address
         return vali_node_keys
 
-    @classmethod
-    def vali_node_key_mems(cls,chain=chain):
-        vali_node_keys = {}
-        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
-            name = key_name.split('.')[-2]
-            role = key_name.split('.')[-1]
-            key = c.get_key(key_name)
-            if name not in vali_node_keys:
-                vali_node_keys[name] = { }
-            vali_node_keys[name][role] =  key.mnemonic
-        return vali_node_keys
+
+
 
     @classmethod
-    def valid_nodes(cls,chain=chain):
-        return list(set([k.split('.')[-2] for k in c.keys(f'{cls.node_key_prefix}.{chain}')]))
+    def vali_node_keys(cls,chain=chain):
+        vali_nodes = cls.vali_nodes(chain=chain)
+
+        return {k:v for k,v in  cls.node_keys(chain=chain).items() if k in vali_nodes}
+    
+    @classmethod
+    def nonvali_node_keys(cls,chain=chain):
+        vali_nodes = cls.vali_nodes(chain=chain)
+
+        return {k:v for k,v in  cls.node_keys(chain=chain).items() if k not in vali_nodes}
 
     @classmethod
-    def add_vali_node(cls,
+    def add_node_key(cls,
                      node = 'alice',
                      chain = chain):
         

@@ -222,10 +222,7 @@ network2url:
   dev: []
   local:
   - 127.0.0.1:9944
-  main:
-  - ws://162.157.13.236:4056
-  - ws://162.157.13.236:4283
-  - ws://162.157.13.236:4704
+  main: []
   testnet: 127.0.0.1:4874
 nodes:
 - alice
@@ -243,6 +240,7 @@ retry_params:
   delay: 2
   max_delay: 4
   tries: 2
+server_mode: pm2
 spec_path: f"{chain_path}/specs"
 subnet: commune
 subnet_params:
