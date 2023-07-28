@@ -193,7 +193,7 @@ class Keypair(c.Module):
         
         cls.put(path, key_json)
         
-        return cls.get_key(path)
+        return key
     
     @classmethod
     def mv_key(cls, path, new_path):

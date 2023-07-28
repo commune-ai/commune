@@ -16,6 +16,8 @@ services:
       - ./commune:/commune/commune
       - ./subspace:/commune/subspace
       - ./frontend:/commune/frontend
+
+
       # LOCAL COMMUNE MOUNTS AND FILES
       - ./Makefile:/commune/Makefile 
       - ./setup.py:/commune/setup.py

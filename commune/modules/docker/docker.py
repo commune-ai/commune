@@ -1,7 +1,7 @@
 
 import os
 import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Union
 import commune as c
 
 class Docker(c.Module): 
@@ -96,18 +96,25 @@ class Docker(c.Module):
 
         c.cmd(cmd,cwd = dockerfile_dir, env={'DOCKER_BUILDKIT':'1'}, verbose=True, sudo=sudo, bash=False)
     
-    def run(self, 
+    @classmethod
+    def run(cls, 
                     image : str,
                     name: str = None,
                     gpus:list='all',
                     shm_size : str='100g',
-                    volume:str = 'data',
                     sudo:bool = False,
                     build:bool = True,
                     ports:Dict[str, int]=None,
                     volumes:List[str] = None,
                     net : str = 'host',
-                    daemon:bool = True):
+                    cmd : str = None,
+                    daemon:bool = True,
+                    run: bool = True):
+        
+        '''
+        Arguments:
+
+        '''
         if name is None:
             name = image
 
@@ -117,7 +124,7 @@ class Docker(c.Module):
         cmd += f' --net {net} '
 
         if build:
-            self.build(image, tag=name)
+            cls.build(image, tag=name)
         
         if daemon:
             cmd += ' -d '
@@ -148,22 +155,15 @@ class Docker(c.Module):
         if volumes is not None:
             if isinstance(volumes, list):
                 volumes = {v:v for v in volumes}
-            for v_from, v_to in volumes.items():
-                cmd += f'-v {v_from}:{v_to}'
+            elif isinstance(volumes, dict):
+                for v_from, v_to in volumes.items():
+                    cmd += f'-v {v_from}:{v_to}'
 
         cmd += f' --name {name} {image}'
-
-        c.print(cmd)
-        output_text = c.cmd(cmd, sudo=sudo, output_text=True)
-
-        if 'Conflict. The container name' in output_text:
-            c.print(f'container {name} already exists, restarting...')
-            contianer_id = output_text.split('by container "')[-1].split('". You')[0].strip()
-
-            c.cmd(f'docker rm -f {contianer_id}', sudo=sudo, verbose=True)
-            c.cmd(cmd, sudo=sudo, verbose=True)
-        else: 
-            c.print(output_text)
+        if run:
+            return c.cmd(cmd, sudo=sudo, output_text=True)
+        else:
+            return cmd
 
 
         # self.update()
@@ -245,17 +245,59 @@ class Docker(c.Module):
         return c.load_yaml(path)
 
     @classmethod
-    def put_compose(cls, path:str, compose_dict:dict):
+    def put_compose(cls, path:str, compose:dict):
         path = cls.get_compose_path(path)
-        return c.save_yaml(path, compose_dict)
+        return c.save_yaml(path, compose)
+    
+
 
     @classmethod
-    def compose(cls, name, daemon=True):
-        compose_path = cls.get_compose_path(name)
-        cmd = f'docker compose -f {compose_path} up'
+    def compose(cls, 
+                path: str,
+                compose: Union[str, dict, None] = None,
+                daemon:bool = True,
+                verbose:bool = True,
+                dash:bool = True,
+                cmd : str = None,
+                build: bool = True,
+                cwd : str = None):
+        
+
+
+        cmd = f'docker-compose' if dash else f'docker compose'
+        
+        path = cls.get_compose_path(path)
+        tmp_path = path + '.tmp'
+
+
+
+        if compose == None:
+            compose = cls.get_compose(path)
+        
+        if isinstance(path, str):
+            path = cls.get_compose(path)
+        
+
+        cmd +=  f' -f {tmp_path} up'
+
         if daemon:
             cmd += ' -d'
-        return c.cmd(cmd, verbose=True)
+
+        c.print(f'cmd: {cmd}', verbose=verbose)
+        # save the config to the compose path
+        c.save_yaml(tmp_path, compose)
+        if build:
+            c.cmd(f'docker-compose -f {tmp_path} build', verbose=True)
+            
+        text_output = c.cmd(cmd, verbose=True)
+        c.rm(tmp_path)
+
+
+        if "unknown shorthand flag: 'f' in -f" in text_output:
+            cmd = cmd.replace('docker compose', 'docker-compose')
+            text_output = c.cmd(cmd, verbose=True)
+
+
 
     @classmethod
     def logs(cls, name, sudo=False, follow=False):
