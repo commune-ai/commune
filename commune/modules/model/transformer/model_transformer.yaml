@@ -20,7 +20,7 @@ shortcuts:
   llama13b: openlm-research/open_llama_13b
   llama-trl: trl-lib/llama-7b-se-rl-peft
 
-  pygmalion-6b: PygmalionAI/pygmalion-6b
+  pygmalion-6b: Pygmalionreplit/replit-code-v1-3bAI/pygmalion-6b
   stablellm7b: StabilityAI/stablelm-tuned-alpha-7b
   mosaic: mosaicml/mpt-30b
   falcon_40b_instruct: tiiuae/falcon-40b-instruct

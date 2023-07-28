@@ -37,7 +37,8 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
-    default_config = c.get_config('subspace', to_munch=False)
+    chain_name = 'subspace'
+    default_config = c.get_config(chain_name, to_munch=False)
     token_decimals = default_config['token_decimals']
     retry_params = default_config['retry_params']
     network2url = default_config['network2url']
@@ -1793,10 +1794,10 @@ class Subspace(c.Module):
         return c.rm(base_path+'/chains/commune/db')
     
     
+    
     @classmethod
     def resolve_base_path(cls, node='alice'):
-        return cls.resolve_path(f'{node}')
-
+        return cls.resolve_path(f'nodes/{node}')
     
     @classmethod
     def resolve_node_keystore_path(cls, node='alice', chain=chain):
@@ -2096,17 +2097,18 @@ class Subspace(c.Module):
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
-                 telemetry_url:str = 'wss://telemetry.polkadot.io/submit/0',
+                 telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
                  validator: bool = True,          
                  purge_chain:bool = True,
                  remote:bool = True,
-                 refresh:bool = True,
+                 refresh:bool = False,
                  verbose:bool = False,
                  boot_nodes = None,
-                 node_key = None
+                 node_key = None,
+                 mode :str = 'docker',
+                 build: bool = True,
                  
                  ):
-
         cmd = cls.chain_release_path
 
         free_ports = c.free_ports(n=3)
@@ -2141,16 +2143,49 @@ class Subspace(c.Module):
             cmd_kwargs += f' --node-key {node_key}'
             
         cmd_kwargs += f' --rpc-cors=all'
+        c.print(f'{cmd} {cmd_kwargs}')
 
-        if remote:
+        name = f'{cls.node_prefix()}::{chain}::{node}'
+
+        if mode == 'pm2':
             cmd = c.pm2_start(path=cls.chain_release_path, 
-                              name=f'{cls.node_prefix()}::{chain}::{node}',
-                              cmd_kwargs=cmd_kwargs,
-                              refresh=refresh,
-                              verbose=verbose)
-        else:
-            cls.cmd(f'{cmd} {cmd_kwargs}', color='green',verbose=True)
+                            name=name,
+                            cmd_kwargs=cmd_kwargs,
+                            refresh=refresh,
+                            verbose=verbose)
+            
+        elif mode == 'docker':
 
+            cache_path = c.cache_path()
+            cache_path_inner = cache_path.replace(c.tilde_path(), '')
+            volumes = [f'{cache_path}:{cache_path_inner}']
+            docker = c.module('docker')
+            compose = docker.get_compose(cls.chain_name)
+            cmd = cmd + cmd_kwargs
+            cmd = 'bash -c "'+cmd.replace(c.repo_path, '') + '"'
+            name = name.replace('::', '_')
+            compose['services'][name] = compose['services'][cls.chain_name].copy()
+            del compose['services'][cls.chain_name]
+            compose['services'][name]['command'] = cmd
+            compose['services'][name]['volumes'] = volumes
+            # compose['services'][cls.chain_name]['ports'] = [f'{port}:{port}', f'{rpc_port}:{rpc_port}', f'{ws_port}:{ws_port}']
+            compose['services'][name]['environment'] = ['RUST_LOG=debug', 'RUST_BACKTRACE=1']
+
+            # name
+            compose['services'][name]['container_name'] = name
+
+
+            c.print(compose)
+            cmd = docker.compose(path='subspace', 
+                            compose=compose,
+                            cmd=cmd,
+                            daemon=True,
+                            build=build)
+
+            c.print(cmd)
+        else: 
+            raise Exception(f'unknown mode {mode}')
+            
         url = f'ws://{c.ip(external=True)}:{ws_port}'
 
         if validator == False:
@@ -2159,6 +2194,8 @@ class Subspace(c.Module):
             cls.putc('network2url', network2url)
         
         c.print({'url':  url, 'chain': chain, 'validator': validator}, color='yellow')
+
+
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
        
     @classmethod
@@ -2328,6 +2365,18 @@ class Subspace(c.Module):
         return vali_node_keys
 
     @classmethod
+    def vali_node_key_mems(cls,chain=chain):
+        vali_node_keys = {}
+        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
+            name = key_name.split('.')[-2]
+            role = key_name.split('.')[-1]
+            key = c.get_key(key_name)
+            if name not in vali_node_keys:
+                vali_node_keys[name] = { }
+            vali_node_keys[name][role] =  key.mnemonic
+        return vali_node_keys
+
+    @classmethod
     def valid_nodes(cls,chain=chain):
         return list(set([k.split('.')[-2] for k in c.keys(f'{cls.node_key_prefix}.{chain}')]))
 
@@ -2336,6 +2385,7 @@ class Subspace(c.Module):
                      node = 'alice',
                      chain = chain):
         
+        cmds = []
 
         for key_type in ['gran', 'aura']:
 
@@ -2345,14 +2395,16 @@ class Subspace(c.Module):
                 schema = 'Sr25519'
         
             key = c.get_key(f'{cls.node_key_prefix}.{chain}.{node}.{key_type}',crypto_type=schema)
-            base_path = cls.resolve_base_path(node)
+            # base_path = cls.resolve_base_path(node)
 
-            cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
+            # cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             
-            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
-        
+            # cmds.append(cmd)
 
-    
+
+        for cmd in cmds:
+            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+
 
     def uids(self, netuid: int = None, reverse: bool =False , **kwargs):
         netuid = self.resolve_netuid(netuid)

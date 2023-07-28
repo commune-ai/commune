@@ -8,6 +8,8 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt upgrade -y
 RUN apt install -y curl sudo nano git htop netcat wget unzip python3-dev python3-pip tmux apt-utils cmake build-essential protobuf-compiler
 
+
+# VOLUMES FOR MODULES
 COPY ./commune /commune/commune
 COPY ./requirements.txt /commune/requirements.txt
 COPY ./setup.py /commune/setup.py

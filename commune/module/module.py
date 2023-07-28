@@ -1640,11 +1640,17 @@ class c:
    
     @classmethod
     def tmp_dir(cls):
-        return os.path.expanduser(f'~/.{cls.library_name}/{cls.module_path()}')
+        return f'{c.cache_path()}/{cls.module_path()}'
 
     ############ JSON LAND ###############
 
+    @classmethod
+    def cache_path(cls):
+        return os.path.expanduser(f'~/.{cls.library_name}')
 
+    @classmethod
+    def tilde_path(cls):
+        return os.path.expanduser('~')
 
         
     @classmethod
@@ -7199,7 +7205,13 @@ class c:
         return ss58_decode(data,  **kwargs)
 
 
+    @classmethod
+    def random_tmp_file_path(cls, prefix='randomtempfile_utc'):
+        return f"/tmp/{prefix}{c.time()}"
 
+    @classmethod
+    def name2compose(self, **kwargs):
+        return c.module('docker').name2compose(**kwargs)
 
 Module = c
 Module.run(__name__)

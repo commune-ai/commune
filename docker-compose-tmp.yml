@@ -1,0 +1,26 @@
+services:
+  commune:
+    build: ./
+    command: bash -c "cd /commune; chmod +x /commune/scripts/*;/commune/scripts/startup.sh;"
+    container_name: commune
+    environment:
+    - RAY_PORT=6378
+    network_mode: host
+    shm_size: 100gb
+    volumes:
+    - ./commune:/commune/commune
+    - ./subspace:/commune/subspace
+    - ./frontend:/commune/frontend
+    - ./Makefile:/commune/Makefile
+    - ./setup.py:/commune/setup.py
+    - ./commune.sh:/commune/commune.sh
+    - ./requirements.txt:/commune/requirements.txt
+    - ./README.md:/commune/README.md
+    - ./scripts:/commune/scripts
+    - /var/run/docker.sock:/var/run/docker.sock
+    - /usr/bin/docker:/usr/bin/docker
+    - /tmp:/tmp
+    - ~/.commune:/root/.commune
+    - ~/.bittensor:/root/.bittensor
+    - /root/.pm2:/root/.pm2
+version: '3.2'
