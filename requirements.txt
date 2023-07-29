@@ -34,3 +34,4 @@ munch
 ansible
 grpcio
 grpcio-tools
+sse-starlette
