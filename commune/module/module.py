@@ -1233,7 +1233,7 @@ class c:
         for module in c.servers(*args, **kwargs):
             c.kill(module)
 
-        c.update(network='local')
+        # c.update(network='local')
             
     
     @classmethod
@@ -2325,10 +2325,6 @@ class c:
     
     resolve_port = get_port
     
-    @classmethod
-    def server_exists(cls, name:str, **kwargs) -> bool:
-        namespace = c.namespace(**kwargs)
-        return bool(name in namespace)
 
     @classmethod
     def module_exists(cls, name:str, **kwargs) -> bool:
@@ -3115,7 +3111,11 @@ class c:
         for n in rm_list:
             if verbose:
                 c.print(f'Killing {n}', color='red')
-            cls.run_command(f"pm2 delete {n}", verbose=False)
+            cls.cmd(f"pm2 delete {n}", verbose=False)
+            cls.pm2_rm_logs(n)
+
+        
+        
             
         return rm_list
     
@@ -3158,8 +3158,26 @@ class c:
 
     pm2_dir = os.path.expanduser('~/.pm2')
     @classmethod
-    def pm2_logs_ls(cls):
-        return {'-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':'):l for l in c.ls(f'{cls.pm2_dir}/logs/')}
+    def pm2_logs_path_map(cls, name=None):
+        pm2_logs_path_map = {}
+        for l in c.ls(f'{cls.pm2_dir}/logs/'):
+            key = '-'.join(l.split('/')[-1].split('-')[:-1]).replace('-',':')
+            pm2_logs_path_map[key] = pm2_logs_path_map.get(key, []) + [l]
+
+    
+        for k in pm2_logs_path_map.keys():
+            pm2_logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(pm2_logs_path_map[k])}
+
+        if name != None:
+            return pm2_logs_path_map[name]
+
+        return pm2_logs_path_map
+
+    @classmethod
+    def pm2_rm_logs( cls, name):
+        pm2_logs_map = cls.pm2_logs_path_map(name)
+        for k in pm2_logs_map.keys():
+            c.rm(pm2_logs_map[k])
 
     @classmethod
     def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
@@ -3924,14 +3942,16 @@ class c:
         return ip 
     
     @classmethod
-    def ip(cls,external=True, **kwargs) -> str:
-        if external:
-            ip =  cls.external_ip(**kwargs)
-
-        else:
-            ip =  '127.0.0.1'
+    def ip(cls, cache:bool = True, **kwargs) -> str:
+        if cache:
+            ip = c.getc('ip', None)
+            if ip != None:
+                return ip
+        
+        ip =  cls.external_ip(**kwargs)
+        if cache:
+            c.setc('ip', ip)
         return ip
-
     @classmethod
     def queue(cls, size=-1, *args, **kwargs):
         import queue
@@ -7267,6 +7287,10 @@ class c:
     def run_generator(cls):
         for i in cls.generator():
             c.print(i)
+    @classmethod
+    def is_generator(cls, obj):
+        import inspect
+        return inspect.isgenerator(obj)
 Module = c
 Module.run(__name__)
     

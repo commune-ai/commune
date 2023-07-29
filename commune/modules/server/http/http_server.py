@@ -4,6 +4,8 @@ import commune as c
 import torch 
 
 
+
+
 class HTTPServer(c.Module):
     access_modes = ['public', 'root', 'subspace']
     def __init__(
@@ -17,12 +19,14 @@ class HTTPServer(c.Module):
         whitelist: List[str] = None,
         blacklist: List[str] = None,
         access:str = 'public',
+        sse: bool = False,
+        max_history: int = 100,
         save_history_interval: int = 100,
         max_request_staleness: int = 100,
         key = None,
         root_key = None,
     ) -> 'Server':
-        
+        self.sse = sse
         self.root_key = c.get_key(root_key)
         self.timeout = timeout
         self.verbose = verbose
@@ -31,6 +35,7 @@ class HTTPServer(c.Module):
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
         self.set_access(access)
+        
 
 
         # KEY FOR SIGNING DATA
@@ -105,7 +110,7 @@ class HTTPServer(c.Module):
 
 
     
-    def get_request_data(self, input: dict) -> bool:
+    def process_input(self, input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
         try:
@@ -123,41 +128,63 @@ class HTTPServer(c.Module):
         except Exception as e:
             c.print(e, color='red')
             return {'error': str(e)}
+        
+    @staticmethod
+    def event_source_response(generator):
+        from sse_starlette.sse import EventSourceResponse
+        return EventSourceResponse(generator)
+    
+    @staticmethod
+    def resolve_generator(self, generator):
 
+        def generator_wrapper():
+            if c.is_generator(generator):
+                for item in generator:
+                    yield self.process_result(item, resolve_generator=False)
+            else: 
+                yield self.process_result(generator, resolve_generator=False)
+
+        return generator_wrapper
+    
+    def process_result(self,  result):
+        if self.sse == True:
+            # if we are using sse, we want to include one time calls too
+            result = self.resolve_generator(self, result)
+            return self.event_source_response(result)
+        else:
+            # if we are not using sse then we want to convert the generator to a list
+            # WARNING : This will not work for infinite loops lol because it will never end
+            if c.is_generator(result):
+                result = list(result)
+            
+        # serialize result
+        result = self.serializer.serialize(result)
+        
+        # sign result data (str)
+        result =  self.key.sign(result, return_json=True)
+
+        return result
     def set_api(self, ip = None, port = None):
         ip = self.ip if ip == None else ip
         port = self.port if port == None else port
         from fastapi import FastAPI
+        
+
         self.app = FastAPI()
-        @self.app.post("/{fn}/")
+
+        @self.app.post("/{fn}")
         async def forward_api(fn:str, input:dict[str, str]):
 
             try:
                 # verify key
-                data = self.get_request_data(input)
+                data = self.process_input(input)
                 # forward
                 result =  self.forward(fn=fn, 
                                         args=data.get('args', []), 
                                         kwargs=data.get('kwargs', {})
                                         )
-                
-                # serialize result
-                result_data = self.serializer.serialize(result)
 
-                # sign result data (str)
-                result =  self.key.sign(result_data, return_json=True)
-
-
-                self.history.append({
-                    'fn': fn,
-                    'ip': data.pop('ip', None),
-                    'address': input.pop('address', None),
-                    'timestamp': data.pop('timestamp', None),
-                }
-                )
-
-                if len(self.history) > 100:
-                    self.history = self.history[-100:]
+                result = self.process_result(result)
 
             except Exception as e:
                 c.print(e, color='red')
@@ -167,6 +194,8 @@ class HTTPServer(c.Module):
             # send result to client
             return result
         
+        
+
 
 
     def save(self, data: dict):
@@ -203,3 +232,4 @@ class HTTPServer(c.Module):
 
     def __del__(self):
         c.deregister_server(self.name)
+
