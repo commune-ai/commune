@@ -57,6 +57,8 @@ class DataHF(c.Module):
         name = name if name else config.name
         name = self.default_name() if name == None else name
 
+        # raise Exception(f'Loading dataset: {name} from {path}')
+
         # resolve split
         split = split if split else config.split
         streaming = streaming if streaming else config.streaming
@@ -124,7 +126,7 @@ class DataHF(c.Module):
     
     def config_map(self):
 
-        dataset_builder = self.get_dataset_builder(self.config.path)()
+        dataset_builder = self.get_dataset_builder(self.config.path)
         configs = [config.__dict__ for config in dataset_builder.BUILDER_CONFIGS]
 
         if len(configs) == 0:
@@ -191,11 +193,11 @@ class DataHF(c.Module):
         name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
         c.print(f'Serving {name} with kwargs: {kwargs}')
-        c.serve(module='data.hf', name=name, kwargs=kwargs, remote=remote)
+        c.serve(module=cls.module_path(), name=name, kwargs=kwargs, remote=remote)
 
 
     @classmethod
-    def serve_fleet(cls, fleet:str = 'qa', remote:bool=True, **kwargs):
+    def fleet(cls, fleet:str = 'qa', remote:bool=True, **kwargs):
         fleet = cls.getc(f'fleet.{fleet}')
 
         avoid_ports = []
