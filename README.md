@@ -213,22 +213,3 @@ That's it, my friend! You've created a dope module and registered it on the bloc
 
 
 
-# Subspace Node
-
-To setup subspace, you can use local or via docker.
-
-
-
-## Local
-
-cd subspace
-
-Install the rust environment located in commune/scripts or commune/subspace/script. Thay are the same file
-
-
-```
-# You may need to make them executable
-sudo chmod +x ./scripts/*
-```
-
-./scripts 

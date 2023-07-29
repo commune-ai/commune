@@ -1727,6 +1727,15 @@ class Subspace(c.Module):
         return key in self.live_keys(*args, **kwargs)
 
     @classmethod
+    def kill_chain(cls, chain=chain):
+        cls.kill_nodes(chain=chain)
+        cls.refresh_chain_info(chain=chain)
+
+    @classmethod
+    def refresh_chain_info(cls, chain=chain):
+        cls.putc(f'network2url.{chain}', [])
+        cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': []})
+    @classmethod
     def kill_nodes(cls, chain=chain, verbose=True):
         for node_path in cls.live_nodes(chain=chain):
             if verbose:
@@ -1815,9 +1824,9 @@ class Subspace(c.Module):
   
     @classmethod
     def build_spec(cls,
-                   chain,
+                   chain = chain,
                    raw:bool  = False,
-                   disable_default_bootnode = True,
+                   disable_default_bootnode: bool = True,
                    snap:bool = False,
 
                    ):
@@ -2072,6 +2081,11 @@ class Subspace(c.Module):
         cls.rmc(f'chain_info.{chain}.{node}')
         return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
 
+
+    @classmethod
+    def get_boot_nodes(cls, chain=chain):
+        return cls.getc('chain_info.{chain}.boot_nodes')
+
     @classmethod
     def start_node(cls,
                  node : str = 'alice',
@@ -2082,55 +2096,74 @@ class Subspace(c.Module):
                  telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
                  validator: bool = True,          
                  purge_chain:bool = True,
-                 remote:bool = True,
                  refresh:bool = False,
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
                  mode :str = server_mode,
-                 build: bool = False,
+                 rpc_cors = 'all',
                  
                  ):
+
+    
+
+        ip = c.ip(external_ip=True)
+
+        node_info = c.locals2kwargs(locals())
+
         cmd = cls.chain_release_path
 
         free_ports = c.free_ports(n=3)
 
         if port == None:
-            port = free_ports[0]
+            node_info['port'] = port = free_ports[0]
+            
         if rpc_port == None:
-            rpc_port = free_ports[1]
+            node_info['rpc_port'] = rpc_port = free_ports[1]
         if ws_port == None:
-            ws_port = free_ports[2]
-
+            node_info['ws_port'] = ws_port = free_ports[2]
+        # resolve base path
         base_path = cls.resolve_base_path(node=node)
-
-        if purge_chain:
-            cls.purge_chain(base_path=base_path)
-        
-        chain_spec_path = cls.resolve_chain_spec_path(chain)
-
         cmd_kwargs = f' --base-path {base_path}'
+
+        # resolve chain spec path
+        c.print(chain)
+        chain_spec_path = cls.resolve_chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
         
+
+        # purge chain
+        if purge_chain:
+            cls.purge_chain(base_path=base_path)
+
         if validator :
             cmd_kwargs += ' --validator'
         else:
             cmd_kwargs += ' --ws-external --rpc-external'
         cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
         
+        chain_info = cls.getc(f'chain_info.{chain}', {})
+        boot_nodes = chain_info.get('boot_nodes', [])
+        chain_info['nodes'] = chain_info.get('nodes', {})
+        chain_info['nodes'][node] = node_info
+        chain_info['boot_nodes'] = chain_info.get('boot_nodes', [])
 
-            
-        if boot_nodes != None:
-            cmd_kwargs += f' --bootnodes {boot_nodes}'
+        if boot_nodes == None:
+            boot_nodes = []
+
+        if len(boot_nodes) > 0:
+            node_info['boot_nodes'] = boot_nodes[0]
+            cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
+        
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
             
-        cmd_kwargs += f' --rpc-cors=all'
-        c.print(f'{cmd} {cmd_kwargs}')
+        cmd_kwargs += f' --rpc-cors={rpc_cors}'
 
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
         if mode == 'pm2':
+            # 
             cmd = c.pm2_start(path=cls.chain_release_path, 
                             name=name,
                             cmd_kwargs=cmd_kwargs,
@@ -2139,38 +2172,48 @@ class Subspace(c.Module):
             
         elif mode == 'docker':
 
+
+            # we need to change the mapping of the cache path to the inner path
             cache_path = c.cache_path()
             tilde_path = c.tilde_path()
             cache_path_inner = cache_path.replace(tilde_path, '')
+
+            # we need to change the mapping of the cache path to the inner path
             cmd = cmd + cmd_kwargs
-            
             cmd = cmd.replace(c.repo_path, '')
             cmd = cmd.replace(cache_path, cache_path_inner)
             c.print(cmd, cache_path, cache_path_inner)
             volumes = f'{cache_path}:{cache_path_inner}'
-            docker = c.module('docker')
 
-            docker.run(image = cls.chain_name, 
-                       name = name , 
-                       volumes=volumes, 
-                       cmd='ls /', 
-                       build=True,
-                        run=False, 
-                        daemon=False)
+            # run the docker image
+            c.module('docker').run(image = cls.chain_name, 
+                                    name = name , 
+                                    volumes=volumes, 
+                                    cmd=cmd, 
+                                    build=True,
+                                        run=False, 
+                                        daemon=False)
         else: 
             raise Exception(f'unknown mode {mode}')
-            
-        url = f'ws://{c.ip(external=True)}:{ws_port}'
-
-        if validator == False:
-            network2url = cls.getc('network2url', {})
-            network2url[chain] = list(set(network2url.get(chain, []) + [url]))
-            cls.putc('network2url', network2url)
         
+        
+        if validator:
+            # ensure you add the node to the chain_info if it is a bootnode
+            node_id = cls.get_node_id(node=node, chain=chain, mode=mode)
+            chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
+        else:
+            # ensure to add the node to the network2url if it is not a validator
+            network2url = cls.getc('network2url', {})
+            network2url[chain] = list(set(network2url.get(chain, []) + [f'ws://{ip}:{ws_port}']))
+            cls.putc('network2url', network2url)
+        chain_info['nodes'][node] = node_info
+        cls.putc(f'chain_info.{chain}', chain_info)
 
 
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
        
+
+
     @classmethod
     def release_exists(cls):
         return c.exists(cls.chain_release_path)
@@ -2183,18 +2226,16 @@ class Subspace(c.Module):
                     verbose:bool = False,
                     num_nonvali : int = 3,
                     build: bool = True,
-                    external:bool = True,
-                    boot_nodes : str = None,
                     purge_chain:bool = True,
                     snap:bool = False,
-                    kill_nodes: bool = True,
+                    refresh: bool = True,
                     port_keys: list = ['port','rpc_port','ws_port'],
                     
                     ):
         
         # build the chain
-        if kill_nodes:
-            cls.kill_nodes(chain=chain)
+        if refresh:
+            cls.kill_chain(chain=chain)
         if build:
             cls.build(chain=chain, verbose=verbose, snap=snap)
     
@@ -2210,49 +2251,29 @@ class Subspace(c.Module):
         vali_nodes = nodes[:-num_nonvali]
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
+        # refresh the chain info
         cls.putc(f'network2url.{chain}', [])
-        
-
-
+        cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': []})
 
         avoid_ports = []
-        ip = c.ip(external=external)
-        chain_info = {'nodes': {}, 'boot_nodes': []}
-
 
         for node in (vali_nodes + non_valis):
-            node_key = c.get_key(f'{cls.node_key_prefix}.{node}.gran')
-            is_vali = bool(node in vali_nodes)
-
+            c.print(f'Starting node {node} for chain {chain}')
             node_kwargs = {
                             'chain':chain, 
                             'node':node, 
                             'verbose':verbose,
                             'purge_chain': purge_chain,
-                            'validator': is_vali,
-                            'boot_nodes': boot_nodes,
-                            
+                            'validator':  bool(node in vali_nodes),
                             }
+            # get the ports for (port, rpc_port, ws_port)
+            #  make sure they do not conflict (using avoid ports)
             for k in port_keys:
                 port = c.free_port(avoid_ports=avoid_ports)
                 avoid_ports.append(port)
                 node_kwargs[k] = port
             
-
-
-            node_kwargs['boot_nodes'] = boot_nodes
-            chain_info['nodes'][node] = c.copy(node_kwargs)
-            cls.start_node(**chain_info['nodes'][node])
-            if is_vali:
-                node_id = cls.get_node_id(node=node, chain=chain)
-                boot_node = f'/ip4/{ip}/tcp/{node_kwargs["port"]}/p2p/{node_id}'
-                chain_info['boot_nodes'] += [boot_node]
-                if boot_nodes == None:
-                    boot_nodes = boot_node
-        
-        cls.putc(f'chain_info.{chain}', chain_info)
-
-
+            cls.start_node(**node_kwargs)
 
        
     @classmethod
