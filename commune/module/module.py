@@ -4715,7 +4715,7 @@ class c:
         if hasattr(module, 'get_key'):
             key = module.get_key(key, **kwargs)
         else:
-            key = module(key, **kwarg)
+            key = module(key, **kwargs)
 
         return key
     
@@ -6370,6 +6370,12 @@ class c:
             fn2str[k] = c.python2str(v)
             
         return fn2str
+    @classmethod
+    def fn2hash(cls, *args, mode='sha256', **kwargs):
+        fn2hash = {}
+        for k,v in cls.fn2str(*args, **kwargs).items():
+            fn2hash[k] = c.hash(v,mode=mode)
+        return fn2hash
     
         
     @classmethod
@@ -7250,6 +7256,17 @@ class c:
     def name2compose(self, **kwargs):
         return c.module('docker').name2compose(**kwargs)
 
+
+
+    @classmethod
+    def generator(cls):
+        for i in range(10):
+            yield i
+
+    @classmethod
+    def run_generator(cls):
+        for i in cls.generator():
+            c.print(i)
 Module = c
 Module.run(__name__)
     
