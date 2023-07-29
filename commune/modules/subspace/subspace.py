@@ -1808,10 +1808,10 @@ class Subspace(c.Module):
     def purge_chain(cls,
                     base_path:str = None,
                     chain:str = chain,
-                    user:str = 'alice',
+                    node:str = 'alice',
                     sudo = False):
         if base_path == None:
-            base_path = cls.resolve_base_path(node=node)
+            base_path = cls.resolve_base_path(node=node, chain=chain)
         
         return c.rm(base_path+'/chains/commune/db')
     
@@ -1823,7 +1823,7 @@ class Subspace(c.Module):
     
     @classmethod
     def resolve_node_keystore_path(cls, node='alice', chain=chain):
-        path =  cls.resolve_base_path(node) + f'/chains/commune/keystore'
+        path =  cls.resolve_base_path(node=node, chain=chain) + f'/chains/commune/keystore'
         if not c.exists(path):
             c.mkdir(path)
         return path
@@ -2128,7 +2128,7 @@ class Subspace(c.Module):
         if ws_port == None:
             node_info['ws_port'] = ws_port = free_ports[2]
         # resolve base path
-        base_path = cls.resolve_base_path(node=node)
+        base_path = cls.resolve_base_path(node=node, chain=chain)
         cmd_kwargs = f' --base-path {base_path}'
 
         # resolve chain spec path

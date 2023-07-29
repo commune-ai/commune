@@ -82,6 +82,10 @@ class c:
     @classmethod
     def start_chain(cls, *args, **kwargs):
         c.module('subspace').start_chain(*args, **kwargs)
+    @classmethod
+    def kill_chain(cls, *args, **kwargs):
+        c.module('subspace').kill_chain(*args, **kwargs)
+        
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
     @classmethod
@@ -3169,13 +3173,14 @@ class c:
             pm2_logs_path_map[k] = {l.split('-')[-1].split('.')[0]: l for l in list(pm2_logs_path_map[k])}
 
         if name != None:
-            return pm2_logs_path_map[name]
+            return pm2_logs_path_map.get(name, {})
 
         return pm2_logs_path_map
 
     @classmethod
     def pm2_rm_logs( cls, name):
         pm2_logs_map = cls.pm2_logs_path_map(name)
+
         for k in pm2_logs_map.keys():
             c.rm(pm2_logs_map[k])
 
