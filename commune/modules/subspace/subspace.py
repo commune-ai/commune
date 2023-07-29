@@ -1784,9 +1784,16 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
-        c.cmd('cargo build --release', cwd=cls.chain_path, verbose=verbose)
-        cls.build_spec(chain, snap=snap)  
+    def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,snap:bool=False,  verbose:bool=True, ):
+        if build_runtime:
+            self.build_runtime(verbose=verbose )
+        if build_spec:
+            cls.build_spec(chain=chain, snap=snap, verbose=verbose)
+
+
+    @classmethod
+    def build_runtime(self, verbose:bool=True):
+        self.cmd('cargo build --release', cwd=self.chain_path, verbose=verbose)
 
     @classmethod
     def test_chain(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
@@ -1811,8 +1818,8 @@ class Subspace(c.Module):
     
     
     @classmethod
-    def resolve_base_path(cls, node='alice'):
-        return cls.resolve_path(f'nodes/{node}')
+    def resolve_base_path(cls, node='alice', chain=chain):
+        return cls.resolve_path(f'chains/{chain}/nodes/{node}')
     
     @classmethod
     def resolve_node_keystore_path(cls, node='alice', chain=chain):
@@ -1821,16 +1828,14 @@ class Subspace(c.Module):
             c.mkdir(path)
         return path
 
-  
     @classmethod
     def build_spec(cls,
                    chain = chain,
                    raw:bool  = False,
                    disable_default_bootnode: bool = True,
                    snap:bool = False,
-
+                   verbose:bool = True
                    ):
-
 
         chain_spec_path = cls.resolve_chain_spec_path(chain)
         if snap:
@@ -1844,21 +1849,20 @@ class Subspace(c.Module):
             assert c.exists(chain_spec_path), f'Chain {chain_spec_path} does not exist.'
             cmd += ' --raw'
             spec_path =chain_spec_path.replace('.json', '_raw.json')
-
-
         cmd += f' > {chain_spec_path}'
         c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
-
         # add vali nodes
+        
+        cls.add_node_keys(chain=chain, nodes=list(cls.node_keys(chain).keys()))
         vali_node_keys = cls.vali_node_keys(chain)
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         # TODO, have custom votes per grandpa node
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
-        c.print(spec['genesis']['runtime']['grandpa'])
-        c.print(chain_spec_path)
         c.put_json(chain_spec_path, spec)
-
+        resp = {'spec_path': chain_spec_path, 'spec': spec}
+        c.print(resp, verbose=verbose)
+        return resp
 
 
     @classmethod
@@ -1878,7 +1882,7 @@ class Subspace(c.Module):
     
     specs = chain_specs
     @classmethod
-    def get_spec(cls, chain:str):
+    def get_spec(cls, chain:str=chain):
         chain = cls.resolve_chain_spec_path(chain)
         
         return c.get_json(chain)
@@ -2096,12 +2100,13 @@ class Subspace(c.Module):
                  telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
                  validator: bool = True,          
                  purge_chain:bool = True,
-                 refresh:bool = False,
+                 refresh:bool = True,
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
                  mode :str = server_mode,
                  rpc_cors = 'all',
+
                  
                  ):
 
@@ -2136,6 +2141,8 @@ class Subspace(c.Module):
         if purge_chain:
             cls.purge_chain(base_path=base_path)
 
+
+
         if validator :
             cmd_kwargs += ' --validator'
         else:
@@ -2154,7 +2161,10 @@ class Subspace(c.Module):
         if len(boot_nodes) > 0:
             node_info['boot_nodes'] = boot_nodes[0]
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
-        
+    
+    
+        # if node_key == None:
+        #     node_key = cls.get_node_key(node=node, chain=chain, mode='gran').private_key.hex(),
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
             
@@ -2225,10 +2235,12 @@ class Subspace(c.Module):
                     chain:str=chain, 
                     verbose:bool = False,
                     num_nonvali : int = 3,
-                    build: bool = True,
+                    build_runtime: bool = False,
+                    build_spec: bool = True,
                     purge_chain:bool = True,
                     snap:bool = False,
                     refresh: bool = True,
+
                     port_keys: list = ['port','rpc_port','ws_port'],
                     
                     ):
@@ -2236,8 +2248,9 @@ class Subspace(c.Module):
         # build the chain
         if refresh:
             cls.kill_chain(chain=chain)
-        if build:
-            cls.build(chain=chain, verbose=verbose, snap=snap)
+
+        if build_runtime or build_spec:
+            cls.build(chain=chain, verbose=verbose, snap=snap, build_runtime=build_runtime, build_spec=build_spec)
     
         # resolve the validator and non validator nodes
         node_keys = cls.node_keys(chain=chain)
@@ -2333,9 +2346,11 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls, *nodes, chain=chain):
-        if len(nodes) == 0:
+    def add_node_keys(cls, chain=chain,nodes = None,  ):
+        if nodes == None:
             nodes = cls.getc('nodes')
+
+        c.print(f'Adding node keys for {nodes} nodes')
         for node in nodes:
             cls.add_node_key(node=node, chain=chain)
 
@@ -2348,7 +2363,17 @@ class Subspace(c.Module):
     def vali_node_key2address(cls,chain=chain):
         key2address =  c.key2address(f'{cls.node_key_prefix}.{chain}')
         return key2address
+    @classmethod
+    def resolve_node_key_path(cls, node='alice', chain=chain, mode='gran'):
+        return f'{cls.node_key_prefix}.{chain}.{node}.{mode}'
 
+    @classmethod
+    def get_node_key(cls, node='alice', chain=chain, mode='gran'):
+        return c.get_key(cls.resolve_node_key_path(node=node, chain=chain, mode=mode))
+    @classmethod
+    def get_node_keys(cls, node='alice', chain=chain):
+        return {mode:cls.get_node_key(node=node, chain=chain, mode=mode) for mode in ['gran', 'aura']}
+    
 
     @classmethod
     def node_keys(cls,chain=chain):
@@ -2385,7 +2410,7 @@ class Subspace(c.Module):
                 schema = 'Sr25519'
         
             key = c.get_key(f'{cls.node_key_prefix}.{chain}.{node}.{key_type}',crypto_type=schema)
-            base_path = cls.resolve_base_path(node)
+            base_path = cls.resolve_base_path(node=node, chain=chain)
 
             cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             
@@ -2414,13 +2439,15 @@ class Subspace(c.Module):
     def key2uid(self, network:str=  None,netuid: int = None, **kwargs):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
+
     @classmethod
-    def get_node_id(cls, chain=chain, node='alice', max_trials=4, sleep_interval=1, mode=server_mode):
+    def get_node_id(cls,  node='alice',chain=chain, max_trials=4, sleep_interval=1, mode=server_mode):
         node2path = cls.node2path(chain=chain)
         node_path = node2path[node]
         node_id = None
         node_logs = ''
         indicator = 'Local node identity is: '
+        c.print(node_path)
 
         while indicator not in node_logs and max_trials > 0:
             c.print(f'Waiting for node_id for {node} on {chain}...')
@@ -2531,7 +2558,7 @@ class Subspace(c.Module):
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
 
-    def snap(self, 
+    def build_snap(self, 
              state:dict = None,
              network : str =network,
              path : str  = None,
@@ -2539,10 +2566,11 @@ class Subspace(c.Module):
             module_params : List[str] = ['key', 'name', 'address', 'stake'],
             save: bool = True, 
             min_balance:int = 100000,
+            verbose: bool = False,
              **kwargs):
         
         if isinstance(state, str):
-            c.print('Loading statepath from state', path)
+            c.print('Loading statepath from state', path, verbose=verbose)
             state = c.get(state)
         elif state is None:
             state = c.get(self.newest_archive_path())
@@ -2566,13 +2594,12 @@ class Subspace(c.Module):
         # save snapshot into subspace/snapshots/{network}.json
         if save:
             if path is None:
+                
                 snap_dir = f'{self.chain_path}/snapshots'
                 c.mkdir(snap_dir)
                 path = f'{snap_dir}/{network}.json'
-            c.print('Saving snapshot to', path)
+            c.print('Saving snapshot to', path, verbose=verbose)
             c.put_json(path, snap)
-
-        
         
         return snap
     

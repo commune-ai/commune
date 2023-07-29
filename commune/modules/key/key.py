@@ -250,7 +250,7 @@ class Keypair(c.Module):
 
         if isinstance(key_json, str):
             key_json = c.jload(key_json)
-        c.print(key_json, path)
+
         key_json['path'] = path
         if json:
             return key_json

@@ -19,6 +19,7 @@ class Client(c.Module):
             port: int = 50053 ,
             network: bool = None,
             key = None,
+            stream = False,
             **kwargs
         ):
         self.loop = c.get_event_loop()
@@ -26,6 +27,7 @@ class Client(c.Module):
         self.serializer = c.serializer()
         self.key = c.get_key(key)
         self.my_ip = c.ip()
+        self.stream = stream
         self.network = c.resolve_network(network)
 
     def set_client(self,
@@ -74,6 +76,7 @@ class Client(c.Module):
         request_data = self.serializer.serialize( request_data)
         request = self.key.sign(request_data, return_json=True)
         assert self.key.verify(request), f"Request not signed with correct key"
+
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
@@ -81,10 +84,12 @@ class Client(c.Module):
                         # c.print(response.__dict__)
                         response = await asyncio.wait_for(response.json(), timeout=timeout)
             else:
-                response = requests.post(url, json=request, headers=headers)
+                response = requests.post(url,json=request, headers=headers)
                 response = response.json()
+            c.print(response, color='green')
 
             assert self.key.verify(response), f"Response not signed with correct key"
+
             response = self.serializer.deserialize(response['data'])
         except Exception as e:
             if return_error:
