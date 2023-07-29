@@ -1,0 +1,20 @@
+block_size: 32
+block_size: 256
+no_tokenizer: false
+num_workers: 1
+dataset_names: ['default']
+max_datasets: 10
+save_dataset: true
+available_datasets:
+  - BookCorpus2
+  - Books3
+  - DMMathematics
+  - EnronEmails
+  - EuroParl
+  - Gutenberg_PG
+  - HackerNews
+  - NIHExPorter
+  - OpenSubtitles
+  - PhilPapers
+  - UbuntuIRC
+  - YoutubeSubtitles
