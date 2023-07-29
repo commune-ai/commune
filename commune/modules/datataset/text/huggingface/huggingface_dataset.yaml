@@ -1,0 +1,8 @@
+path: pile
+name: null  # replace with desired config
+text_field: null  # replace with desired text field
+split: train
+streaming: false
+tokenizer: gpt2
+device: cpu
+test: True
