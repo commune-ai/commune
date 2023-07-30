@@ -5443,6 +5443,9 @@ class c:
         
         # update local namespace
         c.namespace(network=network, update=True)
+        servers = c.servers(network=network)
+
+        return {'success': True, 'servers': servers}
 
     @classmethod
     def sync(cls, *args, **kwargs):
