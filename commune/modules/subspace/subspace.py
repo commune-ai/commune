@@ -1786,7 +1786,7 @@ class Subspace(c.Module):
     @classmethod
     def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,snap:bool=False,  verbose:bool=True, ):
         if build_runtime:
-            self.build_runtime(verbose=verbose )
+            cls.build_runtime(verbose=verbose )
         if build_spec:
             cls.build_spec(chain=chain, snap=snap, verbose=verbose)
 
