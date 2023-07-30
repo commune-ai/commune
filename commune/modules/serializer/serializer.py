@@ -49,28 +49,33 @@ class Serializer(c.Module):
             k_list = list(range(len(x)))
 
         for k in k_list:
-            v = x[k]
-            v_type = type(v)
-            if v_type in [dict, list, tuple, set]:
-                x[k] = self.serialize(x=v, mode=None)
-            else:
-                str_v_type = self.get_str_type(data=v)
-                if hasattr(self, f'serialize_{str_v_type}'):
-                    v = getattr(self, f'serialize_{str_v_type}')(data=v)
-                    x[k] = {'data': v, 'data_type': str_v_type,  'serialized': True}
+            x[k] = self.resolve_value(v=x[k])
 
         if mode == 'str':
             x = self.dict2str(x)
         elif mode == 'bytes':
             x = self.dict2bytes(x)
-        elif mode == None:
-            pass
+        elif mode == 'dict' or mode == None:
+            x = x
         else:
             raise Exception(f'{mode} not supported')
             
         return x
 
 
+    def resolve_value(self, v):
+        new_value = None
+        v_type = type(v)
+        if v_type in [dict, list, tuple, set]:
+            new_value = self.serialize(x=v, mode=None)
+        else:
+            str_v_type = self.get_str_type(data=v)
+            if hasattr(self, f'serialize_{str_v_type}'):
+                v = getattr(self, f'serialize_{str_v_type}')(data=v)
+                new_value = {'data': v, 'data_type': str_v_type,  'serialized': True}
+
+        return new_value
+        
 
     def is_serialized(self, data):
         if isinstance(data, dict) and \
