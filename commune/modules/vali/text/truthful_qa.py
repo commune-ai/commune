@@ -15,8 +15,8 @@ class ValiTruthfulQA(c.Module):
             self.start()
 
 
-    def get_module(self, name):
-
+    def get_module(self, name:str):
+        pass
     def sample(self):
         # get sample
         sample = self.dataset.sample()
