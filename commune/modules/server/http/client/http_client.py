@@ -64,7 +64,6 @@ class Client(c.Module):
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         url = f"http://{self.address}/{fn}/"
-
         request_data =  { 
             
                         "args": args,
@@ -81,15 +80,12 @@ class Client(c.Module):
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
                     async with session.post(url, json=request, headers=headers) as response:
-                        # c.print(response.__dict__)
                         response = await asyncio.wait_for(response.json(), timeout=timeout)
             else:
                 response = requests.post(url,json=request, headers=headers)
                 response = response.json()
-            c.print(response, color='green')
 
             assert self.key.verify(response), f"Response not signed with correct key"
-
             response = self.serializer.deserialize(response['data'])
         except Exception as e:
             if return_error:

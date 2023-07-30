@@ -31,10 +31,7 @@ class DataHF(c.Module):
     def test(cls, *args,**kwargs):
         cls.print('Testing dataset')
         dataset = cls(*args, **kwargs)
-        c.print(dir(dataset))
         sample = dataset.sample()
-        print(sample)
-        
         assert isinstance(sample, dict)
         return sample
     

@@ -133,8 +133,7 @@ class Serializer(c.Module):
         return  data
 
     def deserialize_munch(self, data: bytes) -> 'Munch':
-
-        data = self.bytes2dict(data=data)
+        data = self.str2dict(data=data)
         data = self.dict2munch(data)
         return data
 
