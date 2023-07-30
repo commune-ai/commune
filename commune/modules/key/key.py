@@ -849,13 +849,18 @@ class Keypair(c.Module):
         -------
         True if data is signed with this Keypair, otherwise False
         """
+        data = c.copy(data)
         if isinstance(data, dict):
+
+            crypto_type = int(data.pop('crypto_type'))
+            signature = data.pop('signature')
+            public_key = c.ss58_decode(data.pop('address'))
             if 'data' in data:
-                crypto_type = int(data['crypto_type'])
-                signature = data['signature']
-                public_key = c.ss58_decode(data['address'])
-                data = data['data']
-                
+                data = data.pop('data')
+            
+            # if not isinstance(data, str):
+            #     data = c.python2str(data)
+            
                 
         if public_key == None:
             public_key = self.public_key
