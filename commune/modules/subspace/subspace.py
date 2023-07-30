@@ -2441,7 +2441,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def get_node_id(cls,  node='alice',chain=chain, max_trials=4, sleep_interval=1, mode=server_mode):
+    def get_node_id(cls,  node='alice',chain=chain, max_trials=10, sleep_interval=1, mode=server_mode):
         node2path = cls.node2path(chain=chain)
         node_path = node2path[node]
         node_id = None
@@ -2450,7 +2450,7 @@ class Subspace(c.Module):
         c.print(node_path)
 
         while indicator not in node_logs and max_trials > 0:
-            c.print(f'Waiting for node_id for {node} on {chain}...')
+            c.print(f'Waiting for node_id for {node} on {chain} trials lef {max_trials}')
             if mode == 'docker':
                 node_path = node2path[node]
                 node_logs = c.module('docker').logs(node_path)

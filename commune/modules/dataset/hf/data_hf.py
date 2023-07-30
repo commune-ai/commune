@@ -127,7 +127,7 @@ class DataHF(c.Module):
         configs = [config.__dict__ for config in dataset_builder.BUILDER_CONFIGS]
 
         if len(configs) == 0:
-            configs =  [dataset_builder.info.__dict__]
+            configs =  [dataset_builder._info.__dict__]
             configs[0]['name'] = 'default'
 
         config_map = {config['name']: config for config in configs}     

@@ -25,14 +25,18 @@ class TransformerModel(c.Module):
 
     def generate(self, 
                 prompt, 
-                 max_new_tokens=200, 
-                 do_sample=False, 
-                 top_k=10, 
-                 early_stopping=True,
+                max_past_tokens = 256,
+                max_new_tokens=10, 
+                do_sample=False, 
+                top_k=10, 
+                early_stopping=True,
+                truncation=True,
+                padding = False,
                  **kwargs):
 
 
-        inputs = self.tokenizer(prompt, return_tensors="pt")
+        inputs = self.tokenizer(prompt, return_tensors="pt", max_length=max_past_tokens, truncation=truncation, padding=padding)
+
 
         outputs = self.model.generate(
             input_ids = inputs['input_ids'],
@@ -52,30 +56,35 @@ class TransformerModel(c.Module):
     talk = chat = text = generate
 
 
-
     @classmethod
     def test(cls, **kwargs):
         self = cls(**kwargs)
         prompt = "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:"
-
-            
+        return self.generate(prompt)
+        
     @classmethod
     def serve(cls,
-            model: str,
+            model: str = None,
             tag = None,
             refresh = True,    
             **kwargs
             ):
+
         
         config = cls.get_config(kwargs=kwargs)
         config.tag = tag
-        config.model = model
+        config.model = model if model is not None else config.model
         c.serve(module=cls.module_path(),
-                name= f'model.{model}',
+                name= f'model.{config.model}',
                 tag = tag,
                 kwargs={'config': config},
                 refresh = refresh,
                 verbose=True, **kwargs)
+
+
+    @classmethod
+    def fleet(cls, model=None, n:int = 1, **kwargs):
+        return [cls(model=model, tag=i, **kwargs) for i in range(n)]
         
 
     @classmethod
