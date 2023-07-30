@@ -6527,15 +6527,15 @@ class c:
     def up(cls): 
         docker = c.module('docker')
         path = docker.get_compose_path('commune')
-        compose_dict = docker.get_compose(path)
+        compose = docker.get_compose(path)
 
         # create temporary compose file to toggle gpu options
-        if c.has_gpus():
-            del compose_dict['services']['commune']['deploy']
+        if not c.has_gpus():
+            del compose['services']['commune']['deploy']
         tmp_path = path.replace('docker-compose', 'docker-compose-tmp')
-        c.save_yaml(tmp_path, compose_dict)
+        c.save_yaml(tmp_path, compose)
 
-        docker.compose(tmp_path)
+        docker.compose(tmp_path, compose = compose)
         c.rm(tmp_path)
         # return c.compose('commune')
 

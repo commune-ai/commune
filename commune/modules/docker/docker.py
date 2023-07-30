@@ -276,7 +276,7 @@ class Docker(c.Module):
                 verbose:bool = True,
                 dash:bool = True,
                 cmd : str = None,
-                build: bool = True,
+                build: bool = False,
                 project_name: str = None,
                 cwd : str = None):
         
@@ -302,8 +302,10 @@ class Docker(c.Module):
         if daemon:
             cmd += ' -d'
 
+
         c.print(f'cmd: {cmd}', verbose=verbose)
         # save the config to the compose path
+        c.print(compose)
         c.save_yaml(tmp_path, compose)
         if build:
             c.cmd(f'docker-compose -f {tmp_path} build', verbose=True)
