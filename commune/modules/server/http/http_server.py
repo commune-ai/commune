@@ -23,6 +23,7 @@ class HTTPServer(c.Module):
         max_history: int = 100,
         save_history_interval: int = 100,
         max_request_staleness: int = 100,
+        max_result_chars = 100,
         key = None,
         root_key = None,
     ) -> 'Server':
@@ -30,11 +31,13 @@ class HTTPServer(c.Module):
         self.root_key = c.get_key(root_key)
         self.timeout = timeout
         self.verbose = verbose
+        
         self.serializer = c.module('server.http.serializer')()
         self.ip = c.resolve_ip(ip, external=False)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
         self.set_access(access)
+        self.max_result_chars = max_result_chars
         
 
 
@@ -113,22 +116,15 @@ class HTTPServer(c.Module):
     def process_input(self, input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
-        try:
-            self.verify_access(input)
-            data = self.serializer.deserialize(input.pop('data'))
+        self.verify_access(input)
+        input['data'] = self.serializer.deserialize(input['data'])
 
-            if self.access != 'public':
-                request_timestamp = data.get('timestamp', 0)
-                request_staleness = c.timestamp() - request_timestamp
-                assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
-
-
-
-            return data
-        except Exception as e:
-            c.print(e, color='red')
-            return {'error': str(e)}
-        
+        if self.access != 'public':
+            request_timestamp = input['data'].get('timestamp', 0)
+            request_staleness = c.timestamp() - request_timestamp
+            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        return input
+    
     @staticmethod
     def event_source_response(generator):
         from sse_starlette.sse import EventSourceResponse
@@ -176,21 +172,47 @@ class HTTPServer(c.Module):
         async def forward_api(fn:str, input:dict[str, str]):
 
             try:
-                # verify key
-                data = self.process_input(input)
+
                 # forward
-                result =  self.forward(fn=fn, 
-                                        args=data.get('args', []), 
-                                        kwargs=data.get('kwargs', {})
-                                        )
+                address = input['address']
+                address_abbrev = address[:5] + '...'
+                c.print(f'\033📞 Client({address_abbrev}) ---> {self.name}::{fn}')
+
+                # verify key
+                # Print statements with added color and bold formatting
+                input = self.process_input(input)
+
+                data = input['data']
+                args = data.get('args',[])
+                kwargs = data.get('kwargs', {})
+                
+            
+
+                result = self.forward(fn=fn,
+                                    args=data.get('args', []),
+                                    kwargs=data.get('kwargs', {})
+                                    )
 
                 result = self.process_result(result)
-
+                success = True
             except Exception as e:
-                c.print(e, color='red')
                 result = {'error': str(e)}
+                success = False
+                result = self.process_result(result)
+
+            result_logs = result["data"][:self.max_result_chars]
+            if success:
+                
+                c.print(f'\033✨ Success: {self.name}::{fn} --> {address_abbrev} 🎉\033 ')
+            else:
+
+                c.print(f'\033🚨 Error: {self.name}::{fn} --> {address_abbrev}🚨\033', result_logs)
+                c.print(f'INPUT DURING THE ERROR\n', f'args: {args} kwargs: {kwargs}' )
 
 
+        
+
+            
             # send result to client
             return result
         

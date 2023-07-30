@@ -2496,7 +2496,6 @@ class c:
         self._whitelist = whitelist
         
         return whitelist
-    whitelist = []
     wl = whitelist
     bl = blacklist = []
     
@@ -2545,7 +2544,6 @@ class c:
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
-            c.print(remote_kwargs)
             remote_kwargs['remote'] = False
             return cls.remote_fn('serve',name=name, kwargs=remote_kwargs,  )
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
@@ -2558,8 +2556,6 @@ class c:
         self = c.resolve_module(module)(*args, **kwargs)
         port = c.resolve_port(port)
 
-
-    
         if c.server_exists(name): 
             if refresh:
                 if verbose:
@@ -4462,7 +4458,6 @@ class c:
         
         return cls.pm2_logs(*args, **kwargs)
 
-
     @classmethod
     def print(cls, *text:str, 
               color:str=None, 
@@ -4853,12 +4848,13 @@ class c:
     @classmethod
     def call(cls,module : str, fn : str,
                          *args,
+                         full = False,
                          timeout : int = 4,
                          **kwargs) -> None:
                          
         
         module = cls.connect(module, virtual=False)
-        return module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        return module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, full=full)
 
 
     @classmethod

@@ -73,6 +73,8 @@ class Serializer(c.Module):
             if hasattr(self, f'serialize_{str_v_type}'):
                 v = getattr(self, f'serialize_{str_v_type}')(data=v)
                 new_value = {'data': v, 'data_type': str_v_type,  'serialized': True}
+            else:
+                new_value = v
 
         return new_value
         

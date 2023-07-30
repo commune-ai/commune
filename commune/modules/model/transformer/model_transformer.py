@@ -56,8 +56,8 @@ class TransformerModel(c.Module):
     def test(cls, **kwargs):
         self = cls(**kwargs)
         prompt = "Girafatron is obsessed with giraffes, the most glorious animal on the face of this Earth. Giraftron believes all other animals are irrelevant when compared to the glorious majesty of the giraffe.\nDaniel: Hello, Girafatron!\nGirafatron:"
-
-            
+        return self.generate(prompt)
+        
     @classmethod
     def serve(cls,
             model: str,

@@ -29,11 +29,11 @@ class Client(c.Module):
         self.my_ip = c.ip()
         self.stream = stream
         self.network = c.resolve_network(network)
-        self.timestamp = 
+        self.start_timestamp = c.timestamp()
 
-    @class
-    def age(cls):
-        
+    
+    def age(self):
+        return  self.start_timestamp - c.timestamp()
 
     def set_client(self,
             ip: str =None,
@@ -77,6 +77,7 @@ class Client(c.Module):
                          "ip": self.my_ip,
                          "timestamp": c.timestamp(),
                          }
+
         
         request_data = self.serializer.serialize( request_data)
         request = self.key.sign(request_data, return_json=True)
@@ -90,7 +91,6 @@ class Client(c.Module):
             else:
                 response = requests.post(url,json=request, headers=headers)
                 response = response.json()
-
             assert self.key.verify(response), f"Response not signed with correct key"
             response['data'] = self.serializer.deserialize(response['data'])
             response = response if full else response['data']
