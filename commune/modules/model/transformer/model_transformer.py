@@ -52,7 +52,6 @@ class TransformerModel(c.Module):
     talk = chat = text = generate
 
 
-
     @classmethod
     def test(cls, **kwargs):
         self = cls(**kwargs)
