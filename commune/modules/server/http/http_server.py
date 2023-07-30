@@ -40,9 +40,11 @@ class HTTPServer(c.Module):
         self.max_result_chars = max_result_chars
         
 
-
+        if not hasattr(module, 'key'):
+            module.key = c.get_key(name)
         # KEY FOR SIGNING DATA
         self.key = c.get_key(name) if key == None else key
+
 
         # WHITE AND BLACK LIST FUNCTIONS
         
@@ -160,6 +162,17 @@ class HTTPServer(c.Module):
         result =  self.key.sign(result, return_json=True)
 
         return result
+
+
+    def check_function(self, fn):
+        # check the functiomn
+        assert fn not in self.blacklist, f"Function {fn} in blacklist"
+        assert fn in self.whitelist, f"Function {fn} not in whitelist"
+
+    def check_user(self, address):
+        # check if the user is allowed
+        pass
+
     def set_api(self, ip = None, port = None):
         ip = self.ip if ip == None else ip
         port = self.port if port == None else port
@@ -168,9 +181,10 @@ class HTTPServer(c.Module):
 
         self.app = FastAPI()
 
+
         @self.app.post("/{fn}")
         async def forward_api(fn:str, input:dict[str, str]):
-
+            address_abbrev = None
             try:
 
                 # forward
@@ -178,8 +192,8 @@ class HTTPServer(c.Module):
                 address_abbrev = address[:5] + '...'
                 c.print(f'\033📞 Client({address_abbrev}) ---> {self.name}::{fn}')
 
-                # verify key
-                # Print statements with added color and bold formatting
+                self.check_function(fn)
+                self.check_user(address)
                 input = self.process_input(input)
 
                 data = input['data']

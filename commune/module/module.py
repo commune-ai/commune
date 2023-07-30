@@ -2149,11 +2149,12 @@ class c:
         return c.gather(c.async_get_peer_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_peer_name(peer_address, connect_timeout=1, fn_timeout=1,**kwargs):
+    async def async_get_peer_name(peer_address, connect_timeout=2, fn_timeout=2,**kwargs):
         try:
             peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
             if peer == None: 
                 return peer
+            
             module_name = peer(fn='module_name',  return_future=True)
             module_name = await asyncio.wait_for(module_name, timeout=fn_timeout)
             if c.check_response(module_name):
@@ -2165,23 +2166,27 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_local_namespace(cls, verbose:bool = False):
+    def build_local_namespace(cls, verbose:bool = False, chunk_size = 10):
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         used_ports = cls.get_used_ports()
         ip = c.default_ip
         addresses = [ f'{ip}:{p}' for p in used_ports]
         local_namespace = {}
-        names = c.gather([cls.async_get_peer_name(address) for address in addresses])
-        for i in range(len(names)):
-            if isinstance(names[i], str):
-                local_namespace[names[i]] = addresses[i]
-        
+
+
+        for i in range(0, len(addresses), chunk_size):
+            chunk = addresses[i:i+chunk_size]
+            names = c.gather([cls.async_get_peer_name(address) for address in chunk])
+            address2name = dict(zip(chunk, names))
+            for i in range(len(names)):
+                if isinstance(names[i], str):
+                    local_namespace[names[i]] = addresses[i]
         return local_namespace
             
                 
     @classmethod
-    def local_namespace(cls, verbose:bool = False, update=True, **kwargs)-> dict:
+    def local_namespace(cls, verbose:bool = False, update=False, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -2238,7 +2243,7 @@ class c:
     
     @classmethod
     def deregister_server(cls, name: str)-> dict:
-        local_namespace = cls.local_namespace()    
+        local_namespace = c.local_namespace()    
         
         local_namespace.pop(name, None)
         cls.put_json('local_namespace', local_namespace, root=True) 
@@ -2674,7 +2679,16 @@ class c:
             name = self.module_name() if callable(self.module_name) else self.module_name, # get the name of the module
             path = self.module_path(), # get the path of the module
             chash = self.chash(), # get the hash of the module (code)
+
         )
+        info['hash'] = c.hash(info)
+
+        if hasattr(self, 'key'):
+            
+            auth = self.key.sign(info, return_json=True)
+            info['signature'] = auth['signature']
+            info['address'] = auth['address']
+
         if include_peers:
             info['peers'] = self.peers()
         # EXTRA FEATURES THAT CAN BE ADDED, BUT ARE NOT INCLUDED BY DEFAULT
@@ -2685,7 +2699,6 @@ class c:
         return info
     
     help = info
-
 
 
     def peer_info(self) -> Dict[str, Any]:
