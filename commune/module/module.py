@@ -3943,10 +3943,6 @@ class c:
             return f'No Library Found {lib}'
     
     @classmethod
-    def get_external_ip(cls, *args, **kwargs) ->str:
-        return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
-
-    @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
         if not hasattr(cls, '__external_ip__'):
             cls.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
@@ -3984,16 +3980,10 @@ class c:
     @classmethod
     def get_external_ip(cls, *args, **kwargs) ->str:
         return c.module('network').get_external_ip(*args, **kwargs)
-            
-    @classmethod
-    def public_ip(cls, *args, **kwargs):
-        return cls.get_public_ip(*args, **kwargs)
-    
     @staticmethod
     def is_class(module: Any) -> bool:
         return type(module).__name__ == 'type' 
     
-    external_ip = get_external_ip
     
     @classmethod
     def upnpc_create_port_map(cls, port:int):
