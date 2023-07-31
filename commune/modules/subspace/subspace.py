@@ -2634,9 +2634,26 @@ class Subspace(c.Module):
         return {'success': True, 'msg': f'Voted for all modules {modules}'}
     
     
-    
+    @classmethod
+    def snapshots(cls):
+        return list(cls.snapshot_map().keys())
+
+    @classmethod
+    def snapshot_map(cls):
+        return {l.split('/')[-1].split('.')[0]: l for l in c.ls(f'{cls.chain_path}/snapshots')}
         
-        
+    @classmethod
+    def get_snapshot(cls, chain=chain):
+        return c.get_json(cls.snapshot_map()[chain])
+
+    def update_snapshot(cls, chain=chain):
+        snapshot = cls.get_snapshot(chain=chain)
+        version = snapshot.get('version', 0)
+        if version == 0:
+            # version 0 does not have weights
+            max_allowed_weights = 100
+            snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
+      
   
 if __name__ == "__main__":
     Subspace.run()
