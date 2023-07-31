@@ -68,24 +68,27 @@ class OpenAILLM(c.Module):
         return config
         
     @classmethod
-    def resolve_api_key(cls, api_key:str = None) -> str:
+    def resolve_api_key(cls, api_key:str = None, ensure_valid_api:bool = True) -> str:
         if api_key == None:
-            api_keys = cls.valid_api_keys()
-            assert len(api_keys) > 0, "No API keys found"
-            api_key = c.choice(api_keys)
-            c.log(f"Using API key {api_key}")
+            api_key = cls.random_api_key()
 
-        if isinstance(api_key, str):
-            api_key = os.getenv(api_key, api_key)
         assert isinstance(api_key, str),f"API Key must be a string,{api_key}"
-    
+        openai.api_key = api_key
         return api_key
 
-    random_api_key = resolve_api_key
+    @classmethod
+    def random_api_key(cls):
+        api_keys = cls.api_keys()
+        if len(api_keys) == 0:
+            api_key = 'OPENAI_API_KEY'
+            api_key = os.getenv(api_key, api_key)
+        else:
+
+            api_key = c.choice(cls.api_keys())
+        return api_key
     
-    def set_api(self, api: str = None) -> str:
-        api = self.resolve_api_key(api)
-        openai.api_key  =  os.getenv(api, api)
+    def set_api(self, api: str = None, ensure_valid_api:bool=False) -> str:
+        api = self.resolve_api_key(api, ensure_valid_api=ensure_valid_api)
         return {'msg': f"API Key set to {openai.api_key}", 'success': True}
 
     def resolve_prompt(self, *args, prompt = None, **kwargs):
@@ -170,10 +173,11 @@ class OpenAILLM(c.Module):
                 add_history : bool = False,
                 return_json : bool = False,
                 choice_idx:int = 0,
+                api_key:str = None,
 
                 **kwargs) -> str:
-
-
+        
+        api_key = self.resolve_api_key(api_key)
         prompt = self.resolve_prompt(*args, prompt=prompt, **kwargs)
         params = self.resolve_params(locals())
         messages = [{"role": role, "content": prompt}]
@@ -344,7 +348,7 @@ class OpenAILLM(c.Module):
     @classmethod
     def is_valid_api_key(cls, api_key:str, text:str='ping'):
         model = cls(api=api_key)
-        output = model.forward(text, max_tokens=1)
+        output = model.forward(text, max_tokens=1, api_key=api_key)
         if 'error' in output:
             c.print(output['error'], color='red')
             return False

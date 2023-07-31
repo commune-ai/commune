@@ -18,3 +18,7 @@ shortcuts:
   openai: model.openai
   s: subspace
   tg: textgen
+
+module_overrides: 
+  - network
+  - key

@@ -96,7 +96,7 @@ class HTTPServer(c.Module):
         c.print(self.state_dict(), color='green')
         return self
     
-    def verify_access(self, input) -> bool:
+    def verify_access(self, fn: str, input:dict) -> bool:
         if self.access != 'public':
             assert isinstance(input, dict), f"Data must be a dict, not {type(data)}"
             assert 'data' in input, f"Data not included"
@@ -104,21 +104,20 @@ class HTTPServer(c.Module):
             assert self.key.verify(input), f"Data not signed with correct key"
             address = input.get('address', None)
 
-
-            if self.access == 'root':
-                assert address == self.root_key.ss58_address, f"Data not signed with correct key"
-            else:
-                raise NotImplementedError(f"Access mode {self.access} not implemented")
+            if address != self.root_key.ss58_address:
+                assert fn in self.whitelist, f"Function {fn} not in whitelist"
+                assert fn not in self.blacklist, f"Function {fn} in blacklist"
+                
             
         else:
             return True
 
 
     
-    def process_input(self, input: dict) -> bool:
+    def process_input(self,fn:str, input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
-        self.verify_access(input)
+        self.verify_access(fn=fn ,input=input)
         input['data'] = self.serializer.deserialize(input['data'])
 
         if self.access != 'public':
@@ -164,10 +163,6 @@ class HTTPServer(c.Module):
         return result
 
 
-    def check_function(self, fn):
-        # check the functiomn
-        assert fn not in self.blacklist, f"Function {fn} in blacklist"
-        assert fn in self.whitelist, f"Function {fn} not in whitelist"
 
     def check_user(self, address):
         # check if the user is allowed
@@ -183,7 +178,7 @@ class HTTPServer(c.Module):
 
 
         @self.app.post("/{fn}")
-        async def forward_api(fn:str, input:dict[str, str]):
+        async def forward_api(fn:str, input:dict):
             address_abbrev = None
             try:
 
@@ -192,9 +187,7 @@ class HTTPServer(c.Module):
                 address_abbrev = address[:5] + '...'
                 c.print(f'\033📞 Client({address_abbrev}) ---> {self.name}::{fn}')
 
-                self.check_function(fn)
-                self.check_user(address)
-                input = self.process_input(input)
+                input = self.process_input(fn=fn, input=input)
 
                 data = input['data']
                 args = data.get('args',[])

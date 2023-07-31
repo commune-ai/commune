@@ -2543,7 +2543,6 @@ class c:
 
         if isinstance(module, str) and tag_seperator in module:
             module, tag = module.split(tag_seperator)
-
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
         tag = None
 
@@ -2558,7 +2557,8 @@ class c:
         if address != None:
             ip = address.split(':')[0]
             port = int(address.split(':')[-1])
-        self = c.resolve_module(module)(*args, **kwargs)
+        module_class = cls.resolve_module(module)
+        self = module_class(*args, **kwargs)
         port = c.resolve_port(port)
 
         if c.server_exists(name): 
@@ -3982,13 +3982,8 @@ class c:
         return ip
         
     @classmethod
-    def get_external_ip(cls, *args, max_trials=4, **kwargs) ->str:
-        if max_trials == 0:
-            return c.default_ip
-        try:
-            return cls.import_object('commune.utils.network.get_external_ip')(*args, **kwargs)
-        except Exception as e:
-            return cls.get_external_ip(*args, max_trials=max_trials-1, **kwargs)
+    def get_external_ip(cls, *args, **kwargs) ->str:
+        return c.module('network').get_external_ip(*args, **kwargs)
             
     @classmethod
     def public_ip(cls, *args, **kwargs):
@@ -4718,6 +4713,10 @@ class c:
     @classmethod
     def key2address(cls,*args, **kwargs ):
         return c.module('key').key2address(*args, **kwargs )
+
+    @classmethod
+    def root_key(cls):
+        return c.get_key()
 
     @classmethod
     def address2key(cls,*args, **kwargs ):
