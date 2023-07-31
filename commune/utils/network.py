@@ -75,13 +75,11 @@ def get_external_ip() -> str:
     """
     # --- Try curl.
     try:
-        process =  os.popen('curl -s ifconfig.me', close_fds=True)
-        external_ip = process.readline()
-        process.close()
+        ip = c.cmd('curl -s ifconfig.me')
         assert isinstance(ip_to_int(external_ip), int)
         return str(external_ip)
-    except Exception:
-        pass
+    except Exception as e:
+        c.print(e)
 
     # --- Try ipify
     try:
@@ -89,7 +87,7 @@ def get_external_ip() -> str:
         assert isinstance(ip_to_int(external_ip), int)
         return str(external_ip)
     except Exception:
-        pass
+        c.print(e)
 
     # --- Try AWS
     try:
