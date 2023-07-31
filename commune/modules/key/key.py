@@ -834,7 +834,7 @@ class Keypair(c.Module):
 
         return signature
 
-    def verify(self, data: Union[ScaleBytes, bytes, str], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto_type = None) -> bool:
+    def verify(self, data: Union[ScaleBytes, bytes, str, dict], signature: Union[bytes, str] = None, public_key:Optional[str]= None, crypto_type = None) -> bool:
         
         """
         Verifies data with specified signature

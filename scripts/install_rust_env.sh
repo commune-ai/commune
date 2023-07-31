@@ -20,3 +20,4 @@ apt-get update
 # Use the "yes" command to automatically provide 'Y' as the answer
 yes | apt-get install libclang-dev
 yes | apt-get install protobuf-compiler
+
