@@ -2112,7 +2112,7 @@ class Subspace(c.Module):
 
     
 
-        ip = c.ip(external_ip=True)
+        ip = c.ip()
 
         node_info = c.locals2kwargs(locals())
 

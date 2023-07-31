@@ -19,7 +19,7 @@ class OpenAILLM(c.Module):
                  tag : str = None,
                  load: bool = True,
                  save: bool = True,
-                 api: str = None,
+                 api_key: str = None,
                 **kwargs
                 ):
         
@@ -27,7 +27,7 @@ class OpenAILLM(c.Module):
         config = self.set_config(config, kwargs=locals())
         self.set_tag(tag)
         self.set_stats(config.stats)
-        self.set_api(api)
+        self.set_api_key(api_key)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)
         
@@ -89,8 +89,8 @@ class OpenAILLM(c.Module):
             api_key = c.choice(cls.api_keys())
         return api_key
     
-    def set_api(self, api: str = None, ensure_valid_api:bool=False) -> str:
-        self.api_key = self.resolve_api_key(api)
+    def set_api(self, api_key: str = None) -> str:
+        self.api_key = self.resolve_api_key(api_key)
         return {'msg': f"API Key set to {openai.api_key}", 'success': True}
 
     def resolve_prompt(self, *args, prompt = None, **kwargs):

@@ -82,20 +82,28 @@ class Network(c.Module):
         ip = None
         try:
             ip = c.cmd('curl -s ifconfig.me')
+            assert isinstance(cls.ip_to_int(ip), int)
+            c.print(ip, 'ifconfig.me', verbose=verbose)
+            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
-        # --- Try ipify
         try:
             ip = requests.get('https://api.ipify.org').text
             assert isinstance(cls.ip_to_int(ip), int)
+            c.print(ip, 'ipify.org', verbose=verbose)
+            return ip 
         except Exception as e:
             c.print(e, verbose=verbose)
 
+        if ip != None:
+            return ip
         # --- Try AWS
         try:
             ip = requests.get('https://checkip.amazonaws.com').text.strip()
             assert isinstance(cls.ip_to_int(ip), int)
+            c.print(ip, 'amazonaws.com', verbose=verbose)
+            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
@@ -105,13 +113,17 @@ class Network(c.Module):
             ip  = process.readline()
             process.close()
             assert isinstance(cls.ip_to_int(ip), int)
+            c.print(ip, 'myip.dnsomatic.com', verbose=verbose)
+            return ip
         except Exception as e:
             c.print(e, verbose=verbose)    
 
         # --- Try urllib ipv6 
         try:
-            external_ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
+            ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
             assert isinstance(cls.ip_to_int(ip), int)
+            c.print(ip, 'ident.me')
+            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
@@ -119,8 +131,10 @@ class Network(c.Module):
         try:
             ip = requests.get('https://www.wikipedia.org').headers['X-Client-IP']
             assert isinstance(cls.ip_to_int(ip), int)
+            c.print(ip, 'wikipedia.org')
+            return ip
         except Exception as e:
-            c.print(e)
+            c.print(e, verbose=verbose)
 
         return ip
 
