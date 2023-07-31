@@ -83,6 +83,7 @@ class Client(c.Module):
         request = c.copy(self.key.sign(request_data, return_json=True))
 
         assert self.key.verify(request), f"Request not signed with correct key"
+        c.print(request)
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
@@ -91,10 +92,11 @@ class Client(c.Module):
             else:
                 response = requests.post(url,json=request, headers=headers)
                 response = response.json()
-                
+      
             assert self.key.verify(response), f"Response not signed with correct key"
             response['data'] = self.serializer.deserialize(response['data'])
             response = response if full else response['data']
+            
         except Exception as e:
             if return_error:
                 response = {'error': str(e)}

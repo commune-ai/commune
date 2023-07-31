@@ -28,7 +28,7 @@ class CLI(c.Module):
             args[0] = self.resolve_shortcut(args[0])
             
             # is it a fucntion, assume it is for the module
-            if args[0] in functions:
+            if args[0] in functions and args[0] not in self.module.config['module_overrides']:
                 module = c.Module
                 fn = args.pop(0)
             else:

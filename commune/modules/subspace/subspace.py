@@ -1091,18 +1091,18 @@ class Subspace(c.Module):
         return state_dict
     
 
-    def state_dict(self, network=None, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
+    def state_dict(self, network=network, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
 
-        network = self.resolve_network(network)
         cache_path = f'state_dict/{network}'
         # cache and update are mutually exclusive 
+        state_dict = {}
         if cache and not update:
             c.print('Loading state_dict from cache', verbose=verbose)
             state_dict = self.get(cache_path, {})
         if len(state_dict) == 0:
             netuids = self.netuids()
-            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network) for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights) for netuid in netuids],
+            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
                         'balances': self.balances(network=network),
                         'block': self.block,
                         'network': network,
@@ -1145,7 +1145,7 @@ class Subspace(c.Module):
         
         if cache and not update:
             c.print('Loading subnet_state from cache')
-            return self.state_dict(network=network, key='subnets')[netuid]
+            return self.state_dict(network=network, key='subnets', cache=True)[netuid]
         
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
@@ -2634,9 +2634,26 @@ class Subspace(c.Module):
         return {'success': True, 'msg': f'Voted for all modules {modules}'}
     
     
-    
+    @classmethod
+    def snapshots(cls):
+        return list(cls.snapshot_map().keys())
+
+    @classmethod
+    def snapshot_map(cls):
+        return {l.split('/')[-1].split('.')[0]: l for l in c.ls(f'{cls.chain_path}/snapshots')}
         
-        
+    @classmethod
+    def get_snapshot(cls, chain=chain):
+        return c.get_json(cls.snapshot_map()[chain])
+
+    def update_snapshot(cls, chain=chain):
+        snapshot = cls.get_snapshot(chain=chain)
+        version = snapshot.get('version', 0)
+        if version == 0:
+            # version 0 does not have weights
+            max_allowed_weights = 100
+            snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
+      
   
 if __name__ == "__main__":
     Subspace.run()
