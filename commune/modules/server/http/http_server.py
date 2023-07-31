@@ -221,12 +221,7 @@ class HTTPServer(c.Module):
             else:
 
                 c.print(f'\033🚨 Error: {self.name}::{fn} --> {address_abbrev}🚨\033', result_logs)
-                c.print(f'INPUT DURING THE ERROR\n', f'args: {args} kwargs: {kwargs}' )
 
-
-        
-
-            
             # send result to client
             return result
         
