@@ -67,10 +67,12 @@ class OpenAILLM(c.Module):
         config = self.get(os.path.join('states', f'{tag}.json'), self.config)
         return config
         
-    @classmethod
-    def resolve_api_key(cls, api_key:str = None, ensure_valid_api:bool = True) -> str:
+    def resolve_api_key(self, api_key:str = None) -> str:
         if api_key == None:
-            api_key = cls.random_api_key()
+            if hasattr(self, 'api_key'):
+                api_key = self.api_key
+            else:
+                api_key = self.random_api_key()
 
         assert isinstance(api_key, str),f"API Key must be a string,{api_key}"
         openai.api_key = api_key
@@ -88,7 +90,7 @@ class OpenAILLM(c.Module):
         return api_key
     
     def set_api(self, api: str = None, ensure_valid_api:bool=False) -> str:
-        api = self.resolve_api_key(api, ensure_valid_api=ensure_valid_api)
+        self.api_key = self.resolve_api_key(api)
         return {'msg': f"API Key set to {openai.api_key}", 'success': True}
 
     def resolve_prompt(self, *args, prompt = None, **kwargs):
