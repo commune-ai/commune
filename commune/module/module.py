@@ -3956,15 +3956,15 @@ class c:
         return ip 
     
     @classmethod
-    def ip(cls, cache:bool = True, **kwargs) -> str:
+    def ip(cls, cache:bool = False, **kwargs) -> str:
         if cache:
-            ip = c.getc('ip', None)
+            ip = c.get('ip', None)
             if ip != None:
                 return ip
         
         ip =  cls.external_ip(**kwargs)
         if cache:
-            c.setc('ip', ip)
+            c.set('ip', ip)
         return ip
     @classmethod
     def queue(cls, size=-1, *args, **kwargs):
