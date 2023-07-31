@@ -74,36 +74,32 @@ def get_external_ip() -> str:
                 Raised if all external ip attempts fail.
     """
     # --- Try curl.
+    ip = None
     try:
         ip = c.cmd('curl -s ifconfig.me')
-        assert isinstance(ip_to_int(external_ip), int)
-        return str(external_ip)
     except Exception as e:
         c.print(e)
 
     # --- Try ipify
     try:
-        external_ip = requests.get('https://api.ipify.org').text
-        assert isinstance(ip_to_int(external_ip), int)
-        return str(external_ip)
+        ip = requests.get('https://api.ipify.org').text
+        assert isinstance(ip_to_int(ip), int)
     except Exception:
         c.print(e)
 
     # --- Try AWS
     try:
-        external_ip = requests.get('https://checkip.amazonaws.com').text.strip()
-        assert isinstance(ip_to_int(external_ip), int)
-        return str(external_ip)
+        ip = requests.get('https://checkip.amazonaws.com').text.strip()
+        assert isinstance(ip_to_int(ip), int)
     except Exception:
-        pass
+        c.print(e)
 
     # --- Try myip.dnsomatic 
     try:
         process = os.popen('curl -s myip.dnsomatic.com')
-        external_ip  = process.readline()
+        ip  = process.readline()
         process.close()
-        assert isinstance(ip_to_int(external_ip), int)
-        return str(external_ip)
+        assert isinstance(ip_to_int(ip), int)
     except Exception:
         pass    
 
