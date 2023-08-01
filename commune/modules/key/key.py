@@ -297,6 +297,7 @@ class Keypair(c.Module):
             
     key_storage_path = c.repo_path
     def load_keys(file = c.repo_path):
+        
         keys = c.jload(file)
 
         c.print(keys)

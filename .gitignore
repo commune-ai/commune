@@ -20,7 +20,8 @@ benchmarks/results/*
 *.log
 
 # runs/data/models/logs/~
-./data
+./data/**
+!./data/.gitkeep
 
 
 # C extensions
@@ -198,7 +199,6 @@ yarn-error.log*
 **/dist/*
 **/runs/*
 **/env/*
-**/.data/*
 **/tmp/*
 
 **/.bash_history
@@ -229,8 +229,6 @@ benchmarks/results/*
 *.pt
 *.log
 
-# runs/data/models/logs/~
-data/
 
 # C extensions
 *.so
