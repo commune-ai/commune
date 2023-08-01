@@ -4960,6 +4960,10 @@ class c:
     @classmethod
     def load_keys(cls, *args,  **kwargs):
         return c.module('key').load_keys(*args, **kwargs)
+    
+    @classmethod
+    def load_key(cls, *args,  **kwargs):
+        return c.module('key').load_key(*args, **kwargs)
 
 
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
