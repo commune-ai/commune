@@ -189,12 +189,14 @@ class Keypair(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         key = cls.gen(**kwargs)
+        key.path
         key_json = key.to_json()
         
         cls.put(path, key_json)
         
         return key
     
+
     @classmethod
     def mv_key(cls, path, new_path):
         
@@ -225,24 +227,49 @@ class Keypair(c.Module):
         return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
     
     keys_path = c.data_path + '/keys.json'
-    @classmethod
-    def save_keys(cls, path = keys_path):
-        key_info_map = cls.key_info_map()
-        c.put_json(path, key_info_map)
 
-        return {'status': 'success', 'message': f'keys saved to {path}'}
+    @classmethod
+    def load_key(cls, path):
+        key_info = cls.get(path)
+        key_info = c.jload(key_info)
+        if key_info['path'] == None:
+            key_info['path'] = path.replace('.json', '').split('/')[-1]
+
+        c.print(key_info)
+        cls.add_key(**key_info)
+        return {'status': 'success', 'message': f'key loaded from {path}'}
     
 
     @classmethod
     def load_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
-        key_info_map = c.get_json(path)
+        if '.json' not in path:
+            key_info_map = c.get_json(path)
+            for key_info in key_info_map.values():
+                cls.add_key( **key_info,)
+                c.print(f'key {key_info["path"]} loaded', color='green', verbose=verbose)
+
+            return {'status': 'success', 'message': f'keys loaded from {path}'}
+        else:
+            assert c.isdir(path), f'path {path} does not exist'
+            for key_path in c.ls(path):
+                cls.load_key(key_path)
+
+    @classmethod
+    def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
+        key_info_map = cls.key_info_map()
+        c.put_json(path, key_info_map)
+        return {'status': 'success', 'message': f'keys saved to {path}'}
+        
+    
+    @classmethod
+    def load_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
+        key_info_map = cls.get_json(path)
         for key_info in key_info_map.values():
             cls.add_key( **key_info,)
             c.print(f'key {key_info["path"]} loaded', color='green', verbose=verbose)
 
         return {'status': 'success', 'message': f'keys loaded from {path}'}
         
-    
     @classmethod
     def get_key(cls, 
                 path:str,
@@ -318,6 +345,8 @@ class Keypair(c.Module):
     @classmethod
     def key_paths(cls):
         return cls.ls()
+    
+
     @classmethod
     def key2path(cls) -> dict:
         
@@ -443,14 +472,14 @@ class Keypair(c.Module):
         crypto_type = cls.resolve_crypto_type(crypto_type)
 
         if suri:
-            key =  cls.create_from_uri(suri, crypto_type=crypto_type, **kwargs)
+            key =  cls.create_from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
-            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
+            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
         elif private_key:
-            key = cls.create_from_private_key(private_key,crypto_type=crypto_type, **kwargs)
+            key = cls.create_from_private_key(private_key,crypto_type=crypto_type)
         else:
             mnemonic = cls.generate_mnemonic()
-            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
+            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
         
         if json:
             return key.to_json()
