@@ -1801,11 +1801,15 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,snap:bool=False,  verbose:bool=True, ):
+    def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,build_snapshot:bool=False,  verbose:bool=True, ):
         if build_runtime:
             cls.build_runtime(verbose=verbose )
+
+        if build_snapshot:
+            cls.build_snapshot(chain=chain, verbose=verbose)
+
         if build_spec:
-            cls.build_spec(chain=chain, snap=snap, verbose=verbose)
+            cls.build_spec(chain=chain, verbose=verbose)
 
 
     @classmethod
@@ -2059,7 +2063,6 @@ class Subspace(c.Module):
     @classmethod
     def add_node(cls, 
                  node:str='alice', 
-                 tag = None,
                  chain:str=network, 
                  vali:bool=False): 
 
@@ -2115,8 +2118,8 @@ class Subspace(c.Module):
                  rpc_port:int=None,
                  ws_port:int=None,
                  telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
-                 validator: bool = True,          
-                 purge_chain:bool = True,
+                 validator: bool = False,          
+                 purge_chain:bool = False,
                  refresh:bool = True,
                  verbose:bool = False,
                  boot_nodes = None,
@@ -2177,9 +2180,6 @@ class Subspace(c.Module):
             node_info['boot_nodes'] = c.choice(boot_nodes) # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
     
-    
-        # if node_key == None:
-        #     node_key = cls.get_node_key(node=node, chain=chain, mode='gran').private_key.hex(),
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
             
@@ -2194,6 +2194,10 @@ class Subspace(c.Module):
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
                             verbose=verbose)
+            
+        elif mode == 'local':
+            cmd = cmd + cmd_kwargs
+            c.cmd(cmd)
             
         elif mode == 'docker':
 
@@ -2251,19 +2255,20 @@ class Subspace(c.Module):
                     build_runtime: bool = False,
                     build_spec: bool = True,
                     purge_chain:bool = True,
-                    snap:bool = False,
+                    build_snapshot:bool = False,
                     refresh: bool = True,
 
                     port_keys: list = ['port','rpc_port','ws_port'],
                     
                     ):
         
-        # build the chain
+        # kill the chain if refresh
         if refresh:
             cls.kill_chain(chain=chain)
 
+        # build the chain if needed
         if build_runtime or build_spec:
-            cls.build(chain=chain, verbose=verbose, snap=snap, build_runtime=build_runtime, build_spec=build_spec)
+            cls.build(chain=chain, verbose=verbose, build_snapshot=build_snapshot, build_runtime=build_runtime, build_spec=build_spec)
     
         # resolve the validator and non validator nodes
         node_keys = cls.node_keys(chain=chain)
@@ -2381,15 +2386,15 @@ class Subspace(c.Module):
         return f'{cls.node_key_prefix}.{chain}.{node}.{mode}'
 
     @classmethod
-    def get_node_key(cls, node='alice', chain=chain, mode='gran'):
-        return c.get_key(cls.resolve_node_key_path(node=node, chain=chain, mode=mode))
-    @classmethod
-    def get_node_keys(cls, node='alice', chain=chain):
-        return {mode:cls.get_node_key(node=node, chain=chain, mode=mode) for mode in ['gran', 'aura']}
+    def get_node_key(cls, node='alice', chain=chain):
+        return {mode:c.get_key(cls.resolve_node_key_path(node=node, chain=chain, mode=mode)) for mode in ['gran', 'aura']}
     
+    @classmethod
+    def get_node_key_paths(cls, node='alice', chain=chain):
+        return c.keys(f'{cls.node_key_prefix}.{chain}') 
 
     @classmethod
-    def node_keys(cls,chain=chain):
+    def get_node_keys(cls,chain=chain):
         vali_node_keys = {}
         for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
             name = key_name.split('.')[-2]
@@ -2400,7 +2405,9 @@ class Subspace(c.Module):
             vali_node_keys[name][role] =  key.ss58_address
         return vali_node_keys
 
-
+    node_keys = get_node_keys
+    node_key = get_node_key
+    node_key_paths = get_node_key_paths
 
 
     @classmethod
@@ -2430,8 +2437,9 @@ class Subspace(c.Module):
             cmds.append(cmd)
 
         for cmd in cmds:
-            c.print('RUNNING:', cmd)
             c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+
+        return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain)}
 
 
 
@@ -2571,7 +2579,7 @@ class Subspace(c.Module):
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
 
-    def build_snap(self, 
+    def build_snapshot(self, 
              state:dict = None,
              network : str =network,
              path : str  = None,

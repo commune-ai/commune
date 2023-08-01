@@ -216,9 +216,9 @@ class Keypair(c.Module):
     add = add_key
     
     @classmethod
-    def key_info(cls, *args, **kwargs):
+    def key_info(cls, *args, create_if_not_exists=False, **kwargs):
         kwargs['json'] = True
-        return cls.get_key(*args, **kwargs)
+        return cls.get_key(*args, create_if_not_exists=create_if_not_exists, **kwargs)
     
     @classmethod
     def key_info_map(cls, *args, **kwargs):
@@ -233,11 +233,13 @@ class Keypair(c.Module):
                 **kwargs):
         
         
-        
-        if cls.key_exists(path) == False and create_if_not_exists == True:
-            key = cls.add_key(path, **kwargs)
-            c.print(f'key does not exist, generating new key -> {key}')
-          
+        if cls.key_exists(path) == False:
+            if create_if_not_exists == True:
+                key = cls.add_key(path, **kwargs)
+                c.print(f'key does not exist, generating new key -> {key}')
+            else:
+                raise ValueError(f'key does not exist at --> {path}')
+            
         
               
         key_json = cls.get(path)
