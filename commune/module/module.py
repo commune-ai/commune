@@ -6971,7 +6971,7 @@ class c:
         return c.module('subspace')().my_keys(*args, **kwargs)
     
     @classmethod
-    def key_info(self, *args, **kwargs):
+    def key_info(cls, *args, **kwargs):
         return c.module('key').key_info(*args, **kwargs)
     @classmethod
     def key_info_map(cls, *args, **kwargs):
