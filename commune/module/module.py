@@ -1682,6 +1682,8 @@ class c:
 
     load_json = get_json
 
+    data_path = repo_path + '/data'
+
     @classmethod
     def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
         import torch
@@ -4951,6 +4953,14 @@ class c:
     def add_key(cls, key, *args,  **kwargs):
         return c.module('key').add_key(key, *args, **kwargs)
     
+    @classmethod
+    def save_keys(cls, *args,  **kwargs):
+        return c.module('key').save_keys(*args, **kwargs)
+
+    @classmethod
+    def load_keys(cls, *args,  **kwargs):
+        return c.module('key').load_keys(*args, **kwargs)
+
 
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
@@ -6966,6 +6976,9 @@ class c:
     @classmethod
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
+    
+    
+
 
     @classmethod
     def node_keys(cls, *args, **kwargs):
