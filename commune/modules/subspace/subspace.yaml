@@ -323,6 +323,22 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 2283
+      seeker:
+        boot_nodes: /ip4/162.157.113.207/tcp/2264/p2p/12D3KooWC6d7mCMQrJcojSQ6pByEKi7ewTyRpNP2W6pzesJS5kpe
+        chain: main
+        ip: 206.223.172.198
+        mode: local
+        node: seeker
+        node_key: null
+        port: 50050
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 50051
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50052
       snoop:
         boot_nodes: /ip4/162.157.113.207/tcp/2235/p2p/12D3KooWJ3qW7kJ3WCAYHrmHXB8VHQFARXMysWu6J4BmsSL4xHE4
         chain: main
@@ -339,6 +355,11 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 2288
+    urls:
+    - ws://206.223.172.198:50052
+    - ws://206.223.172.198:50052
+    - ws://206.223.172.198:50052
+    - ws://206.223.172.198:50052
   '{chain}':
     boot_nodes:
     - /ip4/0.0.0.0/tcp/4593/p2p/12D3KooWFjuYMfriv9U1pNkvWuFZRVECARKpUkRX5Tn5yw58g6Sn

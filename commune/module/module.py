@@ -6964,7 +6964,7 @@ class c:
     def key_info(self, *args, **kwargs):
         return c.module('key').key_info(*args, **kwargs)
     @classmethod
-    def key_info_map(self, *args, **kwargs):
+    def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
 
     @classmethod
