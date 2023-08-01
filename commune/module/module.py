@@ -187,8 +187,8 @@ class c:
         path = path.replace('modules.', '')
         return path
     
-    name = module_path
-    module_name = module_path
+    path = module_name = name = module_path
+    
     @classmethod
     def module_class(cls) -> str:
         return cls.__name__
@@ -3867,7 +3867,7 @@ class c:
     
     @classmethod
     def pip_list(cls, lib=None):
-        pip_list =  cls.cmd(f'pip list').split('\n')
+        pip_list =  cls.cmd(f'pip list', verbose=False).split('\n')
         if lib != None:
             pip_list = [l for l in pip_list if l.startswith(lib)]
         return pip_list
@@ -3933,7 +3933,7 @@ class c:
         return lib2version
     @classmethod
     def version(cls, lib:str=library_name):
-        lines = [l for l in cls.cmd(f'pip list').split('\n') if l.startswith(lib)]
+        lines = [l for l in cls.cmd(f'pip list', verbose=False).split('\n') if l.startswith(lib)]
         if len(lines)>0:
             return lines[0].split(' ')[-1].strip()
         else:
