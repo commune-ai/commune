@@ -36,9 +36,9 @@ class Validator(c.Module):
         try:
             module_name = module_state['name']
             # get connection
-            module = await c.async_connect(module_state['address'], 
-                                           network=self.config.network, 
-                                           timeout=self.config.timeout)
+            module = c.connect(module_state['address'], 
+                                network=self.config.network, 
+                                timeout=self.config.timeout)
             
             # get info
             # if 'info' not in module_state:

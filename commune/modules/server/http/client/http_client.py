@@ -83,7 +83,6 @@ class Client(c.Module):
         request = c.copy(self.key.sign(request_data, return_json=True))
 
         assert self.key.verify(request), f"Request not signed with correct key"
-        c.print(request)
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:

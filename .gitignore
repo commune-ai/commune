@@ -20,7 +20,8 @@ benchmarks/results/*
 *.log
 
 # runs/data/models/logs/~
-data/
+./data
+
 
 # C extensions
 *.so
