@@ -224,6 +224,23 @@ class Keypair(c.Module):
     def key_info_map(cls, *args, **kwargs):
         return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
     
+    keys_path = c.data_path + '/keys.json'
+    @classmethod
+    def save_keys(cls, path = keys_path):
+        key_info_map = cls.key_info_map()
+        c.put_json(path, key_info_map)
+
+        return {'status': 'success', 'message': f'keys saved to {path}'}
+    
+
+    @classmethod
+    def load_keys(cls, path=keys_path, **kwargs):
+        key_info_map = c.get_json(path)
+        for key_info in key_info_map.values():
+            cls.add_key( **key_info,)
+            c.print(f'key {key_info["path"]} loaded', color='green')
+        
+    
     @classmethod
     def get_key(cls, 
                 path:str,
@@ -294,18 +311,7 @@ class Keypair(c.Module):
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
     
-    def save_keys(cls):
-        cls.save_keys(cls)
-            
-    key_storage_path = c.repo_path
-    def load_keys(file = c.repo_path):
-        
-        keys = c.jload(file)
 
-        c.print(keys)
-        # for key in keys:
-        #     cls.add_key(key)
-        
     
     @classmethod
     def key_paths(cls):
