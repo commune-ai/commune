@@ -385,6 +385,19 @@ class Subspace(c.Module):
         c.cmd('make enter', cwd=cls.chain_path)
 
 
+    def resolve_unique_server_name(self,module:str,) -> str:
+        
+        # create a unique name
+        name = c.resolve_server_name(module=module, name=name, tag=tag)
+
+        namespace = self.namespace(network=network)
+        trial_count = 0
+        while name in namespace:
+            name = name + str(trial_count)
+            trial_count += 1
+        return name
+    
+
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
@@ -409,18 +422,19 @@ class Subspace(c.Module):
         if update:
             self.update()
         
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-            
-        
         network = self.resolve_network(network)
         kwargs = kwargs if kwargs is not None else {}
         args = args if args is not None else []
-            
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-            
+        
+        # create a unique name
         name = c.resolve_server_name(module=module, name=name, tag=tag)
+
+        namespace = self.namespace(network=network)
+        trial_count = 0
+        while name in namespace:
+            name = name + str(trial_count)
+            trial_count += 1
+
         if c.server_exists(name, network='local') and (not refresh):
             module_info = c.connect(module, network='local').info()
             if 'address' in module_info:
@@ -1438,6 +1452,11 @@ class Subspace(c.Module):
         if name != None:
             return name2uid[name]
         return name2uid
+
+
+    @property
+    def block_time(self):
+        return self.query('BlockTime')
     
     
     def get_module(self, name:str = None, key=None, netuid=None, **kwargs) -> ModuleInfo:
@@ -1744,14 +1763,12 @@ class Subspace(c.Module):
 
         return cls.live_nodes(chain=chain)
     
-    @classmethod
-    def query(cls, name,  *params,  block=None):
-        self = cls()
+    def query(self, name,  *params,  network: str = network,  block=None):
+        self.resolve_network(network)
         with self.substrate as substrate:
             value =  substrate.query(
                 module='SubspaceModule',
                 storage_function = name,
-                max_results = max_results,
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
             
@@ -2153,13 +2170,11 @@ class Subspace(c.Module):
         boot_nodes = chain_info.get('boot_nodes', [])
         chain_info['nodes'] = chain_info.get('nodes', {})
         chain_info['nodes'][node] = node_info
-        chain_info['boot_nodes'] = chain_info.get('boot_nodes', [])
-
-        if boot_nodes == None:
-            boot_nodes = []
-
+        boot_nodes = chain_info['boot_nodes'] = chain_info.get('boot_nodes', [])
+        
+        # add the node to the boot nodes
         if len(boot_nodes) > 0:
-            node_info['boot_nodes'] = boot_nodes[0]
+            node_info['boot_nodes'] = c.choice(boot_nodes) # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
     
     
@@ -2213,9 +2228,7 @@ class Subspace(c.Module):
             chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
         else:
             # ensure to add the node to the network2url if it is not a validator
-            network2url = cls.getc('network2url', {})
-            network2url[chain] = list(set(network2url.get(chain, []) + [f'ws://{ip}:{ws_port}']))
-            cls.putc('network2url', network2url)
+            chain_info['urls'] = chain_info.get('urls', []) + [f'ws://{ip}:{ws_port}']
         chain_info['nodes'][node] = node_info
         cls.putc(f'chain_info.{chain}', chain_info)
 
@@ -2655,6 +2668,7 @@ class Subspace(c.Module):
             snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
       
   
+
 if __name__ == "__main__":
     Subspace.run()
 

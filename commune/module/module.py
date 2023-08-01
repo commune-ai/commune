@@ -1690,7 +1690,6 @@ class c:
         return path
     
     
-    
     @classmethod
     def get_torch(cls,path:str, root:bool = False, **kwargs):
         import torch
@@ -1706,8 +1705,6 @@ class c:
     def put_json(cls,*args,**kwargs) -> str:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
-    
-    
     
     @classmethod
     async def async_put_json(cls, 

@@ -264,7 +264,6 @@ class Keypair(c.Module):
         keys = {}
         for key in cls.keys():
             if  prefix == None or key.startswith(prefix) :
-                c.print(f'loading key {key}')
                 keys[key] = cls.get_key(key)
                 
         return keys
@@ -292,7 +291,18 @@ class Keypair(c.Module):
     @classmethod
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
+    
+    def save_keys(cls):
+        cls.save_keys(cls)
             
+    key_storage_path = c.repo_path
+    def load_keys(file = c.repo_path):
+        keys = c.jload(file)
+
+        c.print(keys)
+        # for key in keys:
+        #     cls.add_key(key)
+        
     
     @classmethod
     def key_paths(cls):
@@ -1080,6 +1090,7 @@ class Keypair(c.Module):
             type2keys[t] = type2keys.get(t, []) + [k]
         return type2keys
         
+
 
         
 Keypair.run(__name__)

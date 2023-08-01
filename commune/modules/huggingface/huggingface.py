@@ -327,5 +327,15 @@ class Huggingface(c.Module):
         config['shortcuts'].pop(model_name)
         cls.save_config(config)
         return {'removed shortcut':model_name}
+    
+
+    @classmethod
+    def upgrade(cls):
+        c.upgrade('accelerate')
+        c.upgrade('datasets')
+        c.upgrade('huggingface_hub')
+        c.upgrade('transformers')
+        c.upgrade('tokenizers')
+
 
 Huggingface.class_init()

@@ -85,11 +85,10 @@ class OpenAILLM(c.Module):
             api_key = 'OPENAI_API_KEY'
             api_key = os.getenv(api_key, api_key)
         else:
-
             api_key = c.choice(cls.api_keys())
         return api_key
-    
-    def set_api(self, api_key: str = None) -> str:
+  
+    def set_api_key(self, api_key: str = None) -> str:
         self.api_key = self.resolve_api_key(api_key)
         return {'msg': f"API Key set to {openai.api_key}", 'success': True}
 
