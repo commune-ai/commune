@@ -234,11 +234,11 @@ class Keypair(c.Module):
     
 
     @classmethod
-    def load_keys(cls, path=keys_path, **kwargs):
+    def load_keys(cls, path=keys_path, verbose:bool = True,  **kwargs):
         key_info_map = c.get_json(path)
         for key_info in key_info_map.values():
             cls.add_key( **key_info,)
-            c.print(f'key {key_info["path"]} loaded', color='green')
+            c.print(f'key {key_info["path"]} loaded', color='green', verbose=verbose)
         
     
     @classmethod
