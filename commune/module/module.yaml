@@ -2,7 +2,10 @@ boot_peers:
 - 162.157.13.236:9057
 - 162.157.13.236:9402
 ip: 162.157.13.236
-network: local
+module_overrides:
+- network
+- key
+network: subspace
 network2url: {}
 networks:
 - subspace
@@ -18,7 +21,3 @@ shortcuts:
   openai: model.openai
   s: subspace
   tg: textgen
-
-module_overrides: 
-  - network
-  - key
