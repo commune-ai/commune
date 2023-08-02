@@ -403,9 +403,9 @@ class OpenAILLM(c.Module):
                          padding=padding, 
                          truncation=truncation, 
                          max_length=max_length)
-    @classmethod
-    def serve(cls, *args, **kwargs):
-        name = cls.name()
+    # @classmethod
+    # def serve(cls, *args, **kwargs):
+    #     name = cls.name()
  
     @classmethod     
     def st(cls):

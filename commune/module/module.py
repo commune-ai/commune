@@ -761,8 +761,6 @@ class c:
     @classmethod
     def save_keys(self, *args, **kwargs):
         return c.module('key').save_keys(*args, **kwargs)
-
-
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):
@@ -2359,7 +2357,6 @@ class c:
         cls.local_namespace()
 
         while not cls.server_exists(name):
-            c.update()
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
             c.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
@@ -2557,14 +2554,15 @@ class c:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
             return cls.remote_fn('serve',name=name, kwargs=remote_kwargs,  )
-        import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         if update:
             c.update()
         if address != None:
             ip = address.split(':')[0]
             port = int(address.split(':')[-1])
+        
         module_class = cls.resolve_module(module)
+        c.print(module_class, 'BROOOO')
         self = module_class(*args, **kwargs)
 
         if c.server_exists(name): 
@@ -2578,12 +2576,8 @@ class c:
         
 
         server = c.module(f'server.{mode}')(module=self, ip=ip, port=port,name= name,whitelist=whitelist,blacklist=blacklist)
-
-
-
-        
-        
         if wait_for_server:
+            c.print('Waiting for server to start', color='yellow')
             cls.wait_for_server(name=name)
 
     serve_module = serve
@@ -2692,7 +2686,7 @@ class c:
             
             auth = self.key.sign(info, return_json=True)
             info['signature'] = auth['signature']
-            info['address'] = auth['address']
+            info['ss58_address'] = auth['address']
 
         if include_peers:
             info['peers'] = self.peers()
@@ -2831,8 +2825,7 @@ class c:
             raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
         # update modules
         
-        if module in c.servers():
-            c.deregister_server(module)
+        c.deregister_server(module)
 
         assert c.server_exists(module) == False, f'module {module} still exists'
 
@@ -5840,7 +5833,6 @@ class c:
             module = cls
         if isinstance(module, str):
             module = c.module(module)
-        
         return module
             
             

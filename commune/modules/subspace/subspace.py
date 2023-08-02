@@ -399,10 +399,12 @@ class Subspace(c.Module):
         return name
     
 
-    @retry(delay=2, tries=3, backoff=2, max_delay=4)
+    # @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
         module:str,  
+        args : list = None,
+        kwargs : dict = None,
         tag:str = None,
         stake : int = None,
         name: str = None, # defaults to module.tag
@@ -411,10 +413,8 @@ class Subspace(c.Module):
         key : str  = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
-        args : list = None,
-        kwargs : dict = None,
-        tag_seperator: str = ".", 
-        network: str = None,
+        port = None,
+        network: str = network,
         refresh: bool = False,
         update: bool = False,
 
@@ -429,31 +429,21 @@ class Subspace(c.Module):
         
         # create a unique name
         name = c.resolve_server_name(module=module, name=name, tag=tag)
+        c.print(f"Registering {name} on {network} with {subnet} subnet")
+        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
+        c.wait_for_server(name)
 
-        namespace = self.namespace(network=network)
-        trial_count = 0
-        while name in namespace:
-            name = name + str(trial_count)
-            trial_count += 1
 
-        if c.server_exists(name, network='local') and (not refresh):
-            module_info = c.connect(module, network='local').info()
-            if 'address' in module_info:
-                address = module_info['address']
-            address = c.ip()+':'+address.split(':')[-1]
-    
-        else:
-            address = c.free_address()
-            c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args)
+        address = c.connect(name).info()['address']
 
-        
         key = self.resolve_key(key if key != None else name)
         
         netuid = self.get_netuid_for_subnet(subnet)
 
         stake = stake if stake != None else self.get_balance(key, fmt='n')
+
         if self.is_registered(key, netuid=netuid):
-            return {'success': True, 'message': 'Already registered'}
+            return self.update_module(key=key, name=name, address=address , netuid=netuid, network=network)
     
         # Attempt to register
         call_params = { 
@@ -590,17 +580,18 @@ class Subspace(c.Module):
     #################
     def update_module (
         self,
-        key: str ,
         name: str = None,
         address: str = None,
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         prompt: bool = False,
+        network : str = network,
+        key: str  = None,
     ) -> bool:
         self.update()   
+        self.resolve_network(network)
         key = self.resolve_key(key)
-        module = self.key2module(key)
         netuid = self.resolve_netuid(netuid)  
           
         if name == None:
@@ -629,8 +620,7 @@ class Subspace(c.Module):
             if wait_for_inclusion or wait_for_finalization:
                 response.process_events()
                 if response.is_success:
-                    module = self.get_module( key=key, netuid=netuid )
-                    c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{module}[/bold white]')
+                    c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{call_params}[/bold white]')
                     return True
                 else:
                     c.print(f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}')
@@ -1500,10 +1490,6 @@ class Subspace(c.Module):
         
     def server_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
         return bool(module in self.namespace(netuid=netuid, **kwargs))
-
-    def get_module(self, module:str, netuid: int = None, **kwargs) -> ModuleInfo:
-        return self.name2module(module, netuid=netuid, **kwargs)
-
 
     def default_module_info(self, **kwargs):
     
