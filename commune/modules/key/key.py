@@ -189,12 +189,14 @@ class Keypair(c.Module):
         if password != None:
             key_json = cls.encrypt(data=key_json, password=password)
         key = cls.gen(**kwargs)
+        key.path
         key_json = key.to_json()
         
         cls.put(path, key_json)
         
         return key
     
+
     @classmethod
     def mv_key(cls, path, new_path):
         
@@ -216,14 +218,47 @@ class Keypair(c.Module):
     add = add_key
     
     @classmethod
-    def key_info(cls, *args, **kwargs):
+    def key_info(cls, *args, create_if_not_exists=False, **kwargs):
         kwargs['json'] = True
-        return cls.get_key(*args, **kwargs)
+        return cls.get_key(*args, create_if_not_exists=create_if_not_exists, **kwargs)
     
     @classmethod
     def key_info_map(cls, *args, **kwargs):
         return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
     
+    keys_path = c.data_path + '/keys.json'
+
+    @classmethod
+    def load_key(cls, path):
+        key_info = cls.get(path)
+        key_info = c.jload(key_info)
+        if key_info['path'] == None:
+            key_info['path'] = path.replace('.json', '').split('/')[-1]
+
+        c.print(key_info)
+        cls.add_key(**key_info)
+        return {'status': 'success', 'message': f'key loaded from {path}'}
+    
+
+    @classmethod
+    def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = True,  **kwargs):
+        c.print(f'loading keys from {path}', color='green', verbose=verbose)
+        key_info_map = c.get_json(path)
+        for key_info in key_info_map.values():
+            cls.add_key( **key_info,refresh=refresh)
+            c.print(f'key {key_info["path"]} loaded', color='green', verbose=verbose)
+            assert cls.get_key(key_info['path']).mnemonic == key_info['mnemonic'], f'mnemonic does not match for key {key_info["path"]}'
+        keys = list(key_info_map.keys())
+        return {'status': 'success', 'message': f'keys loaded from {path}', 'keys': keys}
+
+    @classmethod
+    def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
+        key_info_map = cls.key_info_map()
+        c.put_json(path, key_info_map)
+        return {'status': 'success', 'message': f'keys saved to {path}'}
+        
+    
+
     @classmethod
     def get_key(cls, 
                 path:str,
@@ -233,11 +268,13 @@ class Keypair(c.Module):
                 **kwargs):
         
         
-        
-        if cls.key_exists(path) == False and create_if_not_exists == True:
-            key = cls.add_key(path, **kwargs)
-            c.print(f'key does not exist, generating new key -> {key}')
-          
+        if cls.key_exists(path) == False:
+            if create_if_not_exists == True:
+                key = cls.add_key(path, **kwargs)
+                c.print(f'key does not exist, generating new key -> {key}')
+            else:
+                raise ValueError(f'key does not exist at --> {path}')
+            
         
               
         key_json = cls.get(path)
@@ -297,18 +334,13 @@ class Keypair(c.Module):
         cls.save_keys(cls)
             
     key_storage_path = c.repo_path
-    @classmethod
-    def load_keys(cls, file = c.repo_path):
-        keys = c.jload(file)
 
-        c.print(keys)
-        # for key in keys:
-        #     cls.add_key(key)
-        
     
     @classmethod
     def key_paths(cls):
         return cls.ls()
+    
+
     @classmethod
     def key2path(cls) -> dict:
         
@@ -434,14 +466,14 @@ class Keypair(c.Module):
         crypto_type = cls.resolve_crypto_type(crypto_type)
 
         if suri:
-            key =  cls.create_from_uri(suri, crypto_type=crypto_type, **kwargs)
+            key =  cls.create_from_uri(suri, crypto_type=crypto_type)
         elif mnemonic:
-            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
+            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
         elif private_key:
-            key = cls.create_from_private_key(private_key,crypto_type=crypto_type, **kwargs)
+            key = cls.create_from_private_key(private_key,crypto_type=crypto_type)
         else:
             mnemonic = cls.generate_mnemonic()
-            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type, **kwargs)
+            key = cls.create_from_mnemonic(mnemonic, crypto_type=crypto_type)
         
         if json:
             return key.to_json()

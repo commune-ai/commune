@@ -36,13 +36,13 @@ services:
       - ~/.bittensor:/root/.bittensor
 
 
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     command: bash -c "cd /commune; chmod +x /commune/scripts/*;/commune/scripts/startup.sh;"
 
