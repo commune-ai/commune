@@ -950,8 +950,8 @@ class Subspace(c.Module):
     def resolve_key_ss58(cls, key_ss58):
         
         if isinstance(key_ss58, str):
-            if c.key_exists( key_ss58 ):
-                key_ss58 = c.get_key( key_ss58 )
+            key_ss58 = c.get_key( key_ss58 )
+            
         if hasattr(key_ss58, 'ss58_address'):
             key_ss58 = key_ss58.ss58_address
         return key_ss58
@@ -1252,7 +1252,6 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
         
-        
         try:
             @retry(delay=2, tries=3, backoff=2, max_delay=4)
             def make_substrate_call_with_retry():
@@ -1266,21 +1265,13 @@ class Subspace(c.Module):
             result = make_substrate_call_with_retry()
         except scalecodec.exceptions.RemainingScaleBytesNotEmptyException:
             c.critical("Your key it legacy formatted, you need to run btcli stake --ammount 0 to reformat it." )
+
         return  self.format_amount(result.value['data']['free'] , fmt=fmt)
-
-
 
     balance =  get_balance
 
 
-
-
-
     def get_balances(self,fmt:str = 'n', network = None, block: int = None, ) -> Dict[str, Balance]:
-
-
-
-
         
         network = self.resolve_network(network)
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -1297,6 +1288,7 @@ class Subspace(c.Module):
             bal = self.format_amount(int( r[1]['data']['free'].value ), fmt=fmt)
             return_dict[r[0].value] = bal
         return return_dict
+    
     balances = get_balances
     
     def resolve_network(self, network: Optional[int] = None, ensure_network:bool = True) -> int:
@@ -1319,7 +1311,6 @@ class Subspace(c.Module):
         subnets = self.subnets()
         assert subnet in subnets, f"Subnet {subnet} not found in {subnets} for chain {self.chain}"
         return subnet
-
 
     @staticmethod
     def _null_module() -> ModuleInfo:
@@ -1345,13 +1336,9 @@ class Subspace(c.Module):
         subnets = [s['name'] for s in self.subnet_states(**kwargs)]
         return subnets
     
-        
-
     def netuids(self) -> Dict[int, str]:
         return sorted(list(self.subnet_namespace.values()))
 
-
-    
     @property
     def subnet_namespace(self, cache:bool = True, max_age:int=60, network=network ) -> Dict[str, str]:
         
@@ -2157,9 +2144,7 @@ class Subspace(c.Module):
         # purge chain
         if purge_chain:
             cls.purge_chain(base_path=base_path)
-
-
-
+            
         if validator :
             cmd_kwargs += ' --validator'
         else:
@@ -2176,10 +2161,7 @@ class Subspace(c.Module):
         if len(boot_nodes) > 0:
             node_info['boot_nodes'] = c.choice(boot_nodes) # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
-    
-    
-        # if node_key == None:
-        #     node_key = cls.get_node_key(node=node, chain=chain, mode='gran').private_key.hex(),
+
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
             
