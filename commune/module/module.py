@@ -2410,7 +2410,7 @@ class c:
     
 
     @classmethod
-    def subspace_namespace(cls, netuid=None, **kwargs ) -> Dict:
+    def subspace_namespace(cls, **kwargs ) -> Dict:
         namespace = c.module('subspace')().namespace(**kwargs)
         return namespace
 
@@ -2452,15 +2452,12 @@ class c:
             search = None
 
         namespace_fn = getattr(cls, f'{network}_namespace')
-        namespace = namespace_fn(update=update, **kwargs)
-        
-        # namespace.update(c.get('remote_modules', {}))
-        
+        namespace = namespace_fn(update=update, **kwargs)        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
         return namespace
     
-    
+
     
 
     @classmethod
