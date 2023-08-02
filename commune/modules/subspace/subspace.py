@@ -71,7 +71,8 @@ class Subspace(c.Module):
     @classmethod
     def get_network_url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        url =  cls.network2url.get(network)
+        url =  cls.getc(f'chain_info.{network}.url', [])
+        assert len(url) > 0, f'No url found for {network}'
         if isinstance(url, list):
             return c.choice(url)
         elif isinstance(url, str):
@@ -645,7 +646,6 @@ class Subspace(c.Module):
     #################
     def update_network (
         self,
-        key: str ,
         netuid: int = None,
         immunity_period: int = None,
         min_allowed_weights: int = None,
@@ -656,11 +656,22 @@ class Subspace(c.Module):
         founder: str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
+        key: str = None,
+        network = network,
         prompt: bool = False,
     ) -> bool:
-        key = self.resolve_key(key)
+            
+        self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         subnet_state = self.subnet_state( netuid=netuid )
+        # infer the key if you have it
+        if key == None:
+            key2address = self.address2key()
+            if subnet_state['founder'] not in key2address:
+                return {'success': False, 'message': f"Subnet {netuid} not found in local namespace, please deploy it "}
+            key = c.get_key(key2address.get(subnet_state['founder']))
+            c.print(f'Using key: {key}')
+
         
         params = {
             'immunity_period': immunity_period,
@@ -1788,11 +1799,15 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,snap:bool=False,  verbose:bool=True, ):
+    def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,build_snapshot:bool=False,  verbose:bool=True, ):
         if build_runtime:
             cls.build_runtime(verbose=verbose )
+
+        if build_snapshot:
+            cls.build_snapshot(chain=chain, verbose=verbose)
+
         if build_spec:
-            cls.build_spec(chain=chain, snap=snap, verbose=verbose)
+            cls.build_spec(chain=chain, verbose=verbose)
 
 
     @classmethod
@@ -2046,7 +2061,6 @@ class Subspace(c.Module):
     @classmethod
     def add_node(cls, 
                  node:str='alice', 
-                 tag = None,
                  chain:str=network, 
                  vali:bool=False): 
 
@@ -2102,8 +2116,8 @@ class Subspace(c.Module):
                  rpc_port:int=None,
                  ws_port:int=None,
                  telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
-                 validator: bool = True,          
-                 purge_chain:bool = True,
+                 validator: bool = False,          
+                 purge_chain:bool = False,
                  refresh:bool = True,
                  verbose:bool = False,
                  boot_nodes = None,
@@ -2161,7 +2175,7 @@ class Subspace(c.Module):
         if len(boot_nodes) > 0:
             node_info['boot_nodes'] = c.choice(boot_nodes) # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
-
+    
         if node_key != None:
             cmd_kwargs += f' --node-key {node_key}'
             
@@ -2176,6 +2190,10 @@ class Subspace(c.Module):
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
                             verbose=verbose)
+            
+        elif mode == 'local':
+            cmd = cmd + cmd_kwargs
+            c.cmd(cmd)
             
         elif mode == 'docker':
 
@@ -2210,7 +2228,7 @@ class Subspace(c.Module):
             chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
         else:
             # ensure to add the node to the network2url if it is not a validator
-            chain_info['urls'] = chain_info.get('urls', []) + [f'ws://{ip}:{ws_port}']
+            chain_info['url'] = chain_info.get('url', []) + [f'ws://{ip}:{ws_port}']
         chain_info['nodes'][node] = node_info
         cls.putc(f'chain_info.{chain}', chain_info)
 
@@ -2233,19 +2251,20 @@ class Subspace(c.Module):
                     build_runtime: bool = False,
                     build_spec: bool = True,
                     purge_chain:bool = True,
-                    snap:bool = False,
+                    build_snapshot:bool = False,
                     refresh: bool = True,
 
                     port_keys: list = ['port','rpc_port','ws_port'],
                     
                     ):
         
-        # build the chain
+        # kill the chain if refresh
         if refresh:
             cls.kill_chain(chain=chain)
 
+        # build the chain if needed
         if build_runtime or build_spec:
-            cls.build(chain=chain, verbose=verbose, snap=snap, build_runtime=build_runtime, build_spec=build_spec)
+            cls.build(chain=chain, verbose=verbose, build_snapshot=build_snapshot, build_runtime=build_runtime, build_spec=build_spec)
     
         # resolve the validator and non validator nodes
         node_keys = cls.node_keys(chain=chain)
@@ -2260,8 +2279,7 @@ class Subspace(c.Module):
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
         # refresh the chain info
-        cls.putc(f'network2url.{chain}', [])
-        cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': []})
+        cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': [], 'url': []})
 
         avoid_ports = []
 
@@ -2363,15 +2381,15 @@ class Subspace(c.Module):
         return f'{cls.node_key_prefix}.{chain}.{node}.{mode}'
 
     @classmethod
-    def get_node_key(cls, node='alice', chain=chain, mode='gran'):
-        return c.get_key(cls.resolve_node_key_path(node=node, chain=chain, mode=mode))
-    @classmethod
-    def get_node_keys(cls, node='alice', chain=chain):
-        return {mode:cls.get_node_key(node=node, chain=chain, mode=mode) for mode in ['gran', 'aura']}
+    def get_node_key(cls, node='alice', chain=chain):
+        return {mode:c.get_key(cls.resolve_node_key_path(node=node, chain=chain, mode=mode)) for mode in ['gran', 'aura']}
     
+    @classmethod
+    def get_node_key_paths(cls, node='alice', chain=chain):
+        return c.keys(f'{cls.node_key_prefix}.{chain}') 
 
     @classmethod
-    def node_keys(cls,chain=chain):
+    def get_node_keys(cls,chain=chain):
         vali_node_keys = {}
         for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
             name = key_name.split('.')[-2]
@@ -2382,7 +2400,9 @@ class Subspace(c.Module):
             vali_node_keys[name][role] =  key.ss58_address
         return vali_node_keys
 
-
+    node_keys = get_node_keys
+    node_key = get_node_key
+    node_key_paths = get_node_key_paths
 
 
     @classmethod
@@ -2412,8 +2432,9 @@ class Subspace(c.Module):
             cmds.append(cmd)
 
         for cmd in cmds:
-            c.print('RUNNING:', cmd)
             c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+
+        return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain)}
 
 
 
@@ -2436,7 +2457,13 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def get_node_id(cls,  node='alice',chain=chain, max_trials=10, sleep_interval=1, mode=server_mode):
+    def get_node_id(cls,  node='alice',
+                    chain=chain, 
+                    max_trials=10, 
+                    sleep_interval=1,
+                     mode=server_mode, 
+                     verbose=True
+                     ):
         node2path = cls.node2path(chain=chain)
         node_path = node2path[node]
         node_id = None
@@ -2445,7 +2472,7 @@ class Subspace(c.Module):
         c.print(node_path)
 
         while indicator not in node_logs and max_trials > 0:
-            c.print(f'Waiting for node_id for {node} on {chain} trials lef {max_trials}')
+            c.print(f'Waiting for node_id for {node} on {chain} trials lef {max_trials}', verbose=verbose)
             if mode == 'docker':
                 node_path = node2path[node]
                 node_logs = c.module('docker').logs(node_path)
@@ -2553,7 +2580,7 @@ class Subspace(c.Module):
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
 
-    def build_snap(self, 
+    def build_snapshot(self, 
              state:dict = None,
              network : str =network,
              path : str  = None,

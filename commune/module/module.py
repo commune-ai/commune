@@ -187,8 +187,8 @@ class c:
         path = path.replace('modules.', '')
         return path
     
-    name = module_path
-    module_name = module_path
+    path = module_name = name = module_path
+    
     @classmethod
     def module_class(cls) -> str:
         return cls.__name__
@@ -749,6 +749,10 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
+    @property
+    def seconds_per_epoch(self, netuid=None):
+        return self.block_time * self.subnet_state(netuid=netuid)['tempo']
+
     # KEY LAND
     @classmethod
     def add_key(cls, *args, **kwargs):
@@ -758,9 +762,6 @@ class c:
     def save_keys(self, *args, **kwargs):
         return c.module('key').save_keys(*args, **kwargs)
 
-    @classmethod
-    def load_keys(self, *args, **kwargs):
-        return c.module('key').load_keys(*args, **kwargs)
 
     # KEY LAND
     @classmethod
@@ -1690,6 +1691,8 @@ class c:
         return data
 
     load_json = get_json
+
+    data_path = repo_path + '/data'
 
     @classmethod
     def put_torch(cls, path:str, data:Dict, root:bool = False,  **kwargs):
@@ -3876,7 +3879,7 @@ class c:
     
     @classmethod
     def pip_list(cls, lib=None):
-        pip_list =  cls.cmd(f'pip list').split('\n')
+        pip_list =  cls.cmd(f'pip list', verbose=False).split('\n')
         if lib != None:
             pip_list = [l for l in pip_list if l.startswith(lib)]
         return pip_list
@@ -3942,7 +3945,7 @@ class c:
         return lib2version
     @classmethod
     def version(cls, lib:str=library_name):
-        lines = [l for l in cls.cmd(f'pip list').split('\n') if l.startswith(lib)]
+        lines = [l for l in cls.cmd(f'pip list', verbose=False).split('\n') if l.startswith(lib)]
         if len(lines)>0:
             return lines[0].split(' ')[-1].strip()
         else:
@@ -4960,6 +4963,18 @@ class c:
     def add_key(cls, key, *args,  **kwargs):
         return c.module('key').add_key(key, *args, **kwargs)
     
+    @classmethod
+    def save_keys(cls, *args,  **kwargs):
+        return c.module('key').save_keys(*args, **kwargs)
+
+    @classmethod
+    def load_keys(cls, *args,  **kwargs):
+        return c.module('key').load_keys(*args, **kwargs)
+    
+    @classmethod
+    def load_key(cls, *args,  **kwargs):
+        return c.module('key').load_key(*args, **kwargs)
+
 
     def sign(self, data:dict  = None, key: str = None, **kwargs) -> bool:
         key = self.resolve_key(key)
@@ -6970,11 +6985,14 @@ class c:
         return c.module('subspace')().my_keys(*args, **kwargs)
     
     @classmethod
-    def key_info(self, *args, **kwargs):
+    def key_info(cls, *args, **kwargs):
         return c.module('key').key_info(*args, **kwargs)
     @classmethod
-    def key_info_map(self, *args, **kwargs):
+    def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
+    
+    
+
 
     @classmethod
     def node_keys(cls, *args, **kwargs):

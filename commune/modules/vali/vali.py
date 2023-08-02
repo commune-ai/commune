@@ -9,14 +9,14 @@ class Validator(c.Module):
 
     def __init__(self, config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
-        self.set_subspace( )
-        self.count = 0
+
         self.stats = {}
+        self.set_subspace( )
+        self.start()
+
+    def start(self):
         self.start_time = c.time()
-        self.start_runs()
-
-
-    def start_runs(self):
+        self.count = 0
         self.threads = []
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
@@ -56,6 +56,9 @@ class Validator(c.Module):
         except Exception as e:
             return 0
         
+    def eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
+        return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs))
+        
          
     async def async_eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
         if  kwargs == None:
@@ -63,7 +66,7 @@ class Validator(c.Module):
         if args == None:
             args = []
 
-        if module != None:
+        if module == None:
             module = c.choice(self.module_names)
         module_state = self.name2module[module]
         w = 1
@@ -75,20 +78,23 @@ class Validator(c.Module):
               
         except Exception as e:
             response = {'error': str(e)}
-            w = 0
 
+            c.print(f'Error: {e}', color='red')
+            w = 0
+        self.count += 1
         module_stats = self.stats.get(module, module_state)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
-        module_stats['w'] = module_stats.get('w', w)*self.alpha + w(1-self.alpha)
+        module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
 
         module_stats['alpha'] = self.config.alpha
         module_stats['history'] = module_stats.get('history', []) + [{'input': dict(args=args, kwargs=kwargs) ,'output': response, 'w': w, 'time': c.time()}]
         self.stats[module] = module_stats
-        self.count += 1
+
         if self.config.save_interval % self.count == 0:
             self.save()
         return module
-    def save(self, tag=None):
+    def save(self):
+        tag = self.config.tag
         c.print(f'Saving stats to {tag}', color='white')
         tag = self.config.tag if tag == None else tag
 

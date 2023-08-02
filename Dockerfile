@@ -31,3 +31,7 @@ RUN ./scripts/install_rust_env.sh
 # INSTALL COMMUNE
 RUN pip3 install -e .
 
+# BUILD SUBDSPACE
+COPY ./subspace /commune/subspace
+RUN cd ./subspace && cargo build --release
+
