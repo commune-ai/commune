@@ -15,6 +15,7 @@ class Validator(c.Module):
         self.start_time = c.time()
         self.start_runs()
 
+
     def start_runs(self):
         self.threads = []
         # start threads, ensure they are daemons, and dont vote
@@ -35,6 +36,7 @@ class Validator(c.Module):
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
         self.module_names = list(self.name2module.keys())
+        self.seconds_per_epoch = self.subspace.seconds_per_epoch
     
         self.key = c.get_key(self.config.key)
         self.subspace.is_registered(self.key)

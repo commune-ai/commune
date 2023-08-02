@@ -292,11 +292,13 @@ class Keypair(c.Module):
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
     
+    @classmethod
     def save_keys(cls):
         cls.save_keys(cls)
             
     key_storage_path = c.repo_path
-    def load_keys(file = c.repo_path):
+    @classmethod
+    def load_keys(cls, file = c.repo_path):
         keys = c.jload(file)
 
         c.print(keys)
