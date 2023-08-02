@@ -1781,8 +1781,6 @@ class Subspace(c.Module):
                               network=network,
                               address=f'{c.external_ip()}:{port}', 
                               name=f'module{key_path}')
-        # for key in keys.values():
-        #     subspace.set_weights(key=key, netuid=1, weights=[0.5 for n in modules], uids=[n.uid for n in modules])
 
     @classmethod
     def test_balance(cls):
