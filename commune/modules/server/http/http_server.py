@@ -33,7 +33,7 @@ class HTTPServer(c.Module):
         self.verbose = verbose
         
         self.serializer = c.module('server.http.serializer')()
-        self.ip = c.resolve_ip(ip, external=False)  # default to '0.0.0.0'
+        self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
         self.set_access(access)
@@ -73,6 +73,10 @@ class HTTPServer(c.Module):
         module.address  = self.address
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
+
+
+        c.print(f'Serving {name} on port {port})', color='yellow')
+
         self.serve()
 
     def set_access(self, access: str) -> None:
@@ -233,7 +237,7 @@ class HTTPServer(c.Module):
         try:
             c.register_server(name=self.name, ip=self.ip, port=self.port)
 
-            uvicorn.run(self.app, host=self.ip, port=self.port)
+            uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:
             c.print(e, color='red')
             c.deregister_server(self.name)

@@ -2210,7 +2210,7 @@ class c:
             local_namespace = c.build_local_namespace()
             c.put('local_namespace', local_namespace)
             
-        local_namespace = {k:c.default_ip + f":{v.split(':')[-1]}" for k,v in local_namespace.items()}
+        local_namespace = {k:v for k,v in local_namespace.items()}
 
         return local_namespace
     
@@ -2537,6 +2537,7 @@ class c:
               update: bool = False,
               mode:str = server_mode,
               tag_seperator:str='::',
+              external:bool = False, # if true, the server† will run on a different machine
               key = None, # key for server's identity
 
               
@@ -2568,7 +2569,6 @@ class c:
             port = int(address.split(':')[-1])
         module_class = cls.resolve_module(module)
         self = module_class(*args, **kwargs)
-        port = c.resolve_port(port)
 
         if c.server_exists(name): 
             if refresh:
@@ -2578,8 +2578,7 @@ class c:
             else: 
                 
                 raise Exception(f'The server {name} already exists')
-        c.print(f'Serving {name} on port {port} (Mode : {mode})', color='yellow')
-
+        
 
         server = c.module(f'server.{mode}')(module=self, ip=ip, port=port,name= name,whitelist=whitelist,blacklist=blacklist)
 
