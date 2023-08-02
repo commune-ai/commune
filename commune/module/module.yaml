@@ -5,7 +5,7 @@ ip: 162.157.13.236
 module_overrides:
 - network
 - key
-network: subspace
+network: local
 network2url: {}
 networks:
 - subspace
