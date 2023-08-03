@@ -10,14 +10,16 @@ class Validator(c.Module):
     def __init__(self, config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
 
-        self.stats = {}
         self.set_subspace( )
-        self.start()
-
-    def start(self):
+        self.stats = {}
         self.start_time = c.time()
         self.count = 0
         self.threads = []
+        
+        if self.config.start:
+            self.start()
+
+    def start(self):
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
             t = threading.Thread(target=self.run, kwargs={'vote':False})
@@ -27,8 +29,6 @@ class Validator(c.Module):
 
         # main thread
         self.run(vote=True)
-        
-
 
     def set_subspace(self):
         self.subspace = c.module(self.config.network)()
@@ -36,7 +36,6 @@ class Validator(c.Module):
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
         self.module_names = list(self.name2module.keys())
-        self.seconds_per_epoch = self.subspace.seconds_per_epoch
     
         self.key = c.get_key(self.config.key)
         self.subspace.is_registered(self.key)
@@ -46,7 +45,7 @@ class Validator(c.Module):
         return c.time() - self.start_time
 
     def modules_per_second(self):
-        return self.count / self.lifetime()
+        return self.count / self.lifetime
 
 
     def score_response(self, r) -> int:
@@ -61,6 +60,12 @@ class Validator(c.Module):
         
          
     async def async_eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
+
+        if args == None:
+            args = []
+        if kwargs == None:
+            kwargs = {'timeout': self.config.timeout}
+
         if  kwargs == None:
             kwargs = {}
         if args == None:
@@ -70,17 +75,22 @@ class Validator(c.Module):
             module = c.choice(self.module_names)
         module_state = self.name2module[module]
         w = 1
+        emojis = c.emojis
         try:
             # get connection
+            
             module_client = await c.async_connect(module_state['address'], network=self.config.network, namespace = self.namespace,timeout=1)
-            response = await getattr(module_client,fn)(timeout=self.config.timeout, return_future=True)
+            response = await getattr(module_client,fn)(*args, **kwargs, return_future=True)
             w = self.score_response(response)
-              
+
+            c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green')
         except Exception as e:
             response = {'error': str(e)}
-
-            c.print(f'Error: {e}', color='red')
             w = 0
+            c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red')
+            
+
+
         self.count += 1
         module_stats = self.stats.get(module, module_state)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
@@ -93,6 +103,10 @@ class Validator(c.Module):
         if self.config.save_interval % self.count == 0:
             self.save()
         return module
+    
+    
+    
+    
     def save(self):
         tag = self.config.tag
         c.print(f'Saving stats to {tag}', color='white')
