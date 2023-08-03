@@ -17,6 +17,8 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class c:
+
+
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
     user = None
@@ -34,7 +36,19 @@ class c:
     whitelist = []
     blacklist = []
     server_mode = 'http'
-    
+    emojis = {
+        'dank': '🔥',
+        'error': '💥',
+        'white': '🕊️',
+        'cool': '😎',
+        'success': '✨',
+        'sad': '😢',
+        'time': '🕒',
+        'count': '🔢',
+        'output': '📤',
+        'input': '📥',
+    }
+
     def __init__(self, 
                  config:Dict=None,
                  **kwargs):
@@ -113,7 +127,14 @@ class c:
         
         # odd case where the module is a module in streamlit
         obj = cls.resolve_module(obj)
-        module_path =  inspect.getfile(obj)
+        try:
+            module_path =  inspect.getfile(obj)
+        except Exception as e:
+            if 'source code not available' in str(e):
+                return cls.class_name()
+            else: 
+                raise e
+     
         # convert into simple
         if simple:
             return cls.path2simple(path=module_path)
@@ -183,6 +204,7 @@ class c:
     @classmethod
     def module_path(cls, simple:bool=True) -> str:
         # get the module path
+        
         path = cls.get_module_path(simple=simple)
         path = path.replace('modules.', '')
         return path
@@ -1983,9 +2005,9 @@ class c:
                     return_info = False,
                     refresh:bool = False,
                     **kwargs):
-        if not cls.server_exists(name) or refresh:
+        if not cls.server_exists(name, network='local') or refresh:
             cls.launch(name=name, **kwargs)
-            cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
+            cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval, network='local')
        
         address =  c.connect('module').address
         return address
@@ -2329,8 +2351,8 @@ class c:
         return loop
 
     @classmethod
-    def server_exists(cls, name:str, **kwargs) -> bool:
-        return bool(name in cls.servers(**kwargs)) and name in cls.pm2_list()
+    def server_exists(cls, name:str, network:str = None,  **kwargs) -> bool:
+        return bool(name in cls.servers(network=network, **kwargs)) and name in cls.pm2_list()
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -2350,13 +2372,14 @@ class c:
     def wait_for_server(cls,
                           name: str ,
                           timeout:int = 600,
-                          sleep_interval: int = 4) -> bool :
+                          sleep_interval: int = 4, 
+                          network=None) -> bool :
         
         start_time = cls.time()
         time_waiting = 0
         cls.local_namespace()
 
-        while not cls.server_exists(name):
+        while not cls.server_exists(name, network=network):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
             c.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
@@ -2565,7 +2588,7 @@ class c:
         c.print(module_class, 'BROOOO')
         self = module_class(*args, **kwargs)
 
-        if c.server_exists(name): 
+        if c.server_exists(name, network='local'): 
             if refresh:
                 if verbose:
                     c.print(f'Stopping existing server {name}', color='yellow')
@@ -2808,6 +2831,7 @@ class c:
              verbose:bool = False,
              update : bool = True,
              prefix_match = False,
+             network = 'local', # local, dev, test, main
              **kwargs):
 
         kill_fn = getattr(cls, f'{mode}_kill')
@@ -2827,7 +2851,7 @@ class c:
         
         c.deregister_server(module)
 
-        assert c.server_exists(module) == False, f'module {module} still exists'
+        assert c.server_exists(module, network=network) == False, f'module {module} still exists'
 
         servers = c.servers()
         for m in delete_modules:
@@ -3740,7 +3764,7 @@ class c:
         if is_class:
             return ModuleWrapper
         else:
-            return ModuleWrapper()
+            return ModuleWrapper(module=module)
         
         
             
@@ -5690,7 +5714,7 @@ class c:
         module_path = os.path.join(c.modules_path, module)
         
         
-        if overwrite and c.server_exists(module_path): 
+        if overwrite and c.server_exists(module_path, network='local'): 
             c.rm(module_path)
         
         if repo != None:
