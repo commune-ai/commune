@@ -580,6 +580,7 @@ class Subspace(c.Module):
     #################
     def update_module (
         self,
+        module: str  = None,
         name: str = None,
         address: str = None,
         netuid: int = None,
@@ -587,11 +588,13 @@ class Subspace(c.Module):
         wait_for_finalization = True,
         prompt: bool = False,
         network : str = network,
-        key: str  = None,
+
     ) -> bool:
         self.update()   
         self.resolve_network(network)
-        key = self.resolve_key(key)
+
+        # module is the same name as the key 
+        key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
           
         if name == None:

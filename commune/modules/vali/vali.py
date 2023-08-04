@@ -15,6 +15,7 @@ class Validator(c.Module):
         self.stats = {}
         self.start_time = c.time()
         self.count = 0
+        self.errors = 0
         self.threads = []
         
         if self.config.start:
@@ -99,7 +100,6 @@ class Validator(c.Module):
             
 
 
-        self.count += 1
         module_stats = self.load_module_stats(module, module_state)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
@@ -107,6 +107,7 @@ class Validator(c.Module):
         module_stats['history'] = module_stats.get('history', []) + [{'input': dict(args=args, kwargs=kwargs) ,'output': response, 'w': w, 'time': c.time()}]
         self.stats[module] = module_stats
         self.save_module_stats(module, module_stats)
+        self.count += 1
 
         return module
     
@@ -169,29 +170,41 @@ class Validator(c.Module):
 
         c.get_event_loop()
         self.last_vote_time = c.time()
-        
+         
+        import tqdm
+        self.epochs = 0
         while self.running:
-            vote_staleness = c.time() - self.last_vote_time
 
-            if vote_staleness > self.config.voting_interval:
+            modules = c.shuffle(self.module_names)
+            
+            for i, module in enumerate(modules):
 
-                self.vote()
+                vote_staleness = c.time() - self.last_vote_time
 
-            try:
-                c.gather([self.async_eval_module() for i in range(self.config.parallel_jobs)], timeout=2)
-            except Exception as e:
-                c.print(f'Error: {e}', color='red')
-                pass
+                if vote_staleness > self.config.voting_interval:
 
-            stats =  {
-                'total_modules': self.count,
-                'lifetime': int(self.lifetime),
-                'modules_per_second': int(self.modules_per_second()), 
-                'vote_staleness': vote_staleness
+                    self.vote()
 
-            }
-            c.print(f'Validator Stats: {stats}', color='white')
 
+                try:
+                    self.eval_module(module=module)
+                except Exception as e:
+                    # c.print(f'Error in eval_module {e}', color='red')
+                    self.errors += 1
+
+                
+                stats =  {
+                    'total_modules': self.count,
+                    'lifetime': int(self.lifetime),
+                    'modules_per_second': int(self.modules_per_second()), 
+                    'vote_staleness': vote_staleness,
+                    'errors': self.errors,
+
+                }
+                if self.count % 100 == 0:
+                    c.print(f'Validator Stats: {stats}', color='white')
+            self.epochs += 1
+    
            
     def check_score(self, module):
         module_name = module['name']
