@@ -1,6 +1,6 @@
 
 
-key : model.openai
+key : null
 netuid: 0
 network: subspace # global or local network
 sleep: 0.1 # sleep time between each forward call
@@ -11,7 +11,7 @@ alpha: 0.9
 timeout: 2
 tag: base
 run: True
-num_threads: 30
+num_threads: 50
 module_prefix: model.openai
 parallel_jobs: 10
 start: True
