@@ -1444,8 +1444,18 @@ class Subspace(c.Module):
 
     @property
     def block_time(self):
-        return self.query('BlockTime')
-    
+        return self.config.block_time
+
+
+    def get_block(self, network=None, block_hash=None): 
+        self.resolve_network(network)
+        return self.substrate.get_block( block_hash=block_hash)
+
+    def seconds_per_epoch(self, netuid=None, network=None):
+        self.resolve_network(network)
+        netuid =self.resolve_netuid(netuid)
+        return self.block_time * self.subnet_state(netuid=netuid)['tempo']
+
     
     def get_module(self, name:str = None, key=None, netuid=None, **kwargs) -> ModuleInfo:
         if key != None:

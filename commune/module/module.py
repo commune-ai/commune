@@ -771,9 +771,8 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
-    @property
-    def seconds_per_epoch(self, netuid=None):
-        return self.block_time * self.subnet_state(netuid=netuid)['tempo']
+    def seconds_per_epoch(self, *args, **kwargs):
+        return c.module('subspace')().seconds_per_epoch(*args, **kwargs)
 
     # KEY LAND
     @classmethod
