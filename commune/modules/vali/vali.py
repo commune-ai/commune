@@ -21,7 +21,7 @@ class Validator(c.Module):
 
     def start(self):
         # start threads, ensure they are daemons, and dont vote
-        for t in range(self.config.num_threads):
+        for t in range(self.config.threads):
             t = threading.Thread(target=self.run, kwargs={'vote':False})
             t.daemon = True
             t.start()
@@ -59,7 +59,7 @@ class Validator(c.Module):
         return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs))
         
          
-    async def async_eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
+    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=False ):
 
         if args == None:
             args = []
@@ -78,16 +78,21 @@ class Validator(c.Module):
         emojis = c.emojis
         try:
             # get connection
+            has_local_ip = any([k in module_state['address'].lower() for k in ['none', '0.0.0.0', '127.0.0.1', 'localhost']])
+            if has_local_ip:
+                raise Exception(f'Invalid address {module_state["address"]}')
+
             
             module_client = await c.async_connect(module_state['address'], network=self.config.network, namespace = self.namespace,timeout=1)
             response = await getattr(module_client,fn)(*args, **kwargs, return_future=True)
             w = self.score_response(response)
 
-            c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green')
+            c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
+
         except Exception as e:
             response = {'error': str(e)}
             w = 0
-            c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red')
+            c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             
 
 
@@ -124,13 +129,21 @@ class Validator(c.Module):
 
         c.get_event_loop()
         
-        
         while self.running:
-            c.print(f'Validator: {self.count}', color='white')
+
             try:
                 c.gather([self.async_eval_module() for i in range(self.config.parallel_jobs)], timeout=2)
             except Exception as e:
-                c.print(e)
+                c.print({'error': str(e)}, color='red')
+
+
+            stats =  {
+                'total_modules': self.count,
+                'lifetime': int(self.lifetime),
+                'modules_per_second': int(self.modules_per_second())
+
+            }
+            c.print(f'Validator Stats: {stats}', color='white')
 
            
     def check_score(self, module):

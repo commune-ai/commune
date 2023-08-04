@@ -390,3 +390,4 @@ supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
+block_time: 4
