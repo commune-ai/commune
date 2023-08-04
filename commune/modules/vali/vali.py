@@ -1,6 +1,7 @@
 # import nest_asyncio
 # nest_asyncio.apply()
 import commune as c
+import torch
 
 import threading 
 
@@ -21,7 +22,7 @@ class Validator(c.Module):
 
     def start(self):
         # start threads, ensure they are daemons, and dont vote
-        for t in range(self.config.threads):
+        for t in range(self.config.num_threads):
             t = threading.Thread(target=self.run, kwargs={'vote':False})
             t.daemon = True
             t.start()
@@ -36,6 +37,8 @@ class Validator(c.Module):
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
         self.module_names = list(self.name2module.keys())
+        self.subnet = self.subspace.subnet()
+        self.seconds_per_epoch = self.subspace.seconds_per_epoch()
     
         self.key = c.get_key(self.config.key)
         self.subspace.is_registered(self.key)
@@ -97,28 +100,65 @@ class Validator(c.Module):
 
 
         self.count += 1
-        module_stats = self.stats.get(module, module_state)
+        module_stats = self.load_module_stats(module, module_state)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
-
         module_stats['alpha'] = self.config.alpha
         module_stats['history'] = module_stats.get('history', []) + [{'input': dict(args=args, kwargs=kwargs) ,'output': response, 'w': w, 'time': c.time()}]
         self.stats[module] = module_stats
+        self.save_module_stats(module, module_stats)
 
-        if self.config.save_interval % self.count == 0:
-            self.save()
         return module
     
-    
-    
-    
-    def save(self):
-        tag = self.config.tag
-        c.print(f'Saving stats to {tag}', color='white')
-        tag = self.config.tag if tag == None else tag
 
-        for k in self.stats:
-            self.put(f'{tag}/stats/{k}', self.stats)
+    def vote(self):
+        self.last_vote_time = c.time()
+        topk = self.subnet['max_allowed_weights']
+
+        self.load_stats()   
+        vote_dict = {'uids': [], 'weights': []}
+
+        for k, v in self.stats.items():
+            vote_dict['uids'] += [v['uid']]
+            vote_dict['weights'] += [v['w']]
+
+        
+        # get topk
+        
+        topk_indices = torch.argsort( torch.tensor(vote_dict['weights']), descending=True)[:topk].tolist()
+        vote_dict['weights'] = [vote_dict['weights'][i] for i in topk_indices]
+        vote_dict['uids'] = [vote_dict['uids'][i] for i in topk_indices]
+
+        self.subspace.vote(uids=vote_dict['uids'],
+                           weights=vote_dict['weights'], 
+                           key=self.key, 
+                           network=self.config.network, 
+                           netuid=self.config.netuid)
+
+        return vote_dict
+
+
+    def load_stats(self, batch_size=100):
+        paths = self.ls(f'stats/{self.config.network}')
+        jobs = [c.async_get_json(p) for p in paths]
+
+        for jobs_batch in c.chunk(jobs, batch_size):
+            module_stats = c.gather(jobs_batch)
+            for s in module_stats:
+                if s == None:
+                    continue
+                self.stats[s['name']] = s
+        return {'success': True, 'message': 'Loaded stats'}
+
+
+    
+    def load_module_stats(self, k:str,default=None):
+        if default == None:
+            default = {}
+        return self.get_json(f'stats/{self.config.network}/{k}', default=default)
+    
+    def save_module_stats(self,k:str, v):
+        self.put_json(f'stats/{self.config.network}/{k}', v)
 
 
 
@@ -128,19 +168,26 @@ class Validator(c.Module):
         self.running = True
 
         c.get_event_loop()
+        self.last_vote_time = c.time()
         
         while self.running:
+            vote_staleness = c.time() - self.last_vote_time
+
+            if vote_staleness > self.config.voting_interval:
+
+                self.vote()
 
             try:
                 c.gather([self.async_eval_module() for i in range(self.config.parallel_jobs)], timeout=2)
             except Exception as e:
-                c.print({'error': str(e)}, color='red')
-
+                c.print(f'Error: {e}', color='red')
+                pass
 
             stats =  {
                 'total_modules': self.count,
                 'lifetime': int(self.lifetime),
-                'modules_per_second': int(self.modules_per_second())
+                'modules_per_second': int(self.modules_per_second()), 
+                'vote_staleness': vote_staleness
 
             }
             c.print(f'Validator Stats: {stats}', color='white')
@@ -148,7 +195,7 @@ class Validator(c.Module):
            
     def check_score(self, module):
         module_name = module['name']
-        loop = c.get_event_loop()
+
         return self.w.get(module_name, 0)
             
     def stop(self):
@@ -166,6 +213,15 @@ class Validator(c.Module):
         self.save()
         c.print('Validator stopped', color='white')
 
-
-    # def fleet(cls, n=1, **kwargs):
-    #     return [cls(**kwargs) for i in range(n)]
+    @classmethod
+    def serve(cls, key, remote=True, **kwargs):
+        
+        
+        if remote:
+            kwargs['key'] = key
+            kwargs['remote'] = False
+            return cls.remote_fn( fn='serve', name=f'vali::default::{key}', kwargs=kwargs)
+        
+        kwargs['start'] = False
+        self = cls(**kwargs)
+        self.start()

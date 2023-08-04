@@ -1114,6 +1114,7 @@ class Subspace(c.Module):
         if cache and not update:
             c.print('Loading state_dict from cache', verbose=verbose)
             state_dict = self.get(cache_path, {})
+            c.print(f'Loaded state_dict from cache {cache_path}', verbose=verbose)
         if len(state_dict) == 0:
             netuids = self.netuids()
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
@@ -1144,6 +1145,7 @@ class Subspace(c.Module):
         cache = kwargs.get('cache', True)
     
         if cache and not update:
+            c.print('Loading subnet_states from cache')
             return self.state_dict(key='subnets')
         subnet_states = {}
         for netuid in self.netuids():
@@ -1156,10 +1158,9 @@ class Subspace(c.Module):
                     netuid=0,
                     cache: bool = True,
                     update: bool = False,
-                    network = None) -> list:
+                    network = network) -> list:
         
         if cache and not update:
-            c.print('Loading subnet_state from cache')
             return self.state_dict(network=network, key='subnets', cache=True)[netuid]
         
         network = self.resolve_network(network)
