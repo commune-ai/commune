@@ -1698,7 +1698,7 @@ class c:
         from commune.utils.dict import async_get_json
         path = cls.resolve_path(path=path, extension='json', root=root)
         try:
-            data = await async_get_json(path, **kwargs)
+            data = await async_get_json(path, default=default, **kwargs)
         except Exception as e:
             if verbose:
                 c.print(f'Failed to load json from {path} with error {e}')
