@@ -115,9 +115,9 @@ class ClientModule(Module):
 
 
     def __repr__(self):
-        return self.module_name
+        return self.server_name
     def __str__(self):
-        return self.module_name
+        return self.server_name
 if __name__ == '__main__':
     module = ClientModule.deploy(actor=True)
     # st.write(module.get_functions(module))

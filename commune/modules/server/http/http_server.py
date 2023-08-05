@@ -76,7 +76,7 @@ class HTTPServer(c.Module):
 
 
         c.print(f'Serving {name} on port {port})', color='yellow')
-
+        self.module.set_server_name(name)
         self.serve()
 
     def set_access(self, access: str) -> None:
