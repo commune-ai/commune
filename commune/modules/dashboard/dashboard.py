@@ -148,8 +148,8 @@ class Dashboard(commune.Module):
         
     
         st.write('## Modules')    
-        self.module_name = st.selectbox('',self.module_list, 0, key='module_name')   
-        self.module = commune.module(self.module_name)
+        self.server_name = st.selectbox('',self.module_list, 0, key='module_name')   
+        self.module = commune.module(self.server_name)
         self.module_config = self.module.config(to_munch=False)
 
 

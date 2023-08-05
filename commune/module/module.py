@@ -32,7 +32,7 @@ class c:
     pwd = os.getenv('PWD')
     console = Console()
     default_key = 'alice'
-    helper_whitelist = ['info', 'schema','module_name']
+    helper_whitelist = ['info', 'schema','server_name']
     whitelist = []
     blacklist = []
     server_mode = 'http'
@@ -209,7 +209,7 @@ class c:
         path = path.replace('modules.', '')
         return path
     
-    path = module_name = name = module_path
+    path  = name = module_name =  module_path
     
     @classmethod
     def module_class(cls) -> str:
@@ -2166,8 +2166,8 @@ class c:
             module = await c.async_connect(module, return_future=False, virtual=False, **kwargs)
         except Exception as e:
             return False
-        module_name =  await module(fn='module_name',  return_future=True)
-        if c.check_response(module_name):
+        server_name =  await module(fn='server_name',  return_future=True)
+        if c.check_response(server_name):
             return True
         else:
             return False
@@ -2183,12 +2183,12 @@ class c:
             if peer == None: 
                 return peer
             
-            module_name = peer(fn='module_name',  return_future=True)
-            module_name = await asyncio.wait_for(module_name, timeout=fn_timeout)
-            if c.check_response(module_name):
-                return module_name
+            server_name = peer(fn='server_name',  return_future=True)
+            server_name = await asyncio.wait_for(server_name, timeout=fn_timeout)
+            if c.check_response(server_name):
+                return server_name
             else:
-                return module_name
+                return server_name
         except Exception as e:
 
             return {'error':str(e)}
@@ -2257,7 +2257,7 @@ class c:
     
     
     @classmethod
-    def register_server(cls, name: str, ip: str,port: int = None, **kwargs)-> dict:
+    def register_server(cls, name: str, ip: str,port: int = None,  **kwargs)-> dict:
         local_namespace = cls.local_namespace(update=False)    
 
         if c.is_address(ip):
@@ -2685,6 +2685,16 @@ class c:
             return True
         else:
             return False
+
+    def set_server_name(self, name:str, **kwargs):
+        if hasattr(self, 'server_name'):
+            c.deregister_server(name)
+        self.server_name = name
+        c.register_server(name, self.address, **kwargs)
+        return {'success':True, 'message':f'Server name set to {name}'}
+        
+        
+
         
     def info(self , 
              include_schema: bool = False,
@@ -2697,7 +2707,7 @@ class c:
             address = self.address,
             functions =  fns, # get the functions of the module
             attributes = attributes, # get the attributes of the module
-            name = self.module_name() if callable(self.module_name) else self.module_name, # get the name of the module
+            name = self.server_name() if callable(self.server_name) else self.server_name, # get the name of the module
             path = self.module_path(), # get the path of the module
             chash = self.chash(), # get the hash of the module (code)
 
@@ -2867,14 +2877,14 @@ class c:
         
     delete = kill_server = kill
     def destroy(self):
-        self.kill(self.module_name)
+        self.kill(self.server_name)
         return path
     
     def self_destruct(self):
-        self.kill(self.module_name)    
+        self.kill(self.server_name)    
         
     def self_restart(self):
-        self.restart(self.module_name)
+        self.restart(self.server_name)
         
     @classmethod
     def set_shortcut(cls, shortcut: str, kwargs: dict) -> dict:
@@ -3000,10 +3010,10 @@ class c:
         module_list = []
         for line in output_string.split('\n'):
             if '│ default     │ ' in line:
-                module_name = line.split('│')[2].strip()
+                server_name = line.split('│')[2].strip()
                 # fixes odd issue where there is a space between the name and the front 
-                module_name = module_name.split(' ')[-1]
-                module_list += [module_name]
+                server_name = server_name.split(' ')[-1]
+                module_list += [server_name]
                 
         
         if search:
@@ -3075,12 +3085,11 @@ class c:
                    meta_fn: str = 'module_fn',
                    tag_seperator:str = '::',
                    refresh:bool=True ):
-    
 
         if module == None:
-            module = cls.module_name()
-        elif hasattr(module, 'module_name'):
-            module = module.module_name()
+            module = cls.module_path()
+        elif hasattr(module, 'module_path'):
+            module = module.module_path()
             
         # avoid these references fucking shit up
         args = args if args else []
@@ -3172,8 +3181,8 @@ class c:
         
             
     def restart_self(self, mode:str='pm2'):
-        assert hasattr(self, 'module_name'), 'self.module_name must be defined to restart'
-        return self.restart(self.module_name)
+        assert hasattr(self, 'server_name'), 'self.server_name must be defined to restart'
+        return self.restart(self.server_name)
     
     
     
@@ -3407,7 +3416,7 @@ class c:
         return ray
     
     @classmethod
-    def get_module_name(cls, name:str=None, tag:str=None, seperator:str='.'):
+    def get_server_name(cls, name:str=None, tag:str=None, seperator:str='.'):
         name = name if name else cls.__name__.lower()
         if tag != None:
             name = tag + seperator + name
@@ -3441,7 +3450,7 @@ class c:
         else:
             module_class = c.module(module)
             
-        name = self.get_module_name(name=name, tag=tag) 
+        name = self.get_server_name(name=name, tag=tag) 
         assert isinstance(name, str)
         
         actor_kwargs['name'] = name

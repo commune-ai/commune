@@ -10,18 +10,19 @@ class Validator(c.Module):
 
     def __init__(self, config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
-
         self.set_subspace( )
         self.stats = {}
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
-        self.threads = []
+        
+        # c.print(c.key)
         
         if self.config.start:
             self.start()
 
     def start(self):
+        self.threads = []
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
             t = threading.Thread(target=self.run, kwargs={'vote':False})
@@ -42,7 +43,7 @@ class Validator(c.Module):
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
     
         self.key = c.get_key(self.config.key)
-        self.subspace.is_registered(self.key)
+        assert self.subspace.is_registered(self.key), f'Key {self.key} is not registered in {self.config.network}'
 
     @property
     def lifetime(self):
@@ -213,8 +214,9 @@ class Validator(c.Module):
             
     def stop(self):
         self.running = False
-        for t in self.threads:
-            t.join(timeout=2)
+        if hasattr(self, 'threads'):
+            for t in self.threads:
+                t.join(timeout=2)
         
     @classmethod
     def test(cls, **kwargs):
