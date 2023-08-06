@@ -27,6 +27,19 @@ class DataHF(c.Module):
 
         return self.dataset[idx]
     
+
+
+
+    def validate(self, module, num_samples=10):
+        for i in range(num_samples):
+            idx = self.random_idx()
+            sample = self.sample(idx=idx)
+            module_sample = module.sample(idx=idx)
+            for key in sample.keys():
+                if sample[key] != module_sample[key]:
+                    return 0
+        return 1
+
     @classmethod
     def test(cls, *args,**kwargs):
         cls.print('Testing dataset')
@@ -186,21 +199,30 @@ class DataHF(c.Module):
             print(i)
 
     @classmethod
-    def serve(cls, path:str = 'super_glue', remote:bool=True, **kwargs):
+    def serve(cls, path:str = 'super_glue', tag=None, remote:bool=True, **kwargs):
         name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
         c.print(f'Serving {name} with kwargs: {kwargs}')
-        c.serve(module=cls.module_path(), name=name, kwargs=kwargs, remote=remote)
+        c.serve(module=cls.module_path(), name=name, tag=tag, kwargs=kwargs, remote=remote)
 
 
     @classmethod
-    def fleet(cls, fleet:str = 'qa', remote:bool=True, **kwargs):
+    def serve_category(cls, fleet:str = 'qa', remote:bool=True, tag=None,  **kwargs):
         fleet = cls.getc(f'fleet.{fleet}')
 
         avoid_ports = []
         for path in fleet:
             port = c.free_port(avoid_ports=avoid_ports)
-            cls.serve(path=path, remote=remote, port=port, **kwargs)
+            cls.serve(path=path, remote=remote, port=port, tag=tag, **kwargs)
+            avoid_ports.append(port)
+
+    @classmethod
+    def fleet(cls, path:str = 'truthful_qa', n:int=5, remote:bool=True, tag=None,  **kwargs):
+
+        avoid_ports = []
+        for i in range(n):
+            port = c.free_port(avoid_ports=avoid_ports)
+            cls.serve(path=path, remote=remote, port=port, tag=f'{i}' if tag == None else f'{tag}.{i}', **kwargs)
             avoid_ports.append(port)
 
 

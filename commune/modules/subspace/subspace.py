@@ -399,7 +399,13 @@ class Subspace(c.Module):
             trial_count += 1
         return name
     
+    def register_fleet(self, module:str, **kwargs):
+        modules = c.servers(module, network='local' )
 
+        for m in modules:
+            self.register(module=m, **kwargs)
+        return {'success':True, 'message':'registered fleet', 'modules':modules}
+        
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
@@ -418,6 +424,7 @@ class Subspace(c.Module):
         network: str = network,
         refresh: bool = False,
         update: bool = False,
+        tag_seperator: str = '::',
 
     ) -> bool:
         
@@ -427,13 +434,23 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         kwargs = kwargs if kwargs is not None else {}
         args = args if args is not None else []
+
+
         
         # create a unique name
-        name = c.resolve_server_name(module=module, name=name, tag=tag)
+        if name == None:
+            name = module
+        if tag != None:
+            name = f'{name}{tag_seperator}{tag}'
+
         c.print(f"Registering {name} on {network} with {subnet} subnet")
-        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
-        c.wait_for_server(name)
-        address = c.namespace(network='local').get('name')
+        if c.server_exists(name):
+            c.print(f"Server {name} already exists, skipping")
+        else:
+            c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
+            c.wait_for_server(name)
+
+        address = c.namespace(network='local').get(name)
         key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
         stake = stake if stake != None else self.get_balance(key, fmt='n')
@@ -475,6 +492,7 @@ class Subspace(c.Module):
             return {'success': False, 'message': response.error_message}
 
             
+
 
 
     ##################
@@ -575,7 +593,7 @@ class Subspace(c.Module):
     #################
     #### Serving ####
     #################
-    def update_module (
+    def update_module(
         self,
         module: str  = None,
         address: str = None,
@@ -595,12 +613,17 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)  
 
         module_info = self.get_module(module)
+        if name == module_info['name'] and address == module_info['address']:
+            c.print(":cross_mark: [red]Module already registered[/red]:[bold white]\n  {}[/bold white]".format(module))
+            return False
 
         if name == None:
             name = module_info['name']
 
         if address == None:
             address = module_info['address']
+
+        
 
             
         local_namespace = c.namespace(network='local')
