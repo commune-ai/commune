@@ -725,6 +725,7 @@ class Subspace(c.Module):
             wait_for_finalization: bool = False,
             prompt: bool = False,
             network:str = None,
+            existential_deposit: float = 0.1,
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
@@ -739,10 +740,7 @@ class Subspace(c.Module):
 
         if amount is None:
             amount = old_balance
-            amount = self.to_nanos(amount - 0.1)
-        else:
-            
-            amount = self.to_nanos(amount)
+        amount = self.to_nanos(amount - existential_deposit)
         
         # Get current stake
 
@@ -796,12 +794,11 @@ class Subspace(c.Module):
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
         old_balance = self.get_balance( key , fmt='j')
 
-        old_stake = self.get_stake_from( module_key, netuid=netuid, fmt='j', from_key=key.ss58_address)
+        old_stake = self.get_stake_to( key.ss58_address, netuid=netuid, fmt='j', to_key=module_key)
 
         if amount == None:
             amount = old_stake
-        else:
-            amount = self.to_nanos(amount)
+        amount = self.to_nanos(amount)
 
         with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
@@ -1007,26 +1004,25 @@ class Subspace(c.Module):
 
     def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
         
-        key = self.resolve_key( key )
+        key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        c.print(f"Getting stake for [bold white]{key.ss58_address}[/bold white] on network [bold white]{netuid}[/bold white] at block [bold white]{block}[/bold white].")
-        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeTo', block, [netuid, key.ss58_address] )]
+        c.print(f"Getting stake for [bold white]{key_address}[/bold white] on network [bold white]{netuid}[/bold white] at block [bold white]{block}[/bold white].")
+        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeTo', block, [netuid, key_address] )]
 
         if to_key is not None:
-            to_key = self.resolve_key( to_key )
-            stake_to ={ k:v for k, v in stake_to}.get(to_key.ss58_address, 0)
+            to_key_address = self.resolve_key_ss58( to_key )
+            stake_to ={ k:v for k, v in stake_to}.get(to_key_address, 0)
         return stake_to
     
     def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
         
-        key = self.resolve_key( key )
+        key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        c.print(f"Getting stake for [bold white]{key.ss58_address}[/bold white] on network [bold white]{netuid}[/bold white] at block [bold white]{block}[/bold white].")
-        state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeFrom', block, [netuid, key.ss58_address] )]
-
+        state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeFrom', block, [netuid, key] )]
+ 
         if from_key is not None:
-            from_key = self.resolve_key( from_key )
-            state_from ={ k:v for k, v in state_from}.get(from_key.ss58_address, 0)
+            from_key = self.resolve_key_ss58( from_key )
+            state_from ={ k:v for k, v in state_from}.get(from_key, 0)
 
         return state_from
 
@@ -1058,7 +1054,6 @@ class Subspace(c.Module):
         assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
         
         module2key = self.module2key(netuid=netuid)
-        
         
         if balance < sum(amounts):
             return {'error': f"Insufficient balance. {balance} < {sum(amounts)}"}
@@ -2551,10 +2546,8 @@ class Subspace(c.Module):
         node_id = None
         node_logs = ''
         indicator = 'Local node identity is: '
-        c.print(node_path)
 
         while indicator not in node_logs and max_trials > 0:
-            c.print(f'Waiting for node_id for {node} on {chain} trials lef {max_trials}', verbose=verbose)
             if mode == 'docker':
                 node_path = node2path[node]
                 node_logs = c.module('docker').logs(node_path)
