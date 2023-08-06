@@ -276,7 +276,7 @@ class OpenAILLM(c.Module):
 
 
     @classmethod
-    def set_api_keys(cls, api_keys, k=api_key_path):
+    def set_api_keys(cls, api_keys: List[str], k: str=api_key_path):
         assert isinstance(api_keys, list)
         cls.put(k, api_keys)
         return {'msg': f'added api_key {api_keys}'}
@@ -334,15 +334,13 @@ class OpenAILLM(c.Module):
     
     @classmethod
     def test(cls,
-            module=None,
-            input = 'What is the meaning of life?',
-            model = 'gpt3.5-turbo'
+            input = 'What is the meaning of life?',**kwargs
     ):
         if module == None:
             module = cls()
 
-        for i in range(10):
-            c.print(module.ask(input))
+
+        c.print(module.ask(input))
 
 
     
