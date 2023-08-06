@@ -433,19 +433,17 @@ class Subspace(c.Module):
         c.print(f"Registering {name} on {network} with {subnet} subnet")
         c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
         c.wait_for_server(name)
-
-
-        address = c.connect(name).info()['address']
-
+        address = c.namespace(network='local').get('name')
         key = self.resolve_key(key if key != None else name)
-        
         netuid = self.get_netuid_for_subnet(subnet)
-
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
         if self.is_registered(key, netuid=netuid):
-            return self.update_module(key=key, name=name, address=address , netuid=netuid, network=network)
-    
+            return self.update_module(module=name, address=address , netuid=netuid, network=network)
+
+        else:
+            assert name not in self.namespace(netuid=netuid)
+
         # Attempt to register
         call_params = { 
                     'network': subnet.encode('utf-8'),
@@ -595,17 +593,20 @@ class Subspace(c.Module):
         # module is the same name as the key 
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-          
+
+        module_info = self.get_module(module)
+
         if name == None:
-            name = module['name'] 
+            name = module_info['name']
+
+        if address == None:
+            address = module_info['address']
+
             
         local_namespace = c.namespace(network='local')
         if name not in local_namespace:
             self.serve()
             return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it with c.serve "}
- 
-        if address == None:
-            address = local_namespace.get(name).replace(c.default_ip, c.ip())
         
         with self.substrate as substrate:
             call_params =  {'address': address,
@@ -623,13 +624,15 @@ class Subspace(c.Module):
             if wait_for_inclusion or wait_for_finalization:
                 response.process_events()
                 if response.is_success:
-                    c.print(f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{call_params}[/bold white]')
-                    return True
+                    msg = f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{call_params}[/bold white]'
+                    c.print(msg)
+                    return {'success': True, 'msg': msg}
                 else:
-                    c.print(f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}')
-                    return False
+                    msg =  f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}'
+                    c.print(msg)
+                    return {'success': False, 'msg': msg}
             else:
-                return True
+                return {'success': True, 'msg': msg}
 
 
 
@@ -1547,7 +1550,9 @@ class Subspace(c.Module):
     def name2module(self, name:str = None, netuid: int = None, **kwargs) -> ModuleInfo:
         modules = self.modules(netuid=netuid, **kwargs)
         name2module = { m['name']: m for m in modules }
-        return name2module[name]
+        if name != None:
+            return name2module[name]
+        return name2module
         
         
         
