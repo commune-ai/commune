@@ -79,13 +79,18 @@ class SubspaceDashboard(c.Module):
     def sidebar(self):
         with st.sidebar:
             update = st.button('Update')
-            st.write('#### My Modules')
 
-            modules = [m for m in self.subspace.my_modules(names_only=False)]
-            for module in modules:
-                with st.expander(module['name'], expanded=False):
-                    st.write(module)
+    def my_modules_dashboard(self):
+        st.write('#### My Modules')
+
+        modules = [m for m in self.subspace.my_modules(names_only=False)]
+        for module in modules:
+            with st.expander(module['name'], expanded=False):
+                st.write(module)
             
+
+    def validator_dashboard(self):
+        pass
 
     @classmethod
     def dashboard(cls, key = None):
@@ -97,15 +102,13 @@ class SubspaceDashboard(c.Module):
 
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Subnet', 'Keys', 'Playground']) 
+        tabs = st.tabs(['Modules', 'Validators', 'Playground']) 
         with tabs[0]:   
             st.write('# Modules')
-            self.module_dashboard()
+            self.modules_dashboard()
         with tabs[1]:
-            self.subnet_dashboard()
+            self.validator_dashboard()
         with tabs[2]:
-            self.key_dashboard()
-        with tabs[3]:
             self.playground_dashboard()
             
         # with st.expander('Transfer Module', expanded=True):
@@ -177,7 +180,8 @@ class SubspaceDashboard(c.Module):
     
     def playground_dashboard(self):
         st.write('# Playground')
-    def module_dashboard(self):
+
+    def register_dashboard(self):
         
         df = pd.DataFrame(self.modules)
         
@@ -206,8 +210,7 @@ class SubspaceDashboard(c.Module):
                 st.plotly_chart(fig)
                 st.write(df)
         
-    
-    def launch_dashboard(self):
+    def modules_dashboard(self):
         modules = c.modules()
         module2idx = {m:i for i,m in enumerate(modules)}
 
