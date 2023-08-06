@@ -4,15 +4,15 @@ import json
 
 
 
-class BitAPI(c.Module):
-    def __init__(slconifg=None,  **kwargs):
-        
+class BitAPAI(c.Module):
+    def __init__(self, conifg=None,  **kwargs):
 
 
-        self.conn = http.client.HTTPSConnection("api.bitapai.io")
+        self.conn = http.client.HTTPSConnection(self.config.host)
+        self.api_key = self.config.api_key
 
-    def forwrd( text , )
-        payload = json.dumps([
+    def forwrd( self, text:str , api_key:str = None, history:list=None, ): 
+        payload = [
         {
             "role": "system",
             "content": "You are an AI assistant"
@@ -20,14 +20,25 @@ class BitAPI(c.Module):
         {
             "role": "user",
             "content": text
-        }])
+        }]
+
+        if history is not None:
+            assert isinstance(history, list)
+            assert len(history) > 0
+            assert all([isinstance(i, dict) for i in history])
+            payload = payload[:1] +  history + payload[1:]
+
+        payload = json.dumps(payload)
         headers = {
         'Content-Type': 'application/json',
-        'X-API-KEY': self.api_key
+        'X-API-KEY': api_key or self.api_key
         }
-        conn.request("POST", "/v1/conversation", payload, headers)
-        res = conn.getresponse()
+        self.conn.request("POST", "/v1/conversation", 
+                          payload, 
+                          headers)
+        res = self.conn.getresponse()
         data = res.read()
-        return 
+        return data
+
 
 
