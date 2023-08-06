@@ -9,18 +9,24 @@ class SubspaceDashboard(c.Module):
     
     def __init__(self, config=None): 
         st.set_page_config(layout="wide")
-
         c.module('streamlit').load_style()
         self.set_config(config=config)
+        self.sync()
+
+
+        
+    def sync(self,):
         self.subspace = c.module('subspace')()
         self.modules = self.subspace.modules(fmt='token')
         self.state = self.subspace.state_dict()
-        self.my_modules = self.subspace.my_modules()
-        self.namespace = self.subspace.namespace()
         
-
+        self.netuid = self.config.netuid
+        self.subnets = self.state['subnets']
+        self.subnet = self.subnets[self.netuid]
+        self.namespace = {m['name']: m['address'] for m in self.modules}
+        self.modules = self.state['modules'][self.netuid]
         
-        
+           
     
 
     def key_dashboard(self):
@@ -111,7 +117,6 @@ class SubspaceDashboard(c.Module):
     def subnet_dashboard(self):
         st.write('# Subnet')
         
-        self.subnets = self.subspace.subnets(detail=True)
         df = pd.DataFrame(self.subnets)
         st.write(df)
         if len(df) > 0:
@@ -136,7 +141,7 @@ class SubspaceDashboard(c.Module):
                 kwargs['amount'] = float(kwargs['amount'])  
             transfer_button = st.button('Transfer')
             if transfer_button:
-                self.transfer(**kwargs)
+                self.subspace.transfer(**kwargs)
             
     @classmethod
     def process_kwargs(cls, kwargs:dict, fn_schema:dict):
@@ -211,7 +216,7 @@ class SubspaceDashboard(c.Module):
         module  = name = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
 
         
-        subnet = st.text_input('subnet', self.config.default_subnet, key='subnet')
+        subnet = st.text_input('subnet', self.config.subnet, key='subnet')
         c_st = c.module('streamlit')
         c_st.line_seperator()
         st.write(f'#### Module ({module}) Kwargs ')
@@ -231,7 +236,9 @@ class SubspaceDashboard(c.Module):
             kwargs['tag'] = tag
 
         if register:
-            response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs)
+            st.write(self.subspace)
+            response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs, network=self.config.network)
+           
             if response['success']:
                 st.success('Module Registered')
             else:

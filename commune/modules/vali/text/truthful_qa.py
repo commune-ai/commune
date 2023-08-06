@@ -1,7 +1,7 @@
 import commune as c
 
-
-class ValiTruthfulQA(c.Module):
+Vali = c.module('vali')
+class ValiTruthfulQA(Vali):
 
     def __init__(self, 
                 module: str = 'model.text',
@@ -13,6 +13,9 @@ class ValiTruthfulQA(c.Module):
 
         if start:
             self.start()
+
+    def start_dataset(dataset):
+        dataset.split('.')[-1]
 
 
     def get_module(self, name:str):

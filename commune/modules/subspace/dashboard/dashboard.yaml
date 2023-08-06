@@ -1,1 +1,3 @@
-default_subnet: commune
+subnet: commune
+netuid: 0 
+network: main

@@ -580,8 +580,8 @@ class Subspace(c.Module):
     def update_module (
         self,
         module: str  = None,
-        name: str = None,
         address: str = None,
+        name: str = None,
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
@@ -601,6 +601,7 @@ class Subspace(c.Module):
             
         local_namespace = c.namespace(network='local')
         if name not in local_namespace:
+            self.serve()
             return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it "}
  
         if address == None:
