@@ -43,7 +43,9 @@ class Validator(c.Module):
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
     
         self.key = c.get_key(self.config.key)
-        assert self.subspace.is_registered(self.key), f'Key {self.key} is not registered in {self.config.network}'
+        if not self.subspace.is_registered(self.key):
+            raise Exception(f'Key {self.key} is not registered in {self.config.network}')
+
 
     @property
     def lifetime(self):
@@ -96,6 +98,7 @@ class Validator(c.Module):
 
         except Exception as e:
             response = {'error': str(e)}
+            c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             w = 0
             c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             
@@ -190,7 +193,7 @@ class Validator(c.Module):
                 try:
                     self.eval_module(module=module)
                 except Exception as e:
-                    # c.print(f'Error in eval_module {e}', color='red')
+                    c.print(f'Error in eval_module {e}', color='red')
                     self.errors += 1
 
                 

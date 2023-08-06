@@ -25,27 +25,25 @@ Clone the Commune Repository: Open your terminal or command prompt and clone the
 git clone https://github.com/commune-ai/commune.git
 ```
 
-
-Build the Docker Image: Navigate to the cloned Commune repository and build the Docker image using the provided Dockerfile:
-
-
 ```bash
-cd commune
-docker build -t commune .
+make up
+```
+To enter the docker container do 
+```bash
+make enter
 ```
 
+To exit the container
 
-Run Commune in Docker: Start a Docker container with the Commune image:
-
-```bash
-docker run -it commune
+```bash 
+exit
 ```
 
 
 Sync Commune with the Network: Inside the Docker container, run the following command to sync Commune with the network:
 
 ```bash
-commune sync
+c sync
 ```
 
 
@@ -65,11 +63,8 @@ Install Dependencies: Navigate to the cloned Commune repository and install the 
 cd commune
 pip install -e ./
 ```
+# ENSURE YOU HAVE AN NPM ENVIRONMENT FOR PM2
 
-
-```bash
-install npm pm2
-```
 
 ```bash
 chmod +x ./scripts/*
