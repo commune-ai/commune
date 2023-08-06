@@ -602,7 +602,7 @@ class Subspace(c.Module):
         local_namespace = c.namespace(network='local')
         if name not in local_namespace:
             self.serve()
-            return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it "}
+            return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it with c.serve "}
  
         if address == None:
             address = local_namespace.get(name).replace(c.default_ip, c.ip())

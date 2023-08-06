@@ -7277,8 +7277,9 @@ class c:
         c.cmd(f'chmod +x {c.libpath}/scripts/*', verbose=True, bash=True)
 
     def install_docker_gpus(self):
-        self.chmod_scripts
+        self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
+
 
 
     @classmethod
