@@ -4,7 +4,7 @@ Vali = c.module('vali')
 class ValiTruthfulQA(Vali):
 
     def __init__(self, 
-                module: str = 'model.text',
+                module: str = 'model',
                 dataset : str = 'data.truthful_qa',
                 network : str = 'subspace',
                 start: bool = False
