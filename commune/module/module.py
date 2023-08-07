@@ -36,6 +36,7 @@ class c:
     whitelist = []
     blacklist = []
     server_mode = 'http'
+    default_network = 'local'
     emojis = {
         'dank': '🔥',
         'error': '💥',
@@ -49,14 +50,9 @@ class c:
         'input': '📥',
     }
 
-    def __init__(self, 
-                 config:Dict=None,
-                 **kwargs):
+    def __init__(self, config:Dict=None, **kwargs):
         
-        self.set_config(config=config, 
-                        kwargs=kwargs)  
-    
-    
+        self.set_config(config=config,kwargs=kwargs)  
     @classmethod
     def init(cls, *args, **kwargs):
         cls.__init__(*args, **kwargs)
@@ -5450,25 +5446,21 @@ class c:
     @classmethod
     def resolve_network(cls, network=None):
         if network == None:
-            network = c.getc('network')
+            network = cls.get_network()
         return network
 
     get_network = resolve_network
     @classmethod
-    def set_network(cls, network=None):
-        config = c.config()
-        assert network in config['networks'], f'Network {network} not found in {config["networks"]}'
-        config['network'] = network
-        c.save_config(config)
+    def set_network(cls, network:str):
+        assert network in ['subspace', 'local'], f'Network must be one of {["subspace", "local"]}'
+        c.put('network', network)
         return network
 
     setnet = set_network
     
     @classmethod
-    def get_network(self, network=None):
-        config = self.config()
-        network = config['network']
-        return network
+    def get_network(self):
+        return c.get('network', self.default_network)
 
     getnet = get_network
     resnet = resolve_network

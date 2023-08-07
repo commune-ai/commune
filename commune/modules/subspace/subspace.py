@@ -459,7 +459,7 @@ class Subspace(c.Module):
             return self.update_module(module=name, address=address , netuid=netuid, network=network)
 
         else:
-            assert name not in self.namespace(netuid=netuid)
+            assert name not in self.namespace(netuid=netuid), f"Name {name} already exists in namespace {netuid}"
 
         # Attempt to register
         call_params = { 
@@ -730,7 +730,17 @@ class Subspace(c.Module):
             else:
                 return True
 
+    def get_unique_tag(self, module, **kwargs):
+        name = module
+        servers = self.servers(**kwargs)
+        cnt = 0
+        tag = ''
+        while name in servers:
+            name = name + tag
+            cnt += 1
+            tag = str(cnt)
 
+        return tag
 
     def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None):
         if module_key == None:
@@ -1607,7 +1617,7 @@ class Subspace(c.Module):
         
 
     
-        
+    
     def server_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
         return bool(module in self.namespace(netuid=netuid, **kwargs))
 
@@ -2411,11 +2421,6 @@ class Subspace(c.Module):
     @classmethod
     def gen_key(cls, *args, **kwargs):
         return c.module('key').gen(*args, **kwargs)
-        
-    
-    
-
-
     
 
     def keys(self, netuid = None, **kwargs):
@@ -2779,8 +2784,8 @@ class Subspace(c.Module):
             # version 0 does not have weights
             max_allowed_weights = 100
             snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
-      
-  
+
+
 
 if __name__ == "__main__":
     Subspace.run()

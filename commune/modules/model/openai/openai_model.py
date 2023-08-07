@@ -15,19 +15,14 @@ class OpenAILLM(c.Module):
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
-                 password:str='whadupfam',
-                 tag : str = None,
-                 load: bool = True,
-                 save: bool = True,
-                 api_key: str = None,
-                **kwargs
+                 **kwargs
                 ):
         
         
-        config = self.set_config(config, kwargs=locals())
-        self.set_tag(tag)
+        config = self.set_config(config, kwargs=kwargs)
+        self.set_tag(config.tag)
         self.set_stats(config.stats)
-        self.set_api_key(api_key)
+        self.set_api_key(config.api_key)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)
         
@@ -41,7 +36,7 @@ class OpenAILLM(c.Module):
                 presence_penalty=self.config.presence_penalty,
         )
         
-        if save:
+        if config.save:
             self.save(tag=self.tag)
 
         
@@ -146,7 +141,6 @@ class OpenAILLM(c.Module):
             return response
         except Exception as e:
             return {'error': str(e)}
-
             self.params['model'] = c.choice(self.config.models)
 
 
@@ -156,9 +150,8 @@ class OpenAILLM(c.Module):
     def is_success(self, response):
         return not self.is_error(response)
 
-        
-            
-
+    def call(self, text):
+        return self.forward(text, role='user')
         
     def forward(self,
                 *args,
@@ -181,11 +174,10 @@ class OpenAILLM(c.Module):
         api_key = self.resolve_api_key(api_key)
         prompt = self.resolve_prompt(*args, prompt=prompt, **kwargs)
         params = self.resolve_params(locals())
-        messages = [{"role": role, "content": prompt}]
-        response = self.create(messages=messages, **params)
+        response = self.create(messages=[{"role": role, "content": prompt}], **params)
         if self.is_error(response):
             return response
-
+        
         assert 'usage' in response, f"Response must contain usage stats: {response}"
         # update token stats
         for k,v in response['usage'].items():

@@ -9,24 +9,63 @@ class SubspaceDashboard(c.Module):
     
     def __init__(self, config=None): 
         st.set_page_config(layout="wide")
-        c.module('streamlit').load_style()
+        self.st = c.module('streamlit')()
+        self.st.load_style()
         self.set_config(config=config)
-        self.sync()
+        self.load_state(sync=False)
+        self.key = c.get_key()
 
 
-        
-    def sync(self,):
+    def sync(self):
+        return self.load_state(sync=True)
+    
+    def load_state(self, sync=True):
         self.subspace = c.module('subspace')()
-        self.modules = self.subspace.modules(fmt='token')
+        if sync:
+            self.subspace.sync()
         self.state = self.subspace.state_dict()
-        
         self.netuid = self.config.netuid
         self.subnets = self.state['subnets']
-        self.subnet = self.subnets[self.netuid]
-        self.namespace = {m['name']: m['address'] for m in self.modules}
-        self.modules = self.state['modules'][self.netuid]
+
+        for i, s in enumerate(self.subnets):
+            for k in ['stake', 'emission', 'ratio']:
+                self.subnets[i][k] = self.subspace.format_amount(s[k], fmt='j')
+            
+        self.subnet2info = {s['netuid']: s for s in self.subnets}
+        self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
+        self.subnet_names = [s['name'] for s in self.subnets]
+    @property
+    def module_names(self):
+        return [m['name'] for m in self.modules]
+
+    @property
+    def subnet(self):
+        if not hasattr(self, '_subnet'):
+            self._subnet = self.subnet_names[0]
+        return self.state['subnets'][self.netuid]['name']
+    
+    @subnet.setter
+    def subnet(self, subnet):
+        self.netuid = self.subnet2netuid[subnet]
+        self._subnet = subnet
+        return self._subnet
+    
+
+
+
+
+    @property
+    def namespace(self):
+        return {m['name']: m['address'] for m in self.modules}
+
+    @property
+    def modules(self):
+        return self.state['modules'][self.netuid]
         
-           
+    @property    
+    def subnet_info(self):
+        subnet_info =  self.subnet2info[self.netuid]
+        return subnet_info
     
 
     def key_dashboard(self):
@@ -44,6 +83,7 @@ class SubspaceDashboard(c.Module):
             st.write(key)
             self.key = key
             
+
             
         with st.expander('Create Key', expanded=False):                
             new_key = st.text_input('Name of Key', '', key='create')
@@ -59,7 +99,6 @@ class SubspaceDashboard(c.Module):
                 c.rm_keys(rm_keys)
                             
 
-    default_subnet = 'commune'
     def subnet_management(self):
         with st.expander('Subnet', expanded=True):
         
@@ -74,11 +113,26 @@ class SubspaceDashboard(c.Module):
             
            
            
-    
         
     def sidebar(self):
         with st.sidebar:
-            update = st.button('Update')
+            with st.expander('Key', expanded=True):
+                keys = c.keys()
+                key2index = {k:i for i,k in enumerate(keys)}
+                key = st.selectbox('Select Key', keys, index=key2index['module'])
+                self.key = c.get_key(key)
+                stake = self.subspace.get_stake(self.key)
+                balance = self.subspace.balance(self.key)
+                self.key_info = {'stake': stake, 'balance': balance}
+                st.write(self.key_info)
+                
+            with st.expander('Subnet', expanded=True):
+                self.subnet = st.selectbox('Select Subnet', self.subnet_names, 0)
+                self.netuid = self.subnet2netuid[self.subnet]
+                st.write(self.subnet_info)
+            sync = st.button('Sync')
+            if sync:
+                self.sync()
 
     def my_modules_dashboard(self):
         st.write('#### My Modules')
@@ -98,7 +152,6 @@ class SubspaceDashboard(c.Module):
         # plotly
         
         self = cls()
-        st.write('# Subspace')
 
         self.sidebar()
         
@@ -137,47 +190,42 @@ class SubspaceDashboard(c.Module):
         
 
     def transfer_dashboard(self):
-            kwargs = self.function2streamlit(module='subspace', fn='transfer', skip_keys = ['key', 'wait_for_finalization', 'prompt', 'keep_alive', 'wait_for_inclusion'])
-            if not c.is_number(kwargs['amount']):
-                st.error('Amount must be a number')
-            else:
-                kwargs['amount'] = float(kwargs['amount'])  
+        with st.expander('Transfer Module', expanded=True):
+
+            amount = st.number_input('Amount', 0.0, 10000000.0, 0.0, 0.1)
+            from_address = st.text_input('From Address', self.key.ss58_address, key='transfer')
+            to_address = st.text_input('To Address', '')
             transfer_button = st.button('Transfer')
             if transfer_button:
                 self.subspace.transfer(**kwargs)
-            
-    @classmethod
-    def process_kwargs(cls, kwargs:dict, fn_schema:dict):
+    def staking_dashboard(self):
         
-        for k,v in kwargs.items():
-            if v == 'None':
-                v = None
-                
-            elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
-                if v.startswith("f'") or v.startswith('f"'):
-                    v = c.ljson(v)
-                elif v.startswith('[') and v.endswith(']'):
-                    v = v
-                elif v.startswith('{') and v.endswith('}'):
-                    v = v
-                else:
-                    v = v
-                
-            elif k == 'kwargs':
-                continue
-            elif v == 'NA':
-                assert k != 'NA', f'Key {k} not in default'
-            elif v in ['True', 'False']:
-                v = eval(v)
-            else:
-                try:
-                    v = eval(v) 
-                except:
-                    pass
+        with st.expander('Stake', expanded=True):
+
+            amount = st.number_input('STAKE Amount', 0.0, 1e10, self.key_info['balance'], 0.1)
+            from_address =  self.key.ss58_address
+            default_module = self.subspace.key2module(self.key.path)['name']
+
+            module2index = {m:i for i,m in enumerate(self.module_names)}
+            module = st.selectbox('Module', self.module_names, index=module2index[default_module])
+            transfer_button = st.button('STAKE')
+            if transfer_button:
+                self.subspace.transfer(**kwargs)
+
+        with st.expander('UnStake', expanded=True):
+
+            amount = st.number_input('UNSTAKE Amount', 0.0, 1e10, self.key_info['stake'], 0.1)
+            from_address = self.key.ss58_address
+            module2index = {m:i for i,m in enumerate(self.module_names)}
+            default_module = self.subspace.key2module(self.key.path)['name']
+
+            module = st.selectbox('Module', self.module_names, index=module2index[default_module], key='unstake')
+            transfer_button = st.button('UNSTAKE')
+            if transfer_button:
+                self.subspace.transfer(**kwargs)
+
+
             
-            kwargs[k] = v
-        return kwargs
-    
     def playground_dashboard(self):
         st.write('# Playground')
 
@@ -209,44 +257,59 @@ class SubspaceDashboard(c.Module):
                 
                 st.plotly_chart(fig)
                 st.write(df)
-        
+
+
     def modules_dashboard(self):
+        self.launch_dashboard(expanded=False)
+        self.staking_dashboard()
+        self.transfer_dashboard()
+        
+    def launch_dashboard(self, expanded=True):
         modules = c.modules()
-        module2idx = {m:i for i,m in enumerate(modules)}
 
 
-        cols = st.columns(2)
-        module  = name = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
+        with st.expander('Launch', expanded=expanded):
+            module2idx = {m:i for i,m in enumerate(modules)}
 
-        
-        subnet = st.text_input('subnet', self.config.subnet, key='subnet')
-        c_st = c.module('streamlit')
-        c_st.line_seperator()
-        st.write(f'#### Module ({module}) Kwargs ')
-        
-        fn_schema = c.get_function_schema(c.module(module), '__init__')
-        kwargs = c_st.function2streamlit(module=module, fn='__init__' )
-        c_st.line_seperator()
+            
+            cols = st.columns(2)
+            module  = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
 
-        st.write(self.process_kwargs(kwargs , fn_schema))
-        register = st.button('Register')
-        tag = cols[1].text_input('tag', 'None', key='tag')
-        if 'None' == tag:
-            tag = None
             
             
-        if 'tag' in kwargs:
-            kwargs['tag'] = tag
+            self.st.line_seperator()
+            st.write(f'#### Module ({module}) Kwargs ')
+        
 
-        if register:
-            st.write(self.subspace)
-            response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs, network=self.config.network)
-           
-            if response['success']:
-                st.success('Module Registered')
-            else:
-                st.error(response['message'])
+            fn_schema = c.get_function_schema(c.module(module), '__init__')
+            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
+
+            kwargs = self.st.process_kwargs(kwargs, fn_schema)
+            self.st.line_seperator()
+
+            register = st.button('Register')
+            subnet = st.text_input('subnet', self.config.subnet, key='subnet')
+            
+            tag = self.subspace.get_unique_tag(module=module)
+            tag = cols[1].text_input('tag', tag, key='tag')
+
+
+            if 'None' == tag:
+                tag = None
                 
+                
+            if 'tag' in kwargs:
+                kwargs['tag'] = tag
+
+            st.write(kwargs)
+            if register:
+                response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs, network=self.config.network)
+            
+                if response['success']:
+                    st.success('Module Registered')
+                else:
+                    st.error(response['message'])
+                    
 
 
 
