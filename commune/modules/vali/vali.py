@@ -43,8 +43,10 @@ class Validator(c.Module):
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
     
         self.key = c.get_key(self.config.key)
+
         if not self.subspace.is_registered(self.key):
             raise Exception(f'Key {self.key} is not registered in {self.config.network}')
+            
 
 
     @property
@@ -55,18 +57,14 @@ class Validator(c.Module):
         return self.count / self.lifetime
 
 
-    def score_response(self, r) -> int:
-        try:
-            assert isinstance(r, dict), f'Expected dict, got {type(r)}'
-            return 1
-        except Exception as e:
-            return 0
+    def score_module(self, module) -> int:
+        return 1
         
     def eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
         return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs))
         
          
-    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=False ):
+    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=True ):
 
         if args == None:
             args = []
@@ -92,13 +90,13 @@ class Validator(c.Module):
             
             module_client = await c.async_connect(module_state['address'], network=self.config.network, namespace = self.namespace,timeout=1)
             response = await getattr(module_client,fn)(*args, **kwargs, return_future=True)
-            w = self.score_response(response)
-
+            assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
+            assert response.get('address', None) == module_state['address'] , f'Response must have an error key, got {response.keys()}'
+            w = self.score_module(module_client)
             c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
 
         except Exception as e:
             response = {'error': str(e)}
-            c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             w = 0
             c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             
@@ -193,7 +191,9 @@ class Validator(c.Module):
                 try:
                     self.eval_module(module=module)
                 except Exception as e:
-                    c.print(f'Error in eval_module {e}', color='red')
+                    error = str(e)
+                    if len(error) > 0:
+                        c.print(f'Error in eval_module {e}', color='red')
                     self.errors += 1
 
                 
@@ -233,7 +233,7 @@ class Validator(c.Module):
 
     @classmethod
     def serve(cls, key, remote=True, **kwargs):
-        kwargs = c.locals2kwargs(locals())
+        
         if remote:
             kwargs['remote'] = False
             return cls.remote_fn( fn='serve', name=f'vali::default::{key}', kwargs=kwargs)

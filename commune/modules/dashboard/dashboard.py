@@ -16,6 +16,10 @@ class Dashboard(commune.Module):
         self.module_list = ['module'] + list(self.module_tree.keys())
         sorted(self.module_list)
 
+    def sync(self):
+        self.subspace.sync()
+        return self.subspace.load_state()
+
     @classmethod
     def function2streamlit(cls, 
                            fn_schema, 
@@ -156,10 +160,12 @@ class Dashboard(commune.Module):
         with st.expander('Modules'):
             modules =commune.modules()
             st.multiselect('', modules, modules)
-            self.update_button = st.button('Update', False)
+
+
+            self.update_button = st.button('Sync Network', False)
 
         if self.update_button:
-            self.load_state()
+            self.sync()
             
         self.streamlit_peers()
            

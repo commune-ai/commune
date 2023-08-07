@@ -3,20 +3,27 @@ import commune as c
 Vali = c.module('vali')
 class ValiTruthfulQA(Vali):
 
-    def __init__(self, 
-                module: str = 'model',
-                dataset : str = 'data.truthful_qa',
-                network : str = 'subspace',
-                start: bool = False
-    ):
-        self.dataset = c.connect(dataset)
+    def __init__(self, config = None, **kwargs):
+        self.set_config(config=config, kwargs=kwargs)
+        Vali.__init__(self, config=config, **kwargs)
+        self.set_dataset(   )
+        if c.server_exists(self.config.dataset):
+            self.dataset = c.connect(self.config.dataset)
+        else:
+            c.module('data.hf').serve(path=self.config.dataset.split('.')[-1])
 
-        if start:
-            self.start()
+        c.print(self.config)
+        # if start:
+        #     self.start()
 
     def start_dataset(dataset):
         dataset.split('.')[-1]
 
+
+    def score_module(self, module) -> int:
+        # score response
+        c.print(module, 'WHADUP')
+        return 1
 
     def get_module(self, name:str):
         pass
@@ -35,15 +42,6 @@ class ValiTruthfulQA(Vali):
 
         return sample
 
-    def run_test(self):
-        sample = self.sample()
-        correct_answers = sample.pop('correct_answers')
-
-        c.print(sample)
-
-    def start(self):
-        while True:
-            self.run_test()
 
     
             
