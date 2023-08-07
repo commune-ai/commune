@@ -233,10 +233,8 @@ class Validator(c.Module):
 
     @classmethod
     def serve(cls, key, remote=True, **kwargs):
-        
-        
+        kwargs = c.locals2kwargs(locals())
         if remote:
-            kwargs['key'] = key
             kwargs['remote'] = False
             return cls.remote_fn( fn='serve', name=f'vali::default::{key}', kwargs=kwargs)
         
