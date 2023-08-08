@@ -1576,7 +1576,9 @@ class c:
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
-        return cls.get_module('dashboard')(*args, **kwargs)
+        return c.st('subspace')
+
+    dash = dashboard
 
     @classmethod
     def is_parent(cls, parent=None):

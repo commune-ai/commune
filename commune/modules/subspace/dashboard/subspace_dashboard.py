@@ -35,6 +35,7 @@ class SubspaceDashboard(c.Module):
         self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
         self.subnet_names = [s['name'] for s in self.subnets]
         self.my_keys = self.subspace.my_keys()
+        self.my_modules = self.subspace.my_modules(fmt='j')
     @property
     def module_names(self):
         return [m['name'] for m in self.modules]
@@ -137,12 +138,21 @@ class SubspaceDashboard(c.Module):
 
     def my_modules_dashboard(self):
         with st.expander('My Modules', expanded=True):
-            my_modules_df = pd.DataFrame(self.my_modules())
-            modules_df = pd.DataFrame(self.modules)
-            st.write(modules_df)
-            st.write('# My Modules')
-            del my_modules_df['key']
-            st.write(my_modules_df)
+            my_modules = self.my_modules
+            df = c.df(my_modules)
+            for k in ['key', 'balance', 'address']:
+                del df[k]
+            df.sort_values('stake', inplace=True, ascending=False)
+            st.dataframe(df, width=2000)
+
+            # BAR OF INCENTIVES
+            keys = ['emission', 'incentive', 'dividends']
+            cols = st.columns(len(keys))
+            for i, k in enumerate(keys):
+                fig = px.bar(df, x='name', y=k, title=f'{k.upper()} Per Module', color='name')
+                cols[i].plotly_chart(fig)
+
+
 
         # with 
         # modules = [m for m in self.subspace.my_modules(names_only=False)]
@@ -165,7 +175,6 @@ class SubspaceDashboard(c.Module):
         
         tabs = st.tabs(['Modules', 'Validators', 'Playground']) 
         with tabs[0]:   
-            st.write('# Modules')
             self.modules_dashboard()
         with tabs[1]:
             self.validator_dashboard()
@@ -182,7 +191,6 @@ class SubspaceDashboard(c.Module):
         st.write('# Subnet')
         
         df = pd.DataFrame(self.subnets)
-        st.write(df)
         if len(df) > 0:
             fig = px.pie(df, values='stake', names='name', title='Subnet Balances')
             st.plotly_chart(fig)
@@ -272,8 +280,9 @@ class SubspaceDashboard(c.Module):
 
 
     def modules_dashboard(self):
-        self.my_modules_dashboard()
+
         self.launch_dashboard(expanded=False)
+        self.my_modules_dashboard()
 
         if self.subspace.is_registered(self.key):
             self.staking_dashboard()
@@ -287,28 +296,35 @@ class SubspaceDashboard(c.Module):
             module2idx = {m:i for i,m in enumerate(modules)}
 
             
-            cols = st.columns(2)
-            module  = cols[0].selectbox('Select A Module', modules, module2idx['model.openai'])
 
             
-            
+            st.write(f'#### Miner Launcher ')
             self.st.line_seperator()
-            st.write(f'#### Module ({module}) Kwargs ')
+
+            cols = st.columns([3,1, 6])
+            
+
+
+            with cols[0]:
+                module  = st.selectbox('Select A Module', modules, module2idx['model.openai'])
+                tag = self.subspace.get_unique_tag(module=module)
+                subnet = st.text_input('subnet', self.config.subnet, key='subnet')
+                tag = st.text_input('tag', tag, key='tag')
+    
+                register = st.button('Register')
+
         
+            with cols[-1]:
+                st.write(f'#### {module.upper()} Kwargs ')
 
-            fn_schema = c.get_function_schema(c.module(module), '__init__')
-            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
+                fn_schema = c.get_function_schema(c.module(module), '__init__')
+                kwargs = self.st.function2streamlit(module=module, fn='__init__' )
 
-            kwargs = self.st.process_kwargs(kwargs, fn_schema)
-            self.st.line_seperator()
+                kwargs = self.st.process_kwargs(kwargs, fn_schema)
+                self.st.line_seperator()
 
-            register = st.button('Register')
-            subnet = st.text_input('subnet', self.config.subnet, key='subnet')
+
             
-            tag = self.subspace.get_unique_tag(module=module)
-            tag = cols[1].text_input('tag', tag, key='tag')
-
-
             if 'None' == tag:
                 tag = None
                 
@@ -316,10 +332,11 @@ class SubspaceDashboard(c.Module):
             if 'tag' in kwargs:
                 kwargs['tag'] = tag
 
-            st.write(kwargs)
             if register:
-                response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs, network=self.config.network)
-            
+                try:
+                    response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs, network=self.config.network)
+                except Exception as e:
+                    response = {'success': False, 'message': str(e)}
                 if response['success']:
                     st.success('Module Registered')
                 else:

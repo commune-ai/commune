@@ -232,7 +232,6 @@ class StreamlitModule(c.Module):
             
             if isinstance(v, str):
                 if v.startswith('[') and v.endswith(']'):
-                    st.write(v, len(v))
                     if len(v) > 2:
                         v = eval(v)
                     else:

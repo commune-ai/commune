@@ -37,7 +37,7 @@ class Validator(c.Module):
         self.subspace = c.module(self.config.network)()
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
-        self.name2module = {v['name']: v for v in self.modules }
+        self.name2module = {v['name']: v for v in self.modules } 
         self.module_names = list(self.name2module.keys())
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
@@ -58,6 +58,7 @@ class Validator(c.Module):
 
 
     def score_module(self, module) -> int:
+        c.print('SCORE MODULE', color='green')
         return 1
         
     def eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
@@ -90,7 +91,7 @@ class Validator(c.Module):
 
             # connect to module
             address  = module_state['address']
-            module_client = await c.async_connect(address, network=self.config.network, namespace = self.namespace,timeout=1)
+            module_client = await c.async_connect(address, network=self.config.network, namespace = self.namespace,timeout=1, key=self.key)
 
             # call function and return a future and await response
             response = await getattr(module_client,fn)(*args, **kwargs, return_future=True)
@@ -101,7 +102,7 @@ class Validator(c.Module):
 
             assert response.get('address', None) == module_state['address'] , f'Response must have an error key, got {response.keys()}'
 
-
+            # get score from custom scoring function
             w = self.score_module(module=module_client)
             c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
 
@@ -126,10 +127,14 @@ class Validator(c.Module):
     
 
     def vote(self):
+        if self.vote_staleness < self.config.voting_interval:
+            return {'success': False, 'message': f'Voting too soon, wait {self.config.voting_interval - self.vote_staleness} seconds'}
+        
+        c.print('VOTING', color='green')
         self.last_vote_time = c.time()
+        self.load_stats()   
         topk = self.subnet['max_allowed_weights']
 
-        self.load_stats()   
         vote_dict = {'uids': [], 'weights': []}
 
         for k, v in self.stats.items():
@@ -139,6 +144,12 @@ class Validator(c.Module):
         # get topk
         
         topk_indices = torch.argsort( torch.tensor(vote_dict['weights']), descending=True)[:topk].tolist()
+
+        topk_indices = [i for i in topk_indices if vote_dict['weights'][i] > 0]
+        if len(topk_indices) == 0:
+            c.print('No modules to vote on', color='red')
+            return {'success': False, 'message': 'No modules to vote on'}
+        
         vote_dict['weights'] = [vote_dict['weights'][i] for i in topk_indices]
         vote_dict['uids'] = [vote_dict['uids'][i] for i in topk_indices]
 
@@ -148,7 +159,7 @@ class Validator(c.Module):
                            network=self.config.network, 
                            netuid=self.config.netuid)
 
-        return vote_dict
+        return {'success': True, 'message': 'Voted'}
 
     def load_stats(self, batch_size=100):
         paths = self.ls(f'stats/{self.config.network}')
@@ -170,6 +181,11 @@ class Validator(c.Module):
     def save_module_stats(self,k:str, v):
         self.put_json(f'stats/{self.config.network}/{k}', v)
 
+    @property
+    def vote_staleness(self) -> float:
+        return c.time() - self.last_vote_time
+
+
     def run(self, vote = True):
         
         self.running = True
@@ -184,10 +200,8 @@ class Validator(c.Module):
             
             for i, module in enumerate(modules):
 
-                vote_staleness = c.time() - self.last_vote_time
                 if vote : 
-                    if vote_staleness > self.config.voting_interval:
-                        self.vote()
+                    self.vote()
 
                 try:
                     self.eval_module(module=module)
@@ -202,7 +216,7 @@ class Validator(c.Module):
                     'total_modules': self.count,
                     'lifetime': int(self.lifetime),
                     'modules_per_second': int(self.modules_per_second()), 
-                    'vote_staleness': vote_staleness,
+                    'vote_staleness': self.vote_staleness,
                     'errors': self.errors,
 
                 }
@@ -233,12 +247,15 @@ class Validator(c.Module):
         c.print('Validator stopped', color='white')
 
     @classmethod
-    def serve(cls, key, remote=True, **kwargs):
+    def serve(cls, key, remote=True,**kwargs):
         
         if remote:
             kwargs['remote'] = False
-            return cls.remote_fn( fn='serve', name=f'vali::default::{key}', kwargs=kwargs)
+            return cls.remote_fn( fn='serve',  kwargs=kwargs)
         
         kwargs['start'] = False
         self = cls(**kwargs)
         self.start()
+
+    def launch_worker(self,**kwargs):
+        self.remote_fn( fn='run',   kwargs=kwargs)
