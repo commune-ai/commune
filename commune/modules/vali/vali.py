@@ -63,7 +63,6 @@ class Validator(c.Module):
     def eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
         return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs))
         
-         
     async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=True ):
 
         if args == None:
@@ -83,21 +82,33 @@ class Validator(c.Module):
         emojis = c.emojis
         try:
             # get connection
+            # is it a local ip?, if it is raise an error
             has_local_ip = any([k in module_state['address'].lower() for k in ['none', '0.0.0.0', '127.0.0.1', 'localhost']])
             if has_local_ip:
                 raise Exception(f'Invalid address {module_state["address"]}')
-
             
-            module_client = await c.async_connect(module_state['address'], network=self.config.network, namespace = self.namespace,timeout=1)
+
+            # connect to module
+            address  = module_state['address']
+            module_client = await c.async_connect(address, network=self.config.network, namespace = self.namespace,timeout=1)
+
+            # call function and return a future and await response
             response = await getattr(module_client,fn)(*args, **kwargs, return_future=True)
+
+            # wait for response
             assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
+
+
             assert response.get('address', None) == module_state['address'] , f'Response must have an error key, got {response.keys()}'
-            w = self.score_module(module_client)
+
+
+            w = self.score_module(module=module_client)
             c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
 
         except Exception as e:
-            response = {'error': str(e)}
+            # yall errored out, u get a gzero
             w = 0
+            response = {'error': str(e)}
             c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             
 
@@ -125,7 +136,6 @@ class Validator(c.Module):
             vote_dict['uids'] += [v['uid']]
             vote_dict['weights'] += [v['w']]
 
-        
         # get topk
         
         topk_indices = torch.argsort( torch.tensor(vote_dict['weights']), descending=True)[:topk].tolist()
@@ -140,7 +150,6 @@ class Validator(c.Module):
 
         return vote_dict
 
-
     def load_stats(self, batch_size=100):
         paths = self.ls(f'stats/{self.config.network}')
         jobs = [c.async_get_json(p) for p in paths]
@@ -153,8 +162,6 @@ class Validator(c.Module):
                 self.stats[s['name']] = s
         return {'success': True, 'message': 'Loaded stats'}
 
-
-    
     def load_module_stats(self, k:str,default=None):
         if default == None:
             default = {}
@@ -163,13 +170,9 @@ class Validator(c.Module):
     def save_module_stats(self,k:str, v):
         self.put_json(f'stats/{self.config.network}/{k}', v)
 
-
-
     def run(self, vote = True):
         
-
         self.running = True
-
         c.get_event_loop()
         self.last_vote_time = c.time()
          
@@ -182,11 +185,9 @@ class Validator(c.Module):
             for i, module in enumerate(modules):
 
                 vote_staleness = c.time() - self.last_vote_time
-
-                if vote_staleness > self.config.voting_interval:
-
-                    self.vote()
-
+                if vote : 
+                    if vote_staleness > self.config.voting_interval:
+                        self.vote()
 
                 try:
                     self.eval_module(module=module)

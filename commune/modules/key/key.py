@@ -388,7 +388,7 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def rm_keys(cls, *rm_keys, verbose:bool=False):
+    def rm_keys(cls, rm_keys, verbose:bool=False):
         
         removed_keys = []
         

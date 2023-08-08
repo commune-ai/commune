@@ -34,6 +34,7 @@ class SubspaceDashboard(c.Module):
         self.subnet2info = {s['netuid']: s for s in self.subnets}
         self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
         self.subnet_names = [s['name'] for s in self.subnets]
+        self.my_keys = self.subspace.my_keys()
     @property
     def module_names(self):
         return [m['name'] for m in self.modules]
@@ -79,11 +80,20 @@ class SubspaceDashboard(c.Module):
             key = st.selectbox('Select Key', keys, index=key2index[key])
                     
             key = c.get_key(key)
+
                 
-            st.write(key)
             self.key = key
+
+            
             
 
+            cols = st.columns(2)
+            self.key_info = {
+                'stake': c.round_decimals(self.subspace.get_stake(key),2),
+                'balance': c.round_decimals(self.subspace.get_balance(key), 2)
+            }
+            cols[0].metric('Stake', self.key_info['stake'])
+            cols[1].metric('Balance', self.key_info['balance'])
             
         with st.expander('Create Key', expanded=False):                
             new_key = st.text_input('Name of Key', '', key='create')
@@ -116,31 +126,29 @@ class SubspaceDashboard(c.Module):
         
     def sidebar(self):
         with st.sidebar:
-            with st.expander('Key', expanded=True):
-                keys = c.keys()
-                key2index = {k:i for i,k in enumerate(keys)}
-                key = st.selectbox('Select Key', keys, index=key2index['module'])
-                self.key = c.get_key(key)
-                stake = self.subspace.get_stake(self.key)
-                balance = self.subspace.balance(self.key)
-                self.key_info = {'stake': stake, 'balance': balance}
-                st.write(self.key_info)
-                
-            with st.expander('Subnet', expanded=True):
-                self.subnet = st.selectbox('Select Subnet', self.subnet_names, 0)
-                self.netuid = self.subnet2netuid[self.subnet]
-                st.write(self.subnet_info)
+            keys = c.keys()
+            key2index = {k:i for i,k in enumerate(keys)}
+            self.subnet = st.selectbox('Select Subnet', self.subnet_names, 0)
+            self.netuid = self.subnet2netuid[self.subnet]
+            self.key_dashboard()
             sync = st.button('Sync')
             if sync:
                 self.sync()
 
     def my_modules_dashboard(self):
-        st.write('#### My Modules')
+        with st.expander('My Modules', expanded=True):
+            my_modules_df = pd.DataFrame(self.my_modules())
+            modules_df = pd.DataFrame(self.modules)
+            st.write(modules_df)
+            st.write('# My Modules')
+            del my_modules_df['key']
+            st.write(my_modules_df)
 
-        modules = [m for m in self.subspace.my_modules(names_only=False)]
-        for module in modules:
-            with st.expander(module['name'], expanded=False):
-                st.write(module)
+        # with 
+        # modules = [m for m in self.subspace.my_modules(names_only=False)]
+        # for module in modules:
+        #     with st.expander(module['name'], expanded=False):
+        #         st.write(module)
             
 
     def validator_dashboard(self):
@@ -187,8 +195,6 @@ class SubspaceDashboard(c.Module):
         
         # convert into metrics
         
-        
-
     def transfer_dashboard(self):
         with st.expander('Transfer Module', expanded=True):
 
@@ -198,19 +204,25 @@ class SubspaceDashboard(c.Module):
             transfer_button = st.button('Transfer')
             if transfer_button:
                 self.subspace.transfer(**kwargs)
+
     def staking_dashboard(self):
-        
         with st.expander('Stake', expanded=True):
 
-            amount = st.number_input('STAKE Amount', 0.0, 1e10, self.key_info['balance'], 0.1)
+            amount = st.number_input('STAKE Amount', 0.0, self.key_info['stake'], 0.0, 0.1)
             from_address =  self.key.ss58_address
             default_module = self.subspace.key2module(self.key.path)['name']
 
+
             module2index = {m:i for i,m in enumerate(self.module_names)}
+            
             module = st.selectbox('Module', self.module_names, index=module2index[default_module])
             transfer_button = st.button('STAKE')
+            kwargs = {
+                'amount': amount,
+                'module_key': module,
+            }
             if transfer_button:
-                self.subspace.transfer(**kwargs)
+                self.subspace.stake(**kwargs)
 
         with st.expander('UnStake', expanded=True):
 
@@ -260,10 +272,13 @@ class SubspaceDashboard(c.Module):
 
 
     def modules_dashboard(self):
+        self.my_modules_dashboard()
         self.launch_dashboard(expanded=False)
-        self.staking_dashboard()
-        self.transfer_dashboard()
-        
+
+        if self.subspace.is_registered(self.key):
+            self.staking_dashboard()
+            self.transfer_dashboard()
+            
     def launch_dashboard(self, expanded=True):
         modules = c.modules()
 

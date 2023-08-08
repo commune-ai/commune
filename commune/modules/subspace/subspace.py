@@ -766,7 +766,6 @@ class Subspace(c.Module):
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
-        c.print(key)
         netuid = self.resolve_netuid(netuid)
 
         # Flag to indicate if we are using the wallet's own hotkey.
@@ -1332,7 +1331,7 @@ class Subspace(c.Module):
 
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         key_address = self.resolve_key_ss58( key )
-        key_addresses = self.keys(netuid=netuid, block=block)
+        key_addresses = self.keys(netuid=netuid)
         if key_address in key_addresses:
             return True
         else:
@@ -1341,6 +1340,29 @@ class Subspace(c.Module):
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
+    def my_key_info_map(self, netuid=None, **kwargs):
+        key_info_map = {}
+        for key in self.my_keys(netuid=netuid):
+            key_info_map[key] = self.key_info(key, netuid=netuid, **kwargs)
+        return key_info_map
+    def key_info(self, key, netuid=None, fmt='j',**kwargs):
+
+
+        key = self.resolve_key(key)
+        stake = self.get_stake(self.key)
+        balance = self.balance(self.key)
+        key_info = {
+                    'balance': balance, 
+                    'address': key.ss58_address, 
+                    'stake': stake,
+                    'module': self.key2module(key, netuid=netuid).get('name', None)}
+
+        return key_info
+
+        
+    
+
+        
 
     def get_current_block(self, network=None) -> int:
         r""" Returns the current block number on the chain.
@@ -1591,20 +1613,20 @@ class Subspace(c.Module):
         
         
         
-    def key2module(self, key: str = None, netuid: int = None) -> Dict[str, str]:
-        modules = self.modules(netuid=netuid)
+    def key2module(self, key: str = None, netuid: int = None, **kwargs) -> Dict[str, str]:
+        modules = self.modules(netuid=netuid, **kwargs)
         key2module =  { m['key']: m for m in modules }
         
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
-            return key2module[key_ss58]
+            return  key2module.get(key_ss58, {})
         return key2module
         
     def module2key(self, module: str = None, **kwargs) -> Dict[str, str]:
         modules = self.modules(**kwargs)
         module2key =  { m['name']: m['key'] for m in modules }
         
-        if module != module:
+        if module != None:
             return module2key[module]
         return module2key
     
@@ -2425,7 +2447,7 @@ class Subspace(c.Module):
 
     def keys(self, netuid = None, **kwargs):
         netuid = self.resolve_netuid(netuid)
-        return [r[1].value for r in self.query_map('Keys', netuid, **kwargs)]
+        return [m['key'] for m in self.modules(netuid=netuid, **kwargs)]
     
     def registered_keys(self, netuid = None, **kwargs):
         key_addresses = self.keys(netuid=netuid, **kwargs)
