@@ -1345,6 +1345,10 @@ class Subspace(c.Module):
         for key in self.my_keys(netuid=netuid):
             key_info_map[key] = self.key_info(key, netuid=netuid, **kwargs)
         return key_info_map
+    def my_key_infos(self, netuid=None, **kwargs):
+        return list(self.my_key_info_map(netuid=netuid, **kwargs).values())
+
+        
     def key_info(self, key, netuid=None, fmt='j',**kwargs):
 
 
@@ -2458,6 +2462,16 @@ class Subspace(c.Module):
                 registered_keys[address2key[k_addr]] = k_addr
                 
         return registered_keys
+
+    def most_staked_key(self, netuid = None, **kwargs):
+        modules = self.my_modules(netuid=netuid, **kwargs)
+        most_staked_value = 0
+        most_staked_key = None
+        for m in modules:
+            if m['stake'] > most_staked_value:
+                most_staked_value = m['stake']
+                most_staked_key = m['key']
+        return most_staked_key
 
     reged = registered_keys
     
