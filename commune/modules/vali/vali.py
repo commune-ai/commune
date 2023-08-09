@@ -25,7 +25,7 @@ class Validator(c.Module):
         self.threads = []
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
-            t = threading.Thread(target=self.run, kwargs={'vote':False})
+            t = threading.Thread(target=self.run, kwargs={'vote':False, 'thread_id': t})
             t.daemon = True
             t.start()
             self.threads.append(t)
@@ -44,10 +44,6 @@ class Validator(c.Module):
     
         self.key = c.get_key(self.config.key)
 
-        if not self.subspace.is_registered(self.key):
-            raise Exception(f'Key {self.key} is not registered in {self.config.network}')
-            
-
 
     @property
     def lifetime(self):
@@ -61,10 +57,10 @@ class Validator(c.Module):
         c.print('SCORE MODULE', color='green')
         return 1
         
-    def eval_module(self, module = None, fn='info', args = None, kwargs=None, ):
-        return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs))
+    def eval_module(self, module = None, fn='info', args = None, kwargs=None, thread_id=0):
+        return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs, thread_id=thread_id))
         
-    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=True ):
+    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=True , thread_id=0):
 
         if args == None:
             args = []
@@ -104,13 +100,13 @@ class Validator(c.Module):
 
             # get score from custom scoring function
             w = self.score_module(module=module_client)
-            c.print(f'{emojis["output"]} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
+            c.print(f'{emojis["output"]} ID:{thread_id} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
 
         except Exception as e:
             # yall errored out, u get a gzero
             w = 0
             response = {'error': str(e)}
-            c.print(f'{module}::{fn} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
+            c.print(f'{module}::{fn} ID:{thread_id} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
             
 
 
@@ -127,10 +123,10 @@ class Validator(c.Module):
     
 
     def vote(self):
+
         if self.vote_staleness < self.config.voting_interval:
             return {'success': False, 'message': f'Voting too soon, wait {self.config.voting_interval - self.vote_staleness} seconds'}
         
-        c.print('VOTING', color='green')
         self.last_vote_time = c.time()
         self.load_stats()   
         topk = self.subnet['max_allowed_weights']
@@ -173,6 +169,11 @@ class Validator(c.Module):
                 self.stats[s['name']] = s
         return {'success': True, 'message': 'Loaded stats'}
 
+
+    def ls_stats(self):
+        paths = self.ls(f'stats/{self.config.network}')
+        return paths
+
     def load_module_stats(self, k:str,default=None):
         if default == None:
             default = {}
@@ -186,8 +187,21 @@ class Validator(c.Module):
         return c.time() - self.last_vote_time
 
 
-    def run(self, vote = True):
-        
+    @property
+    def last_vote_time(self) -> float:
+        return self.get('last_vote_time', 0)
+    
+    @last_vote_time.setter
+    def last_vote_time(self, v:float):
+        self.put('last_vote_time', v)
+
+
+    def run(self, vote = True, thread_id = 0):
+
+        if not self.subspace.is_registered(self.key):
+            raise Exception(f'Key {self.key} is not registered in {self.config.network}')
+            
+
         self.running = True
         c.get_event_loop()
         self.last_vote_time = c.time()
@@ -196,7 +210,7 @@ class Validator(c.Module):
         self.epochs = 0
         while self.running:
 
-            modules = c.shuffle(self.module_names)
+            modules = c.shuffle(c.copy(self.module_names))
             
             for i, module in enumerate(modules):
 
@@ -204,7 +218,7 @@ class Validator(c.Module):
                     self.vote()
 
                 try:
-                    self.eval_module(module=module)
+                    self.eval_module(module=module, thread_id=thread_id)
                 except Exception as e:
                     error = str(e)
                     if len(error) > 0:

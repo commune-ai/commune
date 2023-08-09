@@ -136,30 +136,36 @@ class SubspaceDashboard(c.Module):
             if sync:
                 self.sync()
 
-    def my_modules_dashboard(self):
-        with st.expander('My Modules', expanded=True):
-            my_modules = self.my_modules
-            df = c.df(my_modules)
-            for k in ['key', 'balance', 'address']:
-                del df[k]
-            df.sort_values('stake', inplace=True, ascending=False)
-            st.dataframe(df, width=2000)
+    def stats_dashboard(self, max_rows=100):
+        my_modules = self.modules
+        df = c.df(my_modules)
+        for k in ['key', 'balance', 'address']:
+            del df[k]
+    
+        for k in ['emission', 'stake']:
+            df[k] = df[k].apply(lambda x: c.round_decimals(self.subspace.format_amount(x, fmt='j'), 2))
 
-            # BAR OF INCENTIVES
-            keys = ['emission', 'incentive', 'dividends']
-            cols = st.columns(len(keys))
-            for i, k in enumerate(keys):
-                fig = px.bar(df, x='name', y=k, title=f'{k.upper()} Per Module', color='name')
-                cols[i].plotly_chart(fig)
+        df.sort_values('incentive', inplace=True, ascending=False)
+        df = df[:max_rows]
+        st.dataframe(df, width=1000)
 
 
 
-        # with 
-        # modules = [m for m in self.subspace.my_modules(names_only=False)]
-        # for module in modules:
-        #     with st.expander(module['name'], expanded=False):
-        #         st.write(module)
-            
+        # BAR OF INCENTIVES
+        options = ['emission', 'incentive', 'dividends']
+        selected_keys = st.multiselect('Select Columns', options, options, key='stats')
+
+        for i, k in enumerate(selected_keys):
+            cols = st.columns(2)
+
+            fig = px.line(df, y=k, x= 'name', title=f'{k.upper()} Per Module')
+            cols[0].plotly_chart(fig)
+            fig = px.histogram(df, y=k, title=f'{k.upper()} Distribution')
+            cols[1].plotly_chart(fig)
+
+
+
+
 
     def validator_dashboard(self):
         pass
@@ -173,13 +179,16 @@ class SubspaceDashboard(c.Module):
 
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Validators', 'Playground']) 
+        tabs = st.tabs(['Modules', 'Validators', 'Stats', 'Playground']) 
         with tabs[0]:   
             self.modules_dashboard()
         with tabs[1]:
             self.validator_dashboard()
         with tabs[2]:
+            self.stats_dashboard()
+        with tabs[3]:
             self.playground_dashboard()
+
             
         # with st.expander('Transfer Module', expanded=True):
         #     self.transfer_dashboard()
@@ -204,45 +213,53 @@ class SubspaceDashboard(c.Module):
         # convert into metrics
         
     def transfer_dashboard(self):
-        with st.expander('Transfer Module', expanded=True):
-
-            amount = st.number_input('Amount', 0.0, 10000000.0, 0.0, 0.1)
-            from_address = st.text_input('From Address', self.key.ss58_address, key='transfer')
-            to_address = st.text_input('To Address', '')
+        with st.expander('Transfer', expanded=True):
+            amount = st.number_input('amount', 0.0, 10000000.0, 0.0, 0.1)
+            to_address = st.text_input('dest', '')
             transfer_button = st.button('Transfer')
             if transfer_button:
+                kwargs = {
+                    'dest': to_address,
+                    'amount': amount,
+                    'key': self.key,
+                }
                 self.subspace.transfer(**kwargs)
 
     def staking_dashboard(self):
         with st.expander('Stake', expanded=True):
 
             amount = st.number_input('STAKE Amount', 0.0, self.key_info['stake'], 0.0, 0.1)
-            from_address =  self.key.ss58_address
             default_module = self.subspace.key2module(self.key.path)['name']
-
-
             module2index = {m:i for i,m in enumerate(self.module_names)}
             
             module = st.selectbox('Module', self.module_names, index=module2index[default_module])
             transfer_button = st.button('STAKE')
-            kwargs = {
-                'amount': amount,
-                'module_key': module,
-            }
+
             if transfer_button:
+                kwargs = {
+                    'amount': amount,
+                    'module_key': module,
+                    'key': self.key,
+                }
+                st.write(kwargs)
+
                 self.subspace.stake(**kwargs)
 
         with st.expander('UnStake', expanded=True):
 
-            amount = st.number_input('UNSTAKE Amount', 0.0, 1e10, self.key_info['stake'], 0.1)
-            from_address = self.key.ss58_address
+            amount = st.number_input('UNSTAKE Amount', 0.0, self.key_info['stake'], 0.0, 1.0)
             module2index = {m:i for i,m in enumerate(self.module_names)}
             default_module = self.subspace.key2module(self.key.path)['name']
 
             module = st.selectbox('Module', self.module_names, index=module2index[default_module], key='unstake')
-            transfer_button = st.button('UNSTAKE')
-            if transfer_button:
-                self.subspace.transfer(**kwargs)
+            unstake_button = st.button('UNSTAKE')
+            if unstake_button:
+                kwargs = {
+                    'amount': amount,
+                    'module_key': module,
+                    'key': self.key,
+                }
+                self.subspace.unstake(**kwargs)
 
 
             
@@ -282,7 +299,6 @@ class SubspaceDashboard(c.Module):
     def modules_dashboard(self):
 
         self.launch_dashboard(expanded=False)
-        self.my_modules_dashboard()
 
         if self.subspace.is_registered(self.key):
             self.staking_dashboard()
@@ -310,6 +326,8 @@ class SubspaceDashboard(c.Module):
                 tag = self.subspace.get_unique_tag(module=module)
                 subnet = st.text_input('subnet', self.config.subnet, key='subnet')
                 tag = st.text_input('tag', tag, key='tag')
+                n = st.slider('replicas', 1, 10, 1, 1)
+                serve = st.checkbox('serve', True)
     
                 register = st.button('Register')
 
@@ -334,7 +352,18 @@ class SubspaceDashboard(c.Module):
 
             if register:
                 try:
-                    response = self.subspace.register(module=module,  tag=tag, subnet=subnet, kwargs=kwargs, network=self.config.network)
+                    if n > 1:
+                        tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
+                    else:
+                        tags = [tag]
+
+                    for tag in tags:
+                        response = self.subspace.register(module=module, 
+                                                           tag=tag, 
+                                                          subnet=subnet, 
+                                                          kwargs=kwargs, 
+                                                          network=self.config.network, 
+                                                          serve=serve)
                 except Exception as e:
                     response = {'success': False, 'message': str(e)}
                 if response['success']:

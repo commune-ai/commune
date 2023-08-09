@@ -424,6 +424,7 @@ class Subspace(c.Module):
         network: str = network,
         refresh: bool = False,
         update: bool = False,
+        serve: bool = True,
         tag_seperator: str = '::',
 
     ) -> bool:
@@ -435,8 +436,9 @@ class Subspace(c.Module):
         kwargs = kwargs if kwargs is not None else {}
         args = args if args is not None else []
 
+        if tag_seperator in module:
+            module, tag = module.split(tag_seperator)
 
-        
         # create a unique name
         if name == None:
             name = module
@@ -444,13 +446,15 @@ class Subspace(c.Module):
             name = f'{name}{tag_seperator}{tag}'
 
         c.print(f"Registering {name} on {network} with {subnet} subnet")
-        if c.server_exists(name):
-            c.print(f"Server {name} already exists, skipping")
-        else:
-            c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
-            c.wait_for_server(name)
 
-        address = c.namespace(network='local').get(name)
+        if serve:
+            if c.server_exists(name):
+                c.print(f"Server {name} already exists, skipping")
+            else:
+                c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
+                c.wait_for_server(name)
+
+        address = c.namespace(network='local').get(name, '0.0.0.0:8888')
         key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
         stake = stake if stake != None else self.get_balance(key, fmt='n')
@@ -494,6 +498,14 @@ class Subspace(c.Module):
             
 
 
+
+    def transfer_many(self, key:str, dests:List[str], amounts:List[float], **kwargs):
+        for dest, amount in zip(dests, amounts):
+            if c.key_exists(dest):
+                c.print(f"Destination {dest} is a key, resolving to address")
+                dest = c.get_key(dest).ss58_address
+            c.print(f"Transferring {amount} to {dest}")
+            self.transfer(key=key, dest=dest, amount=amount, **kwargs)
 
     ##################
     #### Transfer ####
@@ -755,8 +767,8 @@ class Subspace(c.Module):
     def stake(
             self,
             key: Optional[str] ,
-            amount: Union[Balance, float] = None, 
             module_key: Optional[str] = None,
+            amount: Union[Balance, float] = None, 
             netuid:int = None,
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
@@ -990,7 +1002,7 @@ class Subspace(c.Module):
     """ Returns network Tempo hyper parameter """
     def subnet_stake(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
         netuid = self.resolve_netuid( netuid )
-        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid, )}
+        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -2454,12 +2466,12 @@ class Subspace(c.Module):
         return [m['key'] for m in self.modules(netuid=netuid, **kwargs)]
     
     def registered_keys(self, netuid = None, **kwargs):
-        key_addresses = self.keys(netuid=netuid, **kwargs)
+        keys = self.keys(netuid=netuid, **kwargs)
         address2key = c.address2key()
-        registered_keys = {}
-        for k_addr in key_addresses:
+        registered_keys = []
+        for k_addr in keys:
             if k_addr in address2key:
-                registered_keys[address2key[k_addr]] = k_addr
+                registered_keys += [address2key[k_addr]]
                 
         return registered_keys
 
