@@ -1,6 +1,4 @@
-Sure, I can help you convert this information into a markdown tutorial. Here's how you can deploy a validator on the network using markdown format:
 
----
 
 ## Deploying a Validator Tutorial
 
