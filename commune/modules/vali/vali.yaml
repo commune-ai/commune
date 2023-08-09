@@ -15,4 +15,6 @@ num_threads: 50
 module_prefix: model.openai
 parallel_jobs: 10
 start: False
-voting_interval: 50
+voting_interval: 10
+num_workers: 4
+is_main_worker: True

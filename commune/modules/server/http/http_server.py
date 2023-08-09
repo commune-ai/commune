@@ -77,6 +77,7 @@ class HTTPServer(c.Module):
 
         c.print(f'Serving {name} on port {port})', color='yellow')
         self.module.set_server_name(name)
+        self.module.key = self.key
         self.serve()
 
     def set_access(self, access: str) -> None:
@@ -176,9 +177,16 @@ class HTTPServer(c.Module):
         ip = self.ip if ip == None else ip
         port = self.port if port == None else port
         from fastapi import FastAPI
-        
+        from fastapi.middleware.cors import CORSMiddleware
 
         self.app = FastAPI()
+        self.app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
 
 
         @self.app.post("/{fn}")
