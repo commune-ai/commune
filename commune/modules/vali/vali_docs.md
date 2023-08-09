@@ -4,15 +4,7 @@
 
 In this tutorial, you will learn how to deploy a validator on the network and perform various tasks related to staking, registration, and validation.
 
-### Step 1: Starting the Dashboard
-
-To start the dashboard, use the following command:
-
-```bash
-c dash
-```
-
-### Step 2: Registering a Validator
+### Step 1: Registering a Validator
 
 To register a validator with a specific tag, use the following CLI command:
 
@@ -24,7 +16,7 @@ This creates a key with "vali::whadup".
 
 
 
-### Step 3: Staking Your Validator
+### Step 2: Staking Your Validator
 
 Ensure that you have staked your validator by following these steps:
 
