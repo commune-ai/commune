@@ -36,6 +36,10 @@ class SubspaceDashboard(c.Module):
         self.subnet_names = [s['name'] for s in self.subnets]
         self.my_keys = self.subspace.my_keys()
         self.my_modules = self.subspace.my_modules(fmt='j')
+
+        self.validators = [m for m in self.modules if m['name'].startswith('vali') ]
+        self.my_validators = [m for m in self.my_modules if m['name'].startswith('vali') ]
+
     @property
     def module_names(self):
         return [m['name'] for m in self.modules]
@@ -77,7 +81,8 @@ class SubspaceDashboard(c.Module):
 
             key2index = {k:i for i,k in enumerate(keys)}
             if key == None:
-                key = keys[0]
+                key = self.subspace.most_valuable_key()
+
             key = st.selectbox('Select Key', keys, index=key2index[key])
                     
             key = c.get_key(key)
@@ -93,8 +98,9 @@ class SubspaceDashboard(c.Module):
                 'stake': c.round_decimals(self.subspace.get_stake(key),2),
                 'balance': c.round_decimals(self.subspace.get_balance(key), 2)
             }
-            cols[0].metric('Stake', self.key_info['stake'])
-            cols[1].metric('Balance', self.key_info['balance'])
+            st.write('Address: ', key.ss58_address)
+            st.metric('Stake', self.key_info['stake'])
+            st.metric('Balance', self.key_info['balance'])
             
         with st.expander('Create Key', expanded=False):                
             new_key = st.text_input('Name of Key', '', key='create')
@@ -137,7 +143,7 @@ class SubspaceDashboard(c.Module):
                 self.sync()
 
     def stats_dashboard(self, max_rows=100):
-        my_modules = self.modules
+        my_modules = self.my_modules
         df = c.df(my_modules)
         for k in ['key', 'balance', 'address']:
             del df[k]
@@ -164,11 +170,6 @@ class SubspaceDashboard(c.Module):
             cols[1].plotly_chart(fig)
 
 
-
-
-
-    def validator_dashboard(self):
-        pass
 
     @classmethod
     def dashboard(cls, key = None):
@@ -226,32 +227,35 @@ class SubspaceDashboard(c.Module):
                 self.subspace.transfer(**kwargs)
 
     def staking_dashboard(self):
-        with st.expander('Stake', expanded=True):
+        cols = st.columns(2)
+        with cols[0].expander('Stake', expanded=True):
 
             amount = st.number_input('STAKE Amount', 0.0, self.key_info['stake'], 0.0, 0.1)
             default_module = self.subspace.key2module(self.key.path)['name']
             module2index = {m:i for i,m in enumerate(self.module_names)}
             
-            module = st.selectbox('Module', self.module_names, index=module2index[default_module])
+            modules = st.multiselect('Module', self.module_names, [])
             transfer_button = st.button('STAKE')
 
             if transfer_button:
-                kwargs = {
-                    'amount': amount,
-                    'module_key': module,
-                    'key': self.key,
-                }
-                st.write(kwargs)
 
-                self.subspace.stake(**kwargs)
 
-        with st.expander('UnStake', expanded=True):
+                for m in modules:
+                    kwargs = {
+                        'amount': amount,
+                        'module_key': m,
+                        'key': self.key,
+                    }
 
-            amount = st.number_input('UNSTAKE Amount', 0.0, self.key_info['stake'], 0.0, 1.0)
-            module2index = {m:i for i,m in enumerate(self.module_names)}
-            default_module = self.subspace.key2module(self.key.path)['name']
+                    self.subspace.stake(**kwargs)
 
-            module = st.selectbox('Module', self.module_names, index=module2index[default_module], key='unstake')
+        with cols[1].expander('UnStake', expanded=True):
+            module2stake_from_key = self.subspace.get_staked_modules(self.key)
+            modules = list(module2stake_from_key.keys())
+            module = st.selectbox('Module', modules, index=0, key='unstake')
+            module_to_stake = module2stake_from_key[module]
+            amount = st.number_input('UNSTAKE Amount', 0.0, 1_000_000_000.0, module_to_stake, 1.0)
+
             unstake_button = st.button('UNSTAKE')
             if unstake_button:
                 kwargs = {
@@ -303,74 +307,75 @@ class SubspaceDashboard(c.Module):
         if self.subspace.is_registered(self.key):
             self.staking_dashboard()
             self.transfer_dashboard()
+
+
+
+    def validator_dashboard(self):
+        df = c.df(self.validators)
+        st.dataframe(df)
+        with st.expander('Register Validator', expanded=False):
+            self.launch_dashboard(expanded=False, prefix='vali')
             
-    def launch_dashboard(self, expanded=True):
-        modules = c.modules()
+    def launch_dashboard(self, expanded=True, prefix= None ):
+        modules = c.modules(prefix)
+        module2idx = {m:i for i,m in enumerate(modules)}
+
+        self.st.line_seperator()
+
+        cols = st.columns([3,1, 6])
+        
 
 
-        with st.expander('Launch', expanded=expanded):
-            module2idx = {m:i for i,m in enumerate(modules)}
+        with cols[0]:
+            module  = st.selectbox('Select A Module', modules, 0)
+            tag = self.subspace.get_unique_tag(module=module)
+            subnet = st.text_input('subnet', self.config.subnet, key=f'subnet.{prefix}')
+            tag = st.text_input('tag', tag, key=f'tag.{prefix}')
+            n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+            serve = st.checkbox('serve', True, key=f'serve.{prefix}')
 
-            
+            register = st.button('Register', key=f'register.{prefix}')
 
-            
-            st.write(f'#### Miner Launcher ')
+    
+        with cols[-1]:
+            st.write(f'#### {module.upper()} Kwargs ')
+
+            fn_schema = c.get_function_schema(c.module(module), '__init__')
+            kwargs = self.st.function2streamlit(module=module, fn='__init__' )
+
+            kwargs = self.st.process_kwargs(kwargs, fn_schema)
             self.st.line_seperator()
 
-            cols = st.columns([3,1, 6])
-            
-
-
-            with cols[0]:
-                module  = st.selectbox('Select A Module', modules, module2idx['model.openai'])
-                tag = self.subspace.get_unique_tag(module=module)
-                subnet = st.text_input('subnet', self.config.subnet, key='subnet')
-                tag = st.text_input('tag', tag, key='tag')
-                n = st.slider('replicas', 1, 10, 1, 1)
-                serve = st.checkbox('serve', True)
-    
-                register = st.button('Register')
 
         
-            with cols[-1]:
-                st.write(f'#### {module.upper()} Kwargs ')
-
-                fn_schema = c.get_function_schema(c.module(module), '__init__')
-                kwargs = self.st.function2streamlit(module=module, fn='__init__' )
-
-                kwargs = self.st.process_kwargs(kwargs, fn_schema)
-                self.st.line_seperator()
-
-
+        if 'None' == tag:
+            tag = None
             
-            if 'None' == tag:
-                tag = None
-                
-                
-            if 'tag' in kwargs:
-                kwargs['tag'] = tag
+            
+        if 'tag' in kwargs:
+            kwargs['tag'] = tag
 
-            if register:
-                try:
-                    if n > 1:
-                        tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
-                    else:
-                        tags = [tag]
-
-                    for tag in tags:
-                        response = self.subspace.register(module=module, 
-                                                           tag=tag, 
-                                                          subnet=subnet, 
-                                                          kwargs=kwargs, 
-                                                          network=self.config.network, 
-                                                          serve=serve)
-                except Exception as e:
-                    response = {'success': False, 'message': str(e)}
-                if response['success']:
-                    st.success('Module Registered')
+        if register:
+            try:
+                if n > 1:
+                    tags = [f'{tag}.{i}' if tag != None else str(i) for i in range(n)]
                 else:
-                    st.error(response['message'])
-                    
+                    tags = [tag]
+
+                for tag in tags:
+                    response = self.subspace.register(module=module, 
+                                                        tag=tag, 
+                                                        subnet=subnet, 
+                                                        kwargs=kwargs, 
+                                                        network=self.config.network, 
+                                                        serve=serve)
+            except Exception as e:
+                response = {'success': False, 'message': str(e)}
+            if response['success']:
+                st.success('Module Registered')
+            else:
+                st.error(response['message'])
+                
 
 
 

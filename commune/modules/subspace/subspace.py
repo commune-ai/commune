@@ -457,6 +457,7 @@ class Subspace(c.Module):
         address = c.namespace(network='local').get(name, '0.0.0.0:8888')
         key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
+
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
         if self.is_registered(key, netuid=netuid):
@@ -1050,12 +1051,20 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid( netuid )
         return self.format_amount(self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value, fmt=fmt)
 
-    def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
+
+    def get_staked_modules(self, key : str , netuid=None) -> Optional['Balance']:
+        key2module = self.key2module(netuid=netuid)
+        return {key2module[k]['name'] : v for k,v in self.get_stake_to(key=key, netuid=netuid)}
+        
+
+    def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , return_names = False) -> Optional['Balance']:
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
         c.print(f"Getting stake for [bold white]{key_address}[/bold white] on network [bold white]{netuid}[/bold white] at block [bold white]{block}[/bold white].")
         stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeTo', block, [netuid, key_address] )]
+
+
 
         if to_key is not None:
             to_key_address = self.resolve_key_ss58( to_key )
@@ -2474,20 +2483,30 @@ class Subspace(c.Module):
                 registered_keys += [address2key[k_addr]]
                 
         return registered_keys
+    def most_valuable_key(self, netuid = None, **kwargs):
+        modules = self.my_modules(netuid=netuid, **kwargs)
+        most_valuable_value = 0
+        most_valuable_key = None
+        address2key = c.address2key()
+        for m in modules:
+            value = m['stake'] + m['balance']
+            if value > most_valuable_value:
+                most_valuable_value  = value
+                most_valuable_key = address2key[m['key']]
+        return most_valuable_key
 
-    def most_staked_key(self, netuid = None, **kwargs):
+    def most_staked_key(self, netuid = None,  **kwargs):
         modules = self.my_modules(netuid=netuid, **kwargs)
         most_staked_value = 0
         most_staked_key = None
+        address2key = c.address2key()
         for m in modules:
             if m['stake'] > most_staked_value:
                 most_staked_value = m['stake']
-                most_staked_key = m['key']
+                most_staked_key = address2key[m['key']]
         return most_staked_key
 
     reged = registered_keys
-    
-    
     
 
     def query_subnet(self, key, netuid = None, network=None, **kwargs):

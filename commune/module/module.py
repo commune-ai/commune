@@ -4945,11 +4945,12 @@ class c:
         return type(x).__name__
                 
     @classmethod  
-    def keys(cls, *args, **kwargs):
-        return c.module('key').keys(*args, **kwargs)
-
-
-    
+    def keys(cls, search = None, *args, **kwargs):
+        if search == None:
+            search = cls.module_path()
+            if search == 'module':
+                search = None
+        return c.module('key').keys(search, *args, **kwargs)
 
     @classmethod  
     def get_mem(cls, *args, **kwargs):
@@ -7334,6 +7335,8 @@ class c:
     def is_generator(cls, obj):
         import inspect
         return inspect.isgenerator(obj)
+
+    
 Module = c
 Module.run(__name__)
     

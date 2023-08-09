@@ -15,23 +15,23 @@ class Validator(c.Module):
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
-        
-        # c.print(c.key)
-        
-        if self.config.start:
-            self.start()
+        self.start()
+
+
+    def kill_workers(self):
+        for w in self.workers:
+            c.kill(w)
 
     def start(self):
         self.threads = []
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
-            t = threading.Thread(target=self.run, kwargs={'vote':False, 'thread_id': t})
+            t = threading.Thread(target=self.run, kwargs={'vote':False, 'thread_id': t, 'vote': bool(t==0)})
             t.daemon = True
             t.start()
-            self.threads.append(t)
 
-        # main thread
-        self.run(vote=True)
+        # # main thread
+        # self.run(vote=True)
 
     def set_subspace(self):
         self.subspace = c.module(self.config.network)()
@@ -42,6 +42,8 @@ class Validator(c.Module):
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
     
+        if self.config.key == None:
+            self.key = c.get_key()
         self.key = c.get_key(self.config.key)
 
 
@@ -197,9 +199,13 @@ class Validator(c.Module):
 
 
     def run(self, vote = True, thread_id = 0):
-
-        if not self.subspace.is_registered(self.key):
-            raise Exception(f'Key {self.key} is not registered in {self.config.network}')
+        c.print(f'Running {self.config.network} {self.config.netuid} {self.key}', color='green')
+        # while not self.subspace.is_registered(self.key):
+            
+        #     c.print(f'Key {self.key} is not registered in {self.config.network}')
+        #     c.sleep(10)
+        #     c.register()
+        #     return {'success': False, 'message': f'Key {self.key} is not registered in {self.config.network}'}
             
 
         self.running = True
@@ -260,21 +266,16 @@ class Validator(c.Module):
         self.save()
         c.print('Validator stopped', color='white')
 
-    @classmethod
-    def serve(cls, key, remote=True,**kwargs):
-        
-        if remote:
-            kwargs['remote'] = False
-            return cls.remote_fn( fn='serve',  kwargs=kwargs)
-        
-        kwargs['start'] = False
-        self = cls(**kwargs)
-        self.start()
+    # def start_worker(self, **kwargs):
+    #     config = self.config
+    #     config.is_main_worker = False
+    #     self = Validator(config=config)
+    #     self.start()
 
-    @classmethod
-    def start(cls, **kwargs):
-        self = cls(**kwargs)
-        self.run()
+    # def start_workers(self,**kwargs):
 
-    def launch_worker(self,**kwargs):
-        self.remote_fn( fn='start',   kwargs=kwargs)
+    #     for i in range(self.config.num_workers):
+    #         name = self.name() + f'.w{i}'
+    #         self.workers += [name]
+    #         self.remote_fn( fn='start_worker', name=name,   kwargs=kwargs)
+        # c.print('fam')
