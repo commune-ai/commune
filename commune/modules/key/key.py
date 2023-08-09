@@ -236,12 +236,12 @@ class Keypair(c.Module):
             key_info['path'] = path.replace('.json', '').split('/')[-1]
 
         c.print(key_info)
-        cls.add_key(**key_info)
+        cls.add_key(**key_info) /home/endless/commune/data/keys.json
         return {'status': 'success', 'message': f'key loaded from {path}'}
     
 
     @classmethod
-    def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = True,  **kwargs):
+    def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
         c.print(f'loading keys from {path}', color='green', verbose=verbose)
         key_info_map = c.get_json(path)
         for key_info in key_info_map.values():
@@ -254,7 +254,7 @@ class Keypair(c.Module):
     @classmethod
     def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
         key_info_map = cls.key_info_map()
-        c.put_json(path, key_info_map)
+        cls.put_json(path, key_info_map)
         return {'status': 'success', 'message': f'keys saved to {path}'}
         
     
@@ -328,11 +328,7 @@ class Keypair(c.Module):
     @classmethod
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
-    
-    @classmethod
-    def save_keys(cls):
-        cls.save_keys(cls)
-            
+
     key_storage_path = c.repo_path
 
     

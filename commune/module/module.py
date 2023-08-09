@@ -775,9 +775,6 @@ class c:
     def add_key(cls, *args, **kwargs):
         return c.module('key').add_key(*args, **kwargs)
 
-    @classmethod
-    def save_keys(self, *args, **kwargs):
-        return c.module('key').save_keys(*args, **kwargs)
     # KEY LAND
     @classmethod
     def rename_key(cls, *args, **kwargs):
@@ -4984,6 +4981,7 @@ class c:
     
     @classmethod
     def save_keys(cls, *args,  **kwargs):
+        c.print('saving keys')
         return c.module('key').save_keys(*args, **kwargs)
 
     @classmethod
