@@ -58,9 +58,9 @@ class Validator(c.Module):
         return 1
         
     def eval_module(self, module = None, fn='info', args = None, kwargs=None, thread_id=0):
-        return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs, thread_id=thread_id))
+        return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs, thread_id=thread_id,))
         
-    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=True , thread_id=0):
+    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=False , thread_id=0):
 
         if args == None:
             args = []
@@ -271,5 +271,10 @@ class Validator(c.Module):
         self = cls(**kwargs)
         self.start()
 
+    @classmethod
+    def start(cls, **kwargs):
+        self = cls(**kwargs)
+        self.run()
+
     def launch_worker(self,**kwargs):
-        self.remote_fn( fn='run',   kwargs=kwargs)
+        self.remote_fn( fn='start',   kwargs=kwargs)
