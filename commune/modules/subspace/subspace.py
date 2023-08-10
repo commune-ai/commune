@@ -609,13 +609,15 @@ class Subspace(c.Module):
         wait_for_finalization = True,
         prompt: bool = False,
         network : str = network,
+        key = None
 
     ) -> bool:
         self.update()   
         self.resolve_network(network)
 
         # module is the same name as the key 
-        key = self.resolve_key(module)
+        if key == None:
+            key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
 
         module_info = self.get_module(module)
@@ -899,6 +901,17 @@ class Subspace(c.Module):
                 block_hash = None if block == None else substrate.get_block_hash(block)
                 )
 
+
+    def stake_from(self, netuid = None):
+        netuid  = self.resolve_netuid(netuid)
+        return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeFrom', netuid)}
+    
+    def stake_to(self, netuid = None):
+        netuid  = self.resolve_netuid(netuid)
+        return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeTo', netuid)}
+
+
+
     """ Queries subspace map storage with params and block. """
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def query_map( self, name: str, 
@@ -1043,9 +1056,16 @@ class Subspace(c.Module):
         return self.format_amount(self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value, fmt=fmt)
 
 
-    def get_staked_modules(self, key : str , netuid=None) -> Optional['Balance']:
-        key2module = self.key2module(netuid=netuid)
-        return {key2module[k]['name'] : v for k,v in self.get_stake_to(key=key, netuid=netuid)}
+    def get_staked_modules(self, key : str , netuid=None, **kwargs) -> Optional['Balance']:
+        modules = self.modules(netuid=netuid, **kwargs)
+        key_address = self.resolve_key_ss58( key )
+        staked_modules = {}
+        for module in modules:
+            for k,v in module['stake_from']:
+                if k == key_address:
+                    staked_modules[module['name']] = v
+
+        return staked_modules
         
 
     def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , return_names = False) -> Optional['Balance']:
@@ -1728,6 +1748,7 @@ class Subspace(c.Module):
             incentive = self.incentive(netuid=netuid)
             dividends = self.dividends(netuid=netuid)
             stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
+            stake_from = self.stake_from(netuid=netuid)
             balances = self.balances()
             
             if include_weights:
@@ -1748,9 +1769,7 @@ class Subspace(c.Module):
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
-                    
-            
-                    
+                    'stake_from': stake_from.get(key, []),
                 }
                 
                 if include_weights:
@@ -1772,16 +1791,19 @@ class Subspace(c.Module):
             if isinstance(keys, str):
                 keys = [keys]
             keys = list(set(keys))
-            for i, m in enumerate(modules):
-                modules[i] ={k: m[k] for k in keys}
-            for module in modules:
+            for i, module in enumerate(modules):
+                modules[i] ={k: module[k] for k in keys}
+ 
+
                 for k in ['balance', 'stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
+
                 for k in ['incentive', 'dividends']:
                     if module[k] > 1:
-                        module[k] = module[k] / (2**16)
+                        module[k] = module[k] / (U16_MAX)
+                module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
+                modules[i] = module
 
- 
         if df:
             modules = c.df(modules)
 
