@@ -463,7 +463,7 @@ class c:
             password: str=None, 
             mode:str = 'json',
             max_age:str = None,
-            cache :bool = True,
+            cache :bool = False,
             **kwargs) -> Any:
         
         '''
@@ -497,6 +497,9 @@ class c:
         if isinstance(data, dict):
             if 'data' in data:
                 data = data['data']
+
+        if cache:
+            cls.cache[key] = data
         return data
     
 
@@ -2562,8 +2565,10 @@ class c:
         kwargs  = kwargs if kwargs else {}
         args = args if args else []
 
+        # resolve name
         if isinstance(module, str) and tag_seperator in module:
             module, tag = module.split(tag_seperator)
+
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
         tag = None
 
@@ -2579,6 +2584,7 @@ class c:
             port = int(address.split(':')[-1])
         
         module_class = cls.resolve_module(module)
+        
         c.print(module_class, 'BROOOO')
         self = module_class(*args, **kwargs)
 
@@ -3219,7 +3225,7 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=0, end_line=100, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=-1000, end_line=0, verbose=True, mode='local'):
         if mode == 'local':
             text = ''
             for m in ['out','error']:
@@ -6807,7 +6813,7 @@ class c:
     @classmethod
     def jload(cls, json_string):
         import json
-        return json.loads(json_string)
+        return json.loads(json_string.replace("'", '"'))
     
     @classmethod
     def bro(cls, x):
@@ -6861,6 +6867,11 @@ class c:
     def code(cls, module = None, *args, **kwargs):
         module = cls.resolve_module(module)
         return c.get_text( module.pypath(), *args, **kwargs)
+
+    @classmethod
+    def get_text_line(cls, module = None, *args, **kwargs):
+        module = cls.resolve_module(module)
+        return c.get_text_line( module.pypath(), *args, **kwargs)
     pycode = code
     @classmethod
     def codehash(cls,  *args, **kwargs):

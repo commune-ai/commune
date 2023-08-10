@@ -1,5 +1,3 @@
-
-
 key : null
 netuid: 0
 network: subspace # global or local network
@@ -15,6 +13,5 @@ num_threads: 50
 module_prefix: model.openai
 parallel_jobs: 10
 start: True
-voting_interval: 10
-num_workers: 4
-is_main_worker: True
+voting_interval: 50
+dataset : data.truthful_qa

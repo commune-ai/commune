@@ -75,6 +75,7 @@ class SubspaceDashboard(c.Module):
     
 
     def key_dashboard(self):
+        st.write('## Key Management')
         keys = c.keys()
         key = None
         with st.expander('Select Key', expanded=True):
@@ -94,19 +95,28 @@ class SubspaceDashboard(c.Module):
             
 
             cols = st.columns(2)
-            self.key_info = {
-                'stake': c.round_decimals(self.subspace.get_stake(key),2),
-                'balance': c.round_decimals(self.subspace.get_balance(key), 2)
-            }
+            self.key_info = self.subspace.key_info(key.path)
+            st.write(self.key_info)
             st.write('Address: ', key.ss58_address)
-            st.metric('Stake', self.key_info['stake'])
-            st.metric('Balance', self.key_info['balance'])
+            st.write('Stake', self.key_info['stake'])
+            st.write('Balance', self.key_info['balance'])
             
         with st.expander('Create Key', expanded=False):                
             new_key = st.text_input('Name of Key', '', key='create')
             create_key_button = st.button('Create Key')
             if create_key_button and len(new_key) > 0:
                 c.add_key(new_key)
+                key = c.get_key(new_key)
+
+        with st.expander('Rename Key', expanded=False):    
+            old_key = st.selectbox('Select Key', keys, index=key2index[key.path], key='select old rename key')           
+            new_key = st.text_input('New of Key', '', key='rename')
+            rename_key_button = st.button('Rename Key')
+            replace_key = st.checkbox('Replace Key')
+            if rename_key_button and len(new_key) > 0:
+                if c.key_exists(new_key) and not replace_key:
+                    st.error('Key already exists')
+                c.rename_key(old_key,new_key)
                 key = c.get_key(new_key)
                 
         with st.expander('Remove Key', expanded=False):                
@@ -133,10 +143,14 @@ class SubspaceDashboard(c.Module):
         
     def sidebar(self):
         with st.sidebar:
+            st.write('# commune')
+
             keys = c.keys()
             key2index = {k:i for i,k in enumerate(keys)}
-            self.subnet = st.selectbox('Select Subnet', self.subnet_names, 0)
+            st.write('## Select Subnet')
+            self.subnet = st.selectbox(' ', self.subnet_names, 0, key='Select Subnet')
             self.netuid = self.subnet2netuid[self.subnet]
+            
             self.key_dashboard()
             sync = st.button('Sync')
             if sync:
@@ -180,12 +194,15 @@ class SubspaceDashboard(c.Module):
 
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Validators', 'Stats', 'Playground']) 
+        tabs = st.tabs(['Modules', 'Validators', 'Wallet', 'Stats', 'Playground']) 
         with tabs[0]:   
             self.modules_dashboard()
-        with tabs[1]:
+
+        with tabs[1]:   
             self.validator_dashboard()
         with tabs[2]:
+            self.wallet_dashboard()
+        with tabs[3]:
             self.stats_dashboard()
         with tabs[3]:
             self.playground_dashboard()
@@ -230,10 +247,7 @@ class SubspaceDashboard(c.Module):
         cols = st.columns(2)
         with cols[0].expander('Stake', expanded=True):
 
-            amount = st.number_input('STAKE Amount', 0.0, self.key_info['stake'], 0.0, 0.1)
-            default_module = self.subspace.key2module(self.key.path)['name']
-            module2index = {m:i for i,m in enumerate(self.module_names)}
-            
+            amount = st.number_input('STAKE Amount', 0.0, float(self.key_info['stake']), 0.0, 0.1)            
             modules = st.multiselect('Module', self.module_names, [])
             transfer_button = st.button('STAKE')
 
@@ -304,17 +318,27 @@ class SubspaceDashboard(c.Module):
 
         self.launch_dashboard(expanded=False)
 
+    def wallet_dashboard(self):
+        
+        st.write(self.subspace.my_key_info_map())
+
         if self.subspace.is_registered(self.key):
             self.staking_dashboard()
             self.transfer_dashboard()
+        else:
+            # with emoji
+            st.error('Please Register Your Key')
 
 
 
     def validator_dashboard(self):
         df = c.df(self.validators)
+        df['stake'] = df['stake']/1e9
+        df['emission'] = df['emission']/1e9
         st.dataframe(df)
         with st.expander('Register Validator', expanded=False):
             self.launch_dashboard(expanded=False, prefix='vali')
+        
             
     def launch_dashboard(self, expanded=True, prefix= None ):
         modules = c.modules(prefix)
@@ -331,7 +355,7 @@ class SubspaceDashboard(c.Module):
             tag = self.subspace.get_unique_tag(module=module)
             subnet = st.text_input('subnet', self.config.subnet, key=f'subnet.{prefix}')
             tag = st.text_input('tag', tag, key=f'tag.{prefix}')
-            n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
+            # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')
             serve = st.checkbox('serve', True, key=f'serve.{prefix}')
 
             register = st.button('Register', key=f'register.{prefix}')

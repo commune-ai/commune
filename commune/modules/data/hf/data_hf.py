@@ -199,7 +199,7 @@ class DataHF(c.Module):
             print(i)
 
     @classmethod
-    def serve(cls, path:str = 'super_glue', tag=None, remote:bool=True, **kwargs):
+    def serve(cls, path:str = 'truthful_qa', tag=None, remote:bool=True, **kwargs):
         name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
         c.print(f'Serving {name} with kwargs: {kwargs}')
