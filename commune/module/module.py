@@ -2606,7 +2606,7 @@ class c:
     serve_module = serve
     @classmethod
     def functions(cls, search = None, 
-                  include_module=False):
+                  include_module=True):
         functions = cls.get_functions(include_module=include_module)  
 
         functions = list(set(functions))
@@ -2745,8 +2745,7 @@ class c:
                                 search = None,
                                 code : bool = False,
                                 docs: bool = False,
-                                include_hidden:bool = False, 
-                                include_module:bool = False,
+                                include_module:bool = True,
                                 defaults:bool = False,):
         
         obj = obj if obj else cls
@@ -3225,12 +3224,16 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-1000, end_line=0, verbose=True, mode='local'):
+    def pm2_logs(cls, module:str, start_line=-10, end_line=0, verbose=True, mode='local'):
         if mode == 'local':
+
             text = ''
             for m in ['out','error']:
-                path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-')
-                text =  c.get_text(path, start_line=start_line, end_line=end_line)
+                path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-').replace('_', '-')
+                try:
+                    text =  c.get_text(path, start_line=start_line, end_line=end_line)
+                except Exception as e:
+                    text = 'No logs found'
                 if len(text) > 0:
                     break
 
@@ -6612,7 +6615,7 @@ class c:
 
     @classmethod
     def get_functions(cls, obj: Any = None,
-                      include_module:bool = False, 
+                      include_module:bool = True, 
                       include_parents:bool=False, 
                       include_hidden:bool = False) -> List[str]:
         '''
