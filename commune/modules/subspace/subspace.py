@@ -446,14 +446,7 @@ class Subspace(c.Module):
             name = f'{name}{tag_seperator}{tag}'
 
         c.print(f"Registering {name} on {network} with {subnet} subnet")
-
-        if serve:
-            if c.server_exists(name):
-                c.print(f"Server {name} already exists, skipping")
-            else:
-                c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
-                c.wait_for_server(name)
-
+        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port, refresh=refresh)
         address = c.namespace(network='local').get(name, '0.0.0.0:8888')
         key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
@@ -609,8 +602,8 @@ class Subspace(c.Module):
     def update_module(
         self,
         module: str  = None,
-        address: str = None,
         name: str = None,
+        address: str = None,
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
@@ -643,7 +636,8 @@ class Subspace(c.Module):
         if name not in local_namespace:
             self.serve()
             return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it with c.serve "}
-        
+        else:
+            address = local_namespace[name]
         with self.substrate as substrate:
             call_params =  {'address': address,
                             'name': name,
@@ -768,8 +762,8 @@ class Subspace(c.Module):
     def stake(
             self,
             key: Optional[str] ,
-            module_key: Optional[str] = None,
             amount: Union[Balance, float] = None, 
+            module_key: Optional[str] = None,
             netuid:int = None,
             wait_for_inclusion: bool = True,
             wait_for_finalization: bool = False,
@@ -1071,8 +1065,14 @@ class Subspace(c.Module):
             stake_to ={ k:v for k, v in stake_to}.get(to_key_address, 0)
         return stake_to
     
-    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
+
+    def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
+        stake_from = self.get_stake_from(key=key, block=block, netuid=netuid, fmt=fmt)
+        key2module = self.key2module(netuid=netuid)
+        return {key2module[k]['name'] : v for k,v in stake_from}
         
+    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
+        key2module = self.key2module(netuid=netuid)
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
         state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeFrom', block, [netuid, key] )]
@@ -1235,19 +1235,21 @@ class Subspace(c.Module):
     def load(self, network:str=None, save:bool = False):
         network = self.resolve_network(network)
         state_dict = {}
-        state_dict = self.get(f'archive/{network}/state', state_dict)
+        state_dict = self.get(f'archive/{network}/state', state_dict, cache=False)
         return state_dict
     
 
     def state_dict(self, network=network, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
-
+        block = self.block
         cache_path = f'state_dict/{network}'
         # cache and update are mutually exclusive 
         state_dict = {}
         if cache and not update:
             c.print('Loading state_dict from cache', verbose=verbose)
-            state_dict = self.get(cache_path, {})
+            state_dict = self.get(cache_path, {}, cache=cache)
             c.print(f'Loaded state_dict from cache {cache_path}', verbose=verbose)
+
+        
         if len(state_dict) == 0:
             netuids = self.netuids()
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
@@ -1258,7 +1260,8 @@ class Subspace(c.Module):
                         }
         if cache:
             c.print(f'Saving state_dict to {cache_path}', verbose=verbose)
-            self.put(cache_path, state_dict)
+            self.put(cache_path, state_dict, cache=cache)
+            self.put(f'{cache_path}.block-{self.block}', state_dict, cache=cache)
 
         if key in state_dict:
             return state_dict[key]
@@ -1370,17 +1373,21 @@ class Subspace(c.Module):
         return list(self.my_key_info_map(netuid=netuid, **kwargs).values())
 
         
-    def key_info(self, key, netuid=None, fmt='j',**kwargs):
-
-
-        key = self.resolve_key(key)
-        stake = self.get_stake(self.key)
+    def key_info(self, key, netuid=None, fmt='j', cache = True,  **kwargs):
+        
+        
+        netuid = self.resolve_netuid(netuid)
+        module = self.key2module(key=key,netuid=netuid)
+        stake = module.get('stake', 0)
         balance = self.balance(self.key)
+        stake_modules = self.get_staked_modules(key ,netuid=netuid)
         key_info = {
                     'balance': balance, 
-                    'address': key.ss58_address, 
-                    'stake': stake,
-                    'module': self.key2module(key, netuid=netuid).get('name', None)}
+                    'address': self.key2address(key), 
+                    'stake': self.format_amount(stake, fmt=fmt),
+                    'module': module.get('name', None), 
+                    'stake_to': stake_modules
+                    }
 
         return key_info
 
@@ -1508,7 +1515,7 @@ class Subspace(c.Module):
         cache_path = f'archive/{network}/subnet_namespace'
         subnet_namespace = {}
         if cache:
-            cached_subnet_namespace = self.get(cache_path, None, max_age= max_age)
+            cached_subnet_namespace = self.get(cache_path, None, max_age= max_age, cache=cache)
             if cached_subnet_namespace != None :
                 return cached_subnet_namespace
             
@@ -1638,13 +1645,13 @@ class Subspace(c.Module):
         
         
         
-    def key2module(self, key: str = None, netuid: int = None, **kwargs) -> Dict[str, str]:
+    def key2module(self, key: str = None, netuid: int = None, default: dict =None, **kwargs) -> Dict[str, str]:
         modules = self.modules(netuid=netuid, **kwargs)
         key2module =  { m['key']: m for m in modules }
         
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
-            return  key2module.get(key_ss58, {})
+            return  key2module.get(key_ss58, default if default != None else {})
         return key2module
         
     def module2key(self, module: str = None, **kwargs) -> Dict[str, str]:
@@ -1695,12 +1702,11 @@ class Subspace(c.Module):
                 netuid: int = default_netuid,
                 fmt='nano', 
                 cache:bool = True,
-                max_age: int = 60,
                 network = network,
                 keys = None,
                 update = False,
                 include_weights = False,
-                names_only:bool = False,
+                names_only = False,
                 df = False,
                 
                 ) -> Dict[str, ModuleInfo]:
@@ -1745,6 +1751,8 @@ class Subspace(c.Module):
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
+                    
+            
                     
                 }
                 

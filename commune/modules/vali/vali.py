@@ -11,11 +11,13 @@ class Validator(c.Module):
     def __init__(self, config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
         self.set_subspace( )
-        self.stats = {}
+        self.module_stats = {}
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
-        self.start()
+        
+        if self.config.start:
+            self.start()
 
 
     def kill_workers(self):
@@ -117,7 +119,7 @@ class Validator(c.Module):
         module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
         module_stats['alpha'] = self.config.alpha
         module_stats['history'] = module_stats.get('history', []) + [{'input': dict(args=args, kwargs=kwargs) ,'output': response, 'w': w, 'time': c.time()}]
-        self.stats[module] = module_stats
+        self.module_stats[module] = module_stats
         self.save_module_stats(module, module_stats)
         self.count += 1
 
@@ -135,7 +137,7 @@ class Validator(c.Module):
 
         vote_dict = {'uids': [], 'weights': []}
 
-        for k, v in self.stats.items():
+        for k, v in self.module_stats.items():
             vote_dict['uids'] += [v['uid']]
             vote_dict['weights'] += [v['w']]
 
@@ -168,7 +170,7 @@ class Validator(c.Module):
             for s in module_stats:
                 if s == None:
                     continue
-                self.stats[s['name']] = s
+                self.module_stats[s['name']] = s
         return {'success': True, 'message': 'Loaded stats'}
 
 
@@ -177,8 +179,7 @@ class Validator(c.Module):
         return paths
 
     def load_module_stats(self, k:str,default=None):
-        if default == None:
-            default = {}
+        default = {} if default == None else default
         return self.get_json(f'stats/{self.config.network}/{k}', default=default)
     
     def save_module_stats(self,k:str, v):
@@ -199,7 +200,7 @@ class Validator(c.Module):
 
 
     def run(self, vote = True, thread_id = 0):
-        c.print(f'Running {self.config.network} {self.config.netuid} {self.key}', color='green')
+        c.print(f'Running -> thread:{thread_id} network:{self.config.network} netuid: {self.config.netuid} key: {self.key.path}', color='cyan')
         # while not self.subspace.is_registered(self.key):
             
         #     c.print(f'Key {self.key} is not registered in {self.config.network}')
@@ -265,6 +266,8 @@ class Validator(c.Module):
         self.stop()
         self.save()
         c.print('Validator stopped', color='white')
+
+        
 
     # def start_worker(self, **kwargs):
     #     config = self.config

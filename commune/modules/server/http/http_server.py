@@ -64,7 +64,7 @@ class HTTPServer(c.Module):
             name = module.name()
 
         self.name = name
-        for k in ['module_name', 'module_id', 'name']:
+        for k in ['module_name', 'module_id', 'name', 'server_name']:
             if k not in module.__dict__:
                 module.__dict__[k] = name
         # register the server
