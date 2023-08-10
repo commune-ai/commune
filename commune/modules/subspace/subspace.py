@@ -630,14 +630,11 @@ class Subspace(c.Module):
             address = module_info['address']
 
         
-
             
         local_namespace = c.namespace(network='local')
-        if name not in local_namespace:
-            self.serve()
-            return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it with c.serve "}
-        else:
+        if name in local_namespace:
             address = local_namespace[name]
+
         with self.substrate as substrate:
             call_params =  {'address': address,
                             'name': name,
