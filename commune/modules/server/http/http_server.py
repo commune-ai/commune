@@ -160,6 +160,8 @@ class HTTPServer(c.Module):
             if c.is_generator(result):
                 result = list(result)
 
+        if not isinstance(result, dict):
+            result = {'server_result': result}
         result = self.serializer.serialize(result)
         
         # sign result data (str)
