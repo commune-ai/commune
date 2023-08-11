@@ -2,6 +2,7 @@
 from typing import Dict, List, Optional, Union
 import commune as c
 import torch 
+import traceback
 
 
 
@@ -32,7 +33,7 @@ class HTTPServer(c.Module):
         self.timeout = timeout
         self.verbose = verbose
         
-        self.serializer = c.module('server.http.serializer')()
+        self.serializer = c.module('serializer')()
         self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
@@ -158,8 +159,7 @@ class HTTPServer(c.Module):
             # WARNING : This will not work for infinite loops lol because it will never end
             if c.is_generator(result):
                 result = list(result)
-            
-        # serialize result
+
         result = self.serializer.serialize(result)
         
         # sign result data (str)
@@ -215,7 +215,17 @@ class HTTPServer(c.Module):
                 result = self.process_result(result)
                 success = True
             except Exception as e:
-                result = {'error': str(e)}
+                tb = traceback.extract_tb(e.__traceback__)
+                file_name = tb[-1].filename
+                line_no = tb[-1].lineno
+                line_text = tb[-1].line
+
+                result = {
+                    'error': str(e),
+                    'file_name': file_name,
+                    'line_no': line_no,
+                    'line_text': line_text
+                }    
                 success = False
                 result = self.process_result(result)
 

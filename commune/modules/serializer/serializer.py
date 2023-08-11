@@ -38,23 +38,32 @@ class Serializer(c.Module):
     python_types = [int, bool, float, tuple, dict, list, str, type(None)]
     def serialize(self,x:dict, mode = 'str'):
         x = c.copy(x)
-        k_list = []
-        if isinstance(x, dict):
-            k_list = list(x.keys())
-        elif isinstance(x, list):
-            k_list = list(range(len(x)))
-        elif type(x) in [tuple, set]: 
-            # convert to list, to format as json
-            x = list(x) 
-            k_list = list(range(len(x)))
+        x_type = type(x)
+        if x_type in [dict, list, tuple, set]:
+            k_list = []
+            if isinstance(x, dict):
+                k_list = list(x.keys())
+            elif isinstance(x, list):
+                k_list = list(range(len(x)))
+            elif type(x) in [tuple, set]: 
+                # convert to list, to format as json
+                x = list(x) 
+                k_list = list(range(len(x)))
 
-        for k in k_list:
-            x[k] = self.resolve_value(v=x[k])
+            for k in k_list:
+                x[k] = self.resolve_value(v=x[k])
+        else:
+            x = self.resolve_value(v=x)
+
 
         if mode == 'str':
-            x = self.dict2str(x)
+            if isinstance(x, dict):
+                x = self.dict2str(x)
         elif mode == 'bytes':
-            x = self.dict2bytes(x)
+            if isinstance(x, dict):
+                x = self.dict2bytes(x)
+            elif isinstance(x, str):
+                x = self.str2bytes(x)
         elif mode == 'dict' or mode == None:
             x = x
         else:
@@ -92,6 +101,9 @@ class Serializer(c.Module):
         """
         if isinstance(x, str):
             x = self.str2dict(x)
+        is_single = isinstance(x,dict) and all([k in x for k in ['data', 'data_type', 'serialized']])
+        if is_single:
+            x = [x]
         k_list = []
         if isinstance(x, dict):
             k_list = list(x.keys())
@@ -104,14 +116,15 @@ class Serializer(c.Module):
 
         for k in k_list:
             v = x[k]
-            if type(v) in [dict, list, tuple, set]:
-                x[k] = self.deserialize(x=v)
             if self.is_serialized(v):
                 data_type = v['data_type']
                 data = v['data']
                 if hasattr(self, f'deserialize_{data_type}'):
                     x[k] = getattr(self, f'deserialize_{data_type}')(data=data)
-
+            elif type(v) in [dict, list, tuple, set]:
+                x[k] = self.deserialize(x=v)
+        if is_single:
+            x = x[0]
         return x
 
     """
@@ -205,6 +218,13 @@ class Serializer(c.Module):
         output = msgpack.unpackb(data, object_hook=msgpack_numpy.decode)
         return output
 
+    
+    def deserialize_torch(self, data: dict) -> torch.Tensor:
+        from safetensors.torch import load
+        if isinstance(data, str):
+            data = self.str2bytes(data)
+        data = load(data)
+        return data['data']
 
 
 
@@ -214,22 +234,27 @@ class Serializer(c.Module):
         return self.bytes2str(output)
 
 
+    def serialize_numpy(self, data: 'np.ndarray') -> 'np.ndarray':     
+        data =  self.numpy2bytes(data)
+        return self.bytes2str(data)
 
-    
-    def deserialize_torch(self, data: dict) -> torch.Tensor:
-        from safetensors.torch import load
+    def deserialize_numpy(self, data: bytes) -> 'np.ndarray':     
         if isinstance(data, str):
             data = self.str2bytes(data)
-        data = load(data)
-        return data['data']
+        return self.bytes2numpy(data)
+
+
 
     def get_str_type(self, data):
+    
         data_type = str(type(data)).split("'")[1]
         if data_type in ['munch.Munch', 'Munch']:
             data_type = 'munch'
         if data_type in ['torch.Tensor', 'Tensor']:
             data_type = 'torch'
-        
+        if data_type in ['numpy.ndarray', 'ndarray', 'np.ndarray']:
+            data_type = 'numpy'
+        c.print(data_type)
         return data_type
 
     @classmethod
@@ -255,7 +280,7 @@ class Serializer(c.Module):
     def test(cls, size=1):
         self = cls()
         stats = {}
-        data = {'bro': {'fam': torch.randn(size,size), 'bro': [torch.ones(1,1)]}}
+        data = {'bro': {'fam': torch.randn(size,size), 'bro': [torch.ones(1,1)] , 'bro2': [np.ones((1,1))]}}
 
         t = c.time()
         serialized_data = self.serialize(data)
@@ -272,4 +297,42 @@ class Serializer(c.Module):
         stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
         stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
         c.print(stats)
+        c.print(serialized_data)
+
+
         
+        data =  torch.randn(size,size)
+        t = c.time()
+        serialized_data = self.serialize(data)
+        assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
+        deserialized_data = self.deserialize(serialized_data)
+        c.print(deserialized_data, data)
+        assert deserialized_data.shape == data.shape
+
+        stats['elapsed_time'] = c.time() - t
+        stats['size_bytes'] = c.sizeof(data)
+        stats['size_bytes_compressed'] = c.sizeof(serialized_data)
+        stats['size_deserialized_data'] = c.sizeof(deserialized_data)
+        stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
+        stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
+        c.print(stats)
+        c.print(serialized_data)
+
+        
+        data =  np.random.randn(size,size)
+        t = c.time()
+        serialized_data = self.serialize(data, mode='str')
+        assert isinstance(serialized_data, str), f"serialized_data must be a str, not {type(serialized_data)}"
+        deserialized_data = self.deserialize(serialized_data)
+        c.print(deserialized_data, data)
+        assert deserialized_data.shape == data.shape
+
+        stats['elapsed_time'] = c.time() - t
+        stats['size_bytes'] = c.sizeof(data)
+        stats['size_bytes_compressed'] = c.sizeof(serialized_data)
+        stats['size_deserialized_data'] = c.sizeof(deserialized_data)
+        stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
+        stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
+        c.print(stats)
+        c.print(serialized_data)
+

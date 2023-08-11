@@ -28,23 +28,22 @@ class CLI(c.Module):
             args[0] = self.resolve_shortcut(args[0])
             
             # is it a fucntion, assume it is for the module
-            if args[0] in functions and args[0] not in self.module.config['module_overrides']:
+            module_list = c.modules()
+            if args[0] in module_list:
+                module = args.pop(0)
+                module = c.module(module)
+            
+            elif args[0] in functions and args[0] not in self.module.config['module_overrides']:
                 module = c.Module
                 fn = args.pop(0)
             else:
-                module_list = c.modules()
-                if args[0] in module_list:
+                namespace = self.namespace(update=False)
+                if args[0] in namespace:
                     module = args.pop(0)
-                    module = c.module(module)
-                else:
-                    # is it a server
-                    namespace = self.namespace(update=False)
-                    if args[0] in namespace:
-                        module = args.pop(0)
-                        module = c.connect(module)
+                    module = c.connect(module)
 
-                    else: 
-                        raise Exception(f'No module, function or server found for {args[0]}')
+                else: 
+                    raise Exception(f'No module, function or server found for {args[0]}')
             
             if fn == None:
                 if len(args) == 0:
