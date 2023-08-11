@@ -1,17 +1,18 @@
 import http.client
 import json
+import commune as c
 
 
 
 
 class BitAPAI(c.Module):
-    def __init__(self, conifg=None,  **kwargs):
-
-
+    def __init__(self, config=None,  **kwargs):
+        self.set_config(config=config, kwargs=kwargs)
         self.conn = http.client.HTTPSConnection(self.config.host)
         self.api_key = self.config.api_key
 
-    def forwrd( self, text:str , api_key:str = None, history:list=None, ): 
+    def forward( self, text:str , api_key:str = None, history:list=None, ): 
+        api_key = api_key or self.api_key
         payload = [
         {
             "role": "system",
@@ -20,7 +21,9 @@ class BitAPAI(c.Module):
         {
             "role": "user",
             "content": text
-        }]
+        }
+        
+        ]
 
         if history is not None:
             assert isinstance(history, list)
@@ -37,8 +40,13 @@ class BitAPAI(c.Module):
                           payload, 
                           headers)
         res = self.conn.getresponse()
-        data = res.read()
-        return data
+        data = json.loads(res.read().decode("utf-8"))
+        return data['assistant']
+    
+    talk = generate = forward
+    
+    def test(self):
+        return self.forward("hello")
 
 
 

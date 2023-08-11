@@ -375,7 +375,7 @@ class Subspace(c.Module):
     
     def update(self):
         # self.modules(cache=False)
-        pass
+        self.sync()
 
 
     @classmethod
@@ -423,16 +423,16 @@ class Subspace(c.Module):
         port = None,
         network: str = network,
         refresh: bool = False,
-        update: bool = False,
+        sync: bool = True,
         tag_seperator: str = '::',
         **extra_kwargs
 
     ) -> bool:
         
-        if update:
-            self.update()
+        if sync:
+            c.sync()
         
-        network = self.resolve_network(network)
+        network =self.resolve_network(network)
         kwargs = kwargs if kwargs is not None else {}
         args = args if args is not None else []
 
@@ -449,6 +449,7 @@ class Subspace(c.Module):
         kwargs.update(extra_kwargs)
         
         c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port, refresh=refresh)
+        c.wait_for_server(name)
         address = c.namespace(network='local').get(name, '0.0.0.0:8888')
         key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
@@ -1383,7 +1384,7 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def key_stats(self, netuid=None,  include_stake_to=False, r **kwargs):
+    def key_stats(self, netuid=None,  include_stake_to=False, **kwargs):
         key_info_map = {}
         for key in self.my_keys(netuid=netuid):
             key_info_map[key] = self.key_info(key, netuid=netuid, include_stake_to=include_stake_to, **kwargs)
@@ -2682,7 +2683,8 @@ class Subspace(c.Module):
                 node_path = node2path[node]
                 node_logs = c.module('docker').logs(node_path)
             elif mode == 'pm2':
-                node_logs = c.logs(node_path, end_line=400, mode='local')
+                node_logs = c.logs(node_path, start_line = 0 , end_line=400, mode='local')
+                c.print(node_logs)
 
             if indicator in node_logs:
                 break

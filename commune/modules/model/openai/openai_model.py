@@ -195,6 +195,7 @@ class OpenAILLM(c.Module):
         # c.stwrite(self.history)
         return response['content']
 
+    generate = call = forward
     def resolve_params(self, params = None):
         if params == None:
             params = {}
@@ -211,7 +212,6 @@ class OpenAILLM(c.Module):
         return output_params
 
 
-    call = forward
         
         
         

@@ -66,7 +66,7 @@ class TransformerModel(Model):
         output = self.model(input_ids=sample['input_ids'].to(self.device),
                             output_hidden_states=output_hidden_states, **kwargs)
         
-        
+
         if output_hidden_states:
             output['hidden_states'] = output.hidden_states[hidden_layer]
 
@@ -88,7 +88,10 @@ class TransformerModel(Model):
     embed = encode
 
     def set_model(self, config) -> None: 
+        config.model = config.shortcuts.get(config.model, config.model)
+        c.print('SETTING Tokenizer -> ', config.model)
         self.set_tokenizer(config.model)
+        c.print('Tokenizer SET -> ', config.model)
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         c.print('LOADING MODEL -> ', config.model)

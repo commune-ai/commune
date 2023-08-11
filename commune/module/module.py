@@ -3222,7 +3222,7 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-10, end_line=0, verbose=True, mode='local'):
+    def pm2_logs(cls, module:str, start_line=-10, end_line=0, verbose=True, mode='cmd'):
         if mode == 'local':
 
             text = ''
