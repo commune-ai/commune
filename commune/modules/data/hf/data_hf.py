@@ -198,12 +198,17 @@ class DataHF(c.Module):
             self.sample()
             print(i)
 
+    @property
+    def name_suffix(self):
+        return f'{self.path}'
+
     @classmethod
     def serve(cls, path:str = 'truthful_qa', tag=None, remote:bool=True, **kwargs):
         name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
         c.print(f'Serving {name} with kwargs: {kwargs}')
-        c.serve(module=cls.module_path(), name=name, tag=tag, kwargs=kwargs, remote=remote)
+        name = c.serve(module=cls.module_path(), name=name, tag=tag, kwargs=kwargs, remote=remote)
+        return name
 
 
     @classmethod

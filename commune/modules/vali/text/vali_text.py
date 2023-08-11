@@ -15,7 +15,6 @@ class ValiText(Vali):
             self.dataset = c.connect(dataset)
         else:
             c.module('data.hf').serve(path=dataset.split('.')[-1])
-            self.dataset = c.connect(dataset)
 
         return self.dataset
 

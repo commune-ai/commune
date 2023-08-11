@@ -95,8 +95,7 @@ class SubspaceDashboard(c.Module):
             
 
             cols = st.columns(2)
-            self.key_info = self.subspace.key_info(key.path)
-            st.write(self.key_info)
+            self.key_info = self.subspace.key_info(key.path, fmt='j')
             st.write('Address: ', key.ss58_address)
             st.write('Stake', self.key_info['stake'])
             st.write('Balance', self.key_info['balance'])
@@ -158,6 +157,8 @@ class SubspaceDashboard(c.Module):
 
     def stats_dashboard(self, max_rows=100):
         my_modules = self.my_modules
+        for m in my_modules:
+            m.pop('stake_from')
         df = c.df(my_modules)
         for k in ['key', 'balance', 'address']:
             del df[k]
@@ -247,7 +248,7 @@ class SubspaceDashboard(c.Module):
         cols = st.columns(2)
         with cols[0].expander('Stake', expanded=True):
 
-            amount = st.number_input('STAKE Amount', 0.0, float(self.key_info['stake']), 0.0, 0.1)            
+            amount = st.number_input('STAKE Amount', 0.0, float(self.key_info['balance']), float(self.key_info['balance']), 0.1)            
             modules = st.multiselect('Module', self.module_names, [])
             transfer_button = st.button('STAKE')
 
@@ -264,11 +265,11 @@ class SubspaceDashboard(c.Module):
                     self.subspace.stake(**kwargs)
 
         with cols[1].expander('UnStake', expanded=True):
-            module2stake_from_key = self.subspace.get_staked_modules(self.key)
+            module2stake_from_key = self.subspace.get_staked_modules(self.key, fmt='j')
             modules = list(module2stake_from_key.keys())
             module = st.selectbox('Module', modules, index=0, key='unstake')
             module_to_stake = module2stake_from_key[module]
-            amount = st.number_input('UNSTAKE Amount', 0.0, 1_000_000_000.0, module_to_stake, 1.0)
+            amount = st.number_input('UNSTAKE Amount', 0.0, float(module_to_stake), float(module_to_stake), 1.0)
 
             unstake_button = st.button('UNSTAKE')
             if unstake_button:
@@ -320,7 +321,7 @@ class SubspaceDashboard(c.Module):
 
     def wallet_dashboard(self):
         
-        st.write(self.subspace.my_key_info_map())
+        # st.write(self.subspace.my_key_info_map())
 
         if self.subspace.is_registered(self.key):
             self.staking_dashboard()
@@ -332,9 +333,11 @@ class SubspaceDashboard(c.Module):
 
 
     def validator_dashboard(self):
+        validators = [{k:v[k] for k in c.copy(list(v.keys())) if k != 'stake_from'} for v in self.validators if v['stake'] > 0]
         df = c.df(self.validators)
         df['stake'] = df['stake']/1e9
         df['emission'] = df['emission']/1e9
+        del df['stake_from']
         st.dataframe(df)
         with st.expander('Register Validator', expanded=False):
             self.launch_dashboard(expanded=False, prefix='vali')

@@ -1,25 +1,11 @@
-import os, sys
-from pprint import pp
 
-from functools import partial
+from pprint import pp
 import asyncio
 from copy import deepcopy
 from typing import Union, Optional, List
-from concurrent import futures
 import os, sys
 from typing import *
 from loguru import logger
-import time
-import pandas as pd
-
-from munch import Munch
-import argparse
-import torch
-import json
-import random
-
-import streamlit as st
-
 
 # logger = logger.opt(colors=True)
     
@@ -27,12 +13,8 @@ import streamlit as st
 import commune as c
 from torch import nn
 
-from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
-
-
-from torch import nn
 Model = c.module('model')
-class TransformerModel(c.Module):
+class TransformerModel(Model):
     default_config = c.config('model.transformer')
     shortcuts = default_config.shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
@@ -43,6 +25,7 @@ class TransformerModel(c.Module):
                  **kwargs
                 ):
         config = self.set_config(config=config, kwargs=kwargs)
+        Model.init_model(self)
         self.set_model(config)
         
 
