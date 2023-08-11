@@ -6,7 +6,7 @@ import commune as c
 
 
 class BitAPAI(c.Module):
-    def __init__(self, config=None,  **kwargs):
+    def __init__(self,  config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
         self.conn = http.client.HTTPSConnection(self.config.host)
         self.set_api_key(api_key=self.config.api_key)

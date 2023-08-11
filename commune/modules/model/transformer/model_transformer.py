@@ -358,8 +358,6 @@ class TransformerModel(Model):
         return loss
 
     hf = c.module('huggingface')()
-
-
     def generate(self, text: str, max_length: int = 20, max_new_tokens: int = None,
                 min_length: int = 0, min_new_tokens: int = None,
                 early_stopping: bool or str = True, max_time: float = None, **kwargs) -> List[str]:

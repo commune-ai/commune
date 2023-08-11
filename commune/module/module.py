@@ -3929,6 +3929,21 @@ class c:
         elif cls.pip_exists(lib) == False:
             cls.pip_install(lib, verbose=verbose)
         return {'lib':lib, 'version':cls.version(lib), 'status':'installed'}
+
+    required_libs = []
+    @classmethod
+    def ensure_libs(cls, libs:List[str] = None, verbose:bool=False):
+        if libs == None:
+            libs = cls.required_libs
+        r = []
+        for lib in libs:
+            r.append(cls.ensure_lib(lib, verbose=verbose))
+            c.print(r[-1])
+        return r
+    
+    @classmethod
+    def ensure_env(cls):
+        c.ensure_libs(cls.libs)
     
     ensure_package = ensure_lib
     @classmethod
