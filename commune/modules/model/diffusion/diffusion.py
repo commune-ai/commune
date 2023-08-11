@@ -37,21 +37,22 @@ class DiffisionPipeline(c.Module):
 
 
             # run both experts
-            image = self.base(
+            images = self.base(
                 prompt=prompt,
                 num_inference_steps=n_steps,
                 denoising_end=high_noise_frac,
                 output_type=output_type,
             ).images
-            c.print(c.get_function_args(self.refiner.__call__))
-            image = self.refiner(
-                prompt=prompt,
-                num_inference_steps=n_steps,
-                init_image=image,
-            ).images[0]
+            # image = self.refiner(
+            #     prompt=prompt,
+            #     num_inference_steps=n_steps,
+            #     init_image=image,
+            # ).images[0]
+
+            return images
 
 
     @classmethod
     def test(cls, **kwargs):
         self = cls(**kwargs)
-        self.generate()
+        return self.generate()
