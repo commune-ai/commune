@@ -176,13 +176,13 @@ chain_info:
     - ws://162.157.113.207:2230
   main:
     boot_nodes:
-    - /ip4/162.157.113.207/tcp/2288/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
-    - /ip4/162.157.113.207/tcp/2283/p2p/12D3KooWC9UsaPo4vpi7aEMA4VvZv3AYVLtDDSnjqG68gk3aFtFF
-    - /ip4/162.157.113.207/tcp/2213/p2p/12D3KooWSNhhHUPknq9d7V4WPcFLijB9CdZSvqF11XEYRgJR4xZV
-    - /ip4/162.157.113.207/tcp/2290/p2p/12D3KooWRvXqeqB3uZ52JsQz7WvnueeGYxh8AcRcz2FuvLtnKUyW
-    - /ip4/162.157.113.207/tcp/2236/p2p/12D3KooWBnjQTUFJDvA7HRJ3T1oyL9ivErqvcwwyHP1Xe8TW1X2C
-    - /ip4/162.157.113.207/tcp/2249/p2p/12D3KooWRdd7gSTuME2yhXdHanW4Wr9F8W83Bs667LTbKKZXGWSf
-    - /ip4/162.157.113.207/tcp/2214/p2p/12D3KooWJMjJRVCUJyZ5fWdSFeUCMYV2ERc2nJ9TWBk9Y6htuHJB
+    - /ip4/162.157.113.207/tcp/2248/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
+    - /ip4/162.157.113.207/tcp/2294/p2p/12D3KooWC9UsaPo4vpi7aEMA4VvZv3AYVLtDDSnjqG68gk3aFtFF
+    - /ip4/162.157.113.207/tcp/2292/p2p/12D3KooWSNhhHUPknq9d7V4WPcFLijB9CdZSvqF11XEYRgJR4xZV
+    - /ip4/162.157.113.207/tcp/2242/p2p/12D3KooWRvXqeqB3uZ52JsQz7WvnueeGYxh8AcRcz2FuvLtnKUyW
+    - /ip4/162.157.113.207/tcp/2215/p2p/12D3KooWBnjQTUFJDvA7HRJ3T1oyL9ivErqvcwwyHP1Xe8TW1X2C
+    - /ip4/162.157.113.207/tcp/2260/p2p/12D3KooWRdd7gSTuME2yhXdHanW4Wr9F8W83Bs667LTbKKZXGWSf
+    - /ip4/162.157.113.207/tcp/2220/p2p/12D3KooWJMjJRVCUJyZ5fWdSFeUCMYV2ERc2nJ9TWBk9Y6htuHJB
     nodes:
       alice:
         boot_nodes: null
@@ -191,85 +191,133 @@ chain_info:
         mode: pm2
         node: alice
         node_key: null
-        port: 2288
+        port: 2248
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2295
+        rpc_port: 2206
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2245
+        ws_port: 2265
       bob:
-        boot_nodes: /ip4/162.157.113.207/tcp/2288/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
+        boot_nodes: /ip4/162.157.113.207/tcp/2248/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
         chain: main
         ip: 162.157.113.207
         mode: pm2
         node: bob
         node_key: null
-        port: 2283
+        port: 2294
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2234
+        rpc_port: 2216
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2289
+        ws_port: 2205
       bruh:
-        boot_nodes: /ip4/162.157.113.207/tcp/2288/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
+        boot_nodes: /ip4/162.157.113.207/tcp/2294/p2p/12D3KooWC9UsaPo4vpi7aEMA4VvZv3AYVLtDDSnjqG68gk3aFtFF
         chain: main
         ip: 162.157.113.207
         mode: pm2
         node: bruh
         node_key: null
-        port: 2213
+        port: 2292
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2225
+        rpc_port: 2204
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2231
+        ws_port: 2279
       chris:
-        boot_nodes: /ip4/162.157.113.207/tcp/2213/p2p/12D3KooWSNhhHUPknq9d7V4WPcFLijB9CdZSvqF11XEYRgJR4xZV
+        boot_nodes: /ip4/162.157.113.207/tcp/2294/p2p/12D3KooWC9UsaPo4vpi7aEMA4VvZv3AYVLtDDSnjqG68gk3aFtFF
         chain: main
         ip: 162.157.113.207
         mode: pm2
         node: chris
         node_key: null
-        port: 2290
+        port: 2242
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2296
+        rpc_port: 2287
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2237
+        ws_port: 2241
       elon:
-        boot_nodes: /ip4/162.157.113.207/tcp/2213/p2p/12D3KooWSNhhHUPknq9d7V4WPcFLijB9CdZSvqF11XEYRgJR4xZV
+        boot_nodes: /ip4/162.157.113.207/tcp/2242/p2p/12D3KooWRvXqeqB3uZ52JsQz7WvnueeGYxh8AcRcz2FuvLtnKUyW
         chain: main
         ip: 162.157.113.207
         mode: pm2
         node: elon
         node_key: null
-        port: 2236
+        port: 2215
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2257
+        rpc_port: 2207
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2210
+        ws_port: 2261
       fam:
-        boot_nodes: /ip4/162.157.113.207/tcp/2288/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
+        boot_nodes: /ip4/162.157.113.207/tcp/2242/p2p/12D3KooWRvXqeqB3uZ52JsQz7WvnueeGYxh8AcRcz2FuvLtnKUyW
         chain: main
         ip: 162.157.113.207
         mode: pm2
         node: fam
+        node_key: null
+        port: 2260
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2298
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2295
+      huck:
+        boot_nodes: /ip4/162.157.113.207/tcp/2215/p2p/12D3KooWBnjQTUFJDvA7HRJ3T1oyL9ivErqvcwwyHP1Xe8TW1X2C
+        chain: main
+        ip: 162.157.113.207
+        mode: pm2
+        node: huck
+        node_key: null
+        port: 2220
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2276
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2271
+      sal:
+        boot_nodes: /ip4/162.157.113.207/tcp/2248/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
+        chain: main
+        ip: 162.157.113.207
+        mode: pm2
+        node: sal
+        node_key: null
+        port: 2224
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2281
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 2228
+      satoshi:
+        boot_nodes: /ip4/162.157.113.207/tcp/2215/p2p/12D3KooWBnjQTUFJDvA7HRJ3T1oyL9ivErqvcwwyHP1Xe8TW1X2C
+        chain: main
+        ip: 162.157.113.207
+        mode: pm2
+        node: satoshi
         node_key: null
         port: 2249
         purge_chain: true
@@ -277,77 +325,29 @@ chain_info:
         rpc_cors: all
         rpc_port: 2297
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2294
-      huck:
-        boot_nodes: /ip4/162.157.113.207/tcp/2236/p2p/12D3KooWBnjQTUFJDvA7HRJ3T1oyL9ivErqvcwwyHP1Xe8TW1X2C
-        chain: main
-        ip: 162.157.113.207
-        mode: pm2
-        node: huck
-        node_key: null
-        port: 2214
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2205
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2204
-      sal:
-        boot_nodes: /ip4/162.157.113.207/tcp/2288/p2p/12D3KooWFte8ApHAqwofBmzSrfBhGqpG7bnefGkeqs1jUpHbu6dq
-        chain: main
-        ip: 162.157.113.207
-        mode: pm2
-        node: sal
-        node_key: null
-        port: 2202
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2229
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 2261
-      satoshi:
-        boot_nodes: /ip4/162.157.113.207/tcp/2214/p2p/12D3KooWJMjJRVCUJyZ5fWdSFeUCMYV2ERc2nJ9TWBk9Y6htuHJB
-        chain: main
-        ip: 162.157.113.207
-        mode: pm2
-        node: satoshi
-        node_key: null
-        port: 2291
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2259
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2287
+        ws_port: 2238
       snoop:
-        boot_nodes: /ip4/162.157.113.207/tcp/2214/p2p/12D3KooWJMjJRVCUJyZ5fWdSFeUCMYV2ERc2nJ9TWBk9Y6htuHJB
+        boot_nodes: /ip4/162.157.113.207/tcp/2242/p2p/12D3KooWRvXqeqB3uZ52JsQz7WvnueeGYxh8AcRcz2FuvLtnKUyW
         chain: main
         ip: 162.157.113.207
         mode: pm2
         node: snoop
         node_key: null
-        port: 2292
+        port: 2290
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2280
+        rpc_port: 2263
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 2270
+        ws_port: 2218
     url:
-    - ws://162.157.113.207:2261
-    - ws://162.157.113.207:2287
-    - ws://162.157.113.207:2270
+    - ws://162.157.113.207:2228
+    - ws://162.157.113.207:2238
+    - ws://162.157.113.207:2218
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 default_netuid: 0
