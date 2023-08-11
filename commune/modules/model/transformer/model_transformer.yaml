@@ -16,7 +16,6 @@ tag: null
 load: false
 
 shortcuts:
-x
   oa.pythia.12b: OpenAssistant/oasst-sft-1-pythia-12b
 
   vicuna.33b : lmsys/vicuna-33b-v1.3
