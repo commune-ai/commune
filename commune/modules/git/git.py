@@ -36,8 +36,13 @@ class Git(c.Module):
 
     addsub = add_submodule
 
-        
+    def push(self):
+        c.cmd('git push')
+    
+    def pull(self):
+        c.cmd('git pull')
 
-    
-        
-    
+    def commit(self, message='update', push:bool = True):
+        c.cmd(f'git commit -m "{message}"')
+        if push:
+            self.push()
