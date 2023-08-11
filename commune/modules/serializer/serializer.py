@@ -101,6 +101,8 @@ class Serializer(c.Module):
         """
         if isinstance(x, str):
             x = self.str2dict(x)
+
+
         is_single = isinstance(x,dict) and all([k in x for k in ['data', 'data_type', 'serialized']])
         if is_single:
             x = [x]
@@ -254,7 +256,6 @@ class Serializer(c.Module):
             data_type = 'torch'
         if data_type in ['numpy.ndarray', 'ndarray', 'np.ndarray']:
             data_type = 'numpy'
-        c.print(data_type)
         return data_type
 
     @classmethod
@@ -336,3 +337,9 @@ class Serializer(c.Module):
         c.print(stats)
         c.print(serialized_data)
 
+        # for data in [100, 'broooo', 1.0]:
+        #     t = c.time()
+        #     serialized_data = self.serialize(data, mode=None)
+        #     c.print(serialized_data)
+        #     deserialized_data = self.deserialize(serialized_data)
+        #     assert deserialized_data == data, f"{deserialized_data} != {data}"
