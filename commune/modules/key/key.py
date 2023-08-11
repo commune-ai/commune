@@ -194,9 +194,12 @@ class Keypair(c.Module):
         
         cls.put(path, key_json)
         
-        return key
+        return {'success': True, 'message': f'key added at {path}', 'key': key_json}
     
-
+    @classmethod
+    def rename_key(self, new_path):
+        return self.mv_key(self.path, new_path)
+    
     @classmethod
     def mv_key(cls, path, new_path):
         
@@ -204,17 +207,23 @@ class Keypair(c.Module):
         cls.put(new_path, cls.get_key(path).to_json())
         cls.rm_key(path)
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
-        return cls.get_key(new_path)
+        new_key = cls.get_key(new_path)
+        return {'success': True, 'message': f'key moved from {path} to {new_path}', 'key': new_key}
     
     rename_key = mv_key
     
     @classmethod
     def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
+        response = []
         for i in range(n):
             key_name = f'{name}.{i}'
             if bool == True:
                 c.print(f'generating key {key_name}')
-            cls.add_key(key_name, **kwargs)
+            response.append(cls.add_key(key_name, **kwargs))
+
+        return response
+
+
     add = add_key
     
     @classmethod

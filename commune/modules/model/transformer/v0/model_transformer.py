@@ -229,29 +229,6 @@ class TransformerModel(Model):
     def set_model(self, config) -> None: 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
-        
-        # init pytorch module state
-        self.init_nn()
-        
-        # if we are using a shortcut, we need to set the model path
-        config['model'] = self.shortcuts.get(config.model, config.model)
-        self.set_tokenizer(config.tokenizer)
-
-        config.block_prefix = config.model2block_prefix.get(config.model, config.block_prefix)
-        if config.device_map == None:
-            config.device_map= c.infer_device_map(config.model,
-                                                buffer_memory=config.buffer_memory,
-                                                block_prefix=config.block_prefix)
-            
-        c.print('device map', config.device_map)
-            
-        assert config.device_map is not None, f'could not infer device map for {config.model}'
-        
-
-        model_kwargs=dict(
-
-        )
-        
         c.print('loading model', config.model)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,

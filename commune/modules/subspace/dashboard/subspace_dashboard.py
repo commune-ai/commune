@@ -155,7 +155,7 @@ class SubspaceDashboard(c.Module):
             if sync:
                 self.sync()
 
-    def stats_dashboard(self, max_rows=100):
+    def my_modules_dashboard(self, max_rows=100):
         my_modules = self.my_modules
         for m in my_modules:
             m.pop('stake_from')
@@ -318,6 +318,9 @@ class SubspaceDashboard(c.Module):
     def modules_dashboard(self):
 
         self.launch_dashboard(expanded=False)
+        self.my_modules_dashboard(expanded=False)
+    
+    
 
     def wallet_dashboard(self):
         
@@ -334,7 +337,11 @@ class SubspaceDashboard(c.Module):
 
     def validator_dashboard(self):
         validators = [{k:v[k] for k in c.copy(list(v.keys())) if k != 'stake_from'} for v in self.validators if v['stake'] > 0]
-        df = c.df(self.validators)
+        df = c.df(validators)
+        if len(df) == 0:
+            st.error('No Validators')
+            return
+
         df['stake'] = df['stake']/1e9
         df['emission'] = df['emission']/1e9
         del df['stake_from']
