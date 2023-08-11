@@ -2536,6 +2536,8 @@ class c:
               # name related
               name:str=None, 
               tag:str=None,
+              args:list = None,  # args for the module
+              kwargs:dict = None,  # kwargs for the module
               # networking 
               ip:str=None, 
               port:int=None ,
@@ -2546,15 +2548,10 @@ class c:
               wait_for_server:bool = False, # waits for the server to start before returning
               verbose:bool = False, # prints out information about the server
               remote:bool = True, # runs the server remotely (pm2, ray)
-              args:list = None,  # args for the module
-              kwargs:dict = None,  # kwargs for the module
               update: bool = False,
               mode:str = server_mode,
               tag_seperator:str='::',
-              external:bool = False, # if true, the server† will run on a different machine
-              key = None, # key for server's identity
-
-              
+              **extra_kwargs
               ):
         '''
 
@@ -2570,12 +2567,13 @@ class c:
             module, tag = module.split(tag_seperator)
 
         name = cls.resolve_server_name(module=module, name=name, tag=tag)
+
         tag = None
 
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
-            return cls.remote_fn('serve',name=name, kwargs=remote_kwargs,  )
+            return cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
 
         if update:
             c.update()
@@ -2585,7 +2583,7 @@ class c:
         
         module_class = cls.resolve_module(module)
         
-        c.print(module_class, 'BROOOO')
+        kwargs.update(extra_kwargs)
         self = module_class(*args, **kwargs)
 
         if c.server_exists(name, network='local'): 
@@ -4489,6 +4487,14 @@ class c:
     def logs(cls, *args, **kwargs):
         
         return cls.pm2_logs(*args, **kwargs)
+
+
+    @classmethod
+    def logmap(cls, *args, **kwargs):
+        logmap = {}
+        for m in c.servers(*args,**kwargs):
+            logmap[m] = c.logs(m)
+        return logmap
 
     @classmethod
     def print(cls, *text:str, 

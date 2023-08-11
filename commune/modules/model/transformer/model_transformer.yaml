@@ -1,9 +1,20 @@
 
-model: stablellm7b
+
+model: 
+tag: base
+device: null
 device_map: auto
-trust_remote_code: true
-max_memory : null
-half: true
+max_memory: null
+trust_remote_code: True
+finetune: 1
+optimizer:
+  lr: 2.0e-05
+  module: torch.optim.Adam
+load_in_8bit: False
+max_sequence_length: 256
+tag: null
+load: false
+
 shortcuts:
 
   oa.pythia.12b: OpenAssistant/oasst-sft-1-pythia-12b

@@ -424,8 +424,8 @@ class Subspace(c.Module):
         network: str = network,
         refresh: bool = False,
         update: bool = False,
-        serve: bool = True,
         tag_seperator: str = '::',
+        **extra_kwargs
 
     ) -> bool:
         
@@ -446,6 +446,8 @@ class Subspace(c.Module):
             name = f'{name}{tag_seperator}{tag}'
 
         c.print(f"Registering {name} on {network} with {subnet} subnet")
+        kwargs.update(extra_kwargs)
+        
         c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port, refresh=refresh)
         address = c.namespace(network='local').get(name, '0.0.0.0:8888')
         key = self.resolve_key(key if key != None else name)
@@ -607,7 +609,6 @@ class Subspace(c.Module):
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
-        prompt: bool = False,
         network : str = network,
         key = None
 
@@ -1381,30 +1382,30 @@ class Subspace(c.Module):
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
-    def my_key_info_map(self, netuid=None, **kwargs):
+
+    def key_stats(self, netuid=None,  include_stake_to=False, r **kwargs):
         key_info_map = {}
         for key in self.my_keys(netuid=netuid):
-            key_info_map[key] = self.key_info(key, netuid=netuid, **kwargs)
+            key_info_map[key] = self.key_info(key, netuid=netuid, include_stake_to=include_stake_to, **kwargs)
         return key_info_map
-    def my_key_infos(self, netuid=None, **kwargs):
-        return list(self.my_key_info_map(netuid=netuid, **kwargs).values())
-
         
-    def key_info(self, key, netuid=None, fmt='j', cache = True,  **kwargs):
+    def key_info(self, key, netuid=None, fmt='j', cache = True, include_stake_to=True,  **kwargs):
         
         
         netuid = self.resolve_netuid(netuid)
-        module = self.key2module(key=key,netuid=netuid)
+        module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
         stake = module.get('stake', 0)
-        balance = self.balance(self.key)
-        stake_modules = self.get_staked_modules(key ,netuid=netuid)
+        balance = self.balance(self.key, fmt=fmt)
         key_info = {
                     'balance': balance, 
                     'address': self.key2address(key), 
-                    'stake': self.format_amount(stake, fmt=fmt),
+                    'stake': stake,
                     'module': module.get('name', None), 
-                    'stake_to': stake_modules
                     }
+        
+        if include_stake_to:
+            key_info['stake_to'] =  self.get_staked_modules(key ,netuid=netuid, fmt=fmt)
+
 
         return key_info
 
@@ -2510,6 +2511,7 @@ class Subspace(c.Module):
                 registered_keys += [address2key[k_addr]]
                 
         return registered_keys
+    reged = registered_keys
     def most_valuable_key(self, netuid = None, **kwargs):
         modules = self.my_modules(netuid=netuid, **kwargs)
         most_valuable_value = 0
