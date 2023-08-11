@@ -316,7 +316,9 @@ class TransformerModel(Model):
         config = cls.get_config(kwargs=kwargs)
         config.tag = tag
         config.model = model
-        c.print(config)
+        config.pop('shortcuts', None)
+        c.print(f'Deploying {cls.module_path()} :')
+        c.print(c.munch2dict(config))
         c.serve(module=cls.module_path(),
                 name= f'model.{model}',
                 tag = tag,

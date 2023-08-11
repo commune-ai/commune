@@ -758,7 +758,7 @@ class c:
         config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
 
-        # add the config attributes to the class
+        # add the config attributes to the class (via munch -> dict -> class )
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
@@ -5478,11 +5478,24 @@ class c:
     get_network = resolve_network
     @classmethod
     def set_network(cls, network:str):
+        old_network = cls.get_network()
         assert network in ['subspace', 'local'], f'Network must be one of {["subspace", "local"]}'
         c.put('network', network)
-        return network
-
+        new_network = cls.get_network()
+        return {'success': True, 'msg': f'from {old_network} -> {new_network}'}
+    
     setnet = set_network
+
+    @classmethod
+    def switch_network(cls):
+        network = cls.get_network()
+        if network == 'subspace':
+            network = 'local'
+        else:
+            network = 'subspace'
+        return cls.set_network(network)
+
+    switchnet = switch_network
     
     @classmethod
     def get_network(self):
