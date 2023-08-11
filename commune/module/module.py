@@ -750,11 +750,15 @@ class c:
         Set the config as well as its local params
         '''
         kwargs = kwargs if kwargs != None else {}
+
+        # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
         kwargs = c.locals2kwargs(kwargs)
             
-
+        # get the config
         config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
 
+
+        # add the config attributes to the class
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
@@ -830,7 +834,10 @@ class c:
         flat_config.update(args.__dict__)
         config = flat2deep(flat_config)
         return config
-
+    @classmethod
+    def gradio(self, *args, **kwargs):
+        return c.module('gradio')(*args, **kwargs)
+    
     @classmethod
     def st(cls, module = None, fn='dashboard'):
         module = c.module(module)
@@ -847,6 +854,7 @@ class c:
                 return fn(*args, **kwargs)
         
         return wrapper
+        
     @staticmethod
     def st_load_css(*args, **kwargs):
         c.module('streamlit').load_css(*args, **kwargs)
@@ -2379,8 +2387,8 @@ class c:
         while not cls.server_exists(name, network=network):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
-            c.print(f'Waiting for server {name} to start... {time_waiting} seconds', end='\r')
-
+            c.print(f'\n Waiting for server {name} to start... {time_waiting} seconds \n ', end='\r')
+            c.print(c.logs(name, mode='local'))
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
@@ -2573,7 +2581,8 @@ class c:
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
-            return cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
+            cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
+            return name
 
         if update:
             c.update()
@@ -2600,6 +2609,8 @@ class c:
         if wait_for_server:
             c.print('Waiting for server to start', color='yellow')
             cls.wait_for_server(name=name)
+
+        return name
 
     serve_module = serve
     @classmethod
@@ -3229,11 +3240,10 @@ class c:
             for m in ['out','error']:
                 path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
+                    text += f'{m.upper()} LOGS:\n'
                     text =  c.get_text(path, start_line=start_line, end_line=end_line)
                 except Exception as e:
-                    text = 'No logs found'
-                if len(text) > 0:
-                    break
+                    continue
 
             return text
         elif mode == 'cmd':
@@ -6961,7 +6971,7 @@ class c:
     @classmethod
     def register(cls, *args, **kwargs):
         return c.module('subspace')().register(*args, **kwargs)
-    
+    reg = register
     @classmethod
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)

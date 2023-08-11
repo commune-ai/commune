@@ -399,11 +399,9 @@ class Subspace(c.Module):
             trial_count += 1
         return name
     
-    def register_fleet(self, module:str, **kwargs):
-        modules = c.servers(module, network='local' )
-
-        for m in modules:
-            self.register(module=m, **kwargs)
+    def regfleet(self, module,  tag='altman' , n=10 , **kwargs):
+        for i in range(n):
+            self.register(module=module, tag=f'{tag}_{i}', **kwargs)
         return {'success':True, 'message':'registered fleet', 'modules':modules}
         
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -420,9 +418,8 @@ class Subspace(c.Module):
         key : str  = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
-        port = None,
         network: str = network,
-        refresh: bool = False,
+        refresh: bool = True,
         sync: bool = True,
         tag_seperator: str = '::',
         **extra_kwargs
@@ -436,21 +433,19 @@ class Subspace(c.Module):
         kwargs = kwargs if kwargs is not None else {}
         args = args if args is not None else []
 
+        tag = None
         if tag_seperator in module:
+            assert len(module.split(tag_seperator)) == 2, f'Invalid module name {module} with tag seperator {tag_seperator}'
             module, tag = module.split(tag_seperator)
-
-        # create a unique name
-        if name == None:
-            name = module
+        name = module + (tag_seperator + tag) if tag != None else module 
         if tag != None:
-            name = f'{name}{tag_seperator}{tag}'
+            kwargs['tag'] = tag
 
         c.print(f"Registering {name} on {network} with {subnet} subnet")
         kwargs.update(extra_kwargs)
-        
-        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port, refresh=refresh)
+        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, refresh=refresh)
         c.wait_for_server(name)
-        address = c.namespace(network='local').get(name, '0.0.0.0:8888')
+        address = c.namespace(network='local').get(name)
         key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
 
@@ -494,6 +489,7 @@ class Subspace(c.Module):
 
             
 
+    reg = register
 
 
     def transfer_many(self, key:str, dests:List[str], amounts:List[float], **kwargs):
@@ -2244,6 +2240,12 @@ class Subspace(c.Module):
             cls.add_node(node=node, **kwargs)
 
     @classmethod
+    def add_node_fleet(cls, n=100, chain=chain, vali=False):
+        for i in range(n):
+            node = f'node{i}'
+            cls.add_node(node=node, chain=chain, vali=vali)
+
+    @classmethod
     def run_node(cls, node, chain=chain): 
         node_info = cls.node_info(node=node, chain=chain)
         cls.getc('network')
@@ -2292,6 +2294,12 @@ class Subspace(c.Module):
 
     @classmethod
     def rm_node(cls, node='bobby',  chain=chain): 
+        cls.rmc(f'chain_info.{chain}.{node}')
+        return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
+
+
+    @classmethod
+    def rm_nodes(cls, node='bobby',  chain=chain): 
         cls.rmc(f'chain_info.{chain}.{node}')
         return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
 
@@ -2427,7 +2435,10 @@ class Subspace(c.Module):
 
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
        
-
+    @classmethod
+    def node_exists(cls, node:str, chain:str=chain):
+        return node in cls.nodes(chain=chain)
+        
 
     @classmethod
     def release_exists(cls):
@@ -2618,6 +2629,9 @@ class Subspace(c.Module):
         return {k:v for k,v in  cls.node_keys(chain=chain).items()}
     
 
+    @classmethod
+    def node_key_exists(cls, node='alice', chain=chain):
+        return len(cls.get_node_key_paths(node=node, chain=chain)) > 0
     @classmethod
     def add_node_key(cls,
                      node = 'alice',

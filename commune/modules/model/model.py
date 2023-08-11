@@ -40,10 +40,9 @@ class Model( nn.Module, commune.Module):
                 ):
         
         
-        self.init_model(model)
+        self.init_model(self)
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
-        self.set_model(config)
 
     @property
     def tag(self):
@@ -102,10 +101,8 @@ class Model( nn.Module, commune.Module):
 
         else:
             raise NotImplementedError(optimizer)
-        
 
         optimizer_class = self.import_object(module_path) 
-
         self.optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
         
         self.config['optimizer'] = {
