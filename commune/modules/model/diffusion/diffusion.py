@@ -1,5 +1,6 @@
 import commune as c
 from diffusers import DiffusionPipeline
+import torch
 class DiffisionPipeline(c.Module):
     def __init__(self, config=None, **kwargs):
         config =  self.set_config(config=config, kwargs=kwargs)
@@ -15,17 +16,6 @@ class DiffisionPipeline(c.Module):
         )
         self.base.to(self.config.device)
 
-        self.refiner = DiffusionPipeline.from_pretrained(
-            model,
-            text_encoder_2=self.base.text_encoder_2,
-            vae=self.base.vae,
-            torch_dtype=torch.float16,
-            use_safetensors=True,
-            variant=self.config.variant,
-        )
-        self.refiner.to(self.config.device)
-
-    
     def generate(self, 
                 prompt: str = "A majestic lion jumping from a big stone at night",
                 n_steps: int =40,
@@ -43,11 +33,7 @@ class DiffisionPipeline(c.Module):
                 denoising_end=high_noise_frac,
                 output_type=output_type,
             ).images
-            # image = self.refiner(
-            #     prompt=prompt,
-            #     num_inference_steps=n_steps,
-            #     init_image=image,
-            # ).images[0]
+
 
             return images
 
