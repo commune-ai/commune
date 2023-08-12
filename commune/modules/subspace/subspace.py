@@ -45,7 +45,7 @@ class Subspace(c.Module):
     network = default_config['network']
     chain = network
     url = network2url[network]
-    subnet = default_config['subnet']
+    default_subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
     chain_release_path = eval(default_config['chain_release_path'])
     spec_path = eval(default_config['spec_path'])
@@ -404,64 +404,47 @@ class Subspace(c.Module):
             self.register(module=module, tag=f'{tag}_{i}', **kwargs)
         return {'success':True, 'message':'registered fleet', 'modules':modules}
         
+
+
+    def register_servers(self, **kwargs):
+        for m in c.servers(network='local'):
+            self.register(module=m, **kwargs)
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
-        module:str,  
-        args : list = None,
-        kwargs : dict = None,
-        tag:str = None,
+        module: str , # defaults to module.tag
         stake : int = None,
-        name: str = None, # defaults to module.tag
-        address: str = None,
-        subnet: str = subnet,
+        subnet: str = None,
         key : str  = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         network: str = network,
-        refresh: bool = True,
         sync: bool = True,
-        tag_seperator: str = '::',
-        **extra_kwargs
 
     ) -> bool:
-        
+
+        if subnet == None:
+            subnet = self.config.subnet
+
         if sync:
             c.sync()
         
         network =self.resolve_network(network)
-        kwargs = kwargs if kwargs is not None else {}
-        args = args if args is not None else []
-
-        tag = None
-        if tag_seperator in module:
-            assert len(module.split(tag_seperator)) == 2, f'Invalid module name {module} with tag seperator {tag_seperator}'
-            module, tag = module.split(tag_seperator)
-        name = module + (tag_seperator + tag) if tag != None else module 
-        if tag != None:
-            kwargs['tag'] = tag
-
-        c.print(f"Registering {name} on {network} with {subnet} subnet")
-        kwargs.update(extra_kwargs)
-        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, refresh=refresh)
-        c.wait_for_server(name)
-        address = c.namespace(network='local').get(name)
-        key = self.resolve_key(key if key != None else name)
         netuid = self.get_netuid_for_subnet(subnet)
+        address = c.namespace(network='local').get(module, '0.0.0.0::50051')
+        key = self.resolve_key(key if key != None else module)
 
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
         if self.is_registered(key, netuid=netuid):
-            return self.update_module(module=name, address=address , netuid=netuid, network=network)
-
+            return self.update_module(module=module, address=address , netuid=netuid, network=network)
         else:
-            assert name not in self.namespace(netuid=netuid), f"Name {name} already exists in namespace {netuid}"
-
+            assert module not in self.namespace(netuid=netuid), f"Name {module} already exists in namespace {netuid}"
         # Attempt to register
         call_params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
-                    'name': name.encode('utf-8'),
+                    'name': module.encode('utf-8'),
                     'stake': stake,
                 } 
         
@@ -483,7 +466,7 @@ class Subspace(c.Module):
             
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Success[/green]")
-            return {'success': True, 'message': 'Successfully registered module {} with address {}'.format(name, address)}
+            return {'success': True, 'message': f'Successfully registered module {module} with address {address}'}
         else:
             return {'success': False, 'message': response.error_message}
 
@@ -510,12 +493,11 @@ class Subspace(c.Module):
         amount: float , 
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
-        prompt: bool = False,
-        keep_alive: bool = True,
         network : str = None,
     ) -> bool:
         key = c.get_key(key)
         network = self.resolve_network(network)
+
 
 
         # Validate destination address.
@@ -600,47 +582,46 @@ class Subspace(c.Module):
     #################
     def update_module(
         self,
-        module: str  = None,
+        module: str,
+        # params from here
         name: str = None,
         address: str = None,
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         network : str = network,
-        key = None
 
     ) -> bool:
-        self.update()   
         self.resolve_network(network)
-
-        # module is the same name as the key 
-        if key == None:
-            key = self.resolve_key(module)
+        key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-
         module_info = self.get_module(module)
+
         if name == module_info['name'] and address == module_info['address']:
             c.print(":cross_mark: [red]Module already registered[/red]:[bold white]\n  {}[/bold white]".format(module))
-            return False
+            return {'success': False, 'message': 'Module already registered'}
 
-        if name == None:
-            name = module_info['name']
 
-        if address == None:
-            address = module_info['address']
+        params = {
+            'name': name,
+            'address': address,
+        }
+        for k, v in params.items():
+            if v == None:
+                params[k] = module_info[k]
 
-        
-            
-        local_namespace = c.namespace(network='local')
-        if name in local_namespace:
-            address = local_namespace[name]
+        params['netuid'] = netuid
+        namespace_local = c.namespace(network='local')
+        if name in namespace_local:
+            address = namespace_local[name]
 
         with self.substrate as substrate:
             call_params =  {'address': address,
                             'name': name,
                             'netuid': netuid,
                         }
-            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white]',call_params)
+            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white] \n\n {call_params}')
+            
             call = substrate.compose_call(
                 call_module='SubspaceModule',
                 call_function='update_module',
@@ -651,12 +632,12 @@ class Subspace(c.Module):
             if wait_for_inclusion or wait_for_finalization:
                 response.process_events()
                 if response.is_success:
-                    msg = f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{call_params}[/bold white]'
-                    c.print(msg)
+                    msg = 'Updated Module'
+                    c.print(f':white_heavy_check_mark: [green]{msg}[/green]\n  [bold white]{call_params}[/bold white]')
                     return {'success': True, 'msg': msg}
                 else:
-                    msg =  f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}'
-                    c.print(msg)
+                    msg = 'Failed to Serve module'
+                    c.print( f':cross_mark: error: {msg}')
                     return {'success': False, 'msg': msg}
             else:
                 return {'success': True, 'msg': msg}

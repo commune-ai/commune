@@ -9,11 +9,12 @@ import torch
 from torch import nn
 import commune as c
 
+# we are inheriting from the base model class which is a c.Module and a torch.nn.Module
 Model = c.module('model')
-class TransformerModel(Model):
+
+class ModelTransformer(Model):
     default_config = c.config('model.transformer')
     shortcuts = default_config.shortcuts
-    
     def __init__(self,
                  config = None,
                  **kwargs
@@ -98,7 +99,7 @@ class TransformerModel(Model):
         t = c.time()
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,
-                                                            max_mem_alloc=config.max_memory,
+                                                            max_memory=config.max_memory,
                                                             trust_remote_code=config.trust_remote_code,
                                                              offload_folder="offload", torch_dtype=torch.float16) 
 
@@ -106,7 +107,6 @@ class TransformerModel(Model):
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))          
         c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
         self.set_optimizer(config.optimizer)
-        c.print('OPTIMIZER SET -> ', config.optimizer)
         self.set_finetune(config.finetune) 
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:

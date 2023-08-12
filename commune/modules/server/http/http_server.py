@@ -68,6 +68,7 @@ class HTTPServer(c.Module):
         for k in ['module_name', 'module_id', 'name', 'server_name']:
             if k not in module.__dict__:
                 module.__dict__[k] = name
+                
         # register the server
         module.ip = self.ip
         module.port = self.port
@@ -255,6 +256,7 @@ class HTTPServer(c.Module):
         import uvicorn
 
         try:
+            c.print(f'\033🚀 Serving {self.name} on {self.ip}:{self.port} 🚀\033')
             c.register_server(name=self.name, ip=self.ip, port=self.port)
 
             uvicorn.run(self.app, host=c.default_ip, port=self.port)
