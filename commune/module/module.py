@@ -2098,18 +2098,18 @@ class c:
         
         
     @classmethod
-    def remote_namespace(cls,  
+    def namespace_remote(cls,  
                          seperator = '::', 
                          update:bool = False,
                          prefix:bool = 'R')-> dict:
     
         if update:
-            remote_namespace = {}
+            namespace_remote = {}
         else:
-            remote_namespace = c.get('remote_namespace', {})   
+            namespace_remote = c.get('namespace_remote', {})   
         
         remote_modules = c.get('remote_modules', {})
-        remote_namespace.update(remote_modules)
+        namespace_remote.update(remote_modules)
 
         peer_registry = cls.peer_registry(update=update)  
         
@@ -2122,16 +2122,16 @@ class c:
                 if isinstance(peer_namespace, dict):
                     for name, address in peer_namespace.items():
                         if  not address in registered_peer_addresses:
-                            remote_namespace[name+seperator+peer_name] = address
+                            namespace_remote[name+seperator+peer_name] = address
                             registered_peer_addresses.append(peer_address)
                 else:
                     c.print(f'Peer {peer_name} has no namespace', color='red')
         
-        c.put('remote_namespace', remote_namespace)
+        c.put('namespace_remote', namespace_remote)
         
         
 
-        return remote_namespace
+        return namespace_remote
         
         
     @staticmethod
@@ -2200,21 +2200,24 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_namespace_local(cls, verbose:bool = False, chunk_size = 10):
-        import torch # THIS IS A HACK TO AVOID THE _C not found error lol
+    def build_namespace(cls, verbose:bool = False, chunk_size = 10, network='local'):
 
-        used_ports = cls.get_used_ports()
-        ip = c.default_ip
-        addresses = [ f'{ip}:{p}' for p in used_ports]
-        namespace_local = {}
+        if network == 'local':
+            used_ports = cls.get_used_ports()
+            ip = c.default_ip
+            addresses = [ f'{ip}:{p}' for p in used_ports]
+            namespace_local = {}
 
 
-        for i in range(0, len(addresses), chunk_size):
-            chunk = addresses[i:i+chunk_size]
-            names = c.gather([cls.async_get_peer_name(address) for address in chunk])
-            for i in range(len(names)):
-                if isinstance(names[i], str):
-                    namespace_local[names[i]] = addresses[i]
+            for i in range(0, len(addresses), chunk_size):
+                chunk = addresses[i:i+chunk_size]
+                names = c.gather([cls.async_get_peer_name(address) for address in chunk])
+                for i in range(len(names)):
+                    if isinstance(names[i], str):
+                        namespace_local[names[i]] = addresses[i]
+        elif network == 'remote':
+            namespace_local = {}
+
         return namespace_local
             
                 
@@ -2426,7 +2429,7 @@ class c:
         
         global_namespace = {
             **cls.namespace_local(),
-            **cls.remote_namespace()
+            **cls.namespace_remote()
         }
         
         return global_namespace
