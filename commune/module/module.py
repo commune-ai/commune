@@ -1875,7 +1875,7 @@ class c:
 
     @classmethod
     def get_server_info(cls,name:str) -> Dict:
-        return cls.local_namespace().get(name, {})
+        return cls.namespace_local().get(name, {})
 
     @classmethod
     def connect(cls, *args, **kwargs):
@@ -2200,51 +2200,50 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_local_namespace(cls, verbose:bool = False, chunk_size = 10):
+    def build_namespace_local(cls, verbose:bool = False, chunk_size = 10):
         import torch # THIS IS A HACK TO AVOID THE _C not found error lol
 
         used_ports = cls.get_used_ports()
         ip = c.default_ip
         addresses = [ f'{ip}:{p}' for p in used_ports]
-        local_namespace = {}
+        namespace_local = {}
 
 
         for i in range(0, len(addresses), chunk_size):
             chunk = addresses[i:i+chunk_size]
             names = c.gather([cls.async_get_peer_name(address) for address in chunk])
-            address2name = dict(zip(chunk, names))
             for i in range(len(names)):
                 if isinstance(names[i], str):
-                    local_namespace[names[i]] = addresses[i]
-        return local_namespace
+                    namespace_local[names[i]] = addresses[i]
+        return namespace_local
             
                 
     @classmethod
-    def local_namespace(cls, verbose:bool = False, update=False, **kwargs)-> dict:
+    def namespace_local(cls, verbose:bool = False, update=False, **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
-        it will register itself with the local_namespace dictionary.
+        it will register itself with the namespace_local dictionary.
         '''
 
-        local_namespace = c.get('local_namespace', {}) # get local namespace from redis
-        modules = list(local_namespace.keys()) # list of modules in local namespace
+        namespace_local = c.get('namespace_local', {}) # get local namespace from redis
+        modules = list(namespace_local.keys()) # list of modules in local namespace
 
         if update : 
         
-            local_namespace = c.build_local_namespace()
-            c.put('local_namespace', local_namespace)
+            namespace_local = c.build_namespace_local()
+            c.put('namespace_local', namespace_local)
             
-        local_namespace = {k:v for k,v in local_namespace.items()}
+        namespace_local = {k:v for k,v in namespace_local.items()}
 
-        return local_namespace
+        return namespace_local
     
     @classmethod
     def rename_server(cls, name:str, new_name:str) -> Dict:
-        local_namespace = cls.local_namespace()
-        local_namespace[new_name] = local_namespace.pop(name)
-        cls.put_json(path='local_namespace', data=local_namespace, root=True) 
-        return {new_name:local_namespace[new_name]}
+        namespace_local = cls.namespace_local()
+        namespace_local[new_name] = namespace_local.pop(name)
+        cls.put_json(path='namespace_local', data=namespace_local, root=True) 
+        return {new_name:namespace_local[new_name]}
     
     rename = rename_module = rename_server
     
@@ -2264,24 +2263,24 @@ class c:
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int = None,  **kwargs)-> dict:
-        local_namespace = cls.local_namespace(update=False)    
+        namespace_local = cls.namespace_local(update=False)    
 
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
             ip = ip.split(':')[0]
-        local_namespace[name] = f'{ip}:{port}'
-        cls.put_json('local_namespace', local_namespace, root=True) 
-        return local_namespace
+        namespace_local[name] = f'{ip}:{port}'
+        cls.put_json('namespace_local', namespace_local, root=True) 
+        return namespace_local
 
 
     
     @classmethod
     def deregister_server(cls, name: str)-> dict:
-        local_namespace = c.local_namespace()    
+        namespace_local = c.namespace_local()    
         
-        local_namespace.pop(name, None)
-        cls.put_json('local_namespace', local_namespace, root=True) 
-        return local_namespace
+        namespace_local.pop(name, None)
+        cls.put_json('namespace_local', namespace_local, root=True) 
+        return namespace_local
   
   
     @classmethod
@@ -2382,7 +2381,7 @@ class c:
         
         start_time = cls.time()
         time_waiting = 0
-        cls.local_namespace()
+        cls.namespace_local()
 
         while not cls.server_exists(name, network=network):
             cls.sleep(sleep_interval)
@@ -2426,7 +2425,7 @@ class c:
     def global_namespace(cls, update=False) -> Dict:
         
         global_namespace = {
-            **cls.local_namespace(),
+            **cls.namespace_local(),
             **cls.remote_namespace()
         }
         
@@ -2470,13 +2469,13 @@ class c:
         network = cls.resolve_network(network)
         
         if isinstance(search, str) :
-            if hasattr(cls, f'{search}_namespace'):
+            if hasattr(cls, f'namespace_{search}'):
                 network = search
                 search = None
         else:
             search = None
 
-        namespace_fn = getattr(cls, f'{network}_namespace')
+        namespace_fn = getattr(cls, f'namespace_{network}')
         namespace = namespace_fn(update=update, **kwargs)        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
@@ -2499,21 +2498,16 @@ class c:
     
     @classmethod
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
+        
+        # module::tag name format
+        if module == None:
+            module = cls.module_path()
         if name == None:
-            if module == None:
-                module = cls 
-            if isinstance(module, str):
-                module = c.module(module)
-            if hasattr(module, 'module_path'):
-                name = module.module_path()
-            else:
-                name = module.__name__
-
-                
-        assert name != None, f'Could not resolve name for module {module}'
-
+            assert isinstance(module, str), f'Invalid module {module}'
+            name = module
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
+        assert isinstance(name, str), f'Invalid name {name}'
         return name
     resolve_name = resolve_server_name
     
@@ -2534,109 +2528,69 @@ class c:
         return whitelist
     wl = whitelist
     bl = blacklist = []
-    
 
-    
-    
     @classmethod
     def serve(cls, 
               module:Any = None ,
-              # name related
               name:str=None, 
               tag:str=None,
-              args:list = None,  # args for the module
               kwargs:dict = None,  # kwargs for the module
-              # networking 
-              ip:str=None, 
-              port:int=None ,
-              address: str = None,
               refresh:bool = True, # refreshes the server's key
-              whitelist:List[str] = None, # list of addresses that can connect to the server
-              blacklist:List[str] = None, # list of addresses that cannot connect to the server
               wait_for_server:bool = False, # waits for the server to start before returning
-              verbose:bool = False, # prints out information about the server
               remote:bool = True, # runs the server remotely (pm2, ray)
-              update: bool = False,
-              mode:str = server_mode,
+              server_mode:str = server_mode,
               tag_seperator:str='::',
               **extra_kwargs
               ):
-        '''
-
-        
-        
-        Servers the module on a specified port
-        '''
-        kwargs  = kwargs if kwargs else {}
-        args = args if args else []
-
-        # resolve name
-        if isinstance(module, str) and tag_seperator in module:
+        kwargs = kwargs or {}
+        if tag_seperator in module:
             module, tag = module.split(tag_seperator)
-
-        name = cls.resolve_server_name(module=module, name=name, tag=tag)
-
-        tag = None
-
+            
+        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
+        c.print(f'Serving {module} as {name}', color='yellow')
+        
         if remote:
+
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
+            c.print(remote_kwargs)
             cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
             return name
 
-        if update:
-            c.update()
-        if address != None:
-            ip = address.split(':')[0]
-            port = int(address.split(':')[-1])
-        
         module_class = cls.resolve_module(module)
         
         kwargs.update(extra_kwargs)
-        self = module_class(*args, **kwargs)
+        self = module_class(**kwargs)
 
         if c.server_exists(name, network='local'): 
             if refresh:
-                if verbose:
-                    c.print(f'Stopping existing server {name}', color='yellow')
+                c.print(f'Stopping existing server {name}', color='yellow')
                 c.kill(name)
-            else: 
-                
+            else:  
                 raise Exception(f'The server {name} already exists')
-        
-
-        server = c.module(f'server.{mode}')(module=self, ip=ip, port=port,name= name,whitelist=whitelist,blacklist=blacklist)
-        if wait_for_server:
-            c.print('Waiting for server to start', color='yellow')
-            cls.wait_for_server(name=name)
-
-        return name
+            
+        c.print(self)
+        server = c.module(f'server.{server_mode}')(module=self, name= name)
+        return self.server_name
 
     serve_module = serve
     @classmethod
-    def functions(cls, search = None, 
-                  include_module=True):
-        functions = cls.get_functions(include_module=include_module)  
-
+    def functions(cls, search: str=None , include_parents:bool = False):
+        functions = cls.get_functions(include_parents=include_parents)  
         functions = list(set(functions))
-        
-
         if isinstance(search, str):
             functions = [f for f in functions if search in f]
-            
         return functions
 
     fns = functions
-        
-
-
+    
     @classmethod
-    def get_function_signature_map(cls, obj=None, include_module:bool = False):
+    def get_function_signature_map(cls, obj=None, include_parents:bool = False):
         function_signature_map = {}
         if isinstance(obj, str):
             obj = c.module(obj)
         obj = obj if obj else cls
-        for f in cls.get_functions(obj = obj, include_module=include_module):
+        for f in cls.get_functions(obj = obj, include_parents=include_parents):
             if f.startswith('__') and f.endswith('__'):
                 if f in ['__init__']:
                     pass
@@ -2650,18 +2604,18 @@ class c:
     
         return function_signature_map
     @property
-    def function_signature_map(self, include_module:bool = False):
-        return self.get_function_signature_map(obj=self, include_module=include_module)
+    def function_signature_map(self, include_parents:bool = False):
+        return self.get_function_signature_map(obj=self, include_parents=include_parents)
     
     @property
-    def function_default_map(self):
-        return self.get_function_default_map(obj=self, include_module=False)
+    def function_default_map(self, include_parents=False):
+        return self.get_function_default_map(obj=self, include_parents=False)
         
     @classmethod
-    def get_function_default_map(cls, obj:Any= None, include_module:bool=True) -> Dict[str, Dict[str, Any]]:
+    def get_function_default_map(cls, obj:Any= None, include_parents=False) -> Dict[str, Dict[str, Any]]:
         obj = obj if obj else cls
         default_value_map = {}
-        function_signature = cls.get_function_signature_map(obj=obj,include_module=include_module)
+        function_signature = cls.get_function_signature_map(obj=obj,include_parents=include_parents)
         for fn_name, fn in function_signature.items():
             default_value_map[fn_name] = {}
             if fn_name in ['self', 'cls']:
@@ -2754,7 +2708,7 @@ class c:
                                 search = None,
                                 code : bool = False,
                                 docs: bool = False,
-                                include_module:bool = True,
+                                include_parents:bool = True,
                                 defaults:bool = False,):
         
         obj = obj if obj else cls
@@ -2763,7 +2717,7 @@ class c:
             obj = c.module(obj)
             
         function_schema_map = {}
-        for fn in cls.get_functions(obj, include_module=include_module):
+        for fn in cls.get_functions(obj, include_parents=include_parents):
                
             if search != None :
                 if search not in fn:
@@ -3141,9 +3095,16 @@ class c:
     
     
     @classmethod
-    def register(cls, *args, **kwargs):
-        return c.module('subspace')().register(*args,**kwargs)
-    
+    def register(cls, module:str = 'model.openai', 
+                 tag = None, 
+                 name:str = None, 
+                 subnet:str = 'commune',
+                 **kwargs ):
+        subspace = c.module('subspace')()
+        name = cls.serve(module=module, tag=tag, name=name, wait_for_server=True, **kwargs)
+        c.print(name)
+        # return subspace.register(name, subnet=subnet)
+    reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         output_list = []
@@ -5522,9 +5483,6 @@ class c:
     @classmethod
     def update(cls, 
                network: str = None,
-               verbose:bool = True,
-               namespace: bool = True,
-               module_tree: bool = True,
                ):
         
         # update local namespace
@@ -6659,7 +6617,6 @@ class c:
 
     @classmethod
     def get_functions(cls, obj: Any = None,
-                      include_module:bool = True, 
                       include_parents:bool=False, 
                       include_hidden:bool = False) -> List[str]:
         '''
@@ -6676,14 +6633,20 @@ class c:
         
         if isinstance(obj, str):
             obj = c.module(obj)
-        
-        if cls.is_root_module(obj):
-            include_module = True
-        
-        
+    
         functions = []
         parent_functions = [] 
-        for fn_name in dir(obj):
+
+        if include_parents:
+            dir_list = dir(obj)
+        else:
+            # this only has atrributes for the child class
+            dir_list = obj.__dict__.keys()
+
+        for fn_name in dir_list:
+            fn_obj = getattr(obj, fn_name)
+            if not callable(fn_obj):
+                continue
             
             # skip hidden functions if include_hidden is False
             if (include_hidden==False) and (fn_name.startswith('__') and fn_name.endswith('__')):
@@ -6703,17 +6666,7 @@ class c:
             # if the function is callable, include it
             if callable(getattr(obj, fn_name)):
                 functions.append(fn_name)
-                
-        if not include_module:
-            module_functions = c.get_functions(obj=c)
-            new_functions = []
-            for f in functions:
-                if f == '__init__':
-                    new_functions.append(f)
-                if f not in module_functions:
-                    new_functions.append(f)
-            functions = new_functions
-            
+                            
             
         return functions
 
@@ -6996,10 +6949,6 @@ class c:
     
     ## SUBSPACE FNS
     
-    @classmethod
-    def register(cls, *args, **kwargs):
-        return c.module('subspace')().register(*args, **kwargs)
-    reg = register
     @classmethod
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)

@@ -7,13 +7,12 @@ import commune as c
 
 class BitAPAI(c.Module):
     def __init__(self,  config=None,  **kwargs):
-        self.set_config(config=config, kwargs=kwargs)
+        config = self.set_config(config=config, kwargs=kwargs)
         self.conn = http.client.HTTPSConnection(self.config.host)
-        self.set_api_key(api_key=self.config.api_key)
+        self.set_api_key(api_key=config.api_key)
 
     def set_api_key(self, api_key:str):
         self.api_key = api_key
-
 
     def build_payload(self, text: str, history:list):
         payload = [
@@ -35,7 +34,7 @@ class BitAPAI(c.Module):
         return payload
     
     
-    def forward( self, text:str , api:str = None, history:list=None): 
+    def forward( self, text:str , api_key:str = None, history:list=None): 
         api_key = api_key if api_key != None else self.api_key
         # build payload
         payload = self.build_payload(text=text, history=history)
@@ -44,7 +43,7 @@ class BitAPAI(c.Module):
         'Content-Type': 'application/json',
         'X-API-KEY': api_key
         }
-        self.conn.request("POST", "/v1/conversation", payload, headers)
+        self.conn.request("POST", "/text", payload, headers)
         res = self.conn.getresponse()
         data = json.loads(res.read().decode("utf-8"))
         if 'assistant' not in data:
