@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "finetuning-suite"
+version = "0.1.1"
+description = "A fine-tuning suite based on Transformers and LoRA."
+authors = ["Kye Gomez <kye@apac.ai>"]
+license = "MIT"  
+
+[tool.poetry.dependencies]
+python = "^3.7"
+torch = "*" 
+transformers = "*" 
+datasets = "*" 
+peft = "*"  
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

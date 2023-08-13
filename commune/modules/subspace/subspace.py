@@ -45,7 +45,7 @@ class Subspace(c.Module):
     network = default_config['network']
     chain = network
     url = network2url[network]
-    subnet = default_config['subnet']
+    default_subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
     chain_release_path = eval(default_config['chain_release_path'])
     spec_path = eval(default_config['spec_path'])
@@ -74,6 +74,7 @@ class Subspace(c.Module):
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
         url =  cls.getc(f'chain_info.{network}.url', [])
         assert len(url) > 0, f'No url found for {network}'
+
         if isinstance(url, list):
             return c.choice(url)
         elif isinstance(url, str):
@@ -375,7 +376,7 @@ class Subspace(c.Module):
     
     def update(self):
         # self.modules(cache=False)
-        pass
+        self.sync()
 
 
     @classmethod
@@ -399,52 +400,50 @@ class Subspace(c.Module):
             trial_count += 1
         return name
     
+    def regfleet(self, module,  tag='altman' , n=10 , **kwargs):
+        for i in range(n):
+            self.register(module=module, tag=f'{tag}_{i}', **kwargs)
+        return {'success':True, 'message':'registered fleet', 'modules':modules}
+        
 
+
+    def register_servers(self, **kwargs):
+        for m in c.servers(network='local'):
+            self.register(module=m, **kwargs)
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
-        module:str,  
-        args : list = None,
-        kwargs : dict = None,
-        tag:str = None,
+        name: str , # defaults to module.tag
         stake : int = None,
-        name: str = None, # defaults to module.tag
-        address: str = None,
-        subnet: str = subnet,
+        subnet: str = None,
         key : str  = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
-        port = None,
         network: str = network,
-        refresh: bool = False,
-        update: bool = False,
+        sync: bool = True,
 
     ) -> bool:
         
-        if update:
-            self.update()
+        assert name != None, f"Module name must be provided"
+
+        if subnet == None:
+            subnet = self.config.subnet
+
+        if sync:
+            c.sync()
         
-        network = self.resolve_network(network)
-        kwargs = kwargs if kwargs is not None else {}
-        args = args if args is not None else []
-        
-        # create a unique name
-        name = c.resolve_server_name(module=module, name=name, tag=tag)
-        c.print(f"Registering {name} on {network} with {subnet} subnet")
-        c.serve(module=module, address=address, name=name, kwargs=kwargs, args=args, port=port)
-        c.wait_for_server(name)
-        address = c.namespace(network='local').get('name')
-        key = self.resolve_key(key if key != None else name)
+        network =self.resolve_network(network)
         netuid = self.get_netuid_for_subnet(subnet)
+        address = c.namespace(network='local').get(name, '0.0.0.0:50051')
+        if self.is_registered(name, netuid=netuid):
+            return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+        else:
+            assert name not in self.namespace(netuid=netuid), f"Name {name} already exists in namespace {netuid}"
+        # Attempt to register
+
+        key = self.resolve_key(name)
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
-        if self.is_registered(key, netuid=netuid):
-            return self.update_module(module=name, address=address , netuid=netuid, network=network)
-
-        else:
-            assert name not in self.namespace(netuid=netuid)
-
-        # Attempt to register
         call_params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
@@ -470,12 +469,22 @@ class Subspace(c.Module):
             
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Success[/green]")
-            return {'success': True, 'message': 'Successfully registered module {} with address {}'.format(name, address)}
+            return {'success': True, 'message': f'Successfully registered module {module} with address {address}'}
         else:
             return {'success': False, 'message': response.error_message}
 
             
 
+    reg = register
+
+
+    def transfer_many(self, key:str, dests:List[str], amounts:List[float], **kwargs):
+        for dest, amount in zip(dests, amounts):
+            if c.key_exists(dest):
+                c.print(f"Destination {dest} is a key, resolving to address")
+                dest = c.get_key(dest).ss58_address
+            c.print(f"Transferring {amount} to {dest}")
+            self.transfer(key=key, dest=dest, amount=amount, **kwargs)
 
     ##################
     #### Transfer ####
@@ -487,12 +496,11 @@ class Subspace(c.Module):
         amount: float , 
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
-        prompt: bool = False,
-        keep_alive: bool = True,
         network : str = None,
     ) -> bool:
         key = c.get_key(key)
         network = self.resolve_network(network)
+
 
 
         # Validate destination address.
@@ -575,45 +583,48 @@ class Subspace(c.Module):
     #################
     #### Serving ####
     #################
-    def update_module (
+    def update_module(
         self,
-        module: str  = None,
-        address: str = None,
+        module: str,
+        # params from here
         name: str = None,
+        address: str = None,
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
-        prompt: bool = False,
         network : str = network,
 
     ) -> bool:
-        self.update()   
         self.resolve_network(network)
-
-        # module is the same name as the key 
         key = self.resolve_key(module)
         netuid = self.resolve_netuid(netuid)  
-
         module_info = self.get_module(module)
 
-        if name == None:
-            name = module_info['name']
+        if name == module_info['name'] and address == module_info['address']:
+            c.print(":cross_mark: [red]Module already registered[/red]:[bold white]\n  {}[/bold white]".format(module))
+            return {'success': False, 'message': 'Module already registered'}
 
-        if address == None:
-            address = module_info['address']
 
-            
-        local_namespace = c.namespace(network='local')
-        if name not in local_namespace:
-            self.serve()
-            return {'success': False, 'message': f"Module {name} not found in local namespace, please deploy it with c.serve "}
-        
+        params = {
+            'name': name,
+            'address': address,
+        }
+        for k, v in params.items():
+            if v == None:
+                params[k] = module_info[k]
+
+        params['netuid'] = netuid
+        namespace_local = c.namespace(network='local')
+        if name in namespace_local:
+            address = namespace_local[name]
+
         with self.substrate as substrate:
             call_params =  {'address': address,
                             'name': name,
                             'netuid': netuid,
                         }
-            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white]',call_params)
+            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white] \n\n {call_params}')
+            
             call = substrate.compose_call(
                 call_module='SubspaceModule',
                 call_function='update_module',
@@ -624,12 +635,12 @@ class Subspace(c.Module):
             if wait_for_inclusion or wait_for_finalization:
                 response.process_events()
                 if response.is_success:
-                    msg = f':white_heavy_check_mark: [green]Updated Module[/green]\n  [bold white]{call_params}[/bold white]'
-                    c.print(msg)
+                    msg = 'Updated Module'
+                    c.print(f':white_heavy_check_mark: [green]{msg}[/green]\n  [bold white]{call_params}[/bold white]')
                     return {'success': True, 'msg': msg}
                 else:
-                    msg =  f':cross_mark: [green]Failed to Serve module[/green] error: {response.error_message}'
-                    c.print(msg)
+                    msg = 'Failed to Serve module'
+                    c.print( f':cross_mark: error: {msg}')
                     return {'success': False, 'msg': msg}
             else:
                 return {'success': True, 'msg': msg}
@@ -707,7 +718,17 @@ class Subspace(c.Module):
             else:
                 return True
 
+    def get_unique_tag(self, module, **kwargs):
+        name = module
+        servers = self.servers(**kwargs)
+        cnt = 0
+        tag = ''
+        while name in servers:
+            name = name + tag
+            cnt += 1
+            tag = str(cnt)
 
+        return tag
 
     def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None):
         if module_key == None:
@@ -733,7 +754,6 @@ class Subspace(c.Module):
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
-        c.print(key)
         netuid = self.resolve_netuid(netuid)
 
         # Flag to indicate if we are using the wallet's own hotkey.
@@ -863,6 +883,17 @@ class Subspace(c.Module):
                 block_hash = None if block == None else substrate.get_block_hash(block)
                 )
 
+
+    def stake_from(self, netuid = None):
+        netuid  = self.resolve_netuid(netuid)
+        return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeFrom', netuid)}
+    
+    def stake_to(self, netuid = None):
+        netuid  = self.resolve_netuid(netuid)
+        return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeTo', netuid)}
+
+
+
     """ Queries subspace map storage with params and block. """
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def query_map( self, name: str, 
@@ -958,7 +989,7 @@ class Subspace(c.Module):
     """ Returns network Tempo hyper parameter """
     def subnet_stake(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
         netuid = self.resolve_netuid( netuid )
-        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid, )}
+        return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
 
     """ Returns the stake under a coldkey - hotkey pairing """
     
@@ -975,9 +1006,9 @@ class Subspace(c.Module):
             key_ss58 = key_ss58.ss58_address
         return key_ss58
     @classmethod
-    def resolve_key(cls, key):
+    def resolve_key(cls, key, create:bool = True):
         if isinstance(key, str):
-            if not c.key_exists( key ):
+            if not c.key_exists( key ) and create:
                 c.add_key( key)
             key = c.get_key( key )
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
@@ -1006,20 +1037,41 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid( netuid )
         return self.format_amount(self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value, fmt=fmt)
 
-    def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
+
+    def get_staked_modules(self, key : str , netuid=None, **kwargs) -> Optional['Balance']:
+        modules = self.modules(netuid=netuid, **kwargs)
+        key_address = self.resolve_key_ss58( key )
+        staked_modules = {}
+        for module in modules:
+            for k,v in module['stake_from']:
+                if k == key_address:
+                    staked_modules[module['name']] = v
+
+        return staked_modules
+        
+
+    def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , return_names = False) -> Optional['Balance']:
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
         c.print(f"Getting stake for [bold white]{key_address}[/bold white] on network [bold white]{netuid}[/bold white] at block [bold white]{block}[/bold white].")
         stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeTo', block, [netuid, key_address] )]
 
+
+
         if to_key is not None:
             to_key_address = self.resolve_key_ss58( to_key )
             stake_to ={ k:v for k, v in stake_to}.get(to_key_address, 0)
         return stake_to
     
-    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
+
+    def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
+        stake_from = self.get_stake_from(key=key, block=block, netuid=netuid, fmt=fmt)
+        key2module = self.key2module(netuid=netuid)
+        return {key2module[k]['name'] : v for k,v in stake_from}
         
+    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
+        key2module = self.key2module(netuid=netuid)
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
         state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeFrom', block, [netuid, key] )]
@@ -1182,19 +1234,21 @@ class Subspace(c.Module):
     def load(self, network:str=None, save:bool = False):
         network = self.resolve_network(network)
         state_dict = {}
-        state_dict = self.get(f'archive/{network}/state', state_dict)
+        state_dict = self.get(f'archive/{network}/state', state_dict, cache=False)
         return state_dict
     
 
     def state_dict(self, network=network, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
-
+        block = self.block
         cache_path = f'state_dict/{network}'
         # cache and update are mutually exclusive 
         state_dict = {}
         if cache and not update:
             c.print('Loading state_dict from cache', verbose=verbose)
-            state_dict = self.get(cache_path, {})
+            state_dict = self.get(cache_path, {}, cache=cache)
             c.print(f'Loaded state_dict from cache {cache_path}', verbose=verbose)
+
+        
         if len(state_dict) == 0:
             netuids = self.netuids()
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
@@ -1205,7 +1259,8 @@ class Subspace(c.Module):
                         }
         if cache:
             c.print(f'Saving state_dict to {cache_path}', verbose=verbose)
-            self.put(cache_path, state_dict)
+            self.put(cache_path, state_dict, cache=cache)
+            self.put(f'{cache_path}.block-{self.block}', state_dict, cache=cache)
 
         if key in state_dict:
             return state_dict[key]
@@ -1299,7 +1354,7 @@ class Subspace(c.Module):
 
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         key_address = self.resolve_key_ss58( key )
-        key_addresses = self.keys(netuid=netuid, block=block)
+        key_addresses = self.keys(netuid=netuid)
         if key_address in key_addresses:
             return True
         else:
@@ -1308,6 +1363,37 @@ class Subspace(c.Module):
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
+
+    def key_stats(self, netuid=None,  include_stake_to=False, **kwargs):
+        key_info_map = {}
+        for key in self.my_keys(netuid=netuid):
+            key_info_map[key] = self.key_info(key, netuid=netuid, include_stake_to=include_stake_to, **kwargs)
+        return key_info_map
+        
+    def key_info(self, key, netuid=None, fmt='j', cache = True, include_stake_to=True,  **kwargs):
+        
+        
+        netuid = self.resolve_netuid(netuid)
+        module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
+        stake = module.get('stake', 0)
+        balance = self.balance(self.key, fmt=fmt)
+        key_info = {
+                    'balance': balance, 
+                    'address': self.key2address(key), 
+                    'stake': stake,
+                    'module': module.get('name', None), 
+                    }
+        
+        if include_stake_to:
+            key_info['stake_to'] =  self.get_staked_modules(key ,netuid=netuid, fmt=fmt)
+
+
+        return key_info
+
+        
+    
+
+        
 
     def get_current_block(self, network=None) -> int:
         r""" Returns the current block number on the chain.
@@ -1428,7 +1514,7 @@ class Subspace(c.Module):
         cache_path = f'archive/{network}/subnet_namespace'
         subnet_namespace = {}
         if cache:
-            cached_subnet_namespace = self.get(cache_path, None, max_age= max_age)
+            cached_subnet_namespace = self.get(cache_path, None, max_age= max_age, cache=cache)
             if cached_subnet_namespace != None :
                 return cached_subnet_namespace
             
@@ -1462,20 +1548,22 @@ class Subspace(c.Module):
         return subnet2netuid
         
 
-    def resolve_netuid(self, netuid: int = None, subspace_namespace:str=None) -> int:
+    def resolve_netuid(self, netuid: int = None, namespace:dict=None) -> int:
 
-        
-        if isinstance(netuid, str):
-            # If the netuid is a subnet name, resolve it to a netuid.
-            if subspace_namespace == None:
-                subspace_namespace = self.subnet_namespace
-            assert netuid in subspace_namespace, f"Subnet {netuid} not found in {subspace_namespace} for chain {self.chain}"
-            netuid = subspace_namespace[netuid]
-            
         if netuid == None:
             # If the netuid is not specified, use the default.
             netuid = self.default_netuid
-            return netuid
+
+        if isinstance(netuid, str):
+            # If the netuid is a subnet name, resolve it to a netuid.
+            if namespace == None:
+                namespace = self.subnet_namespace
+            assert netuid in namespace, f"Subnet {netuid} not found in {namespace} for chain {self.chain}"
+            netuid = namespace[netuid]
+        elif isinstance(netuid, int):
+            # If the netuid is an integer, ensure it is valid.
+            assert netuid in self.netuids(), f"Netuid {netuid} not found in {self.netuids()} for chain {self.chain}"
+            
         assert isinstance(netuid, int), "netuid must be an integer"
         return netuid
     
@@ -1561,20 +1649,20 @@ class Subspace(c.Module):
         
         
         
-    def key2module(self, key: str = None, netuid: int = None) -> Dict[str, str]:
-        modules = self.modules(netuid=netuid)
+    def key2module(self, key: str = None, netuid: int = None, default: dict =None, **kwargs) -> Dict[str, str]:
+        modules = self.modules(netuid=netuid, **kwargs)
         key2module =  { m['key']: m for m in modules }
         
         if key != None:
             key_ss58 = self.resolve_key_ss58(key)
-            return key2module[key_ss58]
+            return  key2module.get(key_ss58, default if default != None else {})
         return key2module
         
     def module2key(self, module: str = None, **kwargs) -> Dict[str, str]:
         modules = self.modules(**kwargs)
         module2key =  { m['name']: m['key'] for m in modules }
         
-        if module != module:
+        if module != None:
             return module2key[module]
         return module2key
     
@@ -1587,9 +1675,8 @@ class Subspace(c.Module):
         
 
     
-        
-    def server_exists(self, module:str, netuid: int = None, namespace = None, **kwargs) -> bool:
-        namespace = self.namespace(netuid=netuid, **kwargs)
+    
+    def server_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
         return bool(module in self.namespace(netuid=netuid, **kwargs))
 
     def default_module_info(self, **kwargs):
@@ -1619,12 +1706,11 @@ class Subspace(c.Module):
                 netuid: int = default_netuid,
                 fmt='nano', 
                 cache:bool = True,
-                max_age: int = 60,
                 network = network,
                 keys = None,
                 update = False,
                 include_weights = False,
-                names_only:bool = False,
+                names_only = False,
                 df = False,
                 
                 ) -> Dict[str, ModuleInfo]:
@@ -1649,6 +1735,7 @@ class Subspace(c.Module):
             incentive = self.incentive(netuid=netuid)
             dividends = self.dividends(netuid=netuid)
             stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
+            stake_from = self.stake_from(netuid=netuid)
             balances = self.balances()
             
             if include_weights:
@@ -1669,7 +1756,7 @@ class Subspace(c.Module):
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
-                    
+                    'stake_from': stake_from.get(key, []),
                 }
                 
                 if include_weights:
@@ -1691,16 +1778,19 @@ class Subspace(c.Module):
             if isinstance(keys, str):
                 keys = [keys]
             keys = list(set(keys))
-            for i, m in enumerate(modules):
-                modules[i] ={k: m[k] for k in keys}
-            for module in modules:
+            for i, module in enumerate(modules):
+                modules[i] ={k: module[k] for k in keys}
+ 
+
                 for k in ['balance', 'stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
+
                 for k in ['incentive', 'dividends']:
                     if module[k] > 1:
-                        module[k] = module[k] / (2**16)
+                        module[k] = module[k] / (U16_MAX)
+                module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
+                modules[i] = module
 
- 
         if df:
             modules = c.df(modules)
 
@@ -1957,10 +2047,8 @@ class Subspace(c.Module):
             spec_path =chain_spec_path.replace('.json', '_raw.json')
         cmd += f' > {chain_spec_path}'
         c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
-        # add vali nodes
-        
-        cls.add_node_keys(chain=chain, nodes=list(cls.node_keys(chain).keys()))
-        vali_node_keys = cls.vali_node_keys(chain)
+        # add vali nodes        
+        vali_node_keys = cls.vali_node_keys(chain=chain)
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         # TODO, have custom votes per grandpa node
@@ -2102,13 +2190,13 @@ class Subspace(c.Module):
     @classmethod
     def nonvali_nodes(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
-        return [node_info['node'] for node_info in chain_info.values() if node_info['validator'] == False]
+        return [node_info['node'] for node_info in chain_info['nodes'].values() if node_info['validator'] == False]
 
     @classmethod
     def vali_nodes(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
         c.print(chain_info.keys())
-        return [node_info['node'] for node_info in chain_info.values() if node_info['validator'] == True]
+        return [node_info['node'] for node_info in chain_info['nodes'].values() if node_info['validator'] == True]
 
 
     @classmethod
@@ -2137,6 +2225,12 @@ class Subspace(c.Module):
     def add_nodes(cls, *nodes, **kwargs):
         for node in nodes:
             cls.add_node(node=node, **kwargs)
+
+    @classmethod
+    def add_node_fleet(cls, n=100, chain=chain, vali=False):
+        for i in range(n):
+            node = f'node{i}'
+            cls.add_node(node=node, chain=chain, vali=vali)
 
     @classmethod
     def run_node(cls, node, chain=chain): 
@@ -2192,30 +2286,42 @@ class Subspace(c.Module):
 
 
     @classmethod
+    def rm_nodes(cls, node='bobby',  chain=chain): 
+        cls.rmc(f'chain_info.{chain}.{node}')
+        return {'success':True, 'msg': f'removed node_info for {node} on {chain}'}
+
+
+    @classmethod
     def get_boot_nodes(cls, chain=chain):
         return cls.getc('chain_info.{chain}.boot_nodes')
 
     @classmethod
+    def start_nodes(self, node='node', n=10, chain=chain, **kwargs):
+        nodes = self.nodes(chain=chain)
+        for node in nodes:
+            self.start_node(node=node, chain=chain, **kwargs)
+
+
+
+
+    @classmethod
     def start_node(cls,
-                 node : str = 'alice',
+                 node : str,
                  chain:int = network,
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
                  telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
-                 validator: bool = False,          
                  purge_chain:bool = False,
-                 refresh:bool = True,
+                 refresh:bool = False,
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
-                 mode :str = server_mode,
+                 server_mode :str = server_mode,
                  rpc_cors = 'all',
-
+                 validator:bool = False,
                  
                  ):
-
-    
 
         ip = c.ip()
 
@@ -2270,7 +2376,7 @@ class Subspace(c.Module):
 
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
-        if mode == 'pm2':
+        if server_mode == 'pm2':
             # 
             cmd = c.pm2_start(path=cls.chain_release_path, 
                             name=name,
@@ -2278,11 +2384,11 @@ class Subspace(c.Module):
                             refresh=refresh,
                             verbose=verbose)
             
-        elif mode == 'local':
+        elif server_mode == 'local':
             cmd = cmd + cmd_kwargs
             c.cmd(cmd)
             
-        elif mode == 'docker':
+        elif server_mode == 'docker':
 
 
             # we need to change the mapping of the cache path to the inner path
@@ -2306,12 +2412,12 @@ class Subspace(c.Module):
                                         run=False, 
                                         daemon=False)
         else: 
-            raise Exception(f'unknown mode {mode}')
+            raise Exception(f'unknown mode {server_mode}')
         
         
         if validator:
             # ensure you add the node to the chain_info if it is a bootnode
-            node_id = cls.get_node_id(node=node, chain=chain, mode=mode)
+            node_id = cls.get_node_id(node=node, chain=chain, mode=server_mode)
             chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
         else:
             # ensure to add the node to the network2url if it is not a validator
@@ -2322,7 +2428,10 @@ class Subspace(c.Module):
 
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
        
-
+    @classmethod
+    def node_exists(cls, node:str, chain:str=chain, mode:str='nonvali'):
+        return node in cls.nodes(chain=chain, mode=mode)
+        
 
     @classmethod
     def release_exists(cls):
@@ -2334,13 +2443,13 @@ class Subspace(c.Module):
     def start_chain(cls, 
                     chain:str=chain, 
                     verbose:bool = False,
-                    num_nonvali : int = 3,
                     build_runtime: bool = False,
                     build_spec: bool = True,
                     purge_chain:bool = True,
                     build_snapshot:bool = False,
                     refresh: bool = True,
-
+                    max_vali_nodes:int = 10,
+                    max_nonvali_nodes:int = 16,
                     port_keys: list = ['port','rpc_port','ws_port'],
                     
                     ):
@@ -2353,16 +2462,9 @@ class Subspace(c.Module):
         if build_runtime or build_spec:
             cls.build(chain=chain, verbose=verbose, build_snapshot=build_snapshot, build_runtime=build_runtime, build_spec=build_spec)
     
-        # resolve the validator and non validator nodes
-        node_keys = cls.node_keys(chain=chain)
-        nodes = list(node_keys.keys())
-        if len(nodes) == 0:
-            cls.add_node_keys(chain=chain)
-            node_keys = cls.vali_node_keys(chain=chain)
-            nodes = list(node_keys.keys())
+        vali_nodes = list(cls.vali_node_keys(chain=chain).keys())[:max_nonvali_nodes]
+        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())[:max_vali_nodes]
 
-        non_valis = nodes[-num_nonvali:]
-        vali_nodes = nodes[:-num_nonvali]
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
         # refresh the chain info
@@ -2370,7 +2472,7 @@ class Subspace(c.Module):
 
         avoid_ports = []
 
-        for node in (vali_nodes + non_valis):
+        for node in (vali_nodes + nonvali_nodes):
             c.print(f'Starting node {node} for chain {chain}')
             node_kwargs = {
                             'chain':chain, 
@@ -2386,36 +2488,68 @@ class Subspace(c.Module):
                 avoid_ports.append(port)
                 node_kwargs[k] = port
             
-            cls.start_node(**node_kwargs)
+            cls.start_node(**node_kwargs, refresh=refresh)
 
        
     @classmethod
     def gen_key(cls, *args, **kwargs):
         return c.module('key').gen(*args, **kwargs)
-        
-    
-    
-
-
     
 
     def keys(self, netuid = None, **kwargs):
         netuid = self.resolve_netuid(netuid)
-        return [r[1].value for r in self.query_map('Keys', netuid, **kwargs)]
+        return [m['key'] for m in self.modules(netuid=netuid, **kwargs)]
     
     def registered_keys(self, netuid = None, **kwargs):
-        key_addresses = self.keys(netuid=netuid, **kwargs)
+        keys = self.keys(netuid=netuid, **kwargs)
         address2key = c.address2key()
-        registered_keys = {}
-        for k_addr in key_addresses:
+        registered_keys = []
+        for k_addr in keys:
             if k_addr in address2key:
-                registered_keys[address2key[k_addr]] = k_addr
-                
+                registered_keys += [address2key[k_addr]]
         return registered_keys
 
+    def registered_servers(self, netuid = None, network = network,  **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        network = self.resolve_network(network)
+        servers = c.servers('local')
+        registered_keys = []
+        for s in servers:
+            if self.is_registered(s, netuid=netuid):
+                registered_keys += [s]
+        return registered_keys
+                
+    def unregistered_servers(self, netuid = None, network = network,  **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        network = self.resolve_network(network)
+        servers = c.servers('local')
+        registered_keys = self.registered_servers(netuid=netuid, network=network)
+        return [s for s in servers if s not in registered_keys]
     reged = registered_keys
-    
-    
+    def most_valuable_key(self, netuid = None, **kwargs):
+        modules = self.my_modules(netuid=netuid, **kwargs)
+        most_valuable_value = 0
+        most_valuable_key = None
+        address2key = c.address2key()
+        for m in modules:
+            value = m['stake'] + m['balance']
+            if value > most_valuable_value:
+                most_valuable_value  = value
+                most_valuable_key = address2key[m['key']]
+        return most_valuable_key
+
+    def most_staked_key(self, netuid = None,  **kwargs):
+        modules = self.my_modules(netuid=netuid, **kwargs)
+        most_staked_value = 0
+        most_staked_key = None
+        address2key = c.address2key()
+        for m in modules:
+            if m['stake'] > most_staked_value:
+                most_staked_value = m['stake']
+                most_staked_key = address2key[m['key']]
+        return most_staked_key
+
+    reged = registered_keys
     
 
     def query_subnet(self, key, netuid = None, network=None, **kwargs):
@@ -2446,37 +2580,77 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls, chain=chain,nodes = None,  ):
-        if nodes == None:
-            nodes = cls.getc('nodes')
+    def add_node_keys(cls,  valis:int=16, nonvalis:int=16, chain:str=chain, refresh:bool=True ):
 
-        c.print(f'Adding node keys for {nodes} nodes')
-        for node in nodes:
-            cls.add_node_key(node=node, chain=chain)
+        if refresh:
+            cls.rm_node_keys(chain=chain)
+
+        for i in range(valis):
+            cls.add_node_key(node=i,  mode='vali' , chain=chain, refresh=refresh)
+        for i in range(nonvalis):
+            cls.add_node_key(node=i,  mode='nonvali' , chain=chain, refresh=refresh)
+
+    def num_vali_keys(self, chain=chain):
+        return len(self.vali_node_keys(chain=chain))
+
+    @classmethod
+    def num_node_keys(cls, mode='all', chain=chain):
+        if mode == 'vali':
+            keys = cls.vali_node_keys(chain=chain)
+        elif mode == 'nonvali':
+            keys = cls.nonvali_node_keys(chain=chain)
+        elif mode == 'all':
+            keys = cls.node_keys(chain=chain)
+        else:
+            raise ValueError(f'Unknown mode {mode}, must be one of vali, nonvali, all')
+
+        return len(keys)
 
     node_key_prefix = 'subspace.node'
+    
     @classmethod
-    def nodes(cls,chain=chain):
-        return list(set([k.split('.')[-2] for k in c.keys(f'{cls.node_key_prefix}.{chain}')]))
+    def rm_node_keys(cls,chain=chain):
+        for key in cls.node_key_paths(chain=chain):
+            c.print(f'removing node key {key}')
+            c.rm_key(key)
+        return {'success':True, 'message':'removed all node keys', 'chain':chain, 'keys_left':cls.node_keys(chain=chain)}
     
     @classmethod
     def vali_node_key2address(cls,chain=chain):
         key2address =  c.key2address(f'{cls.node_key_prefix}.{chain}')
         return key2address
     @classmethod
-    def resolve_node_key_path(cls, node='alice', chain=chain, mode='gran'):
-        return f'{cls.node_key_prefix}.{chain}.{node}.{mode}'
+    def resolve_node_key_path(cls, node='alice', mode='vali',chain=chain, tag_seperator='_'):
+        return f'{cls.node_key_prefix}.{chain}.{mode}{tag_seperator}{node}'
 
     @classmethod
-    def get_node_key(cls, node='alice', chain=chain):
-        return {mode:c.get_key(cls.resolve_node_key_path(node=node, chain=chain, mode=mode)) for mode in ['gran', 'aura']}
+    def random_node_key(cls, mode='vali', chain=chain):
+        return c.choice(cls.node_keys(mode=mode, chain=chain))
+
+    @classmethod
+    def resolve_node_key(cls, node=None, mode='vali', chain=chain):
+        if node == None:
+            cls.vali_node_keys(chain)
+        
+        return 
+
+    @classmethod
+    def get_node_key(cls, node='alice', chain=chain, mode='vali'):
+        if not cls.node_exists(node=node, chain=chain, mode=mode):
+            cls.add_node_key(node=node, mode=mode, chain=chain)
+        
+        key_path = cls.resolve_node_key_path(node=node, mode=mode, chain=chain)
+        keys = c.keys(key_path)
+        return keys
     
     @classmethod
     def get_node_key_paths(cls, node='alice', chain=chain):
         return c.keys(f'{cls.node_key_prefix}.{chain}') 
 
+    
+
     @classmethod
-    def get_node_keys(cls,chain=chain):
+    def node_keys(cls,chain=chain, mode = 'all'):
         vali_node_keys = {}
         for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
             name = key_name.split('.')[-2]
@@ -2487,22 +2661,62 @@ class Subspace(c.Module):
             vali_node_keys[name][role] =  key.ss58_address
         return vali_node_keys
 
-    node_keys = get_node_keys
+    @classmethod
+    def nodes(cls, mode='all', chain=chain):
+        nodes = list(cls.node_keys(chain=chain).keys())
+
+        if mode == 'vali':
+            nodes = [n for n in nodes if n.startswith('vali')]
+        elif mode == 'nonvali':
+            nodes = [n for n in nodes if n.startswith('nonvali')]
+        elif mode == 'all':
+            pass
+        else:
+            raise ValueError(f'Unknown mode {mode}, must be one of vali, nonvali, all')
+
+        return nodes
+
+    @classmethod
+    def vali_nodes(cls, chain=chain):
+        return cls.nodes(mode='vali', chain=chain)
+
+    @classmethod
+    def nonvali_nodes(cls, chain=chain):
+        return cls.nodes(mode='nonvali', chain=chain)
+
     node_key = get_node_key
     node_key_paths = get_node_key_paths
 
 
     @classmethod
     def vali_node_keys(cls,chain=chain):
-        return {k:v for k,v in  cls.node_keys(chain=chain).items()}
+        return {k:v for k,v in  cls.node_keys(chain=chain).items() if k.startswith('vali')}
+    
+    @classmethod
+    def nonvali_node_keys(self,chain=chain):
+        return {k:v for k,v in  self.node_keys(chain=chain).items() if k.startswith('nonvali')}
     
 
     @classmethod
+    def node_key_exists(cls, node='alice', chain=chain):
+        return len(cls.get_node_key_paths(node=node, chain=chain)) > 0
+    @classmethod
     def add_node_key(cls,
-                     node = 'alice',
-                     chain = chain):
+                     node:str,
+                     mode: str = 'nonvali',
+                     chain = chain,
+                     tag_seperator = '_', 
+                     refresh: bool = False,):
         
         cmds = []
+
+        assert mode in ['vali', 'nonvali'], f'Unknown mode {mode}, must be one of vali, nonvali'
+        node = str(node)
+
+        c.print(f'adding node key {node} for chain {chain}')
+
+        node = c.copy(f'{mode}{tag_seperator}{node}')
+
 
         for key_type in ['gran', 'aura']:
 
@@ -2510,8 +2724,10 @@ class Subspace(c.Module):
                 schema = 'Ed25519'
             elif key_type == 'aura':
                 schema = 'Sr25519'
-        
-            key = c.get_key(f'{cls.node_key_prefix}.{chain}.{node}.{key_type}',crypto_type=schema)
+
+            key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
+            key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
+
             base_path = cls.resolve_base_path(node=node, chain=chain)
 
             cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
@@ -2521,7 +2737,7 @@ class Subspace(c.Module):
         for cmd in cmds:
             c.cmd(cmd, verbose=True, cwd=cls.chain_path)
 
-        return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain)}
+        return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain, mode=mode)}
 
 
 
@@ -2562,7 +2778,8 @@ class Subspace(c.Module):
                 node_path = node2path[node]
                 node_logs = c.module('docker').logs(node_path)
             elif mode == 'pm2':
-                node_logs = c.logs(node_path, end_line=400, mode='local')
+                node_logs = c.logs(node_path, start_line = 0 , end_line=400, mode='local')
+                c.print(node_logs)
 
             if indicator in node_logs:
                 break
@@ -2760,8 +2977,8 @@ class Subspace(c.Module):
             # version 0 does not have weights
             max_allowed_weights = 100
             snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
-      
-  
+
+
 
 if __name__ == "__main__":
     Subspace.run()

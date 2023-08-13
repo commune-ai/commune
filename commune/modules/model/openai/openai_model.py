@@ -15,19 +15,14 @@ class OpenAILLM(c.Module):
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
-                 password:str='whadupfam',
-                 tag : str = None,
-                 load: bool = True,
-                 save: bool = True,
-                 api_key: str = None,
-                **kwargs
+                 **kwargs
                 ):
         
         
-        config = self.set_config(config, kwargs=locals())
-        self.set_tag(tag)
+        config = self.set_config(config, kwargs=kwargs)
+        self.set_tag(config.tag)
         self.set_stats(config.stats)
-        self.set_api_key(api_key)
+        self.set_api_key(config.api_key)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)
         
@@ -41,11 +36,11 @@ class OpenAILLM(c.Module):
                 presence_penalty=self.config.presence_penalty,
         )
         
-        if save:
+        if config.save:
             self.save(tag=self.tag)
 
         
-    def set_stats(self, stats):
+    def set_stats(self, stats: dict):
         if stats == None:
             stats = {}
         assert isinstance(stats, dict)
@@ -146,7 +141,6 @@ class OpenAILLM(c.Module):
             return response
         except Exception as e:
             return {'error': str(e)}
-
             self.params['model'] = c.choice(self.config.models)
 
 
@@ -156,9 +150,8 @@ class OpenAILLM(c.Module):
     def is_success(self, response):
         return not self.is_error(response)
 
-        
-            
-
+    def call(self, text):
+        return self.forward(text, role='user')
         
     def forward(self,
                 *args,
@@ -181,11 +174,10 @@ class OpenAILLM(c.Module):
         api_key = self.resolve_api_key(api_key)
         prompt = self.resolve_prompt(*args, prompt=prompt, **kwargs)
         params = self.resolve_params(locals())
-        messages = [{"role": role, "content": prompt}]
-        response = self.create(messages=messages, **params)
+        response = self.create(messages=[{"role": role, "content": prompt}], **params)
         if self.is_error(response):
             return response
-
+        
         assert 'usage' in response, f"Response must contain usage stats: {response}"
         # update token stats
         for k,v in response['usage'].items():
@@ -203,6 +195,7 @@ class OpenAILLM(c.Module):
         # c.stwrite(self.history)
         return response['content']
 
+    generate = call = forward
     def resolve_params(self, params = None):
         if params == None:
             params = {}
@@ -219,7 +212,6 @@ class OpenAILLM(c.Module):
         return output_params
 
 
-    call = forward
         
         
         
@@ -276,7 +268,7 @@ class OpenAILLM(c.Module):
 
 
     @classmethod
-    def set_api_keys(cls, api_keys, k=api_key_path):
+    def set_api_keys(cls, api_keys: List[str], k: str=api_key_path):
         assert isinstance(api_keys, list)
         cls.put(k, api_keys)
         return {'msg': f'added api_key {api_keys}'}
@@ -334,15 +326,13 @@ class OpenAILLM(c.Module):
     
     @classmethod
     def test(cls,
-            module=None,
-            input = 'What is the meaning of life?',
-            model = 'gpt3.5-turbo'
+            input = 'What is the meaning of life?',**kwargs
     ):
         if module == None:
             module = cls()
 
-        for i in range(10):
-            c.print(module.ask(input))
+
+        c.print(module.ask(input))
 
 
     

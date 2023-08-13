@@ -1,30 +1,11 @@
-import os, sys
-from pprint import pp
-
-from functools import partial
-import asyncio
-from copy import deepcopy
+import os
 from typing import Union, Optional
-from concurrent import futures
-import os, sys
 from typing import *
-from loguru import logger
-import time
-from munch import Munch
-import argparse
 import torch
-import json
 import glob
-
-    
-# import torch
-import commune
-# commune.utils
 from torch import nn
-# commune.new_event_loop()
-from commune.utils.tokenizer import get_translation_map, translate_logits_to_probs_std, \
-    translate_special_token_text, pad_offsets, topk_token_phrases, compact_topk_token_phrases, \
-        encode_topk, decode_topk
+import commune as c
+
  
 """
 Examples fdef
@@ -32,7 +13,7 @@ Examples fdef
 
 
 """
-class Model( nn.Module, commune.Module):
+class Model( nn.Module, c.Module):
 
     def __init__(self,
                  config = None,
@@ -40,10 +21,9 @@ class Model( nn.Module, commune.Module):
                 ):
         
         
-        self.init_model(model)
+        self.init_model(self)
         # sets to self.config (with kwargs injected)
         config = self.set_config(config, kwargs=kwargs)
-        self.set_model(config)
 
     @property
     def tag(self):
@@ -102,16 +82,19 @@ class Model( nn.Module, commune.Module):
 
         else:
             raise NotImplementedError(optimizer)
-        
 
         optimizer_class = self.import_object(module_path) 
-
         self.optimizer = optimizer_class(self.parameters(), **optimizer_kwargs)
         
         self.config['optimizer'] = {
             'module': module_path,
             **optimizer_kwargs,
         }
+        
+        c.print('OPTIMIZER SET -> ', self.config.optimizer)
+
+
+
         
         
     def set_lr(self, lr:float):
@@ -318,8 +301,12 @@ class Model( nn.Module, commune.Module):
         self.load_cnt += 1
         
         map_location = map_location if map_location else self.device
-        tag = tag if tag != None else self.tag
+
+
+        tag = self.resolve_tag(tag)
         path = self.resolve_state_path(tag)
+
+
         if not os.path.exists(path):
             self.print(f'Couldnt find {path}')
             return 
@@ -454,7 +441,7 @@ class Model( nn.Module, commune.Module):
     
     @classmethod
     def resolve_device(cls, device:str = None) -> str:
-        return commune.resolve_device(device=device)
+        return c.resolve_device(device=device)
 
 
 

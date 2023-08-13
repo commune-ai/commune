@@ -1,25 +1,11 @@
-import os, sys
-from pprint import pp
 
-from functools import partial
+from pprint import pp
 import asyncio
 from copy import deepcopy
 from typing import Union, Optional, List
-from concurrent import futures
 import os, sys
 from typing import *
 from loguru import logger
-import time
-import pandas as pd
-
-from munch import Munch
-import argparse
-import torch
-import json
-import random
-
-import streamlit as st
-
 
 # logger = logger.opt(colors=True)
     
@@ -27,12 +13,8 @@ import streamlit as st
 import commune as c
 from torch import nn
 
-from commune.utils.tokenizer import  decode_topk, get_translation_map, encode_topk, prep_tokenizer
-
-
-from torch import nn
 Model = c.module('model')
-class TransformerModel(c.Module):
+class TransformerModel(Model):
     default_config = c.config('model.transformer')
     shortcuts = default_config.shortcuts
     model_options = list(shortcuts.keys()) + list(shortcuts.values())
@@ -43,6 +25,7 @@ class TransformerModel(c.Module):
                  **kwargs
                 ):
         config = self.set_config(config=config, kwargs=kwargs)
+        Model.init_model(self)
         self.set_model(config)
         
 
@@ -246,29 +229,6 @@ class TransformerModel(c.Module):
     def set_model(self, config) -> None: 
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
-        
-        # init pytorch module state
-        self.init_nn()
-        
-        # if we are using a shortcut, we need to set the model path
-        config['model'] = self.shortcuts.get(config.model, config.model)
-        self.set_tokenizer(config.tokenizer)
-
-        config.block_prefix = config.model2block_prefix.get(config.model, config.block_prefix)
-        if config.device_map == None:
-            config.device_map= c.infer_device_map(config.model,
-                                                buffer_memory=config.buffer_memory,
-                                                block_prefix=config.block_prefix)
-            
-        c.print('device map', config.device_map)
-            
-        assert config.device_map is not None, f'could not infer device map for {config.model}'
-        
-
-        model_kwargs=dict(
-
-        )
-        
         c.print('loading model', config.model)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,

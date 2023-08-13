@@ -142,24 +142,6 @@ class Pool(c.Module):
         for  i in range(10):
             self.get()
         # self.kill()
-    @classmethod
-    def get_schema(cls, x):
-        x = cls.munch2dict(x)
-        if isinstance(x,dict):
-            for k,v in x.items():
-                if isinstance(v,dict):
-                    x[k] = cls.get_schema(v)
-                else:
-                    x[k] = type(v)
-        elif type(x) in [list, tuple, set]:
-            x =  list(x)
-            for i,v in enumerate(x):
-                x[i] = cls.get_schema(v)
-        else:
-            x = type(x)
-        
-        return x
-    
 
     
     def default_fn(self,request, **kwargs):
