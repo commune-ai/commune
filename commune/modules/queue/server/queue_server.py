@@ -32,7 +32,7 @@ class QueueServer(c.Module):
     
     def get(self, *args, **kwargs):
         return c.gather(self.async_get(*args, **kwargs))
-    async def async_get(self, key, **kwargs):
+    async def async_get(self, key:str, **kwargs):
         q = self.get_queue(key)
         return q.get(key, **kwargs)
     

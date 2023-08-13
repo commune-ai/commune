@@ -30,26 +30,6 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') #  
     console = Console()
-<<<<<<< HEAD
-    default_key = 'alice'
-    helper_whitelist = ['info', 'schema','server_name']
-    whitelist = []
-    blacklist = []
-    server_mode = 'http'
-    emojis = {
-        'dank': '🔥',
-        'error': '💥',
-        'white': '🕊️',
-        'cool': '😎',
-        'success': '✨',
-        'sad': '😢',
-        'time': '🕒',
-        'count': '🔢',
-        'output': '📤',
-        'input': '📥',
-    }
-    __ss58_format__ = 42
-=======
     helper_whitelist = ['info', 'schema','server_name'] # whitelist of helper functions to load
     whitelist = [] # whitelist of modules to load
     blacklist = [] # blacklist of modules to not load
@@ -57,7 +37,6 @@ class c:
     default_network = 'local' # local, subnet
     cache = {} # cache for module objects
     emojis = {'dank': '🔥','error': '💥','white': '🕊️','cool': '😎','success': '✨','sad': '😢','time': '🕒','count': '🔢','output': '📤','input': '📥'} # the mojis
->>>>>>> 0f19faa2311ebf5cf57daecee11700ea1b62bc6e
 
 
     def __init__(self, config:Dict=None, **kwargs):
