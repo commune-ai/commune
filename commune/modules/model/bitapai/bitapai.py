@@ -9,12 +9,12 @@ class BitAPAI(c.Module):
     def __init__(self,  config=None,  **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         self.conn = http.client.HTTPSConnection(self.config.host)
-        self.set_api_key(api_key=config.api_key)
+        self.api_key=config.api_key
 
-    def set_api_key(self, api_key:str):
-        self.api_key = api_key
-
-
+    @classmethod
+    def set_api_key(cls, api_key:str):
+        assert isinstance(api_key, str)
+        cls.putc('api_key', api_key)
 
     def build_payload(self, text: str, history:list):
 
