@@ -302,7 +302,7 @@ class c:
 
 
     @classmethod
-    def fn_code_map(cls, module=None)-> Dict[str, str]:
+    def fn2code(cls, module=None)-> Dict[str, str]:
         module = module if module else cls
         functions = cls.get_functions(module)
         fn_code_map = {}
@@ -310,7 +310,6 @@ class c:
             fn_code_map[fn] = cls.get_function_code(fn=fn, module=module)
         return fn_code_map
     
-    code_map = fn_code_map
             
     @classmethod
     def get_function_code(cls, 
@@ -1246,10 +1245,9 @@ class c:
                 for conns in proc.connections(kind='inet'):
                     if conns.laddr.port == port:
                         proc.send_signal(signal.SIGKILL) # or SIGKILL
-                        print(f'killed {port}')
             return port
         elif mode == 'bash':
-            return cls.run_command('kill -9 $(lsof -ti:{port})')
+            return c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
 
 
     @classmethod
@@ -2200,24 +2198,21 @@ class c:
             return {'error':str(e)}
 
     @classmethod
-    def build_namespace(cls, verbose:bool = False, chunk_size = 10, network='local'):
+    def build_namespace_local(cls, verbose:bool = False, chunk_size = 10):
 
-        if network == 'local':
-            used_ports = cls.get_used_ports()
-            ip = c.default_ip
-            addresses = [ f'{ip}:{p}' for p in used_ports]
-            namespace_local = {}
+        used_ports = cls.get_used_ports()
+        ip = c.default_ip
+        addresses = [ f'{ip}:{p}' for p in used_ports]
+        namespace_local = {}
 
 
-            for i in range(0, len(addresses), chunk_size):
-                chunk = addresses[i:i+chunk_size]
-                names = c.gather([cls.async_get_peer_name(address) for address in chunk])
-                for i in range(len(names)):
-                    if isinstance(names[i], str):
-                        namespace_local[names[i]] = addresses[i]
-        elif network == 'remote':
-            namespace_local = {}
-
+        for i in range(0, len(addresses), chunk_size):
+            chunk = addresses[i:i+chunk_size]
+            names = c.gather([cls.async_get_peer_name(address) for address in chunk])
+            for i in range(len(names)):
+                if isinstance(names[i], str):
+                    namespace_local[names[i]] = addresses[i]
+        
         return namespace_local
             
                 
@@ -2379,18 +2374,22 @@ class c:
     def wait_for_server(cls,
                           name: str ,
                           timeout:int = 600,
-                          sleep_interval: int = 4, 
+                          sleep_interval: int = 1, 
                           network=None) -> bool :
         
         start_time = cls.time()
         time_waiting = 0
         cls.namespace_local()
-
+        logs = []
         while not cls.server_exists(name, network=network):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
-            c.print(f'\n Waiting for server {name} to start... {time_waiting} seconds \n ', end='\r')
-            c.print(c.logs(name, mode='local'))
+            new_logs = list(set(c.logs(name, mode='local').split('\n')))
+            print_logs = [l for l in new_logs if l not in logs]
+            if len(print_logs) > 0:
+                logs.extend(print_logs)
+                logs = list(set(logs))
+                c.print('\n'.join(print_logs))
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
@@ -2482,6 +2481,8 @@ class c:
         namespace = namespace_fn(update=update, **kwargs)        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
+        if update == False and len(namespace) == 0:
+            namespace = namespace_fn(update=True, **kwargs)
         return namespace
     
 
@@ -2533,48 +2534,63 @@ class c:
     bl = blacklist = []
 
     @classmethod
+    def resolve_tag(cls, tag:str=None, **kwargs):
+        conifg = cls.config()
+        return tag
+
+    @classmethod
     def serve(cls, 
               module:Any = None ,
-              name:str=None, 
               tag:str=None,
+              server_name:str=None, 
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = False, # waits for the server to start before returning
+              wait_for_server:bool = True, # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
               **extra_kwargs
               ):
         kwargs = kwargs or {}
+        kwargs = {**kwargs, **extra_kwargs}
+        extra_kwargs = {}
+
+        if module == None:
+            module = cls.module_path()
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
+
+        module_class = cls.resolve_module(module)
             
-        name = cls.resolve_server_name(module=module, name=name, tag=tag, tag_seperator=tag_seperator)
-        c.print(f'Serving {module} as {name}', color='yellow')
+        server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+        tag = None # set to none so it doesn't get passed to the server
+        c.print(f'Serving {module} as {server_name}', color='yellow')
         
         if remote:
 
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
+            remote_kwargs.pop('module_class') # remove module_class from the kwargs
             c.print(remote_kwargs)
-            cls.remote_fn('serve',name=name, kwargs=remote_kwargs)
-            return name
+            cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
+            if wait_for_server:
+                cls.wait_for_server(server_name)
+            return server_name
 
         module_class = cls.resolve_module(module)
-        
+
         kwargs.update(extra_kwargs)
         self = module_class(**kwargs)
 
-        if c.server_exists(name, network='local'): 
+        if c.server_exists(server_name, network='local'): 
             if refresh:
-                c.print(f'Stopping existing server {name}', color='yellow')
-                c.kill(name)
+                c.print(f'Stopping existing server {server_name}', color='yellow')
+                c.kill(server_name)
             else:  
-                raise Exception(f'The server {name} already exists')
+                raise Exception(f'The server {server_name} already exists')
             
-        c.print(self)
-        server = c.module(f'server.{server_mode}')(module=self, name= name)
-        return self.server_name
+        server = c.module(f'server.{server_mode}')(module=self, name= server_name)
+        return server.server_name
 
     serve_module = serve
     @classmethod
@@ -2657,6 +2673,7 @@ class c:
         if hasattr(self, 'server_name'):
             c.deregister_server(name)
         self.server_name = name
+        c.print(f'Server name set to {name}', color='yellow')
         c.register_server(name, self.address, **kwargs)
         return {'success':True, 'message':f'Server name set to {name}'}
         
@@ -2702,16 +2719,21 @@ class c:
     def peer_info(self) -> Dict[str, Any]:
         self.info()
     @classmethod
-    def schema(cls, search = None, *args,  **kwargs):
+    def schema(cls,search: str = None,
+                    code : bool = False,
+                    docs: bool = False,
+                    include_parents:bool = False,
+                     defaults:bool = False,) -> 'Schema':
 
-        return {k: v for k,v in cls.get_schema(*args,search=search,**kwargs).items()}
+        kwargs = c.locals2kwargs(locals())
+        return {k: v for k,v in cls.get_schema(**kwargs).items()}
     @classmethod
     def get_schema(cls,
                                 obj = None,
                                 search = None,
                                 code : bool = False,
                                 docs: bool = False,
-                                include_parents:bool = True,
+                                include_parents:bool = False,
                                 defaults:bool = False,):
         
         obj = obj if obj else cls
@@ -3098,15 +3120,18 @@ class c:
     
     
     @classmethod
-    def register(cls, module:str = 'model.openai', 
+    def register(cls, 
                  tag = None, 
                  name:str = None, 
                  subnet:str = 'commune',
+                 refresh:bool =False,
                  **kwargs ):
         subspace = c.module('subspace')()
-        name = cls.serve(module=module, tag=tag, name=name, wait_for_server=True, **kwargs)
-        c.print(name)
-        # return subspace.register(name, subnet=subnet)
+    
+        server_name = cls.serve(tag=tag, server_name=name, wait_for_server=True, refresh=refresh, **kwargs)
+        assert server_name != None, 'server_name is None'
+        
+        return subspace.register(server_name, subnet=subnet)
     reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):

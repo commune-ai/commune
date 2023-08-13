@@ -25,7 +25,7 @@ class ModelTransformer(Model):
     
     
     def forward(self,  
-                prompt: Union[str, torch.Tensor], 
+                input_ids: Union[str, torch.Tensor], 
                 attention_mask: torch.Tensor = None,
                 return_keys:List[str] = ['topk', 'hidden_states'],
                 topk:int=32,
@@ -34,10 +34,10 @@ class ModelTransformer(Model):
                 **kwargs):
 
 
-        if isinstance(prompt, str) or isinstance(prompt, list):
-            input_ids = self.tokenize(prompt)['input_ids']
-        elif isinstance(prompt, torch.Tensor):
-            input_ids = prompt
+        if isinstance(input_ids, str) or isinstance(input_ids, list):
+            input_ids = self.tokenize(input_ids)['input_ids']
+        elif isinstance(input_ids, torch.Tensor):
+            input_ids = input_ids
 
         # resolve the max sequence length (sometimes we want to clip the input to make it faster)
         attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
@@ -69,16 +69,16 @@ class ModelTransformer(Model):
         
 
         if output_hidden_states:
-            output['hidden_states'] = output.hidden_states[hidden_layer]
+            output['hidden_states'] = output.hidden_states[hidden_layer].detach()
 
         if output_topk:
-            output['topk']=self.encode_topk(output['logits'], topk=topk)
+            output['topk']=self.encode_topk(output['logits'].detach(), topk=topk)
         return {key:output[key] for key in return_keys}
         
     
     def encode(self, text:str, token_idx:int = None, **kwargs) -> torch.Tensor:
         kwargs['return_keys'] = ['hidden_states']
-        sample = self.tokenize(text)
+        sample  = self.tokenize(text)
         kwargs.update(sample)
         hidden_states = self.forward(**kwargs)['hidden_states']
         if isinstance(token_idx, int):
@@ -317,14 +317,18 @@ class ModelTransformer(Model):
         config.tag = tag
         config.model = model
         config.pop('shortcuts', None)
-        c.print(f'Deploying {cls.module_path()} :')
-        c.print(c.munch2dict(config))
-        c.serve(module=cls.module_path(),
-                name= f'model.{model}',
-                tag = tag,
-                kwargs={'config': config},
-                refresh = refresh,
-                verbose=True, **kwargs)
+        kwargs.update(
+            {
+                'tag': tag,
+                'config': config,
+                'refresh': refresh,
+                'verbose': True,
+                'module': cls.module_path(),
+                'server_name': f'model.{model}'
+            }
+        )
+
+        return c.serve(**kwargs)
         
     @classmethod
     def calculate_loss( cls, logits: torch.Tensor,
