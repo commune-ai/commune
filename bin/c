@@ -2,5 +2,7 @@
 import sys
 import commune
 
-commune.cli(sys.argv[1:])
+if __name__ == '__main__':
+    commune.cli(sys.argv[1:])
+
     

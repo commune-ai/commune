@@ -229,25 +229,39 @@ class StreamlitModule(c.Module):
         for k,v in kwargs.items():
             if v == 'None':
                 v = None
-
-            elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
-                if v.startswith("f'") or v.startswith('f"'):
-                    v = c.ljson(v)
-                elif v.startswith('[') and v.endswith(']'):
-                    v = v
-                elif v.startswith('{') and v.endswith('}'):
-                    v = v
-                else:
-                    v = v
-                
-            elif k == 'kwargs':
-                continue
-            elif v == 'NA':
-                assert k != 'NA', f'Key {k} not in default'
-            else:
-                v = eval(v) 
             
-        kwargs[k] = v
+            if isinstance(v, str):
+                if v.startswith('[') and v.endswith(']'):
+                    if len(v) > 2:
+                        v = eval(v)
+                    else:
+                        v = []
+
+                elif v.startswith('{') and v.endswith('}'):
+
+                    if len(v) > 2:
+                        v = c.jload(v)
+                    else:
+                        v = {}               
+                elif k in fn_schema['input'] and fn_schema['input'][k] == 'str':
+                    if v.startswith("f'") or v.startswith('f"'):
+                        v = c.ljson(v)
+                    else:
+                        v = v
+
+                elif k == 'kwargs':
+                    continue
+                elif v == 'NA':
+                    assert k != 'NA', f'Key {k} not in default'
+                elif v in ['True', 'False']:
+                    v = eval(v)
+                else:
+                    try:
+                        v = eval(v) 
+                    except:
+                        pass
+            
+            kwargs[k] = v
         return kwargs
     
     
@@ -290,7 +304,7 @@ class StreamlitModule(c.Module):
         
         config = module.config(to_munch=False)
         
-        fn_schema = module.schema(defaults=True)[fn]
+        fn_schema = module.schema(defaults=True, include_module=True)[fn]
 
         if fn == '__init__':
             extra_defaults = config

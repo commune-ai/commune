@@ -2,6 +2,7 @@
 from typing import Dict, List, Optional, Union
 import commune as c
 import torch 
+import traceback
 
 
 
@@ -32,7 +33,7 @@ class HTTPServer(c.Module):
         self.timeout = timeout
         self.verbose = verbose
         
-        self.serializer = c.module('server.http.serializer')()
+        self.serializer = c.module('serializer')()
         self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
@@ -64,9 +65,10 @@ class HTTPServer(c.Module):
             name = module.name()
 
         self.name = name
-        for k in ['module_name', 'module_id', 'name']:
+        for k in ['module_name', 'module_id', 'name', 'server_name']:
             if k not in module.__dict__:
                 module.__dict__[k] = name
+                
         # register the server
         module.ip = self.ip
         module.port = self.port
@@ -77,6 +79,7 @@ class HTTPServer(c.Module):
 
         c.print(f'Serving {name} on port {port})', color='yellow')
         self.module.set_server_name(name)
+        self.module.key = self.key
         self.serve()
 
     def set_access(self, access: str) -> None:
@@ -157,8 +160,9 @@ class HTTPServer(c.Module):
             # WARNING : This will not work for infinite loops lol because it will never end
             if c.is_generator(result):
                 result = list(result)
-            
-        # serialize result
+
+        if not isinstance(result, dict):
+            result = {'server_result': result}
         result = self.serializer.serialize(result)
         
         # sign result data (str)
@@ -176,9 +180,16 @@ class HTTPServer(c.Module):
         ip = self.ip if ip == None else ip
         port = self.port if port == None else port
         from fastapi import FastAPI
-        
+        from fastapi.middleware.cors import CORSMiddleware
 
         self.app = FastAPI()
+        self.app.add_middleware(
+                CORSMiddleware,
+                allow_origins=["*"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
 
 
         @self.app.post("/{fn}")
@@ -207,7 +218,17 @@ class HTTPServer(c.Module):
                 result = self.process_result(result)
                 success = True
             except Exception as e:
-                result = {'error': str(e)}
+                tb = traceback.extract_tb(e.__traceback__)
+                file_name = tb[-1].filename
+                line_no = tb[-1].lineno
+                line_text = tb[-1].line
+
+                result = {
+                    'error': str(e),
+                    'file_name': file_name,
+                    'line_no': line_no,
+                    'line_text': line_text
+                }    
                 success = False
                 result = self.process_result(result)
 
@@ -235,6 +256,7 @@ class HTTPServer(c.Module):
         import uvicorn
 
         try:
+            c.print(f'\033🚀 Serving {self.name} on {self.ip}:{self.port} 🚀\033')
             c.register_server(name=self.name, ip=self.ip, port=self.port)
 
             uvicorn.run(self.app, host=c.default_ip, port=self.port)

@@ -24,10 +24,7 @@ fleet:
 shortcuts: 
   pile: EleutherAI/the_pile
   wiki: wikitext 
-  glue': glue
+  glue: glue
   camel_math: camel-ai/math
   mmul_ru: NLPCoreTeam/mmlu_ru
   pubmed_qa: pubmed_qa
-  
-
-datasets: 

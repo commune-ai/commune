@@ -194,9 +194,12 @@ class Keypair(c.Module):
         
         cls.put(path, key_json)
         
-        return key
+        return {'success': True, 'message': f'key added at {path}', 'key': key_json}
     
-
+    @classmethod
+    def rename_key(self, new_path):
+        return self.mv_key(self.path, new_path)
+    
     @classmethod
     def mv_key(cls, path, new_path):
         
@@ -204,17 +207,23 @@ class Keypair(c.Module):
         cls.put(new_path, cls.get_key(path).to_json())
         cls.rm_key(path)
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
-        return cls.get_key(new_path)
+        new_key = cls.get_key(new_path)
+        return {'success': True, 'message': f'key moved from {path} to {new_path}', 'key': new_key}
     
     rename_key = mv_key
     
     @classmethod
     def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
+        response = []
         for i in range(n):
             key_name = f'{name}.{i}'
             if bool == True:
                 c.print(f'generating key {key_name}')
-            cls.add_key(key_name, **kwargs)
+            response.append(cls.add_key(key_name, **kwargs))
+
+        return response
+
+
     add = add_key
     
     @classmethod
@@ -236,12 +245,12 @@ class Keypair(c.Module):
             key_info['path'] = path.replace('.json', '').split('/')[-1]
 
         c.print(key_info)
-        cls.add_key(**key_info)
+        cls.add_key(**key_info) /home/endless/commune/data/keys.json
         return {'status': 'success', 'message': f'key loaded from {path}'}
     
 
     @classmethod
-    def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = True,  **kwargs):
+    def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
         c.print(f'loading keys from {path}', color='green', verbose=verbose)
         key_info_map = c.get_json(path)
         for key_info in key_info_map.values():
@@ -254,7 +263,7 @@ class Keypair(c.Module):
     @classmethod
     def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
         key_info_map = cls.key_info_map()
-        c.put_json(path, key_info_map)
+        cls.put_json(path, key_info_map)
         return {'status': 'success', 'message': f'keys saved to {path}'}
         
     
@@ -328,11 +337,7 @@ class Keypair(c.Module):
     @classmethod
     def get_key_for_address(cls, address, ):
         return cls.address2key().get(address)
-    
-    @classmethod
-    def save_keys(cls):
-        cls.save_keys(cls)
-            
+
     key_storage_path = c.repo_path
 
     
@@ -388,7 +393,7 @@ class Keypair(c.Module):
         
         
     @classmethod
-    def rm_keys(cls, *rm_keys, verbose:bool=False):
+    def rm_keys(cls, rm_keys, verbose:bool=False):
         
         removed_keys = []
         

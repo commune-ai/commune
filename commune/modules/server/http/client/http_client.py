@@ -95,6 +95,8 @@ class Client(c.Module):
             assert self.key.verify(response), f"Response not signed with correct key"
             response['data'] = self.serializer.deserialize(response['data'])
             response = response if full else response['data']
+            if 'server_result' in response:
+                response = response['server_result']
             
         except Exception as e:
             if return_error:
