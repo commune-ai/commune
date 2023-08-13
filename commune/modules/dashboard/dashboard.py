@@ -102,7 +102,6 @@ class Dashboard(commune.Module):
         module_path = module.module_path()
         st.write(f'## Module: {module.module_path()}')
             
-        # function_map =self.module_info['funciton_schema_map'] = self.module_info['object'].get_schema()
         # function_signature = self.module_info['function_signature_map'] = self.module_info['object'].get_function_signature_map()
         module_schema = module.schema(defaults=True)
         
