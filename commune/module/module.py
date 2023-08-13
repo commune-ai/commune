@@ -23,32 +23,22 @@ class c:
     default_port_range = [50050, 50150] 
     user = None
     default_ip = '0.0.0.0'
-    address = None
-    root_path  = root  = os.path.dirname(os.path.dirname(__file__))
-    libpath = os.path.dirname(root_path)
-    modules_path = os.path.join(root_path, 'modules')
-    repo_path  = os.path.dirname(root_path)
-    library_name = libname = lib = root_dir = root_path.split('/')[-1]
-    pwd = os.getenv('PWD')
+    address = '0.0.0.0:8888' # the address of the server
+    root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
+    libpath = os.path.dirname(root_path) # the path to the library
+    modules_path = os.path.join(root_path, 'modules') # the path to the modules folder
+    repo_path  = os.path.dirname(root_path) # the path to the repo
+    library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
+    pwd = os.getenv('PWD') #  
     console = Console()
-    default_key = 'alice'
-    helper_whitelist = ['info', 'schema','server_name']
-    whitelist = []
-    blacklist = []
-    server_mode = 'http'
-    default_network = 'local'
-    emojis = {
-        'dank': '🔥',
-        'error': '💥',
-        'white': '🕊️',
-        'cool': '😎',
-        'success': '✨',
-        'sad': '😢',
-        'time': '🕒',
-        'count': '🔢',
-        'output': '📤',
-        'input': '📥',
-    }
+    helper_whitelist = ['info', 'schema','server_name'] # whitelist of helper functions to load
+    whitelist = [] # whitelist of modules to load
+    blacklist = [] # blacklist of modules to not load
+    server_mode = 'http' # http, grpc, ws (websocket)
+    default_network = 'local' # local, subnet
+    cache = {} # cache for module objects
+    emojis = {'dank': '🔥','error': '💥','white': '🕊️','cool': '😎','success': '✨','sad': '😢','time': '🕒','count': '🔢','output': '📤','input': '📥'} # the mojis
+
 
     def __init__(self, config:Dict=None, **kwargs):
         
@@ -638,6 +628,16 @@ class c:
         config = cls.config()
         config.pop(key, None)
         cls.save_config(config=config)
+
+    @classmethod
+    def hasc(cls, key:str):
+        config = cls.config()
+        return key in config
+
+    @classmethod
+    def keysc(cls):
+        config = cls.config()
+        return list(config.keys())
         
     @classmethod  
     def getc(cls, key, password=None, default= None) -> Any:
@@ -697,16 +697,12 @@ class c:
         kwargs = kwargs if kwargs != None else {}
         kwargs.pop('kwargs', None)
         if isinstance(config, str):
-            try:
-                config = cls.load_config(path=config)
-            except FileNotFoundError as e:
-                config = {}
+            config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
             default_config = cls.load_config()
             default_config.update(config)
             config = default_config
-
         elif config == None:
             config = cls.load_config()
             
@@ -719,7 +715,7 @@ class c:
             cls.dict_put(config,k,v )
         # ensure there are no inner_args to avoid ambiguous args 
     
-        if isinstance(config, Munch) and to_munch:
+        if isinstance(config, Munch) and not to_munch:
             config = cls.munch2dict(config)
         
             
@@ -734,9 +730,6 @@ class c:
     @classmethod
     def cfg(cls, *args, **kwargs):
         return cls.get_config(*args, **kwargs)
-
-
-
 
 
     def set_config(self, 
@@ -2369,6 +2362,18 @@ class c:
     @classmethod
     def module_exists(cls, name:str, **kwargs) -> bool:
         return bool(name in c.modules(**kwargs))
+
+
+    @property
+    def server_name(self):
+        if not hasattr(self, '_server_name'):
+            self._server_name = self.module_path()
+        return self._server_name
+        
+    @server_name.setter
+    def server_name(self, v):
+        self._server_name = v
+        return self._server_name
     
     @classmethod
     def wait_for_server(cls,
@@ -2681,9 +2686,9 @@ class c:
 
         
     def info(self , 
-             include_schema: bool = False,
-             include_namespace:bool = False,
-             include_peers: bool = False) -> Dict[str, Any]:
+             schema: bool = False,
+             namespace:bool = False,
+             peers: bool = False) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
     
@@ -2699,17 +2704,15 @@ class c:
         info['hash'] = c.hash(info)
 
         if hasattr(self, 'key'):
-            
             auth = self.key.sign(info, return_json=True)
             info['signature'] = auth['signature']
             info['ss58_address'] = auth['address']
 
-        if include_peers:
+        if peers:
             info['peers'] = self.peers()
-        # EXTRA FEATURES THAT CAN BE ADDED, BUT ARE NOT INCLUDED BY DEFAULT
-        if include_namespace:
+        if namespace:
             info['namespace'] = c.namespace()
-        if include_schema:
+        if schema:
             info['schema'] = self.schema()
         return info
     
@@ -2750,6 +2753,7 @@ class c:
             fn_obj = getattr(obj, fn )
             if callable(fn_obj):
                 function_schema_map[fn] = cls.get_function_schema(fn, defaults=defaults, code=code, docs=docs)
+                
         return function_schema_map
     
     
@@ -2800,9 +2804,20 @@ class c:
         if docs:         
             fn_schema['docs'] =  fn.__doc__ 
         if code:
-            fn_schema['code'] = inspect.getsource(fn)
-                
+            code_text = inspect.getsource(fn)
+            text_lines = code_text.split('\n')
+            if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
+                text_lines.pop(0)
 
+            assert 'def' in text_lines[0], 'Function not found in code'
+            start_line = cls.find_code_line(search=text_lines[0])
+            c.print(start_line)
+            return {
+                'text': code_text,
+                'start_line': start_line ,
+                'end_line':  start_line + len(text_lines)
+            }
+ 
         fn_args = c.get_function_args(fn)
         fn_schema['type'] = 'static'
         for arg in fn_args:
@@ -3127,10 +3142,7 @@ class c:
                  refresh:bool =False,
                  **kwargs ):
         subspace = c.module('subspace')()
-    
         server_name = cls.serve(tag=tag, server_name=name, wait_for_server=True, refresh=refresh, **kwargs)
-        assert server_name != None, 'server_name is None'
-        
         return subspace.register(server_name, subnet=subnet)
     reg = register
     @classmethod
@@ -3222,7 +3234,7 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-10, end_line=0, verbose=True, mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=-10, end_line=0, verbose=True , mode='cmd'):
         if mode == 'local':
 
             text = ''
@@ -4499,7 +4511,6 @@ class c:
 
     @classmethod
     def logs(cls, *args, **kwargs):
-        
         return cls.pm2_logs(*args, **kwargs)
 
 
@@ -4880,8 +4891,6 @@ class c:
         return data
     enc = encrypt
     dec = decrypt
-    cache = {}
-    cache = {}
     @classmethod
     def put_cache(cls,k,v ):
         cls.cache[k] = v
@@ -6894,7 +6903,10 @@ class c:
     @classmethod
     def code(cls, module = None, *args, **kwargs):
         module = cls.resolve_module(module)
-        return c.get_text( module.pypath(), *args, **kwargs)
+        path = module.pypath()
+        text =  c.get_text( module.pypath(), *args, **kwargs)
+        return text
+        
 
     @classmethod
     def get_text_line(cls, module = None, *args, **kwargs):
@@ -6919,16 +6931,17 @@ class c:
         return module.script_hash(*args, **kwargs) == hash
     
     @classmethod
-    def find_code_line(self, search, *args, **kwargs):
-        code = self.code(*args, **kwargs)
-        found_lines = []
+    def find_code_line(cls, search:str, code:str = None):
+        if code == None:
+            code = cls.code() # get the code
+        found_lines = [] # list of found lines
         for i, line in enumerate(code.split('\n')):
             if search in line:
                 found_lines.append({'idx': i, 'text': line})
         if len(found_lines) == 0:
             return None
         elif len(found_lines) == 1:
-            return found_lines[0]
+            return found_lines[0]['idx']
         return found_lines
     
     
@@ -7039,7 +7052,23 @@ class c:
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
     
+    @property
+    def key(self):
+        if not hasattr(self, '_key'):
+            self._key = c.get_key(self.name)
+        return self._key
+
+    @key.setter
+    def key(self, key):
+        self._key = c.get_key(key)
+        return self._key
     
+
+    @property
+    def key_info(self):
+        return c.module('subspace').key_info(self.name)
+    
+
 
 
     @classmethod

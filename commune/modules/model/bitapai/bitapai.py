@@ -14,30 +14,50 @@ class BitAPAI(c.Module):
     def set_api_key(self, api_key:str):
         self.api_key = api_key
 
+
+
     def build_payload(self, text: str, history:list):
-        payload = [
-        {
-            "role": "system",
-            "content": "You are an AI assistant"
-        },
-        {
-            "role": "user",
-            "content": text
+
+        return payload
+    
+    
+    def forward( self, text:str ,
+                 count:int = 5,
+                 pool_id:int = 4,
+                 return_all:bool = True,
+                 uids = None,
+                 api_key:str = None, history:list=None): 
+        api_key = api_key if api_key != None else self.api_key
+        # build payload
+
+
+        payload =  {
+            'messages': 
+                    [
+                    {
+                        "role": "system",
+                        "content": "You are an AI assistant"
+                    },
+                    {
+                        "role": "user",
+                        "content": text
+                    }
+                    ],
+            "pool_id": pool_id,
+            "count": count,
+            "return_all": return_all
+
         }
-        ]
+        if uids is not None:
+            payload['uids'] = uids
 
         if history is not None:
             assert isinstance(history, list)
             assert len(history) > 0
             assert all([isinstance(i, dict) for i in history])
             payload = payload[:1] +  history + payload[1:]
-        return payload
-    
-    
-    def forward( self, text:str , api_key:str = None, history:list=None): 
-        api_key = api_key if api_key != None else self.api_key
-        # build payload
-        payload = self.build_payload(text=text, history=history)
+
+
         payload = json.dumps(payload)
         headers = {
         'Content-Type': 'application/json',
