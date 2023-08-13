@@ -21,7 +21,6 @@ class c:
 
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
-    user = None
     default_ip = '0.0.0.0'
     address = None
     root_path  = root  = os.path.dirname(os.path.dirname(__file__))
@@ -48,6 +47,7 @@ class c:
         'output': '📤',
         'input': '📥',
     }
+    __ss58_format__ = 42
 
     def __init__(self, 
                  config:Dict=None,

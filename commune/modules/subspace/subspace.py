@@ -1496,7 +1496,10 @@ class Subspace(c.Module):
         
         return { m['name']: m['key'] for m in modules}
         
-        
+    def is_unique_name(netuid=None):
+        return self.namespace()
+
+
     def namespace(self, **kwargs) -> Dict[str, str]:
         
         modules = self.modules( **kwargs)
@@ -1585,7 +1588,8 @@ class Subspace(c.Module):
 
     
         
-    def server_exists(self, module:str, netuid: int = None, **kwargs) -> bool:
+    def server_exists(self, module:str, netuid: int = None, namespace = None, **kwargs) -> bool:
+        namespace = self.namespace(netuid=netuid, **kwargs)
         return bool(module in self.namespace(netuid=netuid, **kwargs))
 
     def default_module_info(self, **kwargs):

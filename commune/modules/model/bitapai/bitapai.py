@@ -1,5 +1,6 @@
 import http.client
 import json
+import commune as c 
 
 
 
@@ -39,6 +40,13 @@ class BitAPAI(c.Module):
         res = self.conn.getresponse()
         data = res.read()
         return data
+    
+
+    @classmethod
+    def test(cls, text:str='hey', **kwargs):
+        self = cls(**kwargs)
+        self.forward(text)
+        
 
 
 

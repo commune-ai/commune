@@ -232,8 +232,7 @@ class SubspaceDashboard(c.Module):
         register = st.button('Register')
         tag = cols[1].text_input('tag', 'None', key='tag')
         if 'None' == tag:
-            tag = None
-            
+            tag = No
             
         if 'tag' in kwargs:
             kwargs['tag'] = tag

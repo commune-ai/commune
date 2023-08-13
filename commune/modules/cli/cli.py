@@ -80,7 +80,7 @@ class CLI(c.Module):
         else:
             raise Exception ('No module, function or server found for {args[0]}')
 
-        x = result
+        c.print('result', result, fn, module)
         if not isinstance(result, type(None)):
             c.print(result)
             

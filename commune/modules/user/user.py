@@ -83,33 +83,37 @@ class Users(c.Module):
         self.users[name] 
 
     def add_user(self, 
-                 name , 
-                 ss58_address ,
-                 role = None, 
-                 network=None,
-                 auth = None,
-                 **kwargs):
+                 name: str , 
+                 address : str ,
+                 role = 'friend', 
+                 address_type: str = 'sr25519',
+                 info : dict = None, 
+                 refresh: bool = False
+                 ):
         
         # ensure name is unique
+
+        info = info or {}
         
         network = c.resolve_network(network)
         role = self.resolve_role(role)
         
-        if self.address_exists(ss58_address):
-            return {'msg': f'User with key {ss58_address} already exists', 'success': False}
-        if self.user_exists(name):
+        if self.address_exists(address):
+            return {'msg': f'User with key {address} already exists', 'success': False}
+        if self.user_exists(name) and refresh == False:
             return {'msg': f'{name} is already a user', 'success': False}
         
         self.users[name] = {
-            'ss58_address': ss58_address,
+            'address': address,
             'role':  role,
             'network': network,
-            **kwargs
+            'address_type': address_type,
+            'info': info
         }
-        
         
         self.save()
         
+        c.print('bro')
         return {'msg': f'{name} is now a user', 'success': True}
     
     def rm_user(self, name:str):
