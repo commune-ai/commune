@@ -1548,20 +1548,22 @@ class Subspace(c.Module):
         return subnet2netuid
         
 
-    def resolve_netuid(self, netuid: int = None, subspace_namespace:str=None) -> int:
+    def resolve_netuid(self, netuid: int = None, namespace:dict=None) -> int:
 
-        
-        if isinstance(netuid, str):
-            # If the netuid is a subnet name, resolve it to a netuid.
-            if subspace_namespace == None:
-                subspace_namespace = self.subnet_namespace
-            assert netuid in subspace_namespace, f"Subnet {netuid} not found in {subspace_namespace} for chain {self.chain}"
-            netuid = subspace_namespace[netuid]
-            
         if netuid == None:
             # If the netuid is not specified, use the default.
             netuid = self.default_netuid
-            return netuid
+
+        if isinstance(netuid, str):
+            # If the netuid is a subnet name, resolve it to a netuid.
+            if namespace == None:
+                namespace = self.subnet_namespace
+            assert netuid in namespace, f"Subnet {netuid} not found in {namespace} for chain {self.chain}"
+            netuid = namespace[netuid]
+        elif isinstance(netuid, int):
+            # If the netuid is an integer, ensure it is valid.
+            assert netuid in self.netuids(), f"Netuid {netuid} not found in {self.netuids()} for chain {self.chain}"
+            
         assert isinstance(netuid, int), "netuid must be an integer"
         return netuid
     
