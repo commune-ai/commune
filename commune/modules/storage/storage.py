@@ -1,43 +1,37 @@
-import commune
+import commune as c
 from typing import *
 import streamlit as st
 
-class Storage(commune.Module):
+class Storage(c.Module):
 
     def __init__(self, store: Dict = None, key: 'Key' = None):
-        self.set_storage(store)
+        self.store = {}
         self.set_key(key)
     
-    def set_storage(self, storage: Dict = None):
-        storage = {} if storage == None else storage
-        assert isinstance(storage, dict), 'storage must be a dictionary'
-        self.storage = storage
+    def set_store(self, store: Dict = None):
+        store = {} if store == None else store
+        assert isinstance(store, dict), 'store must be a dictionary'
+        self.store = store
             
-    def put(self,
-            k:str, 
-            v: Any,
-            key: str = None,
-            encrypt: bool = False,
-            lifetime: bool = None) -> str:
-        kwargs = c.locals2kwargs(locals())
-        k =  kwargs.pop('k') # rm k
-        self.storage[k] = kwargs
-        return True
+    def put(self,k:str, v: Any) -> str:
+        self.store[k] = v
+        return {'success': True, 'msg': 'set to k'}
     
+
     def state_dict(self):
         import json
         state_dict = {}
-        for k, v in self.storage.items():
+        for k, v in self.store.items():
             try:
                 state_dict[k] = json.dumps(v)
             except:
-                commune.log(f'could not serialize {k}')
+                c.log(f'could not serialize {k}')
             
         return state_dict
     def from_state_dict(self, state_dict: Dict) -> None:
         import json
         for k, v in state_dict.items():
-            self.storage[k] = json.loads(v)
+            self.store[k] = json.loads(v)
             
     def save(self, tag: str = None):
         tag = self.resolve_tag(tag)
@@ -54,7 +48,7 @@ class Storage(commune.Module):
             key:str = None,
             max_staleness: int = 1000) -> Any:
         key = c.resolve_key(key)
-        item = self.storage[k]
+        item = self.store[k]
         verified = key.verify(item)
         # decrypt if necessary
         if self.is_encrypted(item):
@@ -62,7 +56,7 @@ class Storage(commune.Module):
         item['data'] = self.str2python(item['data'])
         assert verified, 'could not verify signature'
         # check staleness
-        staleness = commune.time() - item['data']['time']
+        staleness = c.time() - item['data']['time']
         assert staleness < max_staleness
 
         return item['data']['data']
@@ -70,7 +64,7 @@ class Storage(commune.Module):
     @property
     def key2address(self) -> Dict:
         key2address = {}
-        for k, v in self.storage.items():
+        for k, v in self.store.items():
             id = v['ss58_address']
             if id  in key2address:
                 key2address[v['ss58_address']] += [k]
