@@ -74,6 +74,7 @@ class Subspace(c.Module):
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
         url =  cls.getc(f'chain_info.{network}.url', [])
         assert len(url) > 0, f'No url found for {network}'
+
         if isinstance(url, list):
             return c.choice(url)
         elif isinstance(url, str):
@@ -412,7 +413,7 @@ class Subspace(c.Module):
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
-        module: str , # defaults to module.tag
+        name: str , # defaults to module.tag
         stake : int = None,
         subnet: str = None,
         key : str  = None,
@@ -422,6 +423,8 @@ class Subspace(c.Module):
         sync: bool = True,
 
     ) -> bool:
+        
+        assert name != None, f"Module name must be provided"
 
         if subnet == None:
             subnet = self.config.subnet
@@ -431,20 +434,20 @@ class Subspace(c.Module):
         
         network =self.resolve_network(network)
         netuid = self.get_netuid_for_subnet(subnet)
-        address = c.namespace(network='local').get(module, '0.0.0.0:50051')
-        key = self.resolve_key(key if key != None else module)
+        address = c.namespace(network='local').get(name, '0.0.0.0:50051')
+        if self.is_registered(name, netuid=netuid):
+            return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+        else:
+            assert name not in self.namespace(netuid=netuid), f"Name {name} already exists in namespace {netuid}"
+        # Attempt to register
 
+        key = self.resolve_key(name)
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
-        if self.is_registered(key, netuid=netuid):
-            return self.update_module(module=module, address=address , netuid=netuid, network=network)
-        else:
-            assert module not in self.namespace(netuid=netuid), f"Name {module} already exists in namespace {netuid}"
-        # Attempt to register
         call_params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
-                    'name': module.encode('utf-8'),
+                    'name': name.encode('utf-8'),
                     'stake': stake,
                 } 
         
@@ -1003,9 +1006,9 @@ class Subspace(c.Module):
             key_ss58 = key_ss58.ss58_address
         return key_ss58
     @classmethod
-    def resolve_key(cls, key):
+    def resolve_key(cls, key, create:bool = True):
         if isinstance(key, str):
-            if not c.key_exists( key ):
+            if not c.key_exists( key ) and create:
                 c.add_key( key)
             key = c.get_key( key )
         assert hasattr(key, 'ss58_address'), f"Invalid Key {key} as it should have ss58_address attribute."
@@ -2499,8 +2502,24 @@ class Subspace(c.Module):
         for k_addr in keys:
             if k_addr in address2key:
                 registered_keys += [address2key[k_addr]]
-                
         return registered_keys
+
+    def registered_servers(self, netuid = None, network = network,  **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        network = self.resolve_network(network)
+        servers = c.servers('local')
+        registered_keys = []
+        for s in servers:
+            if self.is_registered(s, netuid=netuid):
+                registered_keys += [s]
+        return registered_keys
+                
+    def unregistered_servers(self, netuid = None, network = network,  **kwargs):
+        netuid = self.resolve_netuid(netuid)
+        network = self.resolve_network(network)
+        servers = c.servers('local')
+        registered_keys = self.registered_servers(netuid=netuid, network=network)
+        return [s for s in servers if s not in registered_keys]
     reged = registered_keys
     def most_valuable_key(self, netuid = None, **kwargs):
         modules = self.my_modules(netuid=netuid, **kwargs)

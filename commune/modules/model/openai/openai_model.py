@@ -40,7 +40,7 @@ class OpenAILLM(c.Module):
             self.save(tag=self.tag)
 
         
-    def set_stats(self, stats):
+    def set_stats(self, stats: dict):
         if stats == None:
             stats = {}
         assert isinstance(stats, dict)

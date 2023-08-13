@@ -1,6 +1,6 @@
 
 
-model: 
+model: null
 tag: base
 device: null
 device_map: auto
