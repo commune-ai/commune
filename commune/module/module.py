@@ -322,6 +322,8 @@ class c:
             fn = getattr(module, fn)
         assert callable(fn), f'fn must be callable, got {fn}'       
         fn_code = inspect.getsource(fn)
+        if fn_code.startswith('@'):
+            fn_code = fn_code.split('\n', 1)[1]
         return fn_code
 
     @classmethod
@@ -2542,6 +2544,12 @@ class c:
     def resolve_tag(cls, tag:str=None, **kwargs):
         conifg = cls.config()
         return tag
+
+
+    @classmethod
+    def init_arg(cls, **kwargs):
+        fn = '__init__'
+        return cls.schema(fn)[fn]['input']
 
     @classmethod
     def serve(cls, 
