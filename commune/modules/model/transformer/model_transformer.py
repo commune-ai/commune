@@ -101,13 +101,15 @@ class ModelTransformer(Model):
         #     config.max_memory = c.model_max_gpu_memory(config.model, fmt='gb')
         # config.max_memory = {k: str(int(v+1))+'GiB' for k, v in config.max_memory.items() if v is not None}
         # c.print('MAX MEMORY -> ', config.max_memory)
+        config.device_map = c.infer_device_map(config.model, config.max_memory)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,
                                                             max_memory=config.max_memory,
                                                             trust_remote_code=config.trust_remote_code,
                                                              offload_folder="offload", torch_dtype=torch.float16) 
 
-        self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))   
+        self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
+        self.device = config.device = self.devices[0]  
         time_taken = c.time() - t       
         c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
         self.set_optimizer(config.optimizer)
