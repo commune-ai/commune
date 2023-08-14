@@ -18,15 +18,15 @@ class ValiText(Vali):
 
         return self.dataset
 
-    def score_module(self, module='model.vi') -> int:
+    def score_module(self, module='model.openai') -> int:
         module = c.connect(module)
         sample = self.sample()
         for k in ['correct_answers', 'answer']:
             del sample[k]
         sample = c.dict2str(sample)
-        prompt = f'COMPLETE THE JSON \n {sample} \n' + " GIVE THE ANSWER AS  {answer_idx:0} ? \n A:"
+        prompt = f'COMPLETE THE JSON \n {sample} \n' + " GIVE THE ANSWER AS  {answer_idx:str} ? \n ```json"
         output = module.generate(prompt, max_new_tokens=256)
-        c.print({'output': output})
+        json_response = json_response.split('\n')[-1]
 
     def sample(self):
         # get sample
