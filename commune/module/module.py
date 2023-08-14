@@ -1888,10 +1888,17 @@ class c:
         c.print(f'Connecting to {module} on {network} network', color='yellow')
         address = namespace[module]
         ip, port = address.split(':')
-        client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
+        try:
+            client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
+        except Exception as e:
+            err = str(e)
+            c.print(err)
+            client= c.get_client(ip='0.0.0.0', port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
+
         connection_latency = c.time() - t
         if verbose:
             c.print(f'Connected to {module} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
+
         return client
      
     @classmethod

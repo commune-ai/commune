@@ -266,10 +266,10 @@ class Validator(c.Module):
         self = cls(**kwargs)
 
 
-    def __del__(self):
-        self.stop()
-        self.save()
-        c.print('Validator stopped', color='white')
+    # def __del__(self):
+    #     self.stop()
+    #     self.save()
+    #     c.print('Validator stopped', color='white')
 
         
 

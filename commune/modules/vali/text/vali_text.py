@@ -18,15 +18,15 @@ class ValiText(Vali):
 
         return self.dataset
 
-    def score_module(self, module=None) -> int:
-        # score response
-        module =self.resolve_module_name(module)
-        module = c.module(module)
-        c.print(module)
-        c.print(module, 'WHADUPFAM')
+    def score_module(self, module='model.vi') -> int:
+        module = c.connect(module)
         sample = self.sample()
-        c.print(sample, 'WHADDDDDD')
-        return 1
+        for k in ['correct_answers', 'answer']:
+            del sample[k]
+        sample = c.dict2str(sample)
+        prompt = f'COMPLETE THE JSON \n {sample} \n' + " GIVE THE ANSWER AS  {answer_idx:0} ? \n A:"
+        output = module.generate(prompt, max_new_tokens=256)
+        c.print({'output': output})
 
     def sample(self):
         # get sample
@@ -40,6 +40,7 @@ class ValiText(Vali):
 
         # shuffle choices 
         sample['choices'] = c.shuffle(sample['choices'])
+        sample['choices'] = {i: choice for i, choice in enumerate(sample['choices'])}
 
         return sample
 
