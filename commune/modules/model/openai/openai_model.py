@@ -325,15 +325,9 @@ class OpenAILLM(c.Module):
         
     
     @classmethod
-    def test(cls,
-            input = 'What is the meaning of life?',**kwargs
-    ):
-        if module == None:
-            module = cls()
-
-
+    def test(cls, input:str = 'What is the meaning of life?',**kwargs):
+        module = cls()
         c.print(module.ask(input))
-
 
     
     @classmethod

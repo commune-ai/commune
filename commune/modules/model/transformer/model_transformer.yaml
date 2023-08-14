@@ -1,6 +1,6 @@
 
 
-model: null
+model: gpt125m
 tag: base
 device: null
 device_map: auto
@@ -16,6 +16,11 @@ tag: null
 load: false
 
 shortcuts:
+    # 0-1B models
+  gpt125m: 'EleutherAI/gpt-neo-125m'
+  gpt2.7b: 'EleutherAI/gpt-neo-2.7B'
+  gpt3b: 'EleutherAI/gpt-neo-2.7B'
+  opt1.3b: 'facebook/opt-1.3b'
   oa.pythia.12b: OpenAssistant/oasst-sft-1-pythia-12b
 
   vicuna.33b : lmsys/vicuna-33b-v1.3
