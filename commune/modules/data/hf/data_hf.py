@@ -204,10 +204,10 @@ class DataHF(c.Module):
 
     @classmethod
     def serve(cls, path:str = 'truthful_qa', tag=None, remote:bool=True, **kwargs):
-        name = f'data.{path}'
+        server_name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
-        c.print(f'Serving {name} with kwargs: {kwargs}')
-        name = c.serve(module=cls.module_path(), name=name, tag=tag, kwargs=kwargs, remote=remote)
+        c.print(f'Serving {server_name} with kwargs: {kwargs}')
+        name = c.serve(module=cls.module_path(), server_name=server_name, tag=tag, kwargs=kwargs, remote=remote)
         return name
 
 

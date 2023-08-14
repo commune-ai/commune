@@ -18,8 +18,11 @@ class ValiText(Vali):
 
         return self.dataset
 
-    def score_module(self, module) -> int:
+    def score_module(self, module=None) -> int:
         # score response
+        module =self.resolve_module_name(module)
+        module = c.module(module)
+        c.print(module)
         c.print(module, 'WHADUPFAM')
         sample = self.sample()
         c.print(sample, 'WHADDDDDD')

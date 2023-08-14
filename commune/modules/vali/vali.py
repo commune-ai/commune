@@ -10,6 +10,7 @@ class Validator(c.Module):
 
     def __init__(self, config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
+        c.print('BROOO')
         self.set_subspace( )
         self.module_stats = {}
         self.start_time = c.time()
@@ -48,7 +49,6 @@ class Validator(c.Module):
             self.key = c.get_key()
         self.key = c.get_key(self.config.key)
 
-
     @property
     def lifetime(self):
         return c.time() - self.start_time
@@ -60,10 +60,16 @@ class Validator(c.Module):
     def score_module(self, module) -> int:
         c.print('SCORE MODULE', color='green')
         return 1
+    
+    def resolve_module_name(self, module=None):
+        if module == None:
+            module = c.choice(self.module_names)
+        return module
         
     def eval_module(self, module = None, fn='info', args = None, kwargs=None, thread_id=0):
         return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs, thread_id=thread_id,))
         
+    
     async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=False , thread_id=0):
 
         if args == None:
@@ -75,9 +81,7 @@ class Validator(c.Module):
             kwargs = {}
         if args == None:
             args = []
-
-        if module == None:
-            module = c.choice(self.module_names)
+        module = self.resolve_module_name(module)
         module_state = self.name2module[module]
         w = 1
         emojis = c.emojis

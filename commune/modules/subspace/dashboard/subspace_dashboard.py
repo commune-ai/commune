@@ -85,20 +85,15 @@ class SubspaceDashboard(c.Module):
                 key = self.subspace.most_valuable_key()
 
             key = st.selectbox('Select Key', keys, index=key2index[key])
-                    
+         
             key = c.get_key(key)
-
-                
             self.key = key
-
-            
-            
+            self.key_info_dict = self.subspace.key_info(key.path, fmt='j')
 
             cols = st.columns(2)
-            self.key_info = self.subspace.key_info(key.path, fmt='j')
             st.write('Address: ', key.ss58_address)
-            st.write('Stake', self.key_info['stake'])
-            st.write('Balance', self.key_info['balance'])
+            st.write('Stake', self.key_info_dict['stake'])
+            st.write('Balance', self.key_info_dict['balance'])
             
         with st.expander('Create Key', expanded=False):                
             new_key = st.text_input('Name of Key', '', key='create')
@@ -169,9 +164,6 @@ class SubspaceDashboard(c.Module):
         df.sort_values('incentive', inplace=True, ascending=False)
         df = df[:max_rows]
         st.dataframe(df, width=1000)
-
-
-
         # BAR OF INCENTIVES
         options = ['emission', 'incentive', 'dividends']
         selected_keys = st.multiselect('Select Columns', options, options, key='stats')
@@ -213,7 +205,9 @@ class SubspaceDashboard(c.Module):
         #     self.transfer_dashboard()
         # with st.expander('Staking', expanded=True):
         #     self.staking_dashboard()
-        
+
+    def stats_dashboard(self): 
+        pass 
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -248,7 +242,7 @@ class SubspaceDashboard(c.Module):
         cols = st.columns(2)
         with cols[0].expander('Stake', expanded=True):
 
-            amount = st.number_input('STAKE Amount', 0.0, float(self.key_info['balance']), float(self.key_info['balance']), 0.1)            
+            amount = st.number_input('STAKE Amount', 0.0, float(self.key_info_dict['balance']), float(self.key_info_dict['balance']), 0.1)            
             modules = st.multiselect('Module', self.module_names, [])
             transfer_button = st.button('STAKE')
 
@@ -318,7 +312,8 @@ class SubspaceDashboard(c.Module):
     def modules_dashboard(self):
 
         self.launch_dashboard(expanded=False)
-        self.my_modules_dashboard(expanded=False)
+        with st.expander('Modules', expanded=False):
+            self.my_modules_dashboard()
     
     
 
@@ -374,13 +369,13 @@ class SubspaceDashboard(c.Module):
         with cols[-1]:
             st.write(f'#### {module.upper()} Kwargs ')
 
-            fn_schema = c.get_function_schema(c.module(module), '__init__')
+            fn_schema = c.fn_schema(c.module(module), '__init__')
             kwargs = self.st.function2streamlit(module=module, fn='__init__' )
 
             kwargs = self.st.process_kwargs(kwargs, fn_schema)
             self.st.line_seperator()
 
-
+        n = 1
         
         if 'None' == tag:
             tag = None
@@ -397,7 +392,7 @@ class SubspaceDashboard(c.Module):
                     tags = [tag]
 
                 for tag in tags:
-                    response = self.subspace.register(module=module, 
+                    response = self.register(module=module, 
                                                         tag=tag, 
                                                         subnet=subnet, 
                                                         kwargs=kwargs, 

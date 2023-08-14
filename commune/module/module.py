@@ -1882,11 +1882,11 @@ class c:
         t = c.time()
         network = c.resolve_network(network)
         key = cls.get_key(key)
-        module2address = c.namespace(module, network=network)
-        modules = list(module2address.keys())
+        namespace = namespace or c.namespace(module, network=network)
+        modules = list(namespace.keys())
         module = c.choice(modules)
         c.print(f'Connecting to {module} on {network} network', color='yellow')
-        address = module2address[module]
+        address = namespace[module]
         ip, port = address.split(':')
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
@@ -2322,14 +2322,12 @@ class c:
     def wait_for_server(cls,
                           name: str ,
                           timeout:int = 600,
-                          sleep_interval: int = 1, 
-                          network=None) -> bool :
+                          sleep_interval: int = 1) -> bool :
         
-        start_time = cls.time()
         time_waiting = 0
         cls.namespace_local()
         logs = []
-        while not cls.server_exists(name, network=network):
+        while not cls.server_exists(name, network='local'):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
@@ -2429,6 +2427,7 @@ class c:
         namespace = namespace_fn(update=update, **kwargs)        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
+            return namespace
         if update == False and len(namespace) == 0:
             namespace = namespace_fn(update=True, **kwargs)
         return namespace
@@ -2765,7 +2764,7 @@ class c:
                 fn_schema['input'].pop(arg)
                 
 
-        return fn_schema['code']['text']
+        return fn_schema
     
 
     @staticmethod
@@ -3073,14 +3072,17 @@ class c:
     
     @classmethod
     def register(cls, 
+                 module = None,
                  tag = None, 
                  name:str = None, 
                  subnet:str = 'commune',
                  refresh:bool =False,
                  **kwargs ):
+        module = cls.resolve_module(module)
         subspace = c.module('subspace')()
-        server_name = cls.serve(tag=tag, server_name=name, wait_for_server=True, refresh=refresh, **kwargs)
-        return subspace.register(server_name, subnet=subnet)
+        server_name = module.serve(tag=tag, server_name=name, wait_for_server=True, refresh=refresh, **kwargs)
+        subspace.register(server_name, subnet=subnet)
+        return server_name
     reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
@@ -4718,9 +4720,9 @@ class c:
     def get_key_for_address(cls, address:str):
          return c.module('key').get_key_for_address(address)
 
-    @classmethod
-    def key_info(cls, key:str = None, **kwargs):
-        return c.module('key').key_info(key, **kwargs)
+    # @classmethod
+    # def key_info(cls, key:str = None, **kwargs):
+    #     return c.module('key').key_info(key, **kwargs)
     
     @classmethod
     def get_key(cls,key:str = None ,mode='commune', **kwargs) -> None:
@@ -5127,8 +5129,15 @@ class c:
         for i in range(n):
             cls.serve(tag=str(i), **kwargs)
 
-
-
+    @classmethod
+    def regfleet(cls,n:int=2, tag:str=None, **kwargs):
+        if tag == None:
+            tag = ''
+        servers = []
+        for i in range(n):
+            name = cls.register(tag=tag+str(i), **kwargs)
+            servers.append(name)
+        return {'servers':servers}
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
@@ -6995,6 +7004,11 @@ class c:
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
     
+
+    @classmethod
+    def name(cls, *args, **kwargs):
+        return c.module('subspace')().name(*args, **kwargs)
+
     @property
     def key(self):
         if not hasattr(self, '_key'):
@@ -7006,12 +7020,6 @@ class c:
         self._key = c.get_key(key)
         return self._key
     
-
-    @property
-    def key_info(self):
-        return c.module('subspace').key_info(self.name)
-    
-
 
 
     @classmethod
