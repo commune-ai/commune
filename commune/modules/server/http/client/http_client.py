@@ -86,8 +86,12 @@ class Client(c.Module):
         try:
             if asyn == True:
                 async with aiohttp.ClientSession() as session:
-                    async with session.post(url, json=request, headers=headers) as response:
-                        response = await asyncio.wait_for(response.json(), timeout=timeout)
+                    try:
+                        async with session.post(url, json=request, headers=headers) as response:
+                            response = await asyncio.wait_for(response.json(), timeout=timeout)
+                    except Exception as e:
+                        async with session.post(url.replace(self.ip, '0.0.0.0'), json=request, headers=headers) as response:
+                            response = await asyncio.wait_for(response.json(), timeout=timeout)
             else:
                 response = requests.post(url,json=request, headers=headers)
                 response = response.json()
