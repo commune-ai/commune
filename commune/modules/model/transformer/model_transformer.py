@@ -111,7 +111,7 @@ class ModelTransformer(Model):
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
             self.load(keys=['model', 'optimizer'])     
-        self.config = config
+
         
 
     def set_tokenizer(self, tokenizer:str):
@@ -361,12 +361,57 @@ class ModelTransformer(Model):
         
         return loss
 
-    hf = c.module('huggingface')()
-    def generate(self, text: str, max_length: int = 20, max_new_tokens: int = None,
-                min_length: int = 0, min_new_tokens: int = None,
-                early_stopping: bool or str = True, max_time: float = None, **kwargs) -> List[str]:
+
+    def generate_stream(self, text: str, 
+                max_length: int = 20, 
+                max_new_tokens: int = None,
+                min_length: int = 0, 
+                min_new_tokens: int = None,
+                early_stopping: bool = True,
+                max_time: float = None,
+                chunk_size: int = 10,
+                **kwargs) -> List[str]:
+        if isinstance(text, str):
+            text = [text]
+
+         
         input_ids = self.tokenize(text)['input_ids']
-        output_ids = self.model.generate(input_ids, 
+        for i in range(max_new_tokens):
+            output_ids = self.model.generate(input_ids, 
+                                            max_length=max_length, 
+                                            max_new_tokens=chunk_size,
+                                            min_length=min_length, 
+                                            min_new_tokens=min_new_tokens,
+                                            early_stopping=early_stopping,
+                                            max_time=max_time, **kwargs)
+            output_text = self.decode(output_ids)
+            yield output_text
+            text = output_text
+
+    hf = c.module('huggingface')()
+    def generate(self, text: str, 
+                max_length: int = 20, 
+                max_new_tokens: int = None,
+                min_length: int = 0, 
+                min_new_tokens: int = None,
+                early_stopping: bool = True,
+                max_time: float = None,
+                stream:bool = False,
+                **kwargs) -> List[str]:
+        if stream:
+            return self.generate_stream(text, 
+                                        max_length=max_length, 
+                                        max_new_tokens=max_new_tokens,
+                                        min_length=min_length, 
+                                        min_new_tokens=min_new_tokens,
+                                        early_stopping=early_stopping,
+                                        max_time=max_time, **kwargs)
+
+        if isinstance(text, str):
+            text = [text]
+
+        input_ids = self.tokenize(text)['input_ids']
+        output_ids = self.model.generate(input_ids.to(self.device), 
                                         max_length=max_length, 
                                         max_new_tokens=max_new_tokens,
                                         min_length=min_length, 
@@ -374,6 +419,11 @@ class ModelTransformer(Model):
                                         early_stopping=early_stopping,
                                         max_time=max_time, **kwargs)
         output_text = self.detokenize(output_ids, skip_special_tokens=True)
+
+        for t, ot in zip(text, output_text):
+            output_text = ot.replace(t, '')
+
+
         return output_text
     
 
@@ -382,4 +432,5 @@ class ModelTransformer(Model):
     def test_generate(cls, *args, **kwargs):
         model = cls( *args, **kwargs)
         output_text = model.generate(text='Hello world',)
+
         return output_text

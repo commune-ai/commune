@@ -296,45 +296,32 @@ class c:
         functions = cls.get_functions(module)
         fn_code_map = {}
         for fn in functions:
-            fn_code_map[fn] = cls.get_function_code(fn=fn, module=module)
+            fn_code_map[fn] = cls.fn_code(fn=fn, module=module)
         return fn_code_map
     
             
+
     @classmethod
-    def get_function_code(cls, 
-                    fn:str, 
-                    module:str = None, # defaults to the current module
-                    fn_seperator:str="::" ) -> str:
+    def fn_code(cls,fn:str, detail:bool=True, ) -> str:
         '''
         Returns the code of a function
         '''
         
         
-        if isinstance(fn, str):
-            if fn.split(fn_seperator)==2:
-                module, fn = fn.split(fn_seperator)
-                module = commune.module(module)
+        code_text = inspect.getsource(getattr(cls, fn))
+        text_lines = code_text.split('\n')
+        if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
+            text_lines.pop(0)
 
-            if module is None:
-                module = cls 
+        assert 'def' in text_lines[0], 'Function not found in code'
+        start_line = cls.find_code_line(search=text_lines[0])
+        fn_code =  {
+            'text': '\n'.join([l[len('    '):] for l in code_text.split('\n')]),
+            'start_line': start_line ,
+            'end_line':  start_line + len(text_lines)
+        }
             
-            fn = getattr(module, fn)
-        assert callable(fn), f'fn must be callable, got {fn}'       
-        fn_code = inspect.getsource(fn)
-        if fn_code.startswith('@'):
-            fn_code = fn_code.split('\n', 1)[1]
         return fn_code
-
-    @classmethod
-    def function_code(cls, fn ) -> str:
-        '''
-        Returns the code of a function
-        '''
-        return cls.get_fn_code(fn)
-    
-    
-    fn_code = function_code
-    get_fn_code = get_function_code
 
     @classmethod
     def sandbox(cls):
@@ -1883,74 +1870,28 @@ class c:
        
     @classmethod
     async def async_connect(cls, 
-                name:str=None, 
-                ip:str=None, 
-                port:int=None , 
+                module:str, 
                 network : str = None,
                 namespace = None,
                 mode = server_mode,
                 virtual:bool = True, 
-                wait_for_server:bool = False,
-                trials = 3, 
                 verbose: bool = False, 
                 key = None,
-                ignore_error:bool = False,
-                update = False,
                 **kwargs ):
 
         t = c.time()
         network = c.resolve_network(network)
-        if key != None:
-            key = cls.get_key(key)
-            
-        # if we are not given a name, ip, or port then we need to raise an error
-        if (name == None and ip == None and port == None):
-            raise ValueError('Must specify either name, ip, or port')
-        
-        # wait for the server to be ready before connecting
-        if wait_for_server:
-            cls.wait_for_server(name)
-        
-        
-        # if we are given a name then we need to resolve the ip and port
-        if namespace == None :
-            namespace = c.namespace(network, update=update)
-        namespace = c.copy(namespace)
-
-        if isinstance(name, str):
-            found_modules = []
-            if c.is_address(name):
-                found_modules = [name]
-            else:
-                modules = list(namespace.keys())
-                module_addresses = list(namespace.values())
-                for n in modules + module_addresses:
-                    if name == n:
-                        # we found the module
-                        found_modules = [n]
-                        break
-                    elif name in n:
-                        # get all the modules lol
-                        found_modules += [n]
-                      
-            found_modules = list(set(found_modules))
-            if len(found_modules)>0:
-                name = c.choice(found_modules)
-                name = namespace.get(name, name)
-                
-            else:
-                if ignore_error:
-                    return None
-                raise ValueError(f'Could not find module {name} in namespace {list(namespace.keys())}')
-            ip = name.split(':')[0]
-            port = int(name.split(':')[-1])
-
-        assert isinstance(port, int) , f'Port must be specified as an int inputs({name}, {ip}, {port})'
-        assert isinstance(ip, str) , 'IP must be specified as a string,inputs({name}, {ip}, {port})'
+        key = cls.get_key(key)
+        module2address = c.namespace(module, network=network)
+        modules = list(module2address.keys())
+        module = c.choice(modules)
+        c.print(f'Connecting to {module} on {network} network', color='yellow')
+        address = module2address[module]
+        ip, port = address.split(':')
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
         if verbose:
-            c.print(f'Connected to {name} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
+            c.print(f'Connected to {module} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
         return client
      
     @classmethod
@@ -2027,12 +1968,13 @@ class c:
         return module_clients
 
     @classmethod
-    def get_client(cls, ip = None, port = None ,virtual:bool = True, mode=server_mode, **kwargs):
-        
-        client_class = c.module(f'server.{mode}.client')
+    def get_client(cls, ip:str = None, port:int = None ,virtual:bool = True, mode=server_mode, **kwargs):
+        '''
+        Returns a client to a server
+        '''
+        client = c.module(f'server.{mode}.client')(ip=ip, port=port,**kwargs)
 
-        client = client_class(ip=ip, port=port,**kwargs)
-
+        # if virtual turn client into a virtual client, making it act like if the server was local
         if virtual:
             client = c.virtual_client(client)
         
@@ -2442,7 +2384,7 @@ class c:
     
 
     @classmethod
-    def subspace_namespace(cls, **kwargs ) -> Dict:
+    def namespace_subspace(cls, **kwargs ) -> Dict:
         namespace = c.module('subspace')().namespace(**kwargs)
         return namespace
 
@@ -2467,7 +2409,7 @@ class c:
         
     @classmethod
     def namespace(cls,
-                  search = None,
+                  search:str = None,
                   network:str=None,
                   verbose: bool = False,
                   update: bool = False,
@@ -2759,7 +2701,7 @@ class c:
                     continue
             fn_obj = getattr(obj, fn )
             if callable(fn_obj):
-                function_schema_map[fn] = cls.get_function_schema(fn, defaults=defaults, code=code, docs=docs)
+                function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
                 
         return function_schema_map
     
@@ -2774,7 +2716,7 @@ class c:
         return fn.__annotations__
         
     @classmethod
-    def get_function_schema(cls, fn:str,
+    def fn_schema(cls, fn:str,
                             defaults:bool=False,
                             code:bool = False,
                             docs:bool = False)->dict:
@@ -2811,19 +2753,7 @@ class c:
         if docs:         
             fn_schema['docs'] =  fn.__doc__ 
         if code:
-            code_text = inspect.getsource(fn)
-            text_lines = code_text.split('\n')
-            if 'classmethod' in text_lines[0] or 'staticmethod' in text_lines[0] or '@' in text_lines[0]:
-                text_lines.pop(0)
-
-            assert 'def' in text_lines[0], 'Function not found in code'
-            start_line = cls.find_code_line(search=text_lines[0])
-            c.print(start_line)
-            return {
-                'text': code_text,
-                'start_line': start_line ,
-                'end_line':  start_line + len(text_lines)
-            }
+            fn_schema['code'] = cls.fn_code(fn)
  
         fn_args = c.get_function_args(fn)
         fn_schema['type'] = 'static'
@@ -2835,7 +2765,7 @@ class c:
                 fn_schema['input'].pop(arg)
                 
 
-        return fn_schema
+        return fn_schema['code']['text']
     
 
     @staticmethod
@@ -7003,6 +6933,12 @@ class c:
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
+
+    def update_servers(self, *args, **kwargs):
+        subspace = c.module('subspace')()
+        for name, address in c.namespace(network='localf').items():
+            subspace.update_module(name, address)
+        return subspacec 
     
     @classmethod
     def vote(cls, *args, **kwargs):

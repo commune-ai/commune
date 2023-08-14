@@ -21,9 +21,9 @@ class BitAPAI(c.Module):
         return payload
     
     
-    def forward( self, text:str ,
+    def forward( self, 
+                text:str ,
                  count:int = 5,
-                 pool_id:int = 4,
                  return_all:bool = True,
                  uids = None,
                  api_key:str = None, history:list=None): 
@@ -43,7 +43,6 @@ class BitAPAI(c.Module):
                         "content": text
                     }
                     ],
-            "pool_id": pool_id,
             "count": count,
             "return_all": return_all
 
@@ -65,7 +64,9 @@ class BitAPAI(c.Module):
         }
         self.conn.request("POST", "/text", payload, headers)
         res = self.conn.getresponse()
-        data = json.loads(res.read().decode("utf-8"))
+        data = res.read().decode("utf-8")
+        c.print(data)
+        data = json.loads(data)
         if 'assistant' not in data:
             return data
         return data['assistant']

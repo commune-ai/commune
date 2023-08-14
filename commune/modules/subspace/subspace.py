@@ -1830,6 +1830,7 @@ class Subspace(c.Module):
         my_modules = self.my_modules(*args, fmt=fmt, **kwargs)
         
         df =  self.get_stats(my_modules, fmt=fmt, **kwargs)
+        del df['stake_from']
         return df
 
     def stats(self, *args, fmt='j', **kwargs):
