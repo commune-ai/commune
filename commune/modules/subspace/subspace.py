@@ -409,7 +409,8 @@ class Subspace(c.Module):
 
     def register_servers(self, **kwargs):
         for m in c.servers(network='local'):
-            self.register(module=m, **kwargs)
+            self.register(name=m, **kwargs)
+    reg_servers = register_servers
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def register(
         self,
@@ -437,8 +438,6 @@ class Subspace(c.Module):
         address = c.namespace(network='local').get(name, '0.0.0.0:50051')
         if self.is_registered(name, netuid=netuid):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-        else:
-            assert name not in self.namespace(netuid=netuid), f"Name {name} already exists in namespace {netuid}"
         # Attempt to register
 
         key = self.resolve_key(name)

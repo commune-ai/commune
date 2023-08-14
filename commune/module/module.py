@@ -1876,6 +1876,7 @@ class c:
                 mode = server_mode,
                 virtual:bool = True, 
                 verbose: bool = False, 
+                prefix_match: bool = True,
                 key = None,
                 **kwargs ):
 
@@ -1884,17 +1885,15 @@ class c:
         key = cls.get_key(key)
         namespace = namespace or c.namespace(module, network=network)
         modules = list(namespace.keys())
-        module = c.choice(modules)
+        if prefix_match == True:
+            module = c.choice(modules)
+        else:
+            modules = [m for m in modules if m==module]
+            
         c.print(f'Connecting to {module} on {network} network', color='yellow')
         address = namespace[module]
         ip, port = address.split(':')
-        try:
-            client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
-        except Exception as e:
-            err = str(e)
-            c.print(err)
-            client= c.get_client(ip='0.0.0.0', port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
-
+        client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
         if verbose:
             c.print(f'Connected to {module} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
@@ -2140,23 +2139,6 @@ class c:
 
             return {'error':str(e)}
 
-    @classmethod
-    def build_namespace_local(cls, verbose:bool = False, chunk_size = 10):
-
-        used_ports = cls.get_used_ports()
-        ip = c.default_ip
-        addresses = [ f'{ip}:{p}' for p in used_ports]
-        namespace_local = {}
-
-
-        for i in range(0, len(addresses), chunk_size):
-            chunk = addresses[i:i+chunk_size]
-            names = c.gather([cls.async_get_peer_name(address) for address in chunk])
-            for i in range(len(names)):
-                if isinstance(names[i], str):
-                    namespace_local[names[i]] = addresses[i]
-        
-        return namespace_local
             
                 
     @classmethod
@@ -2172,10 +2154,20 @@ class c:
 
         if update : 
         
-            namespace_local = c.build_namespace_local()
+            used_ports = cls.get_used_ports()
+            ip = c.default_ip
+            addresses = [ f'{ip}:{p}' for p in used_ports]
+            namespace_local = {}
+
+            for i in range(0, len(addresses), chunk_size):
+                chunk = addresses[i:i+chunk_size]
+                names = c.gather([cls.async_get_peer_name(address) for address in chunk])
+                for i in range(len(names)):
+                    if isinstance(names[i], str):
+                        namespace_local[names[i]] = addresses[i]
+
             c.put('namespace_local', namespace_local)
             
-        namespace_local = {k:v for k,v in namespace_local.items()}
 
         return namespace_local
     
@@ -2377,7 +2369,7 @@ class c:
         return attrs
 
     @classmethod
-    def global_namespace(cls, update=False) -> Dict:
+    def namespace_(cls, update=False) -> Dict:
         
         global_namespace = {
             **cls.namespace_local(),
@@ -3112,35 +3104,58 @@ class c:
                 c.print(f'Killing {n}', color='red')
             cls.cmd(f"pm2 delete {n}", verbose=False)
             cls.pm2_rm_logs(n)
+    @staticmethod
+    def detailed_error(e) -> dict:
+        import traceback
+        tb = traceback.extract_tb(e.__traceback__)
+        file_name = tb[-1].filename
+        line_no = tb[-1].lineno
+        line_text = tb[-1].line
+        response = {
+            'error': str(e),
+            'file_name': file_name,
+            'line_no': line_no,
+            'line_text': line_text
+        }   
+        return response
+    @classmethod
+    def pm2_restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
+        pm2_list = cls.pm2_list()
+        if name in pm2_list:
+            rm_list = [name]
+        else:
+            if prefix_match:
+                rm_list = [ p for p in pm2_list if p.startswith(name)]
+            else:
+                raise Exception(f'pm2 process {name} not found')
 
-        
-        
+        if len(rm_list) == 0:
+            if verbose:
+                c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
+            return []
+        for n in rm_list:
+            c.print(f'Restarting {n}', color='cyan')
+            cls.cmd(f"pm2 restart {n}", verbose=False)
+            cls.pm2_rm_logs(n)
             
         return rm_list
-    
-    
+       
+        
     @classmethod
-    def pm2_restart(cls, name:str = None, verbose:bool=False):
+    def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()
             
         restarted_modules = []
+        
         for module in pm2_list:
             if module.startswith(name) or name in ['all']:
                 if verbose:
                     c.print(f'Restarting {module}', color='cyan')
                 c.cmd(f"pm2 restart {module}", verbose=verbose)
                 restarted_modules.append(module)
-
-            
+        
         return restarted_modules
             
-        
-            
-    def restart_self(self, mode:str='pm2'):
-        assert hasattr(self, 'server_name'), 'self.server_name must be defined to restart'
-        return self.restart(self.server_name)
-    
-    
     
     @classmethod
     def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
@@ -4549,6 +4564,9 @@ class c:
             import bittensor
         return bittensor
          
+
+    # TIME LAND
+    
     @classmethod  
     def time( cls, t=None) -> float:
         import time
@@ -4556,6 +4574,24 @@ class c:
             return time.time() - t
         else:
             return time.time()
+
+    @classmethod
+    def datetime(cls):
+        import datetime
+        # UTC 
+        return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    @classmethod
+    def time2datetime(self, t:float):
+        import datetime
+        return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
+
+    @classmethod
+    def datetime2time(self, dt:str):
+        import datetime
+        return datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S").timestamp()
+    
+
     @classmethod
     def delta_t(cls, t):
         return t - c.time()
@@ -4861,12 +4897,16 @@ class c:
                          *args,
                          full = False,
                          timeout : int = 4,
+                         prefix_match=True,
+                         return_future = False,
                          **kwargs) -> None:
                          
         
-        module = cls.connect(module, virtual=False)
-        return module.forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, full=full)
-
+        module = cls.connect(module, virtual=False, prefix_match=prefix_match)
+        job =  module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, full=full)
+        if return_future:
+            return job
+        return c.gather(job)
 
     @classmethod
     def live_modules(cls, **kwargs):
@@ -6223,6 +6263,8 @@ class c:
     @classmethod
     def shuffle(cls, x:list)->list:
         import random
+        if len(x) == 0:
+            return x
         random.shuffle(x)
         return x
     

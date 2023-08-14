@@ -218,17 +218,7 @@ class HTTPServer(c.Module):
                 result = self.process_result(result)
                 success = True
             except Exception as e:
-                tb = traceback.extract_tb(e.__traceback__)
-                file_name = tb[-1].filename
-                line_no = tb[-1].lineno
-                line_text = tb[-1].line
-
-                result = {
-                    'error': str(e),
-                    'file_name': file_name,
-                    'line_no': line_no,
-                    'line_text': line_text
-                }    
+                result = c.detailed_error(e)
                 success = False
                 result = self.process_result(result)
 

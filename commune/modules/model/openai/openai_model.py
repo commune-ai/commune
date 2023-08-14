@@ -17,74 +17,52 @@ class OpenAILLM(c.Module):
                  config: Union[str, Dict[str, Any], None] = None,
                  **kwargs
                 ):
-        
-        
+
         config = self.set_config(config, kwargs=kwargs)
         self.set_tag(config.tag)
-        self.set_stats(config.stats)
         self.set_api_key(config.api_key)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)
         
         
-        self.params  = dict(
-                 model =self.config.model,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens,
-                top_p=self.config.top_p,
-                frequency_penalty=self.config.frequency_penalty,
-                presence_penalty=self.config.presence_penalty,
-        )
-        
-        if config.save:
-            self.save(tag=self.tag)
-
-        
-    def set_stats(self, stats: dict):
-        if stats == None:
-            stats = {}
-        assert isinstance(stats, dict)
-        self.stats = stats 
-
-
-    def resolve_state_path(self, tag):
-        tag = self.resolve_tag(tag)
-        return os.path.join('states', f'{tag}.json')
+        # self.params  = dict(
+        #          model =self.config.model,
+        #         temperature=self.config.temperature,
+        #         max_tokens=self.config.max_tokens,
+        #         top_p=self.config.top_p,
+        #         frequency_penalty=self.config.frequency_penalty,
+        #         presence_penalty=self.config.presence_penalty,
+        # )
     
-    
-    def save(self, tag=None):
-        path = self.resolve_state_path(tag)
-        self.config.stats = self.stats
-        self.put(path, self.config)
-
-    def load(self, tag=None):
-        path = self.resolve_state_path(tag)
-        config = self.get(os.path.join('states', f'{tag}.json'), self.config)
-        return config
         
     def resolve_api_key(self, api_key:str = None) -> str:
+        if isinstance(api_key, str):
+            api_key = os.environ.get(api_key, api_key)
         if api_key == None:
-            if hasattr(self, 'api_key'):
-                api_key = self.api_key
-            else:
-                api_key = self.random_api_key()
-
+            api_key = self.random_api_key()
         assert isinstance(api_key, str),f"API Key must be a string,{api_key}"
-        openai.api_key = api_key
+        self.api_key = self.config.api_key =  api_key
         return api_key
+
+    hour_limit_count = {}
+    def ensure_token_limit(self, input:str , output:str ):
+        text = input + output
+        tokens = self.tokenizer(text)['input_ids']
+        hour = c.time() // 3600
+        if hour not in self.hour_limit_count:
+            self.hour_limit_count[hour] = 0
+
 
     @classmethod
     def random_api_key(cls):
-        api_keys = cls.api_keys()
-        if len(api_keys) == 0:
-            api_key = 'OPENAI_API_KEY'
-            api_key = os.getenv(api_key, api_key)
-        else:
-            api_key = c.choice(cls.api_keys())
-        return api_key
+        valid_api_keys = cls.api_keys()
+        assert len(valid_api_keys) > 0, "No valid API keys found, please add one via ```c openai add_api_key <api_key>```"
+        return valid_api_keys[0]
   
     def set_api_key(self, api_key: str = None) -> str:
+        api_key = api_key or self.config.api_key
         self.api_key = self.resolve_api_key(api_key)
+        openai.api_key = self.api_key
         return {'msg': f"API Key set to {openai.api_key}", 'success': True}
 
     def resolve_prompt(self, *args, prompt = None, **kwargs):
@@ -106,43 +84,7 @@ class OpenAILLM(c.Module):
         prompt = prompt.format(**kwargs)
         return prompt
     
-    def ask(self, question:str, max_tokens:int = 1000) : 
-        '''
-        Ask a question and return the answer
-        
-        Args:
-            question (str): The question to ask
-            max_tokens (int, optional): The maximum number of tokens to generate. Defaults to 1000.
-        Returns:
-            str: The answer to the question
-        '''
-
-        prompt = """
-
-        Given a question, answer it as a json
-        history
-        Question: {question}
-        """
-        
-        return self.forward(question=question, 
-                            role='user', 
-                            max_tokens=max_tokens,
-                             prompt=prompt)
-
-
-    def create(self, *args, **kwargs):
-        
-        try:
-
-            response = openai.ChatCompletion.create(
-                *args,
-                **kwargs
-            )
-            return response
-        except Exception as e:
-            return {'error': str(e)}
-            self.params['model'] = c.choice(self.config.models)
-
+    
 
     def is_error(self, response):
         return 'error' in response
@@ -153,49 +95,110 @@ class OpenAILLM(c.Module):
     def call(self, text):
         return self.forward(text, role='user')
         
-    def forward(self,
-                *args,
-                prompt:str = None,
-                # params
-                model:str = None,
-                presence_penalty:float = None, 
-                frequency_penalty:float = None,
-                temperature:float = None, 
-                max_tokens:int = None, 
-                top_p:float = None,
-                role = 'user',
-                add_history : bool = False,
-                return_json : bool = False,
+
+    
+    def forward(self,prompt:str = 'sup?',
+                model:str = 'gpt-3.5-turbo',
+                presence_penalty:float = 0.0, 
+                frequency_penalty:float = 0.0,
+                temperature:float = 0.9, 
+                max_tokens:int = 100, 
+                top_p:float = 1,
                 choice_idx:int = 0,
                 api_key:str = None,
-
+                retry: bool = True,
+                role:str = 'user',
+                history: list = None,
                 **kwargs) -> str:
-        
-        api_key = self.resolve_api_key(api_key)
-        prompt = self.resolve_prompt(*args, prompt=prompt, **kwargs)
-        params = self.resolve_params(locals())
-        response = self.create(messages=[{"role": role, "content": prompt}], **params)
-        if self.is_error(response):
-            return response
-        
-        assert 'usage' in response, f"Response must contain usage stats: {response}"
-        # update token stats
-        for k,v in response['usage'].items():
-            self.stats[k] = self.stats.get(k, 0) + v
+        t = c.time()
+        if not model in self.config.models:
+            f"Model must be one of {self.config.models}"
             
-        response = response['choices'][choice_idx]['message']
+        openai.api_key = api_key or self.api_key
+        
+        params = dict(
+                    model = model,
+                    presence_penalty = presence_penalty, 
+                    frequency_penalty = frequency_penalty,
+                    temperature = temperature, 
+                    max_tokens = max_tokens, 
+                    top_p = top_p
+                    )
+        
+        messages = [{"role": role, "content": prompt}]
+        if history:
+            messages = history + messages
 
-        if return_json and c.jsonable(response):
-            response = json.loads(response)
-        
-        if add_history:
-            self.history = self.history +  [*messages,response]
-            self.save()
+        try:
             
-        # c.stwrite(self.history)
-        return response['content']
+            response = openai.ChatCompletion.create(messages=messages, **params)
+        except Exception as e:
+            # if we get an error, try again with a new api key that is in the whitelist
+            if retry:
+                self.set_api_key(self.random_api_key())
+                response = openai.ChatCompletion.create(messages=messages, **params)
+
+            else:
+                response = c.detailed_error(e)
+                return response
+                
+        output_text = response = response['choices'][choice_idx]['message']['content']
+        input_tokens = self.num_tokens(prompt)
+        output_tokens = self.num_tokens(output_text)
+        latency = c.time() - t
+
+        stats = {
+            'prompt': prompt,
+            'response': output_text,
+            'input_tokens': input_tokens,
+            'output_tokens': output_tokens,
+            'latency': latency,
+            'history': history,
+            'timestamp': t,
+        }
+
+        self.add_stats(tag=t, stats=stats)
+
+        return output_text
+
+
+    _stats = None
+    _stats_update_time = 0
+    @classmethod
+    def stats(cls, skip_keys = ['prompt', 'response', 'history'], refresh_interval=5):
+        if cls._stats != None or c.time() % refresh_interval > (c.time() - cls._stats_update_time):
+            stat_paths = cls.ls('stats')
+            cls._stats = [cls.get(path) for path in stat_paths]
+            cls._stats_update_time = c.time()
+        if cls._stats == None:
+            cls._stats = stats
+        stats = [{k:v for k,v in cls.get(path).items() if k not in skip_keys} for path in stat_paths]
+
+        return  stats
+    @classmethod
+    def tokens_per_hour(self):
+        return self.tokens_per_period(period=3600)
+    @classmethod
+    def tokens_per_period(cls, period=3600):
+        stats = cls.stats()
+        one_hour_ago = c.time() - period
+        stats = [s for s in stats if s['timestamp'] > one_hour_ago]
+        tokens_per_hour = sum([s['input_tokens'] + s['output_tokens'] for s in stats])
+        return tokens_per_hour
+
+    def add_stats(self, tag:str, stats:dict,  ):
+        self.put(f'stats/{tag}.json', stats)
+        saved_stats_paths = self.ls('stats')
+        if len(saved_stats_paths) > self.config.max_stats:
+            # remove the oldest stat
+            sorted(saved_stats_paths, key=lambda x: int(x.split('.')[0]))
+            self.rm(saved_stats_paths[0])
+
+        return {'msg': f"Saved stats for {tag}", 'success': True}
 
     generate = call = forward
+
+
     def resolve_params(self, params = None):
         if params == None:
             params = {}
@@ -297,33 +300,37 @@ class OpenAILLM(c.Module):
         cls.set_api_keys(cls.valid_api_keys())
     
     @classmethod
+    def valid_api_key(self):
+        return self.valid_api_keys()[0]
+    @classmethod
     def valid_api_keys(cls, verbose:bool = True):
         api_keys = cls.api_keys()
         valid_api_keys = []
         for api_key in api_keys:
             if verbose:
                 c.print(f'Verifying API key: {api_key}', color='blue')
-            if cls.is_valid_api_key(api_key):
+            if cls.verify_api_key(api_key):
                 valid_api_keys.append(api_key)
+        
+        valid_api_keys = c.shuffle(valid_api_keys)
         return valid_api_keys
     valid_keys = verify_api_keys = valid_api_keys
 
     @classmethod
-    def num_valid_api_keys(cls):
-        return len(cls.valid_api_keys())
-
-    @classmethod
-    def api_keys(cls):
+    def api_keys(cls, update:bool = False):
+        if update:
+            cls.put('api_keys', self.valid_api_keys())
         return cls.get('api_keys', [])
-
-
-    def remove_invalid_api_keys(self):
-        verify_api_keys = self.valid_api_keys()
-        self.set_api_keys(verify_api_keys)
-        return {'msg': f'Verified {len(verify_api_keys)} api_keys', 'api_keys': verify_api_keys}
-
         
-    
+    def num_tokens(self, text:str) -> int:
+        num_tokens = 0
+        tokens = self.tokenizer.encode(text)
+        if isinstance(tokens, list) and isinstance(tokens[0], list):
+            for i, token in enumerate(tokens):
+                num_tokens += len(token)
+        else:
+            num_tokens = len(tokens)
+        return num_tokens
     @classmethod
     def test(cls, input:str = 'What is the meaning of life?',**kwargs):
         module = cls()
@@ -331,16 +338,16 @@ class OpenAILLM(c.Module):
 
     
     @classmethod
-    def is_valid_api_key(cls, api_key:str, text:str='ping'):
-        model = cls(api=api_key)
-        output = model.forward(text, max_tokens=1, api_key=api_key)
+    def verify_api_key(cls, api_key:str, text:str='ping'):
+        model = cls(api_key=api_key)
+        output = model.forward(text, max_tokens=1, api_key=api_key, retry=False)
         if 'error' in output:
-            c.print(output['error'], color='red')
+            c.print(f'ERROR \u2717 -> {api_key}', output['error'], color='red')
             return False
         else:
-            c.print(f'API key {api_key} is valid {output}', color='green')
+            # checkmark = u'\u2713'
+            c.print(f'Verified \u2713 -> {api_key} ', output, color='green')
         return True
-    verify_key = verify_api_key = is_valid_api_key 
 
     @classmethod
     def restart_miners(cls, *args,**kwargs):
@@ -390,6 +397,32 @@ class OpenAILLM(c.Module):
     # @classmethod
     # def serve(cls, *args, **kwargs):
     #     name = cls.name()
+
+
+    @classmethod
+    def validate(cls, text = 'What is the meaning of life?', max_tokens=10):
+        prefix = cls.module_path()
+        jobs = []
+        servers = c.servers(prefix)
+        for s in servers:
+            job = c.call(module=s, 
+                         fn='forward', 
+                         text=text, 
+                         return_future=True, 
+                         temperature=0.0,
+                         max_tokens=max_tokens)
+            jobs.append(job)
+        assert len(jobs) > 0, f'No servers found with prefix {prefix}'
+        results = c.gather(jobs)
+        response = {}
+        for s, result in zip(c.servers(prefix), results):
+            response[s] = result
+
+        return response
+
+
+
+
  
     @classmethod     
     def st(cls):

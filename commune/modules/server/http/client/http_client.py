@@ -51,8 +51,6 @@ class Client(c.Module):
         if ip != None or port != None:
             self.set_client(ip =ip,port = port)
 
-
-
     async def async_forward(self,
         fn,
         args = None,

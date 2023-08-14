@@ -2,7 +2,7 @@
 # nest_asyncio.apply()
 import commune as c
 import torch
-
+import traceback
 import threading 
 
 
@@ -40,13 +40,10 @@ class Validator(c.Module):
         self.subspace = c.module(self.config.network)()
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
-        self.name2module = {v['name']: v for v in self.modules } 
-        self.module_names = list(self.name2module.keys())
+        self.name2module_state = {v['name']: v for v in self.modules } 
+        self.module_names = list(self.name2module_state.keys())
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
-    
-        if self.config.key == None:
-            self.key = c.get_key()
         self.key = c.get_key(self.config.key)
 
     @property
@@ -57,77 +54,48 @@ class Validator(c.Module):
         return self.count / self.lifetime
 
 
-    def score_module(self, module) -> int:
-        c.print('SCORE MODULE', color='green')
-        return 1
-    
+
     def resolve_module_name(self, module=None):
         if module == None:
             module = c.choice(self.module_names)
         return module
         
-    def eval_module(self, module = None, fn='info', args = None, kwargs=None, thread_id=0):
+    def eval_module(self, module = None):
         return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs, thread_id=thread_id,))
         
-    
-    async def async_eval_module(self, module:str = None, fn:str='info', args:list = None, kwargs:dict=None, verbose:bool=False , thread_id=0):
-
-        if args == None:
-            args = []
-        if kwargs == None:
-            kwargs = {'timeout': self.config.timeout}
-
-        if  kwargs == None:
-            kwargs = {}
-        if args == None:
-            args = []
-        module = self.resolve_module_name(module)
-        module_state = self.name2module[module]
+    def score_module(self, module):
+        info = module.info()
+        assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
+        assert 'address' in info, f'Response must have an error key, got {info.keys()}'
         w = 1
-        emojis = c.emojis
+        response = {'success': True,
+                     'w': w}
+        return response
+
+    def eval_module(self, module:str = None, thread_id=0, refresh=False):
+        w = 0 # default weight is 0
+        module_name = self.resolve_module_name(module)
+        module_state = self.name2module_state[module_name]
+
         try:
-            # get connection
-            # is it a local ip?, if it is raise an error
-            has_local_ip = any([k in module_state['address'].lower() for k in ['none', '0.0.0.0', '127.0.0.1', 'localhost']])
-            if has_local_ip:
-                raise Exception(f'Invalid address {module_state["address"]}')
-            
-
-            # connect to module
-            address  = module_state['address']
-            module_client = await c.async_connect(address, network=self.config.network, namespace = self.namespace,timeout=1, key=self.key)
-
-            # call function and return a future and await response
-            response = await getattr(module_client,fn)(*args, **kwargs, return_future=True)
-
-            # wait for response
-            assert isinstance(response, dict), f'Response must be a dict, got {type(response)}'
-
-
-            assert response.get('address', None) == module_state['address'] , f'Response must have an error key, got {response.keys()}'
-
-            # get score from custom scoring function
-            w = self.score_module(module=module_client)
-            c.print(f'{emojis["output"]} ID:{thread_id} ITS LIT {response} {emojis["output"]} {emojis["dank"]} -> W : {w}', color='green',verbose=verbose)
-
+            module = c.connect(module_name,timeout=1, key=self.key, network=self.config.network)
+            response = self.score_module(module)
+            c.print(f'{module_name} {c.emojis["dank"]} -> W : {w}', color='green')
         except Exception as e:
-            # yall errored out, u get a gzero
-            w = 0
-            response = {'error': str(e)}
-            c.print(f'{module}::{fn} ID:{thread_id} ERROR {emojis["error"]} {response} {emojis["error"]} -> W : {w}', color='red',verbose=verbose)
-            
+            response = {'error': c.detailed_error(e), 'w': 0}
+            c.print(f'{module} ERROR {c.emojis["error"]} {response} {c.emojis["error"]} -> W : {w}', color='red')
 
-
-        module_stats = self.load_module_stats(module, module_state)
+        w = response['w']
+        module_stats = self.load_module_stats(module_name, default=module_state) if not refresh else module_state
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
         module_stats['alpha'] = self.config.alpha
-        module_stats['history'] = module_stats.get('history', []) + [{'input': dict(args=args, kwargs=kwargs) ,'output': response, 'w': w, 'time': c.time()}]
+        module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
         self.module_stats[module] = module_stats
         self.save_module_stats(module, module_stats)
         self.count += 1
 
-        return module
+        return module_stats
     
 
     def vote(self):
