@@ -30,7 +30,7 @@ class ModelTransformer(Model):
                 return_keys:List[str] = ['topk', 'hidden_states'],
                 topk:int=32,
                 hidden_layer: int = -1, # -1 is the last hidden layer
-                max_sequence_length : int = 256,                        
+                max_input_tokens : int = 256,                        
                 **kwargs):
 
 
@@ -42,13 +42,13 @@ class ModelTransformer(Model):
         # resolve the max sequence length (sometimes we want to clip the input to make it faster)
         attention_mask = attention_mask if isinstance(attention_mask, torch.Tensor) else torch.ones_like(input_ids)
 
-        if max_sequence_length > self.config.max_sequence_length:
-            max_sequence_length = self.config.max_sequence_length
-            logger.warning(f"max_sequence_length is larger than the model's max_sequence_length. Clipping to {max_sequence_length}")
+        if max_input_tokens > self.config.max_input_tokens:
+            max_input_tokens = self.config.max_input_tokens
+            logger.warning(f"max_input_tokens is larger than the model's max_input_tokens. Clipping to {max_input_tokens}")
         
         sample = {
-        'input_ids': input_ids[:, -max_sequence_length:],
-        'attention_mask': attention_mask[:, -max_sequence_length:] if attention_mask is not None else None
+        'input_ids': input_ids[:, -max_input_tokens:],
+        'attention_mask': attention_mask[:, -max_input_tokens:] if attention_mask is not None else None
         }
 
         # move to device for all tensors
@@ -97,14 +97,18 @@ class ModelTransformer(Model):
         from accelerate import init_empty_weights
         c.print('LOADING MODEL -> ', config.model)
         t = c.time()
+        # if config.max_memory == None:
+        #     config.max_memory = c.model_max_gpu_memory(config.model, fmt='gb')
+        # config.max_memory = {k: str(int(v+1))+'GiB' for k, v in config.max_memory.items() if v is not None}
+        # c.print('MAX MEMORY -> ', config.max_memory)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,
                                                             max_memory=config.max_memory,
                                                             trust_remote_code=config.trust_remote_code,
                                                              offload_folder="offload", torch_dtype=torch.float16) 
 
+        self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))   
         time_taken = c.time() - t       
-        self.devices = config.devices = list(set(list(self.model.hf_device_map.values())))          
         c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
         self.set_optimizer(config.optimizer)
         self.set_finetune(config.finetune) 
@@ -390,47 +394,54 @@ class ModelTransformer(Model):
 
     hf = c.module('huggingface')()
     def generate(self, text: str, 
-                max_length: int = 20, 
-                max_new_tokens: int = None,
-                min_length: int = 0, 
-                min_new_tokens: int = None,
+                max_output_tokens: int = 256,
+                max_input_tokens: int = 20, 
                 early_stopping: bool = True,
-                max_time: float = None,
                 stream:bool = False,
                 **kwargs) -> List[str]:
         if stream:
             return self.generate_stream(text, 
-                                        max_length=max_length, 
-                                        max_new_tokens=max_new_tokens,
-                                        min_length=min_length, 
-                                        min_new_tokens=min_new_tokens,
-                                        early_stopping=early_stopping,
-                                        max_time=max_time, **kwargs)
+                                        max_new_tokens=max_output_tokens, 
+                                        early_stopping=early_stopping, **kwargs)
 
-        if isinstance(text, str):
+        is_string = isinstance(text, str)
+        if is_string:
             text = [text]
 
-        input_ids = self.tokenize(text)['input_ids']
+        # resolve max_input_tokens
+        if max_input_tokens > self.config.max_input_tokens:
+            max_input_tokens = self.config.max_input_tokens
+
+        # resolve max_output_tokens
+        if max_output_tokens > self.config.max_output_tokens:
+            max_output_tokens = self.config.max_output_tokens
+
+        # get tokens
+        input_ids = self.tokenize(text, max_length=max_input_tokens)['input_ids']
+
+        # generate
         output_ids = self.model.generate(input_ids.to(self.device), 
-                                        max_length=max_length, 
-                                        max_new_tokens=max_new_tokens,
-                                        min_length=min_length, 
-                                        min_new_tokens=min_new_tokens,
+                                        max_new_tokens=max_output_tokens,
                                         early_stopping=early_stopping,
-                                        max_time=max_time, **kwargs)
+                                          **kwargs)
+        
+        # decode
         output_text = self.detokenize(output_ids, skip_special_tokens=True)
 
+        # remove input text
         for t, ot in zip(text, output_text):
             output_text = ot.replace(t, '')
 
+        if is_string:
+            output_text = output_text[0]
 
         return output_text
     
 
     
     @classmethod
-    def test_generate(cls, *args, **kwargs):
-        model = cls( *args, **kwargs)
-        output_text = model.generate(text='Hello world',)
+    def test_generate(cls,model='gpt2.7b', text='Whadup?', **kwargs):
+        model = cls(model=model, **kwargs)
+        output_text = model.generate(text=text, max_output_tokens=100, early_stopping=False)
 
         return output_text

@@ -7109,7 +7109,7 @@ class c:
         
             if (gpu == None) or (free_gpu_memory[gpu] < buffer_memory) or (free_gpu_memory[gpu] < param_size):
                 gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
-                llocated_gpu_memory[gpu] = 0
+                allocated_gpu_memory[gpu] = 0
     
    
             

@@ -11,7 +11,9 @@ optimizer:
   lr: 2.0e-05
   module: torch.optim.Adam
 load_in_8bit: False
-max_sequence_length: 256
+max_input_tokens: 256
+max_output_tokens: 256
+
 tag: null
 load: false
 
