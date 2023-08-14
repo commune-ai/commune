@@ -469,7 +469,7 @@ class Subspace(c.Module):
             
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Success[/green]")
-            return {'success': True, 'message': f'Successfully registered module {module} with address {address}'}
+            return {'success': True, 'message': f'Successfully registered module {name} with address {address}'}
         else:
             return {'success': False, 'message': response.error_message}
 
@@ -642,9 +642,6 @@ class Subspace(c.Module):
                     msg = 'Failed to Serve module'
                     c.print( f':cross_mark: error: {msg}')
                     return {'success': False, 'msg': msg}
-            else:
-                return {'success': True, 'msg': msg}
-
 
 
 
@@ -1372,11 +1369,10 @@ class Subspace(c.Module):
         
     def key_info(self, key, netuid=None, fmt='j', cache = True, include_stake_to=True,  **kwargs):
         
-        
         netuid = self.resolve_netuid(netuid)
         module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
         stake = module.get('stake', 0)
-        balance = self.balance(self.key, fmt=fmt)
+        balance = self.balance(key, fmt=fmt)
         key_info = {
                     'balance': balance, 
                     'address': self.key2address(key), 
