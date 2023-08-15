@@ -1744,12 +1744,27 @@ class c:
     @classmethod
     def file_exists(cls, path:str, root:bool = False)-> bool:
         path = cls.resolve_path(path=path,  root=root)
-        return os.path.exists(path)
+        
+        exists =  os.path.exists(path)
+        if not exists and not path.endswith('.json'):
+            exists = os.path.exists(path + '.json')
+        
+        return exists
 
         
 
-    
-    
+    @classmethod
+    def docs(cls):
+        # Markdown input
+        markdown_text = "## Hello, *Markdown*!"
+
+
+        path = cls.filepath().replace('.py', '_docs.md')
+        markdown_text =  cls.get_text(path=path)
+        return markdown_text
+
+
+
     exists = exists_json = file_exists
 
     @classmethod
@@ -2394,8 +2409,12 @@ class c:
     
 
     @classmethod
-    def namespace_subspace(cls, **kwargs ) -> Dict:
-        namespace = c.module('subspace')().namespace(**kwargs)
+    def namespace_subspace(cls, update:bool = False , **kwargs ) -> Dict:
+        if update or not c.exists('namespace_subspace'):
+            namespace = c.module('subspace')().namespace(**kwargs)
+            c.put('namespace_subspace', namespace)
+        else:
+            namespace = c.get('namespace_subspace', None)
         return namespace
 
         
@@ -3098,7 +3117,7 @@ class c:
         module = cls.resolve_module(module)
         server_name = module.serve(tag=tag, 
                               server_name=name, 
-                              wait_for_server=False, 
+                              wait_for_server=True, 
                               refresh=refresh, 
                               **kwargs)
         subspace = c.module('subspace')()
