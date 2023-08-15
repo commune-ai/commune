@@ -67,7 +67,6 @@ class Subspace(c.Module):
         **kwargs,
     ):
         config = self.set_config(config=config,kwargs=kwargs)
-
         self.set_network( config.network)
     @classmethod
     def get_network_url(cls, network:str = network) -> str:
@@ -78,7 +77,6 @@ class Subspace(c.Module):
 
         node = c.choice(list(nodes.keys()))
         url = nodes[node]['ip'] + ':' + str(nodes[node]['ws_port'])
-        c.print(f'Connecting to {network}: {url} ({node})...', color='green')
         return url
     @classmethod
     def resolve_network_url(cls, network:str , prefix='ws://'):    
@@ -137,8 +135,8 @@ class Subspace(c.Module):
             network = self.network
         self.network = network
         url = self.resolve_network_url(network)
-        c.print(f'Connecting to {network}: {url}...')
-        
+        c.print(f'Connecting to {network}: {url} BROOOO...')
+    
         self.url = self.chain_endpoint = url
         
 
@@ -287,19 +285,19 @@ class Subspace(c.Module):
             uids = self.uids()
         
         subnet = self.subnet( netuid = netuid )
-        max_allowed_uids = subnet['max_allowed_uids']
-        min_allowed_uids = subnet['min_allowed_uids']
+        min_allowed_weights = subnet['min_allowed_weights']
+        max_allowed_weights = subnet['max_allowed_weights']
     
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
             return False
-        if len(uids) > max_allowed_uids:
-            c.print(f'Only {max_allowed_uids} uids are allowed to be voted on.')
-            uids = uids[:max_allowed_uids]
+        if len(uids) > max_allowed_weights:
+            c.print(f'Only {max_allowed_weights} uids are allowed to be voted on.')
+            uids = uids[:max_allowed_weights]
 
         
-        if len(uids) < min_allowed_uids:
-            while len(uids) < min_allowed_uids:
+        if len(uids) < min_allowed_weights:
+            while len(uids) < min_allowed_weights:
                 uid = c.choice(list(range(subnet['n'])))
                 if uid not in uids:
                     uids.append(uid)
@@ -424,6 +422,7 @@ class Subspace(c.Module):
             self.register(name=m, **kwargs)
     reg_servers = register_servers
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
+
     def register(
         self,
         name: str , # defaults to module.tag
@@ -741,18 +740,22 @@ class Subspace(c.Module):
             module_key = key.ss58_address
         elif isinstance(module_key, str):
             module2key =self.module2key(netuid=netuid)
-            if module_key in module2key:
-                module_key = module2key[module_key]
+            module_key = module2key[module_key]
         assert module_key != None, "Please provide a module_key"
         return module_key
+
+    def stake_transfer(self, key, module_key, amount=None, **kwargs ):
+        self.unstake( key, amount=amount, **kwargs)
+        self.stake( key=key, module_key=module_key, amount=amount, **kwargs)
+
     def stake(
             self,
             key: Optional[str] ,
             amount: Union[Balance, float] = None, 
             module_key: Optional[str] = None,
             netuid:int = None,
-            wait_for_inclusion: bool = True,
-            wait_for_finalization: bool = False,
+            wait_for_inclusion: bool = False,
+            wait_for_finalization: bool = True,
             prompt: bool = False,
             network:str = None,
             existential_deposit: float = 0.1,
@@ -762,17 +765,25 @@ class Subspace(c.Module):
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
 
+        c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
+        if not self.is_registered( module_key, netuid=netuid):
+            return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
         old_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
-
-
         if amount is None:
             amount = old_balance
         amount = self.to_nanos(amount - existential_deposit)
         
         # Get current stake
+        call_params={
+                    'netuid': netuid,
+                    'amount': int(amount),
+                    'module_key': module_key
+                    }
+    
+        c.print(call_params)
 
         with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
 
@@ -780,11 +791,7 @@ class Subspace(c.Module):
                 call = substrate.compose_call(
                 call_module='SubspaceModule', 
                 call_function='add_stake',
-                call_params={
-                    'netuid': netuid,
-                    'amount': amount,
-                    'module_key': module_key
-                    }
+                call_params=call_params
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
                 response = substrate.submit_extrinsic( extrinsic, 
@@ -1467,17 +1474,13 @@ class Subspace(c.Module):
     
     balances = get_balances
     
-    def resolve_network(self, network: Optional[int] = None, ensure_network:bool = True) -> int:
-        
-        if ensure_network:
-            if not hasattr(self, 'substrate'):
-                self.set_network(network)
-        if network == None:
-            network = self.network
-        
-        # If network is a string, resolve it to a network id.
-        if isinstance(network, str) and network != self.network:
+    def resolve_network(self, network: Optional[int] = None) -> int:
+        if  hasattr(self, 'substrate'):
+            network =  self.network
+        else:
+            c.print("Connecting to chain ...")
             self.set_network(network)
+            network =  self.network
         return network
     
     def resolve_subnet(self, subnet: Optional[int] = None) -> int:
@@ -1723,7 +1726,7 @@ class Subspace(c.Module):
                 
                 ) -> Dict[str, ModuleInfo]:
         
-        network = self.resolve_network(network, ensure_network=False)
+        network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
 
         modules = []
@@ -2983,6 +2986,7 @@ class Subspace(c.Module):
             # version 0 does not have weights
             max_allowed_weights = 100
             snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
+
 
 
 
