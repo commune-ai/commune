@@ -2826,7 +2826,7 @@ class c:
         elif isinstance(killed_module, str):
             delete_modules.append(killed_module)
         else:
-            raise Exception(f'killed module {killed_module} is not a string or list, Somethings up')
+            delete_modules.append(killed_module)
         # update modules
         
         c.deregister_server(module)
