@@ -408,9 +408,10 @@ class OpenAILLM(c.Module):
             job = c.call(module=s, 
                          fn='forward', 
                          text=text, 
-                         return_future=True, 
                          temperature=0.0,
-                         max_tokens=max_tokens)
+                         max_tokens=max_tokens,
+                        return_future=True
+                        )
             jobs.append(job)
         assert len(jobs) > 0, f'No servers found with prefix {prefix}'
         results = c.gather(jobs)

@@ -59,12 +59,10 @@ class Validator(c.Module):
         if module == None:
             module = c.choice(self.module_names)
         return module
-        
-    def eval_module(self, module = None):
-        return c.gather(self.async_eval_module(module=module, fn=fn, args=args, kwargs=kwargs, thread_id=thread_id,))
-        
+
     def score_module(self, module):
-        info = module.info()
+        info = module.info(timeout=1)
+        c.print(info)
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
         assert 'address' in info, f'Response must have an error key, got {info.keys()}'
         w = 1
@@ -72,18 +70,19 @@ class Validator(c.Module):
                      'w': w}
         return response
 
-    def eval_module(self, module:str = None, thread_id=0, refresh=False):
+    async def async_eval_module(self, module:str = None, thread_id=0, refresh=False):
         w = 0 # default weight is 0
         module_name = self.resolve_module_name(module)
         module_state = self.name2module_state[module_name]
 
         try:
-            module = c.connect(module_name,timeout=1, key=self.key, network=self.config.network)
+            module = await c.async_connect(module_name,timeout=1, key=self.key, network=self.config.network)
             response = self.score_module(module)
-            c.print(f'{module_name} {c.emojis["dank"]} -> W : {w}', color='green')
+            w = response['w']
+            c.print(f'{module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green')
         except Exception as e:
             response = {'error': c.detailed_error(e), 'w': 0}
-            c.print(f'{module} ERROR {c.emojis["error"]} {response} {c.emojis["error"]} -> W : {w}', color='red')
+            c.print(f'{module_name} ERROR {c.emojis["error"]} -> W : {w}', color='red')
 
         w = response['w']
         module_stats = self.load_module_stats(module_name, default=module_state) if not refresh else module_state
@@ -96,6 +95,9 @@ class Validator(c.Module):
         self.count += 1
 
         return module_stats
+    
+    def eval_module(self, module:str = None, thread_id=0, refresh=False):
+        return c.gather(self.async_eval_module(module=module, thread_id=thread_id, refresh=refresh), timeout=2)
     
 
     def vote(self):
@@ -173,23 +175,17 @@ class Validator(c.Module):
 
     def run(self, vote = True, thread_id = 0):
         c.print(f'Running -> thread:{thread_id} network:{self.config.network} netuid: {self.config.netuid} key: {self.key.path}', color='cyan')
-        # while not self.subspace.is_registered(self.key):
-            
-        #     c.print(f'Key {self.key} is not registered in {self.config.network}')
-        #     c.sleep(10)
-        #     c.register()
-        #     return {'success': False, 'message': f'Key {self.key} is not registered in {self.config.network}'}
-            
+
+        c.new_event_loop()
 
         self.running = True
-        c.get_event_loop()
         self.last_vote_time = c.time()
          
         import tqdm
         self.epochs = 0
         while self.running:
-
-            modules = c.shuffle(c.copy(self.module_names))
+            modules = [m for m in self.module_names if m.startswith(self.config.module_prefix)]
+            modules = c.shuffle(c.copy(modules))
             
             for i, module in enumerate(modules):
 

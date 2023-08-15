@@ -339,7 +339,6 @@ class SubspaceDashboard(c.Module):
 
         df['stake'] = df['stake']/1e9
         df['emission'] = df['emission']/1e9
-        del df['stake_from']
         st.dataframe(df)
         with st.expander('Register Validator', expanded=False):
             self.launch_dashboard(expanded=False, prefix='vali')

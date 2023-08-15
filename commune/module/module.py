@@ -1883,15 +1883,19 @@ class c:
         t = c.time()
         network = c.resolve_network(network)
         key = cls.get_key(key)
-        namespace = namespace or c.namespace(module, network=network)
-        modules = list(namespace.keys())
-        if prefix_match == True:
-            module = c.choice(modules)
+        if c.is_address(module):
+            address = module
         else:
-            modules = [m for m in modules if m==module]
-            
-        c.print(f'Connecting to {module} on {network} network', color='yellow')
-        address = namespace[module]
+            namespace = namespace or c.namespace(module, network=network)
+            modules = list(namespace.keys())
+            if prefix_match == True:
+                module = c.choice(modules)
+            else:
+                modules = [m for m in modules if m==module]
+                
+            c.print(f'Connecting to {module} on {network} network', color='yellow')
+            address = namespace[module]
+
         ip, port = address.split(':')
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
@@ -2125,24 +2129,33 @@ class c:
     @staticmethod
     async def async_get_peer_name(peer_address, connect_timeout=2, fn_timeout=2,**kwargs):
         try:
+            peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
+
             peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
+            c.print(f'Connected to {peer_address}', color='green')
+
             if peer == None: 
                 return peer
-            
+
             server_name = peer(fn='server_name',  return_future=True)
+
             server_name = await asyncio.wait_for(server_name, timeout=fn_timeout)
             if c.check_response(server_name):
                 return server_name
             else:
                 return server_name
         except Exception as e:
+            c.print( e)
 
             return {'error':str(e)}
 
             
                 
     @classmethod
-    def namespace_local(cls, verbose:bool = False, update=False, **kwargs)-> dict:
+    def namespace_local(cls,
+                        update:bool=False,
+                        chunk_size:int=10, 
+                        **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
@@ -2160,6 +2173,7 @@ class c:
             namespace_local = {}
 
             for i in range(0, len(addresses), chunk_size):
+                c.print(f'Updating namespace_local {i}/{len(addresses)}', color='green')
                 chunk = addresses[i:i+chunk_size]
                 names = c.gather([cls.async_get_peer_name(address) for address in chunk])
                 for i in range(len(names)):
@@ -2497,7 +2511,7 @@ class c:
               server_name:str=None, 
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = True, # waits for the server to start before returning
+              wait_for_server:bool = False, # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
@@ -2542,6 +2556,7 @@ class c:
                 raise Exception(f'The server {server_name} already exists')
             
         server = c.module(f'server.{server_mode}')(module=self, name= server_name)
+        c.print(f'Starting server {server_name}', color='yellow')
         return server.server_name
 
     serve_module = serve
@@ -4895,7 +4910,6 @@ class c:
     @classmethod
     def call(cls,module : str, fn : str,
                          *args,
-                         full = False,
                          timeout : int = 4,
                          prefix_match=True,
                          return_future = False,
@@ -4903,7 +4917,7 @@ class c:
                          
         
         module = cls.connect(module, virtual=False, prefix_match=prefix_match)
-        job =  module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout, full=full)
+        job =  module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
         if return_future:
             return job
         return c.gather(job)
