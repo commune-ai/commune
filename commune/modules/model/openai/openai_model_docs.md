@@ -1,8 +1,8 @@
 
 
-## Vali.Text Module
+## Model.Openai Module
 
-This module performs tests on truthful_qa. 
+This module is a wrapper over the OPENAI API
 
 
 To serve the module
