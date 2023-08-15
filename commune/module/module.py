@@ -3091,10 +3091,17 @@ class c:
                  name:str = None, 
                  subnet:str = 'commune',
                  refresh:bool =False,
+                 tag_seperator:str = '::',
                  **kwargs ):
-        module = cls.resolve_module(module)
+        if tag_seperator in module:
+            module, tag = module.split(tag_seperator)
+        module = c.resolve_module(module)
+        server_name = module.serve(tag=tag, 
+                              server_name=name, 
+                              wait_for_server=True, 
+                              refresh=refresh, 
+                              **kwargs)
         subspace = c.module('subspace')()
-        server_name = module.serve(tag=tag, server_name=name, wait_for_server=True, refresh=refresh, **kwargs)
         subspace.register(server_name, subnet=subnet)
         return server_name
     reg = register

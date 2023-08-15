@@ -285,7 +285,9 @@ class Subspace(c.Module):
         if uids is None:
             uids = self.uids()
         
-        max_allowed_uids = self.max_allowed_weights( netuid = netuid )
+        subnet = self.subnet( netuid = netuid )
+        max_allowed_uids = subnet['max_allowed_uids']
+        min_allowed_uids = subnet['min_allowed_uids']
     
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
@@ -293,6 +295,15 @@ class Subspace(c.Module):
         if len(uids) > max_allowed_uids:
             c.print(f'Only {max_allowed_uids} uids are allowed to be voted on.')
             uids = uids[:max_allowed_uids]
+
+        
+        if len(uids) < min_allowed_uids:
+            while len(uids) < min_allowed_uids:
+                uid = c.choice(list(range(subnet['n'])))
+                if uid not in uids:
+                    uids.append(uid)
+                    weights.append(0)
+            
         if weights is None:
             weights = torch.tensor([1 for _ in uids])
             weights = weights / weights.sum()
@@ -1823,7 +1834,7 @@ class Subspace(c.Module):
         return [s for s in servers if s not in my_module_names]
     def my_stats(self, *args, fmt='j', **kwargs):
         import pandas as pd
-        my_modules = self.my_modules(*args, fmt=fmt, **kwargds)
+        my_modules = self.my_modules(*args, fmt=fmt, **kwargs)
         
         df =  self.get_stats(my_modules, fmt=fmt, **kwargs)
         # del df['stake_from']
