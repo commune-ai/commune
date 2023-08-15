@@ -8,10 +8,7 @@ class ValiText(Vali):
         kwargs['start'] = False
         Vali.__init__(self, config=config, **kwargs)
         self.set_dataset( self.config.dataset )
-
         self.start()
-
-
 
     def start_dataset(dataset):
         dataset.split('.')[-1]
