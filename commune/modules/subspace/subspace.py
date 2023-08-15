@@ -2325,13 +2325,16 @@ class Subspace(c.Module):
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
-                 server_mode :str = server_mode,
+                 server_mode :str = 'pm2',
                  rpc_cors = 'all',
                  validator:bool = False,
                  
                  ):
 
         ip = c.ip()
+
+        if not cls.node_key_exists(chain=chain, node=node):
+            cls.add_node_key(chain=chain, node=node, mode='vali' if validator else 'nonvali')
 
         node_info = c.locals2kwargs(locals())
 
@@ -2384,16 +2387,19 @@ class Subspace(c.Module):
 
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
+        cmd = cmd + cmd_kwargs
+        c.print(cmd)
+
         if server_mode == 'pm2':
             # 
-            cmd = c.pm2_start(path=cls.chain_release_path, 
+            c.pm2_start(path=cls.chain_release_path, 
                             name=name,
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
                             verbose=verbose)
             
         elif server_mode == 'local':
-            cmd = cmd + cmd_kwargs
+            
             c.cmd(cmd)
             
         elif server_mode == 'docker':
@@ -2885,7 +2891,6 @@ class Subspace(c.Module):
     
     @classmethod
     def install_rust_env(cls, sudo=True):
-        
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
