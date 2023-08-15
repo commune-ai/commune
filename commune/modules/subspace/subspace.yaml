@@ -193,6 +193,22 @@ chain_info:
     - /ip4/162.157.113.207/tcp/2230/p2p/12D3KooWRqviVRrGuT1BDbfC9ReP9vR9dNNF7YUJc7Ph5XXY1ZK4
     - /ip4/162.157.113.207/tcp/2205/p2p/12D3KooWRCBKrsfApT5t2JjhagchL69dEY7khDCWoqKeNJPQ5pbu
     nodes:
+      alice:
+        boot_nodes: /ip4/162.157.113.207/tcp/2223/p2p/12D3KooWLKM6xqSpdt2hMfxZdQ5nCy9YViyNYegHMU4Uw3tSJe4j
+        chain: main
+        ip: 162.157.113.207
+        node: alice
+        node_key: null
+        port: 2401
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 2402
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 2403
       nonvali_0:
         boot_nodes: /ip4/162.157.113.207/tcp/2287/p2p/12D3KooWDdpfH2uMZYWs9Mo4Pg3vivuYfTQixhniJbnSgAzQMZtP
         chain: main
@@ -620,6 +636,16 @@ chain_info:
     - ws://162.157.113.207:2270
     - ws://162.157.113.207:2295
     - ws://162.157.113.207:2217
+    - ws://162.157.113.207:2403
+    - ws://162.157.113.207:2403
+    - ws://162.157.113.207:2403
+    - ws://162.157.113.207:2403
+    - ws://162.157.113.207:2403
+    - ws://162.157.113.207:2406
+    - ws://162.157.113.207:2406
+    - ws://162.157.113.207:2403
+    - ws://162.157.113.207:2406
+    - ws://162.157.113.207:2403
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 default_netuid: 0
