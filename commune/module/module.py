@@ -2132,7 +2132,6 @@ class c:
             peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
 
             peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
-            c.print(f'Connected to {peer_address}', color='green')
 
             if peer == None: 
                 return peer
@@ -2348,7 +2347,7 @@ class c:
             if len(print_logs) > 0:
                 logs.extend(print_logs)
                 logs = list(set(logs))
-                c.print('\n'.join(print_logs))
+                # c.print('\n'.join(print_logs))
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
@@ -3093,12 +3092,13 @@ class c:
                  refresh:bool =False,
                  tag_seperator:str = '::',
                  **kwargs ):
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-        module = c.resolve_module(module)
+        if module != None:
+            if tag_seperator in module:
+                module, tag = module.split(tag_seperator)
+        module = cls.resolve_module(module)
         server_name = module.serve(tag=tag, 
                               server_name=name, 
-                              wait_for_server=True, 
+                              wait_for_server=False, 
                               refresh=refresh, 
                               **kwargs)
         subspace = c.module('subspace')()
@@ -3125,6 +3125,7 @@ class c:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.cmd(f"pm2 delete {n}", verbose=False)
+
             cls.pm2_rm_logs(n)
     @staticmethod
     def detailed_error(e) -> dict:

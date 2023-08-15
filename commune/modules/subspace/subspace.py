@@ -72,14 +72,14 @@ class Subspace(c.Module):
     @classmethod
     def get_network_url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
-        url =  cls.getc(f'chain_info.{network}.url', [])
-        assert len(url) > 0, f'No url found for {network}'
+        nodes =  cls.getc(f'chain_info.{network}.nodes', {})
+        nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
+        assert len(nodes) > 0, f'No url found for {network}'
 
-        if isinstance(url, list):
-            return c.choice(url)
-        elif isinstance(url, str):
-            return url
-    
+        node = c.choice(list(nodes.keys()))
+        url = nodes[node]['ip'] + ':' + str(nodes[node]['ws_port'])
+        c.print(f'Connecting to {network}: {url} ({node})...', color='green')
+        return url
     @classmethod
     def resolve_network_url(cls, network:str , prefix='ws://'):    
         url = cls.get_network_url(network)
@@ -137,6 +137,7 @@ class Subspace(c.Module):
             network = self.network
         self.network = network
         url = self.resolve_network_url(network)
+        c.print(f'Connecting to {network}: {url}...')
         
         self.url = self.chain_endpoint = url
         
@@ -1592,7 +1593,7 @@ class Subspace(c.Module):
         return { m['name']: m['key'] for m in modules}
         
     def is_unique_name(netuid=None):
-        return self.namespace()
+        return name in self.namespace(netuid=netuid)
 
 
     def namespace(self, **kwargs) -> Dict[str, str]:
@@ -2325,16 +2326,13 @@ class Subspace(c.Module):
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
-                 server_mode :str = 'pm2',
+                 server_mode :str = server_mode,
                  rpc_cors = 'all',
                  validator:bool = False,
                  
                  ):
 
         ip = c.ip()
-
-        if not cls.node_key_exists(chain=chain, node=node):
-            cls.add_node_key(chain=chain, node=node, mode='vali' if validator else 'nonvali')
 
         node_info = c.locals2kwargs(locals())
 
@@ -2387,19 +2385,16 @@ class Subspace(c.Module):
 
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
-        cmd = cmd + cmd_kwargs
-        c.print(cmd)
-
         if server_mode == 'pm2':
             # 
-            c.pm2_start(path=cls.chain_release_path, 
+            cmd = c.pm2_start(path=cls.chain_release_path, 
                             name=name,
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
                             verbose=verbose)
             
         elif server_mode == 'local':
-            
+            cmd = cmd + cmd_kwargs
             c.cmd(cmd)
             
         elif server_mode == 'docker':
@@ -2428,14 +2423,10 @@ class Subspace(c.Module):
         else: 
             raise Exception(f'unknown mode {server_mode}')
         
-        
         if validator:
             # ensure you add the node to the chain_info if it is a bootnode
             node_id = cls.get_node_id(node=node, chain=chain, mode=server_mode)
             chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
-        else:
-            # ensure to add the node to the network2url if it is not a validator
-            chain_info['url'] = chain_info.get('url', []) + [f'ws://{ip}:{ws_port}']
         chain_info['nodes'][node] = node_info
         cls.putc(f'chain_info.{chain}', chain_info)
 
@@ -2471,6 +2462,7 @@ class Subspace(c.Module):
         # kill the chain if refresh
         if refresh:
             cls.kill_chain(chain=chain)
+            
 
         # build the chain if needed
         if build_runtime or build_spec:
@@ -2891,6 +2883,7 @@ class Subspace(c.Module):
     
     @classmethod
     def install_rust_env(cls, sudo=True):
+        
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
         c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
