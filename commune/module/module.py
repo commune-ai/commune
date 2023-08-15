@@ -1865,7 +1865,6 @@ class c:
         if return_future:
             return future
         else:
-            
             return loop.run_until_complete(future)
        
     @classmethod
@@ -1894,6 +1893,7 @@ class c:
                 modules = [m for m in modules if m==module]
                 
             c.print(f'Connecting to {module} on {network} network', color='yellow')
+            assert len(modules) > 0, f'No modules found in namespace {namespace}'
             address = namespace[module]
 
         ip, port = address.split(':')
@@ -6068,6 +6068,8 @@ class c:
     def choice(cls, options:Union[list, dict])->list:
         import random
         options = c.copy(options) # copy to avoid changing the original
+        if len(options) == 0:
+            return None
         if isinstance(options, dict):
             options = list(options.values())
 
