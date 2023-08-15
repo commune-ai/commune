@@ -470,12 +470,9 @@ class Subspace(c.Module):
             c.print(":white_heavy_check_mark: [green]Success[/green]")
             return {'success': True, 'message': f'Successfully registered module {name} with address {address}'}
         else:
-            return {'success': False, 'message': response.error_message}
-
-            
+            return {'success': False, 'message': response.error_message}    
 
     reg = register
-
 
     def transfer_many(self, key:str, dests:List[str], amounts:List[float], **kwargs):
         for dest, amount in zip(dests, amounts):
@@ -747,6 +744,7 @@ class Subspace(c.Module):
             prompt: bool = False,
             network:str = None,
             existential_deposit: float = 0.1,
+            sync: bool = True
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
@@ -792,6 +790,8 @@ class Subspace(c.Module):
             c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
 
 
+        if sync:
+            self.sync()
 
 
 
@@ -805,6 +805,7 @@ class Subspace(c.Module):
             wait_for_finalization:bool = False,
             prompt: bool = False,
             network: str= None,
+            sync: bool = True
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
@@ -853,12 +854,12 @@ class Subspace(c.Module):
                 c.print(f"Stake ({module_key}) :\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
 
 
-                return True
         else:
             c.print(":cross_mark: [red]Failed[/red]: Error unknown.")
-            return False
 
-
+        if sync:
+            self.sync()
+            
     ########################
     #### Standard Calls ####
     ########################
@@ -1822,10 +1823,10 @@ class Subspace(c.Module):
         return [s for s in servers if s not in my_module_names]
     def my_stats(self, *args, fmt='j', **kwargs):
         import pandas as pd
-        my_modules = self.my_modules(*args, fmt=fmt, **kwargs)
+        my_modules = self.my_modules(*args, fmt=fmt, **kwargds)
         
         df =  self.get_stats(my_modules, fmt=fmt, **kwargs)
-        del df['stake_from']
+        # del df['stake_from']
         return df
 
     def stats(self, *args, fmt='j', **kwargs):

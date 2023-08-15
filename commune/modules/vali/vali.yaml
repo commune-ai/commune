@@ -11,10 +11,10 @@ alpha: 0.9
 timeout: 2
 tag: base
 run: True
-num_threads: 1
+num_threads: 20
 module_prefix: model.openai
 parallel_jobs: 10
-start: False
+start: True
 voting_interval: 10
 num_workers: 4
 is_main_worker: True

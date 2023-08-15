@@ -109,7 +109,7 @@ class ModelTransformer(Model):
                                                              offload_folder="offload", torch_dtype=torch.float16) 
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
-        self.device = config.device = self.devices[0]  
+        self.device = config.device = self.devices[0]
         time_taken = c.time() - t       
         c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
         self.set_optimizer(config.optimizer)
