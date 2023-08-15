@@ -2324,7 +2324,7 @@ class Subspace(c.Module):
                  rpc_port:int=None,
                  ws_port:int=None,
                  telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
-                 purge_chain:bool = False,
+                 purge_chain:bool = True,
                  refresh:bool = False,
                  verbose:bool = False,
                  boot_nodes = None,
