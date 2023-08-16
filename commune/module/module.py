@@ -2446,14 +2446,6 @@ class c:
                   **kwargs):
         
         network = cls.resolve_network(network)
-        
-        if isinstance(search, str) :
-            if hasattr(cls, f'namespace_{search}'):
-                network = search
-                search = None
-        else:
-            search = None
-
         namespace_fn = getattr(cls, f'namespace_{network}')
         namespace = namespace_fn(update=update, **kwargs)        
         if search:
@@ -4935,12 +4927,13 @@ class c:
 
 
     @classmethod
-    def call(cls,module : str, fn : str,
-                         *args,
-                         timeout : int = 4,
-                         prefix_match=True,
-                         return_future = False,
-                         **kwargs) -> None:
+    def call(cls,module : str, 
+                fn : str = 'info',
+                *args,
+                timeout : int = 4,
+                prefix_match=True,
+                return_future = False,
+                **kwargs) -> None:
                          
         
         module = cls.connect(module, virtual=False, prefix_match=prefix_match)
@@ -5141,6 +5134,10 @@ class c:
         return c.resolve_network()
     net = network
     
+    @classmethod
+    def networks(cls) -> List[str]:
+        return c.getc('networks')
+    nets = networks
 
 
     def remove_user(self, key: str) -> None:
