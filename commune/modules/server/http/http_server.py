@@ -103,7 +103,14 @@ class HTTPServer(c.Module):
         c.print(self.state_dict(), color='green')
         return self
     
-    def verify_access(self, fn: str, input:dict) -> bool:
+    
+    def verify_access(self, **kwargs) -> bool:
+
+        if hasattr(self.module, 'verify_access'):
+            return self.module.verify_access(fn=fn, input=input, **kwargs)
+        
+        input = kwargs.get('input', {})
+        fn = kwargs.get('fn', None)
         if self.access != 'public':
             assert isinstance(input, dict), f"Data must be a dict, not {type(data)}"
             assert 'data' in input, f"Data not included"
