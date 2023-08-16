@@ -36,10 +36,7 @@ class OpenAILLM(c.Module):
     
         
     def resolve_api_key(self, api_key:str = None) -> str:
-        if isinstance(api_key, str):
-            api_key = os.environ.get(api_key, api_key)
-        if api_key == None:
-            api_key = self.random_api_key()
+        api_key = os.environ.get(api_key, api_key)
         assert isinstance(api_key, str),f"API Key must be a string,{api_key}"
         self.api_key = self.config.api_key =  api_key
         return api_key
@@ -115,7 +112,7 @@ class OpenAILLM(c.Module):
             f"Model must be one of {self.config.models}"
             
         openai.api_key = api_key or self.api_key
-        
+
         params = dict(
                     model = model,
                     presence_penalty = presence_penalty, 
