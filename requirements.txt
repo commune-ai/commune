@@ -35,3 +35,4 @@ ansible
 grpcio
 grpcio-tools
 sse-starlette
+openai
