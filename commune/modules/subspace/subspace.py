@@ -1288,6 +1288,7 @@ class Subspace(c.Module):
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network)
+        c.namespace_subspace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
 
