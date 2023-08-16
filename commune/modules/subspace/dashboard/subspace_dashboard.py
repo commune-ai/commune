@@ -39,6 +39,9 @@ class SubspaceDashboard(c.Module):
 
         self.validators = [m for m in self.modules if m['name'].startswith('vali') ]
         self.my_validators = [m for m in self.my_modules if m['name'].startswith('vali') ]
+        self.keys  = c.keys()
+        self.key2index = {k:i for i,k in enumerate(self.keys)}
+
 
     @property
     def module_names(self):
@@ -74,27 +77,21 @@ class SubspaceDashboard(c.Module):
         return subnet_info
     
 
-    def key_dashboard(self):
-        st.write('## Key Management')
-        keys = c.keys()
-        key = None
+    def select_key(self,):
         with st.expander('Select Key', expanded=True):
-
-            key2index = {k:i for i,k in enumerate(keys)}
-            if key == None:
+            if self.key == None:
                 key = self.subspace.most_valuable_key()
+            else:
+                key = self.key.path
+            key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
+            self.key =  c.get_key(key)
+            self.key_info_dict = self.subspace.key_info(self.key.path, fmt='j')
 
-            key = st.selectbox('Select Key', keys, index=key2index[key])
-         
-            key = c.get_key(key)
-            self.key = key
-            self.key_info_dict = self.subspace.key_info(key.path, fmt='j')
-
-            cols = st.columns(2)
-            st.write('Address: ', key.ss58_address)
+            st.write('Address: ', self.key.ss58_address)
             st.write('Stake', self.key_info_dict['stake'])
             st.write('Balance', self.key_info_dict['balance'])
-            
+
+    def create_key(self):
         with st.expander('Create Key', expanded=False):                
             new_key = st.text_input('Name of Key', '', key='create')
             create_key_button = st.button('Create Key')
@@ -102,8 +99,10 @@ class SubspaceDashboard(c.Module):
                 c.add_key(new_key)
                 key = c.get_key(new_key)
 
+
+    def rename_key(self):
         with st.expander('Rename Key', expanded=False):    
-            old_key = st.selectbox('Select Key', keys, index=key2index[key.path], key='select old rename key')           
+            old_key = st.selectbox('Select Key', self.keys, index=self.key2index[self.key.path], key='select old rename key')           
             new_key = st.text_input('New of Key', '', key='rename')
             rename_key_button = st.button('Rename Key')
             replace_key = st.checkbox('Replace Key')
@@ -112,13 +111,22 @@ class SubspaceDashboard(c.Module):
                     st.error('Key already exists')
                 c.rename_key(old_key,new_key)
                 key = c.get_key(new_key)
-                
-        with st.expander('Remove Key', expanded=False):                
-            rm_keys = st.multiselect('Select Key(s) to Remove', keys, [], key='rm_key')
-            rm_key_button = st.button('Remove Key')
+    
+    def remove_key(self):       
+        with st.form(key='Remove Key'):            
+            rm_keys = st.multiselect('Select Key(s) to Remove', self.keys, [], key='rm_key')
+            rm_key_button = st.form_submit_button('Remove Key')
             if rm_key_button:
                 c.rm_keys(rm_keys)
-                            
+
+
+    def key_dashboard(self):
+        # self.select_key()
+        self.create_key()
+        self.rename_key()
+        self.remove_key()
+
+                         
 
     def subnet_management(self):
         with st.expander('Subnet', expanded=True):
@@ -138,17 +146,15 @@ class SubspaceDashboard(c.Module):
     def sidebar(self):
         with st.sidebar:
             st.write('# commune')
-
-            keys = c.keys()
-            key2index = {k:i for i,k in enumerate(keys)}
+            key2index = {k:i for i,k in enumerate(self.keys)}
             st.write('## Select Subnet')
             self.subnet = st.selectbox(' ', self.subnet_names, 0, key='Select Subnet')
             self.netuid = self.subnet2netuid[self.subnet]
-            
-            self.key_dashboard()
             sync = st.button('Sync')
             if sync:
                 self.sync()
+        
+            self.select_key()
 
     def my_modules_dashboard(self, max_rows=100):
         my_modules = self.my_modules
@@ -187,7 +193,7 @@ class SubspaceDashboard(c.Module):
 
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Validators', 'Wallet', 'Stats', 'Playground']) 
+        tabs = st.tabs(['Modules', 'Validators', 'Wallet', 'Stats', 'Keys']) 
         with tabs[0]:   
             self.modules_dashboard()
 
@@ -197,8 +203,8 @@ class SubspaceDashboard(c.Module):
             self.wallet_dashboard()
         with tabs[3]:
             self.stats_dashboard()
-        with tabs[3]:
-            self.playground_dashboard()
+        with tabs[4]:
+            self.key_dashboard()
 
             
         # with st.expander('Transfer Module', expanded=True):
