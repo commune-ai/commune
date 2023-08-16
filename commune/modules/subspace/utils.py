@@ -1,7 +1,7 @@
 import numbers
 from typing import Callable, Union
 
-import commune
+import commune as c
 import pandas
 import requests
 import torch
@@ -34,7 +34,7 @@ def ss58_address_to_bytes(ss58_address: str) -> bytes:
 
     """Converts a ss58 address to a bytes object."""
     import scalecodec
-    account_id_hex: str = scalecodec.ss58_decode(ss58_address, bittensor.__ss58_format__)
+    account_id_hex: str = scalecodec.ss58_decode(ss58_address, c.__ss58_format__)
     return bytes.fromhex(account_id_hex)
 
 def u8_key_to_ss58(u8_key: List[int]) -> str:
@@ -117,7 +117,7 @@ def is_valid_ss58_address( address: str ) -> bool:
         True if the address is a valid ss58 address for Bittensor, False otherwise.
     """
     try:
-        return ss58.is_valid_ss58_address( address, valid_ss58_format=commune.__ss58_format__ )
+        return ss58.is_valid_ss58_address( address, valid_ss58_format=c.__ss58_format__ )
     except (IndexError):
         return False
 

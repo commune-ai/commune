@@ -37,7 +37,7 @@ class c:
     default_network = 'local' # local, subnet
     cache = {} # cache for module objects
     emojis = {'dank': '🔥','error': '💥','white': '🕊️','cool': '😎','success': '✨','sad': '😢','time': '🕒','count': '🔢','output': '📤','input': '📥'} # the mojis
-
+    __ss58_format__ = 42 # the ss58 format for the substrate address
 
     def __init__(self, config:Dict=None, **kwargs):
         
@@ -1910,7 +1910,7 @@ class c:
             c.print(f'Connecting to {module} on {network} network', color='yellow')
             assert len(modules) > 0, f'No modules found in namespace {namespace}'
             address = namespace[module]
-
+        c.print(address)
         ip, port = address.split(':')
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
@@ -2247,7 +2247,8 @@ class c:
     @classmethod
     def is_address(cls, address:str) -> bool:
         conds = []
-        
+        if '::' in address:
+            return False
         conds.append(isinstance(address, str))
         conds.append(':' in address)
         conds.append(cls.is_number(address.split(':')[-1]))
@@ -4920,27 +4921,39 @@ class c:
         key = self.resolve_key(key)
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
-    # @classmethod
-    # def call(cls, *args,  **kwargs) -> None:
-    #     loop = cls.get_event_loop()
-    #     return loop.run_until_complete(cls.async_call(*args, **kwargs))
+    @classmethod
+    def call(cls, *args, return_future:bool =False, network=None, **kwargs) -> None:
+
+        future = cls.async_call(*args, network=network, **kwargs)
+        if return_future:
+            return future
+        else:
+            try:
+                return c.gather(future)
+            except Exception as e:
+                return {'error': str(e)}
 
 
     @classmethod
-    def call(cls,module : str, 
+    async def async_call(cls,
+                   module : str, 
                 fn : str = 'info',
                 *args,
                 timeout : int = 4,
                 prefix_match=True,
+                network = None,
                 return_future = False,
-                **kwargs) -> None:
+                **kwargs
+                ) -> None:
                          
         
-        module = cls.connect(module, virtual=False, prefix_match=prefix_match)
-        job =  module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
-        if return_future:
-            return job
-        return c.gather(job)
+        try:
+            module = await c.async_connect(module, virtual=False, prefix_match=prefix_match, networ=network)
+            result =  await module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        except Exception as e:
+            result = {'error': str(e)}
+
+        return result
 
     @classmethod
     def live_modules(cls, **kwargs):
@@ -4953,8 +4966,10 @@ class c:
     @classmethod
     async def async_call_pool(cls,
                               modules, 
-                              fn = 'address',
-                              *args, n=3, **kwargs):
+                              fn = 'info',
+                              *args, 
+                              n=2,
+                            **kwargs):
         
         args = args or []
         kwargs = kwargs or {}
@@ -4967,7 +4982,7 @@ class c:
         c.print(f'Calling {fn} on {len(modules)} modules', color='green')
         jobs = []
         for m in modules:
-            job = cls.async_call(m, fn, *args, **kwargs)
+            job = c.call(m, fn, *args, return_future=True, **kwargs)
             jobs.append(job)
         
         responses = await asyncio.gather(*jobs)
@@ -4978,7 +4993,7 @@ class c:
         
         if len(successes) == 0:
             c.print(f'ERRORS {errors}', color='red')
-        return successes[0]
+        return successes
     
 
     @classmethod
@@ -7225,6 +7240,14 @@ class c:
     def fix_proto(cls):
         cls.upgrade_proto()
         cls.build_proto()
+
+
+
+    # SUBSPACE LAND
+
+    @classmethod
+    def register_servers(cls, *args, **kwargs):
+        return c.module('subspace')().register_servers(*args, **kwargs)
         
     @classmethod
     def subnets(cls, *args, **kwargs):
