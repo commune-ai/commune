@@ -1497,7 +1497,6 @@ class Subspace(c.Module):
         if  hasattr(self, 'substrate'):
             network =  self.network
         else:
-            c.print("Connecting to chain ...")
             self.set_network(network)
             network =  self.network
         return network
