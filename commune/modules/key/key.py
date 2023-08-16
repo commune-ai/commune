@@ -276,7 +276,6 @@ class Keypair(c.Module):
                 create_if_not_exists:bool = True,
                 **kwargs):
         
-        
         if cls.key_exists(path) == False:
             if create_if_not_exists == True:
                 key = cls.add_key(path, **kwargs)
@@ -298,6 +297,7 @@ class Keypair(c.Module):
             key_json = c.jload(key_json)
 
         key_json['path'] = path
+
         if json:
             return key_json
         else:

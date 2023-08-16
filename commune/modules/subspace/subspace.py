@@ -423,6 +423,10 @@ class Subspace(c.Module):
     reg_servers = register_servers
     # @retry(delay=2, tries=3, backoff=2, max_delay=4)
 
+    def reged_servers(self, **kwargs):
+        servers =  c.servers(network='local')
+        c.print(servers)
+
     def register(
         self,
         name: str , # defaults to module.tag
@@ -446,7 +450,8 @@ class Subspace(c.Module):
         
         network =self.resolve_network(network)
         netuid = self.get_netuid_for_subnet(subnet)
-        address = c.namespace(network='local').get(name, '0.0.0.0:50051')
+        address = c.namespace(network='local').get(name)
+        address = address.replace('0.0.0.0',c.ip())
         if self.is_registered(name, netuid=netuid):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
         # Attempt to register
@@ -504,11 +509,10 @@ class Subspace(c.Module):
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         network : str = None,
+        netuid : int = None,
     ) -> bool:
         key = c.get_key(key)
         network = self.resolve_network(network)
-
-
 
         # Validate destination address.
         if not is_valid_address_or_public_key( dest ):
@@ -519,7 +523,7 @@ class Subspace(c.Module):
             # Convert bytes to hex string.
             dest = "0x" + dest.hex()
 
-
+        dest = self.resolve_module_key(dest, netuid=netuid, network=network)
         # Check balance.
         account_balance = self.get_balance( key.ss58_address , fmt='nano' )
         transfer_balance = self.to_nanos(amount)
@@ -621,8 +625,9 @@ class Subspace(c.Module):
                 params[k] = module_info[k]
 
         params['netuid'] = netuid
-        namespace_local = c.namespace(network='local')
-        if name in namespace_local:
+
+        if address == None:
+            namespace_local = c.namespace(network='local')
             address = namespace_local[name]
 
         with self.substrate as substrate:
@@ -2522,20 +2527,40 @@ class Subspace(c.Module):
     def registered_servers(self, netuid = None, network = network,  **kwargs):
         netuid = self.resolve_netuid(netuid)
         network = self.resolve_network(network)
-        servers = c.servers('local')
+        servers = c.servers(network='local')
         registered_keys = []
         for s in servers:
             if self.is_registered(s, netuid=netuid):
                 registered_keys += [s]
         return registered_keys
-                
+    reged = reged_servers = registered_servers
+
     def unregistered_servers(self, netuid = None, network = network,  **kwargs):
         netuid = self.resolve_netuid(netuid)
         network = self.resolve_network(network)
-        servers = c.servers('local')
-        registered_keys = self.registered_servers(netuid=netuid, network=network)
-        return [s for s in servers if s not in registered_keys]
-    reged = registered_keys
+        servers = c.servers(network='local')
+        unregistered_keys = []
+        for s in servers:
+            if self.is_registered(s, netuid=netuid):
+                unregistered_keys += [s]
+        return unregistered_keys
+
+    
+    def check_reged(self, netuid = None, network = network,  **kwargs):
+        reged = self.reged(netuid=netuid, network=network, **kwargs)
+        jobs = []
+        for module in reged:
+            job = c.call(module=module, fn='info',  network='subspace', netuid=netuid, return_future=True)
+            jobs += [job]
+
+        results = dict(zip(reged, c.gather(jobs)))
+
+        return results 
+
+
+    
+    unreged = unreged_servers = unregistered_servers
+                
     def most_valuable_key(self, netuid = None, **kwargs):
         modules = self.my_modules(netuid=netuid, **kwargs)
         most_valuable_value = 0
