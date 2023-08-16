@@ -37,6 +37,7 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
+    whitelist = []
     chain_name = 'subspace'
     default_config = c.get_config(chain_name, to_munch=False)
     token_decimals = default_config['token_decimals']
@@ -67,7 +68,6 @@ class Subspace(c.Module):
         **kwargs,
     ):
         config = self.set_config(config=config,kwargs=kwargs)
-        self.set_network( config.network)
     @classmethod
     def get_network_url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
@@ -409,13 +409,6 @@ class Subspace(c.Module):
             name = name + str(trial_count)
             trial_count += 1
         return name
-    
-    def regfleet(self, module,  tag='altman' , n=10 , **kwargs):
-        for i in range(n):
-            self.register(module=module, tag=f'{tag}_{i}', **kwargs)
-        return {'success':True, 'message':'registered fleet', 'modules':modules}
-        
-
 
     def register_servers(self, **kwargs):
         for m in c.servers(network='local'):

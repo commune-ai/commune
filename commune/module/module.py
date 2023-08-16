@@ -1103,6 +1103,10 @@ class c:
             port = cls.free_port(port, **kwargs)
             
         return port
+
+    @classmethod
+    def has_free_ports(self, n:int = 1, **kwargs):
+        return len(self.free_ports(n=n, **kwargs)) >= n
     
     @classmethod
     def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False, **kwargs ) -> List[int]:
@@ -2355,7 +2359,7 @@ class c:
         time_waiting = 0
         cls.namespace_local()
         logs = []
-        while not cls.server_exists(name, network='local'):
+        while not c.server_exists(name, network='local'):
             cls.sleep(sleep_interval)
             time_waiting += sleep_interval
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
@@ -2363,7 +2367,7 @@ class c:
             if len(print_logs) > 0:
                 logs.extend(print_logs)
                 logs = list(set(logs))
-                # c.print('\n'.join(print_logs))
+                c.print('\n'.join(print_logs))
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
@@ -5230,12 +5234,16 @@ class c:
             cls.serve(tag=str(i), **kwargs)
 
     @classmethod
-    def regfleet(cls,n:int=2, tag:str=None, **kwargs):
+    def regfleet(cls,module = None, n:int=2, tag:str=None, **kwargs):
         if tag == None:
             tag = ''
         servers = []
+
+        if module == None:
+            module = cls.module_path()
+
         for i in range(n):
-            name = cls.register(tag=tag+str(i), **kwargs)
+            name = c.register(module=module, tag=tag+str(i), **kwargs)
             servers.append(name)
         return {'servers':servers}
     
