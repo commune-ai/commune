@@ -445,8 +445,6 @@ class Subspace(c.Module):
         if subnet == None:
             subnet = self.config.subnet
 
-        if sync:
-            c.sync()
         
         network =self.resolve_network(network)
         netuid = self.get_netuid_for_subnet(subnet)
@@ -485,8 +483,11 @@ class Subspace(c.Module):
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Success[/green]")
             return {'success': True, 'message': f'Successfully registered module {name} with address {address}'}
+            if sync:
+                c.sync()
         else:
             return {'success': False, 'message': response.error_message}    
+        
 
     reg = register
 
@@ -1386,10 +1387,13 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def key_stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions'], df:bool=True, **kwargs):
+    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions'], df:bool=True, **kwargs):
         key_stats = []
         for key in self.my_keys(netuid=netuid):
-            key_stats.append(self.key_info(key, netuid=netuid, cols=cols, **kwargs))
+            key_info = self.key_info(key, netuid=netuid, cols=cols, **kwargs)
+            if key_info['name'] == None:
+                key_info['name'] = key
+            key_stats.append(key_info)
         df_key_stats =  c.df(key_stats)
         # sort based on registered and balance
         df_key_stats.sort_values(by=['registered', 'balance'], ascending=False, inplace=True)
@@ -1404,11 +1408,12 @@ class Subspace(c.Module):
         key_info = {}
         netuid = self.resolve_netuid(netuid)
         module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
+
         
         if 'name' in cols:
             key_info['name'] = module.get('name', None)
         if 'registered' in cols:
-            key_info['registered'] = bool(module.get('name', None))
+            key_info['registered'] = bool(module.get('name'))
         if 'address' in cols:
             key_info['address'] = module['key']
         if 'balance' in cols:
@@ -1846,52 +1851,8 @@ class Subspace(c.Module):
         return [m['name'] for m in my_modules]
 
     def unregistered_servers(self, *args, **kwargs):
-        servers = c.servers()
-        my_module_names = self.my_modules_names(*args, **kwargs)
-
-    def idle_registered(self, *args, **kwargs):
-        servers = c.servers()
-        my_module_names = [m for m in self.my_modules(names_only=True) if m not in servers]
-        return my_module_names
-
-
-
-        return [s for s in servers if s not in my_module_names]
-    def my_stats(self, *args, fmt='j', **kwargs):
-        import pandas as pd
-        my_modules = self.my_modules(*args, fmt=fmt, **kwargs)
-        
-        df =  self.get_stats(my_modules, fmt=fmt, **kwargs)
-        # del df['stake_from']
-        return df
-
-    def stats(self, *args, fmt='j', **kwargs):
-        import pandas as pd
-        modules = self.modules(*args, fmt=fmt, **kwargs)
-        return self.get_stats(modules, fmt=fmt, **kwargs)
-
-
-    def get_stats(self,modules = None,  *args, fmt='j', **kwargs):
-        import pandas as pd
-        if modules == None:
-            modules = self.modules(*args, fmt=fmt, **kwargs)
-        sum_keys = ['emission', 'incentive', 'dividends', 'stake', 'balance']
-
-        sum_row = {'name': 'Total','key': 'NAN', 'address': 'NAN', 'uid': 'NAN'}
-        for m in modules:
-            for k in sum_keys:
-                if k not in sum_row:
-                    sum_row[k] = 0
-                sum_row[k] += m[k]
-        
-        modules += [sum_row]
-
-        df = pd.DataFrame(modules)
-        del df['key']
-        del df['address']
-        df.set_index('name', inplace=True)
-        return df
-
+        stats = self.stats(*args, **kwargs)
+        return [s['name'] for s in stats if not s['registered']]
     
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
