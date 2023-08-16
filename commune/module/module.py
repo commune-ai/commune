@@ -1106,16 +1106,21 @@ class c:
 
     @classmethod
     def has_free_ports(self, n:int = 1, **kwargs):
-        return len(self.free_ports(n=n, **kwargs)) >= n
+
+        return len(self.free_ports(n=n, **kwargs)) > 0
     
     @classmethod
     def free_ports(cls, n=10, reserve:bool = False, random_selection:bool = False, **kwargs ) -> List[int]:
         free_ports = []
         avoid_ports = kwargs.pop('avoid_ports', [])
         for i in range(n):
-            free_ports += [cls.free_port(reserve=reserve, 
-                                         random_selection=random_selection, 
-                                         avoid_ports=avoid_ports, **kwargs)]
+            try:
+                free_ports += [cls.free_port(reserve=reserve, 
+                                            random_selection=random_selection, 
+                                            avoid_ports=avoid_ports, **kwargs)]
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
+                break
             avoid_ports += [free_ports[-1]]
               
         return free_ports
