@@ -1386,28 +1386,43 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def key_stats(self, netuid=None,  include_stake_to=False, **kwargs):
-        key_info_map = {}
+    def key_stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions'], df:bool=True, **kwargs):
+        key_stats = []
         for key in self.my_keys(netuid=netuid):
-            key_info_map[key] = self.key_info(key, netuid=netuid, include_stake_to=include_stake_to, **kwargs)
-        return key_info_map
+            key_stats.append(self.key_info(key, netuid=netuid, cols=cols, **kwargs))
+        df_key_stats =  c.df(key_stats)
+        # sort based on registered and balance
+        df_key_stats.sort_values(by=['registered', 'balance'], ascending=False, inplace=True)
+        if df:
+            return df_key_stats
+        else:
+            return df_key_stats.to_dict('records')
         
-    def key_info(self, key, netuid=None, fmt='j', cache = True, include_stake_to=True,  **kwargs):
         
+    def key_info(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'],  **kwargs):
+        
+        key_info = {}
         netuid = self.resolve_netuid(netuid)
         module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
-        stake = module.get('stake', 0)
-        balance = self.balance(key, fmt=fmt)
-        key_info = {
-                    'balance': balance, 
-                    'address': self.key2address(key), 
-                    'stake': stake,
-                    'module': module.get('name', None), 
-                    }
         
-        if include_stake_to:
+        if 'name' in cols:
+            key_info['name'] = module.get('name', None)
+        if 'registered' in cols:
+            key_info['registered'] = bool(module.get('name', None))
+        if 'address' in cols:
+            key_info['address'] = module['key']
+        if 'balance' in cols:
+            key_info['balance'] = self.balance(key, fmt=fmt)
+        if 'stake' in cols:
+            key_info['stake'] = module.get('stake', 0)
+        if 'stake_to' in cols:
             key_info['stake_to'] =  self.get_staked_modules(key ,netuid=netuid, fmt=fmt)
-
+        if 'incentive' in cols:
+            key_info['incentive'] = module.get('incentive', 0)
+        if 'dividends' in cols:
+            key_info['dividends'] = module.get('dividends', 0)
+        if 'emission' in cols:
+            key_info['emission'] = module.get('emission', 0)
 
         return key_info
 

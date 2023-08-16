@@ -102,6 +102,7 @@ class ModelTransformer(Model):
         # config.max_memory = {k: str(int(v+1))+'GiB' for k, v in config.max_memory.items() if v is not None}
         # c.print('MAX MEMORY -> ', config.max_memory)
         config.device_map = c.infer_device_map(config.model, config.max_memory)
+        
         self.model = AutoModelForCausalLM.from_pretrained(config.model,
                                                             device_map= config.device_map,
                                                             max_memory=config.max_memory,
