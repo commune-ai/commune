@@ -397,19 +397,6 @@ class Subspace(c.Module):
     def enter(cls):
         c.cmd('make enter', cwd=cls.chain_path)
 
-
-    def resolve_unique_server_name(self,module:str,) -> str:
-        
-        # create a unique name
-        name = c.resolve_server_name(module=module, name=name, tag=tag)
-
-        namespace = self.namespace(network=network)
-        trial_count = 0
-        while name in namespace:
-            name = name + str(trial_count)
-            trial_count += 1
-        return name
-
     def register_servers(self, **kwargs):
         for m in c.servers(network='local'):
             self.register(name=m, **kwargs)
@@ -721,17 +708,26 @@ class Subspace(c.Module):
             else:
                 return True
 
-    def get_unique_tag(self, module, **kwargs):
-        name = module
-        servers = self.servers(**kwargs)
-        cnt = 0
-        tag = ''
-        while name in servers:
-            name = name + tag
-            cnt += 1
-            tag = str(cnt)
+    def resolve_server_name(self, name:str, tag_seperator='::', tag:str=None, **kwargs):
+        # if tag is in the name then split it
+        if tag_seperator in name:
+            name, tag = name.split(tag_seperator)
 
-        return tag
+        base_name = name
+        if tag != None:
+            name = base_name + '::' + tag
+        else:
+            tag = ''
+
+        cnt = 0
+        servers = self.servers(**kwargs)
+        
+        while name in servers:
+            name = base_name + '::' + tag +str(cnt)
+            cnt += 1
+            c.print(name)
+            
+        return name
 
     def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None):
         if module_key == None:
