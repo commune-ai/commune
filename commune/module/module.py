@@ -7274,7 +7274,7 @@ class c:
         
     @classmethod
     def unregistered_servers(cls, *args, **kwargs):
-        return c.module('subspace')().unregistered_server(*args, **kwargs)
+        return c.module('subspace')().unregistered_servers(*args, **kwargs)
     unreged_servers = unregistered_servers
         
     @classmethod
