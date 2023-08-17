@@ -3116,13 +3116,16 @@ class c:
         if module != None:
             if tag_seperator in module:
                 module, tag = module.split(tag_seperator)
+
+        subspace = c.module('subspace')()
+        
+        
         module = cls.resolve_module(module)
         server_name = module.serve(tag=tag, 
                               server_name=name, 
                               wait_for_server=True, 
                               refresh=refresh, 
                               **kwargs)
-        subspace = c.module('subspace')()
         subspace.register(server_name, subnet=subnet)
         return server_name
     reg = register
@@ -7261,6 +7264,17 @@ class c:
     @classmethod
     def register_servers(cls, *args, **kwargs):
         return c.module('subspace')().register_servers(*args, **kwargs)
+    reg_servers = register_servers
+
+    @classmethod
+    def registered_servers(cls, *args, **kwargs):
+        return c.module('subspace')().registered_servers(*args, **kwargs)
+    reged_servers = registered_servers    
+        
+    @classmethod
+    def unregistered_servers(cls, *args, **kwargs):
+        return c.module('subspace')().unregistered_server(*args, **kwargs)
+    unreged_servers = unregistered_servers
         
     @classmethod
     def subnets(cls, *args, **kwargs):

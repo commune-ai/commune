@@ -485,8 +485,8 @@ class Subspace(c.Module):
     def transfer(
         self,
         key: str,
-        dest: str, 
         amount: float , 
+        dest: str, 
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         network : str = None,
@@ -494,17 +494,16 @@ class Subspace(c.Module):
     ) -> bool:
         key = c.get_key(key)
         network = self.resolve_network(network)
-
+        dest = self.resolve_module_key(dest, netuid=netuid)
         # Validate destination address.
         if not is_valid_address_or_public_key( dest ):
-            c.print(":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest))
-            return False
-
+            msg = ":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest)
+            return {'success': False, 'message': msg}
         if isinstance( dest, bytes):
             # Convert bytes to hex string.
             dest = "0x" + dest.hex()
 
-        dest = self.resolve_module_key(dest, netuid=netuid, network=network)
+
         # Check balance.
         account_balance = self.get_balance( key.ss58_address , fmt='nano' )
         transfer_balance = self.to_nanos(amount)
@@ -512,7 +511,7 @@ class Subspace(c.Module):
         if transfer_balance > account_balance:
             c.print(":cross_mark: [red]Insufficient balance[/red]:[bold white]\n  {}[/bold white]".format(account_balance))
             return
-        
+        c.print(f"Transferring {amount} to {dest}")
 
         with c.status(":satellite: Transferring to {}"):
             with self.substrate as substrate:
@@ -721,7 +720,7 @@ class Subspace(c.Module):
 
         cnt = 0
         servers = self.servers(**kwargs)
-        
+
         while name in servers:
             name = base_name + '::' + tag +str(cnt)
             cnt += 1
@@ -743,11 +742,12 @@ class Subspace(c.Module):
         self.unstake( key, amount=amount, **kwargs)
         self.stake( key=key, module_key=module_key, amount=amount, **kwargs)
 
+
     def stake(
             self,
             key: Optional[str] ,
             amount: Union[Balance, float] = None, 
-            module_key: Optional[str] = None,
+            module_key: Optional[str] = None, # defaults to key if not provided
             netuid:int = None,
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
@@ -1385,7 +1385,8 @@ class Subspace(c.Module):
             key_stats.append(key_info)
         df_key_stats =  c.df(key_stats)
         # sort based on registered and balance
-        df_key_stats.sort_values(by=['registered', 'balance'], ascending=False, inplace=True)
+        if len(df_key_stats) > 0:
+            df_key_stats.sort_values(by=['registered', 'balance'], ascending=False, inplace=True)
         if df:
             return df_key_stats
         else:
