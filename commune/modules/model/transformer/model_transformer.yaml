@@ -1,9 +1,9 @@
 
 
-model: gpt125m
+model: llama2.7b
 tag: base
 device: null
-device_map: auto
+device_map: null
 max_memory: null
 trust_remote_code: True
 finetune: 1
@@ -16,6 +16,7 @@ max_output_tokens: 256
 
 tag: null
 load: false
+quantize: true
 
 shortcuts:
     # 0-1B models
@@ -50,6 +51,7 @@ shortcuts:
   starcoder: bigcode/starcoder
   wizardcoder: WizardLM/WizardCoder-15B-V1.0
   replit_code: replit/replit-code-v1-3b
+  bpt: robertmyers/bpt-instruct-rm-6b
 
 block_prefix: model.layers
 model2block_prefix:

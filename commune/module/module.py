@@ -2531,7 +2531,7 @@ class c:
               server_name:str=None, 
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = False, # waits for the server to start before returning
+              wait_for_server:bool = True, # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
