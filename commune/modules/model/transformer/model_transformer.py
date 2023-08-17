@@ -94,11 +94,8 @@ class ModelTransformer(Model):
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         c.print('LOADING MODEL -> ', config.model)
-        t = c.time()
-
-
-        config.device_map = c.infer_device_map(config.model, config.max_memory)
         c.print('DEVICE MAP -> ', config.device_map)
+        config.device_map = c.infer_device_map(config.model, quantize_factor = 0.25 if config.quantize else 1.0)
         kwargs = {
             'device_map': config.device_map,
             'max_memory': config.max_memory,
@@ -113,6 +110,10 @@ class ModelTransformer(Model):
                 bnb_4bit_compute_dtype=torch.float16,
                 bnb_4bit_use_double_quant=True,
             )
+
+        t = c.time()
+
+        c.print(f'LAUNCH PARAMS for {config.model} -> ',kwargs)
         self.model = AutoModelForCausalLM.from_pretrained(config.model,**kwargs) 
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
@@ -436,7 +437,7 @@ class ModelTransformer(Model):
         input_ids = self.tokenize(text, max_length=max_input_tokens)['input_ids']
 
         # generate
-        output_ids = self.model.generate(input_ids.to(self.device), 
+        output_ids = self.model.generate(input_ids, 
                                         max_new_tokens=max_output_tokens,
                                         early_stopping=early_stopping,
                                           **kwargs)
@@ -448,7 +449,7 @@ class ModelTransformer(Model):
         for t, ot in zip(text, output_text):
             output_text = ot.replace(t, '')
 
-        if is_string:
+        if is_string and isinstance(output_text, list):
             output_text = output_text[0]
 
         return output_text

@@ -102,7 +102,9 @@ class Client(c.Module):
             
         except Exception as e:
             if return_error:
-                response = {'error': str(e)}
+                response = c.detailed_error(e)
+                return response
+                
             else: 
                 raise e
 
