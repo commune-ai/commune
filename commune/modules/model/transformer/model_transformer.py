@@ -8,6 +8,7 @@ from loguru import logger
 import torch
 from torch import nn
 import commune as c
+from transformers import (BitsAndBytesConfig)
 
 # we are inheriting from the base model class which is a c.Module and a torch.nn.Module
 Model = c.module('model')
@@ -90,24 +91,29 @@ class ModelTransformer(Model):
 
     def set_model(self, config) -> None: 
         config.model = config.shortcuts.get(config.model, config.model)
-        c.print('SETTING Tokenizer -> ', config.model)
-        self.set_tokenizer(config.model)
-        c.print('Tokenizer SET -> ', config.model)
         from transformers import  AutoModelForCausalLM, AutoModel
         from accelerate import init_empty_weights
         c.print('LOADING MODEL -> ', config.model)
         t = c.time()
-        # if config.max_memory == None:
-        #     config.max_memory = c.model_max_gpu_memory(config.model, fmt='gb')
-        # config.max_memory = {k: str(int(v+1))+'GiB' for k, v in config.max_memory.items() if v is not None}
-        # c.print('MAX MEMORY -> ', config.max_memory)
+
+
         config.device_map = c.infer_device_map(config.model, config.max_memory)
-        
-        self.model = AutoModelForCausalLM.from_pretrained(config.model,
-                                                            device_map= config.device_map,
-                                                            max_memory=config.max_memory,
-                                                            trust_remote_code=config.trust_remote_code,
-                                                             offload_folder="offload", torch_dtype=torch.float16) 
+        c.print('DEVICE MAP -> ', config.device_map)
+        kwargs = {
+            'device_map': config.device_map,
+            'max_memory': config.max_memory,
+            'trust_remote_code': config.trust_remote_code,
+            'offload_folder': "offload",
+            'torch_dtype': torch.float16
+        }
+        if config.quantize:
+            kwargs['quantization_config'] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+            )
+        self.model = AutoModelForCausalLM.from_pretrained(config.model,**kwargs) 
 
         self.devices = config.devices = list(set(list(self.model.hf_device_map.values()))) 
         self.device = config.device = self.devices[0]
@@ -119,6 +125,10 @@ class ModelTransformer(Model):
         if config.load:
             self.load(keys=['model', 'optimizer'])     
 
+
+        c.print('SETTING Tokenizer -> ', config.model)
+        self.set_tokenizer(config.model)
+        c.print('Tokenizer SET -> ', config.model)
         
 
     def set_tokenizer(self, tokenizer:str):
@@ -301,6 +311,9 @@ class ModelTransformer(Model):
         self.config['tag'] = tag
         
 
+    def test(self):
+        c.print(self.generate('whatup'))
+
     @classmethod
     def test_encode(cls, text=['encode, hey whadup fam how is it going']*4, num_samples:int=10):
         self = cls()
@@ -314,7 +327,7 @@ class ModelTransformer(Model):
 
     @classmethod
     def serve(cls,
-            model: str,
+            model: str = None,
             tag = None,
             refresh = True,    
             **kwargs
@@ -322,7 +335,7 @@ class ModelTransformer(Model):
         
         config = cls.get_config(kwargs=kwargs)
         config.tag = tag
-        config.model = model
+        config.model = model =  model if model else config.model
         config.pop('shortcuts', None)
         kwargs.update(
             {
@@ -448,3 +461,54 @@ class ModelTransformer(Model):
         output_text = model.generate(text=text, max_output_tokens=100, early_stopping=False)
 
         return output_text
+
+    @classmethod
+    def test_encode(cls, model='gpt2.7b', text='Whadup?', **kwargs):
+        from transformers import (
+            AutoTokenizer,
+            AutoModelForCausalLM,
+            pipeline,
+            BitsAndBytesConfig,
+        )
+        import torch
+
+
+        name = "meta-llama/Llama-2-7b"
+
+        tokenizer = AutoTokenizer.from_pretrained(name)
+        tokenizer.pad_token_id = tokenizer.eos_token_id    # for open-ended generation
+
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            name,
+            quantization_config=bnb_config,
+            device_map="auto",
+            trust_remote_code=True,
+        )
+        generation_pipe = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            trust_remote_code=True,
+            device_map="auto",    # finds GPU
+        )
+
+        text = "any text "    # prompt goes here
+
+        sequences = generation_pipe(
+            text,
+            max_length=128,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            do_sample=True,
+            top_k=10,
+            temperature=0.4,
+            top_p=0.9
+        )
+
+        print(sequences[0]["generated_text"])

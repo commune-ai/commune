@@ -7,7 +7,7 @@ from transformers import (
 import torch
 
 
-name = "meta-llama/Llama-2-70b-chat-hf"
+name = "meta-llama/Llama-2-7b"
 
 tokenizer = AutoTokenizer.from_pretrained(name)
 tokenizer.pad_token_id = tokenizer.eos_token_id    # for open-ended generation

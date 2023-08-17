@@ -2430,7 +2430,7 @@ class Subspace(c.Module):
                     purge_chain:bool = True,
                     build_snapshot:bool = False,
                     refresh: bool = True,
-                    max_vali_nodes:int = 10,
+                    max_vali_nodes:int = 16,
                     max_nonvali_nodes:int = 16,
                     port_keys: list = ['port','rpc_port','ws_port'],
                     
@@ -2580,6 +2580,18 @@ class Subspace(c.Module):
     
     def dividends(self, netuid = None, network=None, **kwargs):
         return self.query_subnet('Dividends', netuid=netuid, network=network,  **kwargs)
+
+    @classmethod
+    def prune_node_keys(cls, max_valis:int=6, chain=chain):
+
+        keys = c.keys(f'subspace.node.{chain}.vali')
+        rm_keys = []
+        for key in keys:
+            if int(key.split('.')[-2].split('_')[-1]) > max_valis:
+                rm_keys += [key]
+        for key in rm_keys:
+            c.rm_key(key)
+        return rm_keys
         
         
     @classmethod
