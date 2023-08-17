@@ -120,8 +120,10 @@ class ModelTransformer(Model):
         self.device = config.device = self.devices[0]
         time_taken = c.time() - t       
         c.print(f'MODEL LOADED ({time_taken}s) on {self.devices}', config.model)         
-        self.set_optimizer(config.optimizer)
-        self.set_finetune(config.finetune) 
+        if not config.quantize: # cant finetune with quantization
+            self.set_finetune(config.finetune) 
+            self.set_optimizer(config.optimizer)
+
         c.print('FINETUNE SET -> ', config.finetune)
         if config.load:
             self.load(keys=['model', 'optimizer'])     
