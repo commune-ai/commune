@@ -135,7 +135,9 @@ class Subspace(c.Module):
             network = self.network
         self.network = network
         url = self.resolve_network_url(network)
-        c.print(f'Connecting to {network}: {url} BROOOO...')
+
+        c.print(f'Connecting to  [bold green]{network}[/bold green] 🔗🌐: [bold yellow]{url}[/bold yellow]')
+
     
         self.url = self.chain_endpoint = url
         

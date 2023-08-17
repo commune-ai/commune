@@ -1899,7 +1899,7 @@ class c:
                 mode = server_mode,
                 virtual:bool = True, 
                 verbose: bool = False, 
-                prefix_match: bool = True,
+                prefix_match: bool = False,
                 key = None,
                 **kwargs ):
 
@@ -3112,6 +3112,9 @@ class c:
                  refresh:bool =False,
                  tag_seperator:str = '::',
                  **kwargs ):
+
+        
+        module = cls.resolve_module(module).module_path()
         subspace = c.module('subspace')()
 
         if c.key_exists(module) and refresh==False:
@@ -3120,7 +3123,6 @@ class c:
         else:
             server_name = subspace.resolve_unique_server_name(module=module, tag=tag, netuid=subnet)
             module = cls.resolve_module(module)
-
             server_name = module.serve(tag=tag, 
                                 server_name=server_name, 
                                 wait_for_server=True, 
@@ -4951,9 +4953,9 @@ class c:
                 fn : str = 'info',
                 *args,
                 timeout : int = 4,
-                prefix_match=True,
-                network = None,
-                return_future = False,
+                prefix_match:bool = False,
+                network:str = None,
+                return_future:bool = False,
                 **kwargs
                 ) -> None:
                          
@@ -5955,7 +5957,8 @@ class c:
             
     @classmethod
     def resolve_module_path(cls, module=None):
-        module_path = 'module'
+        if module == None:
+            module = cls.module_path()
         if isinstance(module, str):
             module_path = c.modules_path + '/' + module.replace('.','/')
         
