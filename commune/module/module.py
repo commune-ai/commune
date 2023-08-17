@@ -3106,27 +3106,30 @@ class c:
     
     @classmethod
     def register(cls, 
-                 module = None,
-                 tag = None, 
+                 module :str = None,
+                 tag:str = None, 
                  name:str = None, 
                  subnet:str = 'commune',
                  refresh:bool =False,
                  tag_seperator:str = '::',
                  **kwargs ):
-        if module != None:
-            if tag_seperator in module:
-                module, tag = module.split(tag_seperator)
-
         subspace = c.module('subspace')()
-        
-        
-        module = cls.resolve_module(module)
-        server_name = module.serve(tag=tag, 
-                              server_name=name, 
-                              wait_for_server=True, 
-                              refresh=refresh, 
-                              **kwargs)
-        subspace.register(server_name, subnet=subnet)
+
+        if c.key_exists(module) and refresh==False:
+            server_name = module
+            c.print(f'Server {server_name} already exists', color='yellow')
+        else:
+            if module != None:
+                if tag_seperator in module:
+                    module, tag = module.split(tag_seperator)
+            module = cls.resolve_module(module)
+            server_name = module.serve(tag=tag, 
+                                server_name=name, 
+                                wait_for_server=True, 
+                                refresh=refresh, 
+                                **kwargs)
+
+        subspace.register(name=server_name, subnet=subnet)
         return server_name
     reg = register
     @classmethod
@@ -4331,8 +4334,6 @@ class c:
             cls.sleep(period)
             
     
-    def model_size(self, **kwargs ):
-        return self.get_model_size(model=self, **kwargs)
     
     @classmethod
     def model_shortcuts(cls, **kwargs):
@@ -4438,7 +4439,7 @@ class c:
           
         return c.format_data_size(size_in_bytes * model_inflation_ratio, fmt=fmt)
 
-
+    model_size = get_model_size
     @classmethod
     def resolve_model(cls, model):
         if isinstance(model, str):
@@ -7156,7 +7157,8 @@ class c:
                          model:str, 
                          max_memory: dict = None,
                          block_prefix : str = 'model.layers',
-                         buffer_memory:float = '10gb', # 10GB buffer (bytes)
+                         buffer_memory:float = '1gb', # 10GB buffer (bytes)
+                         quantize_factor:float = 1.0,
                          verbose: bool = False,
                          **kwargs,
                          ):
@@ -7181,8 +7183,6 @@ class c:
             if (gpu == None) or (free_gpu_memory[gpu] < buffer_memory) or (free_gpu_memory[gpu] < param_size):
                 gpu = c.most_free_gpu( fmt='b', free_gpu_memory=free_gpu_memory)
                 allocated_gpu_memory[gpu] = 0
-    
-   
             
             allocated_gpu_memory[gpu] += param_size
             free_gpu_memory[gpu] -= param_size

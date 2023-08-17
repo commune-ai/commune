@@ -16,7 +16,7 @@ max_output_tokens: 256
 
 tag: null
 load: false
-quantize: true
+quantize: false
 
 shortcuts:
     # 0-1B models

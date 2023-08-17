@@ -707,7 +707,7 @@ class Subspace(c.Module):
             else:
                 return True
 
-    def resolve_server_name(self, name:str, tag_seperator='::', tag:str=None, **kwargs):
+    def resolve_unique_server_name(self, name:str, tag_seperator='::', tag:str=None, **kwargs):
         # if tag is in the name then split it
         if tag_seperator in name:
             name, tag = name.split(tag_seperator)
@@ -1376,7 +1376,9 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions'], df:bool=True, **kwargs):
+    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions'], df:bool=True, update:bool = True, **kwargs):
+        if update:
+            c.sync()
         key_stats = []
         for key in self.my_keys(netuid=netuid):
             key_info = self.key_info(key, netuid=netuid, cols=cols, **kwargs)
@@ -1393,7 +1395,7 @@ class Subspace(c.Module):
             return df_key_stats.to_dict('records')
         
         
-    def key_info(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'],  **kwargs):
+    def key_info(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'], **kwargs):
         
         key_info = {}
         netuid = self.resolve_netuid(netuid)
@@ -1734,7 +1736,7 @@ class Subspace(c.Module):
                 cache:bool = True,
                 network = network,
                 keys = None,
-                update = False,
+                update: bool = False,
                 include_weights = False,
                 names_only = False,
                 df = False,
