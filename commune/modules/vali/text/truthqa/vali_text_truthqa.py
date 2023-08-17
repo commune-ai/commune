@@ -4,17 +4,18 @@ Vali = c.module('vali')
 
 class ValiTextTruthfulQA(Vali):
     def __init__(self, config = None, **kwargs):
-        conifg = self.set_config(config, kwargs=kwargs)
+        config = self.set_config(config, kwargs=kwargs)
         kwargs['start'] = False
         Vali.__init__(self, config=config, **kwargs)
-        self.set_dataset( self.config.dataset )
-        self.start()
+        self.set_dataset( config.dataset )
+        if config.start:
+            self.start()
 
     def start_dataset(dataset):
         dataset.split('.')[-1]
     def set_dataset(self, dataset:str , **kwargs):
         if c.server_exists(dataset):
-            self.dataset = c.connect(dataset)
+            self.dataset = c.connect(dataset, prefix_match=True)
         else:
             c.module('data.hf').serve(path=dataset.split('.')[-1])
             self.dataset = c.connect(dataset)
@@ -40,7 +41,7 @@ class ValiTextTruthfulQA(Vali):
         if answer_idx in answers:
             w = 1
         else:
-            w = 0
+            w = 0.2 # give a small weight for incorrect answers, but not 0 as we want to encourage exploration
         return {'w': w, 'answer_idx': answer_idx, 'answers': answers, 'output': output, 'sample': sample}
 
     def sample(self):

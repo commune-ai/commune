@@ -23,8 +23,13 @@ class BitAPAI(c.Module):
     
     def forward( self, 
                 text:str ,
+                # api default is 20, I would not go less than 10 with current network conditions
+                # larger number = higher query spread across top miners but slightly longer query time
                  count:int = 5,
-                 return_all:bool = True,
+                 # changed to False, I assume you only want a single repsonse so it will return a single random from the pool of valid responses
+                 return_all:bool = False,
+                 # added exclude_unavailable to ensure no empty responses are returned
+                 exclude_unavailable:bool = True,
                  uids = None,
                  api_key:str = None, history:list=None): 
         api_key = api_key if api_key != None else self.api_key
@@ -44,7 +49,9 @@ class BitAPAI(c.Module):
                     }
                     ],
             "count": count,
-            "return_all": return_all
+            "return_all": return_all,
+            # added return all here
+            "exclude_unavailable": exclude_unavailable
 
         }
         if uids is not None:
@@ -76,6 +83,3 @@ class BitAPAI(c.Module):
     
     def test(self):
         return self.forward("hello")
-
-
-

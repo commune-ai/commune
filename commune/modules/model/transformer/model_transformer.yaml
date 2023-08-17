@@ -52,6 +52,7 @@ shortcuts:
   wizardcoder: WizardLM/WizardCoder-15B-V1.0
   replit_code: replit/replit-code-v1-3b
   bpt: robertmyers/bpt-instruct-rm-6b
+  llamaint4: edumunozsala/llama-2-7b-int4-python-code-20k
 
 block_prefix: model.layers
 model2block_prefix:

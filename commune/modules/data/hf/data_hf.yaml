@@ -28,3 +28,4 @@ shortcuts:
   camel_math: camel-ai/math
   mmul_ru: NLPCoreTeam/mmlu_ru
   pubmed_qa: pubmed_qa
+  truth_qa: truthful_qa
