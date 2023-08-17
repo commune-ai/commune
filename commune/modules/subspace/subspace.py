@@ -707,24 +707,24 @@ class Subspace(c.Module):
             else:
                 return True
 
-    def resolve_unique_server_name(self, name:str, tag_seperator='::', tag:str=None, **kwargs):
-        # if tag is in the name then split it
-        if tag_seperator in name:
-            name, tag = name.split(tag_seperator)
+    def resolve_unique_server_name(self, module:str, tag:str=None, tag_seperator='::', netuid=None ,  **kwargs):
 
-        base_name = name
+        # if tag is in the name then split it
+        if tag_seperator in module:
+            module, tag = name.split(tag_seperator)
+        name = module 
         if tag != None:
-            name = base_name + '::' + tag
+            tag = str(tag)
+            name = module + tag_seperator + tag
         else:
             tag = ''
 
         cnt = 0
-        servers = self.servers(**kwargs)
+        servers = self.servers(netuid=netuid)
 
         while name in servers:
-            name = base_name + '::' + tag +str(cnt)
+            name = module + tag_seperator + tag + str(cnt)
             cnt += 1
-            c.print(name)
             
         return name
 

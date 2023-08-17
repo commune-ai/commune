@@ -3108,7 +3108,6 @@ class c:
     def register(cls, 
                  module :str = None,
                  tag:str = None, 
-                 name:str = None, 
                  subnet:str = 'commune',
                  refresh:bool =False,
                  tag_seperator:str = '::',
@@ -3119,12 +3118,11 @@ class c:
             server_name = module
             c.print(f'Server {server_name} already exists', color='yellow')
         else:
-            if module != None:
-                if tag_seperator in module:
-                    module, tag = module.split(tag_seperator)
+            server_name = subspace.resolve_unique_server_name(module=module, tag=tag, netuid=subnet)
             module = cls.resolve_module(module)
+
             server_name = module.serve(tag=tag, 
-                                server_name=name, 
+                                server_name=server_name, 
                                 wait_for_server=True, 
                                 refresh=refresh, 
                                 **kwargs)
