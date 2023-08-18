@@ -101,7 +101,9 @@ class ModelTransformer(Model):
             'max_memory': config.max_memory,
             'trust_remote_code': config.trust_remote_code,
             'offload_folder': "offload",
-            'torch_dtype': torch.float16
+            'torch_dtype': torch.float16,
+            'revision': False
+
         }
         if config.quantize:
             kwargs['quantization_config'] = BitsAndBytesConfig(

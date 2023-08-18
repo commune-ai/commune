@@ -53,7 +53,7 @@ shortcuts:
   replit_code: replit/replit-code-v1-3b
   bpt: robertmyers/bpt-instruct-rm-6b
   llamaint4: edumunozsala/llama-2-7b-int4-python-code-20k
-
+  codegeex2: THUDM/codegeex2-6b-int4
 block_prefix: model.layers
 model2block_prefix:
   mosaic: transformer.blocks
