@@ -3116,7 +3116,7 @@ class c:
 
         if tag != None:
             module = module + "::" + tag
-
+        subspace = c.module('subspace')()
         if c.key_exists(module) and refresh==False:
             server_name = module
             c.print(f'Server {server_name} already exists', color='yellow')
