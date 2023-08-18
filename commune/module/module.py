@@ -3113,15 +3113,16 @@ class c:
                  tag_seperator:str = '::',
                  **kwargs ):
 
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-        module = cls.resolve_module(module).module_path()
-        subspace = c.module('subspace')()
+
+        if tag != None:
+            module = module + "::" + tag
 
         if c.key_exists(module) and refresh==False:
             server_name = module
             c.print(f'Server {server_name} already exists', color='yellow')
         else:
+            if tag_seperator in module:
+                module, tag = module.split(tag_seperator)
             server_name = subspace.resolve_unique_server_name(module=module, tag=tag, netuid=subnet)
             module = cls.resolve_module(module)
             server_name = module.serve(
