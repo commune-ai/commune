@@ -1,48 +1,31 @@
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    pipeline,
-    BitsAndBytesConfig,
-)
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
+hf_model_repo = "edumunozsala/llama-2-7b-int4-python-code-20k"
 
-name = "meta-llama/Llama-2-7b"
+tokenizer = AutoTokenizer.from_pretrained(hf_model_repo)
 
-tokenizer = AutoTokenizer.from_pretrained(name)
-tokenizer.pad_token_id = tokenizer.eos_token_id    # for open-ended generation
+model = AutoModelForCausalLM.from_pretrained(hf_model_repo, load_in_4bit=True, torch_dtype=torch.float16, 
+                                             device_map='auto')
 
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16,
-    bnb_4bit_use_double_quant=True,
-)
-model = AutoModelForCausalLM.from_pretrained(
-    name,
-    quantization_config=bnb_config,
-    device_map="auto",
-    trust_remote_code=True,
-)
-generation_pipe = pipeline(
-    "text-generation",
-    model=model,
-    tokenizer=tokenizer,
-    trust_remote_code=True,
-    device_map="auto",    # finds GPU
-)
+instruction="Write a Python function to display the first and last elements of a list."
+input=""
 
-text = "any text "    # prompt goes here
+prompt = f"""### Instruction:
+Use the Task below and the Input given to write the Response, which is a programming code that can solve the Task.
 
-sequences = generation_pipe(
-    text,
-    max_length=128,
-    pad_token_id=tokenizer.pad_token_id,
-    eos_token_id=tokenizer.eos_token_id,
-    do_sample=True,
-    top_k=10,
-    temperature=0.4,
-    top_p=0.9
-)
+### Task:
+{instruction}
 
-print(sequences[0]["generated_text"])
+### Input:
+{input}
+
+### Response:
+"""
+
+input_ids = tokenizer(prompt, return_tensors="pt", truncation=True).input_ids.cuda()
+# with torch.inference_mode():
+outputs = model.generate(input_ids=input_ids, max_new_tokens=100, do_sample=True, top_p=0.9,temperature=0.5)
+
+print(f"Prompt:\n{prompt}\n")
+print(f"Generated instruction:\n{tokenizer.batch_decode(outputs.detach().cpu().numpy(), skip_special_tokens=True)[0][len(prompt):]}")

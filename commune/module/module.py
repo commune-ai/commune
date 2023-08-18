@@ -1916,10 +1916,8 @@ class c:
             else:
                 modules = [m for m in modules if m==module]
                 
-            c.print(f'Connecting to {module} on {network} network', color='yellow')
             assert len(modules) > 0, f'No modules found in namespace {namespace}'
             address = namespace[module]
-        c.print(address)
         ip, port = address.split(':')
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
@@ -3115,24 +3113,23 @@ class c:
 
 
         if tag != None:
-            module = module + "::" + tag
+            module = module + tag_seperator + tag
         subspace = c.module('subspace')()
-        if c.key_exists(module) and refresh==False:
-            server_name = module
-            c.print(f'Server {server_name} already exists', color='yellow')
-        else:
-            if tag_seperator in module:
-                module, tag = module.split(tag_seperator)
-            server_name = subspace.resolve_unique_server_name(module=module, tag=tag, netuid=subnet)
-            module = cls.resolve_module(module)
-            server_name = module.serve(
-                                server_name=server_name, 
-                                wait_for_server=True, 
-                                refresh=refresh, 
-                                **kwargs)
+        if tag_seperator in module:
+            module, tag = module.split(tag_seperator)
+        server_name = subspace.resolve_unique_server_name(module=module, tag=tag, netuid=subnet)
+        module = cls.resolve_module(module)
+        server_name = module.serve(
+                            server_name=server_name, 
+                            wait_for_server=True, 
+                            refresh=refresh, 
+                            **kwargs)
 
         subspace.register(name=server_name, subnet=subnet)
         return server_name
+
+
+    
     reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
@@ -3746,7 +3743,7 @@ class c:
     module_fn = fn
     
     @classmethod
-    def module(cls,module: Any = None ,*args, **kwargs):
+    def module(cls,module: Any = None ,*args, network=None, **kwargs):
         '''
         Wraps a python class as a module
         '''
@@ -3758,8 +3755,9 @@ class c:
             if module in modules:
                 module =  c.get_module(module,**kwargs)
                 return module
-            # elif module in cls.servers():
-            #     return c.connect(module,**kwargs)
+            else:
+                raise Exception(f'Module {module} not found')
+        
     
 
         # serve the module if the bool is True
@@ -6274,6 +6272,8 @@ class c:
     @classmethod
     def mv(cls, path1, path2):
         import shutil
+        path1 = cls.resolve_path(path1)
+        path2 = cls.resolve_path(path2)
         shutil.move(path1, path2)
         return path2
 
@@ -7492,6 +7492,7 @@ class c:
     def is_generator(cls, obj):
         import inspect
         return inspect.isgenerator(obj)
+
 
     
 Module = c
