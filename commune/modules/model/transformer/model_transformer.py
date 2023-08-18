@@ -102,16 +102,17 @@ class ModelTransformer(Model):
             'trust_remote_code': config.trust_remote_code,
             'offload_folder': "offload",
             'torch_dtype': torch.float16,
-            'revision': False
+            'load_in_4bit': config.quantize,
 
         }
-        if config.quantize:
-            kwargs['quantization_config'] = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-            )
+        # if config.quantization_config:
+        #     kwargs['quantization_config'] = BitsAndBytesConfig(
+        #         load_in_4bit=True,
+        #         bnb_4bit_quant_type="nf4",
+        #         bnb_4bit_compute_dtype=torch.float16,
+        #         bnb_4bit_use_double_quant=True,
+        #     )
+
 
         t = c.time()
 

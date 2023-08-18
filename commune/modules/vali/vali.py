@@ -10,7 +10,6 @@ class Validator(c.Module):
 
     def __init__(self, config=None,  **kwargs):
         self.set_config(config=config, kwargs=kwargs)
-        c.print('BROOO')
         self.set_subspace( )
         self.module_stats = {}
         self.start_time = c.time()
@@ -45,6 +44,7 @@ class Validator(c.Module):
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
         self.key = c.get_key(self.config.key)
+        self.n  = len(self.module_names)
 
     @property
     def lifetime(self):
@@ -74,15 +74,17 @@ class Validator(c.Module):
         w = 0 # default weight is 0
         module_name = self.resolve_module_name(module)
         module_state = self.name2module_state[module_name]
-
+        epoch = self.count // self.n
+        prefix = f'[bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n}[/bold yellow]'
         try:
-            module = await c.async_connect(module_name,timeout=1, key=self.key, network=self.config.network)
+            module = await c.async_connect(module_name,timeout=1, key=self.key, network=self.config.network, namespace = self.namespace)
             response = self.score_module(module)
             w = response['w']
-            c.print(f'{module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green')
+            c.print(f'{prefix} {module_name} [bold green]SUCCESS {c.emojis["dank"]} -> W : {w} [/bold green]')
         except Exception as e:
-            response = {'error': c.detailed_error(e), 'w': 0}
-            c.print(f'{module_name} ERROR {c.emojis["error"]} -> W : {w}', color='red')
+            e = c.detailed_error(e)
+            response = {'error': e, 'w': 0}
+            c.print(f'{prefix} [bold red] {module_name} ERROR {c.emojis["error"]} -> W : {w} -> {e["error"][:30]}..[/bold red]')
 
         w = response['w']
         module_stats = self.load_module_stats(module_name, default=module_state) if not refresh else module_state
@@ -90,12 +92,23 @@ class Validator(c.Module):
         module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
         module_stats['alpha'] = self.config.alpha
         module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
-        self.module_stats[module] = module_stats
-        self.save_module_stats(module, module_stats)
+        self.module_stats[module_name] = module_stats
+        self.save_module_stats(module_name, module_stats)
         self.count += 1
 
         return module_stats
-    
+
+    def refresh_stats(cls):
+        for k in cls.module_stats.keys():
+            cls.module_stats[k] = cls.load_module_stats(k, default=cls.module_stats[k])
+        return {'success': True, 'message': 'Refreshed stats'}
+
+    @classmethod
+    def stats(cls, df=False, network='main'):
+        self = cls(start=False)
+        self.load_stats()
+        return self.module_stats
+
     def eval_module(self, module:str = None, thread_id=0, refresh=False):
         return c.gather(self.async_eval_module(module=module, thread_id=thread_id, refresh=refresh), timeout=2)
     
@@ -229,24 +242,3 @@ class Validator(c.Module):
     def test(cls, **kwargs):
         self = cls(**kwargs)
 
-
-    # def __del__(self):
-    #     self.stop()
-    #     self.save()
-    #     c.print('Validator stopped', color='white')
-
-        
-
-    # def start_worker(self, **kwargs):
-    #     config = self.config
-    #     config.is_main_worker = False
-    #     self = Validator(config=config)
-    #     self.start()
-
-    # def start_workers(self,**kwargs):
-
-    #     for i in range(self.config.num_workers):
-    #         name = self.name() + f'.w{i}'
-    #         self.workers += [name]
-    #         self.remote_fn( fn='start_worker', name=name,   kwargs=kwargs)
-        # c.print('fam')
