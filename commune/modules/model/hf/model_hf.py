@@ -442,7 +442,7 @@ class ModelTransformer(Model):
             yield output_text
             text = output_text
 
-    hf = c.module('huggingface')()
+    hf = c.module('hf')()
     def generate(self, text: str, 
                 max_output_tokens: int = 256,
                 max_input_tokens: int = 20, 
