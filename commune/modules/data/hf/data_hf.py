@@ -21,10 +21,8 @@ class DataHF(c.Module):
         return c.random_int(len(self))
     
         
-    def sample(self, idx:str=None):
-        if idx is None:
-            idx = self.random_idx()
-
+    def sample(self, idx:int=None, batch_size:int = 1):
+        idx = self.random_idx() if idx == None else None
         return self.dataset[idx]
     
 
@@ -203,7 +201,7 @@ class DataHF(c.Module):
         return f'{self.path}'
 
     @classmethod
-    def serve(cls, path:str = 'truthful_qa', tag=None, remote:bool=True, **kwargs):
+    def serve(cls, path:str = 'truth_qa', tag=None, remote:bool=True, **kwargs):
         server_name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
         c.print(f'Serving {server_name} with kwargs: {kwargs}')

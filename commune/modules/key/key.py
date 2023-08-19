@@ -210,6 +210,37 @@ class Keypair(c.Module):
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         new_key = cls.get_key(new_path)
         return {'success': True, 'message': f'key moved from {path} to {new_path}', 'key': new_key}
+
+    
+    @classmethod
+    def switch_key(cls, path1:str, path2:str):
+        
+        assert path1 != path2
+        assert cls.key_exists(path1), f'key does not exist at {path1}'
+        assert cls.key_exists(path2), f'key does not exist at {path2}'
+
+
+        before  = {
+            path1: cls.key2address(path1),
+            path2: cls.key2address(path2)
+        }
+        
+
+        key1 = c.get_key(path1)
+        key2 = c.get_key(path2)   
+        cls.put(path1, key2.to_json()) 
+        cls.put(path2, key1.to_json())
+
+
+        after  = {
+            path1 : cls.key2address(path1), 
+            path2 : cls.key2address(path2)
+        }
+
+        assert before[path1] == after[path2]
+        assert before[path2] == after[path1]
+        
+        return {'success': True, 'before': before, 'after': after, 'msg': f'switched {path1} and {path2}'}
     
     rename_key = mv_key
     

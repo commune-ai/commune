@@ -10,7 +10,7 @@ datasets:
   # math
   - camel-ai/math
   # mc 
-  - truthful_qa
+  - truthqa
   - NLPCoreTeam/mmlu_ru
   - math_qa
   - pubmed_qa
@@ -18,7 +18,7 @@ datasets:
 
 
 fleet: 
-  qa: [truthful_qa, math_qa, pubmed_qa, ai2_arc]
+  qa: [truth_qa, math_qa, pubmed_qa, ai2_arc]
   
 
 shortcuts: 

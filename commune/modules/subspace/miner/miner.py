@@ -81,7 +81,7 @@ class Miner(commune.Module):
     def launch_model(cls,name='', *args, **kwargs):
         if kwargs is None:
             kwargs = {}
-        kwargs['module'] = 'model.transformer'
+        kwargs['module'] = 'model.hf'
         model = commune.launch(module)
         model.deploy(**kwargs)
         

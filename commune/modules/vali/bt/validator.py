@@ -71,7 +71,7 @@ class Validator(c.Model):
     
     @classmethod
     def resolve_shortcut(cls, model: str) -> str:
-        model = cls.module('model.transformer').shortcuts.get(model, model)
+        model = cls.module('model.hf').shortcuts.get(model, model)
         return model
 
     def set_tokenizer(self, tokenizer):

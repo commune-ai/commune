@@ -683,7 +683,6 @@ class c:
         if not cls.has_config():
             return {}
         kwargs = kwargs if kwargs != None else {}
-        kwargs.pop('kwargs', None)
         if isinstance(config, str):
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
@@ -761,6 +760,16 @@ class c:
     @classmethod
     def add_key(cls, *args, **kwargs):
         return c.module('key').add_key(*args, **kwargs)
+
+    # KEY LAND
+    @classmethod
+    def mv_key(cls, *args, **kwargs):
+        return c.module('key').mv_key(*args, **kwargs)
+
+    # KEY LAND
+    @classmethod
+    def switch_key(cls, *args, **kwargs):
+        return c.module('key').switch_key(*args, **kwargs)
 
     # KEY LAND
     @classmethod
@@ -1262,10 +1271,9 @@ class c:
             
     
     @classmethod
-    def kill_all(cls, search= None):
-        for module in c.servers():
-            if search != None and search in module:
-                cls.kill(module)
+    def kill_all(cls,*args,**kwargs):
+        for module in c.servers(*args, **kwargs):
+            c.print(c.kill(module))
         
             
         
@@ -1472,6 +1480,10 @@ class c:
     @classmethod
     def has_server(cls, *args, **kwargs):
         return bool(len(c.servers(*args, **kwargs)) > 0)
+    @classmethod
+    def get_tags(cls, module, *args, **kwargs):
+        servers =  c.servers(module, *args, **kwargs)
+        return [s.split('::')[-1] if len(s.split('::'))>1 else None  for s in servers]
 
     @classmethod
     def has_config(cls) -> bool:
@@ -1898,7 +1910,7 @@ class c:
                 namespace = None,
                 mode = server_mode,
                 virtual:bool = True, 
-                verbose: bool = False, 
+                verbose: bool = True, 
                 prefix_match: bool = False,
                 key = None,
                 **kwargs ):
@@ -2485,7 +2497,6 @@ class c:
         if module == None:
             module = cls.module_path()
         if name == None:
-            assert isinstance(module, str), f'Invalid module {module}'
             name = module
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
@@ -3100,33 +3111,25 @@ class c:
             
         stdout = c.cmd(command, env=env, verbose=verbose)
         return stdout
-    
-    
-    @classmethod
-    def register(cls, 
-                 module :str = None,
-                 tag:str = None, 
-                 subnet:str = 'commune',
-                 refresh:bool =False,
-                 tag_seperator:str = '::',
-                 **kwargs ):
-        if module == None:
-            module = cls.module_path()
 
-        if tag != None:
-            module = module + tag_seperator + tag
+    @classmethod
+    def register(cls,  
+                 module = None,
+                 tag:str = None,
+                 subnet:str = 'commune',
+                 server_name:str = None, 
+                 refresh:bool =False,
+                 **kwargs ):
         subspace = c.module('subspace')()
-        if tag_seperator in module:
-            module, tag = module.split(tag_seperator)
-        server_name = subspace.resolve_unique_server_name(module=module, tag=tag, netuid=subnet)
+        server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
         server_name = module.serve(
                             server_name=server_name, 
                             wait_for_server=True, 
                             refresh=refresh, 
                             **kwargs)
-
         subspace.register(name=server_name, subnet=subnet)
+        c.sync()
         return server_name
 
 
@@ -3154,6 +3157,8 @@ class c:
             cls.cmd(f"pm2 delete {n}", verbose=False)
 
             cls.pm2_rm_logs(n)
+
+        return rm_list
     @staticmethod
     def detailed_error(e) -> dict:
         import traceback
@@ -3296,7 +3301,7 @@ class c:
     
     @classmethod
     def learn(cls, *args, **kwargs):
-        return c.module('model.transformer').learn(*args, **kwargs)
+        return c.module('model.hf').learn(*args, **kwargs)
         
     
     @classmethod
@@ -4982,7 +4987,7 @@ class c:
                               modules, 
                               fn = 'info',
                               *args, 
-                              n=2,
+                              n=None,
                             **kwargs):
         
         args = args or []
@@ -4990,7 +4995,8 @@ class c:
         
         if isinstance(modules, str) or modules == None:
             modules = c.servers(modules)
-            
+        if n == None:
+            n = len(modules)
         modules = cls.shuffle(modules)[:n]
         assert isinstance(modules, list), 'modules must be a list'
         c.print(f'Calling {fn} on {len(modules)} modules', color='green')
@@ -5007,7 +5013,7 @@ class c:
         
         if len(successes) == 0:
             c.print(f'ERRORS {errors}', color='red')
-        return successes
+        return dict(zip(modules, successes))
     
 
     @classmethod
@@ -5243,19 +5249,17 @@ class c:
         for i in range(n):
             cls.serve(tag=str(i), **kwargs)
 
+
+            
+
     @classmethod
-    def regfleet(cls,module = None, n:int=2, tag:str=None, **kwargs):
+    def regfleet(cls,module = None, tag:str=None, n:int=2, **kwargs):
+        subspace = c.module('subspace')()
         if tag == None:
             tag = ''
-        servers = []
-
-        if module == None:
-            module = cls.module_path()
-
         for i in range(n):
-            name = c.register(module=module, tag=tag+str(i), **kwargs)
-            servers.append(name)
-        return {'servers':servers}
+            cls.register(mopdule=module, tag=tag+str(i),  **kwargs)
+        return {'servers':server_names}
     
     @classmethod
     def client(cls, *args, **kwargs) -> 'Client':
@@ -5868,6 +5872,8 @@ class c:
         c.save_yaml(module_config_path, base_config)
         
         c.update()
+
+        return {'success': True, 'msg': f' created a new repo called {module}'}
         
     make_dir= mkdir
 
@@ -6315,7 +6321,7 @@ class c:
     
     @classmethod
     def learn(cls, *args, **kwargs):
-        return c.module('model.transformer').learn(*args, **kwargs)
+        return c.module('model.hf').learn(*args, **kwargs)
         
     @classmethod
     def mine(cls,*args, **kwargs):
@@ -6325,7 +6331,7 @@ class c:
     @classmethod
     def train_fleet(cls, *args, **kwargs):
         kwargs['remote'] = kwargs.get('remote', True)
-        return c.module('model.transformer').train_fleet(*args, **kwargs)
+        return c.module('model.hf').train_fleet(*args, **kwargs)
     
     @classmethod
     def miners(cls, *args, **kwargs):
@@ -7162,10 +7168,16 @@ class c:
                          max_memory: dict = None,
                          block_prefix : str = 'model.layers',
                          buffer_memory:float = '1gb', # 10GB buffer (bytes)
-                         quantize_factor:float = 1.0,
+                         quantize:str = None, #
                          verbose: bool = False,
                          **kwargs,
                          ):
+        if quantize in ['int8']: 
+            quantize_factor = 0.5
+        elif quantize in ['int4']:
+            quantize_factor = 0.25
+        elif quantize == None: 
+            quantize_factor = 1
         model = c.resolve_model(model)
         param_size_map = c.params_size_map(model, block_prefix=block_prefix, **kwargs)
         
@@ -7390,7 +7402,7 @@ class c:
 
     @classmethod
     def ask(cls, *args, **kwargs):
-        return c.module('model.transformer').talk(*args, **kwargs)
+        return c.module('model.hf').talk(*args, **kwargs)
 
 
     @classmethod
