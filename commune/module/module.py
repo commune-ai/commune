@@ -1144,9 +1144,12 @@ class c:
         if len(args) == 1:
             return random.randint(0, args[0])
         elif len(args) == 2:
+            c.print(args)
             return random.randint(args[0], args[1])
         else:
             raise ValueError('Invalid number of arguments')
+
+
     
     @classmethod
     def ports(cls, ip='0.0.0.0') -> List[int]:
@@ -3123,6 +3126,7 @@ class c:
                  **kwargs ):
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
+        module = cls.resolve_module(module)
         server_name = module.serve(
                             server_name=server_name, 
                             wait_for_server=True, 
@@ -6157,7 +6161,10 @@ class c:
         return random.choice(cls.colors())
 
     random_colour = random_color
-
+    @classmethod
+    def random_float(cls, min=0, max=1):
+        import random
+        return random.uniform(min, max)
 
 
     @classmethod
