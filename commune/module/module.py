@@ -2494,12 +2494,13 @@ class c:
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
         
         # module::tag name format
-        if module == None:
-            module = cls.module_path()
+
         if name == None:
+            if module == None:
+                module = cls.module_path()
             name = module
-        if tag != None:
-            name = f'{name}{tag_seperator}{tag}'
+            if tag != None:
+                name = f'{name}{tag_seperator}{tag}'
         assert isinstance(name, str), f'Invalid name {name}'
         return name
     resolve_name = resolve_server_name
@@ -3122,7 +3123,6 @@ class c:
                  **kwargs ):
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
-        module = cls.resolve_module(module)
         server_name = module.serve(
                             server_name=server_name, 
                             wait_for_server=True, 
@@ -4343,7 +4343,7 @@ class c:
     
     @classmethod
     def model_shortcuts(cls, **kwargs):
-        return  c.module('huggingface').getc('shortcuts')
+        return  c.module('hf').getc('shortcuts')
     @classmethod
     def resolve_model_shortcut(cls, model):
         model_shortcuts = c.model_shortcuts()
@@ -4352,10 +4352,10 @@ class c:
     
     @classmethod
     def add_model_shortcut(cls, *args, **kwargs):
-        return  c.module('huggingface').add_model_shortcut(*args, **kwargs)    
+        return  c.module('hf').add_model_shortcut(*args, **kwargs)    
     @classmethod
     def rm_model_shortcut(cls, *args, **kwargs):
-        return  c.module('huggingface').rm_model_shortcut(*args, **kwargs)
+        return  c.module('hf').rm_model_shortcut(*args, **kwargs)
 
     @classmethod
     def model_options(cls):

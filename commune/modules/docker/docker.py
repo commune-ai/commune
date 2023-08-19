@@ -32,6 +32,12 @@ class Docker(c.Module):
     def docker_compose(cls, path = c.repo_path): 
         docker_compose_path = cls.resolve_docker_compose_path(path)
         return c.load_yanl(docker_compose_path)
+
+    @classmethod
+    def resolve_docker_path(cls, path = None):
+        path = cls.resolve_repo_path(path)
+        return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
+        return path
     
     @classmethod
     def build(cls, path , tag = None , sudo=False, verbose=True):
@@ -80,6 +86,9 @@ class Docker(c.Module):
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
 
 
+    @classmethod
+    def insstall_docker_compose(cls, sudo=False):
+        return c.cmd('apt install docker-compose', verbose=True, sudo=True)
     # def build_commune(self, sudo=False):
     #     self.build(path=self.libpath, sudo=sudo)
 

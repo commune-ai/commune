@@ -651,7 +651,7 @@ class LlamaModel(nn.Module, c.Module):
 
             self.config['tokenizer'] = tokenizer
             
-        hf = c.module('huggingface')
+        hf = c.module('hf')
         tokenizer_class = c.import_object('commune.modules.model.transformer.llama.LlamaTokenizer')
         path = hf.get_model_path('llama')
         tokenizer = tokenizer_class.from_pretrained(path)
