@@ -9,17 +9,17 @@ import bittensor
 
 for model in [ 'gpt2.7b', 'gpt125m', 'gptj', 'gptjt','opt13b']:
     # commune.pm2_kill('model::'+model)
-    commune.launch('model.transformer', name='model', tag=model, serve=True, mode='pm2', kwargs={'model_name': model})
+    commune.launch('model.hf', name='model', tag=model, serve=True, mode='pm2', kwargs={'model_name': model})
 
 # commune.servers()
 
 # commune.get_module('commune.utils.math.MovingWindowAverage').test()
 # print(commune.servers())
 # print(commune.connect('BittensorDataset').sample())
-# commune.launch('model.transformer', name='model', tag='gptj', fn='serve', device='2')
-# commune.launch('model.transformer', name='model', tag='gptjt', fn='serve', device='0')
-# commune.launch('model.transformer', name='model', tag='gpt2.7b', fn='serve', device='4')
-# commune.launch('model.transformer',  name='gpt125m', tag='demo',  kwargs=dict(model_name='gpt125m'), mode='server')
+# commune.launch('model.hf', name='model', tag='gptj', fn='serve', device='2')
+# commune.launch('model.hf', name='model', tag='gptjt', fn='serve', device='0')
+# commune.launch('model.hf', name='model', tag='gpt2.7b', fn='serve', device='4')
+# commune.launch('model.hf',  name='gpt125m', tag='demo',  kwargs=dict(model_name='gpt125m'), mode='server')
 
 # commune.get_module('model.transformer.gptneox')
 # commune.launch('model.transformer.gptneox', name='gptneox', tag='0', kwargs=dict(model_name='gptneox'), mode='server')
@@ -29,20 +29,20 @@ for model in [ 'gpt2.7b', 'gpt125m', 'gptj', 'gptjt','opt13b']:
 # get the module map
 print(commune.gpu_map())
 # commune.launch('model.transformer.gptneox',  name='gpt20b', tag='0',  kwargs=dict(model_name='gpt20b'), mode='server')
-# commune.launch('model.transformer', name='gptj', tag='trial_2', device='5', kwargs= {'tag': 'trial_2'}, mode='server')
+# commune.launch('model.hf', name='gptj', tag='trial_2', device='5', kwargs= {'tag': 'trial_2'}, mode='server')
 
-# commune.launch('model.transformer', name='model', tag='gptj', fn='serve', device='2')
+# commune.launch('model.hf', name='model', tag='gptj', fn='serve', device='2')
 
 
 
-# commune.launch('model.transformer', name='train::gptj', fn='local_train', mode='pm2', 
+# commune.launch('model.hf', name='train::gptj', fn='local_train', mode='pm2', 
 #                device='3', kwargs={'model': 'gptj', 'tag': 'trial_2'} ,refresh=True)
 
-# commune.launch('model.transformer', name='train::gptjt', fn='local_train', mode='pm2', 
+# commune.launch('model.hf', name='train::gptjt', fn='local_train', mode='pm2', 
 #                device='5', kwargs={'model': 'gptjt', 'tag': 'trial_2'} ,refresh=True)
 
 
-# commune.launch('model.transformer', name='train::gpt2.7b', fn='local_train', mode='pm2', 
+# commune.launch('model.hf', name='train::gpt2.7b', fn='local_train', mode='pm2', 
 #                device='4', kwargs={'model': 'gpt2.7b', 'tag': 'trial_2'} ,refresh=True)
 
 # commune.launch('commune.model.transformer.gptneox.GPTNeoX', name='model::gpt20b', fn='serve', mode='pm2', 

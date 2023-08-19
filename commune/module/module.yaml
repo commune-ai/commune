@@ -16,7 +16,6 @@ shortcuts:
   chain: subspace
   d: docker
   freegpt: model.freegpt
-  hf: huggingface
   lit: lit_gpt
   openai: model.openai
   s: subspace
