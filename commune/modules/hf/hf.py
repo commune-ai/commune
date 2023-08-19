@@ -15,7 +15,7 @@ from safetensors.torch import save_file, load_file
 
 
 class Huggingface(c.Module):
-    cfg = c.get_config('huggingface')
+    cfg = c.get_config('hf')
     shortcuts = cfg['shortcuts']
     def __init__(self, config:dict=None):
         self.set_config(config)
@@ -93,7 +93,7 @@ class Huggingface(c.Module):
         if filter_fn != None and callable(filter_fn):
             models = self.filter_df(df=models, fn=filter_fn)
 
-        return models
+        return models[:10]
 
 
     @property

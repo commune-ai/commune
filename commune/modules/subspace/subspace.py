@@ -42,10 +42,8 @@ class Subspace(c.Module):
     default_config = c.get_config(chain_name, to_munch=False)
     token_decimals = default_config['token_decimals']
     retry_params = default_config['retry_params']
-    network2url = default_config['network2url']
     network = default_config['network']
     chain = network
-    url = network2url[network]
     default_subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
     chain_release_path = eval(default_config['chain_release_path'])
@@ -637,7 +635,7 @@ class Subspace(c.Module):
                     # if we rename the module, we need to move the key from the module (old name) to the new name
                     old_name = module
                     if old_name != name:
-                        c.switch_key(key1=old_name,key2=name)
+                        c.switch_key(old_name,name)
                     return {'success': True, 'msg': msg}
                 else:
                     msg = 'Failed to Serve module'
@@ -1945,7 +1943,6 @@ class Subspace(c.Module):
 
     @classmethod
     def refresh_chain_info(cls, chain=chain):
-        cls.putc(f'network2url.{chain}', [])
         cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': []})
     @classmethod
     def kill_nodes(cls, chain=chain, verbose=True):
@@ -2463,7 +2460,6 @@ class Subspace(c.Module):
                     max_vali_nodes:int = 16,
                     max_nonvali_nodes:int = 16,
                     port_keys: list = ['port','rpc_port','ws_port'],
-                    
                     ):
         
         # kill the chain if refresh
@@ -2689,9 +2685,11 @@ class Subspace(c.Module):
         return keys
     
     @classmethod
-    def get_node_key_paths(cls, node='alice', chain=chain):
-        return c.keys(f'{cls.node_key_prefix}.{chain}') 
-
+    def node_key_paths(cls, node='alice', chain=chain, mode='all'):
+        if mode == 'all':
+            return c.keys(f'{cls.node_key_prefix}.{chain}') 
+        elif mode in ['nonvali', 'vali']:
+            return c.keys(f'{cls.node_key_prefix}.{chain}.{mode}')
     
 
     @classmethod
@@ -2707,9 +2705,13 @@ class Subspace(c.Module):
         return vali_node_keys
 
     @classmethod
+    def node_key_info_map(cls,chain=chain, mode = 'all'):
+        keys = cls.node_keys(chain=chain, mode=mode)
+        return {k:c.key_info(k) for k in keys}
+
+    @classmethod
     def nodes(cls, mode='all', chain=chain):
         nodes = list(cls.node_keys(chain=chain).keys())
-
         if mode == 'vali':
             nodes = [n for n in nodes if n.startswith('vali')]
         elif mode == 'nonvali':
@@ -2729,10 +2731,6 @@ class Subspace(c.Module):
     def nonvali_nodes(cls, chain=chain):
         return cls.nodes(mode='nonvali', chain=chain)
 
-    node_key = get_node_key
-    node_key_paths = get_node_key_paths
-
-
     @classmethod
     def vali_node_keys(cls,chain=chain):
         return {k:v for k,v in  cls.node_keys(chain=chain).items() if k.startswith('vali')}
@@ -2744,7 +2742,8 @@ class Subspace(c.Module):
 
     @classmethod
     def node_key_exists(cls, node='alice', chain=chain):
-        return len(cls.get_node_key_paths(node=node, chain=chain)) > 0
+        return len(cls.node_key_paths(node=node, chain=chain)) > 0
+
     @classmethod
     def add_node_key(cls,
                      node:str,
