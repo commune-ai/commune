@@ -36,3 +36,4 @@ grpcio
 grpcio-tools
 sse-starlette
 openai
+scipy
