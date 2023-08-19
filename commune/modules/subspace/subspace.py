@@ -434,7 +434,9 @@ class Subspace(c.Module):
         address = address.replace('0.0.0.0',c.ip())
         if self.is_registered(name, netuid=netuid):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-        # Attempt to register
+        stale_modules = self.stale_modules(netuid=netuid)
+        if  len(stale_modules) > 0:
+            return self.update_module(module=stale_modules[0], name=name, address=address , netuid=netuid, network=network)
 
         key = self.resolve_key(name)
         stake = stake if stake != None else self.get_balance(key, fmt='n')
@@ -468,6 +470,7 @@ class Subspace(c.Module):
             if sync:
                 c.sync()
         else:
+            c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
             return {'success': False, 'message': response.error_message}    
         
 
@@ -631,6 +634,10 @@ class Subspace(c.Module):
                 if response.is_success:
                     msg = 'Updated Module'
                     c.print(f':white_heavy_check_mark: [green]{msg}[/green]\n  [bold white]{call_params}[/bold white]')
+                    # if we rename the module, we need to move the key from the module (old name) to the new name
+                    old_name = module
+                    if old_name != name:
+                        c.switch_key(key1=old_name,key2=name)
                     return {'success': True, 'msg': msg}
                 else:
                     msg = 'Failed to Serve module'
@@ -709,26 +716,43 @@ class Subspace(c.Module):
             else:
                 return True
 
-    def resolve_unique_server_name(self, module:str, tag:str=None, tag_seperator='::', netuid=None ,  **kwargs):
+    def resolve_unique_server_names(self, name:str,  n:int=10,   **kwargs) -> List[str]:
+        server_names = []
+        for i in range(n):
+            server_name = self.resolve_unique_server_name(name=name, n=n, avoid_servers=server_names, **kwargs)
 
-        # if tag is in the name then split it
-        if tag_seperator in module:
-            module, tag = name.split(tag_seperator)
-        name = module 
-        if tag != None:
-            tag = str(tag)
-            name = module + tag_seperator + tag
-        else:
-            tag = ''
+            server_names += [server_name]
 
-        cnt = 0
-        servers = self.servers(netuid=netuid)
+        return server_names
 
-        while name in servers:
-            name = module + tag_seperator + tag + str(cnt)
-            cnt += 1
             
-        return name
+
+
+
+    def resolve_unique_server_name(self, name:str, netuid:Union[str, int]=None , avoid_servers:List[str]=None , tag_seperator = '::',  **kwargs):
+        servers = self.servers(netuid=netuid) 
+        if avoid_servers != None:
+            servers += avoid_servers
+
+        
+        new_name = name
+        cnt = 0
+        for i in range(4):
+            if c.is_number(name[-i]):
+                cnt = int(name[-i])
+                break
+
+        while new_name in servers:
+            if self.is_registered(new_name) and not new_name in avoid_servers:
+                break
+            if tag_seperator not in name:
+                name += tag_seperator
+            new_name = name + str(cnt)
+            cnt += 1
+
+        c.print(new_name)
+
+        return new_name
 
     def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None):
         if module_key == None:
@@ -960,7 +984,12 @@ class Subspace(c.Module):
         c.print("Constant: [bold white]{}[/bold white] = [bold green]{}[/bold green]".format(constant_name, value))
         return value
             
-      
+    def stale_modules(self, *args, **kwargs):
+        modules = self.my_modules(*args, **kwargs)
+        servers = c.servers(network='local')
+        servers = c.shuffle(servers)
+        return [m['name'] for m in modules if m['name'] not in servers]
+
     #####################################
     #### Hyper parameter calls. ####
     #####################################

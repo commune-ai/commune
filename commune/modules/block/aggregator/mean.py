@@ -25,19 +25,19 @@ class MeanAggregator(commune.Aggregator):
         blocks = [
  
          {
-            'module': 'model.transformer',
+            'module': 'model.hf',
             'actor': {'gpus': 0.1},
             'fn': 'forward',
             'kwargs': {'ray_get': True},
         }, 
          {
-            'module': 'model.transformer',
+            'module': 'model.hf',
             'actor': {'gpus': 0.1},
             'fn': 'forward',
             'kwargs': {'ray_get': True},
         },
         {
-            'module': 'model.transformer',
+            'module': 'model.hf',
             'actor': {'gpus': 0.1},
             'fn': 'forward',
             'kwargs': {'ray_get': False},

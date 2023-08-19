@@ -1,3 +1,0 @@
-model : gpt3
-default_response : I think your statement is rather ambigious. Could you please ask it in a different way?
-models: ['gpt4', 'gpt3', 'prodia', 'alpaca_7b']

@@ -40,11 +40,11 @@ class Model( nn.Module, c.Module):
         nn.Module.__init__(self) 
     @classmethod
     def train_fleet(cls, *args, **kwargs):
-        return cls.module('model.transformer').train_fleet(*args, **kwargs)
+        return cls.module('model.hf').train_fleet(*args, **kwargs)
          
     @classmethod
     def shortcuts(cls, *args, **kwargs):
-        return cls.module('model.transformer').shortcuts
+        return cls.module('model.hf').shortcuts
     
     @property
     def stats(self):
@@ -67,7 +67,7 @@ class Model( nn.Module, c.Module):
         
     @classmethod
     def learn(cls, *args, **kwargs):
-        return cls.module('model.transformer').learn(*args, **kwargs)
+        return cls.module('model.hf').learn(*args, **kwargs)
         
     def set_optimizer(self, optimizer:dict=None):
         
@@ -464,13 +464,13 @@ class Model( nn.Module, c.Module):
 
 
     @classmethod
-    def deploy_fleet(cls, *args, **kwargs):
-        return cls.base_model().deploy_fleet(*args, **kwargs)
-    fleet = deploy_fleet
+    def serve_fleet(cls, *args, **kwargs):
+        return cls.base_model().serve_fleet(*args, **kwargs)
+    fleet = serve_fleet
     
     @classmethod
     def base_model(cls):
-        return cls.module('model.transformer')
+        return cls.module('model.hf')
     
     @classmethod
     def train_fleet(cls, *args, **kwargs):
@@ -497,6 +497,9 @@ class Model( nn.Module, c.Module):
         dtype=torch.qint8)
         return self
     
+    @classmethod
+    def resolve_server_name(cls, *args, **kwargs):
+        return cls.base_model().resolve_server_name(*args, **kwargs)
 
 
 if __name__ == "__main__":
