@@ -352,10 +352,14 @@ class ModelTransformer(Model):
     def serve_fleet(cls,
             *args,
             tags=None,
-            n = None,
+            n = 2,
             **kwargs
             ): 
-        pass   
+        if tags == None:
+            tag = ''
+        
+        for i in range(n):
+            cls.serve(*args, tag=tag+str(i), **kwargs)
         
 
     @classmethod
