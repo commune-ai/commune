@@ -276,7 +276,6 @@ class Keypair(c.Module):
         if key_info['path'] == None:
             key_info['path'] = path.replace('.json', '').split('/')[-1]
 
-        c.print(key_info)
         cls.add_key(**key_info) /home/endless/commune/data/keys.json
         return {'status': 'success', 'message': f'key loaded from {path}'}
     
@@ -327,8 +326,7 @@ class Keypair(c.Module):
 
         if isinstance(key_json, str):
             key_json = c.jload(key_json)
-        c.print(key_json, color='green')
-        key_json['path'] = path
+        
 
         if json:
             return key_json
