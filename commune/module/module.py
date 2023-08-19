@@ -3110,7 +3110,8 @@ class c:
                  refresh:bool =False,
                  tag_seperator:str = '::',
                  **kwargs ):
-
+        if module == None:
+            module = cls.module_path()
 
         if tag != None:
             module = module + tag_seperator + tag
