@@ -9,15 +9,19 @@ class BitAPAI(c.Module):
     def __init__(self,  config=None,  **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         self.conn = http.client.HTTPSConnection(self.config.host)
-        self.set_api_key(api_key=config.api_key)
+        self.set_api_key(api_key=config.api_key, cache=config.cache_key)
         
-    def set_api_key(self, api_key:str):
-        assert isinstance(api_key, str)
+    def set_api_key(self, api_key:str, cache:bool = True):
         if api_key == None:
-            api_key = self.get_api_key(api_key)
+            api_key = self.get_api_key()
+
         
         self.api_key = api_key
-        c.print(self.api_key)
+        if cache:
+            self.add_api_key(api_key)
+
+        assert isinstance(api_key, str)
+
             
     
     def forward( self, 
@@ -75,11 +79,9 @@ class BitAPAI(c.Module):
 
         res = self.conn.getresponse()
         data = res.read().decode("utf-8")
-        c.print(data)
         data = json.loads(data)
-        if 'assistant' not in data:
-            return data
-        return data['assistant']['messages'][0]['content']
+
+        return data['choices'][0]['message']['content']
     
     
     talk = generate = forward
