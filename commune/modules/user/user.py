@@ -22,20 +22,12 @@ class Users(c.Module):
         return self.config['network']
     
     @property
-    def users(self):
+    def user_keys(self):
         '''
         users : dict(network:str, name)
         '''
-        return list(self.get('users').keys())
+        return list(self.get('users', {}).keys())
     
-    def save(self, path=None):
-        self.save_config(self.config)
-    
-    
-    def resolve_role(self, role:str = None) -> str:
-        if role == None:
-            role  = self.default_role
-        return role
     
     def resolve_username(self, name, seperator='::'):
         index = 0
@@ -46,7 +38,7 @@ class Users(c.Module):
         return name
     
     @property
-    def user2address(self):
+    def role2address(self):
         return {u:u_info['ss58_address'] for u,u_info in self.users.items()}
     
     @property
@@ -59,7 +51,6 @@ class Users(c.Module):
 
     def address_exists(self, address:str):
         return address in self.address2user
-
 
     def user_exists(self, user:str):
         return user in self.users
@@ -79,10 +70,8 @@ class Users(c.Module):
     
     def add_user(self, 
                  address : str ,
-                 role = 'friend', 
-                 address_type: str = 'sr25519',
-                 info : dict = None, 
-                 refresh: bool = False
+                 role = 'user', 
+                 **kwargs
                  ):
         
         # ensure name is unique
@@ -92,20 +81,15 @@ class Users(c.Module):
         network = c.resolve_network(network)
         role = self.resolve_role(role)
         
-        if self.address_exists(address):
-            return {'msg': f'User with key {address} already exists', 'success': False}
-        if self.user_exists(name) and refresh == False:
-            return {'msg': f'{name} is already a user', 'success': False}
-        
-        self.users[name] = {
+        user = {
             'address': address,
             'role':  role,
-            'network': network,
-            'address_type': address_type,
-            'info': info
+            **kwargs
         }
-        
-        self.save()
+        users = self.get('users', {})
+        users[address] = user
+        self.set('users', users)
+
         return {'msg': f'{name} is now a user', 'success': True}
     
     def rm_user(self, name:str):
@@ -118,24 +102,3 @@ class Users(c.Module):
     def user_roles(self):
         return self.config.get('roles', self.default_roles)
 
-        
-    def auth_data(self,
-            name:str = None,
-            role='homie', 
-            network='commune',
-            ip = None,
-            **extra_field) -> Dict:
-        
-        role = self.resolve_role(role)
-        network = c.resolve_network(network)
-        ip = c.ip()
-        
-        return {
-            'name': name,
-            'role': role,
-            'network': network,
-            'time': c.time(),
-            **extra_field
-        }
-        
-    

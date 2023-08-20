@@ -3,14 +3,20 @@
 
 
 ## Step 1: Register a Module
+ To register one on the commune network, you need to specify the module path.
+The following example involves deploying model.openai
 
+
+
+c register model.openai tag=sup api_key=sk-...
+
+
+Now your module will serve on a port within your **port_range** (c port_range). 
+
+## Step 2: Use the Module
+```python
+import commune a c
+# get the module
+module = c.connect('model.openai', network='subspace')
+output = module.forward('sup dawg')
 ```
-
-c register model.openai
-
-```
-
-Make sure your port_range contains a range of open ports, you can check by ```c port_range```, the default is between 50050 and 50150
-- for instance ```c set_port_range 100 200``` sets ports open from 100 to 200
-
-

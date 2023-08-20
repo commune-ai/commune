@@ -81,8 +81,9 @@ class SubspaceDashboard(c.Module):
         with st.expander('Select Key', expanded=True):
             if self.key == None:
                 key = self.subspace.most_valuable_key()
-            else:
+            if key == None:
                 key = self.key.path
+            st.write(key)
             key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
             self.key =  c.get_key(key)
             self.key_info_dict = self.subspace.key_info(self.key.path, fmt='j')

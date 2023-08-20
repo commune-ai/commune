@@ -3126,7 +3126,7 @@ class c:
                             **kwargs)
         subspace.register(name=server_name, subnet=subnet)
         c.sync()
-        return server_name
+        return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 
 
     
