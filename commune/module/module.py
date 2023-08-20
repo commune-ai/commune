@@ -1936,8 +1936,6 @@ class c:
         ip, port = address.split(':')
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
-        if verbose:
-            c.print(f'Connected to {module} on {ip}:{port} latency (s): {connection_latency}', color='yellow')
 
         return client
      
@@ -5831,7 +5829,7 @@ class c:
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         module_path = 'path'
         module = module.replace('.','/')
-        assert c.has_module(module) == False or overwrite, f'Module {module} already exists'
+        assert c.has_module(module) == True and overwrite==False, f'Module {module} already exists'
         module_path = os.path.join(c.modules_path, module)
         
         
