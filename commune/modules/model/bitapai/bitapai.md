@@ -20,7 +20,7 @@ c model.bitapai rm_api_key YOUR_API_KEY
 To list all API keys:
 
 ```bash
-c model.bitapai list_api_keys
+c model.bitapai api_keys
 ```
 
 ## Serving the Model
