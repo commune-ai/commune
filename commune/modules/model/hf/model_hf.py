@@ -108,12 +108,11 @@ class ModelTransformer(Model):
         config.model = config.shortcuts.get(config.model, config.model)
         from transformers import  AutoModelForCausalLM
 
-        c.print('LOADING MODEL -> ', config.model)
-        c.print('DEVICE MAP -> ', config.device_map)
 
+        
+        config = self.resolve_quantize(config)
 
         config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
-        config = self.resolve_quantize(config)
 
 
         kwargs = {
@@ -122,7 +121,11 @@ class ModelTransformer(Model):
             'trust_remote_code': config.trust_remote_code,
             'offload_folder': "offload",
             'torch_dtype': torch.float16,
+            'load_in_4bit': config.load_in_4bit,
+            'load_in_8bit': config.load_in_8bit,
+
         }
+
 
         t = c.time()
 

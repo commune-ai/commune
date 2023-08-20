@@ -315,7 +315,6 @@ class Keypair(c.Module):
                 raise ValueError(f'key does not exist at --> {path}')
             
         
-        c.print(f'getting key at {path}', color='green')
         key_json = cls.get(path)
         if c.is_encrypted(key_json):
             key_json = cls.decrypt(data=key_json, password=password)

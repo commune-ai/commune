@@ -9,8 +9,13 @@ class DataTextRealfake(c.Module):
     def random_idx(self):
         return self.random_int(0, len(self.filepaths)-1)
 
+
+
+
     
-    def sample(self, idx=None, input_tokens = 100, output_tokens = 100, real_prob:float=0.5):
+    def sample(self, idx=None, 
+               input_tokens:int = 100,
+                output_tokens:int = 100, real_prob:float=0.5):
         if idx is None:
             idx = self.random_idx()
         filepath =  self.filepaths[idx]
@@ -27,7 +32,7 @@ class DataTextRealfake(c.Module):
             other_sample = self.sample( input_tokens=output_tokens, output_tokens=input_tokens, real_prob = 0)
             sample['output_text'] = other_sample['output_text']
         
-        sample['label'] = 1 if real else 0
+        sample['target'] = 1 if real else 0
         return sample
 
 
@@ -35,7 +40,73 @@ class DataTextRealfake(c.Module):
         t = c.time()
         for i in range(n):
             sample = self.sample()
-        
             msg = {'samples_per_second': i / (c.time() - t)}
             c.print(msg)
+            
+
+    def parse_output(self, output, target):
+        return int(output == target)
+
+
+    prompt = '''
+    CONTEXT:
+    {sample}
+    QUESTION: 
+    WAS THE INPUT REAL (1) OR TAMPERED (0)?
+
+    ANSWER: -> json(answer:int)
+    json```'''
+
+
+    def parse_output(self, output:dict)-> dict:
+
+        if isinstance(output, str):
+            output = '{' + output.split('{')[-1].split('}')[0] + '}'
+            c.print(output)
+            output = c.jload(output)
+        assert isinstance(output, dict), f'output must be a dict {output}'
+        
+        return int(list(output.values())[0])
+
+
+    def score(self, model='model', w:float=0.0):
+
+        try:
+            model_name = model
+            model = c.connect(model, prefix_match=False, network='local')
+            info = model.info()
+            if model_name != info['name']:
+                return {'error': f'model name does not match {model_name} != {info["name"]}'}
+            sample = self.sample()
+            t = c.time()
+            prompt = self.prompt.format(sample=sample)
+            output = model.generate(prompt)
+            output = self.parse_output(output)
+            w = 0.2
+        except Exception as e:
+            return {'error': c.detailed_error(e), 'target': sample['target'], 'w':w}
+
+        if output == sample['target']:
+            w = 1
+
+        msg = {
+               'prompt': prompt,
+               'latency': c.time() - t, 
+               'target': sample['target'], 
+               'w' : w,
+               }
+
+        return msg
+
+
+    def score_models(self, model='model'):
+
+        models = c.servers(model, network='local')
+        responses = []
+        for model in models:
+            msg = self.score(model=model)
+            msg['model'] = model
+            responses += [msg]
+
+        return responses
             
