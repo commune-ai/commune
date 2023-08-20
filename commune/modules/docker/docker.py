@@ -87,7 +87,7 @@ class Docker(c.Module):
 
 
     @classmethod
-    def insstall_docker_compose(cls, sudo=False):
+    def install_docker_compose(cls, sudo=False):
         return c.cmd('apt install docker-compose', verbose=True, sudo=True)
     # def build_commune(self, sudo=False):
     #     self.build(path=self.libpath, sudo=sudo)
@@ -294,18 +294,17 @@ class Docker(c.Module):
         cmd = f'docker-compose' if dash else f'docker compose'
         
         path = cls.get_compose_path(path)
-        tmp_path = path + '.tmp'
-
-
-
         if compose == None:
             compose = cls.get_compose(path)
         
         if isinstance(path, str):
-            path = cls.get_compose(path)
+            compose = cls.get_compose(path)
         
+
         if project_name != None:
             cmd += f' --project-name {project_name}'
+        c.print(f'path: {path}', verbose=verbose)
+        tmp_path = path + '.tmp'
         cmd +=  f' -f {tmp_path} up'
 
         if daemon:
@@ -316,8 +315,11 @@ class Docker(c.Module):
         # save the config to the compose path
         c.print(compose)
         c.save_yaml(tmp_path, compose)
+        if cwd is None:
+            assert os.path.exists(path), f'path {path} does not exist'
+            cwd = os.path.dirname(path)
         if build:
-            c.cmd(f'docker-compose -f {tmp_path} build', verbose=True)
+            c.cmd(f'docker-compose -f {tmp_path} build', verbose=True, cwd=cwd)
             
         text_output = c.cmd(cmd, verbose=True)
 
