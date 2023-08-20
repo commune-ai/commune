@@ -10,6 +10,8 @@ class ValiText(Vali):
         self.set_dataset( self.config.dataset )
         self.start()
 
+
+
     def start_dataset(dataset):
         dataset.split('.')[-1]
     def set_dataset(self, dataset:str , **kwargs):

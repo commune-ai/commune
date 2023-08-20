@@ -1144,7 +1144,6 @@ class c:
         if len(args) == 1:
             return random.randint(0, args[0])
         elif len(args) == 2:
-            c.print(args)
             return random.randint(args[0], args[1])
         else:
             raise ValueError('Invalid number of arguments')
@@ -2207,7 +2206,6 @@ class c:
             namespace_local = {}
 
             for i in range(0, len(addresses), chunk_size):
-                c.print(f'Updating namespace_local {i}/{len(addresses)}', color='green')
                 chunk = addresses[i:i+chunk_size]
                 names = c.gather([cls.async_get_peer_name(address) for address in chunk])
                 for i in range(len(names)):
@@ -2349,10 +2347,6 @@ class c:
     
     resolve_port = get_port
     
-
-    @classmethod
-    def module_exists(cls, name:str, **kwargs) -> bool:
-        return bool(name in c.modules(**kwargs))
 
 
     @property
@@ -5829,7 +5823,8 @@ class c:
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         module_path = 'path'
         module = module.replace('.','/')
-        assert c.has_module(module) == True and overwrite==False, f'Module {module} already exists'
+        if c.has_module(module) and overwrite==False:
+            return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
         module_path = os.path.join(c.modules_path, module)
         
         
@@ -6504,11 +6499,17 @@ class c:
         
         
     @staticmethod
-    def reverse_map(x):
+    def reverse_map(x:dict)->dict:
+        '''
+        reverse a dictionary
+        '''
         return {v:k for k,v in x.items()}
 
     @classmethod
     def pd(cls):
+        '''
+        import pandas
+        '''
         return cls.import_module('pandas')
 
     @classmethod

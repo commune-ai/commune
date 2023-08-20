@@ -26,7 +26,7 @@ class Users(c.Module):
         '''
         users : dict(network:str, name)
         '''
-        return list(self.config['users'].keys())
+        return list(self.get('users').keys())
     
     def save(self, path=None):
         self.save_config(self.config)
@@ -55,7 +55,7 @@ class Users(c.Module):
     
     @property
     def address2user(self):
-        return self.reverse_map(self.user2address)
+        return c.reverse_map(self.user2address)
 
     def address_exists(self, address:str):
         return address in self.address2user
@@ -66,7 +66,7 @@ class Users(c.Module):
 
     @property
     def address2role(self):
-        return self.reverse_map(self.user2address)
+        return c.reverse_map(self.user2address)
     
     
     def get_role(self, user):
@@ -77,13 +77,7 @@ class Users(c.Module):
         else:
             raise NotImplementedError('you did not specify a legit user or address')
     
-    def user_from_auth(self, auth):
-        address = self.verify(auth)
-        name = auth.pop('name')
-        self.users[name] 
-
     def add_user(self, 
-                 name: str , 
                  address : str ,
                  role = 'friend', 
                  address_type: str = 'sr25519',
@@ -112,8 +106,6 @@ class Users(c.Module):
         }
         
         self.save()
-        
-        c.print('bro')
         return {'msg': f'{name} is now a user', 'success': True}
     
     def rm_user(self, name:str):
