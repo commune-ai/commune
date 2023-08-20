@@ -102,6 +102,35 @@ c.serve('model.openai', tag='sup', api_key='sk....', **kwargs )
 ```
 
 
+To connect to a module, you can use the following command
+
+
+
+Way 1 
+```bash
+
+module = c.connect('model.openai')
+# call the forward function of the module with the input "whadup" (args, and kwargs are supported)
+output = module.forward("whadup")
+c.print(output) # custom print that wraps Console Log for pretty printgs
+
+
+```
+
+Way 2
+```bash
+output = c.call('model.openai', 'forward', text='whadup')
+
+# ps i use the first way more, tehe
+```
+
+
+```python
+```
+
+```python
+
+
 When this happens you are overwriting the the default values of the modules that is specified in the config
 
 c model.openai config
@@ -123,10 +152,10 @@ c model.openai configpath
 c new_module model.sup.homie
 
 # 
-
 Creates a new module with the path model.openai.v3 in path ~/commune/commune/modules/model/sup/homie
 
 
+When you a
 
 ```
 
