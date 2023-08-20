@@ -1,5 +1,9 @@
 
 import commune as c
+
+
+dataset = c.connect('')
+
 model = c.connect('model.llamaint4')
 
 prompt = '''

@@ -22,7 +22,7 @@ class DataTextRealfake(c.Module):
         file_text = '\n'.join(file_text)
         sample = {'input_text': file_text[:input_tokens], 'output_text': file_text[input_tokens:], 'filepath': filepath}
 
-        real  = c.random_float(0,1) < real_prob
+        real  = c.random_float(0,1) > real_prob
         if not real :
             other_sample = self.sample( input_tokens=output_tokens, output_tokens=input_tokens, real_prob = 0)
             sample['output_text'] = other_sample['output_text']
@@ -31,3 +31,11 @@ class DataTextRealfake(c.Module):
         return sample
 
 
+    def test(self, n=100):
+        t = c.time()
+        for i in range(n):
+            sample = self.sample()
+        
+            msg = {'samples_per_second': i / (c.time() - t)}
+            c.print(msg)
+            
