@@ -2177,8 +2177,6 @@ class c:
             else:
                 return server_name
         except Exception as e:
-            c.print( e)
-
             return {'error':str(e)}
 
             
@@ -2205,11 +2203,11 @@ class c:
             namespace_local = {}
 
             for i in range(0, len(addresses), chunk_size):
-                chunk = addresses[i:i+chunk_size]
-                names = c.gather([cls.async_get_peer_name(address) for address in chunk])
-                for i in range(len(names)):
-                    if isinstance(names[i], str):
-                        namespace_local[names[i]] = addresses[i]
+                addresses_chunk = addresses[i:i+chunk_size]
+                names_chunk = c.gather([cls.async_get_peer_name(address) for address in addresses_chunk])
+                for i in range(len(names_chunk)):
+                    if isinstance(names_chunk[i], str):
+                        namespace_local[names_chunk[i]] = addresses_chunk[i]
 
             c.put('namespace_local', namespace_local)
             
@@ -2411,7 +2409,7 @@ class c:
         return attrs
 
     @classmethod
-    def namespace_(cls, update=False) -> Dict:
+    def namespace_global(cls, update=False) -> Dict:
         
         global_namespace = {
             **cls.namespace_local(),
