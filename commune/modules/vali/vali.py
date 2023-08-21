@@ -4,47 +4,54 @@ import commune as c
 import torch
 import traceback
 import threading 
+import queue
+
+
 
 
 class Validator(c.Module):
 
     def __init__(self, config=None,  **kwargs):
+        self.init_vali(config=config, **kwargs)
+
+    def init_vali(self, config=None, **kwargs):
         self.set_config(config=config, kwargs=kwargs)
         self.set_subspace( )
         self.module_stats = {}
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
-        
         if self.config.start:
             self.start()
 
-
+            
     def kill_workers(self):
         for w in self.workers:
             c.kill(w)
 
     def start(self):
         self.threads = []
+        self.queue = queue.Queue(2*self.config.num_threads)
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
-            t = threading.Thread(target=self.run, kwargs={'vote':False, 'thread_id': t, 'vote': bool(t==0)})
+            t = threading.Thread(target=self.run_worker)
             t.daemon = True
             t.start()
 
         # # main thread
-        # self.run(vote=True)
+        self.run()
+
+
 
     def set_subspace(self):
-        self.subspace = c.module(self.config.network)()
+        self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
-        self.name2module_state = {v['name']: v for v in self.modules } 
-        self.module_names = list(self.name2module_state.keys())
+        self.module_names = [m for m in list(self.namespace.keys()) if m.startswith(self.config.module_prefix)]
+        self.n  = len(self.module_names)
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
         self.key = c.get_key(self.config.key)
-        self.n  = len(self.module_names)
 
     @property
     def lifetime(self):
@@ -73,51 +80,55 @@ class Validator(c.Module):
     async def async_eval_module(self, module:str = None, thread_id=0, refresh=False):
         w = 0 # default weight is 0
         module_name = self.resolve_module_name(module)
-        module_state = self.name2module_state[module_name]
         epoch = self.count // self.n
-        prefix = f'[bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n}[/bold yellow]'
+        prefix = f'[bold cyan]THREAD{thread_id}[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
+
+        self.count += 1
         try:
-            module = await c.async_connect(module_name,timeout=1, key=self.key, network=self.config.network, namespace = self.namespace)
+
+            address = self.namespace.get(module_name)
+            if '0.0.0.0' in address or 'None' in address:
+                raise Exception(f'Invalid address {address}')
+            module = await c.async_connect(address,timeout=1)
             response = self.score_module(module)
-            w = response['w']
             c.print(f'{prefix} {module_name} [bold green]SUCCESS {c.emojis["dank"]} -> W : {w} [/bold green]')
         except Exception as e:
             e = c.detailed_error(e)
             response = {'error': e, 'w': 0}
-            c.print(f'{prefix} [bold red] {module_name} ERROR {c.emojis["error"]} -> W : {w} -> {e["error"][:30]}..[/bold red]')
+            c.print(f'{prefix} [bold red] {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..[/bold red]')
 
         w = response['w']
-        module_stats = self.load_module_stats(module_name, default=module_state) if not refresh else module_state
+        module_stats = self.load_module_stats(module_name, default={}) if not refresh else module_state
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
-        module_stats['alpha'] = self.config.alpha
+        module_stats['timestamp'] = c.timestamp()
         module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
         self.module_stats[module_name] = module_stats
         self.save_module_stats(module_name, module_stats)
-        self.count += 1
 
         return module_stats
 
-    def refresh_stats(cls):
-        for k in cls.module_stats.keys():
-            cls.module_stats[k] = cls.load_module_stats(k, default=cls.module_stats[k])
-        return {'success': True, 'message': 'Refreshed stats'}
+    @classmethod
+    def networks(cls):
+        return [f.split('/')[-1] for f in cls.ls('stats')]
 
     @classmethod
-    def stats(cls, df=False, network='main'):
-        self = cls(start=False)
-        self.load_stats()
-        return self.module_stats
+    def rm_stats(cls, network='main'):
+        return cls.rm(f'stats/{network}')
 
-    def eval_module(self, module:str = None, thread_id=0, refresh=False):
-        return c.gather(self.async_eval_module(module=module, thread_id=thread_id, refresh=refresh), timeout=2)
-    
+    @classmethod
+    def stats(cls, network='main', df=True):
+        self = cls(start=False)
+        stats = cls.load_stats( network=network, keys=['name', 'w', 'count', 'timestamp'])
+
+        if df:
+            stats = c.df(stats)
+            if len(stats) > 0:
+                stats.sort_values('w', ascending=False, inplace=True)
+        return stats
 
     def vote(self):
 
-        if self.vote_staleness < self.config.voting_interval:
-            return {'success': False, 'message': f'Voting too soon, wait {self.config.voting_interval - self.vote_staleness} seconds'}
-        
         self.last_vote_time = c.time()
         self.load_stats()   
         topk = self.subnet['max_allowed_weights']
@@ -147,18 +158,20 @@ class Validator(c.Module):
                            netuid=self.config.netuid)
 
         return {'success': True, 'message': 'Voted'}
-
-    def load_stats(self, batch_size=100):
-        paths = self.ls(f'stats/{self.config.network}')
+    @classmethod
+    def load_stats(cls, network:str, batch_size=100, keys:str=True):
+        paths = cls.ls(f'stats/{network}')
         jobs = [c.async_get_json(p) for p in paths]
-
+        module_stats = []
         for jobs_batch in c.chunk(jobs, batch_size):
-            module_stats = c.gather(jobs_batch)
-            for s in module_stats:
+            results = c.gather(jobs_batch)
+            for s in results:
                 if s == None:
                     continue
-                self.module_stats[s['name']] = s
-        return {'success': True, 'message': 'Loaded stats'}
+                if keys :
+                    s = {k: s.get(k,None) for k in keys}
+                module_stats += [s]
+        return module_stats
 
 
     def ls_stats(self):
@@ -186,8 +199,21 @@ class Validator(c.Module):
         self.put('last_vote_time', v)
 
 
-    def run(self, vote = True, thread_id = 0):
-        c.print(f'Running -> thread:{thread_id} network:{self.config.network} netuid: {self.config.netuid} key: {self.key.path}', color='cyan')
+
+    def run_worker(self):
+        loop = c.new_event_loop()
+        while True:
+            try:
+                module = self.queue.get(timeout=1)
+                loop.run_until_complete(self.async_eval_module(module=module))
+            except Exception as e:
+                c.print(f'Error in worker {e}', color='red')
+                traceback.print_exc()
+                self.errors += 1
+
+
+    def run(self, vote = False, thread_id = 0):
+        c.print(f'Running -> thread:{thread_id} network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
 
         c.new_event_loop()
 
@@ -197,32 +223,22 @@ class Validator(c.Module):
         import tqdm
         self.epochs = 0
         while self.running:
-            modules = [m for m in self.module_names if m.startswith(self.config.module_prefix)]
-            modules = c.shuffle(c.copy(modules))
-            
-            for i, module in enumerate(modules):
 
-                if vote : 
-                    self.vote()
+            modules = c.shuffle(c.copy(self.module_names))
+            for module in modules:
+                if self.queue.full():
+                    continue
 
-                try:
-                    self.eval_module(module=module, thread_id=thread_id)
-                except Exception as e:
-                    error = str(e)
-                    if len(error) > 0:
-                        c.print(f'Error in eval_module {e}', color='red')
-                    self.errors += 1
-
-                
-                stats =  {
+                self.queue.put(module)
+                if self.count % 10 == 0:
+                    stats =  {
                     'total_modules': self.count,
                     'lifetime': int(self.lifetime),
                     'modules_per_second': int(self.modules_per_second()), 
                     'vote_staleness': self.vote_staleness,
                     'errors': self.errors,
 
-                }
-                if self.count % 100 == 0:
+                     }
                     c.print(f'Validator Stats: {stats}', color='white')
             self.epochs += 1
     
@@ -240,5 +256,6 @@ class Validator(c.Module):
         
     @classmethod
     def test(cls, **kwargs):
-        self = cls(**kwargs)
+        self = cls(**kwargs, start=False)
+        return self.eval_module()
 

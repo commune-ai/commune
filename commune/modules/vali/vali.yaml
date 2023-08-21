@@ -2,7 +2,7 @@
 
 key : null
 netuid: 0
-network: subspace # global or local network
+network: main # 
 sleep: 0.1 # sleep time between each forward call
 load: False # if true, load the dataset
 stats: {} # if true, print the stats
@@ -11,11 +11,12 @@ alpha: 0.9
 timeout: 2
 tag: base
 run: True
-num_threads: 20
+num_threads: 100
 module_prefix: model.openai
 parallel_jobs: 10
 start: True
-voting_interval: 10
+voting_interval: 100
 num_workers: 4
 is_main_worker: True
-verbose: True
+verbose: False
+batch_size: 4

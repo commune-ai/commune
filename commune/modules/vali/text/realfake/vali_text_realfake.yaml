@@ -1,6 +1,2 @@
-return_val: pong
-users:
-- user1
-- user2
-- user3
-- bro
+dataset: data.text.realfake
+prefix: model

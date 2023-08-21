@@ -6,29 +6,30 @@ Vali = c.module('vali')
 class ValiTextTruthfulQA(Vali):
     def __init__(self, config = None, **kwargs):
         config = self.set_config(config, kwargs=kwargs)
+
         self.set_dataset(dataset=config.dataset)
+        self.init_vali(start=False)
         
 
 
     def set_dataset(self, dataset:str , **kwargs):
-        if config.start:
-            self.start()
+        if c.server_exists(dataset):
             self.dataset = c.connect(dataset, prefix_match=True)
         else:
             c.module('data.hf').serve(path=dataset.split('.')[-1])
             self.dataset = c.connect(dataset)
         return self.dataset
 
-    def parse_output(self) -> List[int]:
+    def parse_output(self, output) -> List[int]:
         if isinstance(output, str):
             output = '{' + output.split('{')[-1].split('}')[0] + '}'
             c.print(output)
             output = json.loads(output)
         # if correct answer is in the choices
-        if 'answer_idx' not in output:
+        if 'answer' not in output:
             answer_idx = int(list(output.values())[0])
         else:
-            answer_idx = int(output['answer_idx'])
+            answer_idx = int(output['answer'])
 
 
         if not isinstance(answer_idx, list):
@@ -37,18 +38,20 @@ class ValiTextTruthfulQA(Vali):
         return answer_idx
 
     
-    prompt = '''
-    COMPLETE THE JSON
-    {sample}
-    GIVE THE ANSWER AS AN INDEX -> {answer_idx:int} ?
-    ```json'''
+
 
     def score_module(self, module='model.openai') -> int:
-        model = c.connect(module)
-        model = self.sample()
+        model = c.connect(module) if isinstance(module, str) else module
+        # get sample
+        sample = self.sample()
         answers = c.copy(sample.pop('answers'))
         # format the prompt
-        prompt: str = self.prompt.format(sample=sample)
+
+        prompt = f'''
+        COMPLETE THE JSON
+        {sample}
+        GIVE THE ANSWER AS AN INDEX -> {{answer:int}} ?
+        ```json'''
 
         # generate the output
         output: str = model.generate(max_tokens=256)

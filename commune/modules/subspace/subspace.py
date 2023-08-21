@@ -835,10 +835,10 @@ class Subspace(c.Module):
 
     def unstake(
             self,
-            key: 'c.Key', 
+            key : 'c.Key', 
             amount: float = None, 
-            module_key = None,
-            netuid = None,
+            module_key : str = None,
+            netuid : Union[str, int] = None,
             wait_for_inclusion:bool = True, 
             wait_for_finalization:bool = False,
             prompt: bool = False,
@@ -857,10 +857,10 @@ class Subspace(c.Module):
 
         if amount == None:
             amount = old_stake
+
         amount = self.to_nanos(amount)
 
         with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
-
 
             with self.substrate as substrate:
                 call = substrate.compose_call(
@@ -1870,10 +1870,6 @@ class Subspace(c.Module):
         my_modules = self.my_modules(*args, **kwargs)
         return [m['name'] for m in my_modules]
 
-    def unregistered_servers(self, *args, **kwargs):
-        stats = self.stats(*args, **kwargs)
-        return [s['name'] for s in stats if not s['registered']]
-    
     def my_module_keys(self, *args,  **kwargs):
         modules = self.my_modules(*args, names_only=False, **kwargs)
         return [m['key'] for m in modules]
@@ -2535,7 +2531,7 @@ class Subspace(c.Module):
         servers = c.servers(network='local')
         unregistered_keys = []
         for s in servers:
-            if self.is_registered(s, netuid=netuid):
+            if not self.is_registered(s, netuid=netuid):
                 unregistered_keys += [s]
         return unregistered_keys
 

@@ -107,7 +107,7 @@ To connect to a module, you can use the following command
 
 
 Way 1 
-```bash
+```python
 
 module = c.connect('model.openai')
 # call the forward function of the module with the input "whadup" (args, and kwargs are supported)
@@ -121,12 +121,15 @@ Way 2
 ```bash
 output = c.call('model.openai', 'forward', text='whadup')
 
-# ps i use the first way more, tehe
+```
+To get the info of the server
+
+```bash
+
+c model.openai info
 ```
 
 
-```python
-```
 
 ```python
 
@@ -144,22 +147,5 @@ c model.openai configpath
 
 ```
 ~/commune/commune/modules/model/openai/model_openai.yaml
-```
-
-
-# Create Your own Module
-
-c new_module model.sup.homie
-
-# 
-Creates a new module with the path model.openai.v3 in path ~/commune/commune/modules/model/sup/homie
-
-
-When you a
-
-```
-
-```
-
 ```
 
