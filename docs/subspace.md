@@ -1,22 +1,102 @@
+## Register a Module
+To register a module, you can use the following command
 
-
-
-
-## Step 1: Register a Module
- To register one on the commune network, you need to specify the module path.
-The following example involves deploying model.openai
-
-
-
-c register model.openai tag=sup api_key=sk-...
-
-
-Now your module will serve on a port within your **port_range** (c port_range). 
-
-## Step 2: Use the Module
-```python
-import commune a c
-# get the module
-module = c.connect('model.openai', network='subspace')
-output = module.forward('sup dawg')
 ```
+c model.openai register tag=sup api_key=sk-...
+```
+
+or
+
+```
+c register model.openai tag=sup api_key=sk-...
+```
+
+Please make sure you specify a unique tag, as it will not go through if someone else has that name on the subnet. When you deploy the module, the module will be serving locally on your machine and will be accessed by the network.
+
+
+## Update a Module
+
+To update a module, you can use the following command. At the moment you can update the module's name and address. Please not if you update the name, you will need to restart the server with the new name. This is currently something we want to avoid in the future by having to rename the server without killing it 
+
+```
+
+c update_module model.openai name=model.openai::fam1 address=124.545.545:8080
+```
+
+
+
+## Check Stats
+
+To check the stats of a module, you can use the following command
+
+```
+c stats
+```
+
+If you want to sync the stats with the network, you can use the following.
+
+```
+c stats update=True
+```
+
+
+
+## Transfer Tokens
+
+To tranfer tokens to a module, you can use the following command
+
+```
+c transfer model.openai 100 model.openai.2
+```
+or you an specify the address, this is the safer way to do it, as you can accidentally send it to the wrong address if the name has changed on the network.
+
+```
+c transfer ADDRESS_FROM model.openai 100 ADDRESS_TO
+```
+
+## Staking 
+
+To stake on a module, you can use the following command
+
+```
+c stake model.openai amount=100
+```
+
+To unstake on a module, you can use the following command
+
+```
+c unstake model.openai amount=100
+```
+
+### Staking on another Module with your Tokens
+
+To stake on another module with your tokens, you can use the following command. 
+
+```
+
+c stake key=model.openai amount=100 module_key=model.openai.2
+```
+
+### Unstaking on another Module with your Tokens
+
+To unstake on another module with your tokens, you can use the following command
+
+```
+c unstake key=model.openai amount=100 module_key=model.openai.2
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

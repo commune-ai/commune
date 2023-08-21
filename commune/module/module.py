@@ -688,8 +688,7 @@ class c:
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
             default_config = cls.load_config()
-            default_config.update(config)
-            config = default_config
+            config = {**default_config, **config}
         elif config == None:
             config = cls.load_config()
             
@@ -7512,6 +7511,25 @@ class c:
         import inspect
         return inspect.isgenerator(obj)
 
+
+    
+
+
+    @classmethod
+    def module2docpath(cls):
+        tree = c.tree()
+        module2docpath = {}
+        for m, p in tree.items():
+            dirpath = os.path.dirname(p)
+            docpaths = [f for f in c.ls(dirpath) if f.endswith('.md')]
+            if len(docpaths) > 1:
+                [c.print(f) for f in docpaths]
+            if len(docpaths) > 0:
+            
+                module2docpath[m] = docpaths[0]
+            
+        return module2docpath
+        
 
     
 Module = c

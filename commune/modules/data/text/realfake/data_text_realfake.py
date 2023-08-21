@@ -9,9 +9,6 @@ class DataTextRealfake(c.Module):
     def random_idx(self):
         return self.random_int(0, len(self.filepaths)-1)
 
-
-
-
     
     def sample(self, idx=None, 
                input_tokens:int = 100,
@@ -44,39 +41,33 @@ class DataTextRealfake(c.Module):
             c.print(msg)
             
 
-    def parse_output(self, output, target):
-        return int(output == target)
-
 
     prompt = '''
-    CONTEXT:
-    {sample}
+    INPUT (JSON):
+    ```{sample}```
     QUESTION: 
-    WAS THE INPUT REAL (1) OR TAMPERED (0)?
 
-    ANSWER: -> json(answer:int)
-    json```'''
+    WAS THE INPUT REAL (1) OR TAMPERED (0)? -> :
+
+    OUTPUT (answer: int):
+    json```
+    '''
 
 
     def parse_output(self, output:dict)-> dict:
-
-        if isinstance(output, str):
-            output = '{' + output.split('{')[-1].split('}')[0] + '}'
-            c.print(output)
-            output = c.jload(output)
-        assert isinstance(output, dict), f'output must be a dict {output}'
-        
-        return int(list(output.values())[0])
+        if '0' in output:
+            return 0
+        elif '1' in output:
+            return 1
+        else:
+            raise Exception(f'Invalid output: {output}, expected 0 or 1')
 
 
     def score(self, model='model', w:float=0.0):
 
         try:
             model_name = model
-            model = c.connect(model, prefix_match=False, network='local')
-            info = model.info()
-            if model_name != info['name']:
-                return {'error': f'model name does not match {model_name} != {info["name"]}'}
+            model = c.connect(model, prefix_match=True, network='local')
             sample = self.sample()
             t = c.time()
             prompt = self.prompt.format(sample=sample)
@@ -93,6 +84,7 @@ class DataTextRealfake(c.Module):
                'prompt': prompt,
                'latency': c.time() - t, 
                'target': sample['target'], 
+               'prediction': output,
                'w' : w,
                }
 
