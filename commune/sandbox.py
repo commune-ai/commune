@@ -7,5 +7,13 @@
 # print(tokenizer.encode('hello world'))
 import bittensor as bt
 import commune as c
+def thread_fleet(fn, n=10, tag=None,  *args, **kwargs):
+    threads = []
+    if tag == None:
+        tag = ''
+    for i in range(n):
+        t = c.thread(fn=fn, tag=tag+i, *args, **kwargs)
+    return c.thread_map
 
-c.print(bt.prompt('who was the president of the united states in 2008'))
+
+thread_fleet('fn')

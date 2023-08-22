@@ -190,7 +190,7 @@ class Keypair(c.Module):
             key_json = cls.encrypt(data=key_json, password=password)
         kwargs['mnemonic'] = mnemonic
         key = cls.gen(**kwargs)
-        key.path
+        key.path = path
         key_json = key.to_json()
         
         cls.put(path, key_json)

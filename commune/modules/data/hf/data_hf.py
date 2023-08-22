@@ -22,7 +22,9 @@ class DataHF(c.Module):
     
         
     def sample(self, idx:int=None, batch_size:int = 1):
-        idx = self.random_idx() if idx == None else None
+        if batch_size > 1:
+            return [self.sample() for i in range(batch_size)]
+        idx = self.random_idx() if idx == None else idx
         return self.dataset[idx]
     
 

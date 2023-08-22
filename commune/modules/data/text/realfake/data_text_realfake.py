@@ -11,25 +11,36 @@ class DataTextRealfake(c.Module):
 
     
     def sample(self, idx=None, 
-               input_tokens:int = 100,
-                output_tokens:int = 100, real_prob:float=0.5):
-        if idx is None:
-            idx = self.random_idx()
+               num_chars:int = 100,
+               random_start_line: int = None,
+                real_prob:float=0.5, 
+                input_output_ratio: float = 0.5):
+        
+        idx = self.random_idx() if idx == None else idx
         filepath =  self.filepaths[idx]
+        random_start_line = self.random_int(0, num_lines) if random_start_line == None else random_start_line
         num_lines = len(c.get_text(filepath).split('\n'))
-        random_start_line = self.random_int(0, num_lines)
-
         file_text = c.get_text(filepath)
         file_text = file_text.split('\n')[random_start_line:]
         file_text = '\n'.join(file_text)
-        sample = {'input_text': file_text[:input_tokens], 'output_text': file_text[input_tokens:], 'filepath': filepath}
 
-        real  = c.random_float(0,1) > real_prob
-        if not real :
-            other_sample = self.sample( input_tokens=output_tokens, output_tokens=input_tokens, real_prob = 0)
-            sample['output_text'] = other_sample['output_text']
+        input_chars = int(len(file_text) * input_output_ratio)
         
-        sample['target'] = 1 if real else 0
+        sample = {'input_text': file_text[:input_chars], 
+                 'output_text': file_text[input_chars:], 
+                 'filepath': filepath, }
+
+        # do a kick flip
+        real  = c.random_float(0,1) > real_prob
+
+        sample['real'] = int(real)
+
+        #  then we need to sample a different file
+        if sample['real'] == 0 :
+            other_sample = self.sample( num_chars=output_tokens, real_prob = 0)
+            output_chars = len(file_text) - input_chars
+            sample['output_text'] = other_sample['output_text'][:output_chars]
+    
         return sample
 
 

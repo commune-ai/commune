@@ -85,8 +85,6 @@ class Validator(c.Module):
         try:
 
             address = self.namespace.get(module_name)
-            if '0.0.0.0' in address or 'None' in address:
-                raise Exception(f'Invalid address {address}')
             module = await c.async_connect(address,timeout=1)
             response = self.score_module(module)
             c.print(f'{prefix} {module_name} [bold green]SUCCESS {c.emojis["dank"]} -> W : {w} [/bold green]')
@@ -199,6 +197,7 @@ class Validator(c.Module):
 
 
     def run_worker(self):
+        # we need a new event loop for each thread
         loop = c.new_event_loop()
         while True:
             try:
