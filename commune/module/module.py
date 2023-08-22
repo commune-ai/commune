@@ -7519,6 +7519,10 @@ class c:
         self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
 
+    def install_docker(self):
+        self.chmod_scripts()
+        c.cmd('./scripts/install_docker.sh', cwd=self.libpath, verbose=True, bash=True)
+
     @classmethod
     def install_rust(cls, sudo=True) :
         cls.chmod_scripts()
