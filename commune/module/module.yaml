@@ -20,3 +20,4 @@ shortcuts:
   openai: model.openai
   s: subspace
   tg: textgen
+  f: frontend

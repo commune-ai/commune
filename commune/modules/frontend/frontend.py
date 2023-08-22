@@ -13,4 +13,10 @@ class Frontend(c.Module):
         c.compose(path=self.frontend_path + '/docker-compose.yml')
 
 
+    def docs_path(self):
+        return self.frontend_path + '/docs'
+    def docs(self):
+        return c.ls(self.docs_path())
+
+
 

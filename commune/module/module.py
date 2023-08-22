@@ -302,7 +302,7 @@ class c:
             
 
     @classmethod
-    def fn_code(cls,fn:str, detail:bool=True, ) -> str:
+    def fn_code(cls,fn:str, detail:bool=False, ) -> str:
         '''
         Returns the code of a function
         '''
@@ -315,12 +315,14 @@ class c:
 
         assert 'def' in text_lines[0], 'Function not found in code'
         start_line = cls.find_code_line(search=text_lines[0])
-        fn_code =  {
-            'text': '\n'.join([l[len('    '):] for l in code_text.split('\n')]),
-            'start_line': start_line ,
-            'end_line':  start_line + len(text_lines)
-        }
-            
+        fn_code = '\n'.join([l[len('    '):] for l in code_text.split('\n')])
+        if detail:
+            fn_code =  {
+                'text': fn_code,
+                'start_line': start_line ,
+                'end_line':  start_line + len(text_lines)
+            }
+                
         return fn_code
 
     @classmethod
@@ -386,6 +388,9 @@ class c:
         path = cls.resolve_config_path(path)
 
         config = cls.load_yaml(path)
+
+        if config == None:
+            config = {}
 
         if to_munch:
             config =  cls.dict2munch(config)
@@ -691,7 +696,7 @@ class c:
             config = {**default_config, **config}
         elif config == None:
             config = cls.load_config()
-            
+        
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
         kwargs = kwargs if kwargs != None else {}
@@ -4031,9 +4036,20 @@ class c:
             c.set('ip', ip)
         return ip
     @classmethod
-    def queue(cls, size=-1, *args, **kwargs):
-        import queue
-        return queue.Queue(size, *args, **kwargs)
+    def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
+        if mode == 'queue':
+            return c.import_object('queue.Queue')(size, *args, **kwargs).__dict__
+        elif mode == 'mp':
+            return c.import_object('multiprocessing.Queue')(size, *args, **kwargs)
+        elif mode == 'ray':
+            return c.import_object('ray.util.queue.Queue')(size, *args, **kwargs)
+        elif mode == 'redis':
+            return c.import_object('redis.Queue')(size, *args, **kwargs)
+        elif mode == 'rabbitmq':
+            return c.import_object('pika.Queue')(size, *args, **kwargs)
+        else:
+            raise NotImplementedError(f'mode {mode} not implemented')
+
     
     @classmethod
     def resolve_ip(cls, ip=None, external:bool=True) -> str:
@@ -5778,11 +5794,15 @@ class c:
     free_gpus = free_gpu_memory
 
     @classmethod
-    def mkdir( cls, path = 'bro', exist_ok:bool=True):
+    def mkdir( cls, path = 'bro'):
         """ Makes directories for path.
         """
         path = cls.resolve_path(path)
-        return os.makedirs( path , exist_ok=exist_ok) 
+        if os.path.exists(path):
+            return  {'success': True, 'msg': f'Directory {path} already exists'}
+        os.makedirs( path , exist_ok=exist_ok) 
+        assert os.path.exists(path), f'Failed to create directory {path}'
+        return  {'success': True, 'msg': f'Created directory {path}'}
         
     def rm_module(self, module):
         module = module.replace('.','/')
@@ -5972,6 +5992,23 @@ class c:
         if isinstance(module, str):
             module = c.module(module)
         return module
+
+
+    thread_map = {}
+
+    @classmethod
+    def resolve_fn(cls, fn:str, seperator=':'):
+        if seperator in fn:
+            # module:fn
+            module, fn = fn.split(seperator)
+            module = c.module(module)
+        else:
+            module = cls
+        # get the mdoule function
+        fn = getattr(module, fn)
+        
+        return fn
+
             
             
     @classmethod
@@ -7528,7 +7565,88 @@ class c:
             
         return module2docpath
         
+    thread_map = {}
+    @classmethod
+    def thread(cls,fn: Union['callable', str],  
+                    args:list = None, 
+                    kwargs:dict = None, 
+                    daemon:bool = True, 
+                    tag = None,
+                    start:bool = True,
+                    tag_seperator:str=':'):
 
+        if isinstance(fn, str):
+            fn = c.get_fn(fn)
+        if args == None:
+            args = []
+        if kwargs == None:
+            kwargs = {}
+
+        assert callable(target), f'target must be callable, got {target}'
+        assert  isinstance(args, list), f'args must be a list, got {args}'
+        assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
+        
+        import threading
+        t = threading.Thread(target=fn, args=args, kwargs=kwargs)
+        if daemon:
+            t.daemon = True
+        if start:
+            t.start()
+
+
+        fn_name = fn.__name__
+        if tag == None:
+            tag = ''
+        else:
+            tag = str(tag)
+        name = fn_name + tag_seperator + tag
+        cnt = 0
+        while name in cls.thread_map:
+            cnt += 1
+            name = fn_name + tag_seperator + tag + str(cnt)
+
+        self.thread_map[name] = t
+
+        return t
+
+
+    def threads(self, *args, **kwargs):
+        return list(self.thread_map(*args, **kwargs).keys())
+
+    # USER LAND
+    def add_user(self, address, role='admin', **kwargs):
+        users = c.get('users', {})
+        users[address] = {'role': role, **kwargs}
+        c.put('users', users)
+
+        return {'success': True, 'msg': f'added {address} as {role} ', 'kwargs':kwargs}
+
+    def users(self):
+        return c.get('users', {})
+    
+    def get_user(self, address):
+        users = c.get('users', {})
+        assert address in users, f'{address} not in users'
+        return users[address]
+    def get_user_role(self, address):
+        return self.get_user(address)['role']
+    def refresh_users(self):
+        c.put('users', {})
+        return users
+    def user_exists(self, address):
+        return address in self.users()
+    def is_admin(self, address):
+        return self.get_user_role(address) == 'admin'
+
+    def add_admin(self, address, ):
+        c.add_user(address, role='admin')
+        return {'success': True, 'msg': f'added {address} as {role}'}
+
+    def rm_admin(self, address):
+        c.get('admins')
+
+
+        
     
 Module = c
 Module.run(__name__)

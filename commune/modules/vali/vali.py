@@ -31,13 +31,11 @@ class Validator(c.Module):
 
     def start(self):
         self.threads = []
-        self.queue = queue.Queue(2*self.config.num_threads)
+        # we only need a queue if we are multithreading
+        self.queue = c.queue(self.config.num_threads)
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
-            t = threading.Thread(target=self.run_worker)
-            t.daemon = True
-            t.start()
-
+            t = c.thread(fn=self.run_worker)
         # # main thread
         self.run()
 
