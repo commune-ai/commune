@@ -2556,6 +2556,8 @@ class c:
               tag_seperator:str='::',
               **extra_kwargs
               ):
+
+        
         kwargs = kwargs or {}
         kwargs = {**kwargs, **extra_kwargs}
         extra_kwargs = {}
@@ -2576,7 +2578,6 @@ class c:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
             remote_kwargs.pop('module_class') # remove module_class from the kwargs
-            c.print(remote_kwargs)
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name)
@@ -2595,7 +2596,6 @@ class c:
                 raise Exception(f'The server {server_name} already exists')
             
         server = c.module(f'server.{server_mode}')(module=self, name= server_name)
-        c.print(f'Starting server {server_name}', color='yellow')
         return server.server_name
 
     serve_module = serve
@@ -3223,9 +3223,9 @@ class c:
             
     
     @classmethod
-    def restart(cls, name:str, mode:str='pm2', verbose:bool = False):
+    def restart(cls, name:str, mode:str='pm2', verbose:bool = False, prefix_match:bool = True):
         c.deregister_server(name)
-        refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose)
+        refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
         return refreshed_modules
     refresh = reset = restart
     @classmethod
@@ -5176,10 +5176,6 @@ class c:
         
     
     @classmethod
-    def get_user(cls, user: str = None) -> dict:
-        return cls.ls(f'users/{user}')
-    
-    @classmethod
     def rm_user(cls, user: str = None):
         self.users.pop(user, None)  
         
@@ -5278,8 +5274,10 @@ class c:
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
+        server_names = []
         for i in range(n):
-            cls.register(mopdule=module, tag=tag+str(i),  **kwargs)
+            r = cls.register(mopdule=module, tag=tag+str(i),  **kwargs)
+            server_names.append(r['server_name'])
         return {'servers':server_names}
     
     @classmethod
@@ -7688,9 +7686,13 @@ class c:
         c.put('users', users)
         assert cls.user_exists(address), f'{address} not in users'
         return {'success': True, 'msg': f'added {address} as {role} ', 'kwargs':kwargs}
-
+    
     @classmethod
     def users(cls):
+        users = c.get('users', {})
+        root_key_address  = c.root_key().ss58_address
+        if root_key_address not in c.get('users', {}):
+            c.add_admin(root_key_address)
         return c.get('users', {})
     
     @classmethod
@@ -7699,24 +7701,37 @@ class c:
         assert address in users, f'{address} not in users'
         return users[address]
     @classmethod
-    def get_user_role(cls, address):
-        return cls.get_user(address)['role']
+    def get_user_role(cls, address:str, verbose:bool=False):
+        try:
+            return cls.get_user(address)['role']
+        except Exception as e:
+            c.print(e, color='red', verbose=verbose)
+            return None
     @classmethod
     def refresh_users(cls):
         c.put('users', {})
-        return users
+        assert len(cls.users()) == 0, 'users not refreshed'
+        return {'success': True, 'msg': 'refreshed users'}
     @classmethod
     def user_exists(cls, address):
         return address in cls.users()
+
+    @classmethod
+    def is_root_key(cls, address:str)-> str:
+        return address == c.root_key().ss58_address
     @classmethod
     def is_admin(cls, address):
-        return self.get_user_role(address) == 'admin'
+        return cls.get_user_role(address) == 'admin'
+    @classmethod
+    def admins(cls):
+        return [k for k,v in cls.users().items() if v['role'] == 'admin']
     @classmethod
     def add_admin(cls, address, ):
         return  c.add_user(address, role='admin')
     @classmethod
     def rm_user(cls, address):
-        users = c.get('users', {}).pop(address)
+        users = c.get('users', {})
+        users.pop(address)
         c.put('users', users)
         assert not cls.user_exists(address), f'{address} still in users'
         return {'success': True, 'msg': f'removed {address} from users'}

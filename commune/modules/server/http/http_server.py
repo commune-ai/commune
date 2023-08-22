@@ -118,7 +118,11 @@ class HTTPServer(c.Module):
             assert self.key.verify(input), f"Data not signed with correct key"
             address = input.get('address', None)
 
-            if address != self.root_key.ss58_address:
+            if c.is_admin(address):
+                # this is an admin address, so we can pass
+                pass
+            else:
+                # if not an admin address, we need to check the whitelist and blacklist
                 assert fn in self.whitelist, f"Function {fn} not in whitelist"
                 assert fn not in self.blacklist, f"Function {fn} in blacklist"
                 
