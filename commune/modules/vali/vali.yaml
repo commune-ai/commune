@@ -10,7 +10,6 @@ max_stats_history: 100
 alpha: 0.9
 timeout: 2
 tag: base
-run: True
 num_threads: 100
 module_prefix: model.openai
 parallel_jobs: 10

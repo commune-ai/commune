@@ -11,7 +11,6 @@ class WSClient(c.Module):
                  queue_size:int=-1,
                  verbose:bool = False,
                  start:bool = True):
-        
         if ':' in ip:
             ip, port = ip.split(':')
         self.ip = c.resolve_ip(ip)

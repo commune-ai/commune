@@ -1,16 +1,13 @@
+# import commune as c
+# hf = c.module('hf')
+# tokenizer_class = c.import_object('commune.model.transformer.llama.LlamaTokenizer')
+# path = hf.get_model_snapshot('llama')
+# tokenizer = tokenizer_class.from_pretrained(path)
 
+# print(tokenizer.encode('hello world'))
+import bittensor as bt
 import commune as c
 
 
-dataset = c.connect('')
-
-model = c.connect('model.llamaint4')
-
-prompt = '''
-Has the following text been tampered with yes (1) or no (0)?
-
-TEXT
-
-RESPONSE -> JSON({answer: float})
-{'answer': '''
-output = model.genertate('hello world', max_output_tokens=128)
+module = c.connect('data.text.realfake', network='subspace')
+c.print(module.sample())

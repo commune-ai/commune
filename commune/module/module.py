@@ -327,7 +327,7 @@ class c:
 
     @classmethod
     def sandbox(cls):
-        return cls.cmd(f'python3 sandbox.py')
+        return c.cmd(f'python3 sandbox.py')
     sand = sandbox
     @classmethod
     def save_yaml(cls, path:str,  data: dict, root:bool = False) -> Dict:
@@ -1047,11 +1047,11 @@ class c:
         
         
         if path.startswith('/'):
-            return path
+            path = path
         elif path.startswith('~/'):
-            return os.path.expanduser(path)
+            path =  os.path.expanduser(path)
         elif path.startswith('./'):
-            return os.path.abspath(path)
+            path = os.path.abspath(path)
         else:
             # if it is a relative path, then it is relative to the module path
             # ex: 'data' -> '.commune/path_module/data'
@@ -1063,7 +1063,7 @@ class c:
                 if extension != None and extension != path.split('.')[-1]:
                     path = path + '.' + extension
 
-            return path
+        return path
     
     @classmethod
     def get_address(cls, module, **kwargs):
@@ -1824,6 +1824,7 @@ class c:
     @classmethod
     def rm(cls, path, extension=None, root=False):
         path = cls.resolve_path(path=path, extension=extension, root=root)
+
         if os.path.exists(path):
             if os.path.isdir(path):
                 cls.rmdir(path)
@@ -1921,6 +1922,7 @@ class c:
                 key = None,
                 **kwargs ):
 
+
         t = c.time()
         network = c.resolve_network(network)
         key = cls.get_key(key)
@@ -1937,6 +1939,11 @@ class c:
             assert len(modules) > 0, f'No modules found in namespace {namespace}'
             address = namespace[module]
         ip, port = address.split(':')
+
+        # CONNECT TO THE MODULE
+        if 'None' in address:
+            raise Exception(f'Invalid address {address}')
+
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
 
@@ -2355,6 +2362,10 @@ class c:
     def server_name(self):
         if not hasattr(self, '_server_name'):
             self._server_name = self.module_path()
+            if hasattr(self, 'tag') and self.tag != None:
+                self._server_name = f'{self._server_name}::{self.tag}'
+
+            
         return self._server_name
         
     @server_name.setter
@@ -2484,6 +2495,7 @@ class c:
         if search:
             namespace_options = [o for o in namespace_options if search in o]
         return namespace_options
+    
     
     
     
@@ -5794,7 +5806,7 @@ class c:
     free_gpus = free_gpu_memory
 
     @classmethod
-    def mkdir( cls, path = 'bro'):
+    def mkdir( cls, path = 'bro', exist_ok:bool = True):
         """ Makes directories for path.
         """
         path = cls.resolve_path(path)
@@ -5861,7 +5873,6 @@ class c:
         
         if module_type == 'dir':
             c.mkdir(module_path, exist_ok=True)
-            c.print(f'Created module {module} at {module_path}')
         else:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
         
@@ -5890,6 +5901,19 @@ class c:
         return {'success': True, 'msg': f' created a new repo called {module}'}
         
     make_dir= mkdir
+
+    @classmethod
+    def filepath2text(cls, path, suffix:str = None, prefix:str = None):
+        filepath2text = {}
+        for filepath in c.glob(path):
+            if suffix != None and not filepath.endswith(suffix):
+                continue
+            if prefix != None and not filepath.startswith(prefix):
+                continue
+
+            filepath2text[filepath] = c.get_text(filepath)
+        return filepath2text
+        
 
     @classmethod
     def model_max_gpu_memory(cls, model, *args, **kwargs):
@@ -6208,6 +6232,18 @@ class c:
         random.shuffle(x)
         k = max(int(len(x) * ratio),1)
         return x[:k]
+
+    default_tag = None
+    @property
+    def tag(self):
+        tag = None
+        if hasattr(self, 'config') and isinstance(self.config, dict):
+            if 'tag' in self.config:
+                tag = self.config['tag']
+        if tag == None:
+            tag = self.default_tag
+        return tag
+        
     
     @classmethod
     def tags(cls):
@@ -7106,6 +7142,9 @@ class c:
     
     
     ## SUBSPACE FNS
+    @classmethod
+    def is_registered(cls, *args, **kwargs):
+        return c.module('subspace')().is_registered(*args, **kwargs)
     
     @classmethod
     def transfer(cls, *args, **kwargs):
@@ -7183,15 +7222,14 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
-            self._key = c.get_key(self.name)
+            self._key = c.get_key(self.server_name)
         return self._key
 
     @key.setter
     def key(self, key):
         self._key = c.get_key(key)
+        c.get_key
         return self._key
-    
-
 
     @classmethod
     def node_keys(cls, *args, **kwargs):
@@ -7483,6 +7521,10 @@ class c:
         self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=self.libpath, verbose=True, bash=True)
 
+    @classmethod
+    def install_rust(cls, sudo=True) :
+        cls.chmod_scripts()
+        c.cmd('./scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
 
     @classmethod
@@ -7564,7 +7606,11 @@ class c:
                 module2docpath[m] = docpaths[0]
             
         return module2docpath
+    @classmethod
+    def hello(cls):
+        c.print('hello')
         
+    
     thread_map = {}
     @classmethod
     def thread(cls,fn: Union['callable', str],  
@@ -7576,20 +7622,20 @@ class c:
                     tag_seperator:str=':'):
 
         if isinstance(fn, str):
-            fn = c.get_fn(fn)
+            fn = c.resolve_fn(fn)
         if args == None:
             args = []
         if kwargs == None:
             kwargs = {}
 
-        assert callable(target), f'target must be callable, got {target}'
+        assert callable(fn), f'target must be callable, got {fn}'
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
         
         import threading
         t = threading.Thread(target=fn, args=args, kwargs=kwargs)
-        if daemon:
-            t.daemon = True
+        t.__dict__['time'] = c.time()
+        t.daemon = daemon
         if start:
             t.start()
 
@@ -7605,47 +7651,91 @@ class c:
             cnt += 1
             name = fn_name + tag_seperator + tag + str(cnt)
 
-        self.thread_map[name] = t
+        cls.thread_map[name] = t
 
         return t
+    @classmethod
+    def thread_fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
+        args = args or []
+        kwargs = kwargs or {}
+        threads = []
+        if tag == None:
+            tag = ''
+        for i in range(n):
+            t = cls.thread(fn=fn, tag=tag+str(i), *args, **kwargs)
+        return cls.thread_map
 
 
-    def threads(self, *args, **kwargs):
-        return list(self.thread_map(*args, **kwargs).keys())
+    @classmethod
+    def threads(cls, *args, **kwargs):
+        return list(cls.thread_map(*args, **kwargs).keys())
+
+    @classmethod
+    def resolve_key_address(cls, key):
+        key2address = c.key2address()
+        if key in key2address:
+            address = key2address[key]
+        else:
+            address = key
+        return address
 
     # USER LAND
-    def add_user(self, address, role='admin', **kwargs):
+    @classmethod
+    def add_user(cls, address, role='admin', **kwargs):
+
         users = c.get('users', {})
         users[address] = {'role': role, **kwargs}
         c.put('users', users)
-
+        assert cls.user_exists(address), f'{address} not in users'
         return {'success': True, 'msg': f'added {address} as {role} ', 'kwargs':kwargs}
 
-    def users(self):
+    @classmethod
+    def users(cls):
         return c.get('users', {})
     
-    def get_user(self, address):
+    @classmethod
+    def get_user(cls, address):
         users = c.get('users', {})
         assert address in users, f'{address} not in users'
         return users[address]
-    def get_user_role(self, address):
-        return self.get_user(address)['role']
-    def refresh_users(self):
+    @classmethod
+    def get_user_role(cls, address):
+        return cls.get_user(address)['role']
+    @classmethod
+    def refresh_users(cls):
         c.put('users', {})
         return users
-    def user_exists(self, address):
-        return address in self.users()
-    def is_admin(self, address):
+    @classmethod
+    def user_exists(cls, address):
+        return address in cls.users()
+    @classmethod
+    def is_admin(cls, address):
         return self.get_user_role(address) == 'admin'
+    @classmethod
+    def add_admin(cls, address, ):
+        return  c.add_user(address, role='admin')
+    @classmethod
+    def rm_user(cls, address):
+        users = c.get('users', {}).pop(address)
+        c.put('users', users)
+        assert not cls.user_exists(address), f'{address} still in users'
+        return {'success': True, 'msg': f'removed {address} from users'}
 
-    def add_admin(self, address, ):
-        c.add_user(address, role='admin')
-        return {'success': True, 'msg': f'added {address} as {role}'}
+    @classmethod
+    def replicas(cls, network:str=None, **kwargs) -> List[str]:
+        servers = c.servers(cls.module_path(),network=network, **kwargs)
+        return servers
 
-    def rm_admin(self, address):
-        c.get('admins')
-
-
+    @classmethod
+    def restart_replicas(cls, network:str=None, **kwargs):
+        for m in cls.replicas(network=network, **kwargs):
+            c.print(m)
+            c.restart(m)
+    
+    @classmethod
+    def kill_replicas(self, network:str=None, **kwargs):
+        for m in cls.replicas(network=network, **kwargs):
+            c.kill(m)
         
     
 Module = c

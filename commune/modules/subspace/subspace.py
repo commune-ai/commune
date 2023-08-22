@@ -638,7 +638,7 @@ class Subspace(c.Module):
                         c.switch_key(old_name,name)
                     return {'success': True, 'msg': msg}
                 else:
-                    msg = 'Failed to Serve module'
+                    msg = response.error_message
                     c.print( f':cross_mark: error: {msg}')
                     return {'success': False, 'msg': msg}
 
@@ -2916,10 +2916,8 @@ class Subspace(c.Module):
         return c.module('subspace.dashboard').dashboard()
     
     @classmethod
-    def install_rust_env(cls, sudo=True):
-        
+    def install_rust(cls, sudo=True):
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
-        c.cmd(f'bash -c "./scripts/install_rust_env.sh"',  cwd=cls.chain_path, sudo=sudo)
     
 
     def build_snapshot(self, 
