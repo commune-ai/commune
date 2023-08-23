@@ -340,6 +340,9 @@ class Keypair(c.Module):
         for key in cls.keys():
             if str(key).startswith(str(prefix)) or prefix == None:
                 keys[key] = cls.get_key(key)
+                if keys[key] == None:
+                    keys.pop(key)
+                
 
                 
         return keys
