@@ -37,7 +37,7 @@ class Validator(c.Module):
         for t in range(self.config.num_threads):
             t = c.thread(fn=self.run_worker)
         # # main thread
-        self.run()
+        c.thread(self.run)
 
 
 
