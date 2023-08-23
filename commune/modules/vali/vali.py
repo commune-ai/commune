@@ -13,6 +13,8 @@ class Validator(c.Module):
 
     def __init__(self, config=None,  **kwargs):
         self.init_vali(config=config, **kwargs)
+        if self.config.start:
+            self.start()
 
     def init_vali(self, config=None, **kwargs):
         self.set_config(config=config, kwargs=kwargs)
@@ -21,8 +23,8 @@ class Validator(c.Module):
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
-        if self.config.start:
-            self.start()
+        # if self.config.refresh_stats:
+        #     self.refresh_stats()
 
             
     def kill_workers(self):
@@ -45,6 +47,7 @@ class Validator(c.Module):
         self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
+        self.name2module = {v['name']: v for v in self.modules }
         self.module_names = [m for m in list(self.namespace.keys()) if m.startswith(self.config.module_prefix)]
         self.n  = len(self.module_names)
         self.subnet = self.subspace.subnet()
@@ -94,9 +97,13 @@ class Validator(c.Module):
             c.print(f'{prefix} [bold red] {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..[/bold red]')
 
         w = response['w']
+        module_info = self.name2module[module_name]
         module_stats = self.load_module_stats(module_name, default={}) if not refresh else module_state
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
-        module_stats['w'] = module_stats.get('w', w)*self.config.alpha + w*(1-self.config.alpha)
+        module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
+        module_stats['name'] = module_name
+        module_stats['key'] = module_info['key']
+        module_stats['uid'] = module_info['uid']
         module_stats['timestamp'] = c.timestamp()
         module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
         self.module_stats[module_name] = module_stats
@@ -109,7 +116,7 @@ class Validator(c.Module):
         return [f.split('/')[-1] for f in cls.ls('stats')]
 
     @classmethod
-    def rm_stats(cls, network='main'):
+    def refresh_stats(cls, network='main'):
         return cls.rm(f'stats/{network}')
 
     @classmethod
@@ -132,6 +139,8 @@ class Validator(c.Module):
         vote_dict = {'uids': [], 'weights': []}
 
         for k, v in self.module_stats.items():
+            if v['w'] == 0:
+                continue
             vote_dict['uids'] += [v['uid']]
             vote_dict['weights'] += [v['w']]
 
@@ -201,7 +210,8 @@ class Validator(c.Module):
         loop = c.new_event_loop()
         while True:
             try:
-                module = self.queue.get(timeout=1)
+                c.sleep(0.1)
+                module = self.queue.get()
                 loop.run_until_complete(self.async_eval_module(module=module))
             except Exception as e:
                 c.print(f'Error in worker {e}', color='red')
@@ -209,8 +219,8 @@ class Validator(c.Module):
                 self.errors += 1
 
 
-    def run(self, vote = False, thread_id = 0):
-        c.print(f'Running -> thread:{thread_id} network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
+    def run(self):
+        c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
 
         c.new_event_loop()
 
@@ -220,6 +230,10 @@ class Validator(c.Module):
         import tqdm
         self.epochs = 0
         while self.running:
+
+            if self.vote_staleness > self.seconds_per_epoch:
+                self.vote()
+                self.last_vote_time = c.time()
 
             modules = c.shuffle(c.copy(self.module_names))
             for module in modules:

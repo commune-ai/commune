@@ -111,6 +111,7 @@ class OpenAILLM(c.Module):
         if not model in self.config.models:
             f"Model must be one of {self.config.models}"
             
+        
         openai.api_key = api_key or self.api_key
 
         params = dict(
@@ -154,7 +155,7 @@ class OpenAILLM(c.Module):
             'timestamp': t,
         }
 
-        self.add_stats(tag=t, stats=stats)
+        # self.add_stats(tag=t, stats=stats)
 
         return output_text
 
