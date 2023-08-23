@@ -327,7 +327,7 @@ class c:
 
     @classmethod
     def sandbox(cls):
-        return c.cmd(f'python3 sandbox.py')
+        c.cmd(f'python3 sandbox.py')
     sand = sandbox
     @classmethod
     def save_yaml(cls, path:str,  data: dict, root:bool = False) -> Dict:
@@ -1943,7 +1943,6 @@ class c:
         # CONNECT TO THE MODULE
         if 'None' in address:
             raise Exception(f'Invalid address {address}')
-
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
 
@@ -2566,6 +2565,7 @@ class c:
             remote_kwargs.pop('module_class') # remove module_class from the kwargs
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
+                c.print('bro')
                 cls.wait_for_server(server_name)
             return server_name
 
@@ -3119,6 +3119,7 @@ class c:
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
+        assert not subspace.is_registered(server_name)
         server_name = module.serve(
                             server_name=server_name, 
                             wait_for_server=True, 
@@ -3246,7 +3247,7 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-10, end_line=0, verbose=True , mode='cmd'):
+    def pm2_logs(cls, module:str, start_line=-100, end_line=-1, verbose=True , mode='cmd'):
         if mode == 'local':
 
             text = ''
@@ -3254,10 +3255,11 @@ class c:
                 path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text += f'{m.upper()} LOGS:\n'
-                    text =  c.get_text(path, start_line=start_line, end_line=end_line)
+                    text +=  c.get_text(path, start_line=start_line, end_line=end_line)
                 except Exception as e:
+                    c.print(e)
                     continue
-
+            
             return text
         elif mode == 'cmd':
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
@@ -4036,7 +4038,7 @@ class c:
     @classmethod
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
         if mode == 'queue':
-            return c.import_object('queue.Queue')(size, *args, **kwargs).__dict__
+            return c.import_object('queue.Queue')(size, *args, **kwargs)
         elif mode == 'mp':
             return c.import_object('multiprocessing.Queue')(size, *args, **kwargs)
         elif mode == 'ray':
@@ -4974,7 +4976,7 @@ class c:
                          
         
         try:
-            module = await c.async_connect(module, virtual=False, prefix_match=prefix_match, networ=network)
+            module = await c.async_connect(module, virtual=False, prefix_match=prefix_match, network=network)
             result =  await module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
         except Exception as e:
             result = {'error': str(e)}
@@ -5740,14 +5742,17 @@ class c:
                     raise e
                 
             if start_line != None or end_line != None:
+                
+                content = content.split('\n')
                 if end_line == None or end_line == 0 :
                     end_line = len(content) 
                 if start_line == None:
                     start_line = 0
-                content = content.split('\n')
+                if start_line < 0:
+                    start_line = start_line + len(content)
+                if end_line < 0 :
+                    end_line = end_line + len(content)
                 content = '\n'.join(content[start_line:end_line])
-
-
         return content
     
     load_text = get_text
