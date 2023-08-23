@@ -65,6 +65,7 @@ class Subspace(c.Module):
         config = None,
         **kwargs,
     ):
+
         config = self.set_config(config=config,kwargs=kwargs)
     @classmethod
     def get_network_url(cls, network:str = network) -> str:
@@ -1183,14 +1184,11 @@ class Subspace(c.Module):
              snap:bool=True, 
              max_archives:int=100000000000):
         network = self.resolve_network(network)
-        state_dict = self.state_dict(network=network)
-        
-        save_path = f'archive/{network}/state.B{self.block}.json'
-        self.put(save_path, state_dict)
+        state_dict = self.state_dict(network=network, update=True)
         if snap:
             self.snap(state = state_dict,
                           network=network, 
-                          path=f'archive/{network}/snap.B{self.block}.json'
+                          path=self.latest_archive_path(network=network),
                           )
             
         while self.num_archives(network=network) > max_archives:
@@ -1280,13 +1278,11 @@ class Subspace(c.Module):
 
     def state_dict(self, network=network, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
         block = self.block
-        cache_path = f'state_dict/{network}'
         # cache and update are mutually exclusive 
         state_dict = {}
         if cache and not update:
             c.print('Loading state_dict from cache', verbose=verbose)
-            state_dict = self.get(cache_path, {}, cache=cache)
-            c.print(f'Loaded state_dict from cache {cache_path}', verbose=verbose)
+            state_dict = self.latest_archive()
 
         
         if len(state_dict) == 0:
@@ -1298,14 +1294,44 @@ class Subspace(c.Module):
                         'network': network,
                         }
         if cache:
-            c.print(f'Saving state_dict to {cache_path}', verbose=verbose)
-            self.put(cache_path, state_dict, cache=cache)
-            self.put(f'{cache_path}.block-{self.block}', state_dict, cache=cache)
+            path = f'state_dict/{network}.block-{self.block}-time-{int(c.time())}'
+            c.print(f'Saving state_dict to {path}', verbose=verbose)
+            self.put(path, state_dict, cache=cache)
 
         if key in state_dict:
             return state_dict[key]
         
         return state_dict
+    @classmethod
+    def ls_archives(cls, network=network):
+        return [f for f in cls.ls(f'state_dict') if os.path.basename(f).startswith(network)]
+    @classmethod
+    def block2archive(cls, network=network):
+        paths = cls.ls_archives(network=network)
+
+        block2archive = {int(p.split('-')[-1].split('-time')[0]):p for p in paths if p.endswith('.json') and f'{network}.block-' in p}
+        return block2archive
+    @classmethod
+    def time2archive(cls, network=network):
+        paths = cls.ls_archives(network=network)
+
+        block2archive = {int(p.split('time-')[-1].split('.json')[0]):p for p in paths if p.endswith('.json') and f'time-' in p}
+        return block2archive
+    @classmethod
+    def latest_archive_path(cls, network=network):
+
+        time2archive = cls.time2archive(network=network)
+        if len(time2archive) == 0:
+            return None
+        latest_time = max(time2archive.keys())
+
+        return time2archive[latest_time]
+
+    @classmethod
+    def latest_archive(cls, network=network):
+        return cls.get(cls.latest_archive_path(network=network), {})
+            
+        
 
 
     
@@ -1410,12 +1436,23 @@ class Subspace(c.Module):
             self.sync()
         key_stats = []
         servers = c.servers(network='local')
-        for key in self.my_keys(netuid=netuid):
+
+        keys = self.my_keys(netuid=netuid)
+        for key in keys:
             key_info = self.key_info(key, netuid=netuid, cols=cols, **kwargs)
             if key_info['name'] == None:
                 key_info['name'] = key
             key_info['serving'] = key_info['name'] in servers
             key_stats.append(key_info)
+
+
+        for s in servers:
+            if s not in keys:
+                default_row = {'name': s, 'serving': True, 'registered': False, 'balance': 0, 'stake': 0, 'dividends': 0, 'incentive': 0}
+                key_stats.append(default_row)
+
+
+
         df_key_stats =  c.df(key_stats)
         # sort based on registered and balance
         if len(df_key_stats) > 0:

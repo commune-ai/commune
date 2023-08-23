@@ -3119,7 +3119,7 @@ class c:
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
-        assert not subspace.is_registered(server_name)
+
         server_name = module.serve(
                             server_name=server_name, 
                             wait_for_server=True, 
@@ -4997,6 +4997,7 @@ class c:
                               fn = 'info',
                               *args, 
                               n=None,
+
                             **kwargs):
         
         args = args or []
@@ -6232,6 +6233,12 @@ class c:
         if tag == None:
             tag = self.default_tag
         return tag
+    @tag.setter
+    def tag(self, value):
+        if not hasattr(self, 'config'):
+            self.config = c.dict2munch({})
+        self.config['tag'] = value
+        return value
         
     
     @classmethod

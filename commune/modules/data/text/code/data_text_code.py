@@ -1,6 +1,6 @@
 import commune as c
 
-class DataTextRealfake(c.Module):
+class DataTextCode(c.Module):
     def __init__(self, **kwargs):
         config = self.set_config(kwargs=kwargs)
         self.folder_path = self.resolve_path(config.folder_path)
@@ -13,7 +13,7 @@ class DataTextRealfake(c.Module):
     def sample(self, idx=None, 
                input_chars:int = 500,
                output_chars: int = 500,
-               start_index: int = 0,
+               random_start_line: int = None,
                 real_prob:float=0.5):
         
         while True:
@@ -24,7 +24,6 @@ class DataTextRealfake(c.Module):
                 break
             else:
                 idx = None
-
 
         start_index = c.random_int(0, len(file_text) - output_chars)
 
@@ -73,9 +72,9 @@ class DataTextRealfake(c.Module):
 
 
     def parse_output(self, output:dict)-> dict:
-        if '0' in output or 'yes' in output.lower():
+        if '0' in output:
             return 0
-        elif '1' in output or 'no' in output.lower():
+        elif '1' in output:
             return 1
         else:
             raise Exception(f'Invalid output: {output}, expected 0 or 1')
@@ -83,9 +82,9 @@ class DataTextRealfake(c.Module):
 
     def score(self, model='model', w:float=0.0):
 
-        model = c.connect(model, prefix_match=True)
-
         try:
+            model_name = model
+            model = c.connect(model, prefix_match=True, network='local')
             sample = self.sample()
             t = c.time()
             prompt = self.prompt.format(sample=sample)
@@ -93,18 +92,30 @@ class DataTextRealfake(c.Module):
             output = self.parse_output(output)
             w = 0.2
         except Exception as e:
-            return {'error': c.detailed_error(e), 'w':w}
+            return {'error': c.detailed_error(e), 'target': sample['target'], 'w':w}
 
-        if output == sample['real']:
+        if output == sample['target']:
             w = 1
 
         msg = {
                'prompt': prompt,
                'latency': c.time() - t, 
-               'target': sample['real'], 
+               'target': sample['target'], 
                'prediction': output,
                'w' : w,
                }
 
         return msg
 
+
+    def score_models(self, model='model'):
+
+        models = c.servers(model, network='local')
+        responses = []
+        for model in models:
+            msg = self.score(model=model)
+            msg['model'] = model
+            responses += [msg]
+
+        return responses
+            
