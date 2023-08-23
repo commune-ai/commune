@@ -5,7 +5,6 @@
 # tokenizer = tokenizer_class.from_pretrained(path)
 
 # print(tokenizer.encode('hello world'))
-import bittensor as bt
 import commune as c
 
 

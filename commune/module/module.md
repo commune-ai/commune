@@ -149,3 +149,6 @@ c model.openai configpath
 ~/commune/commune/modules/model/openai/model_openai.yaml
 ```
 
+
+
+

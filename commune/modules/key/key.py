@@ -338,8 +338,9 @@ class Keypair(c.Module):
     def get_keys(cls, prefix=None):
         keys = {}
         for key in cls.keys():
-            if  prefix == None or key.startswith(prefix) :
+            if str(key).startswith(str(prefix)) or prefix == None:
                 keys[key] = cls.get_key(key)
+
                 
         return keys
         
@@ -535,6 +536,8 @@ class Keypair(c.Module):
     def from_json(cls, obj: Union[str, dict], password: str = None) -> dict:
         if type(obj) == str:
             obj = json.loads(obj)
+        if obj == None:
+           return None 
         for k,v in obj.items():
             if c.is_encrypted(obj[k]) and password != None:
                 obj[k] = cls.decrypt(data=obj[k], password=password)
