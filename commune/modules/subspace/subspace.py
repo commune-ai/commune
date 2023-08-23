@@ -466,7 +466,7 @@ class Subspace(c.Module):
             c.print(":white_heavy_check_mark: [green]Success[/green]")
             return {'success': True, 'message': f'Successfully registered module {name} with address {address}'}
             if sync:
-                c.sync()
+                self.sync()
         else:
             c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
             return {'success': False, 'message': response.error_message}    
@@ -1405,14 +1405,16 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions'], df:bool=True, update:bool = True, **kwargs):
+    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions', 'serving'], df:bool=True, update:bool = True, **kwargs):
         if update:
-            c.sync()
+            self.sync()
         key_stats = []
+        servers = c.servers(network='local')
         for key in self.my_keys(netuid=netuid):
             key_info = self.key_info(key, netuid=netuid, cols=cols, **kwargs)
             if key_info['name'] == None:
                 key_info['name'] = key
+            key_info['serving'] = key_info['name'] in servers
             key_stats.append(key_info)
         df_key_stats =  c.df(key_stats)
         # sort based on registered and balance
@@ -1423,7 +1425,12 @@ class Subspace(c.Module):
         else:
             return df_key_stats.to_dict('records')
         
-        
+    def check_servers(self, netuid=None):
+        self.sync()
+        for m in c.stats(netuid=netuid, df=False):
+            if m['serving'] == False:
+                c.serve(m['name'])
+    
     def key_info(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'], **kwargs):
         
         key_info = {}
@@ -2939,16 +2946,14 @@ class Subspace(c.Module):
         
         for s in range(len(state['modules'])):
             for i,m in enumerate(state['modules'][s]):
-                if m['stake'] < 0:
-                    m['stake'] = 0
                 state['modules'][s][i] = m
-                        
         snap = {
                         'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
                         'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
                         'balances': {k:v for k,v in state['balances'].items() if v > min_balance},
                         'block': state['block'],
                         }
+                        
         # add weights if not already in module params
         if 'weights' not in module_params:
             snap['modules'] = [[m + c.copy([[]]) for m in modules] for modules in snap['modules']]

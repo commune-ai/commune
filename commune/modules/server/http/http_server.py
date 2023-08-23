@@ -125,8 +125,6 @@ class HTTPServer(c.Module):
                 # if not an admin address, we need to check the whitelist and blacklist
                 assert fn in self.whitelist, f"Function {fn} not in whitelist"
                 assert fn not in self.blacklist, f"Function {fn} in blacklist"
-                
-            
         else:
             return True
 

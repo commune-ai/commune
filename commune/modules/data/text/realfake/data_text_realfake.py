@@ -11,24 +11,31 @@ class DataTextRealfake(c.Module):
 
     
     def sample(self, idx=None, 
-               num_chars:int = 100,
+               input_chars:int = 500,
+               output_chars: int = 500,
                random_start_line: int = None,
-                real_prob:float=0.5, 
-                input_output_ratio: float = 0.5):
+                real_prob:float=0.5):
         
-        idx = self.random_idx() if idx == None else idx
-        filepath =  self.filepaths[idx]
-        random_start_line = self.random_int(0, num_lines) if random_start_line == None else random_start_line
-        num_lines = len(c.get_text(filepath).split('\n'))
-        file_text = c.get_text(filepath)
-        file_text = file_text.split('\n')[random_start_line:]
-        file_text = '\n'.join(file_text)
+        while True:
+            idx = self.random_idx() if idx == None else idx
+            filepath =  self.filepaths[idx]
+            file_text = c.get_text(filepath)
+            if len(file_text) > input_chars + output_chars:
+                break
+            else:
+                idx = None
 
-        input_chars = int(len(file_text) * input_output_ratio)
+        start_index = c.random_int(0, len(file_text) - output_chars)
+
+        #   we need to make sure that the input and output are not the same
+        input_bounds = [start_index, start_index + input_chars]
+        output_bounds = [start_index + input_chars, start_index + input_chars + output_chars]
         
-        sample = {'input_text': file_text[:input_chars], 
-                 'output_text': file_text[input_chars:], 
-                 'filepath': filepath, }
+        sample = {
+                'input_text': file_text[input_bounds[0]:input_bounds[1]], 
+                'output_text': file_text[output_bounds[0]:output_bounds[1]], 
+                'filepath': filepath
+                 }
 
         # do a kick flip
         real  = c.random_float(0,1) > real_prob
@@ -37,9 +44,8 @@ class DataTextRealfake(c.Module):
 
         #  then we need to sample a different file
         if sample['real'] == 0 :
-            other_sample = self.sample( num_chars=output_tokens, real_prob = 0)
-            output_chars = len(file_text) - input_chars
-            sample['output_text'] = other_sample['output_text'][:output_chars]
+            other_sample = self.sample( input_chars=input_chars, real_prob = 0, output_chars=output_chars)
+            sample['output_text'] = other_sample['output_text']
     
         return sample
 
