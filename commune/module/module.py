@@ -2485,20 +2485,6 @@ class c:
     
 
     
-
-    @classmethod
-    def namespace_options(cls,search=None) -> List[str]:
-        namespace  = c.namespace()
-        namespace_names = list(namespace.keys())
-        namespace_addresses = list(namespace.values())
-        namespace_options =  namespace_names + namespace_addresses
-        if search:
-            namespace_options = [o for o in namespace_options if search in o]
-        return namespace_options
-    
-    
-    
-    
     @classmethod
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
         
@@ -7416,9 +7402,12 @@ class c:
     @classmethod
     def n(cls, *args, **kwargs):
         return c.module('subspace')().n(*args, **kwargs)
-
-    def stats(self, *args, **kwargs):
+    @classmethod
+    def stats(cls, *args, **kwargs):
         return c.module('subspace')().stats(*args, **kwargs)
+    @classmethod
+    def check_servers(cls, *args, **kwargs):
+        return c.module('subspace')().check_servers(*args, **kwargs)
 
     def my_stats(self, *args, **kwargs):
         return c.module('subspace')().my_stats(*args, **kwargs)
