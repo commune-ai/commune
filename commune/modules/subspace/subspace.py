@@ -16,15 +16,8 @@ from commune.modules.subspace.utils import (U16_NORMALIZED_FLOAT,
                                     is_valid_address_or_public_key, 
                                     )
 from commune.modules.subspace.chain_data import (ModuleInfo, 
-                                         SubnetInfo, 
                                          custom_rpc_type_registry)
-from commune.modules.subspace.errors import (ChainConnectionError,
-                                     ChainTransactionError, 
-                                     ChainQueryError, StakeError,
-                                     UnstakeError, 
-                                     TransferError,
-                                     RegistrationError, 
-                                     SubspaceError)
+
 import streamlit as st
 import json
 from loguru import logger
@@ -728,24 +721,18 @@ class Subspace(c.Module):
 
 
 
-    def resolve_unique_server_name(self, name:str, netuid:Union[str, int]=None , avoid_servers:List[str]=None , tag_seperator = '::',  **kwargs):
-        servers = self.servers(netuid=netuid) 
-        if avoid_servers != None:
-            servers += avoid_servers
+    def resolve_unique_server_name(self, name:str, tag:str = None, netuid:Union[str, int]=None , avoid_servers:List[str]=None , tag_seperator = '::',  **kwargs): 
 
-        
-        new_name = name
         cnt = 0
-        for i in range(4):
-            if c.is_number(name[-i]):
-                cnt = int(name[-i])
-                break
-
+        if tag == None:
+            tag = ''
+        name = name + tag_seperator + tag
+        servers = self.servers(netuid=netuid,**kwargs)
+        if avoid_servers != None:
+            avoid_servers = []
+        servers += avoid_servers
+        new_name = name
         while new_name in servers:
-            if self.is_registered(new_name) and not new_name in avoid_servers:
-                break
-            if tag_seperator not in name:
-                name += tag_seperator
             new_name = name + str(cnt)
             cnt += 1
 
@@ -763,20 +750,20 @@ class Subspace(c.Module):
         assert module_key != None, "Please provide a module_key"
         return module_key
 
-    def stake_transfer(self, key, module_key, amount=None, **kwargs ):
+
+    def stake_transfer(self, key:str, module_key:str, amount:float=None, **kwargs ):
         self.unstake( key, amount=amount, **kwargs)
         self.stake( key=key, module_key=module_key, amount=amount, **kwargs)
 
 
     def stake(
             self,
-            key: Optional[str] ,
+            key: str ,
             amount: Union[Balance, float] = None, 
             module_key: Optional[str] = None, # defaults to key if not provided
             netuid:int = None,
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
-            prompt: bool = False,
             network:str = None,
             existential_deposit: float = 0.1,
             sync: bool = True
@@ -789,8 +776,10 @@ class Subspace(c.Module):
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
+
         if not self.is_registered( module_key, netuid=netuid):
             return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
+        
         old_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
