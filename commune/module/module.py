@@ -5893,14 +5893,11 @@ class c:
     make_dir= mkdir
 
     @classmethod
-    def filepath2text(cls, path, suffix:str = None, prefix:str = None):
+    def filepath2text(cls, path:str = None):
+        if path == None:
+            path = c.root_path
         filepath2text = {}
         for filepath in c.glob(path):
-            if suffix != None and not filepath.endswith(suffix):
-                continue
-            if prefix != None and not filepath.startswith(prefix):
-                continue
-
             filepath2text[filepath] = c.get_text(filepath)
         return filepath2text
         
