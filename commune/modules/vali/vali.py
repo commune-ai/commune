@@ -90,11 +90,11 @@ class Validator(c.Module):
             address = self.namespace.get(module_name)
             module = await c.async_connect(address,timeout=1)
             response = self.score_module(module)
-            c.print(f'{prefix} {module_name} [bold green]SUCCESS {c.emojis["dank"]} -> W : {w} [/bold green]')
+            c.print(f'{prefix} {module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green')
         except Exception as e:
             e = c.detailed_error(e)
             response = {'error': e, 'w': 0}
-            c.print(f'{prefix} [bold red] {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..[/bold red]')
+            c.print(f'{prefix}  {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..', color='red')
 
         w = response['w']
         module_info = self.name2module[module_name]
@@ -220,6 +220,7 @@ class Validator(c.Module):
 
 
     def run(self):
+
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
 
         c.new_event_loop()
@@ -238,6 +239,8 @@ class Validator(c.Module):
             modules = c.shuffle(c.copy(self.module_names))
             for module in modules:
                 if self.queue.full():
+                    c.print('Queue is full, sleeping for 1 second', color='red')
+                    c.sleep(1)
                     continue
 
                 self.queue.put(module)
