@@ -2359,17 +2359,21 @@ class c:
 
     @property
     def server_name(self):
-        if not hasattr(self, '_server_name'):
-            self._server_name = self.module_path()
-            if hasattr(self, 'tag') and self.tag != None:
-                self._server_name = f'{self._server_name}::{self.tag}'
-
+        config = self.config
+        if 'server_name' in config:
+            name =  config['server_name']
+        else:
+            name = self.module_path()
+            if self.tag !=None: 
+                name = f'{name}::{self.tag}'
+            config['server_name'] = name
+            self.config = config
             
-        return self._server_name
+        return name
         
     @server_name.setter
     def server_name(self, v):
-        self._server_name = v
+        self.config['server_name'] = v
         return self._server_name
     
     @classmethod
@@ -2556,7 +2560,6 @@ class c:
             
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
         tag = None # set to none so it doesn't get passed to the server
-        c.print(f'Serving {module} as {server_name}', color='yellow')
         
         if remote:
 
@@ -2572,6 +2575,8 @@ class c:
         module_class = cls.resolve_module(module)
 
         kwargs.update(extra_kwargs)
+        kwargs['tag'] = tag
+        kwargs['server_name'] = server_name
         self = module_class(**kwargs)
 
         if c.server_exists(server_name, network='local'): 
@@ -7586,10 +7591,10 @@ class c:
     @classmethod
     def is_generator(cls, obj):
         import inspect
+        if isinstance(obj, str):
+            obj = cls.resolve_fn(obj)
+
         return inspect.isgenerator(obj)
-
-
-    
 
 
     @classmethod
@@ -7678,32 +7683,40 @@ class c:
         else:
             address = key
         return address
-
+    
+    ##################################
     # USER LAND
+    ##################################
     @classmethod
     def add_user(cls, address, role='admin', **kwargs):
 
-        users = c.get('users', {})
-        users[address] = {'role': role, **kwargs}
+
+        users = cls.get('users', {})
+        info = {'role': role, **kwargs}
+        users[address] = info
         c.put('users', users)
-        assert cls.user_exists(address), f'{address} not in users'
-        return {'success': True, 'msg': f'added {address} as {role} ', 'kwargs':kwargs}
+        return {'success': True, 'user': address,'info':info}
     
     @classmethod
     def users(cls):
-        users = c.get('users', {})
+        users = cls.get('users', {})
         root_key_address  = c.root_key().ss58_address
-        if root_key_address not in c.get('users', {}):
-            c.add_admin(root_key_address)
-        return c.get('users', {})
+        if root_key_address not in users:
+            cls.add_admin(root_key_address)
+        return cls.get('users', {})
     
     @classmethod
     def get_user(cls, address):
-        users = c.get('users', {})
+        users = cls.get('users', {})
         assert address in users, f'{address} not in users'
         return users[address]
     @classmethod
-    def get_user_role(cls, address:str, verbose:bool=False):
+    def update_user(cls, address, **kwargs):
+        info = cls.get_user(address)
+        info.update(kwargs)
+        return cls.add_user(address, **info)
+    @classmethod
+    def get_role(cls, address:str, verbose:bool=False):
         try:
             return cls.get_user(address)['role']
         except Exception as e:
@@ -7711,33 +7724,36 @@ class c:
             return None
     @classmethod
     def refresh_users(cls):
-        c.put('users', {})
+        cls.put('users', {})
         assert len(cls.users()) == 0, 'users not refreshed'
         return {'success': True, 'msg': 'refreshed users'}
     @classmethod
     def user_exists(cls, address):
-        return address in cls.users()
+        return address in cls.get('users', {})
 
     @classmethod
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
     @classmethod
     def is_admin(cls, address):
-        return cls.get_user_role(address) == 'admin'
+        return cls.get_role(address) == 'admin'
     @classmethod
     def admins(cls):
         return [k for k,v in cls.users().items() if v['role'] == 'admin']
     @classmethod
     def add_admin(cls, address, ):
-        return  c.add_user(address, role='admin')
+        return  cls.add_user(address, role='admin')
     @classmethod
     def rm_user(cls, address):
-        users = c.get('users', {})
+        users = cls.get('users', {})
         users.pop(address)
-        c.put('users', users)
+        cls.put('users', users)
         assert not cls.user_exists(address), f'{address} still in users'
         return {'success': True, 'msg': f'removed {address} from users'}
 
+    ##################################
+    # REPLICA LAND
+    ##################################
     @classmethod
     def replicas(cls, network:str=None, **kwargs) -> List[str]:
         servers = c.servers(cls.module_path(),network=network, **kwargs)

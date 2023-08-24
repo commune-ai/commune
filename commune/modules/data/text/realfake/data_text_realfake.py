@@ -13,20 +13,24 @@ class DataTextRealfake(c.Module):
     def sample(self, idx=None, 
                input_chars:int = 500,
                output_chars: int = 500,
-               start_index: int = 0,
+               start_index: int = None,
                 real_prob:float=0.5):
         
-        while True:
-            idx = self.random_idx() if idx == None else idx
+        if idx == None:
+            while True:
+                idx = self.random_idx()
+                filepath =  self.filepaths[idx]
+                file_text = c.get_text(filepath)
+                if len(file_text) >= input_chars + output_chars:
+                    break
+                else:
+                    idx = None
+        else:
             filepath =  self.filepaths[idx]
             file_text = c.get_text(filepath)
-            if len(file_text) > input_chars + output_chars:
-                break
-            else:
-                idx = None
 
-
-        start_index = c.random_int(0, len(file_text) - output_chars)
+        if start_index == None:
+            start_index = c.random_int(0, len(file_text) - input_chars - output_chars )
 
         #   we need to make sure that the input and output are not the same
         input_bounds = [start_index, start_index + input_chars]
@@ -35,17 +39,22 @@ class DataTextRealfake(c.Module):
         sample = {
                 'input_text': file_text[input_bounds[0]:input_bounds[1]], 
                 'output_text': file_text[output_bounds[0]:output_bounds[1]], 
-                'filepath': filepath
+                'filepath': filepath,
+                'idx': idx,
+                'start_index': start_index,
+                'input_chars': input_chars,
+                'output_chars': output_chars,
+
                  }
 
         # do a kick flip
-        real  = c.random_float(0,1) > real_prob
+        real  = c.random_float(0,1) < real_prob
 
         sample['real'] = int(real)
 
         #  then we need to sample a different file
         if sample['real'] == 0 :
-            other_sample = self.sample( input_chars=input_chars, real_prob = 0, output_chars=output_chars)
+            other_sample = self.sample( input_chars=input_chars, real_prob = 1, output_chars=output_chars)
             sample['output_text'] = other_sample['output_text']
     
         return sample
@@ -107,4 +116,24 @@ class DataTextRealfake(c.Module):
                }
 
         return msg
+
+
+    def validate(self, module=None) -> float:
+        t = c.time()
+        my_sample = self.sample(real_prob=1)
+        kwargs = {k:my_sample[k] for k in ['input_chars', 'output_chars', 'idx', 'start_index']}
+        if  isinstance(module, str):
+            module = c.connect(module, prefix_match=True)
+        if module == None:
+            module = self
+        kwargs['real_prob'] = 1
+        other_sample = module.sample(**kwargs)
+
+
+        for k in my_sample.keys():
+            if  other_sample[k] != my_sample[k]:
+                return 0.0
+        return 1.0
+
+
 

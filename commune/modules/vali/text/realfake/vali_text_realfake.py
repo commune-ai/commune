@@ -1,17 +1,28 @@
 import commune as c
 Vali = c.module('vali')
 class ValiTextRealfake(Vali):
-    def __init__(self, **kwargs):
+    def __init__(self, config=None, **kwargs):
         
-        config = self.set_config(kwargs=kwargs)   
+        config = self.set_config(config=config, kwargs=kwargs)   
         Vali.init_vali(self, config=config, **kwargs)
         self.dataset =  c.module(config.dataset)()
         if self.config.start:
             self.start()
 
 
+    @classmethod
+    def add_worker(cls, *args,**kwargs):
+        return cls(*args, **kwargs)
+
+    def add_workers(self, num_workers=0):
+        for i in range(num_workers):
+            config.num_workers = 0
+            self.serve(tag=f'worker{i}', config=config, wait_for_server=False)
+
     def parse_output(self, output:dict)-> dict:
         if isinstance(output, dict):
+            if 'error' in output:
+                return 0
             output = c.dict2str(output)
 
         if '0' in output or 'yes' in output.lower():
