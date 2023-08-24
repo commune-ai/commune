@@ -34,17 +34,20 @@ class Validator(c.Module):
     def start(self):
         self.threads = []
         # we only need a queue if we are multithreading
-        self.queue = c.queue(self.config.num_threads)
+        self.queue = c.queue(self.config.num_threads*4)
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
             t = c.thread(fn=self.run_worker)
         # # main thread
+        c.thread(self.vote_loop)
         c.thread(self.run)
 
-
-
-    def set_subspace(self):
+    def sync(self):
+        self.set_subspace(sync=True)
+    def set_subspace(self, sync=True):
         self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
+        if sync:
+            self.subspace.sync()
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
@@ -53,6 +56,9 @@ class Validator(c.Module):
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
         self.key = c.get_key(self.config.key)
+
+        if self.config.vote_interval == None: 
+            self.config['vote_interval'] = self.seconds_per_epoch
 
     @property
     def lifetime(self):
@@ -70,7 +76,6 @@ class Validator(c.Module):
 
     def score_module(self, module):
         info = module.info(timeout=1)
-        c.print(info)
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
         assert 'address' in info, f'Response must have an error key, got {info.keys()}'
         w = 1
@@ -90,11 +95,11 @@ class Validator(c.Module):
             address = self.namespace.get(module_name)
             module = await c.async_connect(address,timeout=1)
             response = self.score_module(module)
-            c.print(f'{prefix} {module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green')
+            # c.print(f'{prefix} {module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green')
         except Exception as e:
             e = c.detailed_error(e)
             response = {'error': e, 'w': 0}
-            c.print(f'{prefix}  {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..', color='red')
+            # c.print(f'{prefix}  {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..', color='red')
 
         w = response['w']
         module_info = self.name2module[module_name]
@@ -120,9 +125,9 @@ class Validator(c.Module):
         return cls.rm(f'stats/{network}')
 
     @classmethod
-    def stats(cls, network='main', df=True):
+    def stats(cls, network='main', df=True, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
         self = cls(start=False)
-        stats = cls.load_stats( network=network, keys=['name', 'w', 'count', 'timestamp'])
+        stats = cls.load_stats( network=network, keys=keys)
 
         if df:
             stats = c.df(stats)
@@ -131,18 +136,17 @@ class Validator(c.Module):
         return stats
 
     def vote(self):
+        if self.vote_staleness < self.config.vote_interval:
+            return {'success': False, 'message': f'Vote too soon, wait {self.config.vote_interval - self.vote_staleness} more seconds'}
 
         self.last_vote_time = c.time()
-        self.load_stats()   
         topk = self.subnet['max_allowed_weights']
 
         vote_dict = {'uids': [], 'weights': []}
 
-        for k, v in self.module_stats.items():
-            if v['w'] == 0:
-                continue
-            vote_dict['uids'] += [v['uid']]
-            vote_dict['weights'] += [v['w']]
+        stats = self.stats(network=self.config.network, df=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key'])
+        vote_dict['uids'] = [v['uid'] for v in stats if v['w'] > 0] # get all uids where w > 0
+        vote_dict['weights'] = [v['w'] for v in stats if v['w'] > 0] # get all weights where w > 0
 
         # get topk
         
@@ -150,7 +154,6 @@ class Validator(c.Module):
 
         topk_indices = [i for i in topk_indices if vote_dict['weights'][i] > 0]
         if len(topk_indices) == 0:
-            c.print('No modules to vote on', color='red')
             return {'success': False, 'message': 'No modules to vote on'}
         
         vote_dict['weights'] = [vote_dict['weights'][i] for i in topk_indices]
@@ -162,6 +165,7 @@ class Validator(c.Module):
                            network=self.config.network, 
                            netuid=self.config.netuid)
 
+        self.sync()
         return {'success': True, 'message': 'Voted'}
     @classmethod
     def load_stats(cls, network:str, batch_size=100, keys:str=True):
@@ -191,8 +195,8 @@ class Validator(c.Module):
         self.put_json(f'stats/{self.config.network}/{k}', v)
 
     @property
-    def vote_staleness(self) -> float:
-        return c.time() - self.last_vote_time
+    def vote_staleness(self) -> int:
+        return int(c.time() - self.last_vote_time)
 
 
     @property
@@ -219,41 +223,45 @@ class Validator(c.Module):
                 self.errors += 1
 
 
-    def run(self):
+    def vote_loop(self):
+        while True:
+            c.sleep(1)
+            if self.vote_staleness > self.config.vote_interval:
+                self.vote()
+
+
+    def run(self, vote=False):
 
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
 
         c.new_event_loop()
 
         self.running = True
-        self.last_vote_time = c.time()
-         
-        import tqdm
         self.epochs = 0
-        while self.running:
 
-            if self.vote_staleness > self.seconds_per_epoch:
-                self.vote()
-                self.last_vote_time = c.time()
+        while self.running:
+    
+            
 
             modules = c.shuffle(c.copy(self.module_names))
             for module in modules:
                 if self.queue.full():
-                    c.print('Queue is full, sleeping for 1 second', color='red')
-                    c.sleep(1)
                     continue
 
                 self.queue.put(module)
-                if self.count % 10 == 0:
+                if self.count % 100 == 0:
                     stats =  {
                     'total_modules': self.count,
                     'lifetime': int(self.lifetime),
                     'modules_per_second': int(self.modules_per_second()), 
                     'vote_staleness': self.vote_staleness,
                     'errors': self.errors,
+                    'vote_interval': self.config.vote_interval,
 
                      }
-                    c.print(f'Validator Stats: {stats}', color='white')
+                    c.print(f'STATS --> {stats}\n', color='white')
+                    c.print(self.stats())
+                    # c.print(self.stats(network=self.config.network)[:10], color='white')
             self.epochs += 1
     
            

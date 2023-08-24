@@ -25,16 +25,6 @@ class OpenAILLM(c.Module):
         self.set_tokenizer(config.tokenizer)
         
         
-        # self.params  = dict(
-        #          model =self.config.model,
-        #         temperature=self.config.temperature,
-        #         max_tokens=self.config.max_tokens,
-        #         top_p=self.config.top_p,
-        #         frequency_penalty=self.config.frequency_penalty,
-        #         presence_penalty=self.config.presence_penalty,
-        # )
-    
-        
     def resolve_api_key(self, api_key:str = None) -> str:
         api_key = os.environ.get(api_key, api_key)
         assert isinstance(api_key, str),f"API Key must be a string,{api_key}"

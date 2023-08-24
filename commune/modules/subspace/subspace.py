@@ -298,10 +298,18 @@ class Subspace(c.Module):
                     weights.append(0)
             
         if weights is None:
-            weights = torch.tensor([1 for _ in uids])
-            weights = weights / weights.sum()
-            weights = weights * U16_MAX
-            weights = weights.tolist()
+            weights = [1 for _ in uids]
+        if isinstance(weights, list):
+            weights = torch.tensor(weights)
+
+        weights = weights / weights.sum()
+        weights = weights * U16_MAX
+        weights = weights.tolist()
+
+        # uids = [int(uid) for uid in uids]
+        uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights) if int(weight) > 0}
+        uids = list(uid2weight.keys())
+        weights = list(uid2weight.values())
         
         c.print(f'Weights: {weights} from {key}')
         

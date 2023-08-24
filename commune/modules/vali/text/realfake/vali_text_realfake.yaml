@@ -16,3 +16,4 @@ verbose: False
 batch_size: 4
 refresh_stats: True
 num_workers : 4
+vote_interval: null
