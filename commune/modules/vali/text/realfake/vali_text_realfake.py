@@ -21,8 +21,6 @@ class ValiTextRealfake(Vali):
 
     def parse_output(self, output:dict)-> dict:
         if isinstance(output, dict):
-            if 'error' in output:
-                return 0
             output = c.dict2str(output)
 
         if '0' in output or 'yes' in output.lower():
@@ -52,8 +50,10 @@ class ValiTextRealfake(Vali):
             '''
 
 
-            output = module.generate(prompt)
-            output = self.parse_output(output)
+            output_text = module.generate(prompt)
+            if 'error' in output_text:
+                raise Exception(output_text['error'])
+            output = self.parse_output(output_text)
 
             if output == sample['real']:
                 w = 1
@@ -65,11 +65,12 @@ class ValiTextRealfake(Vali):
                 'latency': c.time() - t, 
                 'target': sample['real'], 
                 'prediction': output,
+                'output_text': output_text,
                 'w' : w,
                 }
 
         except Exception as e:
-            response = {'error': c.detailed_error(e), 'w':w}
+            response = {'error': c.detailed_error(e), 'w':0}
 
 
 

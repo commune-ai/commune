@@ -2374,7 +2374,7 @@ class c:
     @server_name.setter
     def server_name(self, v):
         self.config['server_name'] = v
-        return self._server_name
+        return self.config['server_name']
     
     @classmethod
     def wait_for_server(cls,

@@ -118,14 +118,14 @@ class DataTextRealfake(c.Module):
         return msg
 
 
-    def validate(self, module=None) -> float:
+    def validate(self, module=None, network=None) -> float:
+        if  isinstance(module, str):
+            module = c.connect(module, prefix_match=True, network=network)
+        if module == None:
+            module = self
         t = c.time()
         my_sample = self.sample(real_prob=1)
         kwargs = {k:my_sample[k] for k in ['input_chars', 'output_chars', 'idx', 'start_index']}
-        if  isinstance(module, str):
-            module = c.connect(module, prefix_match=True)
-        if module == None:
-            module = self
         kwargs['real_prob'] = 1
         other_sample = module.sample(**kwargs)
 
