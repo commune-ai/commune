@@ -51,6 +51,15 @@ class Client(c.Module):
         if ip != None or port != None:
             self.set_client(ip =ip,port = port)
 
+    #
+    async def response2stream(self, response):
+        # loop = c.get_event_loop()
+        async for line in response.content:
+            event_data = line.decode('utf-8').strip()
+            yield event_data
+
+    
+
     async def async_forward(self,
         fn,
         args = None,
@@ -58,6 +67,7 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 4,
+        stream: bool = True,
         return_error: bool = False,
         asyn: bool = True,
         full : bool = False,
@@ -81,34 +91,25 @@ class Client(c.Module):
         request = c.copy(self.key.sign(request_data, return_json=True))
 
         assert self.key.verify(request), f"Request not signed with correct key"
-        try:
-            if asyn == True:
-                async with aiohttp.ClientSession() as session:
-                    try:
-                        async with session.post(url, json=request, headers=headers) as response:
-                            response = await asyncio.wait_for(response.json(), timeout=timeout)
-                    except Exception as e:
-                        async with session.post(url.replace(self.ip, '0.0.0.0'), json=request, headers=headers) as response:
-                            response = await asyncio.wait_for(response.json(), timeout=timeout)
-            else:
-                response = requests.post(url,json=request, headers=headers)
-                response = response.json()
-      
-            assert self.key.verify(response), f"Response not signed with correct key"
-            response['data'] = self.serializer.deserialize(response['data'])
-            response = response if full else response['data']
-            if 'server_result' in response:
-                response = response['server_result']
-            
-        except Exception as e:
-            if return_error:
-                response = c.detailed_error(e)
-                return response
-                
-            else: 
-                raise e
 
-        return response
+
+        async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=request, headers=headers) as response:
+                    if response.content_type == 'text/event-stream':
+                        # Process SSE events
+                        result = ''
+                        async for line in response.content:
+                            event_data = line.decode('utf-8').strip().split('data: ')[-1]
+                            result += event_data
+                        # result = self.serializer.deserialize(result)
+                    elif response.content_type == 'application/json':
+                        result = await asyncio.wait_for(response.json(), timeout=timeout)
+                        result = self.serializer.deserialize(result)
+                    else:
+                        raise Exception(f"Unknown content type: {response.content_type}")
+        
+        
+        return result
 
     
     def forward(self,*args,return_future=False, **kwargs):
