@@ -1045,7 +1045,6 @@ class c:
         
         '''
         
-        
         if path.startswith('/'):
             path = path
         elif path.startswith('~/'):
@@ -2568,7 +2567,6 @@ class c:
             remote_kwargs.pop('module_class') # remove module_class from the kwargs
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
-                c.print('bro')
                 cls.wait_for_server(server_name)
             return server_name
 
@@ -3048,7 +3046,6 @@ class c:
 
         c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
             
-        # c.print(f'[bold cyan]Starting (PM2)[/bold cyan] [bold yellow]{name}[/bold yellow]', color='green')
         return c.cmd(cmd, verbose=verbose,**kwargs)
         
     @classmethod
@@ -4345,8 +4342,6 @@ class c:
             cls.update()
             cls.sleep(period)
             
-    
-    
     @classmethod
     def model_shortcuts(cls, **kwargs):
         return  c.module('hf').getc('shortcuts')
@@ -4355,7 +4350,6 @@ class c:
         model_shortcuts = c.model_shortcuts()
         return model_shortcuts.get(model,model)
             
-    
     @classmethod
     def add_model_shortcut(cls, *args, **kwargs):
         return  c.module('hf').add_model_shortcut(*args, **kwargs)    
@@ -4371,6 +4365,9 @@ class c:
     def shortcut2model(cls, shortcut:str):
         return c.model_shortcuts()[shortcut]
 
+    @staticmethod
+    def get_trainable_params(model:'nn.Module')->List[str]:
+        return c.module('model').get_trainable_params(model)
     @classmethod
     def model_gpu_memory(cls, model:str, num_shard = 2):
         model_size = cls.get_model_size(model)
@@ -4384,10 +4381,7 @@ class c:
                     model_gpu_memory[gpu_id] = size_per_shard 
                     free_gpu_memory.pop(gpu_id)
                     break
-            # assert i in model_gpu_memory, f'Not enough memory to allocate model shard {i}'
-        
         return model_gpu_memory
-
 
     @classmethod
     def model_gpus(cls, model, num_shard=2):
@@ -5244,7 +5238,6 @@ class c:
             ports = ports[0]
         ports = list(map(str, ports))
         reserved_ports = {rp:v for rp,v in reserved_ports.items() if not any([p in ports for p in [str(rp), int(rp)]] )}
-        c.print(reserved_ports)
         cls.put(var_path, reserved_ports, root=root)
         return cls.reserved_ports()
     
@@ -7590,10 +7583,8 @@ class c:
     @classmethod
     def is_generator(cls, obj):
         import inspect
-        if isinstance(obj, str):
-            obj = cls.resolve_fn(obj)
-
         return inspect.isgenerator(obj)
+    
 
 
     @classmethod
@@ -7768,6 +7759,9 @@ class c:
     def kill_replicas(self, network:str=None, **kwargs):
         for m in cls.replicas(network=network, **kwargs):
             c.kill(m)
+
+
+
         
     
 Module = c

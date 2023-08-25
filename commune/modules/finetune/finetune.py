@@ -89,7 +89,7 @@ class FineTuner(c.Module):
         tokenized_dataset = self.dataset.map(preprocess_function, batched=True, remove_columns=["dialogue", "summary", "id"])
         return tokenized_dataset
     
-    def train(self, output_dir, num_train_epochs):
+    def train(self, output_dir:str, num_train_epochs:int):
         lora_config = LoraConfig(
             r=self.lora_r,
             lora_alpha=self.lora_alpha,

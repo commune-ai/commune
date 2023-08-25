@@ -10,15 +10,15 @@ import time
 import commune
 class AESKey(commune.Module):
 
-    def __init__(self, key ): 
+    def __init__(self, key:str ): 
         self.bs = AES.block_size
-        self.key = hashlib.sha256(key.encode()).digest()
+        self.key_phrase = hashlib.sha256(key.encode()).digest()
 
     def encrypt(self, data, return_string = True):
         data = self.python2str(data)
         data = self._pad(data)
         iv = Random.new().read(AES.block_size)
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
         
         encrypted_bytes = base64.b64encode(iv + cipher.encrypt(data.encode()))
         encrypted_data =  encrypted_bytes.decode() if return_string else encrypted_bytes
@@ -28,7 +28,7 @@ class AESKey(commune.Module):
     def decrypt(self, enc):
         enc = base64.b64decode(enc)
         iv = enc[:AES.block_size]
-        cipher = AES.new(self.key, AES.MODE_CBC, iv)
+        cipher = AES.new(self.key_phrase, AES.MODE_CBC, iv)
         try:
             decrypted_data =  self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
         except UnicodeDecodeError as e:

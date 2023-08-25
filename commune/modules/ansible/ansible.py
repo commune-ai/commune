@@ -125,10 +125,6 @@ class Ansible(commune.Module):
             if i < len(node_chunks)-1:
                 node_chunk = '\n'.join(node_chunk.split('\n')[:-1])
             node2stdout[node_name] = node_chunk
-        if verbose:
-            for node_name, stdout in node2stdout.items():
-                self.print(f"\n\n[purple bold]NODE[/purple bold]: [cyan bold]{node_name} [/cyan bold]\n")
-                self.print(stdout, color='green')
 
         return node2stdout
     
@@ -196,4 +192,10 @@ class Ansible(commune.Module):
         if run_command_button:
             self.save_inventory()
             st.write(self.shell(command_text, inventory_group='selected'))
+
+
+    @classmethod
+    def test(cls): 
+        self = cls()
+        self.key('test')
     

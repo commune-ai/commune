@@ -20,7 +20,7 @@ class HTTPServer(c.Module):
         whitelist: List[str] = None,
         blacklist: List[str] = None,
         access:str = 'public',
-        sse: bool = False,
+        sse: bool = True,
         max_history: int = 100,
         save_history_interval: int = 100,
         max_request_staleness: int = 100,
@@ -104,65 +104,56 @@ class HTTPServer(c.Module):
         return self
     
     
-    def verify_access(self, **kwargs) -> bool:
+    def verify_signature(self, input:dict) -> bool:
 
-        if hasattr(self.module, 'verify_access'):
-            return self.module.verify_access(fn=fn, input=input, **kwargs)
-        
-        input = kwargs.get('input', {})
-        fn = kwargs.get('fn', None)
-        if self.access != 'public':
-            assert isinstance(input, dict), f"Data must be a dict, not {type(data)}"
-            assert 'data' in input, f"Data not included"
-            assert 'signature' in input, f"Data not signed"
-            assert self.key.verify(input), f"Data not signed with correct key"
-            address = input.get('address', None)
-
-            if c.is_admin(address):
-                # this is an admin address, so we can pass
-                pass
-            else:
-                # if not an admin address, we need to check the whitelist and blacklist
-                assert fn in self.whitelist, f"Function {fn} not in whitelist"
-                assert fn not in self.blacklist, f"Function {fn} in blacklist"
-        else:
-            return True
-
-
-    
-    def process_input(self,fn:str, input: dict) -> bool:
-        r""" Verify the data is signed with the correct key.
-        """
-        self.verify_access(fn=fn ,input=input)
+        assert 'data' in input, f"Data not included"
+        assert 'signature' in input, f"Data not signed"
+        # you can verify the input with the server key class
+        assert self.key.verify(input), f"Data not signed with correct key"
         input['data'] = self.serializer.deserialize(input['data'])
 
-        if self.access != 'public':
-            request_timestamp = input['data'].get('timestamp', 0)
-            request_staleness = c.timestamp() - request_timestamp
-            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        # here we want to verify the data is signed with the correct key
+        request_timestamp = input['data'].get('timestamp', 0)
+        request_staleness = c.timestamp() - request_timestamp
+        assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        return input
+    
+
+    def verify_fn_access(self,input) -> bool:
+        address = input.get('address', None)
+        fn = input.get('fn', None)
+
+        if c.is_admin(address):
+            # this is an admin address, so we can pass
+            pass
+        else:
+            # if not an admin address, we need to check the whitelist and blacklist
+            assert fn in self.whitelist, f"Function {fn} not in whitelist"
+            assert fn not in self.blacklist, f"Function {fn} in blacklist"
+
+        return input
+    
+    def process_input(self,input: dict) -> bool:
+        r""" Verify the data is signed with the correct key.
+        """
+        input = self.verify_signature(input)
+        # deserialize the data
+        input = self.verify_fn_access(input)
+
         return input
     
     @staticmethod
     def event_source_response(generator):
         from sse_starlette.sse import EventSourceResponse
-        return EventSourceResponse(generator)
+        if c.is_generator(generator):
+            return EventSourceResponse(generator)
+        else:
+            return generator
     
-    @staticmethod
-    def resolve_generator(self, generator):
-
-        def generator_wrapper():
-            if c.is_generator(generator):
-                for item in generator:
-                    yield self.process_result(item, resolve_generator=False)
-            else: 
-                yield self.process_result(generator, resolve_generator=False)
-
-        return generator_wrapper
     
     def process_result(self,  result):
         if self.sse == True:
             # if we are using sse, we want to include one time calls too
-            result = self.resolve_generator(self, result)
             return self.event_source_response(result)
         else:
             # if we are not using sse then we want to convert the generator to a list
@@ -206,12 +197,9 @@ class HTTPServer(c.Module):
             address_abbrev = None
             try:
 
-                # forward
-                address = input['address']
-                address_abbrev = address[:5] + '...'
-                c.print(f'\033📞 Client({address_abbrev}) ---> {self.name}::{fn}')
+                input['fn'] = fn
 
-                input = self.process_input(fn=fn, input=input)
+                input = self.process_input(input)
 
                 data = input['data']
                 args = data.get('args',[])
@@ -220,8 +208,8 @@ class HTTPServer(c.Module):
             
 
                 result = self.forward(fn=fn,
-                                    args=data.get('args', []),
-                                    kwargs=data.get('kwargs', {})
+                                    args=args,
+                                    kwargs=kwargs,
                                     )
 
                 result = self.process_result(result)
@@ -230,16 +218,19 @@ class HTTPServer(c.Module):
                 result = c.detailed_error(e)
                 success = False
                 result = self.process_result(result)
+            
+            # c.print(result)
 
-            result_logs = result["data"][:self.max_result_chars]
+
             if success:
                 
-                c.print(f'\033✨ Success: {self.name}::{fn} --> {address_abbrev} 🎉\033 ')
+                c.print(f'\033[32m Success: {self.name}::{fn} --> {input["address"][:5]}... 🎉\033 ')
             else:
+                c.print(result)
+                c.print(f'\033🚨 Error: {self.name}::{fn} --> {input["address"][:5]}... 🚨\033')
 
-                c.print(f'\033🚨 Error: {self.name}::{fn} --> {address_abbrev}🚨\033', result_logs)
-
-            # send result to client
+            # send result to
+            #  client
             return result
         
         
