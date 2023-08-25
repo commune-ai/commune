@@ -105,6 +105,7 @@ class Validator(c.Module):
         module_stats['uid'] = module_info['uid']
         module_stats['timestamp'] = c.timestamp()
         module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
+        module_stats['history'] = module_stats['history'][-self.config.max_history:]
         self.save_module_stats(module_name, module_stats)
 
         return module_stats
@@ -126,13 +127,11 @@ class Validator(c.Module):
 
     @classmethod
     def stats(cls, network='main', df=True, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
-        self = cls(start=False)
         stats = cls.load_stats( network=network, keys=keys)
 
         if df:
             stats = c.df(stats)
-            if len(stats) > 0:
-                stats.sort_values('w', ascending=False, inplace=True)
+            stats.sort_values('w', ascending=False, inplace=True)
         return stats
 
     def vote(self):
@@ -169,7 +168,7 @@ class Validator(c.Module):
         
         return {'success': True, 'message': 'Voted'}
     @classmethod
-    def load_stats(cls, network:str, batch_size=100, keys:str=True):
+    def load_stats(cls, network:str='main', batch_size=400, keys:str=None):
         paths = cls.ls(f'stats/{network}')
         jobs = [c.async_get_json(p) for p in paths]
         module_stats = []
@@ -178,9 +177,11 @@ class Validator(c.Module):
             for s in results:
                 if s == None:
                     continue
-                if keys :
+                if keys  != None:
                     s = {k: s.get(k,None) for k in keys}
                 module_stats += [s]
+                c.print(f'Loaded {len(module_stats)} stats', color='cyan')
+        c.print(f'COMPLETED -> Loaded {len(module_stats)} stats', color='cyan')
         return module_stats
 
 
