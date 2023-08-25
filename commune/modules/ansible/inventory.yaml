@@ -4,18 +4,18 @@ all:
       ansible_host: 24.66.238.82
       ansible_port: 2000
       ansible_user: alex
-      ansible_ssh_pass: 1234
+      ansible_ssh_pass: 
 
     shane.2222:
       ansible_host: 24.83.20.198
       ansible_port: 2222
       ansible_user: shane
-      ansible_ssh_pass: tacoma16
+      ansible_ssh_pass: 
 
     lucky:
       ansible_host: 144.217.254.16
       ansible_port: 22
       ansible_user: ubuntu
-      ansible_ssh_pass: Vamsi@11$2016
+      ansible_ssh_pass: 
 
     
