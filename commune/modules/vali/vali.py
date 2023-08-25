@@ -17,15 +17,12 @@ class Validator(c.Module):
             self.start()
 
     def init_vali(self, config=None, **kwargs):
+
         self.set_config(config=config, kwargs=kwargs)
-        self.set_subspace( )
-        self.module_stats = {}
+        self.sync( )
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
-        # if self.config.refresh_stats:
-        #     self.refresh_stats()
-
             
     def kill_workers(self):
         for w in self.workers:
@@ -42,12 +39,9 @@ class Validator(c.Module):
         c.thread(self.vote_loop)
         c.thread(self.run)
 
-    def sync(self):
-        self.set_subspace(sync=True)
-    def set_subspace(self, sync=True):
+    def sync(self, sync=True):
         self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-        if sync:
-            self.subspace.sync()
+        self.subspace.sync()
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
@@ -111,7 +105,6 @@ class Validator(c.Module):
         module_stats['uid'] = module_info['uid']
         module_stats['timestamp'] = c.timestamp()
         module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
-        self.module_stats[module_name] = module_stats
         self.save_module_stats(module_name, module_stats)
 
         return module_stats
@@ -121,8 +114,15 @@ class Validator(c.Module):
         return [f.split('/')[-1] for f in cls.ls('stats')]
 
     @classmethod
-    def refresh_stats(cls, network='main'):
-        return cls.rm(f'stats/{network}')
+    def resolve_stats_path(cls, network:str, tag:str=None):
+        if tag == None:
+            tag = 'base'
+        return f'stats/{network}/{tag}'
+
+    @classmethod
+    def refresh_stats(cls, network='main', tag=None):
+        path = cls.resolve_stats_path(network=network, tag=tag)
+        return cls.rm(path)
 
     @classmethod
     def stats(cls, network='main', df=True, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
@@ -166,6 +166,7 @@ class Validator(c.Module):
                            netuid=self.config.netuid)
 
         self.sync()
+        
         return {'success': True, 'message': 'Voted'}
     @classmethod
     def load_stats(cls, network:str, batch_size=100, keys:str=True):
@@ -189,10 +190,12 @@ class Validator(c.Module):
 
     def load_module_stats(self, k:str,default=None):
         default = {} if default == None else default
-        return self.get_json(f'stats/{self.config.network}/{k}', default=default)
+        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+        return self.get_json(path, default=default)
     
     def save_module_stats(self,k:str, v):
-        self.put_json(f'stats/{self.config.network}/{k}', v)
+        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+        self.put_json(path, v)
 
     @property
     def vote_staleness(self) -> int:
@@ -244,7 +247,7 @@ class Validator(c.Module):
             
 
             modules = c.shuffle(c.copy(self.module_names))
-            for module in modules:
+            for i, module in enumerate(modules):
                 if self.queue.full():
                     continue
 
@@ -257,10 +260,10 @@ class Validator(c.Module):
                     'vote_staleness': self.vote_staleness,
                     'errors': self.errors,
                     'vote_interval': self.config.vote_interval,
+                    'epochs': self.epochs,
 
                      }
-                    c.print(f'STATS --> {stats}\n', color='white')
-                    c.print(self.stats())
+                    c.print(f' --> {stats}\n', color='white')
                     # c.print(self.stats(network=self.config.network)[:10], color='white')
             self.epochs += 1
     

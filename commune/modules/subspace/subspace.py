@@ -754,7 +754,8 @@ class Subspace(c.Module):
             module_key = key.ss58_address
         elif isinstance(module_key, str):
             module2key =self.module2key(netuid=netuid)
-            module_key = module2key[module_key]
+            if module_key in module2key:
+                module_key = module2key[module_key]
         assert module_key != None, "Please provide a module_key"
         return module_key
 
@@ -915,6 +916,8 @@ class Subspace(c.Module):
                 params = params,
                 block_hash = None if block == None else substrate.get_block_hash(block)
                 )
+
+
 
 
     def stake_from(self, netuid = None):
@@ -1338,6 +1341,10 @@ class Subspace(c.Module):
         c.namespace_subspace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
+    def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
+        while True:
+            self.sync(network=network, remote=remote, local=local, save=save)
+            c.sleep(interval)
 
     def subnet_states(self, *args, **kwargs):
         update = kwargs.get('update', False)
@@ -1428,7 +1435,7 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions', 'serving'], df:bool=True, update:bool = True, **kwargs):
+    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions', 'serving', 'stake_to', 'stake_from'], df:bool=True, update:bool = True, **kwargs):
         if update:
             self.sync()
         key_stats = []
@@ -2635,6 +2642,10 @@ class Subspace(c.Module):
         return weights
             
         
+    def regprefix(self, prefix, netuid = None, network=None, **kwargs):
+        network = self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+        c.servers(network=network, prefix=prefix)
         
     
     def emission(self, netuid = None, network=None, **kwargs):
