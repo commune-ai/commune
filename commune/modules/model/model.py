@@ -500,6 +500,20 @@ class Model( nn.Module, c.Module):
     @classmethod
     def resolve_server_name(cls, *args, **kwargs):
         return cls.base_model().resolve_server_name(*args, **kwargs)
+    
+    @staticmethod
+    def get_trainable_params(model: 'nn.Module') -> int: 
+        """
+        Prints the number of trainable parameters in the model.
+        """
+        trainable_params = 0
+        all_param = 0
+        for _, param in model.named_parameters():
+            all_param += param.numel()
+            if param.requires_grad:
+                trainable_params += param.numel()
+
+        return trainable_params
 
 
 if __name__ == "__main__":

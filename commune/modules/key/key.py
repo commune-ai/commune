@@ -1047,6 +1047,8 @@ class Keypair(c.Module):
             raise ConfigurationError('No private key set to encrypt')
         if self.crypto_type != KeypairType.ED25519:
             raise ConfigurationError('Only ed25519 keypair type supported')
+        
+        
         curve25519_public_key = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(recipient_public_key)
         recipient = nacl.public.PublicKey(curve25519_public_key)
         private_key = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(self.private_key + self.public_key)
