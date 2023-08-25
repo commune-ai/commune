@@ -23,10 +23,17 @@ class FineTuner(c.Module):
         config = self.set_config(config, kwargs=kwargs)
         self.resolve_config()
         self.logger = logging.getLogger(__name__)
+        self.set_dataset(config)
+        self.set_model(config)
+        if config.train:
+            self.train()
+
+        
+
+    def set_model(self, config):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model)
         quantization_config = self.get_quantize_config(config)
         self.model = AutoModelForCausalLM.from_pretrained(config.model, quantization_config=quantization_config)
-        self.train()
 
     
     def set_dataset(self, config):
