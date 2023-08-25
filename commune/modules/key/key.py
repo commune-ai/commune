@@ -182,7 +182,7 @@ class Keypair(c.Module):
 
     
     @classmethod
-    def add_key(cls, path, mnemonic = None, password=None, refresh=False, **kwargs):
+    def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, **kwargs):
         
         if cls.key_exists(path) and not refresh :
             return {'status': 'error', 'message': f'key already exists at {path}'}
