@@ -3257,7 +3257,7 @@ class c:
 
             text = ''
             for m in ['out','error']:
-                path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-').replace('_', '-')
+                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, start_line=start_line, end_line=end_line)
                 except Exception as e:

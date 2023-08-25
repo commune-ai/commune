@@ -9,7 +9,7 @@ class Frontend(c.Module):
 
     frontend_path = c.repo_path + '/frontend'
     compose_path = frontend_path + '/docker-compose.yml'
-    def build(self, port=300):
+    def up(self, port=300):
         c.compose(path=self.frontend_path + '/docker-compose.yml')
 
 
