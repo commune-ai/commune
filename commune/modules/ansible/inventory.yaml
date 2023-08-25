@@ -1,10 +1,21 @@
 all:
   hosts:
-    huck_2000: 
-      ansible_host: 162.157.13.236
+    alex.2000: 
+      ansible_host: 24.66.238.82
       ansible_port: 2000
-      ansible_user: commune
-    huck_2200:
-      ansible_host: 162.157.13.236
-      ansible_port: 2200
-      ansible_user: commune
+      ansible_user: alex
+      ansible_ssh_pass: 
+
+    shane.2222:
+      ansible_host: 24.83.20.198
+      ansible_port: 2222
+      ansible_user: shane
+      ansible_ssh_pass: 
+
+    lucky:
+      ansible_host: 144.217.254.16
+      ansible_port: 22
+      ansible_user: ubuntu
+      ansible_ssh_pass: 
+
+    
