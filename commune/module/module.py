@@ -30,7 +30,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') #  
     console = Console()
-    helper_whitelist = ['info', 'schema','server_name'] # whitelist of helper functions to load
+    helper_whitelist = ['info', 'schema','server_name', 'is_admin'] # whitelist of helper functions to load
     whitelist = [] # whitelist of modules to load
     blacklist = [] # blacklist of modules to not load
     server_mode = 'http' # http, grpc, ws (websocket)
