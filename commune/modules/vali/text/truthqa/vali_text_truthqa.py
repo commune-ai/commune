@@ -16,7 +16,7 @@ class ValiTextTruthfulQA(Vali):
         if c.server_exists(dataset):
             self.dataset = c.connect(dataset, prefix_match=True)
         else:
-            c.module('data.hf').serve(path=dataset.split('.')[-1])
+            c.module('data.hf').serve(path=dataset, wait_for_server=True)
             self.dataset = c.connect(dataset)
         return self.dataset
 

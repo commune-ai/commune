@@ -3136,7 +3136,7 @@ class c:
 
 
     
-    reg = register
+    r = reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         output_list = []
@@ -3259,7 +3259,6 @@ class c:
             for m in ['out','error']:
                 path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
-                    text += f'{m.upper()} LOGS:\n'
                     text +=  c.get_text(path, start_line=start_line, end_line=end_line)
                 except Exception as e:
                     c.print(e)
@@ -3378,13 +3377,6 @@ class c:
                             }
                       
                       }
-    
-    # @classmethod
-    # def namespace(cls, data: Dict=None) -> 'Munch':
-    #     data = data if data else {}
-    #     assert isinstance(data, dict), f'data must be a dict, got {type(data)}'
-    #     return cls.dict2munch( data)
-
     
     @classmethod
     def ray_init(cls,init_kwargs={}):
@@ -4955,17 +4947,20 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls, *args, return_future:bool =False, network=None, **kwargs) -> None:
+    def call(cls, *args, return_future:bool =False, network=None, n_calls:bool = 1 ,  prefix_match=True, **kwargs) -> None:
 
-        future = cls.async_call(*args, network=network, **kwargs)
+        futures = [cls.async_call(*args, network=network, prefix_match=prefix_match,**kwargs) for _ in range(n_calls)]
+
         if return_future:
-            return future
+            results =  futures
         else:
             try:
-                return c.gather(future)
+                results = c.gather(futures)
             except Exception as e:
                 return {'error': str(e)}
-
+        if n_calls == 1:
+            return results[0]
+        return results
 
     @classmethod
     async def async_call(cls,
@@ -7164,6 +7159,10 @@ class c:
     @classmethod
     def stake(cls, *args, **kwargs):
         return c.module('subspace')().stake(*args, **kwargs)
+    
+    @classmethod
+    def stake_multiple(cls, *args, **kwargs):
+        return c.module('subspace')().stake_multiple(*args, **kwargs)
     
     @classmethod
     def snap(cls, *args, **kwargs):
