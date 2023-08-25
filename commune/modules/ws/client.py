@@ -32,10 +32,16 @@ class WSClient(c.Module):
         
 
         
-        
+        response = ''
         async with websockets.connect(address) as websocket:
             await websocket.send(data)
-            response = await websocket.recv()
+            while True:
+                new_element = await websocket.recv()
+                if new_element == '<BREAK>':
+                    break
+                response += new_element
+                c.print(response)
+              
         
         return response
     
