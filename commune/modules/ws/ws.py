@@ -10,6 +10,8 @@ class WS(c.Module):
                  port:int=None,
                  queue_size:int=-1,
                  verbose:bool = True):
+        self.serializer = c.module('serializer')()
+
         self.set_server(ip=ip, port=port, queue_size=queue_size, verbose=verbose)
 
 
@@ -31,9 +33,13 @@ class WS(c.Module):
     async def forward(self, websocket):
         c.print(f'Starting Server Forwarding from {self.ip}:{self.port}')
 
-        async for message in websocket:
-            for i in message:
-                await websocket.send(i+'br')
+        async for m in websocket:
+            if m.startswith('{') and m.endswith('}'):
+                m = c.jload(m)
+            
+            m = self.serializer.serialize(m)
+            await websocket.send(m)
+            
             await websocket.send('<BREAK>')
 
 
