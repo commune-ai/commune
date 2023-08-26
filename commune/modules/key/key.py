@@ -325,12 +325,15 @@ class Keypair(c.Module):
 
         if isinstance(key_json, str):
             key_json = c.jload(key_json)
-        
+
 
         if json:
+            key_json['path'] = path
             return key_json
         else:
-            return cls.from_json(key_json)
+            key = cls.from_json(key_json)
+            key.path = path
+            return key
         
         
         
@@ -401,9 +404,13 @@ class Keypair(c.Module):
 
         assert not (detail and object) , 'detail and object cannot both be true'
         if detail:
-            keys = {key: cls.get_key(key).to_dict()  for key in keys}
+            key_names = keys
+            keys = {key: cls.get_key(key).to_dict()  for key in key_names}
+            for key in key_names:
+                keys[key].path = key
         if object:
             keys = [cls.get_key(key)  for key in keys]
+
             
         return keys
     
@@ -1109,8 +1116,11 @@ class Keypair(c.Module):
         assert self.verify('test',sig, self.public_key)
 
     def test_encryption(self):
-        auth = self.encrypt('test')
-        assert self.decrypt(auth) == 'test'
+        for o in ['test', {'fam': 1}, 1, 1.2, [0,2,4,]]:
+            auth = self.encrypt(o)
+            c.print(auth)
+            assert self.decrypt(auth) == o, f'Encryption failed, {self.decrypt(auth)} != {o}'
+            c.print(f'Passed encryption test for {o}', color='green')
 
     def test_key_management(self):
         if self.key_exists('test'):
@@ -1166,6 +1176,12 @@ class Keypair(c.Module):
     def key2type(cls):
         keys = cls.keys(object=True)
         return {k.path: k.crypto_type_name for k in keys}
+    @classmethod
+    def key2mem(cls, search=None):
+        keys = cls.keys(search, object=True)
+        key2mem =  {k.path: k.mnemonic for k in keys}
+        return key2mem
+        
     @classmethod
     def type2keys(cls):
         type2keys = {}

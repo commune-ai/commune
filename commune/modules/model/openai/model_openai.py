@@ -19,7 +19,6 @@ class OpenAILLM(c.Module):
                 ):
 
         config = self.set_config(config, kwargs=kwargs)
-        self.set_tag(config.tag)
         self.set_api_key(config.api_key)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)

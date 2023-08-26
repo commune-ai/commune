@@ -1,7 +1,10 @@
 model: togethercomputer/LLaMA-2-7B-32K
+# dataset: 
+#   path: opentensor/openvalidators
+#   split: train
+
 dataset: 
-  path: opentensor/openvalidators
-  split: train
+  module: finetune.data
 
 device: cuda
 max_length: 1000

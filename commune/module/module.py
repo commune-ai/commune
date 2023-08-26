@@ -960,8 +960,12 @@ class c:
 
 
 
-    
-    
+    @classmethod
+    def module_exists(cls, module:str) -> bool:
+        '''
+        Returns true if the module exists
+        '''
+        return module in c.modules()
 
     
     @classmethod
@@ -6222,8 +6226,6 @@ class c:
         if hasattr(self, 'config') and isinstance(self.config, dict):
             if 'tag' in self.config:
                 tag = self.config['tag']
-        if tag == None:
-            tag = self.default_tag
         return tag
     @tag.setter
     def tag(self, value):
@@ -7208,6 +7210,10 @@ class c:
     @classmethod
     def key_info(cls, *args, **kwargs):
         return c.module('key').key_info(*args, **kwargs)
+
+    @classmethod
+    def key2mem(cls, *args, **kwargs):
+        return c.module('key').key2mem(*args, **kwargs)
     @classmethod
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
