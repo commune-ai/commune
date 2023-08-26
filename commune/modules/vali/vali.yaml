@@ -4,7 +4,7 @@ key : null
 netuid: 0
 module_prefix: model
 network: main 
-max_stats_history: 10
+max_history: 10
 alpha: 0.9
 timeout: 2
 tag: base

@@ -716,6 +716,12 @@ class Subspace(c.Module):
             else:
                 return True
 
+    def get_unique_tag(self, module:str, tag:str=None, netuid:int=None, **kwargs):
+        if tag == None:
+            tag = ''
+        name = f'{module}{tag}'
+        return self.resolve_unique_server_name(name=name, netuid=netuid, **kwargs).split('::')[-1]
+
     def resolve_unique_server_names(self, name:str,  n:int=10,   **kwargs) -> List[str]:
         server_names = []
         for i in range(n):
@@ -736,7 +742,7 @@ class Subspace(c.Module):
             tag = ''
         name = name + tag_seperator + tag
         servers = self.servers(netuid=netuid,**kwargs)
-        if avoid_servers != None:
+        if avoid_servers == None:
             avoid_servers = []
         servers += avoid_servers
         new_name = name

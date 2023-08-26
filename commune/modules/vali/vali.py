@@ -24,6 +24,11 @@ class Validator(c.Module):
         self.count = 0
         self.errors = 0
             
+
+    @classmethod
+    def is_key(cls):
+        c.print(isinstance(c.get_key('module'), c.module('key')))
+
     def kill_workers(self):
         for w in self.workers:
             c.kill(w)
@@ -241,12 +246,9 @@ class Validator(c.Module):
         c.new_event_loop()
 
         self.running = True
-        self.epochs = 0
 
         while self.running:
     
-            
-
             modules = c.shuffle(c.copy(self.module_names))
             for i, module in enumerate(modules):
                 if self.queue.full():
@@ -262,11 +264,12 @@ class Validator(c.Module):
                     'errors': self.errors,
                     'vote_interval': self.config.vote_interval,
                     'epochs': self.epochs,
-
                      }
                     c.print(f' --> {stats}\n', color='white')
                     # c.print(self.stats(network=self.config.network)[:10], color='white')
-            self.epochs += 1
+    @property
+    def epochs(self):
+        return self.count // self.n
     
            
     def check_score(self, module):

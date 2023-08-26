@@ -19,7 +19,7 @@ class SubspaceDashboard(c.Module):
     def sync(self):
         return self.load_state(sync=True)
     
-    def load_state(self, sync=True):
+    def load_state(self, sync=False):
         self.subspace = c.module('subspace')()
         if sync:
             self.subspace.sync()
@@ -27,10 +27,6 @@ class SubspaceDashboard(c.Module):
         self.netuid = self.config.netuid
         self.subnets = self.state['subnets']
 
-        for i, s in enumerate(self.subnets):
-            for k in ['stake', 'emission', 'ratio']:
-                self.subnets[i][k] = self.subspace.format_amount(s[k], fmt='j')
-            
         self.subnet2info = {s['netuid']: s for s in self.subnets}
         self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
         self.subnet_names = [s['name'] for s in self.subnets]
@@ -79,13 +75,14 @@ class SubspaceDashboard(c.Module):
 
     def select_key(self,):
         with st.expander('Select Key', expanded=True):
-            if self.key == None:
-                key = self.subspace.most_valuable_key()
-            if key == None:
-                key = self.key.path
-            st.write(key)
+            
+
+            key = 'module'
+
             key = st.selectbox('Select Key', self.keys, index=self.key2index[key])
             self.key =  c.get_key(key)
+            if self.key.path == None:
+                self.key.path = key
             self.key_info_dict = self.subspace.key_info(self.key.path, fmt='j')
 
             st.write('Address: ', self.key.ss58_address)
@@ -363,7 +360,7 @@ class SubspaceDashboard(c.Module):
 
         with cols[0]:
             module  = st.selectbox('Select A Module', modules, 0)
-            tag = self.subspace.get_unique_tag(module=module)
+            tag = self.subspace.resolve_unique_server_name(module, tag=None ).replace(f'{module}::', '')
             subnet = st.text_input('subnet', self.config.subnet, key=f'subnet.{prefix}')
             tag = st.text_input('tag', tag, key=f'tag.{prefix}')
             # n = st.slider('replicas', 1, 10, 1, 1, key=f'n.{prefix}')

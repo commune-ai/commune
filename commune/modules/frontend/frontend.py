@@ -12,6 +12,9 @@ class Frontend(c.Module):
     def up(self, port=300):
         c.compose(path=self.frontend_path + '/docker-compose.yml')
 
+    
+    def down(self):
+        c.compose(path=self.frontend_path + '/docker-compose.yml', down=True)
 
     def docs_path(self):
         return self.frontend_path + '/docs'
