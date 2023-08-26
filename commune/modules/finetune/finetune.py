@@ -37,7 +37,7 @@ class FineTuner(c.Module):
 
     
     def set_dataset(self, config):
-        self.dataset = load_dataset(*config.dataset.split('.'), split=self.config.split)
+        self.dataset = load_dataset(*config.dataset)
         sample = self.dataset[0]
         largest_text_field_chars = 0
 

@@ -1,7 +1,8 @@
 model: togethercomputer/LLaMA-2-7B-32K
 dataset: 
   path: opentensor/openvalidators
-split: train
+  split: train
+
 device: cuda
 max_length: 1000
 tag : null
@@ -15,7 +16,6 @@ quantize:
     bnb_4bit_quant_type: nf4
     bnb_4bit_compute_dtype: torch.bfloat16
     pretraining_tp: 1
-
 train: true
 trainer:
   task_type: CAUSAL_LM
