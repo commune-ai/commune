@@ -680,35 +680,32 @@ class c:
     def get_config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
-                   to_munch:bool = True,
-                   root:bool = False) -> Munch:
+                   to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
         '''
         if not cls.has_config():
             return {}
-        kwargs = kwargs if kwargs != None else {}
-        if isinstance(config, str):
+        if config == None:
+            config = cls.load_config()
+        elif isinstance(config, str):
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
             default_config = cls.load_config()
             config = {**default_config, **config}
-        elif config == None:
-            config = cls.load_config()
+        else:
+            raise ValueError(f'config must be a dict, str or None, not {type(config)}')
         
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
+        # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
+        # for example  model.name=bert is the same as config[model][name]=bert
+
         kwargs = kwargs if kwargs != None else {}
         kwargs.update(kwargs.pop('kwargs', {}))
-        
         for k,v in kwargs.items():
             cls.dict_put(config,k,v )
-        # ensure there are no inner_args to avoid ambiguous args 
-    
-        if isinstance(config, Munch) and not to_munch:
-            config = cls.munch2dict(config)
-        
             
         #  add the config after in case the config has a config attribute lol
         if to_munch:
@@ -2353,6 +2350,9 @@ class c:
         return port 
     
     resolve_port = get_port
+
+
+
     
 
 
@@ -2515,15 +2515,9 @@ class c:
     @whitelist.setter
     def whitelist(self, whitelist:List[str]):
         self._whitelist = whitelist
-        
         return whitelist
     wl = whitelist
     bl = blacklist = []
-
-    @classmethod
-    def resolve_tag(cls, tag:str=None, **kwargs):
-        conifg = cls.config()
-        return tag
 
 
     @classmethod
@@ -2573,8 +2567,12 @@ class c:
         module_class = cls.resolve_module(module)
 
         kwargs.update(extra_kwargs)
+
+        # this automatically adds 
         kwargs['tag'] = tag
         kwargs['server_name'] = server_name
+
+
         self = module_class(**kwargs)
 
         if c.server_exists(server_name, network='local'): 
@@ -4806,6 +4804,10 @@ class c:
         return c.module('key').key2address(*args, **kwargs )
 
     @classmethod
+    def is_key(self, key:str) -> bool:
+        return c.module('key').is_key(key)
+
+    @classmethod
     def root_key(cls):
         return c.get_key()
 
@@ -6653,8 +6655,14 @@ class c:
         
     def resolve_tag(self, tag:str=None, default_tag='base'):
         if tag == None:
+            tag = self.tag
+        if tag == None:
             tag = default_tag
+        assert tag != None
         return tag
+    def resolve_tag_path(self, tag=None): 
+        tag = self.resolve_tag(tag)
+        return self.resolve_path(tag)
     
     @classmethod
     def python2types(cls, d:dict)-> dict:
@@ -7218,7 +7226,6 @@ class c:
     @key.setter
     def key(self, key):
         self._key = c.get_key(key)
-        c.get_key
         return self._key
 
     @classmethod
@@ -7633,8 +7640,6 @@ class c:
         t.daemon = daemon
         if start:
             t.start()
-
-
         fn_name = fn.__name__
         if tag == None:
             tag = ''

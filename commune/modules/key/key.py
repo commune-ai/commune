@@ -1094,10 +1094,14 @@ class Keypair(c.Module):
             try:
                 getattr(self, fn)()
             except Exception as e:
+                e = c.detailed_error(e)
                 c.print(f'Failed ({i+1}/{num_tests}) {fn} due to {e}', color='red')
             c.print(f'Passed ({i+1}/{num_tests}) {fn}', color='green')
 
-        
+    
+    @classmethod
+    def is_key(cls, key) -> bool:
+        return isinstance(key, Keypair)
 
     def test_signing(self):
         sig = self.sign('test')
@@ -1111,9 +1115,10 @@ class Keypair(c.Module):
     def test_key_management(self):
         if self.key_exists('test'):
             self.rm_key('test')
-        key1 = self.add_key('test')
+        key1 = self.get_key('test')
         assert self.key_exists('test'), f'Key management failed, key still exists'
-        key2 = self.mv_key('test', 'test2')
+        self.mv_key('test', 'test2')
+        key2 = self.get_key('test2')
         assert key1.ss58_address == key2.ss58_address, f'Key management failed, {key1.ss58_address} != {key2.ss58_address}'
         assert self.key_exists('test2'), f'Key management failed, key does not exist'
         assert not self.key_exists('test'), f'Key management failed, key still exists'

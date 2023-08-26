@@ -19,12 +19,8 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
-        access:str = 'public',
         sse: bool = True,
-        max_history: int = 100,
-        save_history_interval: int = 100,
         max_request_staleness: int = 100,
-        max_result_chars = 100,
         key = None,
         root_key = None,
     ) -> 'Server':
@@ -37,21 +33,17 @@ class HTTPServer(c.Module):
         self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
-        self.set_access(access)
-        self.max_result_chars = max_result_chars
-        
-
-        if not hasattr(module, 'key'):
-            module.key = c.get_key(name)
-        # KEY FOR SIGNING DATA
-        self.key = c.get_key(name) if key == None else key
+        # GET THE KEY FROM THE MODULE IF 
+        if key == None:
+            module.key = key = c.get_key(name)
+        self.key = key
+        assert c.is_key(self.key), f"Key must be a valid key"
 
 
         # WHITE AND BLACK LIST FUNCTIONS
         
         self.whitelist = getattr( module, 'whitelist', []) if whitelist == None else whitelist
         self.blacklist = getattr( module, 'blacklist', []) if blacklist == None else blacklist
-        self.save_history_interval = save_history_interval
         self.max_request_staleness = max_request_staleness
         self.history = []
         # ensure that the module has a name
@@ -82,9 +74,6 @@ class HTTPServer(c.Module):
         self.module.key = self.key
         self.serve()
 
-    def set_access(self, access: str) -> None:
-        assert access in self.access_modes, f"Access mode must be one of {self.access_modes}"
-        self.access = access
 
     def state_dict(self) -> Dict:
         return {
@@ -118,6 +107,7 @@ class HTTPServer(c.Module):
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
         return input
     
+
 
     def verify_fn_access(self,input) -> bool:
         address = input.get('address', None)

@@ -61,9 +61,9 @@ class Client(c.Module):
     
 
     async def async_forward(self,
-        fn,
-        args = None,
-        kwargs = None,
+        fn: str,
+        args: list = None,
+        kwargs: dict = None,
         ip: str = None,
         port : int= None,
         timeout: int = 4,
@@ -99,6 +99,7 @@ class Client(c.Module):
                         # Process SSE events
                         result = ''
                         async for line in response.content:
+                            # remove the "data: " prefix
                             event_data = line.decode('utf-8').strip().split('data: ')[-1]
                             result += event_data
                         # result = self.serializer.deserialize(result)
@@ -108,18 +109,27 @@ class Client(c.Module):
                     else:
                         raise Exception(f"Unknown content type: {response.content_type}")
         
-        
+        ## handles 
+        result = self.handle_older_versions(result)
+
         return result
 
-    
-    def forward(self,*args,return_future=False, **kwargs):
+
+    def handle_older_versions(self, result):
+
+        if 'data' in result and isinstance(result['data'], str) 
+        if  'server_name' in result['data']:
+            result = self.serializer.deserialize(result['data'])
+
+        return result 
+        
+    def forward(self,*args,return_future:bool=False, **kwargs):
         forward_future =  self.async_forward(*args, **kwargs)
         if return_future:
             return forward_future
         else:
-            # asyncio.wait_for(forward_future, timeout=timeout)
-
-            return self.loop.run_until_complete(forward_future)
+            # 
+            return self.loop.run_until_complete(asyncio.wait_for(forward_future, timeout=timeout))
         
     __call__ = forward
 
