@@ -25,10 +25,6 @@ class Validator(c.Module):
         self.errors = 0
             
 
-    @classmethod
-    def is_key(cls):
-        c.print(isinstance(c.get_key('module'), c.module('key')))
-
     def kill_workers(self):
         for w in self.workers:
             c.kill(w)

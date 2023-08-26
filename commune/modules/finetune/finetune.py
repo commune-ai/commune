@@ -37,11 +37,16 @@ class FineTuner(c.Module):
 
     
     def set_dataset(self, config):
-        self.dataset = load_dataset(*config.dataset)
+
+        if c.module_exists(config.dataset.get('module', None)):
+            self.dataset = c.module(module)(**config.dataset)
+        else:
+            self.dataset = load_dataset(**config.dataset)
+
+        # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
         sample = self.dataset[0]
         largest_text_field_chars = 0
 
-        # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
         for k, v in sample.items():
             if isinstance(v, str):
                 if len(v) > largest_text_field_chars:
@@ -85,11 +90,9 @@ class FineTuner(c.Module):
         output_dir =  self.resolve_path(output_dir)
         self.config.trainer.args.output_dir = output_dir
         return output_dir
-    def train(self):
 
 
-
-
+    def set_trainer(self, config):
         if self.config.trainer.task_type == 'CAUSAL_LM':
             self.peft_config = LoraConfig(**self.config.trainer.lora)
             self.model = prepare_model_for_int8_training(self.model)
@@ -103,15 +106,12 @@ class FineTuner(c.Module):
                 tokenizer=self.tokenizer,
                 args=TrainingArguments(**self.config.trainer.args),
             )
-        else:
-            raise NotImplementedError
-        
+    def train(self):
         self.trainer.train()
         self.save_checkpoint()
 
     def save_checkpoint(self):
-        import os
-        checkpoint_output_dir = os.path.join(self.config.trainer.output_dir, "final_checkpoint")
+        checkpoint_output_dir = self.config.trainer.output_dir +  "/final_checkpoint"
         self.trainer.model.save_pretrained(checkpoint_output_dir)
     #lora config
 
