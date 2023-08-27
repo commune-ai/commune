@@ -26,7 +26,6 @@ class Storage(c.Module):
     def get(self,k) -> Any:
         path = self.resolve_store_path(k)
         v = c.get(f'{self.store_dirpath}/{k}', {})
-
         v = v['data']
         v = self.serializer.deserialize(v)['data']
         return v
@@ -42,7 +41,7 @@ class Storage(c.Module):
         return c.rm(path)
 
 
-    def ls_items(self, search=None) -> List:
+    def ls(self, search=None) -> List:
         path = self.store_dirpath
         return c.ls(path)
 

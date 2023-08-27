@@ -276,6 +276,11 @@ class Docker(c.Module):
         return c.save_yaml(path, compose)
     
 
+    @classmethod
+    def down(cls, path='frontend'):
+        path = cls.get_compose_path(path)
+        return c.cmd('docker-compose -f {path} down', verbose=True)
+
 
     @classmethod
     def compose(cls, 
@@ -287,13 +292,14 @@ class Docker(c.Module):
                 cmd : str = None,
                 build: bool = False,
                 project_name: str = None,
-                cwd : str = None
+                cwd : str = None,
+                down: bool = False
                 ):
         
 
 
         cmd = f'docker-compose' if dash else f'docker compose'
-        
+
         path = cls.get_compose_path(path)
         if compose == None:
             compose = cls.get_compose(path)

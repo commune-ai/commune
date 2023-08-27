@@ -6347,11 +6347,12 @@ class c:
         
         
     @classmethod
-    def cp(cls, path1, path2):
+    def cp(cls, path1:str, path2:str, refresh:bool = False):
         import shutil
         # what if its a folder?
         assert os.path.exists(path1), path1
-        assert not os.path.exists(path2), path2
+        if refresh == False:
+            assert not os.path.exists(path2), path2
         
         if os.path.isdir(path1):
             shutil.copytree(path1, path2)
