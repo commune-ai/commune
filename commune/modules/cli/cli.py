@@ -83,9 +83,9 @@ class CLI(c.Module):
         else:
             raise Exception ('No module, function or server found for {args[0]}')
 
-        if result == None:
-            c.print('None')
-        elif c.is_generator(result):
+        if isinstance(result, type(None)):
+            return 'None'
+        if c.is_generator(result):
             for i in result:
                 c.print(i)
         else:

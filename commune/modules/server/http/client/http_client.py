@@ -78,36 +78,36 @@ class Client(c.Module):
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         url = f"http://{self.address}/{fn}/"
+
         request_data =  { 
-            
                         "args": args,
                          "kwargs": kwargs,
                          "ip": self.my_ip,
                          "timestamp": c.timestamp(),
                          }
 
-        
         request_data = self.serializer.serialize( request_data)
-        request = c.copy(self.key.sign(request_data, return_json=True))
+
+        # sign the request
+        request = self.key.sign(request_data, return_json=True)
 
         assert self.key.verify(request), f"Request not signed with correct key"
 
-
         async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=request, headers=headers) as response:
-                    if response.content_type == 'text/event-stream':
-                        # Process SSE events
-                        result = ''
-                        async for line in response.content:
-                            # remove the "data: " prefix
-                            event_data = line.decode('utf-8').strip().split('data: ')[-1]
-                            result += event_data
-                        # result = self.serializer.deserialize(result)
-                    elif response.content_type == 'application/json':
-                        result = await asyncio.wait_for(response.json(), timeout=timeout)
-                        result = self.serializer.deserialize(result)
-                    else:
-                        raise Exception(f"Unknown content type: {response.content_type}")
+            async with session.post(url, json=request, headers=headers) as response:
+                if response.content_type == 'text/event-stream':
+                    # Process SSE events
+                    result = ''
+                    async for line in response.content:
+                        # remove the "data: " prefix
+                        event_data = line.decode('utf-8').strip().split('data: ')[-1]
+                        result += event_data
+                    # result = self.serializer.deserialize(result)
+                elif response.content_type == 'application/json':
+                    result = await asyncio.wait_for(response.json(), timeout=timeout)
+                    result = self.serializer.deserialize(result)
+                else:
+                    raise Exception(f"Unknown content type: {response.content_type}")
         
         ## handles 
         result = self.handle_older_versions(result)

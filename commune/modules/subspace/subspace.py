@@ -571,11 +571,6 @@ class Subspace(c.Module):
         
         return self.format_amount( result.value, fmt = fmt )
         
-        
-    
-
-        
-
     #################
     #### Serving ####
     #################
@@ -1441,7 +1436,13 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
-    def stats(self, netuid=None,  cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions', 'serving', 'stake_to', 'stake_from'], df:bool=True, update:bool = True, **kwargs):
+    def stats(self, 
+              netuid=None,  
+              cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions', 'serving', 'stake_to', 'stake_from'], 
+              records:bool=False, 
+              update:bool = False, 
+              **kwargs
+              ):
         if update:
             self.sync()
         key_stats = []
@@ -1455,27 +1456,24 @@ class Subspace(c.Module):
             key_info['serving'] = key_info['name'] in servers
             key_stats.append(key_info)
 
-
         for s in servers:
             if s not in keys:
                 default_row = {'name': s, 'serving': True, 'registered': False, 'balance': 0, 'stake': 0, 'dividends': 0, 'incentive': 0}
                 key_stats.append(default_row)
 
-
-
         df_key_stats =  c.df(key_stats)
         # sort based on registered and balance
         if len(df_key_stats) > 0:
-            df_key_stats.sort_values(by=['registered', 'balance'], ascending=False, inplace=True)
-        if df:
-            return df_key_stats
-        else:
+            df_key_stats.sort_values(by=['registered'], ascending=False, inplace=True)
+        if records:
             return df_key_stats.to_dict('records')
+        else:
+            return df_key_stats
         
     def check_servers(self, netuid=None):
         self.sync()
-        for m in c.stats(netuid=netuid, df=False):
-            if m['serving'] == False:
+        for m in c.stats(netuid=netuid, records=True):
+            if m['serving'] == False and m['registered']:
                 c.serve(m['name'])
     
     def key_info(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'], **kwargs):
@@ -2581,6 +2579,7 @@ class Subspace(c.Module):
 
     def unregistered_servers(self, netuid = None, network = network,  **kwargs):
         netuid = self.resolve_netuid(netuid)
+        network = self.resolve_network(network)
         network = self.resolve_network(network)
         servers = c.servers(network='local')
         unregistered_keys = []
