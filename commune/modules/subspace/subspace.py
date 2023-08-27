@@ -2519,8 +2519,11 @@ class Subspace(c.Module):
         if build_runtime or build_spec:
             cls.build(chain=chain, verbose=verbose, build_snapshot=build_snapshot, build_runtime=build_runtime, build_spec=build_spec)
     
+        cls.add_node_keys(chain=chain, refresh=False)
+
         vali_nodes = list(cls.vali_node_keys(chain=chain).keys())[:max_nonvali_nodes]
         nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())[:max_vali_nodes]
+
 
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
@@ -2674,11 +2677,7 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls,  valis:int=16, nonvalis:int=16, chain:str=chain, refresh:bool=True ):
-
-        if refresh:
-            cls.rm_node_keys(chain=chain)
-
+    def add_node_keys(cls,  valis:int=16, nonvalis:int=16, chain:str=chain, refresh:bool=False ):
         for i in range(valis):
             cls.add_node_key(node=i,  mode='vali' , chain=chain, refresh=refresh)
         for i in range(nonvalis):
@@ -2804,7 +2803,9 @@ class Subspace(c.Module):
                      chain = chain,
                      tag_seperator = '_', 
                      refresh: bool = False,):
-        
+        '''
+        adds a node key
+        '''
         cmds = []
 
         assert mode in ['vali', 'nonvali'], f'Unknown mode {mode}, must be one of vali, nonvali'
