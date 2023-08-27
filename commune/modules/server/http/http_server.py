@@ -37,7 +37,7 @@ class HTTPServer(c.Module):
         if key == None:
             module.key = key = c.get_key(name)
         self.key = key
-        assert c.is_key(self.key), f"Key must be a valid key"
+        # assert c.is_key(self.key), f"Key must be a valid key"
 
 
         # WHITE AND BLACK LIST FUNCTIONS
@@ -54,12 +54,8 @@ class HTTPServer(c.Module):
             module = module()
 
         if name == None:
-            name = module.name()
-
+            name = module.server_name
         self.name = name
-        for k in ['module_name', 'module_id', 'name', 'server_name']:
-            if k not in module.__dict__:
-                module.__dict__[k] = name
                 
         # register the server
         module.ip = self.ip
