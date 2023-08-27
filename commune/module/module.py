@@ -1942,6 +1942,8 @@ class c:
         # CONNECT TO THE MODULE
         if 'None' in address:
             raise Exception(f'Invalid address {address}')
+        if ip == c.ip():
+            ip = '0.0.0.0'
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
 

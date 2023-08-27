@@ -13,7 +13,6 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 
-
 class FineTuner(c.Module):
     def __init__(self, 
             model_id: str, 
@@ -98,7 +97,11 @@ class FineTuner(c.Module):
             bias=self.lora_bias,
             task_type=self.lora_task_type,
         )
+
+        # int8 training
         self.model = prepare_model_for_int8_training(self.model)
+
+        #lora
         self.model = get_peft_model(self.model, lora_config)
 
         #data collator
