@@ -20,7 +20,7 @@ class Vali(c.Module):
     def init_vali(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
-        config = {**Vali.config(), **config}
+        self.config = c.munch({**Vali.config(), **config})
         self.sync( )
         self.start_time = c.time()
         self.count = 0
@@ -107,6 +107,8 @@ class Vali(c.Module):
         module_stats['key'] = module_info['key']
         module_stats['uid'] = module_info['uid']
         module_stats['timestamp'] = c.timestamp()
+
+        # add the history of this module
         module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
         module_stats['history'] = module_stats['history'][-self.config.max_history:]
         self.save_module_stats(module_name, module_stats)
@@ -129,12 +131,15 @@ class Vali(c.Module):
         return cls.rm(path)
 
     @classmethod
-    def stats(cls, network='main', df=True, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
+    def stats(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
         stats = cls.load_stats( network=network, keys=keys)
 
         if df:
             stats = c.df(stats)
             stats.sort_values('w', ascending=False, inplace=True)
+
+        
+        
         return stats
 
     def vote(self):

@@ -2171,7 +2171,7 @@ class c:
         return c.gather(c.async_get_peer_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_peer_name(peer_address, connect_timeout=2, fn_timeout=2,**kwargs):
+    async def async_get_peer_name(peer_address:str, connect_timeout:int=2, fn_timeout:int=2, verbose:bool=False, **kwargs):
         try:
             peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
 
@@ -2185,7 +2185,7 @@ class c:
 
             server_name = await asyncio.wait_for(server_name, timeout=fn_timeout)
 
-            c.print(f'Getting peer name from {server_name}', color='green')
+            c.print(f'Getting peer name from {server_name}', color='green', verbose=verbose)
 
             if c.check_response(server_name):
                 return server_name
@@ -2198,7 +2198,7 @@ class c:
                 
     @classmethod
     def namespace_local(cls,
-                        update:bool=True,
+                        update:bool=False,
                         chunk_size:int=10, 
                         **kwargs)-> dict:
         '''
@@ -2350,8 +2350,13 @@ class c:
         return loop
 
     @classmethod
-    def server_exists(cls, name:str, network:str = None,  **kwargs) -> bool:
-        return bool(name in cls.servers(network=network, **kwargs)) and name in cls.pm2_list()
+    def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
+        servers = cls.servers(network=network, **kwargs)
+        if prefix_match:
+            return any([s for s in servers if s.startswith(name)])
+        else:
+            return bool(name in servers)
+        return 
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -2593,7 +2598,7 @@ class c:
                 raise Exception(f'The server {server_name} already exists')
             
         server = c.module(f'server.{server_mode}')(module=self, name= server_name)
-        return server.server_name
+        return server.name
 
     serve_module = serve
     @classmethod
@@ -7706,13 +7711,13 @@ class c:
     # USER LAND
     ##################################
     @classmethod
-    def add_user(cls, address, role='admin', **kwargs):
+    def add_user(cls, address, role='user', **kwargs):
 
 
         users = cls.get('users', {})
         info = {'role': role, **kwargs}
         users[address] = info
-        c.put('users', users)
+        cls.put('users', users)
         return {'success': True, 'user': address,'info':info}
     
     @classmethod
@@ -7722,6 +7727,11 @@ class c:
         if root_key_address not in users:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
+
+    
+    @classmethod
+    def is_user(self, address):
+        return address in self.users()
     
     @classmethod
     def get_user(cls, address):
@@ -7759,8 +7769,11 @@ class c:
     def admins(cls):
         return [k for k,v in cls.users().items() if v['role'] == 'admin']
     @classmethod
-    def add_admin(cls, address, ):
+    def add_admin(cls, address):
         return  cls.add_user(address, role='admin')
+
+    def num_roles(self, role:str):
+        return len([k for k,v in self.users().items() if v['role'] == role])
     @classmethod
     def rm_user(cls, address):
         users = cls.get('users', {})

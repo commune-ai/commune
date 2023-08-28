@@ -14,4 +14,4 @@ module_prefix: model.openai
 parallel_jobs: 10
 start: True
 voting_interval: 50
-dataset : data.text.truthqa
+dataset : data.text.truth
