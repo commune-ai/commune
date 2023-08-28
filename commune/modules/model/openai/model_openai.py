@@ -83,7 +83,8 @@ class OpenAILLM(c.Module):
         
 
     
-    def forward(self,prompt:str = 'sup?',
+    def forward(self,
+                prompt:str = 'sup?',
                 model:str = 'gpt-3.5-turbo',
                 presence_penalty:float = 0.0, 
                 frequency_penalty:float = 0.0,
