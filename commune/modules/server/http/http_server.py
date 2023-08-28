@@ -33,12 +33,6 @@ class HTTPServer(c.Module):
         self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
-        # GET THE KEY FROM THE MODULE IF 
-        if key == None:
-            module.key = key = c.get_key(name)
-        self.key = key
-        # assert c.is_key(self.key), f"Key must be a valid key"
-
 
         # WHITE AND BLACK LIST FUNCTIONS
         
@@ -52,22 +46,24 @@ class HTTPServer(c.Module):
             module = c.module(module)()
         elif isinstance(module, type):
             module = module()
-
-        if name == None:
-            name = module.server_name
-        self.name = name
-                
+            
+        # RESOLVE THE NAME OF THE SERVER
+        self.name = module.server_name =  name if name != None else module.server_name
+        
+        # GET THE KEY FROM THE MODULE IF 
+        if key == None:
+            module.key = c.get_key(self.name)
+        self.key = module.key      
         # register the server
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
-
-
-        c.print(f'Serving {name} on port {port})', color='yellow')
-        self.module.set_server_name(name)
         self.module.key = self.key
+
+
+
         self.serve()
 
 
@@ -127,36 +123,30 @@ class HTTPServer(c.Module):
         input = self.verify_fn_access(input)
 
         return input
-    
-    @staticmethod
-    def event_source_response(generator):
-        from sse_starlette.sse import EventSourceResponse
-        if c.is_generator(generator):
-            return EventSourceResponse(generator)
-        else:
-            return generator
+
+
+
+    def generator_wrapper(self, generator):
+        if not c.is_generator(generator):
+            generator = [generator]
+            
+        for item in generator:
+            item = self.serializer.serialize(item)
+            yield item
+        
     
     
     def process_result(self,  result):
         if self.sse == True:
-            # if we are using sse, we want to include one time calls too
-            return self.event_source_response(result)
+            # for sse we want to wrap the generator in an eventsource response
+            from sse_starlette.sse import EventSourceResponse
+            result = self.generator_wrapper(result)
+            return EventSourceResponse(result)
         else:
-            # if we are not using sse then we want to convert the generator to a list
-            # WARNING : This will not work for infinite loops lol because it will never end
             if c.is_generator(result):
                 result = list(result)
-
-        if not isinstance(result, dict):
-            result = {'server_result': result}
-        result = self.serializer.serialize(result)
-        
-        # sign result data (str)
-        result =  self.key.sign(result, return_json=True)
-
-        return result
-
-
+            result = self.serializer.serialize(result)
+            return result
 
     def check_user(self, address):
         # check if the user is allowed
@@ -234,6 +224,8 @@ class HTTPServer(c.Module):
         try:
             c.print(f'\033🚀 Serving {self.name} on {self.ip}:{self.port} 🚀\033')
             c.register_server(name=self.name, ip=self.ip, port=self.port)
+
+            c.print(f'\033🚀 Registered {self.name} on {self.ip}:{self.port} 🚀\033')
 
             uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:

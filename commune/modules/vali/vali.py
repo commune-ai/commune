@@ -9,16 +9,19 @@ import queue
 
 
 
-class Validator(c.Module):
+class Vali(c.Module):
 
     def __init__(self, config=None,  **kwargs):
         self.init_vali(config=config, **kwargs)
+
         if self.config.start:
             self.start()
 
     def init_vali(self, config=None, **kwargs):
-
-        self.set_config(config=config, kwargs=kwargs)
+        config = self.set_config(config=config, kwargs=kwargs)
+        # merge the config with the default config
+        config = {**Vali.config(), **config}
+        self.config['sleep_time'] = self.config.get('sleep_time', 10)
         self.sync( )
         self.start_time = c.time()
         self.count = 0
@@ -215,6 +218,7 @@ class Validator(c.Module):
 
 
     def run_worker(self):
+        c.sleep(self.config.sleep_time)
         # we need a new event loop for each thread
         loop = c.new_event_loop()
         while True:
@@ -229,6 +233,7 @@ class Validator(c.Module):
 
 
     def vote_loop(self):
+        c.sleep(self.config.sleep_time)
         while True:
             c.sleep(1)
             if self.vote_staleness > self.config.vote_interval:
@@ -236,7 +241,7 @@ class Validator(c.Module):
 
 
     def run(self, vote=False):
-
+        c.sleep(self.config.sleep_time)
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
 
         c.new_event_loop()
