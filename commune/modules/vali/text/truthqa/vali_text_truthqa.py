@@ -13,7 +13,7 @@ class ValiTextTruthfulQA(Vali):
 
 
     def set_dataset(self, dataset:str , **kwargs):
-        if c.server_exists(dataset):
+        if c.server_exists(dataset, prefix_match=True):
             self.dataset = c.connect(dataset, prefix_match=True)
         else:
             c.module('data.hf').serve(path=dataset, wait_for_server=True)
@@ -54,7 +54,7 @@ class ValiTextTruthfulQA(Vali):
         ```json'''
 
         # generate the output
-        output: str = model.generate(max_tokens=256)
+        output: str = model.generate()
 
         # parse the output to get the answer_idx
         answer_idx: list = self.parse_output(output)
