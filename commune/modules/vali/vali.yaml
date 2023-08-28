@@ -15,3 +15,4 @@ verbose: False
 batch_size: 4
 refresh_stats: False
 vote_interval: 10
+sleep_time: 10

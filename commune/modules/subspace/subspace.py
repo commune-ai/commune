@@ -467,8 +467,8 @@ class Subspace(c.Module):
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Success[/green]")
             return {'success': True, 'message': f'Successfully registered module {name} with address {address}'}
-            if sync:
-                self.sync()
+            # if sync:
+            #     self.sync()
         else:
             c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
             return {'success': False, 'message': response.error_message}    
@@ -591,10 +591,16 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)  
         module_info = self.get_module(module)
 
+        if name == None:
+            name = module
+    
+        if address == None:
+            namespace_local = c.namespace(network='local')
+            address = namespace_local[name]
+
         if name == module_info['name'] and address == module_info['address']:
             c.print(":cross_mark: [red]Module already registered[/red]:[bold white]\n  {}[/bold white]".format(module))
             return {'success': False, 'message': 'Module already registered'}
-
 
         params = {
             'name': name,
@@ -606,9 +612,6 @@ class Subspace(c.Module):
 
         params['netuid'] = netuid
 
-        if address == None:
-            namespace_local = c.namespace(network='local')
-            address = namespace_local[name]
 
         with self.substrate as substrate:
             call_params =  {'address': address,
@@ -776,7 +779,7 @@ class Subspace(c.Module):
             wait_for_finalization: bool = True,
             network:str = None,
             existential_deposit: float = 0.1,
-            sync: bool = True
+            sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
@@ -1167,7 +1170,7 @@ class Subspace(c.Module):
     ###########################
 
     @property
-    def block (self, network:str=None) -> int:
+    def block(self, network:str=None) -> int:
         return self.get_current_block(network=network)
 
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
@@ -1278,15 +1281,15 @@ class Subspace(c.Module):
     
 
     def state_dict(self, network=network, key=None, inlcude_weights:bool=False, cache:bool=True, update:bool=False, verbose:bool=False):
-        block = self.block
         # cache and update are mutually exclusive 
         state_dict = {}
-        if cache and not update:
+        if cache and update == False:
             c.print('Loading state_dict from cache', verbose=verbose)
             state_dict = self.latest_archive()
 
         
         if len(state_dict) == 0:
+            block = self.block
             netuids = self.netuids()
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
@@ -1445,23 +1448,24 @@ class Subspace(c.Module):
               ):
         if update:
             self.sync()
-        key_stats = []
+        key_stats_list = []
         servers = c.servers(network='local')
 
         keys = self.my_keys(netuid=netuid)
+
         for key in keys:
-            key_info = self.key_info(key, netuid=netuid, cols=cols, **kwargs)
-            if key_info['name'] == None:
-                key_info['name'] = key
-            key_info['serving'] = key_info['name'] in servers
-            key_stats.append(key_info)
+            key_stats = self.key_stats(key, netuid=netuid, cols=cols, **kwargs)
+            if key_stats['name'] == None:
+                key_stats['name'] = key
+            key_stats['serving'] = key_stats['name'] in servers
+            key_stats_list.append(key_stats)
 
         for s in servers:
             if s not in keys:
                 default_row = {'name': s, 'serving': True, 'registered': False, 'balance': 0, 'stake': 0, 'dividends': 0, 'incentive': 0}
-                key_stats.append(default_row)
+                key_stats_list.append(default_row)
 
-        df_key_stats =  c.df(key_stats)
+        df_key_stats =  c.df(key_stats_list)
         # sort based on registered and balance
         if len(df_key_stats) > 0:
             df_key_stats.sort_values(by=['registered'], ascending=False, inplace=True)
@@ -1471,38 +1475,37 @@ class Subspace(c.Module):
             return df_key_stats
         
     def check_servers(self, netuid=None):
-        self.sync()
         for m in c.stats(netuid=netuid, records=True):
-            if m['serving'] == False and m['registered']:
+            if m['serving'] == False and m['registered'] == True:
                 c.serve(m['name'])
     
-    def key_info(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'], **kwargs):
+    def key_stats(self, key, netuid=None, fmt='j', cache = True, cols=['name', 'stake', 'balance', 'stake_to'], **kwargs):
         
-        key_info = {}
+        key_stats = {}
         netuid = self.resolve_netuid(netuid)
         module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
 
         
         if 'name' in cols:
-            key_info['name'] = module.get('name', None)
+            key_stats['name'] = module.get('name', None)
         if 'registered' in cols:
-            key_info['registered'] = bool(module.get('name'))
+            key_stats['registered'] = bool(module.get('name'))
         if 'address' in cols:
-            key_info['address'] = module['key']
+            key_stats['address'] = module['key']
         if 'balance' in cols:
-            key_info['balance'] = self.balance(key, fmt=fmt)
+            key_stats['balance'] = self.balance(key, fmt=fmt)
         if 'stake' in cols:
-            key_info['stake'] = module.get('stake', 0)
+            key_stats['stake'] = module.get('stake', 0)
         if 'stake_to' in cols:
-            key_info['stake_to'] =  self.get_staked_modules(key ,netuid=netuid, fmt=fmt)
+            key_stats['stake_to'] =  self.get_staked_modules(key ,netuid=netuid, fmt=fmt)
         if 'incentive' in cols:
-            key_info['incentive'] = module.get('incentive', 0)
+            key_stats['incentive'] = module.get('incentive', 0)
         if 'dividends' in cols:
-            key_info['dividends'] = module.get('dividends', 0)
+            key_stats['dividends'] = module.get('dividends', 0)
         if 'emission' in cols:
-            key_info['emission'] = module.get('emission', 0)
+            key_stats['emission'] = module.get('emission', 0)
 
-        return key_info
+        return key_stats
 
         
     
@@ -1693,8 +1696,8 @@ class Subspace(c.Module):
         
         return { m['name']: m['key'] for m in modules}
         
-    def is_unique_name(netuid=None):
-        return name in self.namespace(netuid=netuid)
+    def is_unique_name(self, name: str, netuid=None):
+        return bool(name not in self.namespace(netuid=netuid))
 
 
     def namespace(self, **kwargs) -> Dict[str, str]:
@@ -2950,18 +2953,6 @@ class Subspace(c.Module):
         return kwargs
          
          
-         
-    @classmethod
-    def get_key_info(cls, key, netuid=None, network=None):
-        netuid = cls.resolve_netuid(netuid)
-        network = cls.resolve_network(network)
-        key = cls.resolve_key(key)
-        
-        key_info = {
-            'key': key.ss58_address,
-            'is_registered': cls.is_registered(key, netuid=netuid, network=network),
-        }
-        return key_info
          
         
     @classmethod

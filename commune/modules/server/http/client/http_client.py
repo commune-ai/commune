@@ -110,18 +110,18 @@ class Client(c.Module):
                     raise Exception(f"Unknown content type: {response.content_type}")
         
         ## handles 
-        result = self.handle_older_versions(result)
+        # result = self.handle_older_versions(result)
 
         return result
 
 
-    def handle_older_versions(self, result):
+    # def handle_older_versions(self, result):
 
-        if 'data' in result and isinstance(result['data'], str) 
-        if  'server_name' in result['data']:
-            result = self.serializer.deserialize(result['data'])
+    #     if 'data' in result and isinstance(result['data'], str) 
+    #     if  'server_name' in result['data']:
+    #         result = self.serializer.deserialize(result['data'])
 
-        return result 
+    #     return result 
         
     def forward(self,*args,return_future:bool=False, **kwargs):
         forward_future =  self.async_forward(*args, **kwargs)

@@ -2182,7 +2182,11 @@ class c:
 
             server_name = peer(fn='server_name',  return_future=True)
 
+
             server_name = await asyncio.wait_for(server_name, timeout=fn_timeout)
+
+            c.print(f'Getting peer name from {server_name}', color='green')
+
             if c.check_response(server_name):
                 return server_name
             else:
@@ -2194,7 +2198,7 @@ class c:
                 
     @classmethod
     def namespace_local(cls,
-                        update:bool=False,
+                        update:bool=True,
                         chunk_size:int=10, 
                         **kwargs)-> dict:
         '''
@@ -2208,10 +2212,12 @@ class c:
 
         if update : 
         
-            used_ports = cls.get_used_ports()
+            used_ports = c.get_used_ports()
             ip = c.default_ip
             addresses = [ f'{ip}:{p}' for p in used_ports]
             namespace_local = {}
+
+            c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
 
             for i in range(0, len(addresses), chunk_size):
                 addresses_chunk = addresses[i:i+chunk_size]
@@ -2250,13 +2256,14 @@ class c:
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int = None,  **kwargs)-> dict:
-        namespace_local = cls.namespace_local(update=False)    
+        namespace_local = c.namespace_local(update=False)    
 
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
             ip = ip.split(':')[0]
         namespace_local[name] = f'{ip}:{port}'
-        cls.put_json('namespace_local', namespace_local, root=True) 
+        c.put_json('namespace_local', namespace_local, root=True) 
+        assert c.server_exists(name), f'Failed to register server {name} with address {ip}:{port}'
         return namespace_local
 
 
@@ -2386,10 +2393,9 @@ class c:
                           sleep_interval: int = 1) -> bool :
         
         time_waiting = 0
-        cls.namespace_local()
         logs = []
         while not c.server_exists(name, network='local'):
-            cls.sleep(sleep_interval)
+            c.sleep(sleep_interval)
             time_waiting += sleep_interval
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
             print_logs = [l for l in new_logs if l not in logs]
@@ -2536,7 +2542,7 @@ class c:
               server_name:str=None, 
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = True, # waits for the server to start before returning
+              wait_for_server:bool = False, # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
@@ -3123,11 +3129,14 @@ class c:
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
-
+        if not subspace.is_unique_name(server_name, netuid=subnet):
+            return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
+        
         server_name = module.serve(
                             server_name=server_name, 
                             wait_for_server=True, 
                             refresh=refresh, 
+                            tag=tag,
                             **kwargs)
         subspace.register(name=server_name, subnet=subnet)
         c.sync()
@@ -7661,6 +7670,13 @@ class c:
         cls.thread_map[name] = t
 
         return t
+
+    def join_threads(self, threads:[str, list]):
+
+        threads = self.thread_map
+        for t in threads:
+            self.join_thread(t)
+
     @classmethod
     def thread_fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
         args = args or []
