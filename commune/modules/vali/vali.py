@@ -21,7 +21,6 @@ class Vali(c.Module):
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
         config = {**Vali.config(), **config}
-        self.config['sleep_time'] = self.config.get('sleep_time', 10)
         self.sync( )
         self.start_time = c.time()
         self.count = 0
@@ -172,8 +171,9 @@ class Vali(c.Module):
         
         return {'success': True, 'message': 'Voted'}
     @classmethod
-    def load_stats(cls, network:str='main', batch_size=400, keys:str=None):
-        paths = cls.ls(f'stats/{network}')
+    def load_stats(cls, network:str='main', batch_size=400, keys:str=None, tag=None):
+        tag = 'base' if tag == None else tag
+        paths = cls.ls(f'stats/{network}/{tag}')
         jobs = [c.async_get_json(p) for p in paths]
         module_stats = []
         for jobs_batch in c.chunk(jobs, batch_size):
@@ -184,7 +184,7 @@ class Vali(c.Module):
                 if keys  != None:
                     s = {k: s.get(k,None) for k in keys}
                 module_stats += [s]
-                c.print(f'Loaded {len(module_stats)} stats', color='cyan')
+                # c.print(f'Loaded {len(module_stats)} stats', color='cyan')
         c.print(f'COMPLETED -> Loaded {len(module_stats)} stats', color='cyan')
         return module_stats
 

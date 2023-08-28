@@ -434,8 +434,11 @@ class Subspace(c.Module):
         address = address.replace('0.0.0.0',c.ip())
         if self.is_registered(name, netuid=netuid):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+
+        #
         stale_modules = self.stale_modules(netuid=netuid)
         if  len(stale_modules) > 0:
+            c.print(f'Stale modules found, updating {stale_modules[0]} -> {name}')
             return self.update_module(module=stale_modules[0], name=name, address=address , netuid=netuid, network=network)
 
         key = self.resolve_key(name)
