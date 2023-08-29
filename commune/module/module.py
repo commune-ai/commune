@@ -1265,6 +1265,29 @@ class c:
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
 
+
+    @classmethod
+    def restart_servers(cls, module:str=None, mode:str = 'pm2'):
+        '''
+        Kill the server by the name
+        '''
+        fn = getattr(cls, f'{mode}_restart')
+        for module in c.servers(module,network='local'):
+            c.print(f'Restarting {module}', color='red')
+            # fn(module)
+
+    @classmethod
+    def pm2_restart_all(cls):
+        '''
+        Kill the server by the name
+        '''
+        for p in c.pm2_list():
+            c.print(f'Restarting {p}', color='red')
+            c.pm2_restart(p)
+
+        c.update()
+
+
     @staticmethod
     def kill_all_servers( *args, **kwargs):
         '''
@@ -2167,11 +2190,11 @@ class c:
             return False
 
     @classmethod
-    def get_peer_name(cls, *args,**kwargs):
-        return c.gather(c.async_get_peer_name(*args,**kwargs), timeout=1)
+    def get_server_name(cls, *args,**kwargs):
+        return c.gather(c.async_get_server_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_peer_name(peer_address:str, connect_timeout:int=2, fn_timeout:int=2, verbose:bool=False, **kwargs):
+    async def async_get_server_name(peer_address:str, connect_timeout:int=2, fn_timeout:int=2, verbose:bool=False, **kwargs):
         try:
             peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
 
@@ -2192,6 +2215,7 @@ class c:
             else:
                 return server_name
         except Exception as e:
+            c.print(c.detailed_error(e))
             return {'error':str(e)}
 
             
@@ -2221,7 +2245,7 @@ class c:
 
             for i in range(0, len(addresses), chunk_size):
                 addresses_chunk = addresses[i:i+chunk_size]
-                names_chunk = c.gather([cls.async_get_peer_name(address) for address in addresses_chunk])
+                names_chunk = c.gather([cls.async_get_server_name(address) for address in addresses_chunk])
                 for i in range(len(names_chunk)):
                     if isinstance(names_chunk[i], str):
                         namespace_local[names_chunk[i]] = addresses_chunk[i]
@@ -7732,13 +7756,13 @@ class c:
     
     @classmethod
     def is_user(self, address):
-        return address in self.users()
+        
+        return address in self.users() or address in c.users()
     
     @classmethod
     def get_user(cls, address):
         users = cls.get('users', {})
-        assert address in users, f'{address} not in users'
-        return users[address]
+        return users.get(address, {})
     @classmethod
     def update_user(cls, address, **kwargs):
         info = cls.get_user(address)
