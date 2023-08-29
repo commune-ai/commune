@@ -14,8 +14,6 @@ class Vali(c.Module):
     def __init__(self, config=None,  **kwargs):
         self.init_vali(config=config, **kwargs)
 
-        if self.config.start:
-            self.start()
 
     def init_vali(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
@@ -25,6 +23,9 @@ class Vali(c.Module):
         self.start_time = c.time()
         self.count = 0
         self.errors = 0
+
+        if self.config.start:
+            self.start()
             
 
     def kill_workers(self):
@@ -52,7 +53,7 @@ class Vali(c.Module):
         self.n  = len(self.module_names)
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
-        self.key = c.get_key(self.config.key)
+        # self.key = c.get_key(self.config.key)
 
         if self.config.vote_interval == None: 
             self.config['vote_interval'] = self.seconds_per_epoch
@@ -92,13 +93,13 @@ class Vali(c.Module):
             address = self.namespace.get(module_name)
             module = await c.async_connect(address,timeout=1)
             response = self.score_module(module)
-            # c.print(f'{prefix} {module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green')
+            w = response['w']
+            c.print(f'{prefix} {module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green', verbose=self.config.verbose)
         except Exception as e:
             e = c.detailed_error(e)
-            response = {'error': e, 'w': 0}
-            # c.print(f'{prefix}  {module_name} ERROR {c.emojis["error"]} -> W : {w} ->..', color='red')
+            response = {'error': e, 'w': w}
+            c.print(f'{prefix}  {module_name} ERROR {c.emojis["error"]} -> W : {w} ->{e}', color='red', verbose=self.config.verbose)
 
-        w = response['w']
         module_info = self.name2module[module_name]
         module_stats = self.load_module_stats(module_name, default={}) if not refresh else module_state
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
@@ -131,16 +132,21 @@ class Vali(c.Module):
         return cls.rm(path)
 
     @classmethod
-    def stats(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
+    def stats(cls, network='subspace', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
         stats = cls.load_stats( network=network, keys=keys)
 
         if df:
             stats = c.df(stats)
             stats.sort_values('w', ascending=False, inplace=True)
-
-        
-        
         return stats
+
+
+    @classmethod
+    def weights(cls, network='subspace', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
+        stats = cls.load_stats( network=network, keys=keys)
+        weights = {s['name']: s['w'] for s in stats if s['w'] > 0}
+
+        return weights
 
     def vote(self):
         if self.vote_staleness < self.config.vote_interval:
@@ -176,7 +182,7 @@ class Vali(c.Module):
         
         return {'success': True, 'message': 'Voted'}
     @classmethod
-    def load_stats(cls, network:str='main', batch_size=400, keys:str=None, tag=None):
+    def load_stats(cls, network:str='main', batch_size=20 , keys:str=None, tag=None):
         tag = 'base' if tag == None else tag
         paths = cls.ls(f'stats/{network}/{tag}')
         jobs = [c.async_get_json(p) for p in paths]
@@ -271,8 +277,7 @@ class Vali(c.Module):
                     'vote_interval': self.config.vote_interval,
                     'epochs': self.epochs,
                      }
-                    c.print(f' --> {stats}\n', color='white')
-                    # c.print(self.stats(network=self.config.network)[:10], color='white')
+                    c.print(f'STATS  --> {stats}\n', color='white')
     @property
     def epochs(self):
         return self.count // self.n
