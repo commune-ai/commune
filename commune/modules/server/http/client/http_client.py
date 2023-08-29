@@ -8,6 +8,7 @@ import requests
 from functools import partial
 import commune as c
 import aiohttp
+import json
 
 
 
@@ -102,24 +103,19 @@ class Client(c.Module):
                         # remove the "data: " prefix
                         event_data = line.decode('utf-8').strip()[len('data: '):]
                         result += event_data
+                    
+                    result = json.loads(result)
+
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
-                elif response.content_type == 'text/plain':
-                    result = await asyncio.wait_for(response.text(), timeout=timeout)
-
         
         ## handles 
-
-        c.print(result, type(result))
-
-        if isinstance(result, dict) and 'data' in result and 'signature' in result:
-            assert self.key.verify(result), f"Result not signed with correct key"
-            result = self.serializer.deserialize(result['data'])
-        else:
-            result = self.serializer.deserialize(result)
+        assert isinstance(result, dict) and 'data' in result and 'signature' in result, f"Invalid response: {result}"
+        # assert self.key.sverify(result), f"Result not signed with correct key"
+        result = self.serializer.deserialize(result['data'])['data']
 
         # result = self.handle_older_versions(result)
-
+        c.print(f"Received result from {self.address}", color='green')
         return result
 
 

@@ -1,6 +1,4 @@
 block_time: 4
-save_interval: 1800
-loop: False
 chain_info:
   dev:
     boot_nodes: []
@@ -8,446 +6,182 @@ chain_info:
     url: []
   main:
     boot_nodes:
-    - /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
-    - /ip4/24.83.20.198/tcp/2225/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
-    - /ip4/24.83.20.198/tcp/2329/p2p/12D3KooWRphAnTAjCm26dG9BebVYR4UjRWq4vHco7s4yTkFf2rj3
-    - /ip4/24.83.20.198/tcp/2326/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
-    - /ip4/24.83.20.198/tcp/2263/p2p/12D3KooWNWcx8DrcqBxitXuaja2TiDP7JZ78a3pqCwiyLvZ9TkFC
-    - /ip4/24.83.20.198/tcp/2251/p2p/12D3KooWMkxTyNoDzDfSFfSVu8fCMacAdHGVotguAjWjnaTuWDxm
-    - /ip4/24.83.20.198/tcp/2029/p2p/12D3KooWFXttqvoAAbZbqAAZEDmNmGvsR516ARBAPQjkjUMr2WnY
-    - /ip4/24.83.20.198/tcp/2480/p2p/12D3KooWKgsbcVcrEJTZtmqx8tVEN8fVG7FJjaBMjX68iGX1rce4
-    - /ip4/24.83.20.198/tcp/2215/p2p/12D3KooWMKyDUBRox6gBW8Dbq7oUjXVzYUhbKWyRC6gtQxaYzSns
-    - /ip4/24.83.20.198/tcp/2008/p2p/12D3KooWDQReTbdvakpiEA96C7ur94GkiJ1DUYAPPefKjih9wGod
-    - /ip4/24.83.20.198/tcp/2195/p2p/12D3KooWFusvWraaaic9rYGRH1Hfb7iUhLp53NCwkPZrZAKm4nHc
-    - /ip4/24.83.20.198/tcp/2004/p2p/12D3KooWSyqNb7ySuqoKjJZazzJSoSHpGRQ7R3rPLkgaX6HZMJsy
-    - /ip4/24.83.20.198/tcp/2104/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
-    - /ip4/24.83.20.198/tcp/2258/p2p/12D3KooWSs1KjTSnaepJCke6ND7yhVNW8Xw9vsT1ehWFXHeGKkKM
-    - /ip4/24.83.20.198/tcp/2022/p2p/12D3KooWKPaKBULwJmaDn8oxdffZun1aG7M3wzH43qjwzxoFm4Gg
-    - /ip4/24.83.20.198/tcp/2378/p2p/12D3KooWA2yqwuVQXBNRXFhQtFHW94qy6GEovmZBb1Qh1PPobJG6
+    - /ip4/24.83.20.198/tcp/2304/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+    - /ip4/24.83.20.198/tcp/2474/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
+    - /ip4/24.83.20.198/tcp/2368/p2p/12D3KooWRphAnTAjCm26dG9BebVYR4UjRWq4vHco7s4yTkFf2rj3
+    - /ip4/24.83.20.198/tcp/2460/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
+    - /ip4/24.83.20.198/tcp/2496/p2p/12D3KooWNWcx8DrcqBxitXuaja2TiDP7JZ78a3pqCwiyLvZ9TkFC
+    - /ip4/24.83.20.198/tcp/2356/p2p/12D3KooWMkxTyNoDzDfSFfSVu8fCMacAdHGVotguAjWjnaTuWDxm
+    - /ip4/24.83.20.198/tcp/2418/p2p/12D3KooWFXttqvoAAbZbqAAZEDmNmGvsR516ARBAPQjkjUMr2WnY
+    - /ip4/24.83.20.198/tcp/2346/p2p/12D3KooWKgsbcVcrEJTZtmqx8tVEN8fVG7FJjaBMjX68iGX1rce4
+    - /ip4/24.83.20.198/tcp/2273/p2p/12D3KooWT2LuUsAqaAx5bto7dg58b8uarz6GcJ3GQ1A6eeG5RhNX
+    - /ip4/24.83.20.198/tcp/2275/p2p/12D3KooWAAyhSDGF8iqjCE7rF8fE7npQMxPSAGp6nChvxif6sX9d
+    - /ip4/24.83.20.198/tcp/2298/p2p/12D3KooWQrBZg4rxtKRNfhfa8kg6skgsoWFgU5xF7wEVH9vDKmns
+    - /ip4/24.83.20.198/tcp/2388/p2p/12D3KooWJg8MBf1txWpLGcv9gNvaaJKiMCDanUMkoELgxc9Ppa7i
+    - /ip4/24.83.20.198/tcp/2475/p2p/12D3KooWMKyDUBRox6gBW8Dbq7oUjXVzYUhbKWyRC6gtQxaYzSns
+    - /ip4/24.83.20.198/tcp/2450/p2p/12D3KooWNnpMqUqCPmRgZYnEEnzwFJoZjgzN7JEfVa8GhGjDfAVd
+    - /ip4/24.83.20.198/tcp/2402/p2p/12D3KooWJ6cisW3gBTseZvFXuKZX3TGoSmV66Vh5ELGKvM4gq4D9
+    - /ip4/24.83.20.198/tcp/2389/p2p/12D3KooWKF4cLx8SBvNx9nvsh67ug1H6MnbmnBAXKDsy9YwSvAfn
+    - /ip4/24.83.20.198/tcp/2292/p2p/12D3KooWKKvxZGcPpMVsCu4fGoYRwSoCia4do5mWPuLR2PPfTByG
+    - /ip4/24.83.20.198/tcp/2353/p2p/12D3KooWDQReTbdvakpiEA96C7ur94GkiJ1DUYAPPefKjih9wGod
+    - /ip4/24.83.20.198/tcp/2311/p2p/12D3KooWFusvWraaaic9rYGRH1Hfb7iUhLp53NCwkPZrZAKm4nHc
+    - /ip4/24.83.20.198/tcp/2456/p2p/12D3KooWSyqNb7ySuqoKjJZazzJSoSHpGRQ7R3rPLkgaX6HZMJsy
+    - /ip4/24.83.20.198/tcp/2373/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
+    - /ip4/24.83.20.198/tcp/2476/p2p/12D3KooWSs1KjTSnaepJCke6ND7yhVNW8Xw9vsT1ehWFXHeGKkKM
+    - /ip4/24.83.20.198/tcp/2478/p2p/12D3KooWKPaKBULwJmaDn8oxdffZun1aG7M3wzH43qjwzxoFm4Gg
+    - /ip4/24.83.20.198/tcp/2301/p2p/12D3KooWA2yqwuVQXBNRXFhQtFHW94qy6GEovmZBb1Qh1PPobJG6
     nodes:
       nonvali_0:
-        boot_nodes: /ip4/24.83.20.198/tcp/2104/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
+        boot_nodes: /ip4/24.83.20.198/tcp/2311/p2p/12D3KooWFusvWraaaic9rYGRH1Hfb7iUhLp53NCwkPZrZAKm4nHc
         chain: main
         ip: 24.83.20.198
         node: nonvali_0
         node_key: null
-        port: 2268
+        port: 2355
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2346
+        rpc_port: 2427
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 2052
+        ws_port: 2396
       nonvali_1:
-        boot_nodes: /ip4/24.83.20.198/tcp/2022/p2p/12D3KooWKPaKBULwJmaDn8oxdffZun1aG7M3wzH43qjwzxoFm4Gg
+        boot_nodes: /ip4/24.83.20.198/tcp/2450/p2p/12D3KooWNnpMqUqCPmRgZYnEEnzwFJoZjgzN7JEfVa8GhGjDfAVd
         chain: main
         ip: 24.83.20.198
         node: nonvali_1
         node_key: null
-        port: 2144
+        port: 2282
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2007
+        rpc_port: 2351
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 2009
+        ws_port: 2262
       nonvali_10:
-        boot_nodes: /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        boot_nodes: /ip4/24.83.20.198/tcp/2388/p2p/12D3KooWJg8MBf1txWpLGcv9gNvaaJKiMCDanUMkoELgxc9Ppa7i
         chain: main
         ip: 24.83.20.198
         node: nonvali_10
         node_key: null
-        port: 2321
+        port: 2352
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2033
+        rpc_port: 2361
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 2405
+        ws_port: 2225
       nonvali_11:
-        boot_nodes: /ip4/24.83.20.198/tcp/2104/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
+        boot_nodes: /ip4/24.83.20.198/tcp/2388/p2p/12D3KooWJg8MBf1txWpLGcv9gNvaaJKiMCDanUMkoELgxc9Ppa7i
         chain: main
         ip: 24.83.20.198
         node: nonvali_11
         node_key: null
-        port: 2036
+        port: 2288
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2047
+        rpc_port: 2492
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 2357
-      nonvali_12:
-        boot_nodes: /ip4/24.83.20.198/tcp/2008/p2p/12D3KooWDQReTbdvakpiEA96C7ur94GkiJ1DUYAPPefKjih9wGod
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_12
-        node_key: null
-        port: 2216
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2260
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2287
-      nonvali_13:
-        boot_nodes: /ip4/24.83.20.198/tcp/2215/p2p/12D3KooWMKyDUBRox6gBW8Dbq7oUjXVzYUhbKWyRC6gtQxaYzSns
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_13
-        node_key: null
-        port: 2292
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2454
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2256
-      nonvali_14:
-        boot_nodes: /ip4/24.83.20.198/tcp/2378/p2p/12D3KooWA2yqwuVQXBNRXFhQtFHW94qy6GEovmZBb1Qh1PPobJG6
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_14
-        node_key: null
-        port: 2339
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2365
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2340
-      nonvali_15:
-        boot_nodes: /ip4/24.83.20.198/tcp/2225/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_15
-        node_key: null
-        port: 2147
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2310
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2421
-      nonvali_2:
-        boot_nodes: /ip4/24.83.20.198/tcp/2326/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_2
-        node_key: null
-        port: 2400
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2018
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2236
-      nonvali_3:
-        boot_nodes: /ip4/24.83.20.198/tcp/2195/p2p/12D3KooWFusvWraaaic9rYGRH1Hfb7iUhLp53NCwkPZrZAKm4nHc
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_3
-        node_key: null
-        port: 2204
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2391
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2275
-      nonvali_4:
-        boot_nodes: /ip4/24.83.20.198/tcp/2008/p2p/12D3KooWDQReTbdvakpiEA96C7ur94GkiJ1DUYAPPefKjih9wGod
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_4
-        node_key: null
-        port: 2380
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2095
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2372
-      nonvali_5:
-        boot_nodes: /ip4/24.83.20.198/tcp/2104/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_5
-        node_key: null
-        port: 2016
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2337
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2452
-      nonvali_6:
-        boot_nodes: /ip4/24.83.20.198/tcp/2215/p2p/12D3KooWMKyDUBRox6gBW8Dbq7oUjXVzYUhbKWyRC6gtQxaYzSns
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_6
-        node_key: null
-        port: 2455
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2160
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2200
-      nonvali_7:
-        boot_nodes: /ip4/24.83.20.198/tcp/2104/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_7
-        node_key: null
-        port: 2259
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2218
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2358
-      nonvali_8:
-        boot_nodes: /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_8
-        node_key: null
-        port: 2157
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2353
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2462
-      nonvali_9:
-        boot_nodes: /ip4/24.83.20.198/tcp/2195/p2p/12D3KooWFusvWraaaic9rYGRH1Hfb7iUhLp53NCwkPZrZAKm4nHc
-        chain: main
-        ip: 24.83.20.198
-        node: nonvali_9
-        node_key: null
-        port: 2197
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2474
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 2450
+        ws_port: 2449
       vali_0:
         boot_nodes: null
         chain: main
         ip: 24.83.20.198
         node: vali_0
         node_key: null
-        port: 2366
+        port: 2304
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2045
+        rpc_port: 2395
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2175
+        ws_port: 2348
       vali_1:
-        boot_nodes: /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        boot_nodes: /ip4/24.83.20.198/tcp/2304/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
         chain: main
         ip: 24.83.20.198
         node: vali_1
         node_key: null
-        port: 2225
+        port: 2474
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2369
+        rpc_port: 2433
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2100
+        ws_port: 2399
       vali_10:
-        boot_nodes: /ip4/24.83.20.198/tcp/2225/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
+        boot_nodes: /ip4/24.83.20.198/tcp/2474/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
         chain: main
         ip: 24.83.20.198
         node: vali_10
         node_key: null
-        port: 2329
+        port: 2368
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2316
+        rpc_port: 2445
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2205
+        ws_port: 2234
       vali_11:
-        boot_nodes: /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        boot_nodes: /ip4/24.83.20.198/tcp/2474/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
         chain: main
         ip: 24.83.20.198
         node: vali_11
         node_key: null
-        port: 2326
+        port: 2460
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2359
+        rpc_port: 2362
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2395
+        ws_port: 2291
       vali_12:
-        boot_nodes: /ip4/24.83.20.198/tcp/2225/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
+        boot_nodes: /ip4/24.83.20.198/tcp/2460/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
         chain: main
         ip: 24.83.20.198
         node: vali_12
         node_key: null
-        port: 2263
+        port: 2496
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2466
+        rpc_port: 2325
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2341
+        ws_port: 2310
       vali_13:
-        boot_nodes: /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        boot_nodes: /ip4/24.83.20.198/tcp/2304/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
         chain: main
         ip: 24.83.20.198
         node: vali_13
         node_key: null
-        port: 2251
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2479
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2112
-      vali_14:
-        boot_nodes: /ip4/24.83.20.198/tcp/2326/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
-        chain: main
-        ip: 24.83.20.198
-        node: vali_14
-        node_key: null
-        port: 2029
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2396
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2286
-      vali_15:
-        boot_nodes: /ip4/24.83.20.198/tcp/2326/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
-        chain: main
-        ip: 24.83.20.198
-        node: vali_15
-        node_key: null
-        port: 2480
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2498
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2481
-      vali_2:
-        boot_nodes: /ip4/24.83.20.198/tcp/2480/p2p/12D3KooWKgsbcVcrEJTZtmqx8tVEN8fVG7FJjaBMjX68iGX1rce4
-        chain: main
-        ip: 24.83.20.198
-        node: vali_2
-        node_key: null
-        port: 2215
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2371
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2133
-      vali_3:
-        boot_nodes: /ip4/24.83.20.198/tcp/2215/p2p/12D3KooWMKyDUBRox6gBW8Dbq7oUjXVzYUhbKWyRC6gtQxaYzSns
-        chain: main
-        ip: 24.83.20.198
-        node: vali_3
-        node_key: null
-        port: 2008
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2418
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2332
-      vali_4:
-        boot_nodes: /ip4/24.83.20.198/tcp/2263/p2p/12D3KooWNWcx8DrcqBxitXuaja2TiDP7JZ78a3pqCwiyLvZ9TkFC
-        chain: main
-        ip: 24.83.20.198
-        node: vali_4
-        node_key: null
-        port: 2195
+        port: 2356
         purge_chain: true
         refresh: true
         rpc_cors: all
@@ -456,87 +190,295 @@ chain_info:
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2067
+        ws_port: 2354
+      vali_14:
+        boot_nodes: /ip4/24.83.20.198/tcp/2368/p2p/12D3KooWRphAnTAjCm26dG9BebVYR4UjRWq4vHco7s4yTkFf2rj3
+        chain: main
+        ip: 24.83.20.198
+        node: vali_14
+        node_key: null
+        port: 2418
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2404
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2266
+      vali_15:
+        boot_nodes: /ip4/24.83.20.198/tcp/2304/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        chain: main
+        ip: 24.83.20.198
+        node: vali_15
+        node_key: null
+        port: 2346
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2446
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2347
+      vali_16:
+        boot_nodes: /ip4/24.83.20.198/tcp/2346/p2p/12D3KooWKgsbcVcrEJTZtmqx8tVEN8fVG7FJjaBMjX68iGX1rce4
+        chain: main
+        ip: 24.83.20.198
+        node: vali_16
+        node_key: null
+        port: 2273
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2469
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2430
+      vali_17:
+        boot_nodes: /ip4/24.83.20.198/tcp/2460/p2p/12D3KooWJP69XXTTzpdHLsHoFLos9Q9iaKfNtMCwf7pcxWLbpSUL
+        chain: main
+        ip: 24.83.20.198
+        node: vali_17
+        node_key: null
+        port: 2275
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2248
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2335
+      vali_18:
+        boot_nodes: /ip4/24.83.20.198/tcp/2304/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        chain: main
+        ip: 24.83.20.198
+        node: vali_18
+        node_key: null
+        port: 2298
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2236
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2443
+      vali_19:
+        boot_nodes: /ip4/24.83.20.198/tcp/2298/p2p/12D3KooWQrBZg4rxtKRNfhfa8kg6skgsoWFgU5xF7wEVH9vDKmns
+        chain: main
+        ip: 24.83.20.198
+        node: vali_19
+        node_key: null
+        port: 2388
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2416
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2271
+      vali_2:
+        boot_nodes: /ip4/24.83.20.198/tcp/2346/p2p/12D3KooWKgsbcVcrEJTZtmqx8tVEN8fVG7FJjaBMjX68iGX1rce4
+        chain: main
+        ip: 24.83.20.198
+        node: vali_2
+        node_key: null
+        port: 2475
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2414
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2390
+      vali_20:
+        boot_nodes: /ip4/24.83.20.198/tcp/2474/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
+        chain: main
+        ip: 24.83.20.198
+        node: vali_20
+        node_key: null
+        port: 2450
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2420
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2454
+      vali_21:
+        boot_nodes: /ip4/24.83.20.198/tcp/2304/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
+        chain: main
+        ip: 24.83.20.198
+        node: vali_21
+        node_key: null
+        port: 2402
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2253
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2412
+      vali_22:
+        boot_nodes: /ip4/24.83.20.198/tcp/2368/p2p/12D3KooWRphAnTAjCm26dG9BebVYR4UjRWq4vHco7s4yTkFf2rj3
+        chain: main
+        ip: 24.83.20.198
+        node: vali_22
+        node_key: null
+        port: 2389
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2340
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2375
+      vali_23:
+        boot_nodes: /ip4/24.83.20.198/tcp/2496/p2p/12D3KooWNWcx8DrcqBxitXuaja2TiDP7JZ78a3pqCwiyLvZ9TkFC
+        chain: main
+        ip: 24.83.20.198
+        node: vali_23
+        node_key: null
+        port: 2292
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2487
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2491
+      vali_3:
+        boot_nodes: /ip4/24.83.20.198/tcp/2388/p2p/12D3KooWJg8MBf1txWpLGcv9gNvaaJKiMCDanUMkoELgxc9Ppa7i
+        chain: main
+        ip: 24.83.20.198
+        node: vali_3
+        node_key: null
+        port: 2353
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2498
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2494
+      vali_4:
+        boot_nodes: /ip4/24.83.20.198/tcp/2298/p2p/12D3KooWQrBZg4rxtKRNfhfa8kg6skgsoWFgU5xF7wEVH9vDKmns
+        chain: main
+        ip: 24.83.20.198
+        node: vali_4
+        node_key: null
+        port: 2311
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2252
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2227
       vali_5:
-        boot_nodes: /ip4/24.83.20.198/tcp/2008/p2p/12D3KooWDQReTbdvakpiEA96C7ur94GkiJ1DUYAPPefKjih9wGod
+        boot_nodes: /ip4/24.83.20.198/tcp/2298/p2p/12D3KooWQrBZg4rxtKRNfhfa8kg6skgsoWFgU5xF7wEVH9vDKmns
         chain: main
         ip: 24.83.20.198
         node: vali_5
         node_key: null
-        port: 2004
+        port: 2456
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2065
+        rpc_port: 2297
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
-        ws_port: 2084
+        ws_port: 2382
       vali_6:
-        boot_nodes: /ip4/24.83.20.198/tcp/2008/p2p/12D3KooWDQReTbdvakpiEA96C7ur94GkiJ1DUYAPPefKjih9wGod
+        boot_nodes: /ip4/24.83.20.198/tcp/2292/p2p/12D3KooWKKvxZGcPpMVsCu4fGoYRwSoCia4do5mWPuLR2PPfTByG
         chain: main
         ip: 24.83.20.198
         node: vali_6
         node_key: null
-        port: 2104
+        port: 2373
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 2089
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2154
-      vali_7:
-        boot_nodes: /ip4/24.83.20.198/tcp/2225/p2p/12D3KooWHi1MaXjo4bchUQHz2KR5L1MjwxbRkcWzv4Pn61SN1E68
-        chain: main
-        ip: 24.83.20.198
-        node: vali_7
-        node_key: null
-        port: 2258
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2203
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2224
-      vali_8:
-        boot_nodes: /ip4/24.83.20.198/tcp/2004/p2p/12D3KooWSyqNb7ySuqoKjJZazzJSoSHpGRQ7R3rPLkgaX6HZMJsy
-        chain: main
-        ip: 24.83.20.198
-        node: vali_8
-        node_key: null
-        port: 2022
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2289
-        server_mode: pm2
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 2068
-      vali_9:
-        boot_nodes: /ip4/24.83.20.198/tcp/2366/p2p/12D3KooWM9BdEA3m5kJoFGWaJPX2WPwUXA57t4qTpq2EVSzNk5D4
-        chain: main
-        ip: 24.83.20.198
-        node: vali_9
-        node_key: null
-        port: 2378
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 2198
+        rpc_port: 2350
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: true
         verbose: false
         ws_port: 2471
+      vali_7:
+        boot_nodes: /ip4/24.83.20.198/tcp/2346/p2p/12D3KooWKgsbcVcrEJTZtmqx8tVEN8fVG7FJjaBMjX68iGX1rce4
+        chain: main
+        ip: 24.83.20.198
+        node: vali_7
+        node_key: null
+        port: 2476
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2232
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2312
+      vali_8:
+        boot_nodes: /ip4/24.83.20.198/tcp/2402/p2p/12D3KooWJ6cisW3gBTseZvFXuKZX3TGoSmV66Vh5ELGKvM4gq4D9
+        chain: main
+        ip: 24.83.20.198
+        node: vali_8
+        node_key: null
+        port: 2478
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2223
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2441
+      vali_9:
+        boot_nodes: /ip4/24.83.20.198/tcp/2373/p2p/12D3KooWJVCYUnnF23cGUWN1ncfdcamYyYAfKK3HC6YSL8Aq8oAh
+        chain: main
+        ip: 24.83.20.198
+        node: vali_9
+        node_key: null
+        port: 2301
+        purge_chain: true
+        refresh: true
+        rpc_cors: all
+        rpc_port: 2295
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: true
+        verbose: false
+        ws_port: 2434
     url: []
 chain_path: f"{c.repo_path}/subspace"
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
@@ -545,6 +487,7 @@ key: alice
 key_types:
 - aura
 - gran
+loop: false
 network: main
 network2url:
   dev:
@@ -571,6 +514,7 @@ retry_params:
   delay: 2
   max_delay: 4
   tries: 2
+save_interval: 1800
 server_mode: pm2
 spec_path: f"{chain_path}/specs"
 subnet: commune
@@ -585,4 +529,3 @@ supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
- 

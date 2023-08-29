@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Union
 import commune as c
 import torch 
 import traceback
+import json
 
 
 
@@ -19,7 +20,7 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
-        sse: bool = False,
+        sse: bool = True,
         max_request_staleness: int = 100,
         key = None,
         root_key = None,
@@ -118,7 +119,10 @@ class HTTPServer(c.Module):
     def process_input(self,input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
+        c.print(input['address'])
+
         input = self.verify_signature(input)
+
         # deserialize the data
         input = self.verify_fn_access(input)
 
@@ -131,7 +135,9 @@ class HTTPServer(c.Module):
             generator = [generator]
             
         for item in generator:
-            item = self.serializer.serialize(item)
+            item = self.serializer.serialize({'data': item})
+            item = self.key.sign(item, return_json=True)
+            item = json.dumps(item)
             yield item
         
     
@@ -145,7 +151,7 @@ class HTTPServer(c.Module):
         else:
             if c.is_generator(result):
                 result = list(result)
-            result = self.serializer.serialize(result)
+            result = self.serializer.serialize({'data': result})
             result = self.key.sign(result, return_json=True)
 
             return result

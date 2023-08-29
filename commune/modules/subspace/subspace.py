@@ -2556,39 +2556,49 @@ class Subspace(c.Module):
                     chain:str=chain, 
                     verbose:bool = False,
                     build_runtime: bool = False,
-                    build_spec: bool = True,
+                    build_spec: bool = False,
                     purge_chain:bool = True,
                     build_snapshot:bool = False,
-                    refresh: bool = True,
-                    max_vali_nodes:int = 16,
-                    max_nonvali_nodes:int = 16,
+                    refresh: bool = False,
+                    max_vali_nodes:int = 24,
+                    max_nonvali_nodes:int = 4,
+                    trials:int = 3,
                     port_keys: list = ['port','rpc_port','ws_port'],
                     ):
         
-        # kill the chain if refresh
-        if refresh:
-            cls.kill_chain(chain=chain)
+        # # kill the chain if refresh
+        # if refresh:
+        #     cls.kill_chain(chain=chain)
             
 
         # build the chain if needed
         if build_runtime or build_spec:
             cls.build(chain=chain, verbose=verbose, build_snapshot=build_snapshot, build_runtime=build_runtime, build_spec=build_spec)
     
-        cls.add_node_keys(chain=chain, refresh=False)
+        # cls.add_node_keys(chain=chain, refresh=False)
 
-        vali_nodes = list(cls.vali_node_keys(chain=chain).keys())[:max_nonvali_nodes]
-        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())[:max_vali_nodes]
+        vali_nodes = list(cls.vali_node_keys(chain=chain).keys())
+        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())
+        if max_vali_nodes != -1:
+            vali_nodes = vali_nodes[:max_vali_nodes]
+        if max_nonvali_nodes != -1:
+            nonvali_nodes = nonvali_nodes[:max_nonvali_nodes]
 
 
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
         # refresh the chain info
-        cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': [], 'url': []})
+        if refresh:
+            cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': [], 'url': []})
 
         avoid_ports = []
 
         for node in (vali_nodes + nonvali_nodes):
             c.print(f'Starting node {node} for chain {chain}')
+            name = f'{cls.node_prefix()}.{chain}.{node}'
+            if c.pm2_exists(name) and refresh == False:
+                c.print(f'Node {node} for chain {chain} already exists')
+                continue
             node_kwargs = {
                             'chain':chain, 
                             'node':node, 
@@ -2602,8 +2612,16 @@ class Subspace(c.Module):
                 port = c.free_port(avoid_ports=avoid_ports)
                 avoid_ports.append(port)
                 node_kwargs[k] = port
-            
-            cls.start_node(**node_kwargs, refresh=refresh)
+
+            fails = 0
+            while trials > fails:
+                try:
+                    cls.start_node(**node_kwargs, refresh=refresh)
+                    break
+                except Exception as e:
+                    c.print(f'Error starting node {node} for chain {chain}, {e}')
+                    fails += 1
+                    continue
 
        
     @classmethod
@@ -2732,7 +2750,7 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls,  valis:int=16, nonvalis:int=16, chain:str=chain, refresh:bool=False ):
+    def add_node_keys(cls,  valis:int=24, nonvalis:int=8, chain:str=chain, refresh:bool=False ):
         for i in range(valis):
             cls.add_node_key(node=i,  mode='vali' , chain=chain, refresh=refresh)
         for i in range(nonvalis):
@@ -2879,6 +2897,7 @@ class Subspace(c.Module):
                 schema = 'Sr25519'
 
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
+
             key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
 
             base_path = cls.resolve_base_path(node=node, chain=chain)
