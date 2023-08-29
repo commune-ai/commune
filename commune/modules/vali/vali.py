@@ -45,7 +45,6 @@ class Vali(c.Module):
 
     def sync(self, sync=True):
         self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-        self.subspace.sync()
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
@@ -125,9 +124,9 @@ class Vali(c.Module):
         if tag == None:
             tag = 'base'
         return f'stats/{network}/{tag}'
-
-    @classmethod
-    def refresh_stats(cls, network='main', tag=None):
+    
+    def refresh_stats(self, network='main', tag=None):
+        tag = self.tag if tag == None else tag
         path = cls.resolve_stats_path(network=network, tag=tag)
         return cls.rm(path)
 
@@ -149,10 +148,14 @@ class Vali(c.Module):
         return weights
 
     def vote(self):
+        stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
+
+        if stake < self.config.min_stake:
+            return {'success': False, 'message': f'Not enough stake to vote, need at least {self.config.min_stake} stake'}
+
         if self.vote_staleness < self.config.vote_interval:
             return {'success': False, 'message': f'Vote too soon, wait {self.config.vote_interval - self.vote_staleness} more seconds'}
 
-        self.last_vote_time = c.time()
         topk = self.subnet['max_allowed_weights']
 
         vote_dict = {'uids': [], 'weights': []}
@@ -172,13 +175,16 @@ class Vali(c.Module):
         vote_dict['weights'] = [vote_dict['weights'][i] for i in topk_indices]
         vote_dict['uids'] = [vote_dict['uids'][i] for i in topk_indices]
 
-        self.subspace.vote(uids=vote_dict['uids'],
-                           weights=vote_dict['weights'], 
-                           key=self.key, 
-                           network=self.config.network, 
-                           netuid=self.config.netuid)
-
-        self.sync()
+        try:
+            self.subspace.vote(uids=vote_dict['uids'],
+                            weights=vote_dict['weights'], 
+                            key=self.key, 
+                            network=self.config.network, 
+                            netuid=self.config.netuid)
+        except Exception as e:
+            response =  {'success': False, 'message': f'Error voting {e}'}
+            c.print(response, color='red')
+        self.last_vote_time = c.time()
         
         return {'success': True, 'message': 'Voted'}
     @classmethod
@@ -267,7 +273,7 @@ class Vali(c.Module):
                     continue
 
                 self.queue.put(module)
-                if self.count % 100 == 0:
+                if self.count % 100 == 0 and count > 0:
                     stats =  {
                     'total_modules': self.count,
                     'lifetime': int(self.lifetime),
