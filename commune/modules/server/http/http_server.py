@@ -19,7 +19,7 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
-        sse: bool = True,
+        sse: bool = False,
         max_request_staleness: int = 100,
         key = None,
         root_key = None,
@@ -146,6 +146,8 @@ class HTTPServer(c.Module):
             if c.is_generator(result):
                 result = list(result)
             result = self.serializer.serialize(result)
+            result = self.key.sign(result, return_json=True)
+
             return result
 
     def check_user(self, address):

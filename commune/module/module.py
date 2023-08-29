@@ -6266,7 +6266,8 @@ class c:
             singleton = False
         assert isinstance(jobs, list)
         if mode == 'asyncio':
-            loop = loop if loop != None else cls.get_event_loop()
+            if loop == None:
+                loop = c.get_event_loop()
             results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
         else:
             raise NotImplementedError

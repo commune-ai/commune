@@ -14,4 +14,5 @@ voting_interval: 100
 verbose: False
 batch_size: 4
 refresh_stats: False
-# sleep_time: 10
+vote_interval: 10
+sleep_time: 10

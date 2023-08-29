@@ -100,16 +100,24 @@ class Client(c.Module):
                     result = ''
                     async for line in response.content:
                         # remove the "data: " prefix
-                        event_data = line.decode('utf-8').strip().split('data: ')[-1]
+                        event_data = line.decode('utf-8').strip()[len('data: '):]
                         result += event_data
-                    # result = self.serializer.deserialize(result)
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
-                    result = self.serializer.deserialize(result)
-                else:
-                    raise Exception(f"Unknown content type: {response.content_type}")
+                elif response.content_type == 'text/plain':
+                    result = await asyncio.wait_for(response.text(), timeout=timeout)
+
         
         ## handles 
+
+        c.print(result, type(result))
+
+        if isinstance(result, dict) and 'data' in result and 'signature' in result:
+            assert self.key.verify(result), f"Result not signed with correct key"
+            result = self.serializer.deserialize(result['data'])
+        else:
+            result = self.serializer.deserialize(result)
+
         # result = self.handle_older_versions(result)
 
         return result
@@ -129,7 +137,7 @@ class Client(c.Module):
             return forward_future
         else:
             # 
-            return self.loop.run_until_complete(asyncio.wait_for(forward_future, timeout=timeout))
+            return self.loop.run_until_complete(forward_future)
         
     __call__ = forward
 

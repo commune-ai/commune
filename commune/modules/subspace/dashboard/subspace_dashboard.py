@@ -86,8 +86,8 @@ class SubspaceDashboard(c.Module):
             self.key_info_dict = self.subspace.key_info(self.key.path, fmt='j')
 
             st.write('Address: ', self.key.ss58_address)
-            st.write('Stake', self.key_info_dict['stake'])
-            st.write('Balance', self.key_info_dict['balance'])
+            st.write('Stake', self.key_info_dict.get('stake', 0))
+            st.write('Balance', self.key_info_dict.get('balance', 0))
 
     def create_key(self):
         with st.expander('Create Key', expanded=False):                

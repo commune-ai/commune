@@ -1,4 +1,6 @@
 block_time: 4
+save_interval: 1800
+loop: False
 chain_info:
   dev:
     boot_nodes: []
@@ -583,3 +585,4 @@ supported_schemas:
 - Sr25519
 - Ed25519
 token_decimals: 9
+ 
