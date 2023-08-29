@@ -4,17 +4,15 @@ services:
 
   commune:
     network_mode: host
+    # image: commune:latest
     container_name: commune
     build: ./
     shm_size: '100gb' # for the shared memory size
-    environment:
-      - RAY_PORT=6378
-
     volumes:
 
       # COMMUNE VOLUME MOUNTS
       - ./commune:/commune/commune
-      - ./subspace:/commune/subspace
+      # - ./subspace/pallets:/commune/subspace/pallets
       - ./frontend:/commune/frontend
 
 

@@ -4,5 +4,7 @@ alpha: 0.9
 timeout: 2
 tag: null
 module_prefix: model
-start: False
+start: True
 dataset : data.text.truth
+verbose: True
+

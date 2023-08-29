@@ -7,6 +7,7 @@ class ValiTextTruthfulQA(Vali):
     def __init__(self, config = None, **kwargs):
         config = self.set_config(config, kwargs=kwargs)
         self.init_vali(config)
+
         
 
     def score_module(self, module='model') -> int:
@@ -16,7 +17,6 @@ class ValiTextTruthfulQA(Vali):
         assert isinstance(sample, dict), f'sample is not a dict: {sample}, type: {type(sample)}'
         answers = sample.pop('answers')
         # format the prompt
-
         prompt = f'''
         COMPLETE THE JSON
         {sample}
