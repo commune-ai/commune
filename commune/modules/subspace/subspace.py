@@ -944,7 +944,8 @@ class Subspace(c.Module):
         netuid  = self.resolve_netuid(netuid)
         return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeFrom', netuid)}
     
-    def stake_to(self, netuid = None):
+    def stake_to(self, netuid = None, network=None):
+        network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
         return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeTo', netuid)}
 
@@ -1306,7 +1307,7 @@ class Subspace(c.Module):
             if self._state_dict is None:
                 self._state_dict = state_dict
             c.print('Loading state_dict from cache', verbose=verbose)
-            state_dict = self.latest_archive()
+            state_dict = self.latest_archive(network=network)
 
             
 
@@ -1359,7 +1360,10 @@ class Subspace(c.Module):
 
     @classmethod
     def latest_archive(cls, network=network):
-        return cls.get(cls.latest_archive_path(network=network), {})
+        path = cls.latest_archive_path(network=network)
+        if path == None:
+            return {}
+        return cls.get_json(path, {})
             
         
 
@@ -2127,7 +2131,7 @@ class Subspace(c.Module):
 
     @classmethod
     def build_runtime(self, verbose:bool=True):
-        self.cmd('cargo build --release', cwd=self.chain_path, verbose=verbose)
+        self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
 
     @classmethod
     def test_chain(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):

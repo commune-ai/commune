@@ -18,10 +18,10 @@ class Vali(c.Module):
     def init_vali(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
+        self.count = 0
         self.config = c.munch({**Vali.config(), **config})
         self.sync( )
         self.start_time = c.time()
-        self.count = 0
         self.errors = 0
 
         if self.config.start:
@@ -273,7 +273,7 @@ class Vali(c.Module):
                     continue
 
                 self.queue.put(module)
-                if self.count % 100 == 0 and count > 0:
+                if self.count % 100 == 0 and self.count > 0:
                     stats =  {
                     'total_modules': self.count,
                     'lifetime': int(self.lifetime),

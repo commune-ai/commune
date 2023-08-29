@@ -81,9 +81,13 @@ class Docker(c.Module):
     def chmod_scripts(cls):
         c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
 
-    def install_gpus(self):
+    def install(self):
         self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
+
+    def install_gpus(self):
+        self.chmod_scripts()
+        c.cmd('./scripts/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
 
 
     @classmethod
@@ -233,6 +237,8 @@ class Docker(c.Module):
     
     @classmethod
     def resolve_dockerfile(cls, name):
+        if name == None:
+            name = 'commune'
         
         if c.exists(name):
             return name
