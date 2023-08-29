@@ -2252,7 +2252,8 @@ class c:
 
             c.put('namespace_local', namespace_local)
             
-
+        for k, v in namespace_local.items():
+            namespace_local[k] = c.default_ip + ':' + v.split(':')[-1]
         return namespace_local
     
     @classmethod
