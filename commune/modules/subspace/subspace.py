@@ -1296,12 +1296,12 @@ class Subspace(c.Module):
         return state_dict
     
     _state_dict = None
-    def state_dict(self, network=network, key=None, inlcude_weights:bool=False, update:bool=False, verbose:bool=False):
+    def state_dict(self, network=network, key=None, inlcude_weights:bool=False, update:bool=False, verbose:bool=False, **kwargs):
         # cache and update are mutually exclusive 
         state_dict = {}
         if  update == False:
-            if cls._state_dict is None:
-                cls._state_dict = state_dict
+            if self._state_dict is None:
+                self._state_dict = state_dict
             c.print('Loading state_dict from cache', verbose=verbose)
             state_dict = self.latest_archive()
 
@@ -1387,7 +1387,8 @@ class Subspace(c.Module):
     def subnet_state(self, 
                     netuid=0,
                     update: bool = False,
-                    network = network) -> list:
+                    network = network, 
+                    cache = True) -> list:
         
         if cache and not update:
             return self.state_dict(network=network, key='subnets', update=update )[netuid]
@@ -1696,7 +1697,9 @@ class Subspace(c.Module):
         
 
     def resolve_netuid(self, netuid: int = None, namespace:dict=None) -> int:
-
+        '''
+        Resolves a netuid to a subnet name.
+        '''
         if netuid == None:
             # If the netuid is not specified, use the default.
             netuid = self.default_netuid
@@ -2556,7 +2559,7 @@ class Subspace(c.Module):
                     chain:str=chain, 
                     verbose:bool = False,
                     build_runtime: bool = False,
-                    build_spec: bool = False,
+                    build_spec: bool = True,
                     purge_chain:bool = True,
                     build_snapshot:bool = False,
                     refresh: bool = False,
