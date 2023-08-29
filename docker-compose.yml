@@ -12,7 +12,7 @@ services:
 
       # COMMUNE VOLUME MOUNTS
       - ./commune:/commune/commune
-      # - ./subspace/pallets:/commune/subspace/pallets
+      - ./subspace/pallets:/commune/subspace/pallets
       - ./frontend:/commune/frontend
 
 
