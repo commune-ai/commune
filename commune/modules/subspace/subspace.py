@@ -2585,9 +2585,9 @@ class Subspace(c.Module):
                     build_spec: bool = True,
                     purge_chain:bool = True,
                     build_snapshot:bool = False,
-                    refresh: bool = False,
+                    refresh: bool = True,
                     max_vali_nodes:int = 24,
-                    max_nonvali_nodes:int = 4,
+                    max_nonvali_nodes:int = 16,
                     trials:int = 3,
                     port_keys: list = ['port','rpc_port','ws_port'],
                     ):
@@ -2776,9 +2776,9 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def add_node_keys(cls,  valis:int=24, nonvalis:int=8, chain:str=chain, refresh:bool=False ):
+    def add_node_keys(cls,  valis:int=24, nonvalis:int=16, chain:str=chain, refresh:bool=False ):
         for i in range(valis):
-            cls.add_node_key(node=i,  mode='vali' , chain=chain, refresh=refresh)
+            cls.add_node_key(node=i,  mode='vali', chain=chain, refresh=refresh)
         for i in range(nonvalis):
             cls.add_node_key(node=i,  mode='nonvali' , chain=chain, refresh=refresh)
 
