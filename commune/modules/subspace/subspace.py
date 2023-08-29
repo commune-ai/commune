@@ -425,7 +425,7 @@ class Subspace(c.Module):
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         network: str = network,
-        sync: bool = True,
+        sync: bool = False,
 
     ) -> bool:
         
@@ -769,9 +769,13 @@ class Subspace(c.Module):
             assert key != None, "Please provide a key"
             module_key = key.ss58_address
         elif isinstance(module_key, str):
-            module2key =self.module2key(netuid=netuid)
-            if module_key in module2key:
-                module_key = module2key[module_key]
+            if c.key_exists(module_key):
+                module_key = c.get_key(module_key).ss58_address
+            else:
+                module2key =self.module2key(netuid=netuid)
+                if module_key in module2key:
+                    module_key = module2key[module_key]
+
         assert module_key != None, "Please provide a module_key"
         return module_key
 
@@ -1111,7 +1115,6 @@ class Subspace(c.Module):
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        c.print(f"Getting stake for [bold white]{key_address}[/bold white] on network [bold white]{netuid}[/bold white] at block [bold white]{block}[/bold white].")
         stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeTo', block, [netuid, key_address] )]
 
 
@@ -1314,6 +1317,7 @@ class Subspace(c.Module):
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
                         'balances': self.balances(network=network),
+                        'stake_to': [self.stake_to(network=network) for netuid in netuids] ,
                         'block': self.block,
                         'network': network,
                         }
@@ -1324,6 +1328,8 @@ class Subspace(c.Module):
 
         if key in state_dict:
             return state_dict[key]
+        if isinstance(key,list):
+            return {k:state_dict[k] for k in key}
         
         return state_dict
     @classmethod
@@ -1471,18 +1477,17 @@ class Subspace(c.Module):
         key_stats_list = []
         servers = c.servers(network='local')
 
-        keys = self.my_keys(netuid=netuid)
-        modules = self.my_modules(netuid=netuid)
+        # keys = self.my_keys(netuid=netuid)
+        my_modules = self.my_modules(netuid=netuid)
 
         for module in my_modules:
-            module = self.key_stats(key=module['name'], netuid=netuid, cols=cols, module=module **kwargs)
+            key_stats = self.key_stats(key=module['name'], netuid=netuid, cols=cols, module=module, **kwargs)
             key_stats_list.append(key_stats)
 
         # add the servers tht are running that arent 
         for s in servers:
-            if s not in keys:
-                default_row = {'name': s, 'serving': True, 'registered': False, 'balance': 0, 'stake': 0, 'dividends': 0, 'incentive': 0}
-                key_stats_list.append(default_row)
+            default_row =  {**self.null_module, **{'name': s, 'serving': True, 'registered': False}}
+            key_stats_list.append(default_row)
 
         # remove all rows with no balance, stake, dividends, or incentive
         new_key_stats = []
@@ -1492,8 +1497,16 @@ class Subspace(c.Module):
         
         key_stats_list = list(filter(is_valid_key_fn, key_stats_list))
 
+        for key_stats in key_stats_list:
+            if key_stats['name'] in servers:
+                key_stats['serving'] = True
+            else:
+                key_stats['serving'] = False
+            new_key_stats.append(key_stats)
         df_key_stats =  c.df(key_stats_list)
         # sort based on registered and balance
+
+        
         if len(df_key_stats) > 0:
             df_key_stats.sort_values(by=['registered'], ascending=False, inplace=True)
         if records:
@@ -1512,7 +1525,7 @@ class Subspace(c.Module):
                  netuid=None, 
                  fmt='j',
                  cache = True, 
-                 cols=['name', 'stake', 'balance', 'stake_to'],
+                 cols=['name', 'balance', 'stake_to', 'stake_from'],
                 **kwargs):
         
         key_stats = {}
@@ -1520,10 +1533,9 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         if module == None:
             module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
-        state_dict
         
         if 'name' in cols:
-            key_stats['name'] = module.get('name', None)
+            key_stats['name'] = module.get('name', key)
         if 'registered' in cols:
             key_stats['registered'] = bool(module.get('name'))
         if 'address' in cols:
@@ -1533,7 +1545,9 @@ class Subspace(c.Module):
         if 'stake' in cols:
             key_stats['stake'] = module.get('stake', 0)
         if 'stake_to' in cols:
-            key_stats['stake_to'] =  self.get_staked_modules(key ,netuid=netuid, fmt=fmt)
+            key_stats['stake_to'] =  self.get_stake_to(key ,netuid=netuid, fmt=fmt)
+        if 'stake_from' in cols:
+            key_stats['stake_from'] =  module.get('stake_from', {})
         if 'incentive' in cols:
             key_stats['incentive'] = module.get('incentive', 0)
         if 'dividends' in cols:
@@ -1786,13 +1800,18 @@ class Subspace(c.Module):
             module = self.name2module(name=name, netuid=netuid, **kwargs)
             
         return module
+
+    @property
+    def null_module(self):
+        return {'name': None, 'key': None, 'uid': None, 'address': None, 'stake': 0, 'balance': 0, 'emission': 0, 'incentive': 0, 'dividends': 0, 'stake_to': {}, 'stake_from': {}, 'weight': []}
         
         
     def name2module(self, name:str = None, netuid: int = None, **kwargs) -> ModuleInfo:
         modules = self.modules(netuid=netuid, **kwargs)
         name2module = { m['name']: m for m in modules }
+        default = {}
         if name != None:
-            return name2module[name]
+            return name2module.get(name, self.null_module)
         return name2module
         
         

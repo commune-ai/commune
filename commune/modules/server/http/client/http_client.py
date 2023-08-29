@@ -115,7 +115,6 @@ class Client(c.Module):
         result = self.serializer.deserialize(result['data'])['data']
 
         # result = self.handle_older_versions(result)
-        c.print(f"Received result from {self.address}", color='green')
         return result
 
 
