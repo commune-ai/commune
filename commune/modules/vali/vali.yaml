@@ -8,12 +8,12 @@ max_history: 10
 alpha: 0.9
 timeout: 2
 tag: null
-num_threads: 100
+num_threads: 50
 start: True
 verbose: False
 batch_size: 4
 refresh_stats: False
-vote_interval: 10
+vote_interval: 100
 sleep_time: 1
 min_stake: 1
 connect_score: 0.1 
