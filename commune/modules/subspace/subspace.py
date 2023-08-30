@@ -63,28 +63,46 @@ class Subspace(c.Module):
         if config.loop:
             c.thread(self.loop)
     @classmethod
-    def get_network_url(cls, network:str = network) -> str:
+    def get_node_url(cls, node=None, network:str = network) -> str:
+        node2url = cls.node2url(network=network)
+        url = node2url.get(str(node), c.choice(list(node2url.values())))
+        return url
+
+    @classmethod
+    def node2url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
         nodes =  cls.getc(f'chain_info.{network}.nodes', {})
         nodes = {k:v for k,v in nodes.items() if v['validator'] == False}
+        
         assert len(nodes) > 0, f'No url found for {network}'
 
-        node = c.choice(list(nodes.keys()))
-        url = nodes[node]['ip'] + ':' + str(nodes[node]['ws_port'])
-        return url
-    @classmethod
-    def resolve_network_url(cls, network:str , prefix='ws://'):    
-        url = cls.get_network_url(network)
+        node2url = {}
+        for k_n, v_n in nodes.items():
+            node2url[k_n] = v_n['ip'] + ':' + str(v_n['ws_port'])
+        return node2url
 
-        if not url.startswith(prefix):
-            url = prefix + url
-        
-        return url
+
+
+    @classmethod
+    def urls(cls, network: str = network) -> str:
+        return list(cls.node2url(network=network).values())
+
+
+    @classmethod
+    def test_node_urls(cls, network: str = network) -> str:
+        urls = cls.urls(network=network)
+        for url in urls:
+            c.print(f'Testing {url}...')
+            c.test_url(url)
+        c.print('All nodes are up and running!')
+
+
     
     
     
     def set_network(self, 
                 network:str,
+                url : str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
                 type_registry:dict=custom_rpc_type_registry, 
@@ -128,12 +146,16 @@ class Subspace(c.Module):
         if network == None:
             network = self.network
         self.network = network
-        url = self.resolve_network_url(network)
+        
+        url = c.choice(self.urls(network=network))
+
+        if not url.startswith('ws://'):
+            url = 'ws://' + url
 
         c.print(f'Connecting to  [bold green]{network}[/bold green] 🔗🌐: [bold yellow]{url}[/bold yellow]')
 
     
-        self.url = self.chain_endpoint = url
+        self.url = url
         
 
         self.substrate= SubstrateInterface(
@@ -2172,7 +2194,8 @@ class Subspace(c.Module):
                    raw:bool  = False,
                    disable_default_bootnode: bool = True,
                    snap:bool = False,
-                   verbose:bool = True
+                   verbose:bool = True,
+                   vali_node_keys:dict = None,
                    ):
 
         chain_spec_path = cls.resolve_chain_spec_path(chain)
@@ -2190,8 +2213,14 @@ class Subspace(c.Module):
         cmd += f' > {chain_spec_path}'
         c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
         # add vali nodes        
-        vali_node_keys = cls.vali_node_keys(chain=chain)
+
+        if vali_node_keys == None:
+            vali_node_keys = cls.vali_node_keys(chain=chain)
+
+
         spec = c.get_json(chain_spec_path)
+
+        
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         # TODO, have custom votes per grandpa node
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
@@ -2330,15 +2359,19 @@ class Subspace(c.Module):
             nodes =  c.pm2ls(f'{prefix}')
             return {n.split('.')[-1]: n for n in nodes}
     @classmethod
-    def nonvali_nodes(cls, chain=chain):
+    def nonvalis(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
         return [node_info['node'] for node_info in chain_info['nodes'].values() if node_info['validator'] == False]
 
     @classmethod
-    def vali_nodes(cls, chain=chain):
+    def valis(cls, chain=chain):
         chain_info = cls.chain_info(chain=chain)
         c.print(chain_info.keys())
         return [node_info['node'] for node_info in chain_info['nodes'].values() if node_info['validator'] == True]
+
+    @classmethod
+    def num_valis(cls, chain=chain):
+        return len(cls.vali_nodes(chain=chain))
 
 
     @classmethod
@@ -2359,7 +2392,7 @@ class Subspace(c.Module):
 
     @classmethod
     def node_info_template(cls, chain:str=chain, vali:bool = False):
-        node = cls.vali_nodes(chain=chain)[-1] if vali else cls.nonvali_nodes(chain=chain)[-1]
+        node = cls.valis(chain=chain)[-1] if vali else cls.nonvalis(chain=chain)[-1]
         node_template = cls.node_info(node=node, chain=chain)
         return node_template
 
@@ -2579,37 +2612,34 @@ class Subspace(c.Module):
     
     @classmethod
     def start_chain(cls, 
-                    chain:str=chain, 
-                    verbose:bool = False,
-                    build_runtime: bool = False,
-                    build_spec: bool = True,
-                    purge_chain:bool = True,
-                    build_snapshot:bool = False,
-                    refresh: bool = True,
                     max_vali_nodes:int = 24,
                     max_nonvali_nodes:int = 16,
+                    chain:str=chain, 
+                    verbose:bool = False,
+                    purge_chain:bool = True,
+                    refresh: bool = True,
                     trials:int = 3,
-                    port_keys: list = ['port','rpc_port','ws_port'],
                     ):
-        
-        # # kill the chain if refresh
-        # if refresh:
-        #     cls.kill_chain(chain=chain)
-            
 
-        # build the chain if needed
-        if build_runtime or build_spec:
-            cls.build(chain=chain, verbose=verbose, build_snapshot=build_snapshot, build_runtime=build_runtime, build_spec=build_spec)
-    
-        # cls.add_node_keys(chain=chain, refresh=False)
+        if refresh:
+            c.print(f'KILLING THE CHAIN ({chain})')
+            cls.kill_chain(chain=chain)
 
+
+        ## VALIDATOR NODES
+
+        vali_node_keys  = cls.vali_node_keys(chain=chain)
+        nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
         vali_nodes = list(cls.vali_node_keys(chain=chain).keys())
         nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())
         if max_vali_nodes != -1:
             vali_nodes = vali_nodes[:max_vali_nodes]
         if max_nonvali_nodes != -1:
-            nonvali_nodes = nonvali_nodes[:max_nonvali_nodes]
+            nonvali_nodes = nonvali_nodes[:max_vali_nodes]
 
+        vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
+        nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
+        cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
 
         assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
 
@@ -2634,7 +2664,7 @@ class Subspace(c.Module):
                             }
             # get the ports for (port, rpc_port, ws_port)
             #  make sure they do not conflict (using avoid ports)
-            for k in port_keys:
+            for k in ['port','rpc_port','ws_port']:
                 port = c.free_port(avoid_ports=avoid_ports)
                 avoid_ports.append(port)
                 node_kwargs[k] = port
