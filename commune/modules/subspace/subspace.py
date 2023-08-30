@@ -939,6 +939,8 @@ class Subspace(c.Module):
 
         if sync:
             self.sync()
+
+        return {'success': True, 'message': 'Successfully unstaked {} from {}'.format(amount, module_key)}
             
     ########################
     #### Standard Calls ####
@@ -1419,12 +1421,13 @@ class Subspace(c.Module):
     
     def subnet_state(self, 
                     netuid=0,
+                    cache: bool = True,
                     update: bool = False,
-                    network = network, 
-                    cache = True) -> list:
+                    network = network) -> list:
         
-        if cache and not update:
-            return self.state_dict(network=network, key='subnets', update=update )[netuid]
+        if cache:
+            subnet_state =  self.state_dict(network=network, key='subnets', update=update )[netuid]
+            
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         subnet_stake = self.query_subspace( 'SubnetTotalStake', params=[netuid] ).value
@@ -1493,52 +1496,50 @@ class Subspace(c.Module):
 
     def stats(self, 
               netuid=None,  
-              cols:list=['name', 'stake', 'balance', 'registered', 'incentive', 'dividends', 'emissions', 'serving', 'stake_to', 'stake_from'], 
-              records:bool=False, 
+              records:bool=True, 
               update:bool = False, 
+              cols = ['name', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission'],
               **kwargs
               ):
         if update:
             self.sync()
-        key_stats_list = []
+        stats = []
         servers = c.servers(network='local')
 
         # keys = self.my_keys(netuid=netuid)
-        my_modules = self.my_modules(netuid=netuid)
-
+        my_modules = self.my_modules(netuid=netuid, fmt='j')
+        module2stats = {}
         for module in my_modules:
-            key_stats = self.key_stats(key=module['name'], netuid=netuid, cols=cols, module=module, **kwargs)
-            key_stats_list.append(key_stats)
+            module['registered'] = True
+            module2stats[module['name']] = module
 
         # add the servers tht are running that arent 
         for s in servers:
-            default_row =  {**self.null_module, **{'name': s, 'serving': True, 'registered': False}}
-            key_stats_list.append(default_row)
+            if s not in module2stats:
+                module2stats[s] = {**self.null_module, **{'name': s, 'registered': False}}
 
-        # remove all rows with no balance, stake, dividends, or incentive
-        new_key_stats = []
+        stats = list(module2stats.values())
+        for i in range(len(stats)):
+            stats[i]['serving'] = bool(stats[i]['name'] in servers)
+            for k in ['stake_to', 'stake_from']:
+                if k in stats[i]:
+                    stats[i][k] = {k: c.round_decimals(v, 2) for k,v in stats[i][k]}
+            for k in ['balance']:
+                if k in stats[i]:
+                    stats[i][k] = c.round_decimals(stats[i][k], 2)
 
-        def is_valid_key_fn(key_s):
-            return bool(any([key_s.get(k,0) != 0 for k in ['balance', 'stake', 'dividends', 'incentive']]) or key_s.get('registered', False))
-        
-        key_stats_list = list(filter(is_valid_key_fn, key_stats_list))
-
-        for key_stats in key_stats_list:
-            if key_stats['name'] in servers:
-                key_stats['serving'] = True
-            else:
-                key_stats['serving'] = False
-            new_key_stats.append(key_stats)
-        df_key_stats =  c.df(key_stats_list)
+            stats[i]['my_stake'] = stats[i]['stake_to'].get(stats[i]['key'], 0)
+        df_stats =  c.df(stats)
         # sort based on registered and balance
 
-        
-        if len(df_key_stats) > 0:
-            df_key_stats.sort_values(by=['registered'], ascending=False, inplace=True)
+        df_stats = df_stats[cols]
+    
+        if len(df_stats) > 0:
+            df_stats.sort_values(by=['registered'], ascending=False, inplace=True)
         if records:
-            return df_key_stats.to_dict('records')
+            return df_stats.to_dict('records')
         else:
-            return df_key_stats
+            return df_stats
         
     def check_servers(self, netuid=None):
         for m in c.stats(netuid=netuid, records=True):
@@ -1546,7 +1547,7 @@ class Subspace(c.Module):
                 c.serve(m['name'])
     
     def key_stats(self, 
-                key : str = None, 
+                key : str , 
                  module = None,
                  netuid=None, 
                  fmt='j',
@@ -1557,9 +1558,11 @@ class Subspace(c.Module):
         key_stats = {}
 
         netuid = self.resolve_netuid(netuid)
+
         if module == None:
             module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
         
+        c.print(f"Getting stats for {key} on {module}")
         if 'name' in cols:
             key_stats['name'] = module.get('name', key)
         if 'registered' in cols:
@@ -1983,6 +1986,7 @@ class Subspace(c.Module):
                     if module[k] > 1:
                         module[k] = module[k] / (U16_MAX)
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
+                module['stake_to']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_to']]
                 modules[i] = module
 
         if df:
