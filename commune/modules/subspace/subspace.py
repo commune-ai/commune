@@ -466,12 +466,6 @@ class Subspace(c.Module):
 
         if self.is_registered(key.ss58_address, netuid=netuid):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-        #
-
-        stale_modules = self.stale_modules(netuid=netuid)
-        if  len(stale_modules) > 0:
-            c.print(f'Stale modules found, updating {stale_modules[0]} -> {name}')
-            return self.update_module(module=stale_modules[0], name=name, address=address , netuid=netuid, network=network)
 
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
@@ -2113,7 +2107,8 @@ class Subspace(c.Module):
             value =  substrate.query(
                 module='SubspaceModule',
                 storage_function = name,
-                block_hash = None if block == None else substrate.get_block_hash(block)
+                block_hash = None if block == None else substrate.get_block_hash(block), 
+                params = params
             )
             
         return value

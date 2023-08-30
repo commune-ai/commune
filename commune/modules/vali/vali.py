@@ -48,7 +48,9 @@ class Vali(c.Module):
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
-        self.module_names = [m for m in list(self.namespace.keys()) if m.startswith(self.config.module_prefix)]
+        self.module_names = [m for m in list(self.namespace.keys())]    
+        if self.config.module_prefix != None:
+            self.module_names = [m for m in self.module_names if m.startswith(self.config.module_prefix)]
         self.n  = len(self.module_names)
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
@@ -131,8 +133,8 @@ class Vali(c.Module):
         return cls.rm(path)
 
     @classmethod
-    def stats(cls, network='subspace', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
-        stats = cls.load_stats( network=network, keys=keys)
+    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'timestamp'], tag=None):
+        stats = cls.load_stats( network=network, keys=keys, tag=tag)
 
         if df:
             stats = c.df(stats)

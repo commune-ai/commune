@@ -26,7 +26,7 @@ services:
 
       # DOCKER MOUNTS TO CONTROL DOCKER FROM WITHIN THE CONTAINER
       - /var/run/docker.sock:/var/run/docker.sock # MOUNT THE DOCKER SOCKET
-      - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
+      # - /usr/bin/docker:/usr/bin/docker # MOUNT THE DOCKER BINARY
       
       # FILE SYSTEM MOUNTS
       - /tmp:/tmp # MOUNT THE TEMPORARY FILE
