@@ -742,6 +742,7 @@ class c:
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
+        self.kwargs = kwargs
         
         if save_config:
             self.save_config(config=config)
@@ -2614,15 +2615,16 @@ class c:
 
 
         self = module_class(**kwargs)
-
+        ip, port = None, None
         if c.server_exists(server_name, network='local'): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 c.kill(server_name)
             else:  
+                ip, port = c.get_address(server_name, network='local').split(':')
                 raise Exception(f'The server {server_name} already exists')
             
-        server = c.module(f'server.{server_mode}')(module=self, name= server_name)
+        server = c.module(f'server.{server_mode}')(module=self, name= server_name, ip=ip, port=port)
         return server.name
 
     serve_module = serve
