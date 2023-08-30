@@ -316,7 +316,7 @@ chain_info:
         rpc_port: 2953
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
+        validator: false
         verbose: false
         ws_port: 2688
       vali_10:
@@ -332,7 +332,7 @@ chain_info:
         rpc_port: 2706
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
+        validator: false
         verbose: false
         ws_port: 2712
       vali_11:
@@ -348,7 +348,7 @@ chain_info:
         rpc_port: 2763
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
+        validator: false
         verbose: false
         ws_port: 2895
       vali_12:
@@ -636,7 +636,7 @@ chain_info:
         rpc_port: 2929
         server_mode: pm2
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
+        validator: false
         verbose: false
         ws_port: 2739
       vali_8:
