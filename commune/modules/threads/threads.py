@@ -11,12 +11,6 @@ class Threads(c.Module):
     threads = {}
 
 
-    # Create a wrapper function to handle thread termination
-    @classmethod
-    def run(cls, fn:'callable', kwargs:dict, stop_event:threading.Event):
-        while not stop_event.is_set():
-            fn(**kwargs)
-
 
     @classmethod
     def add_thread(cls, fn:'callable', args = None, kwargs:dict = None, tag=None):

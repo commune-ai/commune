@@ -254,7 +254,7 @@ class Subspace(c.Module):
             
         return key2tokens
     
-    def market_cap(self, network = None, fmt='j', decimals=2):
+    def market_cap(self, network = network, fmt='j', decimals=2):
         state_dict = self.state_dict(network=network)
         
         market_cap = 0
@@ -264,6 +264,8 @@ class Subspace(c.Module):
             for module in modules:
                 market_cap += module['stake']
         return c.round_decimals(self.format_amount(market_cap, fmt=fmt), decimals=decimals)
+
+    mcap = market_cap
     
     def total_stake(self, network = None, fmt='j', decimals=2):
         state_dict = self.state_dict(network=network)
@@ -1487,11 +1489,16 @@ class Subspace(c.Module):
         return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
 
 
+    def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+        return self.query_map('Emission', block=block, )
+    e = emission
+
+
     def stats(self, 
               netuid=None,  
               records:bool=True, 
               update:bool = False, 
-              cols = ['name', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake','stake_from',  'stake_to'],
+              cols = ['name', 'address', 'key', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake','stake_from',  'stake_to'],
               **kwargs
               ):
         if update:
@@ -1517,9 +1524,9 @@ class Subspace(c.Module):
             for k in ['stake_to', 'stake_from']:
                 if k in stats[i]:
                     stats[i][k] = {k: c.round_decimals(v, 2) for k,v in stats[i][k]}
-            for k in ['balance']:
+            for k in ['balance', 'incentive', 'dividends', 'emission', 'stake']:
                 if k in stats[i]:
-                    stats[i][k] = c.round_decimals(stats[i][k], 2)
+                    stats[i][k] = c.round_decimals(stats[i][k], 4)
 
             stats[i]['my_stake'] = stats[i]['stake_to'].get(stats[i]['key'], 0)
         df_stats =  c.df(stats)
