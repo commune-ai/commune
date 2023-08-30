@@ -3159,10 +3159,12 @@ class c:
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
-        if not subspace.is_unique_name(server_name, netuid=subnet):
-            return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
-        if refresh == False and c.server_exists(server_name):
-            c.print(f'Server {server_name} already exists', color='yellow')
+        # if not subspace.is_unique_name(server_name, netuid=subnet):
+        #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
+
+        if c.server_exists(server_name) and refresh == False:
+            c.print(f'Server already Exists ({server_name})')
+        
         else:
             server_name = module.serve(
                                 server_name=server_name, 
@@ -3171,7 +3173,6 @@ class c:
                                 tag=tag,
                                 **kwargs)
         subspace.register(name=server_name, subnet=subnet)
-        c.sync()
         return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 
 

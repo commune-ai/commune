@@ -6,5 +6,5 @@ tag: null
 module_prefix: model
 start: True
 dataset : data.text.truth
-verbose: True
+verbose: False
 
