@@ -751,7 +751,7 @@ class c:
         return self.config
 
     @classmethod
-    def flatten_dict(cls, x):
+    def flatten_dict(cls, x = {'a': {'b': 1, 'c': {'d': 2, 'e': 3}, 'f': 4}}):
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
@@ -2486,6 +2486,9 @@ class c:
             c.put('namespace_subspace', namespace)
         else:
             namespace = c.get('namespace_subspace', None)
+        
+        local_namespace = cls.namespace_local()
+        namespace = {**namespace, **local_namespace}
         return namespace
 
         
@@ -2515,15 +2518,14 @@ class c:
                   update: bool = False,
                   max_staleness:int = 30,
                   **kwargs):
-        
-        network = cls.resolve_network(network)
+
+
+        network = c.resolve_network(network)
         namespace_fn = getattr(cls, f'namespace_{network}')
         namespace = namespace_fn(update=update, **kwargs)        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
             return namespace
-        # if update == False and len(namespace) == 0:
-        #     namespace = namespace_fn(update=True, **kwargs)
         return namespace
     
 
@@ -5603,18 +5605,33 @@ class c:
     
     @classmethod
     def resolve_network(cls, network=None):
+
+        network_shortcuts = {
+            'r': 'remote',
+            'l': 'local',
+            'g': 'global',
+            's': 'subspace',
+            'b': 'bittensor',
+            'auto': 'autonolous',
+            'a': 'autonolous',
+            'c': 'subspace',
+        }
+
+        network = network_shortcuts.get(network, network)
+        
         if network == None:
             network = cls.get_network()
+
         return network
 
     get_network = resolve_network
     @classmethod
     def set_network(cls, network:str):
-        old_network = cls.get_network()
-        assert network in ['subspace', 'local'], f'Network must be one of {["subspace", "local"]}'
+        old_network = c.network()
+        network = c.resolve_network(network)
         c.put('network', network)
-        new_network = cls.get_network()
-        return {'success': True, 'msg': f'from {old_network} -> {new_network}'}
+
+        return {'success': True, 'msg': f'from {old_network} -> {network}'}
     
     setnet = set_network
 
@@ -7833,6 +7850,23 @@ class c:
             c.kill(m)
 
 
+    @property
+    def auth_modules(self, return_config = False):
+        '''
+        Get the auth modules (modules that process the message to authrize the right people)
+        '''
+        auth_modules = []
+        # each module has a verify function, that takes in the input and returns the input
+        if hasattr(self, 'config') \
+            and hasattr(self.config, 'auth_modules'):
+
+            config = module.config
+            for access, auth_config in config.auth_modules.items():
+                c.print('Adding auth module: ', access, auth_config, color='yellow')
+                access_module = c.module(access)(**access_config)
+                auth_modules.append(access_module)
+        
+        return auth_modules
 
         
     

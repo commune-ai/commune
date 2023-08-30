@@ -133,19 +133,27 @@ class Vali(c.Module):
         return cls.rm(path)
 
     @classmethod
-    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'timestamp'], tag=None):
+    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'timestamp'], tag=None, topk=30):
         stats = cls.load_stats( network=network, keys=keys, tag=tag)
 
         if df:
             stats = c.df(stats)
             stats.sort_values('w', ascending=False, inplace=True)
+
+        stats = stats[:topk]
+
         return stats
 
 
     @classmethod
-    def weights(cls, network='subspace', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
+    def weights(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
         stats = cls.load_stats( network=network, keys=keys)
         weights = {s['name']: s['w'] for s in stats if s['w'] > 0}
+
+        if df:
+            weights = c.df({'module': list(weights.keys()), 'w': list(weights.values())})
+            weights.set_index('module', inplace=True)
+            weights.sort_values('w', ascending=False, inplace=True)
 
         return weights
 
@@ -206,6 +214,13 @@ class Vali(c.Module):
                     s = {k: s.get(k,None) for k in keys}
                 module_stats += [s]
                 # c.print(f'Loaded {len(module_stats)} stats', color='cyan')
+        
+        for ms in module_stats:
+            if 'timestamp' in ms:
+                ms['latency'] = c.timestamp() - ms['timestamp']
+            else:
+                ms['latency'] = 0
+
         c.print(f'COMPLETED -> Loaded {len(module_stats)} stats', color='cyan')
         return module_stats
 

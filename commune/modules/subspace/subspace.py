@@ -1491,7 +1491,7 @@ class Subspace(c.Module):
               netuid=None,  
               records:bool=True, 
               update:bool = False, 
-              cols = ['name', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission'],
+              cols = ['name', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake_from'],
               **kwargs
               ):
         if update:
@@ -1538,7 +1538,9 @@ class Subspace(c.Module):
         for m in c.stats(netuid=netuid, records=True):
             if m['serving'] == False and m['registered'] == True:
                 c.serve(m['name'])
-    
+            if m['serving'] == True and m['registered'] == False:
+                c.register(m['name'])
+                
     def key_stats(self, 
                 key : str , 
                  module = None,
@@ -2152,6 +2154,9 @@ class Subspace(c.Module):
     @classmethod
     def build_runtime(self, verbose:bool=True):
         self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
+        c.cp(f'{self.chain_path}/release/node-template', f'{self.chain_path}/release/node-subspace')
+    
+
 
     @classmethod
     def test_chain(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):

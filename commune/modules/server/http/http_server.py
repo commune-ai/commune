@@ -59,13 +59,28 @@ class HTTPServer(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+        self.resolve_auth_modules(module)
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
         self.module.key = self.key
 
 
 
+
         self.serve()
+
+    def resolve_auth_modules(self, module):
+        auth_modules = []
+        # each module has a verify function, that takes in the input and returns the input
+        if hasattr(module, 'config') and hasattr(module.config, 'auth_modules'):
+            config = module.config
+            for access, auth_config in config.auth_modules.items():
+                c.print('Adding auth module: ', access, auth_config, color='yellow')
+                access_module = c.module(access)(**access_config)
+                auth_modules.append(access_module)
+        
+        self.auth_modules = auth_modules
+
 
 
     def state_dict(self) -> Dict:
@@ -119,12 +134,13 @@ class HTTPServer(c.Module):
     def process_input(self,input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
-        c.print(input['address'])
 
         input = self.verify_signature(input)
-
         # deserialize the data
         input = self.verify_fn_access(input)
+
+        for access_module in self.auth_modules:
+            input = access_module.verify(input)
 
         return input
 
