@@ -11,7 +11,7 @@ class OpenAILLM(c.Module):
     
     prompt = """{x}"""
 
-    whitelist = ['forward', 'chat', 'ask']
+    whitelist = ['forward', 'chat', 'ask', 'generate']
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,

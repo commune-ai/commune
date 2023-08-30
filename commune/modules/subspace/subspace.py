@@ -166,7 +166,6 @@ class Subspace(c.Module):
                                     type_registry_preset=type_registry_preset, 
                                     cache_region=cache_region, 
                                     runtime_config=runtime_config, 
-                                    use_remote_preset=use_remote_preset,
                                     ws_options=ws_options, 
                                     auto_discover=auto_discover, 
                                     auto_reconnect=auto_reconnect, 
