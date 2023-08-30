@@ -8,6 +8,7 @@ services:
     container_name: commune
     build: ./
     shm_size: '100gb' # for the shared memory size
+  
     volumes:
 
       # COMMUNE VOLUME MOUNTS
