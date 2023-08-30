@@ -59,7 +59,7 @@ class HTTPServer(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self.resolve_auth_modules(module)
+        self.auth_modules = module.auth_modules
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
         self.module.key = self.key
@@ -69,17 +69,6 @@ class HTTPServer(c.Module):
 
         self.serve()
 
-    def resolve_auth_modules(self, module):
-        auth_modules = []
-        # each module has a verify function, that takes in the input and returns the input
-        if hasattr(module, 'config') and hasattr(module.config, 'auth_modules'):
-            config = module.config
-            for access, auth_config in config.auth_modules.items():
-                c.print('Adding auth module: ', access, auth_config, color='yellow')
-                access_module = c.module(access)(**access_config)
-                auth_modules.append(access_module)
-        
-        self.auth_modules = auth_modules
 
 
 

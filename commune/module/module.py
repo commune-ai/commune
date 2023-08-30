@@ -7852,9 +7852,12 @@ class c:
 
     @property
     def auth_modules(self, return_config = False):
+
         '''
         Get the auth modules (modules that process the message to authrize the right people)
         '''
+        if hasattr(self, '_auth_modules'):
+            return self._auth_modules
         auth_modules = []
         # each module has a verify function, that takes in the input and returns the input
         if hasattr(self, 'config') \
@@ -7865,8 +7868,16 @@ class c:
                 c.print('Adding auth module: ', access, auth_config, color='yellow')
                 access_module = c.module(access)(**access_config)
                 auth_modules.append(access_module)
-        
+        self._auth_modules = auth_modules
         return auth_modules
+
+
+    @auth_modules.setter
+    def auth_modules(self, auth_modules):
+        if not hasattr(self, '_auth_modules'):
+            self._auth_modules = []
+        self._auth_modules = auth_modules
+        
 
         
     
