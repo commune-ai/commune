@@ -2521,8 +2521,8 @@ class c:
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
             return namespace
-        if update == False and len(namespace) == 0:
-            namespace = namespace_fn(update=True, **kwargs)
+        # if update == False and len(namespace) == 0:
+        #     namespace = namespace_fn(update=True, **kwargs)
         return namespace
     
 
@@ -7765,7 +7765,7 @@ class c:
     
     @classmethod
     def get_user(cls, address):
-        users = cls.get('users', {})
+        users = cls.users()
         return users.get(address, {})
     @classmethod
     def update_user(cls, address, **kwargs):
