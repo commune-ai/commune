@@ -434,18 +434,19 @@ class Subspace(c.Module):
         if subnet == None:
             subnet = self.config.subnet
 
-        
+
         network =self.resolve_network(network)
         netuid = self.get_netuid_for_subnet(subnet)
         address = c.namespace(network='local').get(name)
         address = address.replace('0.0.0.0',c.ip())
 
+
         key = self.resolve_key(name)
 
         if self.is_registered(key.ss58_address, netuid=netuid):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-
         #
+
         stale_modules = self.stale_modules(netuid=netuid)
         if  len(stale_modules) > 0:
             c.print(f'Stale modules found, updating {stale_modules[0]} -> {name}')
@@ -612,7 +613,7 @@ class Subspace(c.Module):
 
         if name == module_info['name'] and address == module_info['address']:
             c.print(":cross_mark: [red]Module already registered[/red]:[bold white]\n  {}[/bold white]".format(module))
-            return {'success': False, 'message': 'Module already registered'}
+            return {'success': False, 'message': 'Module already registered and is up to date with your changes'}
 
         params = {
             'name': name,
@@ -1322,7 +1323,7 @@ class Subspace(c.Module):
                         'block': self.block,
                         'network': network,
                         }
-        if update:
+
             path = f'state_dict/{network}.block-{self.block}-time-{int(c.time())}'
             c.print(f'Saving state_dict to {path}', verbose=verbose)
             self.put(path, state_dict)
@@ -1363,7 +1364,7 @@ class Subspace(c.Module):
         path = cls.latest_archive_path(network=network)
         if path == None:
             return {}
-        return cls.get_json(path, {})
+        return cls.get(path, {})
             
         
 
@@ -1402,7 +1403,6 @@ class Subspace(c.Module):
         
         if cache and not update:
             return self.state_dict(network=network, key='subnets', update=update )[netuid]
-        
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         subnet_stake = self.query_subspace( 'SubnetTotalStake', params=[netuid] ).value

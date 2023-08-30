@@ -151,10 +151,12 @@ class Vali(c.Module):
         stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
 
         if stake < self.config.min_stake:
-            return {'success': False, 'message': f'Not enough stake to vote, need at least {self.config.min_stake} stake'}
+            result = {'success': False, 'message': f'Not enough stake to vote, need at least {self.config.min_stake} stake'}
+            return result
+        elif self.vote_staleness < self.config.vote_interval:
+            result = ({'success': False, 'message': f'Vote too soon, wait {self.config.vote_interval - self.vote_staleness} more seconds'})
+            return result
 
-        if self.vote_staleness < self.config.vote_interval:
-            return {'success': False, 'message': f'Vote too soon, wait {self.config.vote_interval - self.vote_staleness} more seconds'}
 
         topk = self.subnet['max_allowed_weights']
 
@@ -186,7 +188,7 @@ class Vali(c.Module):
             c.print(response, color='red')
         self.last_vote_time = c.time()
         
-        return {'success': True, 'message': 'Voted'}
+        return {'success': True, 'message': 'Voted', 'votes': vote_dict }
     @classmethod
     def load_stats(cls, network:str='main', batch_size=20 , keys:str=None, tag=None):
         tag = 'base' if tag == None else tag
@@ -253,8 +255,8 @@ class Vali(c.Module):
         c.sleep(self.config.sleep_time)
         while True:
             c.sleep(1)
-            if self.vote_staleness > self.config.vote_interval:
-                self.vote()
+                
+            c.print(self.vote())
 
 
     def run(self, vote=False):
