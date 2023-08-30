@@ -1,6 +1,4 @@
-return_val: pong
-users:
-- user1
-- user2
-- user3
-- bro
+subspace:
+  network: bro 
+
+min_stake: 100000

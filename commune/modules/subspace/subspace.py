@@ -796,7 +796,7 @@ class Subspace(c.Module):
         return module_key
 
 
-    def stake_transfer(self, key:str, module_key:str, amount:float=None, **kwargs ):
+    def transfer_stake(self, key:str, module_key:str, amount:float=None, **kwargs ):
         self.unstake( key, amount=amount, **kwargs)
         self.stake( key=key, module_key=module_key, amount=amount, **kwargs)
 
@@ -1491,7 +1491,7 @@ class Subspace(c.Module):
               netuid=None,  
               records:bool=True, 
               update:bool = False, 
-              cols = ['name', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake_from'],
+              cols = ['name', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake','stake_from',  'stake_to'],
               **kwargs
               ):
         if update:
