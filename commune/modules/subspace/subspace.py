@@ -468,11 +468,7 @@ class Subspace(c.Module):
             return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
         #
 
-        stale_modules = self.stale_modules(netuid=netuid)
-        if  len(stale_modules) > 0:
-            c.print(f'Stale modules found, updating {stale_modules[0]} -> {name}')
-            return self.update_module(module=stale_modules[0], name=name, address=address , netuid=netuid, network=network)
-
+   
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
         call_params = { 
@@ -1028,12 +1024,7 @@ class Subspace(c.Module):
         c.print("Constant: [bold white]{}[/bold white] = [bold green]{}[/bold green]".format(constant_name, value))
         return value
             
-    def stale_modules(self, *args, **kwargs):
-        modules = self.my_modules(*args, **kwargs)
-        servers = c.servers(network='local')
-        servers = c.shuffle(servers)
-        return [m['name'] for m in modules if m['name'] not in servers]
-
+ 
     #####################################
     #### Hyper parameter calls. ####
     #####################################
