@@ -6489,10 +6489,17 @@ class c:
         if stash:
             cls.cmd('git stash')
         return cls.cmd('git pull')
+
+    @classmethod
+    def push(cls, msg):
+        return c.cmd(f'git add .; git commit -m "{msg}"; git push;')
     
     @classmethod
-    def commit(cls, msg='update'):
-        return cls.cmd(f'git add; git commit -m "{msg}"; git push;')
+    def push(cls, msg='update'):
+        cls.cmd(f'git add .')
+        cls.cmd(f'git commit -m "{msg}"', bash=True)
+        return cls.cmd(f'git push')
+
     
     @classmethod
     def make_pull(cls):
