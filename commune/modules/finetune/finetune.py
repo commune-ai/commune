@@ -16,7 +16,6 @@ from transformers import (
     TrainingArguments,
 )
 
-
 class FineTuner(c.Module):
 
     def __init__(self, config=None, **kwargs):
