@@ -7676,13 +7676,19 @@ class c:
         tree = c.tree()
         module2docpath = {}
         for m, p in tree.items():
+
             dirpath = os.path.dirname(p)
             docpaths = [f for f in c.ls(dirpath) if f.endswith('.md')]
             if len(docpaths) > 1:
                 [c.print(f) for f in docpaths]
             if len(docpaths) > 0:
-            
+                
+                doc_name = docpaths[0].split('/')[-1].split('.')[0]
+                if not (doc_name.startswith(m.replace('.','_')) or doc_name.endswith('_doc')):
+                    continue
                 module2docpath[m] = docpaths[0]
+
+                
             
         return module2docpath
     @classmethod
