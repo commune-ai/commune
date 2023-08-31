@@ -39,7 +39,6 @@ class Subspace(c.Module):
     chain = network
     default_subnet = default_config['subnet']
     chain_path = eval(default_config['chain_path'])
-    chain_release_path = eval(default_config['chain_release_path'])
     spec_path = eval(default_config['spec_path'])
     key_types = default_config['key_types']
     supported_schemas = default_config['supported_schemas']
@@ -2157,12 +2156,22 @@ class Subspace(c.Module):
         if build_spec:
             cls.build_spec(chain=chain, verbose=verbose)
 
+    @classmethod
+    def chain_target_path(self, chain:str = chain):
+        return f'{self.chain_path}/target/release/node-subspace'
 
     @classmethod
     def build_runtime(self, verbose:bool=True):
         self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
-        c.cp(f'{self.chain_path}/release/node-template', f'{self.chain_path}/release/node-subspace')
+        
+
+        c.cp(f'{self.chain_path}/target/release/node-subspace', f'{self.chain_path}/release/node-subspace')
     
+    @classmethod
+    def release_path(self):
+        path =   f'{self.chain_path}/release/node-subspace'
+        assert c.exists(path), f'Chain {self.chain_path} does not exist. Please run build_runtime first. -> c build_runtime'
+        return path
 
 
     @classmethod
@@ -2212,7 +2221,7 @@ class Subspace(c.Module):
         if snap:
             cls.snap()
 
-        cmd = f'{cls.chain_release_path} build-spec --chain {chain}'
+        cmd = f'{cls.chain_release_path()} build-spec --chain {chain}'
         
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
@@ -2320,7 +2329,7 @@ class Subspace(c.Module):
         if not c.exists(node_path):
             c.mkdir(node_path)
 
-        cmd = f'{cls.chain_release_path} key insert --base-path {node_path}'
+        cmd = f'{cls.chain_release_path()} key insert --base-path {node_path}'
         cmd += f' --suri "{suri}"'
         cmd += f' --scheme {scheme}'
         cmd += f' --chain {chain_spec_path}'
@@ -2512,7 +2521,7 @@ class Subspace(c.Module):
 
         node_info = c.locals2kwargs(locals())
 
-        cmd = cls.chain_release_path
+        cmd = cls.chain_release_path()
 
         free_ports = c.free_ports(n=3)
 
@@ -2563,7 +2572,7 @@ class Subspace(c.Module):
 
         if server_mode == 'pm2':
             # 
-            cmd = c.pm2_start(path=cls.chain_release_path, 
+            cmd = c.pm2_start(path=cls.chain_release_path(), 
                             name=name,
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
@@ -2616,7 +2625,7 @@ class Subspace(c.Module):
 
     @classmethod
     def release_exists(cls):
-        return c.exists(cls.chain_release_path)
+        return c.exists(cls.chain_release_path())
 
     kill_chain = kill_nodes
     
@@ -2968,7 +2977,7 @@ class Subspace(c.Module):
 
             base_path = cls.resolve_base_path(node=node, chain=chain)
 
-            cmd  = f'''{cls.chain_release_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
+            cmd  = f'''{cls.chain_release_path()} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             
             cmds.append(cmd)
 
@@ -3102,7 +3111,7 @@ class Subspace(c.Module):
         
     @classmethod
     def node_help(cls):
-        c.cmd(f'{cls.chain_release_path} --help', verbose=True)
+        c.cmd(f'{cls.chain_release_path()} --help', verbose=True)
         
     
     @classmethod
