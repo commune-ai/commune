@@ -6498,7 +6498,7 @@ class c:
     def push(cls, msg='update'):
         cls.cmd(f'git add .')
         cls.cmd(f'git commit -m "{msg}"', bash=True)
-        return cls.cmd(f'git push')
+        cls.cmd(f'git push')
 
     
     @classmethod
