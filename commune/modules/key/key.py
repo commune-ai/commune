@@ -182,7 +182,7 @@ class Keypair(c.Module):
 
     
     @classmethod
-    def add_key(cls, path, mnemonic = None, password=None, refresh=False, **kwargs):
+    def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, **kwargs):
         
         if cls.key_exists(path) and not refresh :
             return {'status': 'error', 'message': f'key already exists at {path}'}
@@ -325,12 +325,15 @@ class Keypair(c.Module):
 
         if isinstance(key_json, str):
             key_json = c.jload(key_json)
-        
+
 
         if json:
+            key_json['path'] = path
             return key_json
         else:
-            return cls.from_json(key_json)
+            key = cls.from_json(key_json)
+            key.path = path
+            return key
         
         
         
@@ -401,9 +404,13 @@ class Keypair(c.Module):
 
         assert not (detail and object) , 'detail and object cannot both be true'
         if detail:
-            keys = {key: cls.get_key(key).to_dict()  for key in keys}
+            key_names = keys
+            keys = {key: cls.get_key(key).to_dict()  for key in key_names}
+            for key in key_names:
+                keys[key].path = key
         if object:
             keys = [cls.get_key(key)  for key in keys]
+
             
         return keys
     
@@ -1094,10 +1101,14 @@ class Keypair(c.Module):
             try:
                 getattr(self, fn)()
             except Exception as e:
+                e = c.detailed_error(e)
                 c.print(f'Failed ({i+1}/{num_tests}) {fn} due to {e}', color='red')
             c.print(f'Passed ({i+1}/{num_tests}) {fn}', color='green')
 
-        
+    
+    @classmethod
+    def is_key(cls, key) -> bool:
+        return isinstance(key, Keypair)
 
     def test_signing(self):
         sig = self.sign('test')
@@ -1105,15 +1116,19 @@ class Keypair(c.Module):
         assert self.verify('test',sig, self.public_key)
 
     def test_encryption(self):
-        auth = self.encrypt('test')
-        assert self.decrypt(auth) == 'test'
+        for o in ['test', {'fam': 1}, 1, 1.2, [0,2,4,]]:
+            auth = self.encrypt(o)
+            c.print(auth)
+            assert self.decrypt(auth) == o, f'Encryption failed, {self.decrypt(auth)} != {o}'
+            c.print(f'Passed encryption test for {o}', color='green')
 
     def test_key_management(self):
         if self.key_exists('test'):
             self.rm_key('test')
-        key1 = self.add_key('test')
+        key1 = self.get_key('test')
         assert self.key_exists('test'), f'Key management failed, key still exists'
-        key2 = self.mv_key('test', 'test2')
+        self.mv_key('test', 'test2')
+        key2 = self.get_key('test2')
         assert key1.ss58_address == key2.ss58_address, f'Key management failed, {key1.ss58_address} != {key2.ss58_address}'
         assert self.key_exists('test2'), f'Key management failed, key does not exist'
         assert not self.key_exists('test'), f'Key management failed, key still exists'
@@ -1161,6 +1176,12 @@ class Keypair(c.Module):
     def key2type(cls):
         keys = cls.keys(object=True)
         return {k.path: k.crypto_type_name for k in keys}
+    @classmethod
+    def key2mem(cls, search=None):
+        keys = cls.keys(search, object=True)
+        key2mem =  {k.path: k.mnemonic for k in keys}
+        return key2mem
+        
     @classmethod
     def type2keys(cls):
         type2keys = {}

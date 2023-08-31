@@ -8,6 +8,7 @@ import requests
 from functools import partial
 import commune as c
 import aiohttp
+import json
 
 
 
@@ -61,9 +62,9 @@ class Client(c.Module):
     
 
     async def async_forward(self,
-        fn,
-        args = None,
-        kwargs = None,
+        fn: str,
+        args: list = None,
+        kwargs: dict = None,
         ip: str = None,
         port : int= None,
         timeout: int = 4,
@@ -78,47 +79,59 @@ class Client(c.Module):
         args = args if args else []
         kwargs = kwargs if kwargs else {}
         url = f"http://{self.address}/{fn}/"
+
         request_data =  { 
-            
                         "args": args,
                          "kwargs": kwargs,
                          "ip": self.my_ip,
                          "timestamp": c.timestamp(),
                          }
 
-        
         request_data = self.serializer.serialize( request_data)
-        request = c.copy(self.key.sign(request_data, return_json=True))
+
+        # sign the request
+        request = self.key.sign(request_data, return_json=True)
 
         assert self.key.verify(request), f"Request not signed with correct key"
 
-
         async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=request, headers=headers) as response:
-                    if response.content_type == 'text/event-stream':
-                        # Process SSE events
-                        result = ''
-                        async for line in response.content:
-                            event_data = line.decode('utf-8').strip().split('data: ')[-1]
-                            result += event_data
-                        # result = self.serializer.deserialize(result)
-                    elif response.content_type == 'application/json':
-                        result = await asyncio.wait_for(response.json(), timeout=timeout)
-                        result = self.serializer.deserialize(result)
-                    else:
-                        raise Exception(f"Unknown content type: {response.content_type}")
+            async with session.post(url, json=request, headers=headers) as response:
+                if response.content_type == 'text/event-stream':
+                    # Process SSE events
+                    result = ''
+                    async for line in response.content:
+                        # remove the "data: " prefix
+                        event_data = line.decode('utf-8').strip()[len('data: '):]
+                        result += event_data
+                    
+                    result = json.loads(result)
+
+                elif response.content_type == 'application/json':
+                    result = await asyncio.wait_for(response.json(), timeout=timeout)
         
-        
+        ## handles 
+        assert isinstance(result, dict) and 'data' in result and 'signature' in result, f"Invalid response: {result}"
+        # assert self.key.sverify(result), f"Result not signed with correct key"
+        result = self.serializer.deserialize(result['data'])['data']
+
+        # result = self.handle_older_versions(result)
         return result
 
-    
-    def forward(self,*args,return_future=False, **kwargs):
+
+    # def handle_older_versions(self, result):
+
+    #     if 'data' in result and isinstance(result['data'], str) 
+    #     if  'server_name' in result['data']:
+    #         result = self.serializer.deserialize(result['data'])
+
+    #     return result 
+        
+    def forward(self,*args,return_future:bool=False, **kwargs):
         forward_future =  self.async_forward(*args, **kwargs)
         if return_future:
             return forward_future
         else:
-            # asyncio.wait_for(forward_future, timeout=timeout)
-
+            # 
             return self.loop.run_until_complete(forward_future)
         
     __call__ = forward

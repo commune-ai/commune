@@ -27,7 +27,6 @@ class ValiText(Vali):
             module = c.connect(module)
         module.info(timeout=1)
         sample = self.sample()
-        answers = c.copy(sample.pop('answers'))
         prompt = f'COMPLETE THE JSON \n {sample} \n' + " GIVE THE ANSWER AS AN INDEX -> {answer_idx:int} ? \n ```json"
         output = module.generate(prompt, max_tokens=256)
         if isinstance(output, str):

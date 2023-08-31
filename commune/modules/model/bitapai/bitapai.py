@@ -6,6 +6,9 @@ import commune as c
 
 
 class BitAPAI(c.Module):
+    
+    whitelist = ['forward', 'chat', 'ask', 'generate']
+
     def __init__(self,  config=None,  **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         self.conn = http.client.HTTPSConnection(self.config.host)
@@ -28,7 +31,7 @@ class BitAPAI(c.Module):
                 text:str ,
                 # api default is 20, I would not go less than 10 with current network conditions
                 # larger number = higher query spread across top miners but slightly longer query time
-                 count:int = 5,
+                 count:int = 300,
                  # changed to False, I assume you only want a single repsonse so it will return a single random from the pool of valid responses
                  return_all:bool = False,
                  # added exclude_unavailable to ensure no empty responses are returned

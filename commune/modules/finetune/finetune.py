@@ -4,6 +4,8 @@ import logging
 import torch
 from datasets import load_dataset
 from peft import LoraConfig, TaskType, get_peft_model, prepare_model_for_int8_training
+from trl import SFTTrainer
+
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
@@ -11,59 +13,67 @@ from transformers import (
     DataCollatorForSeq2Seq,
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
+    TrainingArguments,
 )
 
 class FineTuner(c.Module):
-    def __init__(self, 
-            model_id: str, 
-            device: str = None,
-            dataset_name=None, 
-            lora_r:int=16,
-            lora_alpha:int=32,
-            lora_target_modules=["q", "v"],
-            lora_bias="none",
-            lora_task_type='SEQ_2_SEQ_LM',
-            max_length=1000, 
-            quantize: bool = False, 
-            quantization_config: dict = None):
 
+    def __init__(self, config=None, **kwargs):
+        config = self.set_config(config, kwargs=kwargs)
+        self.resolve_config()
         self.logger = logging.getLogger(__name__)
-        self.device = device if device else ('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model_id = model_id
-        self.max_length = max_length
-        self.dataset_name = dataset_name
+        self.set_dataset(config)
+        self.set_model(config)
+        if config.train:
+            self.train()
 
-        #lora
-        self.lora_r = lora_r
-        self.lora_alpha = lora_alpha
-        self.lora_target_modules = lora_target_modules
-        self.lora_bias = lora_bias
-        self.lora_task_type = getattr(TaskType, lora_task_type.upper())
-        #load dataset
-        self.dataset = load_dataset(dataset_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
+        
 
-        bnb_config = None
-        if quantize:
-            if not quantization_config:
-                quantization_config = {
-                    'load_in_4bit': True,
-                    'bnb_4bit_use_double_quant': True,
-                    'bnb_4bit_quant_type': "nf4",
-                    'bnb_4bit_compute_dtype': torch.bfloat16
-                }
-            bnb_config = BitsAndBytesConfig(**quantization_config)
+    def set_model(self, config):
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model)
+        quantization_config = self.get_quantize_config(config)
+        self.model = AutoModelForCausalLM.from_pretrained(config.model, quantization_config=quantization_config)
 
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)
-            self.model = AutoModelForCausalLM.from_pretrained(self.model_id, quantization_config=bnb_config)
-            self.model.to(self.device)
-        except Exception as e:
-            self.logger.error(f"Failed to load the model or the tokenizer: {e}")
-            raise
+    
+    def set_dataset(self, config):
+
+        if c.module_exists(config.dataset.get('module', None)):
+            self.dataset = c.module(module)(**config.dataset)
+        else:
+            self.dataset = load_dataset(**config.dataset)
+
+        # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
+        sample = self.dataset[0]
+        largest_text_field_chars = 0
+
+        for k, v in sample.items():
+            if isinstance(v, str):
+                if len(v) > largest_text_field_chars:
+                    largest_text_field_chars = len(v)
+                    config.trainer.dataset_text_field = k 
+
+        self.config = config
+    quantize_config_map = {'bnb': BitsAndBytesConfig}
+
+    def get_quantize_config(self, config: dict) -> dict:
+        '''
+        get quantize config
+        '''
+
+
+        if config.quantize.enabled:
+            mode = config.quantize.mode
+
+            if mode == 'bnb':
+                assert config.quantize.config.bnb_4bit_compute_dtype.startswith('torch.')
+                config.quantize.config.bnb_4bit_compute_dtype = eval(config.quantize.config.bnb_4bit_compute_dtype)
+            quantization_config = self.quantize_config_map[mode](**config.quantize.config)
+        else:
+            quantization_config = None
+        return quantization_config
 
     def __call__(self, prompt_text: str, max_length: int = None):
-        max_length = max_length if max_length else self.max_length
+        max_length = max_length if max_length else self.config.max_length
         try:
             inputs = self.tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
             with torch.no_grad():
@@ -73,61 +83,40 @@ class FineTuner(c.Module):
             self.logger.error(f"Failed to generate the text: {e}")
             raise
 
-    def preprocess_datas(self, max_source_length, max_target_length):
-        def preprocess_function(sample, padding="max_length"):
-            inputs = ["summarize" + item for item in sample["dialogue"]]
-            model_inputs = self.tokenizer(inputs, max_length=max_source_length, padding=padding, truncation=True)
-            labels = self.tokenizer(text_target=sample["sumamry"], max_length=max_target_length, padding=padding, truncation=True)
-            if padding == "max_length":
-                labels["input_ids"] = [
-                    [(l if l != self.tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
-                ]
-            model_inputs["labels"] = labels["input_ids"]
-            return model_inputs
 
-        tokenized_dataset = self.dataset.map(preprocess_function, batched=True, remove_columns=["dialogue", "summary", "id"])
-        return tokenized_dataset
-    
-    def train(self, output_dir:str, num_train_epochs:int):
-        lora_config = LoraConfig(
-            r=self.lora_r,
-            lora_alpha=self.lora_alpha,
-            target_modules=self.lora_target_modules,
-            lora_dropout=self.lora_dropout,
-            bias=self.lora_bias,
-            task_type=self.lora_task_type,
-        )
-
-        # int8 training
-        self.model = prepare_model_for_int8_training(self.model)
-
-        #lora
-        self.model = get_peft_model(self.model, lora_config)
-
-        #data collator
-        data_collator = DataCollatorForSeq2Seq(self.tokenizer, model=self.model, label_pad_token_id=-100, pad_to_multiple_of=8)
+    def resolve_config(self) -> str:
+        output_dir = self.config.trainer.args.output_dir.format(tag=self.tag if self.tag else 'default')
+        output_dir =  self.resolve_path(output_dir)
+        self.config.trainer.args.output_dir = output_dir
+        return output_dir
 
 
-        #training args
-        training_args = Seq2SeqTrainingArguments(
-            output_dir=output_dir,
-            auto_find_batch_size=True,
-            learning_rate=1e-3,
-            num_train_epochs=num_train_epochs,
-            logging_dir=f"{output_dir}/logs",
-            logging_strategy="steps",
-            logging_steps=500,
-            save_strategy="no",
-            report_to="tensorboard"
-        )
-        tokenized_dataset = self.preprocess_data(512, 150)
-        trainer = Seq2SeqTrainer(model=self.model, args=training_args, data_collator=data_collator, train_dataset=tokenized_dataset["train"])
-        trainer.train()
+    def set_trainer(self, config):
+        if self.config.trainer.task_type == 'CAUSAL_LM':
+            self.peft_config = LoraConfig(**self.config.trainer.lora)
+            self.model = prepare_model_for_int8_training(self.model)
+            self.model = get_peft_model(self.model, self.peft_config)
+            self.trainer = SFTTrainer(
+                model=self.model,
+                train_dataset=self.dataset,
+                peft_config=self.peft_config,
+                dataset_text_field=self.config.trainer.dataset_text_field,
+                max_seq_length=self.config.trainer.max_seq_length,
+                tokenizer=self.tokenizer,
+                args=TrainingArguments(**self.config.trainer.args),
+            )
+    def train(self):
+        self.trainer.train()
+        self.save_checkpoint()
+
+    def save_checkpoint(self):
+        checkpoint_output_dir = self.config.trainer.output_dir +  "/final_checkpoint"
+        self.trainer.model.save_pretrained(checkpoint_output_dir)
     #lora config
 
 
     def generate(self, prompt_text: str, max_length: int = None):
-        max_length = max_length if max_length else self.max_length
+        max_length = max_length if max_length else self.config.max_length
         try:
             inputs = self.tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
             with torch.no_grad():

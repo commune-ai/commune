@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Union
 import commune as c
 import torch 
 import traceback
+import json
 
 
 
@@ -19,12 +20,8 @@ class HTTPServer(c.Module):
         verbose: bool = True,
         whitelist: List[str] = None,
         blacklist: List[str] = None,
-        access:str = 'public',
         sse: bool = True,
-        max_history: int = 100,
-        save_history_interval: int = 100,
         max_request_staleness: int = 100,
-        max_result_chars = 100,
         key = None,
         root_key = None,
     ) -> 'Server':
@@ -37,21 +34,11 @@ class HTTPServer(c.Module):
         self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"{self.ip}:{self.port}"
-        self.set_access(access)
-        self.max_result_chars = max_result_chars
-        
-
-        if not hasattr(module, 'key'):
-            module.key = c.get_key(name)
-        # KEY FOR SIGNING DATA
-        self.key = c.get_key(name) if key == None else key
-
 
         # WHITE AND BLACK LIST FUNCTIONS
         
         self.whitelist = getattr( module, 'whitelist', []) if whitelist == None else whitelist
         self.blacklist = getattr( module, 'blacklist', []) if blacklist == None else blacklist
-        self.save_history_interval = save_history_interval
         self.max_request_staleness = max_request_staleness
         self.history = []
         # ensure that the module has a name
@@ -60,31 +47,30 @@ class HTTPServer(c.Module):
             module = c.module(module)()
         elif isinstance(module, type):
             module = module()
-
-        if name == None:
-            name = module.name()
-
-        self.name = name
-        for k in ['module_name', 'module_id', 'name', 'server_name']:
-            if k not in module.__dict__:
-                module.__dict__[k] = name
-                
+            
+        # RESOLVE THE NAME OF THE SERVER
+        self.name = module.server_name =  name if name != None else module.server_name
+        
+        # GET THE KEY FROM THE MODULE IF 
+        if key == None:
+            module.key = c.get_key(self.name)
+        self.key = module.key      
         # register the server
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
+        self.auth_modules = module.auth_modules
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
-
-
-        c.print(f'Serving {name} on port {port})', color='yellow')
-        self.module.set_server_name(name)
         self.module.key = self.key
+
+
+
+
         self.serve()
 
-    def set_access(self, access: str) -> None:
-        assert access in self.access_modes, f"Access mode must be one of {self.access_modes}"
-        self.access = access
+
+
 
     def state_dict(self) -> Dict:
         return {
@@ -119,6 +105,7 @@ class HTTPServer(c.Module):
         return input
     
 
+
     def verify_fn_access(self,input) -> bool:
         address = input.get('address', None)
         fn = input.get('fn', None)
@@ -136,41 +123,43 @@ class HTTPServer(c.Module):
     def process_input(self,input: dict) -> bool:
         r""" Verify the data is signed with the correct key.
         """
+
         input = self.verify_signature(input)
         # deserialize the data
         input = self.verify_fn_access(input)
 
+        for access_module in self.auth_modules:
+            input = access_module.verify(input)
+
         return input
-    
-    @staticmethod
-    def event_source_response(generator):
-        from sse_starlette.sse import EventSourceResponse
-        if c.is_generator(generator):
-            return EventSourceResponse(generator)
-        else:
-            return generator
+
+
+
+    def generator_wrapper(self, generator):
+        if not c.is_generator(generator):
+            generator = [generator]
+            
+        for item in generator:
+            item = self.serializer.serialize({'data': item})
+            item = self.key.sign(item, return_json=True)
+            item = json.dumps(item)
+            yield item
+        
     
     
     def process_result(self,  result):
         if self.sse == True:
-            # if we are using sse, we want to include one time calls too
-            return self.event_source_response(result)
+            # for sse we want to wrap the generator in an eventsource response
+            from sse_starlette.sse import EventSourceResponse
+            result = self.generator_wrapper(result)
+            return EventSourceResponse(result)
         else:
-            # if we are not using sse then we want to convert the generator to a list
-            # WARNING : This will not work for infinite loops lol because it will never end
             if c.is_generator(result):
                 result = list(result)
+            result = self.serializer.serialize({'data': result})
+            result = self.key.sign(result, return_json=True)
 
-        if not isinstance(result, dict):
-            result = {'server_result': result}
-        result = self.serializer.serialize(result)
-        
-        # sign result data (str)
-        result =  self.key.sign(result, return_json=True)
-
-        return result
-
-
+            return result
 
     def check_user(self, address):
         # check if the user is allowed
@@ -248,6 +237,8 @@ class HTTPServer(c.Module):
         try:
             c.print(f'\033🚀 Serving {self.name} on {self.ip}:{self.port} 🚀\033')
             c.register_server(name=self.name, ip=self.ip, port=self.port)
+
+            c.print(f'\033🚀 Registered {self.name} on {self.ip}:{self.port} 🚀\033')
 
             uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:

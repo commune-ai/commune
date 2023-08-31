@@ -9,7 +9,7 @@ The overarching goal of Commune is to create a collaborative ecosystem where dev
 ## Socials
 
 - Twitter: [@communeaidotorg](https://twitter.com/communeaidotorg)
-- Discord: [commune.ai](https://discord.gg/wuT9GRJw)
+- Discord: [commune.ai](https://discord.gg/DgjvQXvhqf)
 - Website: Comming Soon
 
 ## Setup

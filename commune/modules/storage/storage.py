@@ -4,63 +4,54 @@ import streamlit as st
 
 class Storage(c.Module):
 
-    def __init__(self, store: Dict = None, key: 'Key' = None):
-        self.store = {}
-        self.set_key(key)
-    
-    def set_store(self, store: Dict = None):
-        store = {} if store == None else store
-        assert isinstance(store, dict), 'store must be a dictionary'
-        self.store = store
-            
-    def put(self,k:str, v: Any) -> str:
-        self.store[k] = v
-        return {'success': True, 'msg': 'set to k'}
-    
+    def __init__(self, store: Dict = None):
+        self.set_config(kwargs=locals()) 
+        self.serializer = c.module('serializer')()
+    @property
+    def store_dirpath(self) -> str:
+        tag = self.resolve_tag()
+        return self.resolve_path(f'{tag}.store')
 
-    def state_dict(self):
-        import json
-        state_dict = {}
-        for k, v in self.store.items():
-            try:
-                state_dict[k] = json.dumps(v)
-            except:
-                c.log(f'could not serialize {k}')
-            
-        return state_dict
-    def from_state_dict(self, state_dict: Dict) -> None:
-        import json
-        for k, v in state_dict.items():
-            self.store[k] = json.loads(v)
-            
-    def save(self, tag: str = None):
+    def resolve_store_path(self, key: str) -> str:
+        path =  f'{self.store_dirpath}/{key}'
+        return path
+
+    def put(self, k,  v: Dict, tag: str = None):
         tag = self.resolve_tag(tag)
-        return self.put_json( path=tag, data=self.state_dict())
+        v = self.serializer.serialize({'data': v})
+        v = self.key.sign(v, return_json=True)
+        path = self.resolve_store_path(k)
+        return c.put(path, v)
 
-    def load(self, tag: str = None):
-        tag = self.resolve_tag(tag)
-        state_dict = self.get_json( path=tag)
-        for k, v in state_dict.items():
-            setattr(self, k, v)
+    def get(self,k) -> Any:
+        path = self.resolve_store_path(k)
+        v = c.get(f'{self.store_dirpath}/{k}', {})
+        v = v['data']
+        v = self.serializer.deserialize(v)['data']
+        return v
+
+    def exists(self, k) -> bool:
+        path = self.resolve_store_path(k)
+        c.print(path)
+        return c.exists(path)
+
+    def rm(self, k) -> bool:
+        assert self.exists(k), f'Key {k} does not exist'
+        path = self.resolve_store_path(k)
+        return c.rm(path)
+
+
+    def ls(self, search=None) -> List:
+        path = self.store_dirpath
+        return c.ls(path)
+
+
+    def refresh(self) -> None:
+        path = self.store_dirpath
+        return c.rm(path)
+
+
     
-    def get(self,
-            k, 
-            key:str = None,
-            max_staleness: int = 1000) -> Any:
-        key = c.resolve_key(key)
-        item = self.store[k]
-        verified = key.verify(item)
-        # decrypt if necessary
-        if self.is_encrypted(item):
-            item['data'] = key.decrypt(item['data'])
-        item['data'] = self.str2python(item['data'])
-        assert verified, 'could not verify signature'
-        # check staleness
-        staleness = c.time() - item['data']['time']
-        assert staleness < max_staleness
-
-        return item['data']['data']
-
     @property
     def key2address(self) -> Dict:
         key2address = {}
@@ -72,14 +63,13 @@ class Storage(c.Module):
                 key2address[v['ss58_address']] = [k]
         return key2address
         
-    def is_encrypted(self, item: Dict) -> bool:
-        return item.get('encrypt', False)
- 
     @classmethod
     def test(cls):
+        c.print('STARTING')
         self = cls()
         object_list = [0, {'fam': 1}, 'whadup']
         for obj in object_list:
+            c.print(f'putting {obj}')
             self.put('test', obj)
             assert self.get('test') == obj
             

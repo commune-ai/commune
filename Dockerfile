@@ -9,29 +9,24 @@ RUN apt update && apt upgrade -y
 RUN apt install -y curl sudo nano git htop netcat wget unzip python3-dev python3-pip tmux apt-utils cmake build-essential protobuf-compiler
 
 
-# VOLUMES FOR MODULES
+#  INSTALL PYTHON PACKAGES
 COPY ./commune /commune/commune
 COPY ./requirements.txt /commune/requirements.txt
 COPY ./setup.py /commune/setup.py
 COPY ./README.md /commune/README.md
 COPY ./bin /commune/bin
-
-# MAKE A SCRIPTS DIRECTORY
-RUN mkdir /commune/scripts
-# INSTALL PYTHON ENV
-COPY ./scripts/install_python_env.sh /commune/scripts/install_python_env.sh
+COPY ./scripts /commune/scripts
 RUN ./scripts/install_python_env.sh
-# INSTALL NPM ENV
-COPY ./scripts/install_npm_env.sh /commune/scripts/install_npm_env.sh
-RUN ./scripts/install_npm_env.sh
-# INSTALL RUST ENV
-COPY ./scripts/install_rust_env.sh /commune/scripts/install_rust_env.sh
-RUN ./scripts/install_rust_env.sh
-
-# INSTALL COMMUNE
 RUN pip3 install -e .
 
-# BUILD SUBDSPACE
+# INTSALL NPM PACKAGES
+RUN ./scripts/install_npm_env.sh
+
+# BUILD SUBDSPACE (BLOCKCHAIN)
 COPY ./subspace /commune/subspace
-# RUN cd ./subspace && cargo build --release
+# Necessary libraries for Rust execution
+RUN apt-get update && apt-get install -y clang 
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cd /commune/subspace && ./scripts/install_rust_env.sh
+RUN cd /commune/subspace && cargo build --release --locked
 

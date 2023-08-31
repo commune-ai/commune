@@ -1,11 +1,39 @@
+model: togethercomputer/LLaMA-2-7B-32K
+# dataset: 
+#   path: opentensor/openvalidators
+#   split: train
 
-model_id: str, 
-device: str = None,
-dataset_name=None, 
-lora_r:int=16,
-lora_alpha:int=32,
-lora_target_modules=["q", "v"],
-lora_bias="none",
-lora_task_type='SEQ_2_SEQ_LM',
-max_length=1000, 
-quantize: bool = False, 
+dataset: 
+  module: finetune.data
+
+device: cuda
+max_length: 1000
+tag : null
+
+quantize:
+  mode: bnb
+  enabled: true
+  config:             
+    load_in_4bit: True
+    bnb_4bit_use_double_quant: True
+    bnb_4bit_quant_type: nf4
+    bnb_4bit_compute_dtype: torch.bfloat16
+    pretraining_tp: 1
+train: true
+trainer:
+  task_type: CAUSAL_LM
+  args:
+    per_device_train_batch_size: 4
+    gradient_accumulation_steps: 4
+    output_dir: "{tag}"
+    learning_rate: 0.0002
+    logging_steps: 100
+    max_steps: 500
+  dataset_text_field: text
+  max_seq_length: 1000
+  lora:
+    r: 64
+    lora_alpha: 16
+    lora_dropout: 0.1
+    bias: "none"
+    task_type: CAUSAL_LM
