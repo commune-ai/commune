@@ -35,7 +35,7 @@ class Vali(c.Module):
     def start(self):
         self.threads = []
         # we only need a queue if we are multithreading
-        self.queue = c.queue(self.config.num_threads*4)
+        self.queue = c.queue(int(self.config.num_threads*0.5))
         # start threads, ensure they are daemons, and dont vote
         for t in range(self.config.num_threads):
             t = c.thread(fn=self.run_worker)
@@ -71,7 +71,7 @@ class Vali(c.Module):
         return self.count / self.lifetime
 
     def score_module(self, module):
-        info = module.info(timeout=1)
+        info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
         assert 'address' in info, f'Response must have an error key, got {info.keys()}'
         w = 1
@@ -210,17 +210,17 @@ class Vali(c.Module):
                     continue
             
 
-            if 'timestamp' in s:
-                s['staleness'] = c.timestamp() - s['timestamp']
-            else:
-                s['staleness'] = 0
-        
-            if s['staleness'] > max_staleness:
-                continue
+                if 'timestamp' in s:
+                    s['staleness'] = c.timestamp() - s['timestamp']
+                else:
+                    s['staleness'] = 0
+            
+                if s['staleness'] > max_staleness:
+                    continue
 
-            if keys  != None:
-                s = {k: s.get(k,None) for k in keys}
-            module_stats += [s]
+                if keys  != None:
+                    s = {k: s.get(k,None) for k in keys}
+                module_stats += [s]
         return module_stats
 
 
@@ -255,26 +255,29 @@ class Vali(c.Module):
     def run_worker(self):
         c.sleep(self.config.sleep_time)
         # we need a new event loop for each thread
-        loop = c.new_event_loop()
         import asyncio
-        while True:
-            try:
-                c.sleep(0.1)
-                c.print('waiting')
-                module = self.queue.get(block=True)
-                loop.run_until_complete(asyncio.wait_for(self.async_eval_module(module=module), timeout=5))
+        loop = c.new_event_loop()
 
-            except asyncio.TimeoutError as e:
-                c.print(f'Timeout Error for ->', module['name'], color='red')
-                self.errors += 1
+        while True:
+            c.sleep(0.1)
+
+            module = self.queue.get(block=True)
+            start_time = c.time()
+            # create a task for the event loop 
+            # run the task
+            loop.run_until_complete(asyncio.wait_for(self.async_eval_module(module=module), timeout=self.config.timeout))
 
 
     def vote_loop(self):
         c.sleep(self.config.sleep_time)
         while True:
-            c.sleep(1)
-                
-            c.print(self.vote())
+            try:
+                c.sleep(1)
+                c.print(self.vote())
+            except Exception as e:
+                c.print(f'Error in vote loop {e}', color='red')
+                c.print(traceback.format_exc(), color='red')
+                c.sleep(1)
 
 
     def run(self, vote=False):
@@ -291,6 +294,8 @@ class Vali(c.Module):
             modules = c.shuffle(c.copy(self.modules))
             for i, module in enumerate(modules):
                 if self.queue.full():
+
+                    c.sleep(1)
                     continue
 
                 self.queue.put(module)
@@ -305,10 +310,6 @@ class Vali(c.Module):
                     'epochs': self.epochs,
                      }
                     c.print(f'STATS  --> {stats}\n', color='white')
-            while not self.queue.empty():
-                qsize = self.queue.qsize()
-                c.print(f'Queue size {qsize}', color='purple')
-                c.sleep(0.1)
     @property
     def epochs(self):
         return self.count // self.n

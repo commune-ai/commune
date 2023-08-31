@@ -6,7 +6,7 @@ module_prefix: null
 network: main 
 max_history: 10
 alpha: 0.9
-timeout: 2
+timeout: 10
 tag: null
 num_threads: 50
 start: True
