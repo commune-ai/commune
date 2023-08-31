@@ -6416,9 +6416,17 @@ class c:
         if refresh == False:
             assert not os.path.exists(path2), path2
         
+        path2_dirpath = os.path.dirname(path2)
+        if not os.path.isdir(path2_dirpath):
+            os.makedirs(path2_dirpath, exist_ok=True)
+            assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
+
         if os.path.isdir(path1):
             shutil.copytree(path1, path2)
+
+
         elif os.path.isfile(path1):
+            
             shutil.copy(path1, path2)
         else:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
