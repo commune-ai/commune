@@ -59,6 +59,7 @@ class Subspace(c.Module):
     ):
 
         config = self.set_config(config=config,kwargs=kwargs)
+        self.set_network(network=config.network)
         if config.loop:
             c.thread(self.loop)
     @classmethod
@@ -1494,7 +1495,7 @@ class Subspace(c.Module):
 
     def stats(self, 
               netuid=None,  
-              records:bool=True, 
+              df:bool=False, 
               update:bool = False, 
               cols = ['name', 'address', 'key', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake','stake_from',  'stake_to'],
               **kwargs
@@ -1534,17 +1535,19 @@ class Subspace(c.Module):
     
         if len(df_stats) > 0:
             df_stats.sort_values(by=['registered'], ascending=False, inplace=True)
-        if records:
+
+
+        if not df:
             return df_stats.to_dict('records')
         else:
             return df_stats
         
     def check_servers(self, netuid=None):
-        for m in c.stats(netuid=netuid, records=True):
+        for m in c.stats(netuid=netuid, df=False):
             if m['serving'] == False and m['registered'] == True:
-                c.serve(m['name'])
-            if m['serving'] == True and m['registered'] == False:
                 c.register(m['name'])
+            if m['serving'] == True and m['registered'] == False:
+                self.register(m['name'])
                 
     def key_stats(self, 
                 key : str , 

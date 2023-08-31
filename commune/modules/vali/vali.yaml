@@ -10,10 +10,10 @@ timeout: 2
 tag: null
 num_threads: 50
 start: True
-verbose: False
+verbose: True
 batch_size: 4
 refresh_stats: False
-vote_interval: 100
+vote_interval: null
 sleep_time: 1
 min_stake: 1
 connect_score: 0.1 

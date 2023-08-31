@@ -1142,7 +1142,7 @@ class Keypair(c.Module):
     def get_mem(cls, key):
         return cls.get_key(key).mnemonic
     def __str__(self):
-        return f'<Keypair (address={self.ss58_address}, path={self.path},  crypto_type: {self.crypto_type_name})>'
+        return f'<Keypair (address={self.ss58_address[:6]}.., path={self.path},  crypto_type: {self.crypto_type_name})>'
 
     def __repr__(self):
         return self.__str__()
