@@ -1391,7 +1391,6 @@ class Subspace(c.Module):
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network)
-        c.namespace_subspace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
     def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
@@ -1657,11 +1656,12 @@ class Subspace(c.Module):
     balances = get_balances
     
     def resolve_network(self, network: Optional[int] = None) -> int:
-        if  hasattr(self, 'substrate'):
-            network =  self.network
-        else:
+        if network == None:
+            network = self.network
+        if  not hasattr(self, 'substrate') and self.network == network:
             self.set_network(network)
             network =  self.network
+        
         return network
     
     def resolve_subnet(self, subnet: Optional[int] = None) -> int:

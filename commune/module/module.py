@@ -3168,7 +3168,7 @@ class c:
         # if not subspace.is_unique_name(server_name, netuid=subnet):
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
 
-        if c.server_exists(server_name) and refresh == False:
+        if c.server_exists(server_name, network='local') and refresh == False:
             c.print(f'Server already Exists ({server_name})')
         
         else:
@@ -7871,7 +7871,6 @@ class c:
             c.kill(m)
 
 
-    @property
     def auth_modules(self, return_config = False):
 
         '''
@@ -7893,11 +7892,11 @@ class c:
         return auth_modules
 
 
-    @auth_modules.setter
-    def auth_modules(self, auth_modules):
-        if not hasattr(self, '_auth_modules'):
-            self._auth_modules = []
-        self._auth_modules = auth_modules
+    # @auth_modules.setter
+    # def auth_modules(self, auth_modules):
+    #     if not hasattr(self, '_auth_modules'):
+    #         self._auth_modules = []
+    #     self._auth_modules = auth_modules
         
 
         

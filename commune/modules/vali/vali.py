@@ -20,7 +20,6 @@ class Vali(c.Module):
         # merge the config with the default config
         self.count = 0
         self.config = c.munch({**Vali.config(), **config})
-        self.sync( )
         self.start_time = c.time()
         self.errors = 0
 
@@ -43,8 +42,18 @@ class Vali(c.Module):
         c.thread(self.vote_loop)
         c.thread(self.run)
 
-    def sync(self, sync=True):
-        self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
+
+
+    def set_subspace(self, network=None, netuid=None, sync=False):
+        if network == None:
+            network = self.config.network
+        if netuid == None:
+            netuid = self.config.netuid
+        if not hasattr(self, 'subsapce'):
+            self.subspace = c.module('subspace')(network=network, netuid=netuid)
+
+        if sync:
+            self.subspace.sync(network=network)
         self.modules = self.subspace.modules()
         self.namespace = {v['name']: v['address'] for v in self.modules }
         self.name2module = {v['name']: v for v in self.modules }
@@ -54,10 +63,11 @@ class Vali(c.Module):
         self.n  = len(self.module_names)
         self.subnet = self.subspace.subnet()
         self.seconds_per_epoch = self.subspace.seconds_per_epoch()
-        # self.key = c.get_key(self.config.key)
 
         if self.config.vote_interval == None: 
             self.config['vote_interval'] = self.seconds_per_epoch
+        if sync:
+            self.subspace.sync()
 
     @property
     def lifetime(self):
@@ -133,12 +143,13 @@ class Vali(c.Module):
         return cls.rm(path)
 
     @classmethod
-    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'timestamp'], tag=None, topk=30):
+    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'staleness'], tag=None, topk=30):
         stats = cls.load_stats( network=network, keys=keys, tag=tag)
 
         if df:
             stats = c.df(stats)
             stats.sort_values('w', ascending=False, inplace=True)
+
 
         stats = stats[:topk]
 
@@ -146,7 +157,7 @@ class Vali(c.Module):
 
 
     @classmethod
-    def weights(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key']):
+    def weights(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'staleness', 'uid', 'key']):
         stats = cls.load_stats( network=network, keys=keys)
         weights = {s['name']: s['w'] for s in stats if s['w'] > 0}
 
@@ -200,28 +211,36 @@ class Vali(c.Module):
         
         return {'success': True, 'message': 'Voted', 'votes': vote_dict }
     @classmethod
-    def load_stats(cls, network:str='main', batch_size=20 , keys:str=None, tag=None):
+    def load_stats(cls, network:str='main', 
+                    batch_size:int=20 , 
+                    max_staleness:int= 2000,
+                    keys:str=None,
+                     tag=None):
         tag = 'base' if tag == None else tag
         paths = cls.ls(f'stats/{network}/{tag}')
         jobs = [c.async_get_json(p) for p in paths]
         module_stats = []
         for jobs_batch in c.chunk(jobs, batch_size):
             results = c.gather(jobs_batch)
+
+
+            # last_interaction = [r['history'][-1][] for r in results if r != None and len(r['history']) > 0]
             for s in results:
                 if s == None:
                     continue
-                if keys  != None:
-                    s = {k: s.get(k,None) for k in keys}
-                module_stats += [s]
-                # c.print(f'Loaded {len(module_stats)} stats', color='cyan')
-        
-        for ms in module_stats:
-            if 'timestamp' in ms:
-                ms['latency'] = c.timestamp() - ms['timestamp']
-            else:
-                ms['latency'] = 0
+            
 
-        c.print(f'COMPLETED -> Loaded {len(module_stats)} stats', color='cyan')
+            if 'timestamp' in s:
+                s['staleness'] = c.timestamp() - s['timestamp']
+            else:
+                s['staleness'] = 0
+        
+            if s['staleness'] > max_staleness:
+                continue
+
+            if keys  != None:
+                s = {k: s.get(k,None) for k in keys}
+            module_stats += [s]
         return module_stats
 
 
@@ -285,6 +304,7 @@ class Vali(c.Module):
         self.running = True
 
         while self.running:
+            self.sync()
     
             modules = c.shuffle(c.copy(self.module_names))
             for i, module in enumerate(modules):
