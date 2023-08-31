@@ -7609,6 +7609,11 @@ class c:
         cls.chmod_scripts()
         c.cmd('./scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
+    @classmethod
+    def install_npm(cls, sudo=True) :
+        cls.chmod_scripts()
+        c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+
 
     @classmethod
     def cache_result(cls, func):
