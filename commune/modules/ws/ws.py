@@ -9,12 +9,15 @@ class WS(c.Module):
                  ip = '0.0.0.0',
                  port:int=None,
                  queue_size:int=-1,
-                 verbose:bool = True):
+                 verbose:bool = True, 
+                 module = None):
+        self.serializer = c.module('serializer')()
+
+        if module == None:
+            self.module = c.module(module)()
         self.set_server(ip=ip, port=port, queue_size=queue_size, verbose=verbose)
 
-    @staticmethod
-    def start(**kwargs):
-        WS(**kwargs)
+
 
     def set_server(self, ip = '0.0.0.0', port = None, queue_size = -1, verbose = False):
         self.ip = c.resolve_ip(ip)
@@ -33,14 +36,18 @@ class WS(c.Module):
     async def forward(self, websocket):
         c.print(f'Starting Server Forwarding from {self.ip}:{self.port}')
 
-        while True:
-            try:
-                c.print('waiting for data')
-                data = await websocket.recv()
-                c.print(f'chunk -> {data}')
-                await websocket.send(data)
-                c.print(f'sent -> {data}')
-            except Exception as e:
-                c.print(f'An error occurred: {e}')  
+        async for m in websocket:
+            m = self.serializer.deserialize(m)
+
+
+            m = self.serializer.serialize(m)
+            await websocket.send(m)
+            
+            await websocket.send('<BREAK>')
+
+
+    def __del__(self):
+        c.deregister_server(self.name)
+
 
 

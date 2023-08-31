@@ -30,7 +30,7 @@ class c:
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
     pwd = os.getenv('PWD') #  
     console = Console()
-    helper_whitelist = ['info', 'schema','server_name'] # whitelist of helper functions to load
+    helper_whitelist = ['info', 'schema','server_name', 'is_admin'] # whitelist of helper functions to load
     whitelist = [] # whitelist of modules to load
     blacklist = [] # blacklist of modules to not load
     server_mode = 'http' # http, grpc, ws (websocket)
@@ -680,35 +680,32 @@ class c:
     def get_config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
-                   to_munch:bool = True,
-                   root:bool = False) -> Munch:
+                   to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
         '''
         if not cls.has_config():
             return {}
-        kwargs = kwargs if kwargs != None else {}
-        if isinstance(config, str):
+        if config == None:
+            config = cls.load_config()
+        elif isinstance(config, str):
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
             default_config = cls.load_config()
             config = {**default_config, **config}
-        elif config == None:
-            config = cls.load_config()
+        else:
+            raise ValueError(f'config must be a dict, str or None, not {type(config)}')
         
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
+        # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
+        # for example  model.name=bert is the same as config[model][name]=bert
+
         kwargs = kwargs if kwargs != None else {}
         kwargs.update(kwargs.pop('kwargs', {}))
-        
         for k,v in kwargs.items():
             cls.dict_put(config,k,v )
-        # ensure there are no inner_args to avoid ambiguous args 
-    
-        if isinstance(config, Munch) and not to_munch:
-            config = cls.munch2dict(config)
-        
             
         #  add the config after in case the config has a config attribute lol
         if to_munch:
@@ -745,6 +742,7 @@ class c:
         if add_attributes:
             self.__dict__.update(self.munch2dict(config))
         self.config = config 
+        self.kwargs = kwargs
         
         if save_config:
             self.save_config(config=config)
@@ -753,7 +751,7 @@ class c:
         return self.config
 
     @classmethod
-    def flatten_dict(cls, x):
+    def flatten_dict(cls, x = {'a': {'b': 1, 'c': {'d': 2, 'e': 3}, 'f': 4}}):
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
@@ -963,8 +961,12 @@ class c:
 
 
 
-    
-    
+    @classmethod
+    def module_exists(cls, module:str) -> bool:
+        '''
+        Returns true if the module exists
+        '''
+        return module in c.modules()
 
     
     @classmethod
@@ -1263,6 +1265,29 @@ class c:
             return cls.pm2_restart(module)
         else:
             raise NotImplementedError(f"Mode: {mode} is not implemented")
+
+
+    @classmethod
+    def restart_servers(cls, module:str=None, mode:str = 'pm2'):
+        '''
+        Kill the server by the name
+        '''
+        fn = getattr(cls, f'{mode}_restart')
+        for module in c.servers(module,network='local'):
+            c.print(f'Restarting {module}', color='red')
+            # fn(module)
+
+    @classmethod
+    def pm2_restart_all(cls):
+        '''
+        Kill the server by the name
+        '''
+        for p in c.pm2_list():
+            c.print(f'Restarting {p}', color='red')
+            c.pm2_restart(p)
+
+        c.update()
+
 
     @staticmethod
     def kill_all_servers( *args, **kwargs):
@@ -2168,11 +2193,11 @@ class c:
             return False
 
     @classmethod
-    def get_peer_name(cls, *args,**kwargs):
-        return c.gather(c.async_get_peer_name(*args,**kwargs), timeout=1)
+    def get_server_name(cls, *args,**kwargs):
+        return c.gather(c.async_get_server_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_peer_name(peer_address, connect_timeout=2, fn_timeout=2,**kwargs):
+    async def async_get_server_name(peer_address:str, connect_timeout:int=2, fn_timeout:int=2, verbose:bool=False, **kwargs):
         try:
             peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
 
@@ -2183,12 +2208,17 @@ class c:
 
             server_name = peer(fn='server_name',  return_future=True)
 
+
             server_name = await asyncio.wait_for(server_name, timeout=fn_timeout)
+
+            c.print(f'Getting peer name from {server_name}', color='green', verbose=verbose)
+
             if c.check_response(server_name):
                 return server_name
             else:
                 return server_name
         except Exception as e:
+            c.print(c.detailed_error(e))
             return {'error':str(e)}
 
             
@@ -2209,21 +2239,24 @@ class c:
 
         if update : 
         
-            used_ports = cls.get_used_ports()
+            used_ports = c.get_used_ports()
             ip = c.default_ip
             addresses = [ f'{ip}:{p}' for p in used_ports]
             namespace_local = {}
 
+            c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
+
             for i in range(0, len(addresses), chunk_size):
                 addresses_chunk = addresses[i:i+chunk_size]
-                names_chunk = c.gather([cls.async_get_peer_name(address) for address in addresses_chunk])
+                names_chunk = c.gather([cls.async_get_server_name(address) for address in addresses_chunk])
                 for i in range(len(names_chunk)):
                     if isinstance(names_chunk[i], str):
                         namespace_local[names_chunk[i]] = addresses_chunk[i]
 
             c.put('namespace_local', namespace_local)
             
-
+        for k, v in namespace_local.items():
+            namespace_local[k] = c.default_ip + ':' + v.split(':')[-1]
         return namespace_local
     
     @classmethod
@@ -2251,13 +2284,14 @@ class c:
     
     @classmethod
     def register_server(cls, name: str, ip: str,port: int = None,  **kwargs)-> dict:
-        namespace_local = cls.namespace_local(update=False)    
+        namespace_local = c.namespace_local(update=False)    
 
         if c.is_address(ip):
             port = int(ip.split(':')[-1])
             ip = ip.split(':')[0]
         namespace_local[name] = f'{ip}:{port}'
-        cls.put_json('namespace_local', namespace_local, root=True) 
+        c.put_json('namespace_local', namespace_local, root=True) 
+        assert c.server_exists(name), f'Failed to register server {name} with address {ip}:{port}'
         return namespace_local
 
 
@@ -2344,8 +2378,13 @@ class c:
         return loop
 
     @classmethod
-    def server_exists(cls, name:str, network:str = None,  **kwargs) -> bool:
-        return bool(name in cls.servers(network=network, **kwargs)) and name in cls.pm2_list()
+    def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
+        servers = cls.servers(network=network, **kwargs)
+        if prefix_match:
+            return any([s for s in servers if s.startswith(name)])
+        else:
+            return bool(name in servers)
+        return 
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -2355,6 +2394,9 @@ class c:
         return port 
     
     resolve_port = get_port
+
+
+
     
 
 
@@ -2384,10 +2426,9 @@ class c:
                           sleep_interval: int = 1) -> bool :
         
         time_waiting = 0
-        cls.namespace_local()
         logs = []
         while not c.server_exists(name, network='local'):
-            cls.sleep(sleep_interval)
+            c.sleep(sleep_interval)
             time_waiting += sleep_interval
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
             print_logs = [l for l in new_logs if l not in logs]
@@ -2447,6 +2488,9 @@ class c:
             c.put('namespace_subspace', namespace)
         else:
             namespace = c.get('namespace_subspace', None)
+        
+        local_namespace = cls.namespace_local()
+        namespace = {**namespace, **local_namespace}
         return namespace
 
         
@@ -2476,15 +2520,14 @@ class c:
                   update: bool = False,
                   max_staleness:int = 30,
                   **kwargs):
-        
-        network = cls.resolve_network(network)
+
+
+        network = c.resolve_network(network)
         namespace_fn = getattr(cls, f'namespace_{network}')
         namespace = namespace_fn(update=update, **kwargs)        
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
             return namespace
-        if update == False and len(namespace) == 0:
-            namespace = namespace_fn(update=True, **kwargs)
         return namespace
     
 
@@ -2517,15 +2560,9 @@ class c:
     @whitelist.setter
     def whitelist(self, whitelist:List[str]):
         self._whitelist = whitelist
-        
         return whitelist
     wl = whitelist
     bl = blacklist = []
-
-    @classmethod
-    def resolve_tag(cls, tag:str=None, **kwargs):
-        conifg = cls.config()
-        return tag
 
 
     @classmethod
@@ -2540,7 +2577,7 @@ class c:
               server_name:str=None, 
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = True, # waits for the server to start before returning
+              wait_for_server:bool = False, # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
@@ -2575,19 +2612,24 @@ class c:
         module_class = cls.resolve_module(module)
 
         kwargs.update(extra_kwargs)
+
+        # this automatically adds 
         kwargs['tag'] = tag
         kwargs['server_name'] = server_name
-        self = module_class(**kwargs)
 
+
+        self = module_class(**kwargs)
+        ip, port = None, None
         if c.server_exists(server_name, network='local'): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 c.kill(server_name)
             else:  
+                ip, port = c.get_address(server_name, network='local').split(':')
                 raise Exception(f'The server {server_name} already exists')
             
-        server = c.module(f'server.{server_mode}')(module=self, name= server_name)
-        return server.server_name
+        server = c.module(f'server.{server_mode}')(module=self, name= server_name, ip=ip, port=port)
+        return server.name
 
     serve_module = serve
     @classmethod
@@ -3123,14 +3165,20 @@ class c:
         subspace = c.module('subspace')()
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
+        # if not subspace.is_unique_name(server_name, netuid=subnet):
+        #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
 
-        server_name = module.serve(
-                            server_name=server_name, 
-                            wait_for_server=True, 
-                            refresh=refresh, 
-                            **kwargs)
+        if c.server_exists(server_name) and refresh == False:
+            c.print(f'Server already Exists ({server_name})')
+        
+        else:
+            server_name = module.serve(
+                                server_name=server_name, 
+                                wait_for_server=True, 
+                                refresh=refresh, 
+                                tag=tag,
+                                **kwargs)
         subspace.register(name=server_name, subnet=subnet)
-        c.sync()
         return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 
 
@@ -3256,7 +3304,7 @@ class c:
 
             text = ''
             for m in ['out','error']:
-                path = f'{cls.pm2_dir}/logs/{module}-{m}.log'.replace(':', '-').replace('_', '-')
+                path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, start_line=start_line, end_line=end_line)
                 except Exception as e:
@@ -4808,6 +4856,10 @@ class c:
         return c.module('key').key2address(*args, **kwargs )
 
     @classmethod
+    def is_key(self, key:str) -> bool:
+        return c.module('key').is_key(key)
+
+    @classmethod
     def root_key(cls):
         return c.get_key()
 
@@ -5555,18 +5607,33 @@ class c:
     
     @classmethod
     def resolve_network(cls, network=None):
+
+        network_shortcuts = {
+            'r': 'remote',
+            'l': 'local',
+            'g': 'global',
+            's': 'subspace',
+            'b': 'bittensor',
+            'auto': 'autonolous',
+            'a': 'autonolous',
+            'c': 'subspace',
+        }
+
+        network = network_shortcuts.get(network, network)
+        
         if network == None:
             network = cls.get_network()
+
         return network
 
     get_network = resolve_network
     @classmethod
     def set_network(cls, network:str):
-        old_network = cls.get_network()
-        assert network in ['subspace', 'local'], f'Network must be one of {["subspace", "local"]}'
+        old_network = c.network()
+        network = c.resolve_network(network)
         c.put('network', network)
-        new_network = cls.get_network()
-        return {'success': True, 'msg': f'from {old_network} -> {new_network}'}
+
+        return {'success': True, 'msg': f'from {old_network} -> {network}'}
     
     setnet = set_network
 
@@ -6222,8 +6289,6 @@ class c:
         if hasattr(self, 'config') and isinstance(self.config, dict):
             if 'tag' in self.config:
                 tag = self.config['tag']
-        if tag == None:
-            tag = self.default_tag
         return tag
     @tag.setter
     def tag(self, value):
@@ -6250,7 +6315,8 @@ class c:
             singleton = False
         assert isinstance(jobs, list)
         if mode == 'asyncio':
-            loop = loop if loop != None else cls.get_event_loop()
+            if loop == None:
+                loop = c.get_event_loop()
             results = loop.run_until_complete(asyncio.wait_for(asyncio.gather(*jobs), timeout=timeout))
         else:
             raise NotImplementedError
@@ -6345,15 +6411,24 @@ class c:
         
         
     @classmethod
-    def cp(cls, path1, path2):
+    def cp(cls, path1:str, path2:str, refresh:bool = False):
         import shutil
         # what if its a folder?
         assert os.path.exists(path1), path1
-        assert not os.path.exists(path2), path2
+        if refresh == False:
+            assert not os.path.exists(path2), path2
         
+        path2_dirpath = os.path.dirname(path2)
+        if not os.path.isdir(path2_dirpath):
+            os.makedirs(path2_dirpath, exist_ok=True)
+            assert os.path.isdir(path2_dirpath), f'Failed to create directory {path2_dirpath}'
+
         if os.path.isdir(path1):
             shutil.copytree(path1, path2)
+
+
         elif os.path.isfile(path1):
+            
             shutil.copy(path1, path2)
         else:
             raise ValueError(f'path1 is not a file or a folder: {path1}')
@@ -6655,8 +6730,14 @@ class c:
         
     def resolve_tag(self, tag:str=None, default_tag='base'):
         if tag == None:
+            tag = self.tag
+        if tag == None:
             tag = default_tag
+        assert tag != None
         return tag
+    def resolve_tag_path(self, tag=None): 
+        tag = self.resolve_tag(tag)
+        return self.resolve_path(tag)
     
     @classmethod
     def python2types(cls, d:dict)-> dict:
@@ -7202,6 +7283,10 @@ class c:
     @classmethod
     def key_info(cls, *args, **kwargs):
         return c.module('key').key_info(*args, **kwargs)
+
+    @classmethod
+    def key2mem(cls, *args, **kwargs):
+        return c.module('key').key2mem(*args, **kwargs)
     @classmethod
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
@@ -7220,7 +7305,6 @@ class c:
     @key.setter
     def key(self, key):
         self._key = c.get_key(key)
-        c.get_key
         return self._key
 
     @classmethod
@@ -7635,8 +7719,6 @@ class c:
         t.daemon = daemon
         if start:
             t.start()
-
-
         fn_name = fn.__name__
         if tag == None:
             tag = ''
@@ -7651,6 +7733,13 @@ class c:
         cls.thread_map[name] = t
 
         return t
+
+    def join_threads(self, threads:[str, list]):
+
+        threads = self.thread_map
+        for t in threads:
+            self.join_thread(t)
+
     @classmethod
     def thread_fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
         args = args or []
@@ -7680,13 +7769,13 @@ class c:
     # USER LAND
     ##################################
     @classmethod
-    def add_user(cls, address, role='admin', **kwargs):
+    def add_user(cls, address, role='user', **kwargs):
 
 
         users = cls.get('users', {})
         info = {'role': role, **kwargs}
         users[address] = info
-        c.put('users', users)
+        cls.put('users', users)
         return {'success': True, 'user': address,'info':info}
     
     @classmethod
@@ -7696,12 +7785,17 @@ class c:
         if root_key_address not in users:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
+
+    
+    @classmethod
+    def is_user(self, address):
+        
+        return address in self.users() or address in c.users()
     
     @classmethod
     def get_user(cls, address):
-        users = cls.get('users', {})
-        assert address in users, f'{address} not in users'
-        return users[address]
+        users = cls.users()
+        return users.get(address, {})
     @classmethod
     def update_user(cls, address, **kwargs):
         info = cls.get_user(address)
@@ -7733,8 +7827,11 @@ class c:
     def admins(cls):
         return [k for k,v in cls.users().items() if v['role'] == 'admin']
     @classmethod
-    def add_admin(cls, address, ):
+    def add_admin(cls, address):
         return  cls.add_user(address, role='admin')
+
+    def num_roles(self, role:str):
+        return len([k for k,v in self.users().items() if v['role'] == role])
     @classmethod
     def rm_user(cls, address):
         users = cls.get('users', {})
@@ -7763,6 +7860,34 @@ class c:
             c.kill(m)
 
 
+    @property
+    def auth_modules(self, return_config = False):
+
+        '''
+        Get the auth modules (modules that process the message to authrize the right people)
+        '''
+        if hasattr(self, '_auth_modules'):
+            return self._auth_modules
+        auth_modules = []
+        # each module has a verify function, that takes in the input and returns the input
+        if hasattr(self, 'config') \
+            and hasattr(self.config, 'auth_modules'):
+
+            config = module.config
+            for access, auth_config in config.auth_modules.items():
+                c.print('Adding auth module: ', access, auth_config, color='yellow')
+                access_module = c.module(access)(**access_config)
+                auth_modules.append(access_module)
+        self._auth_modules = auth_modules
+        return auth_modules
+
+
+    @auth_modules.setter
+    def auth_modules(self, auth_modules):
+        if not hasattr(self, '_auth_modules'):
+            self._auth_modules = []
+        self._auth_modules = auth_modules
+        
 
         
     

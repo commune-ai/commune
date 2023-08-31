@@ -81,9 +81,13 @@ class Docker(c.Module):
     def chmod_scripts(cls):
         c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
 
-    def install_gpus(self):
+    def install(self):
         self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
+
+    def install_gpus(self):
+        self.chmod_scripts()
+        c.cmd('./scripts/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
 
 
     @classmethod
@@ -233,6 +237,8 @@ class Docker(c.Module):
     
     @classmethod
     def resolve_dockerfile(cls, name):
+        if name == None:
+            name = 'commune'
         
         if c.exists(name):
             return name
@@ -276,6 +282,11 @@ class Docker(c.Module):
         return c.save_yaml(path, compose)
     
 
+    @classmethod
+    def down(cls, path='frontend'):
+        path = cls.get_compose_path(path)
+        return c.cmd('docker-compose -f {path} down', verbose=True)
+
 
     @classmethod
     def compose(cls, 
@@ -287,12 +298,14 @@ class Docker(c.Module):
                 cmd : str = None,
                 build: bool = False,
                 project_name: str = None,
-                cwd : str = None):
+                cwd : str = None,
+                down: bool = False
+                ):
         
 
 
         cmd = f'docker-compose' if dash else f'docker compose'
-        
+
         path = cls.get_compose_path(path)
         if compose == None:
             compose = cls.get_compose(path)

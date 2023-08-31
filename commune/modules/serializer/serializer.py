@@ -281,7 +281,7 @@ class Serializer(c.Module):
     def test(cls, size=1):
         self = cls()
         stats = {}
-        data = {'bro': {'fam': torch.randn(size,size), 'bro': [torch.ones(1,1)] , 'bro2': [np.ones((1,1))]}}
+        data = {'bro': {'fam': torch.randn(size,size), 'bro': [torch.ones(1000,500)] , 'bro2': [np.ones((100,1000))]}}
 
         t = c.time()
         serialized_data = self.serialize(data)
@@ -298,7 +298,6 @@ class Serializer(c.Module):
         stats['compression_ratio'] = stats['size_bytes'] / stats['size_bytes_compressed']
         stats['mb_per_second'] = c.round((stats['size_bytes'] / stats['elapsed_time']) / 1e6, 3)
         c.print(stats)
-        c.print(serialized_data)
 
 
         

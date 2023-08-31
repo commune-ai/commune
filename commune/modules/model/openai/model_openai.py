@@ -11,7 +11,7 @@ class OpenAILLM(c.Module):
     
     prompt = """{x}"""
 
-    whitelist = ['forward', 'chat', 'ask']
+    whitelist = ['forward', 'chat', 'ask', 'generate']
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
@@ -19,7 +19,6 @@ class OpenAILLM(c.Module):
                 ):
 
         config = self.set_config(config, kwargs=kwargs)
-        self.set_tag(config.tag)
         self.set_api_key(config.api_key)
         self.set_prompt(config.get('prompt', self.prompt))
         self.set_tokenizer(config.tokenizer)
@@ -84,7 +83,8 @@ class OpenAILLM(c.Module):
         
 
     
-    def forward(self,prompt:str = 'sup?',
+    def forward(self,
+                prompt:str = 'sup?',
                 model:str = 'gpt-3.5-turbo',
                 presence_penalty:float = 0.0, 
                 frequency_penalty:float = 0.0,

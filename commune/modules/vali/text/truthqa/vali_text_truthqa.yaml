@@ -1,17 +1,10 @@
-key : null
 netuid: 0
-network: subspace # global or local network
-sleep: 0.1 # sleep time between each forward call
-load: False # if true, load the dataset
-stats: {} # if true, print the stats
-max_stats_history: 100
+network: main # global or local network
 alpha: 0.9
 timeout: 2
-tag: base
-run: True
-num_threads: 50
-module_prefix: model.openai
-parallel_jobs: 10
+tag: null
+module_prefix: model
 start: True
-voting_interval: 50
-dataset : data.text.truthqa
+dataset : data.text.truth
+verbose: False
+

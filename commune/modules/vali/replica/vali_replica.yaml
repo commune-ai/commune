@@ -1,6 +1,1 @@
-return_val: pong
-users:
-- user1
-- user2
-- user3
-- bro
+module: data.text.realfake

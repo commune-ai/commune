@@ -2,16 +2,18 @@
 
 key : null
 netuid: 0
-module_prefix: model
+module_prefix: null
 network: main 
-max_stats_history: 100
+max_history: 10
 alpha: 0.9
 timeout: 2
-tag: base
-num_threads: 100
+tag: null
+num_threads: 50
 start: True
-voting_interval: 100
 verbose: False
 batch_size: 4
 refresh_stats: False
-vote_interval: 10
+vote_interval: 100
+sleep_time: 1
+min_stake: 1
+connect_score: 0.1 
