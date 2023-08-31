@@ -59,7 +59,7 @@ class HTTPServer(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self.auth_modules = module.auth_modules
+        self.auth_modules = module.auth_modules()
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
         self.module.key = self.key

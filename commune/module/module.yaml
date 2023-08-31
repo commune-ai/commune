@@ -22,3 +22,5 @@ shortcuts:
   tg: textgen
   f: frontend
 tag: fams
+
+auth_modules: []
