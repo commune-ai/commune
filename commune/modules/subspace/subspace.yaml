@@ -583,6 +583,22 @@ chain_info:
     - /ip4/24.83.20.198/tcp/2781/p2p/12D3KooWH5xUvjBSbFsE8mMWHR5jShE5TXdpataTerukiZFRWXkn
     - /ip4/24.83.20.198/tcp/2527/p2p/12D3KooWKTDnNuZtgXmMWQgFLMnBiyVDPW1yu5fqrQ2F2b5ckw9r
     nodes:
+      alice:
+        boot_nodes: /ip4/24.83.20.198/tcp/2742/p2p/12D3KooWBkxZkiU4qr63uuNng2DshVZmUC5XGotJUjNo8jAyVgZC
+        chain: main
+        ip: 76.64.37.164
+        node: alice
+        node_key: null
+        port: 50050
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50051
+        server_mode: pm2
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50052
       nonvali_0:
         boot_nodes: /ip4/24.83.20.198/tcp/2609/p2p/12D3KooWM5tM2B9vjjoCaWgz7MN4vqgPw1BneKXL2r4e1FMkUCrN
         chain: main

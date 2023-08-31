@@ -2168,7 +2168,7 @@ class Subspace(c.Module):
         c.cp(f'{self.chain_path}/target/release/node-subspace', f'{self.chain_path}/release/node-subspace')
     
     @classmethod
-    def release_path(self):
+    def chain_release_path(self):
         path =   f'{self.chain_path}/release/node-subspace'
         assert c.exists(path), f'Chain {self.chain_path} does not exist. Please run build_runtime first. -> c build_runtime'
         return path
@@ -2536,8 +2536,6 @@ class Subspace(c.Module):
         base_path = cls.resolve_base_path(node=node, chain=chain)
         cmd_kwargs = f' --base-path {base_path}'
 
-        # resolve chain spec path
-        c.print(chain)
         chain_spec_path = cls.resolve_chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
         
