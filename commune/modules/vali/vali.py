@@ -22,6 +22,7 @@ class Vali(c.Module):
         self.config = c.munch({**Vali.config(), **config})
         self.start_time = c.time()
         self.errors = 0
+        self.sync()
 
         if self.config.start:
             self.start()
@@ -43,6 +44,8 @@ class Vali(c.Module):
         c.thread(self.run)
 
 
+    def sync(self):
+        self.set_subspace(sync=True)
 
     def set_subspace(self, network=None, netuid=None, sync=False):
         if network == None:
@@ -51,23 +54,14 @@ class Vali(c.Module):
             netuid = self.config.netuid
         if not hasattr(self, 'subsapce'):
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
-
-        if sync:
-            self.subspace.sync(network=network)
-        self.modules = self.subspace.modules()
+        self.modules = self.subspace.modules(update=sync)
         self.namespace = {v['name']: v['address'] for v in self.modules }
-        self.name2module = {v['name']: v for v in self.modules }
-        self.module_names = [m for m in list(self.namespace.keys())]    
         if self.config.module_prefix != None:
-            self.module_names = [m for m in self.module_names if m.startswith(self.config.module_prefix)]
-        self.n  = len(self.module_names)
+            self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
+        self.n  = len(self.modules)
         self.subnet = self.subspace.subnet()
-        self.seconds_per_epoch = self.subspace.seconds_per_epoch()
-
         if self.config.vote_interval == None: 
-            self.config['vote_interval'] = self.seconds_per_epoch
-        if sync:
-            self.subspace.sync()
+            self.config['vote_interval'] = self.subspace.seconds_per_epoch()
 
     @property
     def lifetime(self):
@@ -75,13 +69,6 @@ class Vali(c.Module):
 
     def modules_per_second(self):
         return self.count / self.lifetime
-
-
-
-    def resolve_module_name(self, module=None):
-        if module == None:
-            module = c.choice(self.module_names)
-        return module
 
     def score_module(self, module):
         info = module.info(timeout=1)
@@ -92,38 +79,30 @@ class Vali(c.Module):
                      'w': w}
         return response
 
-    async def async_eval_module(self, module:str = None, thread_id=0, refresh=False):
-        w = 0 # default weight is 0
-        module_name = self.resolve_module_name(module)
+    async def async_eval_module(self, module:dict, thread_id=0, refresh=False):
         epoch = self.count // self.n
         prefix = f'[bold cyan]THREAD{thread_id}[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
-
+        
         self.count += 1
         try:
-
-            address = self.namespace.get(module_name)
-            module = await c.async_connect(address,timeout=1)
-            response = self.score_module(module)
-            w = response['w']
-            c.print(f'{prefix} {module_name} SUCCESS {c.emojis["dank"]} -> W : {w}', color='green', verbose=self.config.verbose)
+            c.print(f'Calling {module["name"]}', color='cyan', verbose=self.config.verbose)
+            module_client = await c.async_connect(module['address'])
+            response = self.score_module(module_client)
+            c.print(f"Success {module['name']} {c.emojis['dank']} -> W : {response['w']}", color='green', verbose=self.config.verbose)
         except Exception as e:
-            e = c.detailed_error(e)
-            response = {'error': e, 'w': w}
-            c.print(f'{prefix}  {module_name} ERROR {c.emojis["error"]} -> W : {w} ->{e}', color='red', verbose=self.config.verbose)
+            response = {'error': c.detailed_error(e), 'w': 0}
+            c.print(f"BRUH  {module['name']} ERROR {c.emojis['error']} -> W : {response['w']} ->{response['error']['error']}", color='red', verbose=self.config.verbose)
 
-        module_info = self.name2module[module_name]
-        module_stats = self.load_module_stats(module_name, default={}) if not refresh else module_state
+        # the
+        w = response['w']
+        module_stats = self.load_module_stats( module['name'], default=module) if not refresh else module_state
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-        module_stats['name'] = module_name
-        module_stats['key'] = module_info['key']
-        module_stats['uid'] = module_info['uid']
         module_stats['timestamp'] = c.timestamp()
-
         # add the history of this module
-        module_stats['history'] = module_stats.get('history', []) + [{'output': response, 'w': w, 'time': c.time()}]
+        module_stats['history'] = module_stats.get('history', []) + [response]
         module_stats['history'] = module_stats['history'][-self.config.max_history:]
-        self.save_module_stats(module_name, module_stats)
+        self.save_module_stats(module['name'], module_stats)
 
         return module_stats
 
@@ -159,7 +138,8 @@ class Vali(c.Module):
     @classmethod
     def weights(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'staleness', 'uid', 'key']):
         stats = cls.load_stats( network=network, keys=keys)
-        weights = {s['name']: s['w'] for s in stats if s['w'] > 0}
+        weights = {s['name']: s['w'] for s in stats if s['w'] >= 0}
+
 
         if df:
             weights = c.df({'module': list(weights.keys()), 'w': list(weights.values())})
@@ -276,14 +256,16 @@ class Vali(c.Module):
         c.sleep(self.config.sleep_time)
         # we need a new event loop for each thread
         loop = c.new_event_loop()
+        import asyncio
         while True:
             try:
                 c.sleep(0.1)
-                module = self.queue.get()
-                loop.run_until_complete(self.async_eval_module(module=module))
-            except Exception as e:
-                c.print(f'Error in worker {e}', color='red')
-                traceback.print_exc()
+                c.print('waiting')
+                module = self.queue.get(block=True)
+                loop.run_until_complete(asyncio.wait_for(self.async_eval_module(module=module), timeout=5))
+
+            except asyncio.TimeoutError as e:
+                c.print(f'Timeout Error for ->', module['name'], color='red')
                 self.errors += 1
 
 
@@ -306,7 +288,7 @@ class Vali(c.Module):
         while self.running:
             self.sync()
     
-            modules = c.shuffle(c.copy(self.module_names))
+            modules = c.shuffle(c.copy(self.modules))
             for i, module in enumerate(modules):
                 if self.queue.full():
                     continue
@@ -323,6 +305,10 @@ class Vali(c.Module):
                     'epochs': self.epochs,
                      }
                     c.print(f'STATS  --> {stats}\n', color='white')
+            while not self.queue.empty():
+                qsize = self.queue.qsize()
+                c.print(f'Queue size {qsize}', color='purple')
+                c.sleep(0.1)
     @property
     def epochs(self):
         return self.count // self.n

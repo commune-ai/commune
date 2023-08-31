@@ -2536,7 +2536,8 @@ class c:
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
         
         # module::tag name format
-
+        if tag_seperator in module: 
+            module, tag = module.split(tag_seperator)
         if name == None:
             if module == None:
                 module = cls.module_path()
@@ -3163,6 +3164,7 @@ class c:
                  refresh:bool =False,
                  **kwargs ):
         subspace = c.module('subspace')()
+
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         module = cls.resolve_module(module)
         # if not subspace.is_unique_name(server_name, netuid=subnet):
