@@ -1967,6 +1967,8 @@ class c:
         # CONNECT TO THE MODULE
         if 'None' in address:
             raise Exception(f'Invalid address {address}')
+        if ip == c.ip():
+            ip = '0.0.0.0'
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
 
@@ -7606,6 +7608,11 @@ class c:
     def install_rust(cls, sudo=True) :
         cls.chmod_scripts()
         c.cmd('./scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+
+    @classmethod
+    def install_npm(cls, sudo=True) :
+        cls.chmod_scripts()
+        c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
 
     @classmethod

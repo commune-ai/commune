@@ -105,7 +105,6 @@ c.serve('model.openai', tag='sup', api_key='sk....', **kwargs )
 To connect to a module, you can use the following command
 
 
-
 Way 1 
 ```python
 
