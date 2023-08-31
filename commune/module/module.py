@@ -6490,9 +6490,9 @@ class c:
             cls.cmd('git stash')
         return cls.cmd('git pull')
 
-    @classmethod
-    def push(cls, msg):
-        return c.cmd(f'git add .; git commit -m "{msg}"; git push;')
+    # @classmethod
+    # def push(cls, msg):
+    #     return c.cmd(f'git add .; git commit -m "{msg}"; git push;')
     
     @classmethod
     def push(cls, msg='update'):
