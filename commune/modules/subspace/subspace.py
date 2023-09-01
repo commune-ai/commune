@@ -38,7 +38,9 @@ class Subspace(c.Module):
     network = default_config['network']
     chain = network
     default_subnet = default_config['subnet']
-    chain_path = eval(default_config['chain_path'])
+
+    chain_path =  f"{c.repo_path}/subspace"
+    spec_path =  f"{chain_path}/specs"
     spec_path = eval(default_config['spec_path'])
     key_types = default_config['key_types']
     supported_schemas = default_config['supported_schemas']
@@ -48,6 +50,7 @@ class Subspace(c.Module):
     state = {}
     # the parameters of the subnet
     subnet_params = default_config['subnet_params']
+
 
 
 
@@ -2213,38 +2216,31 @@ class Subspace(c.Module):
     @classmethod
     def build_spec(cls,
                    chain = chain,
-                   raw:bool  = False,
                    disable_default_bootnode: bool = True,
                    snap:bool = False,
                    verbose:bool = True,
                    vali_node_keys:dict = None,
+                   mode = 'local',
                    ):
 
-        chain_spec_path = cls.resolve_chain_spec_path(chain)
         if snap:
             cls.snap()
 
-        cmd = f'{cls.chain_release_path()} build-spec --chain {chain}'
+        chain_spec_path = cls.chain_spec_path(chain)
+        chain_release_path = cls.chain_release_path()
+
+        cmd = f'{chain_release_path} build-spec --chain {chain}'
         
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
-        if raw:
-            assert c.exists(chain_spec_path), f'Chain {chain_spec_path} does not exist.'
-            cmd += ' --raw'
-            spec_path =chain_spec_path.replace('.json', '_raw.json')
         cmd += f' > {chain_spec_path}'
         c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
         # add vali nodes        
 
         if vali_node_keys == None:
             vali_node_keys = cls.vali_node_keys(chain=chain)
-
-
         spec = c.get_json(chain_spec_path)
-
-        
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
-        # TODO, have custom votes per grandpa node
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
         c.put_json(chain_spec_path, spec)
         resp = {'spec_path': chain_spec_path, 'spec': spec}
@@ -2270,7 +2266,7 @@ class Subspace(c.Module):
     specs = chain_specs
     @classmethod
     def get_spec(cls, chain:str=chain):
-        chain = cls.resolve_chain_spec_path(chain)
+        chain = cls.chain_spec_path(chain)
         
         return c.get_json(chain)
 
@@ -2281,7 +2277,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def resolve_chain_spec_path(cls, chain = None):
+    def chain_spec_path(cls, chain = None):
         if chain == None:
             chain = cls.network
         return cls.chain2spec(chain)
@@ -2309,7 +2305,7 @@ class Subspace(c.Module):
 
     @classmethod
     def rm_chain(self, chain):
-        return c.rm(self.resolve_chain_spec_path(chain))
+        return c.rm(self.chain_spec_path(chain))
     
     @classmethod
     def insert_node_key(cls,
@@ -2321,7 +2317,7 @@ class Subspace(c.Module):
                    password_interactive = False,
                    ):
         
-        chain_spec_path = cls.resolve_chain_spec_path(chain)
+        chain_spec_path = cls.chain_spec_path(chain)
         node_path = f'/tmp/{node}'
         
         if key_type == 'aura':
@@ -2539,7 +2535,7 @@ class Subspace(c.Module):
         base_path = cls.resolve_base_path(node=node, chain=chain)
         cmd_kwargs = f' --base-path {base_path}'
 
-        chain_spec_path = cls.resolve_chain_spec_path(chain)
+        chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
         
 
@@ -2581,7 +2577,7 @@ class Subspace(c.Module):
             
         elif server_mode == 'local':
             cmd = cmd + cmd_kwargs
-            c.cmd(cmd)
+            c.module('docker').run(image='subspace',cmd=cmd, volumes={} )
             
         elif server_mode == 'docker':
 

@@ -81,6 +81,8 @@ class Docker(c.Module):
     def chmod_scripts(cls):
         c.cmd(f'bash -c "chmod +x {c.libpath}/scripts/*"', verbose=True)
 
+
+
     def install(self):
         self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
@@ -108,13 +110,34 @@ class Docker(c.Module):
         dockerfile_dir = os.path.dirname(path)
 
         c.cmd(cmd,cwd = dockerfile_dir, env={'DOCKER_BUILDKIT':'1'}, verbose=True, sudo=sudo, bash=False)
+
+    def images(self, df=True):
+        text = c.cmd('docker images', verbose=False)
+        if df:
+            df = []
+            cols = []
+            for i, l in enumerate(text.split('\n')):
+                if len(l) > 0:
+                    if i == 0:
+                        cols = [_.strip().replace(' ', '_') for _ in l.split('  ') if len(_) > 0]
+                    else:
+                        df.append([_.strip() for _ in l.split('  ') if len(_) > 0])
+            df = pd.DataFrame(df, columns=cols)    
+            return df
+        
+        return [l.split(' ')[0] for l in text.split('\n') if len(l) > 0][1:]
+
+
+    # def images(self):
+    #     text = c.cmd('docker images')
+    #     return [l.split(' ')[0] for l in text.split('\n') if len(l) > 0][1:]
     
     @classmethod
     def run(cls, 
                     image : str,
-                    name: str = None,
+                    cmd : str  = 'ls',
                     volumes:List[str] = None,
-                    cmd : str = None,
+                    name: str = None,
                     gpus:list=False,
                     shm_size : str='100g',
                     sudo:bool = False,
@@ -176,12 +199,12 @@ class Docker(c.Module):
             docker_cmd += f' bash -c "{cmd}"'
         
         c.print(docker_cmd)
-        text_output =  c.cmd(docker_cmd, sudo=sudo, output_text=True)
+        # text_output =  c.cmd(docker_cmd, sudo=sudo, output_text=True)
 
-        if 'Conflict. The container name' in text_output:
-            contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
-            c.cmd(f'docker rm -f {contianer_id}', verbose=True)
-            text_output = c.cmd(docker_cmd, verbose=True)
+        # if 'Conflict. The container name' in text_output:
+        #     contianer_id = text_output.split('by container "')[-1].split('". You')[0].strip()
+        #     c.cmd(f'docker rm -f {contianer_id}', verbose=True)
+        #     text_output = c.cmd(docker_cmd, verbose=True)
         
 
 
@@ -353,4 +376,3 @@ class Docker(c.Module):
     @classmethod
     def logs(cls, name, sudo=False, follow=False, verbose=False):
         return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=verbose)
-
