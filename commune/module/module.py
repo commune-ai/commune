@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class c:
 
-
+    homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
     default_ip = '0.0.0.0'
@@ -154,7 +154,7 @@ class c:
         removes the PWD with respect to where module.py is located
         '''
         return os.path.dirname(cls.filepath())
-    
+        
     
     @classmethod
     def __local_file__(cls) -> str:
