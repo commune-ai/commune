@@ -4085,8 +4085,8 @@ class c:
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
         if mode == 'queue':
             return c.import_object('queue.Queue')(size, *args, **kwargs)
-        elif mode == 'mp':
-            return c.import_object('multiprocessing.Queue')(size, *args, **kwargs)
+        elif mode in ['multiprocessing', 'mp', 'process']:
+            return c.module('process')(size, *args, **kwargs)
         elif mode == 'ray':
             return c.import_object('ray.util.queue.Queue')(size, *args, **kwargs)
         elif mode == 'redis':
@@ -5339,6 +5339,7 @@ class c:
     def proto2json(cls, data):
         from google.protobuf.json_format import MessageToJson
         return MessageToJson(data)
+
 
 
     @classmethod

@@ -6,11 +6,15 @@ class Process(c.Module):
     
     process_map = {}
     @classmethod
-    def add(cls,fn: Union['callable', str],  
+    def queue(cls, *args, **kwargs):
+        return mp.Queue(*args, **kwargs)
+    @classmethod
+    def start(cls,fn: Union['callable', str],  
                     args:list = None, 
                     kwargs:dict = None, 
                     daemon:bool = True, 
                     tag = None,
+                    name = None,
                     start:bool = True,
                     tag_seperator:str=':'):
 
@@ -25,7 +29,7 @@ class Process(c.Module):
         assert  isinstance(args, list), f'args must be a list, got {args}'
         assert  isinstance(kwargs, dict), f'kwargs must be a dict, got {kwargs}'
         
-        t = processing.process(target=fn, args=args, kwargs=kwargs)
+        t = mp.Process(target=fn, args=args, kwargs=kwargs)
         t.__dict__['start_time'] = c.time()
         t.daemon = daemon
 
@@ -36,7 +40,10 @@ class Process(c.Module):
             tag = ''
         else:
             tag = str(tag)
-        name = fn_name + tag_seperator + tag
+
+        if name == None:
+            name = fn_name
+        name = name + tag_seperator + tag
         cnt = 0
         while name in cls.process_map:
             cnt += 1
@@ -46,6 +53,8 @@ class Process(c.Module):
 
         return t
 
+    process = start
+
     @classmethod
     def getppid(cls):
         return os.getppid()
@@ -54,33 +63,62 @@ class Process(c.Module):
     def getpid(cls):
         return os.getpid()
 
-    def get_age(self, name):
-        return c.time() - self.process_map[name].start_time
+    @classmethod
+    def get_age(cls, name):
+        return c.time() - cls.process_map[name].start_time
 
-    def oldest_process_name(self):
+    @classmethod
+    def oldest_process_name(cls):
         oldest_name = None
         oldest_age = 0
-        assert len(self.process_map) > 0, 'no processes to join'
-        for name in self.process_map.keys():
+        assert len(cls.process_map) > 0, 'no processes to join'
+        for name in cls.process_map.keys():
 
-            if self.get_age(name) < oldest_age:
-                oldest_age = self.get_age(name)
+            if cls.get_age(name) > oldest_age:
+                oldest_age = cls.get_age(name)
                 oldest_name = name
+
         return oldest_name
 
-    def oldest_process(self):
-        oldest_name = self.oldest_process_name()
-        oldest_process = self.process_map[oldest_name]
+    @classmethod
+    def oldest_process(cls):
+        oldest_name = cls.oldest_process_name()
+        oldest_process = cls.process_map[oldest_name]
         return oldest_process
 
-    def oldest_pid(self):
-        return self.oldest_process().pid
+    @classmethod
+    def oldest_pid(cls):
+        return cls.oldest_process().pid
 
-    def join_processes(self, processs:[str, list]):
+    @classmethod
+    def n(cls):
+        return len(cls.process_map)
 
-        processs = self.process_map
-        for t in processs:
-            self.join_process(t)
+
+    def join(cls):
+        processs = list(cls.process_map.keys())
+        for p_name in processs:
+            cls.stop(p_name)
+        return {'success':True, 'msg':'processes stopped', 'n':cls.n()}
+
+    stop_all = join
+
+    @classmethod
+    def stop(cls, name=None):
+        if name == None:
+            name = cls.oldest_process_name()
+        assert name in cls.process_map, f'process {name} not found'
+        p = cls.process_map.pop(name)
+        p.join()
+        assert p.is_alive() == False, f'process {name} is still alive'
+        return {'success':True, 'name':name, 'msg':'process removed', 'n':cls.n()}
+
+    @classmethod
+    def remove_oldest(cls):
+        name = cls.oldest_process_name()
+        return cls.remove(name)
+
+        
 
     @classmethod
     def fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
@@ -97,4 +135,32 @@ class Process(c.Module):
     @classmethod
     def processes(cls, *args, **kwargs):
         return list(cls.process_map(*args, **kwargs).keys())
+
+
+    @classmethod
+    def test(cls, n=10):
+        def fn():
+            return 1
+
+        for i in range(n):
+            cls.start(fn=fn, tag='test', start=True)
+            c.print('Started process', i+1, 'of', n, 'processes')
+            assert cls.n() == i+1, 'process not added'
+        
+        for i in range(n):
+            cls.stop()
+            c.print('Stopped process', i+1, 'of', n, 'processes')
+            assert cls.n() == n-i-1, 'process not removed'
+        assert cls.n() == 0, 'process not removed'  
+
+        return {'success':True, 'msg':'processes started and stopped'}      
+
+    @classmethod
+    def semaphore(cls, n:int = 100):
+        semaphore = mp.Semaphore(n)
+        return semaphore
+
+    def __delete__(self):
+        self.join()
+        return {'success':True, 'msg':'processes stopped'}
 
