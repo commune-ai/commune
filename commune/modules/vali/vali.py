@@ -15,6 +15,7 @@ class Vali(c.Module):
         self.init_vali(config=config, **kwargs)
 
 
+
     def init_vali(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
@@ -33,11 +34,13 @@ class Vali(c.Module):
             c.kill(w)
 
     def start(self):
+
+        self.process = c.module('process')
         self.threads = []
         # we only need a queue if we are multithreading
-        self.queue = c.queue(int(self.config.num_threads*0.5))
+        self.queue = c.queue(int(self.config.num_workers*0.5), mode='process')
         # start threads, ensure they are daemons, and dont vote
-        for t in range(self.config.num_threads):
+        for t in range(self.config.num_workers):
             t = c.thread(fn=self.run_worker)
         # # main thread
         c.thread(self.vote_loop)
