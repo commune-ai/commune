@@ -8,6 +8,4 @@
 import commune as c
 
 
-module = c.connect('model.openai::floppy', network='subspace')
-c.print(module.generate('hey what is 1+1?'))
-# c.print(module.sample())
+c.print('hey')

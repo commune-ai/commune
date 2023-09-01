@@ -5911,7 +5911,7 @@ class c:
         module_path = os.path.join(c.modules_path, module)
         
         
-        if overwrite and c.server_exists(module_path, network='local'): 
+        if overwrite and c.module_exists(module_path): 
             c.rm(module_path)
         
         if repo != None:
@@ -5921,26 +5921,32 @@ class c:
             c.cmd(f'rm -rf {module_path}/.git')
 
 
+
+        # Create the module name if it doesn't exist, infer it from the repo name 
         if module == None:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
         
+        
+        # currently we are using the directory name as the module name
         if module_type == 'dir':
             c.mkdir(module_path, exist_ok=True)
         else:
             raise ValueError(f'Invalid module_type: {module_type}, options are dir, file')
         
+
         base_module = c.module(base)
         base_code = base_module.code()
         base_config = base_module.config()
         module = module.replace('/','_') # replace / with _ for the class name
         
+        # define the module code and config paths
         module_config_path = f'{module_path}/{module}.yaml'
-
         module_code_path =f'{module_path}/{module}.py'
         module_code_lines = []
         class_name = module[0].upper() + module[1:] # capitalize first letter
         class_name = ''.join([m.capitalize() for m in module.split('_')])
+        
         for code_ln in base_code.split('\n'):
             if all([ k in code_ln for k in ['class','c.Module', ')', '(']]):
                 indent = code_ln.split('class')[0]
@@ -7909,6 +7915,8 @@ class c:
         
 
         
+    
+
     
 Module = c
 Module.run(__name__)

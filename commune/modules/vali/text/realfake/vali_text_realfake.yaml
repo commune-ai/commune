@@ -11,8 +11,9 @@ timeout: 2
 num_threads: 20
 start: True
 vote_interval: 100
-verbose: False
+verbose: True
 batch_size: 4
 refresh_stats: True
 num_workers : 4
 tag: base
+
