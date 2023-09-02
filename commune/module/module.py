@@ -2536,6 +2536,8 @@ class c:
     def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
         
         # module::tag name format
+        if module == None:
+            module = cls.module_path()
         if tag_seperator in module: 
             module, tag = module.split(tag_seperator)
         if name == None:
@@ -7887,32 +7889,32 @@ class c:
             c.kill(m)
 
 
-    def auth_modules(self, return_config = False):
+    def access_modules(self, return_config = False):
 
         '''
         Get the auth modules (modules that process the message to authrize the right people)
         '''
-        if hasattr(self, '_auth_modules'):
-            return self._auth_modules
-        auth_modules = []
+        if hasattr(self, '_access_modules'):
+            return self._access_modules
+        access_modules = []
         # each module has a verify function, that takes in the input and returns the input
         if hasattr(self, 'config') \
-            and hasattr(self.config, 'auth_modules'):
+            and hasattr(self.config, 'access_modules'):
 
-            config = module.config
-            for access, auth_config in config.auth_modules.items():
-                c.print('Adding auth module: ', access, auth_config, color='yellow')
+            config = self.config
+            for access, access_config in config.access_modules.items():
+                c.print('Adding auth module: ', access, access_config, color='yellow')
                 access_module = c.module(access)(**access_config)
-                auth_modules.append(access_module)
-        self._auth_modules = auth_modules
-        return auth_modules
+                access_modules.append(access_module)
+        self._access_modules = access_modules
+        return access_modules
 
 
-    # @auth_modules.setter
-    # def auth_modules(self, auth_modules):
-    #     if not hasattr(self, '_auth_modules'):
-    #         self._auth_modules = []
-    #     self._auth_modules = auth_modules
+    # @access_modules.setter
+    # def access_modules(self, access_modules):
+    #     if not hasattr(self, '_access_modules'):
+    #         self._access_modules = []
+    #     self._access_modules = access_modules
         
 
         

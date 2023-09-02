@@ -23,4 +23,7 @@ shortcuts:
   f: frontend
 tag: fams
 
-auth_modules: []
+access_modules: 
+  access.subspace:
+    netuid: 0
+    network: main

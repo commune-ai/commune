@@ -1,4 +1,5 @@
 import commune as c
+from typing import Union
 
 class Thread(c.Module):
     
@@ -44,6 +45,11 @@ class Thread(c.Module):
 
         return t
 
+    @classmethod
+    def queue(cls, maxsize:int = 0):
+        import queue
+        return queue.Queue(maxsize=maxsize)
+
     def join_threads(self, threads:[str, list]):
 
         threads = self.thread_map
@@ -65,4 +71,15 @@ class Thread(c.Module):
     @classmethod
     def threads(cls, *args, **kwargs):
         return list(cls.thread_map(*args, **kwargs).keys())
+
+
+
+    def test(self):
+        def fn():
+            print('fn')
+            c.sleep(1)
+            print('fn done')
+        self.thread(fn=fn, tag='test')
+        c.sleep(2)
+        print('done')
 

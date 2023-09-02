@@ -4,7 +4,7 @@ import streamlit as st
 
 class Storage(c.Module):
 
-    def __init__(self, store: Dict = None):
+    def __init__(self, store: Dict = None, **kwargs):
         self.set_config(kwargs=locals()) 
         self.serializer = c.module('serializer')()
     @property
