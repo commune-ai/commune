@@ -59,7 +59,7 @@ class HTTPServer(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self.auth_modules = module.auth_modules()
+        self.access_modules = module.access_modules()
         self.module = module
         self.set_api(ip=self.ip, port=self.port)
         self.module.key = self.key
@@ -128,7 +128,7 @@ class HTTPServer(c.Module):
         # deserialize the data
         input = self.verify_fn_access(input)
 
-        for access_module in self.auth_modules:
+        for access_module in self.access_modules:
             input = access_module.verify(input)
 
         return input

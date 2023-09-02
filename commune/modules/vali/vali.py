@@ -24,27 +24,28 @@ class Vali(c.Module):
         self.start_time = c.time()
         self.errors = 0
         self.sync()
+        self.process = c.module('process')
+        self.threads = []
+        if self.config.start == False:
+            return
+        # we only need a queue if we are multithreading
 
-        if self.config.start:
-            self.start()
+        self.pool = c.module('process.pool')(fn=self.eval_module, num_workers=self.config.num_workers, verbose=self.config.verbose)
+
+        # start threads, ensure they are daemons, and dont vote
+        for t in range(self.config.num_workers):
+            t = c.thread(fn=self.run_worker)
+        # # main thread
+        if self.config.vote:
+            c.thread(self.vote_loop)
+        
+
+        c.thread(self.run)
             
 
     def kill_workers(self):
         for w in self.workers:
             c.kill(w)
-
-    def start(self):
-
-        self.process = c.module('process')
-        self.threads = []
-        # we only need a queue if we are multithreading
-        self.queue = c.queue(int(self.config.num_workers*0.5), mode='process')
-        # start threads, ensure they are daemons, and dont vote
-        for t in range(self.config.num_workers):
-            t = c.thread(fn=self.run_worker)
-        # # main thread
-        c.thread(self.vote_loop)
-        c.thread(self.run)
 
 
     def sync(self):
@@ -82,14 +83,15 @@ class Vali(c.Module):
                      'w': w}
         return response
 
-    async def async_eval_module(self, module:dict, thread_id=0, refresh=False):
+
+    def eval_module(self, module:dict):
         epoch = self.count // self.n
-        prefix = f'[bold cyan]THREAD{thread_id}[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
+        prefix = f'[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
         
         self.count += 1
         try:
             c.print(f'Calling {module["name"]}', color='cyan', verbose=self.config.verbose)
-            module_client = await c.async_connect(module['address'])
+            module_client = c.connect(module['address'])
             response = self.score_module(module_client)
             c.print(f"Success {module['name']} {c.emojis['dank']} -> W : {response['w']}", color='green', verbose=self.config.verbose)
         except Exception as e:
@@ -129,6 +131,8 @@ class Vali(c.Module):
         stats = cls.load_stats( network=network, keys=keys, tag=tag)
 
         if df:
+            if len(stats) == 0:
+                return c.df({'module': [], 'w': []})
             stats = c.df(stats)
             stats.sort_values('w', ascending=False, inplace=True)
 
@@ -296,12 +300,8 @@ class Vali(c.Module):
     
             modules = c.shuffle(c.copy(self.modules))
             for i, module in enumerate(modules):
-                if self.queue.full():
-
-                    c.sleep(1)
-                    continue
-
-                self.queue.put(module)
+                c.print(i)
+                self.pool.submit(fn=self.eval_module, kwargs=dict(module=module))
                 if self.count % 100 == 0 and self.count > 0:
                     stats =  {
                     'total_modules': self.count,
@@ -331,6 +331,9 @@ class Vali(c.Module):
         
     @classmethod
     def test(cls, **kwargs):
-        self = cls(**kwargs, start=False)
-        return self.eval_module()
+        kwargs['num_workers'] = 0
+        kwargs['vote'] = False
+        kwargs['verbose'] = True
+        self = cls(**kwargs )
+        return self.run()
 

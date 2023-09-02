@@ -9,7 +9,7 @@ class Process(c.Module):
     def queue(cls, *args, **kwargs):
         return mp.Queue(*args, **kwargs)
     @classmethod
-    def start(cls,fn: Union['callable', str],  
+    def process(cls,fn: Union['callable', str],  
                     args:list = None, 
                     kwargs:dict = None, 
                     daemon:bool = True, 
@@ -53,7 +53,7 @@ class Process(c.Module):
 
         return t
 
-    process = start
+    start = process 
 
     @classmethod
     def getppid(cls):

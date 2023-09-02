@@ -1273,6 +1273,7 @@ class Subspace(c.Module):
     @classmethod
     def oldest_archive_path(cls, network:str=network) -> str:
         oldest_archive_block = cls.oldest_archive_block(network=network)
+        assert oldest_archive_block != None, f"No archives found for network {network}"
         return cls.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
     @classmethod
     def newest_archive_block(cls, network:str=network) -> str:
@@ -1285,6 +1286,8 @@ class Subspace(c.Module):
     @classmethod
     def oldest_archive_block(cls, network:str=network) -> str:
         blocks = cls.archived_blocks(network=network, reverse=True)
+        if len(blocks) == 0:
+            return None
         return blocks[-1]
     @classmethod
     def watchdog(cls, 
