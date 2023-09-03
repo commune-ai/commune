@@ -83,3 +83,7 @@ class Thread(c.Module):
         c.sleep(2)
         print('done')
 
+    def semaphore(self, n:int = 10):
+        import threading
+        return threading.Semaphore(n)
+

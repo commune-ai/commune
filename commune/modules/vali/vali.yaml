@@ -8,7 +8,7 @@ max_history: 10
 alpha: 0.9
 timeout: 10
 tag: null
-num_workers: 4
+num_workers: 50
 start: True
 verbose: True
 batch_size: 4

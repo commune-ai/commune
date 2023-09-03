@@ -19,21 +19,23 @@ class ThreadPool(Thread):
         self.input_queue = self.queue(maxsize=max_queue_size)
         self.output_queue = self.queue(maxsize=max_queue_size)
 
+
+        for i in range(num_workers):
+            self.thread(fn=self.run, kwargs=dict(fn=fn, queue = self.input_queue, semaphore=self.semaphore(num_workers), output_queue=self.output_queue), tag=f'worker_{i}')
+
         self.fn = fn
         c.thread(self.output_collector, kwargs=dict(output_queue=self.output_queue))
 
 
-    def start_workers(self,  num_workers:int = 4):
-        for i in range(num_workers):
-            self.thread(fn=self.run, kwargs=dict(fn=fn, queue = self.input_queue, semaphore=self.semaphore(num_workers), output_queue=self.output_queue), tag=f'worker_{i}')
 
 
     def submit(self, 
              fn = None,
              kwargs= None,
-             wait_until_response:bool = True, 
+             wait_until_response:bool = False, 
              prefix = None,
-             timeout = 10):
+             timeout = 10, 
+             sleep_inteval = 0.01):
         start_time = c.time()
         if kwargs == None:
             kwargs = {}
@@ -54,8 +56,9 @@ class ThreadPool(Thread):
             c.print('Waiting for response')
             start_time = c.time()
             while kwargs_key not in self.outputs:
-                asyncio.sleep(0.1)
-                c.print(self.outputs)
+                asyncio.sleep(sleep_inteval)
+                if c.time() - start_time > timeout:
+                    raise TimeoutError(f'Timeout after {timeout} seconds')
             return self.outputs.pop(kwargs_key)
 
             return {'status': 'success', 'key': kwargs_key}
@@ -64,15 +67,12 @@ class ThreadPool(Thread):
         '''
         Collects output from the output_queue and stores it in self.outputs
         '''
-        c.print('Starting output collector')
         while True:
             c.sleep(sleep_time)
             
-            c.print('output_queue.qsize()', output_queue.qsize())
             output = output_queue.get()
             kwargs_key = output.pop('key')
             result = output['result']
-            c.print('kwargs_key', kwargs_key)
             self.outputs[kwargs_key] = result
 
 
@@ -82,7 +82,6 @@ class ThreadPool(Thread):
             kwargs = queue.get()
             kwargs_key = kwargs.pop('kwargs_key')
             result = fn(**kwargs)
-            self.put_json('results/'+kwargs_key, {'kwargs': kwargs, 'result': result})
             output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs})
 
 
@@ -104,11 +103,8 @@ class ThreadPool(Thread):
         for i in range(100):
             self.submit(kwargs=dict(x=i))
 
-        # c.print(self.outputs)
-        while self.output_queue.qsize() > 0:
-            # c.print(self.output_queue.qsize(), 'outputs remaining')
-            # c.print(self.outputs)
-            c.sleep(1)
+        while self.num_tasks > 0:
+            c.print(self.num_tasks)
 
 
 
