@@ -2384,10 +2384,10 @@ class c:
     def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
         servers = cls.servers(network=network, **kwargs)
         if prefix_match:
-            return any([s for s in servers if s.startswith(name)])
+            server_exists =  any([s for s in servers if s.startswith(name)])
         else:
-            return bool(name in servers)
-        return 
+            server_exists =  bool(name in servers)
+        return server_exists
     
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
@@ -2621,6 +2621,8 @@ class c:
         kwargs['tag'] = tag
         kwargs['server_name'] = server_name
 
+
+
         self = module_class(**kwargs)
         if c.server_exists(server_name, network='local'): 
             if refresh:
@@ -2630,6 +2632,9 @@ class c:
             else:  
                 ip, port = c.get_address(server_name, network='local').split(':')
                 raise Exception(f'The server {server_name} already exists')
+
+        if port == None:
+            port = c.free_port()
             
         server = c.module(f'server.{server_mode}')(module=self, name= server_name, ip=ip, port=int(port))
         return server.name

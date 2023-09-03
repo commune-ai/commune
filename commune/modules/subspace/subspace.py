@@ -39,7 +39,6 @@ class Subspace(c.Module):
     chain_path =  f"{c.repo_path}/subspace"
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    key = default_config['key']
     server_mode = default_config['server_mode']
     
     def __init__( 
@@ -619,7 +618,7 @@ class Subspace(c.Module):
             address = namespace_local[name]
 
         if name == module_info['name'] and address == module_info['address']:
-            c.print(":cross_mark: [red]Module already registered[/red]:[bold white]\n  {}[/bold white]".format(module))
+            c.print(":white_heavy_check_mark [green]Module already registered and is up to date[/green]:[bold white]\n  {}[/bold white]".format(module))
             return {'success': False, 'message': 'Module already registered and is up to date with your changes'}
 
         params = {
@@ -3041,63 +3040,6 @@ class Subspace(c.Module):
 
         return node_id
         
-                
-    
-
-   
-    @classmethod
-    def function2streamlit(cls, 
-                           fn_schema, 
-                           extra_defaults:dict=None,
-                           cols:list=None):
-        if extra_defaults is None:
-            extra_defaults = {}
-
-        st.write('#### Startup Arguments')
-        # refresh = st.checkbox('**Refresh**', False)
-        # mode = st.selectbox('**Select Mode**', ['pm2',  'ray', 'local'] ) 
-        mode = 'pm2'
-        serve = True
-
-        kwargs = {}
-        fn_schema['default'].pop('self', None)
-        fn_schema['default'].pop('cls', None)
-        fn_schema['default'].update(extra_defaults)
-        
-        
-
-        
-        
-        fn_schema['input'].update({k:str(type(v)).split("'")[1] for k,v in extra_defaults.items()})
-        if cols == None:
-            cols = [1 for i in list(range(int(len(fn_schema['input'])**0.5)))]
-        st.write(f'cols: {cols}')
-        cols = st.columns(cols)
-
-        for i, (k,v) in enumerate(fn_schema['input'].items()):
-            
-            optional = fn_schema['default'][k] != 'NA'
-            fn_key = k 
-            if k in fn_schema['input']:
-                k_type = fn_schema['input'][k]
-                if 'Munch' in k_type or 'Dict' in k_type:
-                    k_type = 'Dict'
-                if k_type.startswith('typing'):
-                    k_type = k_type.split('.')[-1]
-                fn_key = f'**{k} ({k_type}){"" if optional else "(REQUIRED)"}**'
-            col_idx  = i 
-            if k in ['kwargs', 'args'] and v == 'NA':
-                continue
-            
-
-            
-            col_idx = col_idx % (len(cols))
-            kwargs[k] = cols[col_idx].text_input(fn_key, v)
-            
-        return kwargs
-         
-         
-         
         
     @classmethod
     def node_help(cls):
@@ -3206,10 +3148,6 @@ class Subspace(c.Module):
             # version 0 does not have weights
             max_allowed_weights = 100
             snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
-
-    
-
-
 
 
 if __name__ == "__main__":

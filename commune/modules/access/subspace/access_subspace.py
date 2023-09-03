@@ -6,6 +6,8 @@ class AccessSubspace(c.Module):
 
         self.subspace = c.module('subspace')(network=config.network, netuid=config.netuid)
 
+
+
     def run(self):
         print('Base run')
     

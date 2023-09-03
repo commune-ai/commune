@@ -5,6 +5,8 @@ import torch
 import traceback
 import threading 
 import queue
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 
 
 
@@ -25,17 +27,10 @@ class Vali(c.Module):
         self.errors = 0
         self.sync()
         self.process = c.module('process')
-        self.threads = []
         if self.config.start == False:
             return
-        # we only need a queue if we are multithreading
-
-        self.pool = c.module('process.pool')(fn=self.eval_module, num_workers=self.config.num_workers, verbose=self.config.verbose)
-
-        # start threads, ensure they are daemons, and dont vote
-        for t in range(self.config.num_workers):
-            t = c.thread(fn=self.run_worker)
-        # # main thread
+        self.executor = ThreadPoolExecutor(max_workers=self.config.num_workers)
+        # # # main thread
         if self.config.vote:
             c.thread(self.vote_loop)
         
@@ -90,17 +85,17 @@ class Vali(c.Module):
         
         self.count += 1
         try:
-            c.print(f'Calling {module["name"]}', color='cyan', verbose=self.config.verbose)
+            if '0.0.0.0' in module['address']:
+                raise Exception('Invalid address')
             module_client = c.connect(module['address'])
             response = self.score_module(module_client)
-            c.print(f"Success {module['name']} {c.emojis['dank']} -> W : {response['w']}", color='green', verbose=self.config.verbose)
         except Exception as e:
             response = {'error': c.detailed_error(e), 'w': 0}
             c.print(f"BRUH  {module['name']} ERROR {c.emojis['error']} -> W : {response['w']} ->{response['error']['error']}", color='red', verbose=self.config.verbose)
 
         # the
         w = response['w']
-        module_stats = self.load_module_stats( module['name'], default=module) if not refresh else module_state
+        module_stats = self.load_module_stats( module['name'], default=module)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
         module_stats['timestamp'] = c.timestamp()
@@ -296,12 +291,14 @@ class Vali(c.Module):
         self.running = True
 
         while self.running:
-            self.sync()
+            # self.sync()
     
             modules = c.shuffle(c.copy(self.modules))
             for i, module in enumerate(modules):
-                c.print(i)
-                self.pool.submit(fn=self.eval_module, kwargs=dict(module=module))
+
+                future = self.executor.submit(self.eval_module, module)
+                timeout = self.config.timeout
+
                 if self.count % 100 == 0 and self.count > 0:
                     stats =  {
                     'total_modules': self.count,
@@ -325,9 +322,6 @@ class Vali(c.Module):
             
     def stop(self):
         self.running = False
-        if hasattr(self, 'threads'):
-            for t in self.threads:
-                t.join(timeout=2)
         
     @classmethod
     def test(cls, **kwargs):

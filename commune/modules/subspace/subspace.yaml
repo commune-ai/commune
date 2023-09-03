@@ -1227,32 +1227,8 @@ chain_info:
 
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 netuid: 0
-key: alice
-key_types:
-- aura
-- gran
 loop: false
 network: main
-network2url:
-  dev:
-  - ws://162.157.13.236:2207
-  - ws://162.157.13.236:2271
-  - ws://162.157.13.236:2215
-  local:
-  - 127.0.0.1:9944
-  main: []
-  testnet: 127.0.0.1:4874
-nodes:
-- alice
-- bob
-- chris
-- huck
-- snoop
-- elon
-- fam
-- bruh
-- satoshi
-- sal
 retry_params:
   backoff: 2
   delay: 2
