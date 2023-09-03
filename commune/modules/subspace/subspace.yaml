@@ -1224,9 +1224,9 @@ chain_info:
         verbose: false
         ws_port: 2623
     url: []
-chain_path: f"{c.repo_path}/subspace"
+
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
-default_netuid: 0
+netuid: 0
 key: alice
 key_types:
 - aura
@@ -1260,7 +1260,6 @@ retry_params:
   tries: 2
 save_interval: 1800
 server_mode: pm2
-spec_path: f"{chain_path}/specs"
 subnet: commune
 subnet_params:
 - name
