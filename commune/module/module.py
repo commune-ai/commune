@@ -42,6 +42,7 @@ class c:
     def __init__(self, config:Dict=None, **kwargs):
         
         self.set_config(config=config,kwargs=kwargs)  
+        # c.thread(self.update_loop)
     @classmethod
     def init(cls, *args, **kwargs):
         cls.__init__(*args, **kwargs)
@@ -1775,6 +1776,7 @@ class c:
     def put_json(cls,*args,**kwargs) -> str:
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_put_json(*args, **kwargs))
+        return path
     
     @classmethod
     async def async_put_json(cls, 
@@ -1789,6 +1791,7 @@ class c:
             data = {'data':data, 'meta':meta}
         path = cls.resolve_path(path=path, extension='json', root=root)
         # cls.lock_file(path)
+
         await async_put_json(path=path, data=data, **kwargs)
         # cls.unlock_file(path)
         return path
@@ -1965,6 +1968,7 @@ class c:
                 
             assert len(modules) > 0, f'No modules found in namespace {namespace}'
             address = namespace[module]
+
         ip, port = address.split(':')
 
         # CONNECT TO THE MODULE
@@ -2242,9 +2246,9 @@ class c:
 
         if update : 
         
-            used_ports = c.get_used_ports()
-            ip = c.default_ip
-            addresses = [ f'{ip}:{p}' for p in used_ports]
+        
+            # addresses = c.copy(list(namespace_local.values()))
+            addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
             namespace_local = {}
 
             c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
@@ -2589,9 +2593,13 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
+              update:bool = False,
               **extra_kwargs
               ):
 
+        if update:
+            c.update()
+        
         
         kwargs = kwargs or {}
         kwargs = {**kwargs, **extra_kwargs}
@@ -4391,16 +4399,14 @@ class c:
     
     
     @classmethod
-    def update_loop(cls, period=20, remote=True):
-        if remote:
-            return cls.remote_fn('update_loop', kwargs=dict(period=period, remote=False), name='update_loop')
+    def update_loop(cls, period=2, ):
         while True:
             c.print('Updating...', color='yellow')
             modules = c.servers()
             c.print(f'Modules (n): {modules}', color='cyan')
             c.print(modules, color='purple')
-            cls.update()
-            cls.sleep(period)
+            c.update()
+            c.sleep(period)
             
     @classmethod
     def model_shortcuts(cls, **kwargs):
@@ -5028,7 +5034,7 @@ class c:
                    module : str, 
                 fn : str = 'info',
                 *args,
-                timeout : int = 4,
+                timeout : int = 1,
                 prefix_match:bool = False,
                 network:str = None,
                 return_future:bool = False,

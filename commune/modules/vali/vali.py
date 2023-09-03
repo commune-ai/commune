@@ -6,7 +6,9 @@ import traceback
 import threading 
 import queue
 import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
+import gc
+import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 
@@ -27,15 +29,16 @@ class Vali(c.Module):
         self.errors = 0
         self.sync()
         self.process = c.module('process')
+        self.last_vote_time = c.time()
         if self.config.start == False:
             return
-        self.executor = ThreadPoolExecutor(max_workers=self.config.num_workers)
-        # # # main thread
+        # # # # main thread
         if self.config.vote:
             c.thread(self.vote_loop)
-        
-
         c.thread(self.run)
+
+
+        self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers)
             
 
     def kill_workers(self):
@@ -70,12 +73,12 @@ class Vali(c.Module):
         return self.count / self.lifetime
 
     def score_module(self, module):
+
         info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
         assert 'address' in info, f'Response must have an error key, got {info.keys()}'
         w = 1
-        response = {'success': True,
-                     'w': w}
+        response = {'success': True, 'w': w}
         return response
 
 
@@ -85,26 +88,29 @@ class Vali(c.Module):
         
         self.count += 1
         try:
-            if '0.0.0.0' in module['address']:
-                raise Exception('Invalid address')
             module_client = c.connect(module['address'])
             response = self.score_module(module_client)
         except Exception as e:
             response = {'error': c.detailed_error(e), 'w': 0}
-            c.print(f"BRUH  {module['name']} ERROR {c.emojis['error']} -> W : {response['w']} ->{response['error']['error']}", color='red', verbose=self.config.verbose)
-
-        # the
+            c.print(f'{prefix} [bold red] {module["name"]} {response["error"]}[/bold red]', color='red')
+        
         w = response['w']
-        module_stats = self.load_module_stats( module['name'], default=module)
-        module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
-        module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-        module_stats['timestamp'] = c.timestamp()
-        # add the history of this module
-        module_stats['history'] = module_stats.get('history', []) + [response]
-        module_stats['history'] = module_stats['history'][-self.config.max_history:]
-        self.save_module_stats(module['name'], module_stats)
+        # we only want to save the module stats if the module was successful
+        if w > 0:
+            # the
+            module_stats = self.load_module_stats( module['name'], default=module)
+            module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
+            module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
+            module_stats['timestamp'] = c.timestamp()
+            c.print(f'{prefix} [bold green] {module["name"]} {w}[/bold green] {response.get("message", "")}', color='green')
+            # add the history of this module
+            module_stats['history'] = module_stats.get('history', []) + [response]
+            module_stats['history'] = module_stats['history'][-self.config.max_history:]
+            self.save_module_stats(module['name'], module_stats)
 
-        return module_stats
+            
+
+            return module_stats
 
     @classmethod
     def networks(cls):
@@ -244,38 +250,12 @@ class Vali(c.Module):
         return int(c.time() - self.last_vote_time)
 
 
-    @property
-    def last_vote_time(self) -> float:
-        return self.get('last_vote_time', 0)
-    
-    @last_vote_time.setter
-    def last_vote_time(self, v:float):
-        self.put('last_vote_time', v)
-
-
-
-    def run_worker(self):
-        c.sleep(self.config.sleep_time)
-        # we need a new event loop for each thread
-        import asyncio
-        loop = c.new_event_loop()
-
-        while True:
-            c.sleep(0.1)
-
-            module = self.queue.get(block=True)
-            start_time = c.time()
-            # create a task for the event loop 
-            # run the task
-            loop.run_until_complete(asyncio.wait_for(self.async_eval_module(module=module), timeout=self.config.timeout))
-
-
     def vote_loop(self):
         c.sleep(self.config.sleep_time)
         while True:
             try:
                 c.sleep(1)
-                c.print(self.vote())
+                self.vote()
             except Exception as e:
                 c.print(f'Error in vote loop {e}', color='red')
                 c.print(traceback.format_exc(), color='red')
@@ -290,14 +270,14 @@ class Vali(c.Module):
 
         self.running = True
 
+        futures = []
         while self.running:
             # self.sync()
-    
             modules = c.shuffle(c.copy(self.modules))
+            time_between_interval = c.time()
             for i, module in enumerate(modules):
 
-                future = self.executor.submit(self.eval_module, module)
-                timeout = self.config.timeout
+                self.executor.submit(fn=self.eval_module, kwargs={'module':module})
 
                 if self.count % 100 == 0 and self.count > 0:
                     stats =  {
