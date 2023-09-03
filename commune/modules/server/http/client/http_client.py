@@ -86,7 +86,7 @@ class Client(c.Module):
                          "ip": self.my_ip,
                          "timestamp": c.timestamp(),
                          }
-
+        
         request_data = self.serializer.serialize( request_data)
 
         # sign the request
@@ -126,12 +126,11 @@ class Client(c.Module):
 
     #     return result 
         
-    def forward(self,*args,return_future:bool=False, **kwargs):
-        forward_future =  self.async_forward(*args, **kwargs)
+    def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
+        forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)
         if return_future:
             return forward_future
         else:
-            # 
             return self.loop.run_until_complete(forward_future)
         
     __call__ = forward
