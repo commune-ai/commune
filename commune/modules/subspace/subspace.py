@@ -34,26 +34,13 @@ class Subspace(c.Module):
     chain_name = 'subspace'
     default_config = c.get_config(chain_name, to_munch=False)
     token_decimals = default_config['token_decimals']
-    retry_params = default_config['retry_params']
     network = default_config['network']
     chain = network
-    default_subnet = default_config['subnet']
-
     chain_path =  f"{c.repo_path}/subspace"
-    spec_path =  f"{chain_path}/specs"
-    spec_path = eval(default_config['spec_path'])
-    key_types = default_config['key_types']
-    supported_schemas = default_config['supported_schemas']
-    default_netuid = default_config['default_netuid']
+    spec_path = f"{chain_path}/specs"
+    netuid = default_config['netuid']
     key = default_config['key']
     server_mode = default_config['server_mode']
-    state = {}
-    # the parameters of the subnet
-    subnet_params = default_config['subnet_params']
-
-
-
-
     
     def __init__( 
         self, 
@@ -1755,7 +1742,7 @@ class Subspace(c.Module):
         '''
         if netuid == None:
             # If the netuid is not specified, use the default.
-            netuid = self.default_netuid
+            netuid = self.netuid
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
@@ -1911,7 +1898,7 @@ class Subspace(c.Module):
     
     # @c.timeit
     def modules(self,
-                netuid: int = default_netuid,
+                netuid: int = netuid,
                 fmt='nano', 
                 cache:bool = True,
                 network = network,
@@ -2335,7 +2322,10 @@ class Subspace(c.Module):
         cmd += f' --suri "{suri}"'
         cmd += f' --scheme {scheme}'
         cmd += f' --chain {chain_spec_path}'
-        assert key_type in cls.key_types, f'key_type ({key_type})must be in {cls.key_types}'
+
+        key_types = ['aura', 'gran']
+
+        assert key_type in key_types, f'key_type ({key_type})must be in {key_types}'
         cmd += f' --key-type {key_type}'
         if password_interactive:
             cmd += ' --password-interactive'

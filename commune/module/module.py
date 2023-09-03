@@ -733,6 +733,9 @@ class c:
 
         # in case they passed in a locals() dict, we want to resolve the kwargs and avoid ambiguous args
         kwargs = c.locals2kwargs(kwargs)
+
+        if 'config' in kwargs:
+            config = kwargs.pop('config')
             
         # get the config
         config =  self.get_config(config=config,kwargs=kwargs, to_munch=to_munch)
@@ -2577,6 +2580,8 @@ class c:
     def serve(cls, 
               module:Any = None ,
               tag:str=None,
+              ip :str = None,
+              port :int = None,
               server_name:str=None, 
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
@@ -2603,7 +2608,6 @@ class c:
         tag = None # set to none so it doesn't get passed to the server
         
         if remote:
-
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
             remote_kwargs.pop('module_class') # remove module_class from the kwargs
@@ -2611,27 +2615,23 @@ class c:
             if wait_for_server:
                 cls.wait_for_server(server_name)
             return server_name
-
         module_class = cls.resolve_module(module)
-
         kwargs.update(extra_kwargs)
-
         # this automatically adds 
         kwargs['tag'] = tag
         kwargs['server_name'] = server_name
 
-
         self = module_class(**kwargs)
-        ip, port = None, None
         if c.server_exists(server_name, network='local'): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
+                ip, port = c.get_address(server_name, network='local').split(':')
                 c.kill(server_name)
             else:  
                 ip, port = c.get_address(server_name, network='local').split(':')
                 raise Exception(f'The server {server_name} already exists')
             
-        server = c.module(f'server.{server_mode}')(module=self, name= server_name, ip=ip, port=port)
+        server = c.module(f'server.{server_mode}')(module=self, name= server_name, ip=ip, port=int(port))
         return server.name
 
     serve_module = serve
@@ -3266,8 +3266,7 @@ class c:
             
     
     @classmethod
-    def restart(cls, name:str, mode:str='pm2', verbose:bool = False, prefix_match:bool = True):
-        c.deregister_server(name)
+    def restart(cls, name:str, mode:str='server', verbose:bool = False, prefix_match:bool = True):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
         return refreshed_modules
     refresh = reset = restart
@@ -3345,6 +3344,8 @@ class c:
                 return cls(*args.args, **args.kwargs)     
             else:
                 return getattr(cls, args.function)(*args.args, **args.kwargs)     
+
+    
        
     
     @classmethod
@@ -4838,10 +4839,13 @@ class c:
             return False
             
 
-    def restart_module(self, module:str) -> None:
-        module = self.get_module(module)
-        module.restart()
-        return None
+    @classmethod
+    def server_restart(cls, module:str, **kwargs) -> None:
+        config = c.call(module, fn='config')
+        address = c.get_address(module)
+        ip = address.split(':')[0]
+        port = address.split(':')[-1]
+        return c.serve(module, config=config, port=port)
     
     
     # KEY LAND
@@ -4999,7 +5003,7 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls, *args, return_future:bool =False, network=None, n_calls:bool = 1 ,  prefix_match=True, **kwargs) -> None:
+    def call(cls, *args, return_future:bool =False, network=None, n_calls:bool = 1 ,  prefix_match=False, **kwargs) -> None:
 
         futures = [cls.async_call(*args, network=network, prefix_match=prefix_match,**kwargs) for _ in range(n_calls)]
 
