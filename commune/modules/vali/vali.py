@@ -147,7 +147,7 @@ class Vali(c.Module):
         return self.rm(path)
 
     @classmethod
-    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'staleness'], tag=None, topk=30):
+    def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'staleness', 'address'], tag=None, topk=30):
         stats = cls.load_stats( network=network, keys=keys, tag=tag)
 
         if df:

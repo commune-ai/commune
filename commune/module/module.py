@@ -3181,14 +3181,14 @@ class c:
         subspace = c.module('subspace')()
 
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
-        module = cls.resolve_module(module)
         # if not subspace.is_unique_name(server_name, netuid=subnet):
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
 
         if c.server_exists(server_name, network='local') and refresh == False:
-            c.print(f'Server already Exists ({server_name})')
+            c.print(f':check_mark: Server already Exists ({server_name})')
         
         else:
+            module = cls.resolve_module(module)
             server_name = module.serve(
                                 server_name=server_name, 
                                 wait_for_server=True, 
@@ -5548,6 +5548,10 @@ class c:
                 return False
             
         return True
+    
+    @classmethod
+    def is_error(cls, x:dict):
+        return not self.is_success(x)
     
     @classmethod
     def reset_peers(cls, *args, **kwargs):
