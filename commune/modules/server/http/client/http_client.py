@@ -29,7 +29,6 @@ class Client(c.Module):
         self.serializer = c.serializer()
         self.key = c.get_key(key)
         self.my_ip = c.ip()
-        self.stream = stream
         self.network = c.resolve_network(network)
         self.start_timestamp = c.timestamp()
 
@@ -52,14 +51,6 @@ class Client(c.Module):
     def resolve_client(self, ip: str = None, port: int = None) -> None:
         if ip != None or port != None:
             self.set_client(ip =ip,port = port)
-
-    #
-    async def response2stream(self, response):
-        # loop = c.get_event_loop()
-        async for line in response.content:
-            event_data = line.decode('utf-8').strip()
-            yield event_data
-
     
 
     async def async_forward(self,
@@ -77,24 +68,26 @@ class Client(c.Module):
          **extra_kwargs):
 
         self.resolve_client(ip=ip, port=port)
+
         args = args if args else []
         kwargs = kwargs if kwargs else {}
+
         url = f"http://{self.address}/{fn}/"
 
         request_data =  { 
                         "args": args,
-                         "kwargs": kwargs,
-                         "ip": self.my_ip,
-                         "timestamp": c.timestamp(),
-                         }
+                        "kwargs": kwargs,
+                        "ip": self.my_ip,
+                        "timestamp": c.timestamp(),
+                        }
         
         request_data = self.serializer.serialize( request_data)
 
         # sign the request
         request = self.key.sign(request_data, return_json=True)
 
-        assert self.key.verify(request), f"Request not signed with correct key"
-
+        
+        # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
                 if response.content_type == 'text/event-stream':
@@ -104,28 +97,19 @@ class Client(c.Module):
                         # remove the "data: " prefix
                         event_data = line.decode('utf-8').strip()[len('data: '):]
                         result += event_data
-                    
                     result = json.loads(result)
-
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
+        # process output 
+        result = self.process_output(result)
         
-        ## handles 
-        assert isinstance(result, dict) and 'data' in result and 'signature' in result, f"Invalid response: {result}"
-        # assert self.key.sverify(result), f"Result not signed with correct key"
-        result = self.serializer.deserialize(result['data'])['data']
-
-        # result = self.handle_older_versions(result)
         return result
 
-
-    # def handle_older_versions(self, result):
-
-    #     if 'data' in result and isinstance(result['data'], str) 
-    #     if  'server_name' in result['data']:
-    #         result = self.serializer.deserialize(result['data'])
-
-    #     return result 
+    def process_output(self, result):
+        ## handles 
+        assert isinstance(result, dict) and 'data' in result and 'signature' in result, f"Invalid response: {result}"
+        result = self.serializer.deserialize(result['data'])['data']
+        return result 
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
         forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)
@@ -143,47 +127,6 @@ class Client(c.Module):
     def __exit__ ( self ):
         self.__del__()
 
-    def nonce ( self ):
-        import time as clock
-        r"""creates a string representation of the time
-        """
-        return clock.monotonic_ns()
-        
-    def state ( self ):
-        try: 
-            return self.state_dict[self.channel._channel.check_connectivity_state(True)]
-        except ValueError:
-            return "Channel closed"
-
-    def close ( self ):
-        self.__exit__()
-
-    def sign(self):
-        return 'signature'
-
-    
-
-    def sync_the_async(self, loop = None):
-        for f in dir(self):
-            if 'async_' in f:
-                setattr(self, f.replace('async_',  ''), self.sync_wrapper(getattr(self, f), loop=loop))
-
-    def sync_wrapper(self,fn:'asyncio.callable', loop = None) -> 'callable':
-        '''
-        Convert Async funciton to Sync.
-
-        Args:
-            fn (callable): 
-                An asyncio function.
-
-        Returns: 
-            wrapper_fn (callable):
-                Synchronous version of asyncio function.
-        '''
-        loop = loop if loop else self.loop
-        def wrapper_fn(*args, **kwargs):
-            return self.loop.run_until_complete(fn(*args, **kwargs))
-        return  wrapper_fn
 
     def test_module(self):
         module = Client(ip='0.0.0.0', port=8091)

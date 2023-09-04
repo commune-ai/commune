@@ -466,8 +466,8 @@ class Subspace(c.Module):
                     'name': name.encode('utf-8'),
                     'stake': stake,
                 } 
-        
-        c.print(f":satellite: Registering {key} \n Params : ", call_params)
+        # key symbol
+        c.print(f":satellite: Registering (name = {name} key (ss58) = {key.ss58_address[:4]}.. address {address} ")
 
         with self.substrate as substrate:
             
@@ -484,12 +484,14 @@ class Subspace(c.Module):
             response.process_events()
             
         if response.is_success:
-            c.print(":white_heavy_check_mark: [green]Success[/green]")
-            return {'success': True, 'message': f'Successfully registered module {name} with address {address}'}
+            msg = f'Registered {name} with address {address}'
+            c.print(f":white_heavy_check_mark: [green]{msg}[/green]")
+            return {'success': True, 'message': msg}
             # if sync:
             #     self.sync()
         else:
-            c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
+            msg = response.error_message
+            c.print(f":cross_mark: [red]Failed[/red]: error:{response.error_message}")
             return {'success': False, 'message': response.error_message}    
         
 
@@ -618,8 +620,8 @@ class Subspace(c.Module):
             address = namespace_local[name]
 
         if name == module_info['name'] and address == module_info['address']:
-            c.print(":white_heavy_check_mark [green]Module already registered and is up to date[/green]:[bold white]\n  {}[/bold white]".format(module))
-            return {'success': False, 'message': 'Module already registered and is up to date with your changes'}
+            c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
+            return {'success': False, 'message': f'{module} already registered and is up to date with your changes'}
 
         params = {
             'name': name,
@@ -1956,6 +1958,7 @@ class Subspace(c.Module):
             stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
             stake_from = self.stake_from(netuid=netuid)
             stake_to = self.stake_to(netuid=netuid)
+            regblock = self.regblock(netuid=netuid)
             balances = self.balances()
             
             if include_weights:
@@ -1968,7 +1971,7 @@ class Subspace(c.Module):
                 key = uid2key[uid]
                 module= {
                     'uid': uid,
-                    'address': address,
+                    'address': address,d
                     'name': uid2name[uid],
                     'key': key,
                     'emission': emission[uid].value,
@@ -1978,6 +1981,7 @@ class Subspace(c.Module):
                     'balance': balances.get(key, 0),
                     'stake_from': stake_from.get(key, []),
                     'stake_to': stake_to.get(key, []),
+                    'regblock': regblock.get(key, 0),
                 }
                 
                 if include_weights:
