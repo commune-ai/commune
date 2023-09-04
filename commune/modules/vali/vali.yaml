@@ -12,7 +12,7 @@ num_workers: 10
 start: True
 verbose: True
 batch_size: 4
-refresh_stats: False
+refresh_stats: True
 vote_interval: 100
 sleep_time: 1
 vote: True

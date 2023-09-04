@@ -36,7 +36,7 @@ class c:
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
     cache = {} # cache for module objects
-    emojis = {'dank': '🔥','error': '💥','white': '🕊️','cool': '😎','success': '✨','sad': '😢','time': '🕒','count': '🔢','output': '📤','input': '📥'} # the mojis
+    
     __ss58_format__ = 42 # the ss58 format for the substrate address
 
     def __init__(self, config:Dict=None, **kwargs):
@@ -5014,40 +5014,33 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls, *args, return_future:bool =False, network=None, n_calls:bool = 1 ,  prefix_match=False, **kwargs) -> None:
+    def call(cls, *args,**kwargs) -> None:
 
-        futures = [cls.async_call(*args, network=network, prefix_match=prefix_match,**kwargs) for _ in range(n_calls)]
-
-        if return_future:
-            results =  futures
+        future = cls.async_call(*args,**kwargs)
+        if kwargs.get('return_future', False):
+            return future
         else:
-            try:
-                results = c.gather(futures)
-            except Exception as e:
-                return {'error': str(e)}
-        if n_calls == 1:
-            return results[0]
-        return results
+            return cls.gather(future)
+        return c.gather(cls.async_call(*args,**kwargs))
 
     @classmethod
     async def async_call(cls,
-                   module : str, 
+                module : str, 
                 fn : str = 'info',
                 *args,
                 timeout : int = 1,
                 prefix_match:bool = False,
                 network:str = None,
-                return_future:bool = False,
                 **kwargs
                 ) -> None:
                          
-        
         try:
-            module = await c.async_connect(module, virtual=False, prefix_match=prefix_match, network=network)
-            result =  await module.async_forward(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+            module = c.connect(module, prefix_match=prefix_match, network=network)
+            result = getattr(module, fn)(*args, return_future=True, **kwargs)
+            result = await asyncio.wait_for(result, timeout=timeout)
         except Exception as e:
-            result = {'error': str(e)}
-
+            result = c.detailed_error(e)
+        
         return result
 
     @classmethod
@@ -6904,8 +6897,18 @@ class c:
 
     @classmethod
     def is_property(cls, fn: 'Callable') -> bool:
+        '''
+        is the function a property
+        '''
         fn = cls.resolve_fn(fn,ensure_exists=False)
         return isinstance(fn, property)
+
+    @classmethod
+    def property_fns(cls) -> bool:
+        '''
+        Get a list of property functions in a class
+        '''
+        return [fn for fn in dir(cls) if cls.is_property(fn)]
 
     @classmethod
     def get_functions(cls, obj: Any = None,
@@ -7930,10 +7933,73 @@ class c:
     #     if not hasattr(self, '_access_modules'):
     #         self._access_modules = []
     #     self._access_modules = access_modules
-        
+
+    @classmethod
+    def emoji(cls,  name:str):
+        emojis = []
+        for k,v in c.emojis.items():
+            if name in k:
+                emojis += [v]
+   
+        return c.choice(emojis)
 
         
-    
+    emojis = {'dank': '🔥',
+            'error': '💥',
+            'white': '🕊️',
+            'cool': '😎',
+            'success': '✨',
+            'sad': '😢',
+            'time': '🕒',
+            'count': '🔢',
+            'output': '📤',
+            'input': '📥',
+            'party': '🥳',
+            'fireworks': '🎆',
+            'explosion': '💣',
+            'alien': '👽',
+            'rocket': '🚀',
+            'money': '💰',
+            'victory': '✌️',
+            'unicorn': '🦄',
+            'rainbow': '🌈',
+            'music': '🎵',
+            'pizza': '🍕',
+            'taco': '🌮',
+            'sunglasses': '😎',
+            'flame': '🔥',
+            'diamond': '💎',
+            'savage': '😈',
+            'laughing': '😂',
+            'ninja': '🥷',
+            'skull': '💀',
+            'thumbs_up': '👍',
+            'thumbs_down': '👎',
+            'crown': '👑',
+            'cyber_eye': '👁️‍🗨️',
+            'data_stream': '🌐',
+            'brain': '🧠',
+            'robot': '🤖',
+            'lightning': '⚡',
+            'heart': '❤️',
+            'heartbreak': '💔',
+            'heartpulse': '💗',
+            'green_heart': '💚',
+            'blue_heart': '💙',
+            'purple_heart': '💜',
+            'yellow_heart': '💛',
+            'orange_heart': '🧡',
+            'error': '💥',
+            'cross': '❌',
+            'check': '✅',
+            'check_mark': '✅',
+            'checkered_flag': '🏁',
+            'warning': '⚠️',
+            'warning_sign': '⚠️',
+            'question': '❓',
+            
+    }
+
 
     
 Module = c
