@@ -1,18 +1,32 @@
-import commune
+import commune as c
 import os
 import streamlit as st
 
-class Ansible(commune.Module): 
+class Ansible(c.Module): 
     def __init__(self,  
                  inventory_path: str=None,
                  playbook_path: str=None, 
                  ):
         self.set_config()
-        self.set_inventory(inventory_path)
         self.set_playbook(playbook_path)
+        self.set_inventory(inventory_path)
         
 
-        
+
+    def update(self):
+        self.ping()
+        self.save()
+
+    @property
+    def inventory(self):
+        if not hasattr(self, '_inventory'):
+            self._inventory = self.load_yaml(path=self.inventory_path)
+        return self._inventory
+    
+    @inventory.setter
+    def inventory(self, inventory):
+        self._inventory = inventory
+
         
     def flatten_inventory(self, inventory: dict, prefix: str = '', inventory_list: list = None):
         inventory_list = inventory_list if inventory_list != None else []
@@ -51,12 +65,46 @@ class Ansible(commune.Module):
         self.cp_node(from_node, to_node)
         self.dict_delete(self.inventory, from_node)
 
-    def save(self):
-        self.save_yaml(path=self.inventory_path, data=self.inventory)
-        self.save_yaml(path=self.playbook_path, data=self.plays)
+    def save(self, inventory = None, playbook = None):
+        inventory = inventory if inventory != None else self.inventory
+        playbook = playbook if playbook != None else self.plays
+        self.save_yaml(path=self.inventory_path, data=inventory)
+        # self.save_yaml(path=self.playbook_path, data=playbook)
+
+    def encrypt(self):
+        inventory = self.inventory 
+        for group_name, group in inventory.items():
+            for host_name, host in group['hosts'].items():
+                inventory[group_name]['hosts'][host_name] = self.key.encrypt(host)
+
+        
+        self.save(inventory=inventory)
+
+        return self.inventory
+
+    def decrypt(self):
+        inventory = self.inventory 
+        for group_name, group in inventory.items():
+            for host_name, host in group['hosts'].items():
+                if isinstance(host, str):
+                    inventory[group_name]['hosts'][host_name] = self.key.decrypt(host)
+                assert isinstance(inventory[group_name]['hosts'][host_name], dict)
+        self.save()
+        return self.inventory
+
+
+    def load(self, inventory_path: str=None, playbook_path: str=None):
+        self.set_inventory(inventory_path)
+        self.set_playbook(playbook_path)
+
+
     def set_inventory(self, inventory_path: str=None):
         self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
+
+        self.decrypt()
         self.inventory = self.load_yaml(path=self.inventory_path)
+
+    
         
     def save_inventory(self, inventory_path: str=None):
         self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
@@ -128,6 +176,8 @@ class Ansible(commune.Module):
 
         return node2stdout
     
+
+    
     @classmethod
     def run(cls, *args, **kwargs) -> str:
         self = cls()
@@ -198,4 +248,8 @@ class Ansible(commune.Module):
     def test(cls): 
         self = cls()
         self.key('test')
+
+
+    def __exit__(self):
+        self.encrypt()
     

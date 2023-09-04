@@ -50,5 +50,5 @@ enter_backend:
 	docker exec -it $(COMMUNE) bash
 
 pull:
-	git submodule update --init --recursive
+	git submodule update --force --recursive --init --remote
 	
