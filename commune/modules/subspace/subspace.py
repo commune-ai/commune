@@ -140,8 +140,6 @@ class Subspace(c.Module):
         if not url.startswith('ws://'):
             url = 'ws://' + url
 
-        c.print(f'Connecting to  [bold green]{network}[/bold green] 🔗🌐: [bold yellow]{url}[/bold yellow]')
-
     
         self.url = url
         
@@ -159,8 +157,7 @@ class Subspace(c.Module):
                                     auto_reconnect=auto_reconnect, 
                                     *args,
                                     **kwargs)
-        if verbose:
-            c.print(f'Connected to {network}: {url}...')
+        c.print(f'Connected to {network}: {url}...')
         
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}, url={self.url}>'
@@ -1313,7 +1310,13 @@ class Subspace(c.Module):
         return state_dict
     
     _state_dict = None
-    def state_dict(self, network=network, key=None, inlcude_weights:bool=False, update:bool=False, verbose:bool=False, **kwargs):
+    def state_dict(self,
+                    network=network, 
+                    key=None, 
+                    inlcude_weights:bool=False, 
+                    update:bool=False, 
+                    verbose:bool=False, 
+                    **kwargs):
         # cache and update are mutually exclusive 
         state_dict = {}
         if  update == False:
@@ -1575,7 +1578,7 @@ class Subspace(c.Module):
                  netuid=None, 
                  fmt='j',
                  cache = True, 
-                 cols=['name', 'balance', 'stake_from'],
+                 cols=[ 'stake_from', 'stake_to', 'stake'],
                 **kwargs):
         
         key_stats = {}
@@ -1583,14 +1586,15 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         key_stats['balance'] = self.get_balance(key, fmt=fmt)
 
+
         key_stats['modules'] = {}
         for netuid in self.netuids():
             subnet_key_stats = {}
-            module = self.key2module(key=key,netuid=netuid, fmt=fmt)
-            if 'name' in cols:
-                subnet_key_stats['name'] = module.get('name', key)
-            if 'balance' in cols:
-                subnet_key_stats['balance'] = self.balance(key, fmt=fmt)
+        
+            module = self.key2module(key=key,netuid=netuid, fmt=fmt, cache=True)
+            register = bool(module.get('name', False))
+            if register == False:
+                continue
             if 'stake' in cols:
                 subnet_key_stats['stake'] = module.get('stake', 0)
             if 'stake_to' in cols:
@@ -1604,7 +1608,7 @@ class Subspace(c.Module):
             if 'emission' in cols:
                 subnet_key_stats['emission'] = module.get('emission', 0)
             if 'registered' in cols:
-                subnet_key_stats['registered'] = bool(module.get('name'))
+                subnet_key_stats['registered'] = register
             if 'address' in cols:
                 subnet_key_stats['address'] = module['key']
             key_stats['modules'][netuid] = subnet_key_stats
@@ -1922,8 +1926,7 @@ class Subspace(c.Module):
             module[k] = v
         
         
-        return module
-    
+        return module    
     # @c.timeit
     def modules(self,
                 netuid: int = netuid,
@@ -1932,7 +1935,7 @@ class Subspace(c.Module):
                 keys = None,
                 update: bool = False,
                 include_weights = False,
-                cache = False,
+                cache = True,
                 df = False,
                 ) -> Dict[str, ModuleInfo]:
         

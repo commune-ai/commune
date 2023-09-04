@@ -1,5 +1,5 @@
 uvicorn
-fastapic 
+fastapi
 substrate-interface
 torch
 datasets
