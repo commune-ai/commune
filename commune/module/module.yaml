@@ -23,7 +23,9 @@ shortcuts:
   f: frontend
 tag: fams
 
-# access_modules: 
-#   access.subspace:
-#     netuid: 0
-#     network: main
+access_modules: 
+  base: 
+    max_staleness: 100   # staleness of the signature
+    role2rate:
+      admin: -1 # no limit
+      user: 1 # 1 request per second

@@ -40,12 +40,13 @@ class Docker(c.Module):
         return path
     
     @classmethod
-    def build(cls, path , tag = None , sudo=False, verbose=True):
+    def build(cls, path , tag = None , sudo=False, verbose=True, env={'DOCKER_BUILDKIT':'1'}):
+
         path = cls.resolve_docker_path(path)
         if tag is None:
             tag = path.split('/')[-2]
 
-        return c.cmd(f'docker build -t {tag} .', sudo=sudo, env={'DOCKER_BUILDKIT':'1'},cwd=os.path.dirname(path),  verbose=verbose)
+        return c.cmd(f'docker build -t {tag} .', sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
     
     def kill(self, name, sudo=False, verbose=True):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
@@ -83,11 +84,11 @@ class Docker(c.Module):
 
 
 
-    def install(self):
+    def install_gpus(self):
         self.chmod_scripts()
         c.cmd('./scripts/nvidia_docker_setup.sh', cwd=c.libpath, verbose=True,bash=True)
 
-    def install_gpus(self):
+    def install(self):
         self.chmod_scripts()
         c.cmd('./scripts/install_docker.sh', cwd=c.libpath, verbose=True,bash=True)
 
@@ -111,7 +112,8 @@ class Docker(c.Module):
 
         c.cmd(cmd,cwd = dockerfile_dir, env={'DOCKER_BUILDKIT':'1'}, verbose=True, sudo=sudo, bash=False)
 
-    def images(self, df=True):
+    @classmethod
+    def images(cls, df=True):
         text = c.cmd('docker images', verbose=False)
         if df:
             df = []
@@ -128,10 +130,6 @@ class Docker(c.Module):
         return [l.split(' ')[0] for l in text.split('\n') if len(l) > 0][1:]
 
 
-    # def images(self):
-    #     text = c.cmd('docker images')
-    #     return [l.split(' ')[0] for l in text.split('\n') if len(l) > 0][1:]
-    
     @classmethod
     def run(cls, 
                     image : str,

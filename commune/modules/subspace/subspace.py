@@ -2173,17 +2173,6 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def build(cls, chain:str = chain, build_spec:bool=True, build_runtime:bool=True,build_snapshot:bool=False,  verbose:bool=True, ):
-        if build_runtime:
-            cls.build_runtime(verbose=verbose )
-
-        if build_snapshot:
-            cls.build_snapshot(chain=chain, verbose=verbose)
-
-        if build_spec:
-            cls.build_spec(chain=chain, verbose=verbose)
-
-    @classmethod
     def chain_target_path(self, chain:str = chain):
         return f'{self.chain_path}/target/release/node-subspace'
 
@@ -3082,10 +3071,7 @@ class Subspace(c.Module):
     def dashboard(cls):
         return c.module('subspace.dashboard').dashboard()
     
-    @classmethod
-    def install_rust(cls, sudo=True):
-        c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
-    
+
 
     def build_snapshot(self, 
              state:dict = None,
@@ -3180,6 +3166,36 @@ class Subspace(c.Module):
             # version 0 does not have weights
             max_allowed_weights = 100
             snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
+    @classmethod
+    def install_rust(cls, sudo=True):
+        c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
+
+    @classmethod
+    def build_image(cls):
+        c.module('docker').build(cls.chain_name)
+    
+
+    @classmethod
+    def build(cls, chain:str = chain, 
+             build_spec:bool=True, 
+             build_runtime:bool=True,
+             build_snapshot:bool=False,  
+             build_image = True,
+             verbose:bool=True, 
+
+             ):
+
+        if build_image:
+            cls.build_image()
+            
+        if build_runtime:
+            cls.build_runtime(verbose=verbose )
+
+        if build_snapshot:
+            cls.build_snapshot(chain=chain, verbose=verbose)
+
+        if build_spec:
+            cls.build_spec(chain=chain, verbose=verbose)
 
 
 if __name__ == "__main__":
