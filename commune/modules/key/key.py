@@ -1190,9 +1190,12 @@ class Keypair(c.Module):
             type2keys[t] = type2keys.get(t, []) + [k]
         return type2keys
         
+    @classmethod
+    def pubkey2multihash(cls, pk:bytes) -> str:
+        import multihash
+        hashed_public_key = multihash.encode(pk, code=multihash.SHA2_256)
+        return hashed_public_key.hex()
 
-
-        
 Keypair.run(__name__)
         
         

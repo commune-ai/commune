@@ -1,10 +1,6 @@
-
-#api
 uvicorn
-fastapi
-# web3
+fastapic 
 substrate-interface
-# ml
 torch
 datasets
 transformers
@@ -15,25 +11,24 @@ accelerate
 streamlit
 plotly
 gradio
-# ray
-# ray[default]
-# ray[tune]
-#logging
-loguru
-rich
-aiofiles
-aiohttp
-nest_asyncio
-
+sse-starlette
 #misc
 msgpack_numpy
-ansible
 retry
 psutil
 munch
 ansible
 grpcio
 grpcio-tools
-sse-starlette
 openai
 scipy
+loguru
+rich
+aiofiles
+aiohttp
+nest_asyncio
+
+# ray
+# ray[default]
+# ray[tune]
+#logging

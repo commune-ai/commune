@@ -155,6 +155,15 @@ class c:
         removes the PWD with respect to where module.py is located
         '''
         return os.path.dirname(cls.filepath())
+
+
+    @classmethod
+    def dlogs(cls, *args, **kwargs):
+        return c.module('docker').logs(*args, **kwargs)
+
+    @classmethod
+    def images(cls, *args, **kwargs):
+        return c.module('docker').images(*args, **kwargs)
         
     
     @classmethod
@@ -6566,12 +6575,6 @@ class c:
     '''
 
     @classmethod
-    def pubkey2multihash(cls, pk:bytes) -> str:
-        import multihash
-        hashed_public_key = multihash.encode(pk, code=multihash.SHA2_256)
-        return hashed_public_key.hex()
-
-    @classmethod
     def add_ssh_key(cls,public_key:str, authorized_keys_file:str='~/authorized_keys'):
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
         with open(authorized_keys_file, 'a') as auth_keys_file:
@@ -6581,13 +6584,14 @@ class c:
         c.print('Added the key fam')
         
     @classmethod
-    def ssh_authorized_keys(cls, authorized_keys_file:str='~/authorized_keys'):
+    def ssh_authorized_keys(cls, authorized_keys_file:str='~/.ssh/authorized_keys'):
         authorized_keys_file = os.path.expanduser(authorized_keys_file)
         return cls.get_text(authorized_keys_file)
 
     @staticmethod
     def get_public_key_from_file(public_key_file='~/.ssh/id_rsa.pub'):
         public_key_file = os.path.expanduser(public_key_file)
+        os.path.exists(public_key_file), f'public key file {public_key_file} does not exist'
         with open(public_key_file, 'r') as key_file:
             public_key_data = key_file.read().strip()
 
@@ -7654,6 +7658,11 @@ class c:
         cls.chmod_scripts()
         c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
+    @classmethod
+    def install_python(cls, sudo=True) :
+        cls.chmod_scripts()
+        c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+
 
     @classmethod
     def cache_result(cls, func):
@@ -7821,8 +7830,6 @@ class c:
     ##################################
     @classmethod
     def add_user(cls, address, role='user', **kwargs):
-
-
         users = cls.get('users', {})
         info = {'role': role, **kwargs}
         users[address] = info
@@ -7874,6 +7881,8 @@ class c:
     @classmethod
     def is_admin(cls, address):
         return cls.get_role(address) == 'admin'
+
+    
     @classmethod
     def admins(cls):
         return [k for k,v in cls.users().items() if v['role'] == 'admin']
@@ -7911,7 +7920,7 @@ class c:
             c.kill(m)
 
 
-    def access_modules(self, return_config = False):
+    def access_modules(self,  module_category:str='access'):
 
         '''
         Get the auth modules (modules that process the message to authrize the right people)
@@ -7919,6 +7928,9 @@ class c:
         if hasattr(self, '_access_modules'):
             return self._access_modules
         access_modules = []
+        modules = c.modules()
+        if 'access_modules' not in self.config:
+            self.config['access_modules'] = c.config()['access_modules']
         # each module has a verify function, that takes in the input and returns the input
         if hasattr(self, 'config') \
             and hasattr(self.config, 'access_modules'):
@@ -7926,7 +7938,10 @@ class c:
             config = self.config
             for access, access_config in config.access_modules.items():
                 c.print('Adding auth module: ', access, access_config, color='yellow')
-                access_module = c.module(access)(**access_config)
+                if module_category != None:
+                    access = module_category + '.' + access
+                assert access in modules, f'access module {access} not found'
+                access_module = c.module(access)(module=self, **access_config)
                 access_modules.append(access_module)
         self._access_modules = access_modules
         return access_modules
