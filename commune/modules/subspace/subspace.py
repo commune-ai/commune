@@ -48,7 +48,6 @@ class Subspace(c.Module):
     ):
 
         config = self.set_config(config=config,kwargs=kwargs)
-        self.set_network(network=config.network)
         if config.loop:
             c.thread(self.loop)
     @classmethod
@@ -90,7 +89,7 @@ class Subspace(c.Module):
     
     
     def set_network(self, 
-                network:str,
+                network:str = None,
                 url : str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
@@ -133,7 +132,7 @@ class Subspace(c.Module):
         from substrateinterface import SubstrateInterface
         
         if network == None:
-            network = self.network
+            network = self.config.network
         self.network = network
         
         url = c.choice(self.urls(network=network))
@@ -1573,42 +1572,42 @@ class Subspace(c.Module):
                 
     def key_stats(self, 
                 key : str , 
-                 module = None,
                  netuid=None, 
                  fmt='j',
                  cache = True, 
-                 cols=['name', 'balance', 'stake_to', 'stake_from'],
+                 cols=['name', 'balance', 'stake_from'],
                 **kwargs):
         
         key_stats = {}
 
         netuid = self.resolve_netuid(netuid)
+        key_stats['balance'] = self.get_balance(key, fmt=fmt)
 
-        if module == None:
-            module = self.key2module(key=key,netuid=netuid, cache=cache, fmt=fmt)
-        
-        c.print(f"Getting stats for {key} on {module}")
-        if 'name' in cols:
-            key_stats['name'] = module.get('name', key)
-        if 'registered' in cols:
-            key_stats['registered'] = bool(module.get('name'))
-        if 'address' in cols:
-            key_stats['address'] = module['key']
-        if 'balance' in cols:
-            key_stats['balance'] = self.balance(key, fmt=fmt)
-        if 'stake' in cols:
-            key_stats['stake'] = module.get('stake', 0)
-        if 'stake_to' in cols:
-            key_stats['stake_to'] =  self.get_stake_to(key ,netuid=netuid, fmt=fmt)
-        if 'stake_from' in cols:
-            key_stats['stake_from'] =  module.get('stake_from', {})
-        if 'incentive' in cols:
-            key_stats['incentive'] = module.get('incentive', 0)
-        if 'dividends' in cols:
-            key_stats['dividends'] = module.get('dividends', 0)
-        if 'emission' in cols:
-            key_stats['emission'] = module.get('emission', 0)
-
+        key_stats['modules'] = {}
+        for netuid in self.netuids():
+            subnet_key_stats = {}
+            module = self.key2module(key=key,netuid=netuid, fmt=fmt)
+            if 'name' in cols:
+                subnet_key_stats['name'] = module.get('name', key)
+            if 'balance' in cols:
+                subnet_key_stats['balance'] = self.balance(key, fmt=fmt)
+            if 'stake' in cols:
+                subnet_key_stats['stake'] = module.get('stake', 0)
+            if 'stake_to' in cols:
+                subnet_key_stats['stake_to'] =  self.get_stake_to(key ,netuid=netuid, fmt=fmt)
+            if 'stake_from' in cols:
+                subnet_key_stats['stake_from'] =  module.get('stake_from', {})
+            if 'incentive' in cols:
+                subnet_key_stats['incentive'] = module.get('incentive', 0)
+            if 'dividends' in cols:
+                subnet_key_stats['dividends'] = module.get('dividends', 0)
+            if 'emission' in cols:
+                subnet_key_stats['emission'] = module.get('emission', 0)
+            if 'registered' in cols:
+                subnet_key_stats['registered'] = bool(module.get('name'))
+            if 'address' in cols:
+                subnet_key_stats['address'] = module['key']
+            key_stats['modules'][netuid] = subnet_key_stats
         return key_stats
 
         
@@ -1929,7 +1928,6 @@ class Subspace(c.Module):
     def modules(self,
                 netuid: int = netuid,
                 fmt='nano', 
-                cache:bool = True,
                 network = network,
                 keys = None,
                 update: bool = False,
@@ -1939,15 +1937,16 @@ class Subspace(c.Module):
                 
                 ) -> Dict[str, ModuleInfo]:
         
-        network = self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
+
 
         modules = []
-        if update:
-            modules = self.state_dict(key='modules', network=network)[netuid]
-        
-        if len(modules) == 0:
+        if update == False:
+            modules = self.state_dict(key='modules', network=network, update=False)[netuid]
+    
 
+        if len(modules) == 0:
+            network = self.resolve_network(network)
+            netuid = self.resolve_netuid(netuid)
             uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', netuid)}
             uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', netuid)}
             uid2name = { r[0].value : r[1].value for r in self.query_map('Names', netuid)}
