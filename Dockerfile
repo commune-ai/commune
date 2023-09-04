@@ -22,11 +22,11 @@ RUN pip3 install -e .
 # INTSALL NPM PACKAGES
 RUN ./scripts/install_npm_env.sh
 
-# BUILD SUBDSPACE (BLOCKCHAIN)
-COPY ./subspace /commune/subspace
-# Necessary libraries for Rust execution
-RUN apt-get update && apt-get install -y clang 
-ENV PATH="/root/.cargo/bin:${PATH}"
-RUN cd /commune/subspace && ./scripts/install_rust_env.sh
-RUN cd /commune/subspace && cargo build --release --locked
+# # BUILD SUBDSPACE (BLOCKCHAIN)
+# COPY ./subspace /commune/subspace
+# # Necessary libraries for Rust execution
+# RUN apt-get update && apt-get install -y clang 
+# ENV PATH="/root/.cargo/bin:${PATH}"
+# RUN cd /commune/subspace && ./scripts/install_rust_env.sh
+# RUN cd /commune/subspace && cargo build --release --locked
 
