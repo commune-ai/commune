@@ -1,4 +1,4 @@
-# Module Management Tutorial with Commune Library
+# Module Basics
 
 In this tutorial, we'll explore how to use the `commune` library for module management in Python. The `commune` library provides functionalities for managing and serving code modules easily.
 
@@ -126,6 +126,7 @@ c.kill('demo::tag1')     # Kill the module
 ```
 
 ---
+
 
 This concludes our tutorial on module management using the `commune` library. You've learned how to find modules, manage their functions, serve them, and interact with served modules. This library can greatly simplify the process of managing and deploying code modules in your projects.
 ```

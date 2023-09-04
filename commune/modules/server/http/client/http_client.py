@@ -86,7 +86,7 @@ class Client(c.Module):
         # sign the request
         request = self.key.sign(request_data, return_json=True)
 
-        
+        result = '{}'
         # start a client session and send the request
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=request, headers=headers) as response:
@@ -100,6 +100,12 @@ class Client(c.Module):
                     result = json.loads(result)
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
+                elif response.content_type == 'text/plain':
+                    # result = await asyncio.wait_for(response.text, timeout=timeout)
+                    c.print(response.text)
+                    result = json.loads(result)
+                else:
+                    raise ValueError(f"Invalid response content type: {response.content_type}")
         # process output 
         result = self.process_output(result)
         

@@ -85,15 +85,13 @@ class HTTPServer(c.Module):
                                     kwargs=kwargs,
                                     )
 
-                result = self.process_result(result)
                 success = True
             except Exception as e:
                 result = c.detailed_error(e)
                 success = False
-                result = self.process_result(result)
             
-            # c.print(result)
-
+            result = self.process_result(result)
+            
 
             if success:
                 
@@ -152,7 +150,6 @@ class HTTPServer(c.Module):
                 result = list(result)
             result = self.serializer.serialize({'data': result})
             result = self.key.sign(result, return_json=True)
-
             return result
         
     
