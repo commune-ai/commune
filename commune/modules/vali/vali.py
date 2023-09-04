@@ -30,9 +30,12 @@ class Vali(c.Module):
         self.sync()
         self.process = c.module('process')
         self.last_vote_time = c.time()
+        self.ip = c.ip()
+        if self.config.refresh_stats:
+            self.refresh_stats(network=self.config.network, tag=self.tag)
         if self.config.start == False:
             return
-        # # # # main thread
+        # # # # # main thread
         if self.config.vote:
             c.thread(self.vote_loop)
         c.thread(self.run)
@@ -46,17 +49,14 @@ class Vali(c.Module):
             c.kill(w)
 
 
-    def sync(self):
-        self.set_subspace(sync=True)
-
-    def set_subspace(self, network=None, netuid=None, sync=False):
+    def sync(self, network:str=None, netuid:int=None, update: bool = True):
         if network == None:
             network = self.config.network
         if netuid == None:
             netuid = self.config.netuid
         if not hasattr(self, 'subsapce'):
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
-        self.modules = self.subspace.modules(update=sync)
+        self.modules = self.subspace.modules(update=update, netuid=netuid)
         self.namespace = {v['name']: v['address'] for v in self.modules }
         if self.config.module_prefix != None:
             self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
@@ -64,6 +64,13 @@ class Vali(c.Module):
         self.subnet = self.subspace.subnet()
         if self.config.vote_interval == None: 
             self.config['vote_interval'] = self.subspace.seconds_per_epoch()
+
+
+        self.block = self.subspace.block
+
+
+
+        return {'modules': self.modules, 'subnet': self.subnet}
 
     @property
     def lifetime(self):
@@ -87,12 +94,25 @@ class Vali(c.Module):
         prefix = f'[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
         
         self.count += 1
+
+        my_module = self.ip in module['address']
         try:
+
+            if my_module:
+                c.print(f'{prefix} [bold red] {module["name"]} {self.ip}[/bold red]', color='red')
             module_client = c.connect(module['address'])
+            
             response = self.score_module(module_client)
         except Exception as e:
+            if my_module:
+                c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
             response = {'error': c.detailed_error(e), 'w': 0}
-            c.print(f'{prefix} [bold red] {module["name"]} {response["error"]}[/bold red]', color='red')
+
+        
+        if my_module:
+            c.print(f'{prefix} [bold green] {c.emoji("dank")}  {c.emoji("dank")} MY MODULE {module["name"]}->{module["address"]} W:{response["w"]}[/bold green]', color='green')
+            c.print(response)
+
         
         w = response['w']
         # we only want to save the module stats if the module was successful
@@ -121,11 +141,10 @@ class Vali(c.Module):
         if tag == None:
             tag = 'base'
         return f'stats/{network}/{tag}'
-    
     def refresh_stats(self, network='main', tag=None):
         tag = self.tag if tag == None else tag
-        path = cls.resolve_stats_path(network=network, tag=tag)
-        return cls.rm(path)
+        path = self.resolve_stats_path(network=network, tag=tag)
+        return self.rm(path)
 
     @classmethod
     def stats(cls, network='main', df:bool=True, keys=['name', 'w', 'count', 'staleness'], tag=None, topk=30):
@@ -272,6 +291,7 @@ class Vali(c.Module):
 
         futures = []
         while self.running:
+
             # self.sync()
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()

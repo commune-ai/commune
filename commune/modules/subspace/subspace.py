@@ -1481,7 +1481,35 @@ class Subspace(c.Module):
 
 
     def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
-        return self.query_map('Emission', block=block, )
+        netuid = self.resolve_netuid( netuid )
+        return [submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ]
+
+
+    def regblock(self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+        netuid = self.resolve_netuid( netuid )
+        return {k.value:v.value for k,v  in self.query_map('RegistrationBlock',netuid, block=block ) }
+
+
+    def age(self, netuid: int = None) -> Optional[float]:
+        netuid = self.resolve_netuid( netuid )
+        regblock = self.regblock(netuid=netuid)
+        block = self.block
+        age = {}
+        for k,v in regblock.items():
+            age[k] = block - v
+        return age
+
+
+
+    def in_immunity(self, netuid: int = None ) -> Optional[float]:
+        netuid = self.resolve_netuid( netuid )
+        subnet = self.subnet(netuid=netuid)
+        age = self.age(netuid=netuid)
+        in_immunity = {}
+        for k,v in age.items():
+            in_immunity[k] = bool(v < subnet['immunity_period'])
+        return in_immunity
+
     e = emission
 
 

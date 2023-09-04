@@ -19,11 +19,12 @@ class Client(c.Module):
             ip: str ='0.0.0.0',
             port: int = 50053 ,
             network: bool = None,
-            key = None,
-            stream = False,
+            key : str = None,
+            stream:bool = False,
+            loop: 'asyncio.EventLoop' = None,
             **kwargs
         ):
-        self.loop = c.get_event_loop()
+        self.loop = c.get_event_loop() if loop == None else loop
         self.set_client(ip =ip,port = port)
         self.serializer = c.serializer()
         self.key = c.get_key(key)

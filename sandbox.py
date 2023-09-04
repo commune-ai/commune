@@ -8,4 +8,5 @@
 import commune as c
 
 
-c.print('hey')
+module = c.connect('data.truthqa', network='local')
+c.print(module.info())
