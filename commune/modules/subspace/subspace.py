@@ -1329,7 +1329,7 @@ class Subspace(c.Module):
             block = self.block
             netuids = self.netuids()
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, update=True) for netuid in netuids],
                         'balances': self.balances(network=network),
                         'stake_to': [self.stake_to(network=network) for netuid in netuids] ,
                         'block': self.block,
@@ -1932,16 +1932,15 @@ class Subspace(c.Module):
                 keys = None,
                 update: bool = False,
                 include_weights = False,
-                names_only = False,
+                cache = False,
                 df = False,
-                
                 ) -> Dict[str, ModuleInfo]:
         
 
 
         modules = []
-        if update == False:
-            modules = self.state_dict(key='modules', network=network, update=False)[netuid]
+        if cache:
+            modules = self.state_dict(key='modules', network=network, update=update)[netuid]
     
 
         if len(modules) == 0:
