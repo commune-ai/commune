@@ -284,9 +284,11 @@ class Keypair(c.Module):
     def load_keys(cls, path=keys_path, verbose:bool = False, refresh:bool = False,  **kwargs):
         c.print(f'loading keys from {path}', color='green', verbose=verbose)
         key_info_map = c.get_json(path)
-        for key_info in key_info_map.values():
+        for key_path ,key_info in key_info_map.items():
             cls.add_key( **key_info,refresh=refresh)
             c.print(f'key {key_info["path"]} loaded', color='green', verbose=verbose)
+            if key_info['path'] == None:
+                key_info['path'] = key_path 
             assert cls.get_key(key_info['path']).mnemonic == key_info['mnemonic'], f'mnemonic does not match for key {key_info["path"]}'
         keys = list(key_info_map.keys())
         return {'status': 'success', 'message': f'keys loaded from {path}', 'keys': keys}
@@ -449,6 +451,10 @@ class Keypair(c.Module):
                     removed_keys.append(key)
             
         return {'removed_keys':rm_keys}
+    
+    @classmethod
+    def rm_all_keys(cls):
+        return cls.rm_keys(cls.keys())
     crypto_types = ['ED25519', 'SR25519', 'ECDSA']
 
     @classmethod
@@ -651,7 +657,6 @@ class Keypair(c.Module):
         return keypair
 
     from_mem = create_from_mnemonic
-    mem = create_from_mnemonic
 
     @classmethod
     def create_from_seed(
@@ -1139,10 +1144,34 @@ class Keypair(c.Module):
         assert not self.key_exists('test'), f'Key management failed, key still exists'
 
     @classmethod
-    def get_mem(cls, key):
+    def getmem(cls, key):
         return cls.get_key(key).mnemonic
+    mem = getmem
     def __str__(self):
         return f'<Keypair (address={self.ss58_address[:6]}.., path={self.path},  crypto_type: {self.crypto_type_name})>'
+
+    mems_path = c.repo_path + '/data/mems.json'
+    
+    @classmethod
+    def savemems(cls, path=mems_path):
+        c.print(f'saving mems to {path}')
+        mems = cls.mems()
+        c.put_json(path, mems)
+        return {'saved_mems':list(mems.keys()), 'path':path}
+
+    @classmethod
+    def loadmems(cls, path=mems_path):
+        mems = c.load_json(path)
+        for k,mem in mems.items():
+            cls.add_key(k, mem)
+        return {'loaded_mems':list(mems.keys()), 'path':path}
+
+    @classmethod
+    def mems(cls):
+        mems = {}
+        for key in cls.keys():
+            mems[key] = cls.getmem(key)
+        return mems
 
     def __repr__(self):
         return self.__str__()

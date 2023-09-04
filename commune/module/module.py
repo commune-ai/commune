@@ -775,11 +775,20 @@ class c:
     @classmethod
     def add_key(cls, *args, **kwargs):
         return c.module('key').add_key(*args, **kwargs)
+    
+    @classmethod
+    def getmem(self, *args, **kwargs):
+        return c.module('key').getmem(*args, **kwargs)
+    mem = getmem
 
     # KEY LAND
     @classmethod
     def mv_key(cls, *args, **kwargs):
         return c.module('key').mv_key(*args, **kwargs)
+
+    @classmethod
+    def mems(cls, *args, **kwargs):
+        return c.module('key').mems(*args, **kwargs)
 
     # KEY LAND
     @classmethod
@@ -3207,6 +3216,9 @@ class c:
         subspace.register(name=server_name, subnet=subnet)
         return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 
+    @classmethod
+    def key_stats(cls, *args, **kwargs):
+        return c.module('subspace')().key_stats(*args, **kwargs)
 
     
     r = reg = register
@@ -5151,6 +5163,14 @@ class c:
     @classmethod
     def add_key(cls, key, *args,  **kwargs):
         return c.module('key').add_key(key, *args, **kwargs)
+    
+    @classmethod
+    def loadmems(self, *args, **kwargs):
+        return c.module('key').loadmems(*args, **kwargs)
+
+    def savemems(self, *args, **kwargs):
+        return c.module('key').savemems(*args, **kwargs)
+    
     
     @classmethod
     def save_keys(cls, *args,  **kwargs):
@@ -7279,6 +7299,9 @@ class c:
     @classmethod
     def stake(cls, *args, **kwargs):
         return c.module('subspace')().stake(*args, **kwargs)
+    @classmethod
+    def get_stake(cls, *args, **kwargs):
+        return c.module('subspace')().get_stake(*args, **kwargs)
     
     @classmethod
     def stake_multiple(cls, *args, **kwargs):
