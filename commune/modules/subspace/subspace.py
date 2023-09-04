@@ -1971,7 +1971,7 @@ class Subspace(c.Module):
                 key = uid2key[uid]
                 module= {
                     'uid': uid,
-                    'address': address,d
+                    'address': address,
                     'name': uid2name[uid],
                     'key': key,
                     'emission': emission[uid].value,
