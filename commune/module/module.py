@@ -415,10 +415,9 @@ class c:
             k, 
             v, 
             password: bool = None,
-            include_timestamp : bool = True,
             mode: bool = 'json',
-            cache :bool = True,
-            **kwargs):
+            **kwargs
+            ):
         '''
         Puts a value in the config
         '''
@@ -429,20 +428,13 @@ class c:
         if encrypt:
             data = cls.encrypt(v, password=password, return_dict=True)
         else:
-            data = {'data': v,
-                'encrypted': encrypt}
+            data = {'data': v, 'encrypted': encrypt}
 
-        if include_timestamp:
-            data['timestamp'] = c.timestamp()
+        data['timestamp'] = c.timestamp()
             
-
-        
         # default json 
         getattr(cls,f'put_{mode}')(k, data, **kwargs)
     
-        if cache:
-            cls.cache[k] = v
-        
         return data
     
     
@@ -1802,6 +1794,7 @@ class c:
                  data:Dict, 
                  meta = None,
                  root: bool = False,
+                 cache: bool = False,
                  **kwargs) -> str:
         
         from commune.utils.dict import async_put_json
@@ -4723,7 +4716,7 @@ class c:
         return datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     @classmethod
-    def time2datetime(self, t:float):
+    def time2datetime(cls, t:float):
         import datetime
         return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -5954,7 +5947,6 @@ class c:
             return {'success': False, 'msg': f' module {module} already exists, set overwrite=True to overwrite'}
         module_path = os.path.join(c.modules_path, module)
         
-        
         if overwrite and c.module_exists(module_path): 
             c.rm(module_path)
         
@@ -5970,7 +5962,6 @@ class c:
         if module == None:
             assert repo != None, 'repo must be specified if module is not specified'
             module = os.path.basename(repo).replace('.git','').replace(' ','_').replace('-','_').lower()
-        
         
         # currently we are using the directory name as the module name
         if module_type == 'dir':

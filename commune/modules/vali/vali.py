@@ -67,6 +67,7 @@ class Vali(c.Module):
 
 
         self.block = self.subspace.block
+        c.print('Syncing...', color='cyan')
 
 
 
@@ -292,7 +293,6 @@ class Vali(c.Module):
         futures = []
         while self.running:
 
-            # self.sync()
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             for i, module in enumerate(modules):
