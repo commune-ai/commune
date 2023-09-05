@@ -2,5 +2,5 @@
 network: main 
 netuid: 0
 sync_interval: 1000
-stake2rate: 100 # 1 call per every 100 stakes per second
+stake2rate: 100 # 1 call per every 100 stakes per secondstake2rate
 
