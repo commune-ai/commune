@@ -54,9 +54,9 @@ class Vali(c.Module):
             network = self.config.network
         if netuid == None:
             netuid = self.config.netuid
-        if not hasattr(self, 'subsapce'):
+        if not hasattr(self, 'subspace'):
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
-        self.modules = self.subspace.modules(update=update, netuid=netuid)
+        self.modules = self.subspace.modules(update=False, netuid=netuid)
         self.namespace = {v['name']: v['address'] for v in self.modules }
         if self.config.module_prefix != None:
             self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
@@ -101,7 +101,7 @@ class Vali(c.Module):
 
             if my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {self.ip}[/bold red]', color='red')
-            module_client = c.connect(module['address'])
+            module_client = c.connect(module['address'], key=self.key)
             
             response = self.score_module(module_client)
         except Exception as e:
@@ -292,6 +292,8 @@ class Vali(c.Module):
 
         futures = []
         while self.running:
+
+            self.sync()
 
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()

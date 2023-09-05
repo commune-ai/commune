@@ -5049,11 +5049,12 @@ class c:
                 timeout : int = 1,
                 prefix_match:bool = False,
                 network:str = None,
+                key:str = None,
                 **kwargs
                 ) -> None:
                          
         try:
-            module = c.connect(module, prefix_match=prefix_match, network=network)
+            module = c.connect(module, prefix_match=prefix_match, network=network, key=key)
             result = getattr(module, fn)(*args, return_future=True, **kwargs)
             result = await asyncio.wait_for(result, timeout=timeout)
         except Exception as e:
@@ -5711,7 +5712,7 @@ class c:
 
     @classmethod
     def sync(cls, *args, **kwargs):
-        c.namespace_subspace(update=True)
+        return c.module('subspace')().sync(*args, **kwargs)
         
     @classmethod
     def peer_registry(cls, peers=None, update: bool = False):
