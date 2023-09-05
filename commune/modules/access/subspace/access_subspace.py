@@ -37,7 +37,7 @@ class AccessSubspace(c.Module):
             return input
 
         # if not an admin address, we need to check the whitelist and blacklist
-        assert fn in self.module.whitelist , f"Function {fn} not in whitelist"
+        assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
         assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
 
         # RATE LIMIT CHECKING HERE
