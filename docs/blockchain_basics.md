@@ -51,7 +51,7 @@ c transfer model.openai 100 model.openai.2
 or you an specify the address, this is the safer way to do it, as you can accidentally send it to the wrong address if the name has changed on the network.
 
 ```
-c transfer ADDRESS_FROM model.openai 100 ADDRESS_TO
+c transfer SS58_ADDRESS_FROM model.openai 100 ADDRESS_TO
 ```
 
 ## Staking 
@@ -84,6 +84,11 @@ To unstake on another module with your tokens, you can use the following command
 ```
 c unstake key=model.openai amount=100 module_key=model.openai.2
 ```
+
+
+## Get Key Info 
+
+
 
 
 
