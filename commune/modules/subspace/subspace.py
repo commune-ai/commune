@@ -3189,7 +3189,7 @@ class Subspace(c.Module):
              build_spec:bool=True, 
              build_runtime:bool=True,
              build_snapshot:bool=False,  
-             build_image = True,
+             build_image = False,
              verbose:bool=True, 
 
              ):
