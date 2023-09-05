@@ -2112,12 +2112,12 @@ class Subspace(c.Module):
         return [m['name'] for m in my_modules]
 
     def my_module_keys(self, *args,  **kwargs):
-        modules = self.my_modules(*args, names_only=False, **kwargs)
+        modules = self.my_modules(*args, **kwargs)
         return [m['key'] for m in modules]
 
     def my_keys(self, *args, mode='all' , **kwargs):
 
-        modules = self.my_modules(*args, names_only=False, **kwargs)
+        modules = self.my_modules(*args,**kwargs)
         address2module = {m['key']: m for m in modules}
         address2balances = self.balances()
         keys = []
