@@ -1282,14 +1282,14 @@ class c:
 
 
     @classmethod
-    def restart_servers(cls, module:str=None, mode:str = 'pm2'):
+    def restart_servers(cls, module:str=None, mode:str = 'server'):
         '''
         Kill the server by the name
         '''
         fn = getattr(cls, f'{mode}_restart')
         for module in c.servers(module,network='local'):
             c.print(f'Restarting {module}', color='red')
-            # fn(module)
+            fn(module)
 
     @classmethod
     def pm2_restart_all(cls):
@@ -3296,6 +3296,10 @@ class c:
     def restart(cls, name:str, mode:str='server', verbose:bool = False, prefix_match:bool = True):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
         return refreshed_modules
+
+    
+
+
     refresh = reset = restart
     @classmethod
     def pm2_status(cls, verbose=True):
