@@ -2047,7 +2047,7 @@ class Subspace(c.Module):
                     'name': uid2name[uid],
                     'key': key,
                     'emission': emission[uid].value,
-                    'incentives': incentives[uid].value,
+                    'incentive': incentive[uid].value,
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
@@ -2082,7 +2082,7 @@ class Subspace(c.Module):
                 for k in ['balance', 'stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
-                for k in ['incentives', 'dividends']:
+                for k in ['incentive', 'dividends']:
                     if module[k] > 1:
                         module[k] = module[k] / (U16_MAX)
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
