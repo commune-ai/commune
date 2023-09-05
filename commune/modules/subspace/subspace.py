@@ -364,15 +364,6 @@ class Subspace(c.Module):
 
     set_weights = vote
 
-    @classmethod
-    def get_key(cls, uri= None) -> 'c.Key':
-        
-        key = c.module('key')
-        if uri != None:
-            key = key.create_from_uri(uri)
-        else:
-            raise NotImplementedError('No uri, mnemonic, privatekey or publickey provided')
-        return key
     def get_netuid_for_subnet(self, network: str = None) -> int:
         netuid = self.subnet_namespace.get(network, None)
         return netuid
@@ -799,12 +790,12 @@ class Subspace(c.Module):
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             network:str = None,
-            existential_deposit: float = 0.0,
+            existential_deposit: float = 0.1,
             sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
-        key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
+        key = c.get_key(key)
 
         c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
@@ -1037,12 +1028,12 @@ class Subspace(c.Module):
         return self.query_subspace("MaxAllowedWeights", block, [netuid] ).value
 
     """ Returns network SubnetN hyper parameter """
-    def n (self, netuid: int = None, block: Optional[int] = None ) -> int:
+    def n(self, netuid: int = None, block: Optional[int] = None ) -> int:
         netuid = self.resolve_netuid( netuid )
         return self.query_subspace('N', block, [netuid] ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
-    def max_allowed_uids (self, netuid: int, block: Optional[int] = None ) -> Optional[int]:
+    def max_allowed_uids (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
         return self.query_subspace('MaxAllowedUids', block, [netuid] ).value
 
@@ -1074,6 +1065,8 @@ class Subspace(c.Module):
         if hasattr(key_ss58, 'ss58_address'):
             key_ss58 = key_ss58.ss58_address
         return key_ss58
+
+
     @classmethod
     def resolve_key(cls, key, create:bool = True):
         if isinstance(key, str):
@@ -1301,18 +1294,12 @@ class Subspace(c.Module):
                 c.log(f"Watchdog: {time_elapsed} seconds elapsed COUNTS ->S {counts}")
             
             
-        
-
-    def load(self, network:str=None, save:bool = False):
-        network = self.resolve_network(network)
-        state_dict = {}
-        state_dict = self.get(f'archive/{network}/state', state_dict, cache=False)
-        return state_dict
+    
     
     _state_dict = None
     def state_dict(self,
                     network=network, 
-                    key=None, 
+                    key: Union[str, list]=None, 
                     inlcude_weights:bool=False, 
                     update:bool=False, 
                     verbose:bool=False, 
@@ -1325,16 +1312,13 @@ class Subspace(c.Module):
             c.print('Loading state_dict from cache', verbose=verbose)
             state_dict = self.latest_archive(network=network)
 
-            
-
-        
         if len(state_dict) == 0:
             block = self.block
             netuids = self.netuids()
             state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, update=True) for netuid in netuids],
-                        'balances': self.balances(network=network),
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network) for netuid in netuids] ,
+                        'balances': self.balances(network=network),
                         'block': self.block,
                         'network': network,
                         }
@@ -1366,13 +1350,27 @@ class Subspace(c.Module):
         return block2archive
     @classmethod
     def latest_archive_path(cls, network=network):
+        latest_archive_time = cls.latest_archive_time(network=network)
+        assert latest_archive_time != None, f"No archives found for network {network}"
+        return time2archive[latest_time]
 
+    @classmethod
+    def latest_archive_time(cls, network=network):
         time2archive = cls.time2archive(network=network)
         if len(time2archive) == 0:
             return None
         latest_time = max(time2archive.keys())
+        return latest_time
 
-        return time2archive[latest_time]
+    @classmethod
+    def latest_archive_datetime(cls, network=network):
+        latest_archive_time = cls.latest_archive_time(network=network)
+        assert latest_archive_time != None, f"No archives found for network {network}"
+        return c.time2datetime(latest_archive_time)
+
+    @classmethod
+    def archive_staleness(self, network=network):
+        return c.time() - self.latest_archive_time(network=network)
 
     @classmethod
     def latest_archive(cls, network=network):
@@ -1410,7 +1408,7 @@ class Subspace(c.Module):
             
     
     def subnet_state(self, 
-                    netuid=0,
+                    netuid=netuid,
                     cache: bool = True,
                     update: bool = False,
                     network = network) -> list:
@@ -1418,8 +1416,6 @@ class Subspace(c.Module):
         if cache:
             subnet_state =  self.state_dict(network=network, key='subnets', update=update )[netuid]
             
-        network = self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
         subnet_stake = self.query_subspace( 'SubnetTotalStake', params=[netuid] ).value
         subnet_emission = self.query_subspace( 'SubnetEmission', params=[netuid] ).value
         subnet_founder = self.query_subspace( 'Founder', params=[netuid] ).value
@@ -1929,9 +1925,9 @@ class Subspace(c.Module):
         return module    
     # @c.timeit
     def modules(self,
+                network = network,
                 netuid: int = netuid,
                 fmt='nano', 
-                network = network,
                 keys = None,
                 update: bool = False,
                 include_weights = False,
@@ -2061,64 +2057,6 @@ class Subspace(c.Module):
                 keys += [key]
             
         return keys
-    def my_key_addresses(self, *args, mode='all' , **kwargs):
-
-        modules = self.my_modules(*args, names_only=False, **kwargs)
-        address2module = {m['key']: m for m in modules}
-        address2balances = self.balances()
-        keys = []
-        address2key = c.address2key()
-        for address, key in address2key.items():
-            
-            if mode == 'live' and (address in address2module):
-                keys += [address]
-            elif mode == 'dead' and (address not in address2module and address in address2balances):
-                keys += [address]
-            elif mode == 'all' and (address in address2module or address in address2balances):
-                keys += [address]
-            
-        return keys
-    
-
-    
-    def dead_keys(self, *args, **kwargs):
-        live_keys = self.live_keys(*args, **kwargs)
-        return [k for k in self.my_keys(*args, **kwargs) if k not in live_keys]
-
-    def voted_modules(self, *args, **kwargs):
-        return [m['name'] for m in self.my_modules(*args, **kwargs) if m['dividends'] > 0]
-    def non_voted_modules(self, *args, **kwargs):
-        return [m['name'] for m in self.my_modules(*args, **kwargs) if m['dividends'] == 0]
-    
-
-
-    def register_dead_keys(self, *args, **kwargs):
-        dead_keys = self.dead_keys(*args, **kwargs)
-
-        for key in dead_keys:
-            self.register(module=key, *args, **kwargs)
-        return dead_keys
-    
-    
-    def my_uids(self, *args, reverse_sort:bool = False,**kwargs):
-        modules = self.my_modules(*args, **kwargs)
-        return sorted([m['uid'] for m in modules], reverse=reverse_sort)
-    
-    def my_balances(self, *args,  **kwargs):
-        modules = self.my_modules(*args, names_only=False, **kwargs)
-        return {m['name']: m['balance'] for m in modules}
-    
-    # my_keys = my_module_keys
-    def is_my_module(self, name:str):
-        return self.name2module(name=name, *args, **kwargs)
-    
-    def live_keys(self, *args, **kwargs):
-        return [m['name'] for m in self.my_modules(*args, **kwargs)]
-                
-
-    def key_alive(self, key:str, *args, **kwargs):
-        
-        return key in self.live_keys(*args, **kwargs)
 
     @classmethod
     def kill_chain(cls, chain=chain):
@@ -3141,12 +3079,7 @@ class Subspace(c.Module):
             c.vote(m, netuid=netuid, network=network)
         return {'success': True, 'msg': f'Voted for all modules {my_modules}'}
 
-    def ensure_vote(self, netuid=None, network=None):
-        modules = self.non_voted_modules(netuid=netuid, network=network)
-        for m in modules:
-            c.vote(m, netuid=netuid, network=network)
-        return {'success': True, 'msg': f'Voted for all modules {modules}'}
-    
+
     
     @classmethod
     def snapshots(cls):
