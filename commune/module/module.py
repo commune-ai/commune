@@ -5707,7 +5707,7 @@ class c:
 
     @classmethod
     def sync(cls, *args, **kwargs):
-        return c.module('subspace')().sync( *args, **kwargs)
+        c.namespace_subspace(update=True)
         
     @classmethod
     def peer_registry(cls, peers=None, update: bool = False):

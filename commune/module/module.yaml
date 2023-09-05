@@ -24,13 +24,8 @@ shortcuts:
 tag: fams
 
 access_modules: 
-  base: 
-    max_staleness: 100   # staleness of the signature
-    role2rate:
-      admin: -1 # no limit
-      user: 1 # 1 request per second
   subspace:
-    min_stake: 1000
+    stake2rate: 100
     
 
     
