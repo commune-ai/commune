@@ -13,11 +13,11 @@ class AccessSubspace(c.Module):
         sync_time  = c.time() - self.sync_time
         if sync_time >  self.config.sync_interval :
             self.sync_time = c.time()
+            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
+            self.stakes = self.subspace.stakes()
         else:
             return
-        if not hasattr(self, 'subspace'):
-            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-        self.stakes = self.subspace.stakes()
+        
 
     def verify_staleness(self, input:dict) -> dict:
 
