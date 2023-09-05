@@ -1505,7 +1505,7 @@ class Subspace(c.Module):
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid ),
                 'max_allowed_weights': self.max_allowed_weights( netuid = netuid ),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid ),
-                'ratio': stakes / total_stake,
+                'ratio': subnet_stake / total_stake,
                 'founder': subnet_founder
             }
         return subnet
@@ -2827,6 +2827,9 @@ class Subspace(c.Module):
     
     def emission(self, netuid = None, network=None, **kwargs):
         return self.query_subnet('Emission', netuid=netuid, network=network, **kwargs)
+        
+    def incentive(self, netuid = None, network=None, **kwargs):
+        return self.query_subnet('Incentive', netuid=netuid, network=network, **kwargs)
         
     
     def dividends(self, netuid = None, network=None, **kwargs):
