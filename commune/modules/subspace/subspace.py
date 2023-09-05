@@ -776,16 +776,14 @@ class Subspace(c.Module):
         return module_key
 
 
-    def transfer_stake(self, key:str, module_key:str, amount:float=None, **kwargs ):
-        self.unstake( key, amount=amount, **kwargs)
-        self.stake( key=key, module_key=module_key, amount=amount, **kwargs)
 
 
-    def stake(
+    def transfer_stake(
             self,
             key: str ,
+            new_module_key: str = None,
+            module_key: str = None,
             amount: Union[Balance, float] = None, 
-            module_key: Optional[str] = None, # defaults to key if not provided
             netuid:int = None,
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
@@ -793,6 +791,8 @@ class Subspace(c.Module):
             existential_deposit: float = 0.1,
             sync: bool = False
         ) -> bool:
+        raise NotImplementedError
+        # STILL UNDER DEVELOPMENT, DO NOT USE
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
@@ -801,6 +801,7 @@ class Subspace(c.Module):
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
+        new_module_key = self.resolve_module_key(module_key=new_module_key, key=key, netuid=netuid)
 
         if not self.is_registered( module_key, netuid=netuid):
             return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
@@ -838,6 +839,73 @@ class Subspace(c.Module):
             c.print(f"Balance ({key.ss58_address}):\n  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]")
             new_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
             c.print(f"Stake ({module_key}):\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
+                
+        else:
+            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
+
+
+        if sync:
+            self.sync()
+
+
+
+    def stake(
+            self,
+            key: str ,
+            amount: Union[Balance, float] = None, 
+            module_key: Optional[str] = None, # defaults to key if not provided
+            netuid:int = None,
+            wait_for_inclusion: bool = False,
+            wait_for_finalization: bool = True,
+            network:str = None,
+            existential_deposit: float = 0.1,
+            sync: bool = False
+        ) -> bool:
+        network = self.resolve_network(network)
+        netuid = self.resolve_netuid(netuid)
+        key = c.get_key(key)
+
+        c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
+        # Flag to indicate if we are using the wallet's own hotkey.
+        old_balance = self.get_balance( key.ss58_address , fmt='j')
+        module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
+
+        if not self.is_registered( module_key, netuid=netuid):
+            return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
+        
+        old_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+        if amount is None:
+            amount = old_balance
+        amount = self.to_nanos(amount - existential_deposit)
+        
+        # Get current stake
+        call_params={
+                    'netuid': netuid,
+                    'amount': int(amount),
+                    'module_key': module_key
+                    }
+
+        with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+
+            with self.substrate as substrate:
+
+                call = substrate.compose_call( call_module='SubspaceModule', 
+                                                call_function='add_stake',
+                                                call_params=call_params
+                                                )
+
+                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
+                response = substrate.submit_extrinsic( extrinsic, 
+                                                        wait_for_inclusion = wait_for_inclusion,
+                                                        wait_for_finalization = wait_for_finalization )
+
+        if response.is_success:
+            c.print(":white_heavy_check_mark: [green]Sent[/green]")
+            new_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+            c.print(f"Stake ({module_key[:4]}..):\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
+
+            new_balance = self.get_balance(  key.ss58_address , fmt='j')
+            c.print(f"Balance ({key.ss58_address}...):\n  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]")
                 
         else:
             c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
@@ -1335,6 +1403,8 @@ class Subspace(c.Module):
         return state_dict
     @classmethod
     def ls_archives(cls, network=network):
+        if network == None:
+            network = 'main'  
         return [f for f in cls.ls(f'state_dict') if os.path.basename(f).startswith(network)]
     @classmethod
     def block2archive(cls, network=network):
@@ -1352,7 +1422,8 @@ class Subspace(c.Module):
     def latest_archive_path(cls, network=network):
         latest_archive_time = cls.latest_archive_time(network=network)
         assert latest_archive_time != None, f"No archives found for network {network}"
-        return time2archive[latest_time]
+        time2archive = cls.time2archive(network=network)
+        return time2archive[latest_archive_time]
 
     @classmethod
     def latest_archive_time(cls, network=network):
@@ -1939,6 +2010,8 @@ class Subspace(c.Module):
 
         modules = []
         if cache:
+            if netuid == None: 
+                netuid = 0
             modules = self.state_dict(key='modules', network=network, update=update)[netuid]
     
 
