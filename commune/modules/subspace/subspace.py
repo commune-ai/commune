@@ -1165,7 +1165,8 @@ class Subspace(c.Module):
         
         key_ss58 = self.resolve_key_ss58( key_ss58 )
         netuid = self.resolve_netuid( netuid )
-        return self.format_amount(self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value, fmt=fmt)
+        stake = self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value
+        return self.format_amount(stake, fmt=fmt)
 
 
     def get_staked_modules(self, key : str , netuid=None, **kwargs) -> Optional['Balance']:
