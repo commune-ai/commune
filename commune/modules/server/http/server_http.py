@@ -23,9 +23,9 @@ class HTTPServer(c.Module):
         self.serializer = c.module('serializer')()
 
         # RESOLVE THE IP AND PORT -> ADDRESS
-        self.ip = c.resolve_ip(ip, external=True)  # default to '0.0.0.0'
+        self.ip = c.ip()  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
-        self.address = f"{self.ip}:{self.port}" if address == None else address
+        self.address = f"0.0.0.0:{self.port}" if address == None else address
         assert self.address != None, f"Address not set"
 
         # ensure that the module has a name
@@ -44,7 +44,6 @@ class HTTPServer(c.Module):
         module.address  = self.address
         self.access_modules = module.access_modules() 
 
-        
               
         self.set_api(ip=self.ip, port=self.port)
 

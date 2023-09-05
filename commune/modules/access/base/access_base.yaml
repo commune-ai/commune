@@ -1,5 +1,4 @@
 max_staleness: 100
-max_request_staleness: 100
 # rate limit for each role
 role2rate:
   admin: -1 # no limit
