@@ -4,9 +4,6 @@
 
 The following is a dataset that takes a folder of text, and draws real or fake samples from that folder of text. This means that it will take a folder of text, and draw samples from that folder of text. It will then return a sample of text that is either real or fake. This is useful for training a model to detect real or fake text. This uses a random variable.
 
-![Alt text](image.png)
-
-
 ## Register
     
 ```bash 
