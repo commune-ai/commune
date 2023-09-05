@@ -1422,7 +1422,8 @@ class Subspace(c.Module):
     @classmethod
     def latest_archive_path(cls, network=network):
         latest_archive_time = cls.latest_archive_time(network=network)
-        assert latest_archive_time != None, f"No archives found for network {network}"
+        if latest_archive_time == None:
+            return None
         time2archive = cls.time2archive(network=network)
         return time2archive[latest_archive_time]
 

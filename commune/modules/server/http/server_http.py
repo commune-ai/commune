@@ -133,8 +133,6 @@ class HTTPServer(c.Module):
         
         for access_module in self.module.access_modules():
             access_module.verify(input)
-
-
         return input
 
 
