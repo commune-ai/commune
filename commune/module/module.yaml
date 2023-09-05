@@ -29,5 +29,8 @@ access_modules:
     role2rate:
       admin: -1 # no limit
       user: 1 # 1 request per second
-  # subspace:
+  subspace:
+    min_stake: 1000
+    
+
     
