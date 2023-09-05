@@ -24,18 +24,24 @@ class AccessBase(c.Module):
             pass
         else:
             # if not an admin address, we need to check the whitelist and blacklist
-            assert fn in self.module.whitelist, f"Function {fn} not in whitelist"
-            assert fn not in self.module.blacklist, f"Function {fn} in blacklist"
+
+            if fn not in self.module.whitelist or fn in self.module.blacklist:
+                c.print(f"Function {fn} not in whitelist (or is blacklisted)", color='red')
+                c.print(f"Whitelist: {self.module.whitelist}", color='red')
+                c.print(f"Blacklist: {self.module.blacklist}", color='red')
+                return False
 
         # RATE LIMIT CHECKING HERE
         num_requests = self.requests.get(address, 0) + 1
         rate_limit = self.config.role2rate.get(role, 0)
         if rate_limit >= 0:
-            assert self.requests[address] <= self.module.rate_limit, f"Rate limit exceeded for {address}"
-        self.requests[address] = num_requests
+            if  self.requests[address] > self.module.rate_limit:
+                c.print(f"Rate limit exceeded for {address}", color='red')
+                return False 
+        self.reqc uests[address] = num_requests
 
 
-        return input
+        return True
 
 
 
