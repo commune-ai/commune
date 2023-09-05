@@ -1115,7 +1115,7 @@ class Subspace(c.Module):
     ##########################
     
     """ Returns network Tempo hyper parameter """
-    def subnet_stake(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
+    def stakes(self, netuid: int = None, block: Optional[int] = None, fmt:str='nano') -> int:
         netuid = self.resolve_netuid( netuid )
         return {k.value: self.format_amount(v.value, fmt=fmt) for k,v in self.query_map('Stake', netuid )}
 
@@ -1505,7 +1505,7 @@ class Subspace(c.Module):
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid ),
                 'max_allowed_weights': self.max_allowed_weights( netuid = netuid ),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid ),
-                'ratio': subnet_stake / total_stake,
+                'ratio': stakes / total_stake,
                 'founder': subnet_founder
             }
         return subnet
@@ -2027,7 +2027,7 @@ class Subspace(c.Module):
             emission = self.emission(netuid=netuid)
             incentive = self.incentive(netuid=netuid)
             dividends = self.dividends(netuid=netuid)
-            stake = self.subnet_stake(netuid=netuid) # self.stake(netuid=netuid)
+            stake = self.stakes(netuid=netuid) # self.stake(netuid=netuid)
             stake_from = self.stake_from(netuid=netuid)
             stake_to = self.stake_to(netuid=netuid)
             regblock = self.regblock(netuid=netuid)
@@ -2047,7 +2047,7 @@ class Subspace(c.Module):
                     'name': uid2name[uid],
                     'key': key,
                     'emission': emission[uid].value,
-                    'incentive': incentive[uid].value,
+                    'incentives': incentives[uid].value,
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
@@ -2082,7 +2082,7 @@ class Subspace(c.Module):
                 for k in ['balance', 'stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
-                for k in ['incentive', 'dividends']:
+                for k in ['incentives', 'dividends']:
                     if module[k] > 1:
                         module[k] = module[k] / (U16_MAX)
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
@@ -2810,9 +2810,6 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         return self.query_subspace(key, params=[netuid], **kwargs)
     
-    def incentive(self, **kwargs):
-        return self.query_subnet('Incentive', **kwargs)
-        
     def weights(self, netuid = None, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
         subnet_weights =  self.query_map('Weights', netuid, **kwargs)
@@ -3144,7 +3141,7 @@ class Subspace(c.Module):
         c.print(len(self.query_map('Address', netuid)), 'address')
         c.print(len(self.incentive()), 'incentive')
         c.print(len(self.uids()), 'uids')
-        c.print(len(self.subnet_stake()), 'stake')
+        c.print(len(self.stakes()), 'stake')
         c.print(len(self.query_map('Emission')[0][1].value), 'emission')
         c.print(len(self.query_map('Weights', netuid)), 'weights')
 
