@@ -103,7 +103,6 @@ class Vali(c.Module):
 
             if my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {self.ip}[/bold red]', color='red')
-            c.print(module['address'])
             module_client = c.connect(module['address'], key=self.key)
             
             response = self.score_module(module_client)
@@ -120,21 +119,19 @@ class Vali(c.Module):
         
         w = response['w']
         # we only want to save the module stats if the module was successful
-        if w > 0:
-            # the
-            module_stats = self.load_module_stats( module['name'], default=module)
-            module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
-            module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-            module_stats['timestamp'] = c.timestamp()
-            c.print(f'{prefix} [bold green] {module["name"]} {w}[/bold green] {response.get("message", "")}', color='green')
-            # add the history of this module
-            module_stats['history'] = module_stats.get('history', []) + [response]
-            module_stats['history'] = module_stats['history'][-self.config.max_history:]
-            self.save_module_stats(module['name'], module_stats)
+        module_stats = self.load_module_stats( module['name'], default=module)
+        module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
+        module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
+        module_stats['timestamp'] = c.timestamp()
+        c.print(f'{prefix} [bold green] {module["name"]} {w}[/bold green] {response.get("message", "")}', color='green')
+        # add the history of this module
+        module_stats['history'] = module_stats.get('history', []) + [response]
+        module_stats['history'] = module_stats['history'][-self.config.max_history:]
 
-            
+        self.save_module_stats(module['name'], module_stats)
 
-            return module_stats
+
+        return module_stats
 
     @classmethod
     def networks(cls):
@@ -221,14 +218,20 @@ class Vali(c.Module):
         self.last_vote_time = c.time()
         
         return {'success': True, 'message': 'Voted', 'votes': vote_dict }
+
+
+    def saved_module_paths(self, network:str='main', tag:str=None):
+        tag = self.tag if tag == None else tag
+        paths = self.ls(f'stats/{network}/{tag}')
+        return paths
     @classmethod
     def load_stats(cls, network:str='main', 
                     batch_size:int=20 , 
                     max_staleness:int= 2000,
                     keys:str=None,
                      tag=None):
-        tag = 'base' if tag == None else tag
-        paths = cls.ls(f'stats/{network}/{tag}')
+
+        paths = cls.saved_module_paths(network=network, tag=tag)   
         jobs = [c.async_get_json(p) for p in paths]
         module_stats = []
         for jobs_batch in c.chunk(jobs, batch_size):
@@ -260,13 +263,13 @@ class Vali(c.Module):
         return paths
 
     def load_module_stats(self, k:str,default=None):
-        default = {} if default == None else default
         path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
         return self.get_json(path, default=default)
     
     def save_module_stats(self,k:str, v):
         path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
         self.put_json(path, v)
+
 
     @property
     def vote_staleness(self) -> int:
