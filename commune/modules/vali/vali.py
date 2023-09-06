@@ -220,9 +220,10 @@ class Vali(c.Module):
         return {'success': True, 'message': 'Voted', 'votes': vote_dict }
 
 
-    def saved_module_paths(self, network:str='main', tag:str=None):
-        tag = self.tag if tag == None else tag
-        paths = self.ls(f'stats/{network}/{tag}')
+    @classmethod
+    def saved_module_paths(cls, network:str='main', tag:str=None):
+        tag = 'base' if tag == None else tag
+        paths = cls.ls(f'stats/{network}/{tag}')
         return paths
     @classmethod
     def load_stats(cls, network:str='main', 
