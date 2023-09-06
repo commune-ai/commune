@@ -2654,7 +2654,7 @@ class Subspace(c.Module):
                    snap:bool = False,
                    verbose:bool = True,
                    vali_node_keys:dict = None,
-                   mode = 'docker',
+                   mode = mode,
                    ):
 
         if snap:
