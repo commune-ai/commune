@@ -346,8 +346,6 @@ class Subspace(c.Module):
         for m in c.servers(network='local'):
             self.register(name=m, **kwargs)
     reg_servers = register_servers
-    # @retry(delay=2, tries=3, backoff=2, max_delay=4)
-
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
         c.print(servers)
@@ -1192,9 +1190,10 @@ class Subspace(c.Module):
     def save(self, 
              network:str= None,
              snap:bool=True, 
-             max_archives:int=100000000000):
+             max_archives:int=100000000000, 
+             update=True):
         network = self.resolve_network(network)
-        state_dict = self.state_dict(network=network, update=True)
+        state_dict = self.state_dict(network=network, update=update)
         if snap:
             self.snap(state = state_dict,
                           network=network, 
@@ -1256,7 +1255,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 intervals:dict= {'save':100, 'register_servers':10},
+                 intervals:dict= {'save':100, 'register_servers':100},
                  sleep:float=1,
                  remote:bool=True):
         if remote:
@@ -1280,6 +1279,7 @@ class Subspace(c.Module):
 
             if any(trigger.values()):
                 self = cls(network=network, netuid=netuid)
+                c.sync()
                 if trigger['register_servers']:
                     self.register_servers()
                     times['register_servers'] = current_time

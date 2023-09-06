@@ -73,7 +73,8 @@ class ThreadPool(Thread):
             output = output_queue.get()
             kwargs_key = output.pop('key')
             result = output['result']
-            c.print(f'Output collector: {kwargs_key}')
+            self.outputs[kwargs_key] = result
+
 
     def run(self, fn:'callable', queue:'mp.Queue', output_queue:'mp.Queue',  semaphore:'mp.Semaphore'):
         c.new_event_loop()
@@ -81,7 +82,7 @@ class ThreadPool(Thread):
             kwargs = queue.get()
             kwargs_key = kwargs.pop('kwargs_key')
             result = fn(**kwargs)
-            output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs})
+            output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time()})
 
 
     def is_full(self):

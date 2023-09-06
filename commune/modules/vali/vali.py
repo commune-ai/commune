@@ -54,31 +54,37 @@ class Vali(c.Module):
 
     def sync(self, network:str=None, netuid:int=None, update: bool = True):
 
-        if network == None:
-            network = self.config.network
-        if netuid == None:
-            netuid = self.config.netuid
-        if not hasattr(self, 'subspace'):
-            self.subspace = c.module('subspace')(network=network, netuid=netuid)
+        try:
+            if network == None:
+                network = self.config.network
+            if netuid == None:
+                netuid = self.config.netuid
+            if not hasattr(self, 'subspace'):
+                self.subspace = c.module('subspace')(network=network, netuid=netuid)
 
-        sync_interval = self.config.sync_interval
-        sync_staleness = c.time() - self.last_sync_time
-        if sync_staleness < sync_interval:
-            c.print(f'Not syncing as we synced {sync_staleness} seconds ago', color='yellow')
+            sync_interval = self.config.sync_interval
+            sync_staleness = c.time() - self.last_sync_time
+            if sync_staleness < sync_interval:
+                c.print(f'Not syncing as we synced {sync_staleness} seconds ago', color='yellow')
+                return
+            self.modules = self.subspace.modules(update=False, netuid=netuid)
+            self.namespace = {v['name']: v['address'] for v in self.modules }
+            if self.config.module_prefix != None:
+                self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
+            self.n  = len(self.modules)
+            self.subnet = self.subspace.subnet()
+            if self.config.vote_interval == None: 
+                self.config['vote_interval'] = self.subspace.seconds_per_epoch()
+
+            self.last_sync_time = c.time()
+            self.block = self.subspace.block
+
+            c.print('Syncing...', color='cyan')
+        except Exception as e:
+            c.print(f'Error syncing {e}', color='red')
+            c.print(traceback.format_exc(), color='red')
+            c.sleep(1)
             return
-        self.modules = self.subspace.modules(update=False, netuid=netuid)
-        self.namespace = {v['name']: v['address'] for v in self.modules }
-        if self.config.module_prefix != None:
-            self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
-        self.n  = len(self.modules)
-        self.subnet = self.subspace.subnet()
-        if self.config.vote_interval == None: 
-            self.config['vote_interval'] = self.subspace.seconds_per_epoch()
-
-        self.last_sync_time = c.time()
-        self.block = self.subspace.block
-
-        c.print('Syncing...', color='cyan')
 
 
 
