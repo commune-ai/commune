@@ -2398,7 +2398,7 @@ class Subspace(c.Module):
              build_runtime:bool=True,
              build_snapshot:bool=False,  
              verbose:bool=True, 
-             mode = 'docker'
+             mode = mode
 
              ):
 
@@ -2620,7 +2620,7 @@ class Subspace(c.Module):
         if mode == 'docker':
             c.module('docker').build(cls.chain_name)
         elif mode == 'local':
-            self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
+            c.cmd('cargo build --release --locked', cwd=cls.chain_path, verbose=verbose)
         else:
             raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
 
