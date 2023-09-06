@@ -538,23 +538,18 @@ class Subspace(c.Module):
         if name == module_info['name'] and address == module_info['address']:
             c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
             return {'success': False, 'message': f'{module} already registered and is up to date with your changes'}
-
-        params = {
+        call_params = {
             'name': name,
             'address': address,
+            'netuid': netuid,
         }
-        for k, v in params.items():
-            if v == None:
-                params[k] = module_info[k]
 
-        params['netuid'] = netuid
+        for k in ['name', 'address']:
+            if call_params[k] == module_info[k]:
+                call_params[k] = ''
 
 
         with self.substrate as substrate:
-            call_params =  {'address': address,
-                            'name': name,
-                            'netuid': netuid,
-                        }
             c.print(f':satellite: Updating Module: [bold white]{name}[/bold white] \n\n {call_params}')
             
             call = substrate.compose_call(
@@ -629,6 +624,7 @@ class Subspace(c.Module):
                 params[k] = old_params[k]
         name = subnet_state['name']
         call_params = {'netuid': netuid, **params}
+
         with self.substrate as substrate:
             c.print(f':satellite: Updating Subnet:({name}, id: {netuid})')
             c.print(f'  [bold yellow]Old Params:[/bold yellow] \n', old_params)
@@ -787,7 +783,7 @@ class Subspace(c.Module):
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             network:str = None,
-            existential_deposit: float = 0.00,
+            existential_deposit: float = 0.01,
             sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
@@ -1191,14 +1187,6 @@ class Subspace(c.Module):
         return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
 
-    def loop(self):
-        time_elapsed = 0
-        while True:
-            c.sleep(1)
-            time_elapsed += 1
-            if time_elapsed % self.config.save_interval == 0:
-                self.save()
-            c.print(f"Looping every {interval} seconds")
 
             
     def save(self, 
@@ -1265,31 +1253,42 @@ class Subspace(c.Module):
             return None
         return blocks[-1]
     @classmethod
-    def watchdog(cls, 
-                 save_interval=100,
-                 vote_interval = 200,
-                 cj:bool=True,
+    def loop(cls, 
+                network = network,
+                netuid:int = None,
+                 intervals:dict= {'save':100, 'register_servers':10},
+                 sleep:float=1,
                  remote:bool=True):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False
-            return cls.remote_fn('watchdog', kwargs=kwargs)
+            return cls.remote_fn('loop', kwargs=kwargs)
             
-        self = cls()
+        
         time_start = c.time()
         time_elapsed = 0
-        counts = { 'save':0, 'vote':0}
+
+        keys = {k:c.get_key(k) for k in c.keys()}
+        times = {k:time_start for k in intervals}
+        time_elapsed = 0
         while True:
-            time_elapsed = c.time() - time_start
-            
-            if time_elapsed % save_interval == 0:
-                self.save()
-                counts['save'] += 1
-            if time_elapsed % vote_interval == 0:
-                self.cj(remote=False) # verify that we can connect to the node
-                counts['vote'] += 1
-            if time_elapsed % 10 == 0:
-                c.log(f"Watchdog: {time_elapsed} seconds elapsed COUNTS ->S {counts}")
+            c.sleep(sleep)
+            current_time = c.time()
+
+            time_elapsed  = {k:int(current_time - v) for k,v in times.items()}
+            trigger = {k:time_elapsed[k] > intervals[k] for k in intervals}
+
+            if any(trigger.values()):
+                self = cls(network=network, netuid=netuid)
+                if trigger['register_servers']:
+                    self.register_servers()
+                    times['register_servers'] = current_time
+
+                if times['save'] - current_time > intervals['save']:
+                    self.save()
+                    times['save'] = current_time
+
+            c.log(f"Subspace Looper running\n", time_elapsed,)
             
             
     
