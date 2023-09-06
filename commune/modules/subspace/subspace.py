@@ -39,7 +39,7 @@ class Subspace(c.Module):
     chain_path =  f"{c.repo_path}/subspace"
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    server_mode = default_config['server_mode']
+    mode = default_config['mode']
     
     def __init__( 
         self, 
@@ -420,14 +420,6 @@ class Subspace(c.Module):
         
 
     reg = register
-
-    def transfer_many(self, key:str, dests:List[str], amounts:List[float], **kwargs):
-        for dest, amount in zip(dests, amounts):
-            if c.key_exists(dest):
-                c.print(f"Destination {dest} is a key, resolving to address")
-                dest = c.get_key(dest).ss58_address
-            c.print(f"Transferring {amount} to {dest}")
-            self.transfer(key=key, dest=dest, amount=amount, **kwargs)
 
     ##################
     #### Transfer ####
@@ -1342,7 +1334,7 @@ class Subspace(c.Module):
     @classmethod
     def ls_archives(cls, network=network):
         if network == None:
-            network = 'main'  
+            network = cls.network 
         return [f for f in cls.ls(f'state_dict') if os.path.basename(f).startswith(network)]
     @classmethod
     def block2archive(cls, network=network):
@@ -2255,7 +2247,7 @@ class Subspace(c.Module):
                     chain=chain, 
                     max_trials=10, 
                     sleep_interval=1,
-                     mode=server_mode, 
+                     mode=mode, 
                      verbose=True
                      ):
         node2path = cls.node2path(chain=chain)
@@ -2268,9 +2260,10 @@ class Subspace(c.Module):
             if mode == 'docker':
                 node_path = node2path[node]
                 node_logs = c.module('docker').logs(node_path)
-            elif mode == 'pm2':
+            elif mode == 'local':
                 node_logs = c.logs(node_path, start_line = 0 , end_line=400, mode='local')
-                c.print(node_logs)
+            else:
+                raise Exception(f'Invalid mode {mode}')
 
             if indicator in node_logs:
                 break
@@ -2289,9 +2282,15 @@ class Subspace(c.Module):
         
         
     @classmethod
-    def node_help(cls):
-        c.cmd(f'{cls.chain_release_path()} --help', verbose=True)
-        
+    def node_help(cls, mode=mode):
+        chain_release_path = cls.chain_release_path(mode=mode)
+        cmd = f'{chain_release_path} --help'
+        if mode == 'docker':
+            cmd = f'docker run subspace {cmd}'
+        elif mode == 'local':
+            cmd = f'{cmd}'
+
+        c.cmd(cmd, verbose=True)        
     
     @classmethod
     def dashboard(cls):
@@ -2391,9 +2390,7 @@ class Subspace(c.Module):
     def install_rust(cls, sudo=True):
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
 
-    @classmethod
-    def build_image(cls):
-        c.module('docker').build(cls.chain_name)
+        
     
 
     @classmethod
@@ -2401,22 +2398,20 @@ class Subspace(c.Module):
              build_spec:bool=True, 
              build_runtime:bool=True,
              build_snapshot:bool=False,  
-             build_image = False,
              verbose:bool=True, 
+             mode = 'docker'
 
              ):
 
-        if build_image:
-            cls.build_image()
             
         if build_runtime:
-            cls.build_runtime(verbose=verbose )
+            cls.build_runtime(verbose=verbose , mode=mode)
 
         if build_snapshot:
             cls.build_snapshot(chain=chain, verbose=verbose)
 
         if build_spec:
-            cls.build_spec(chain=chain, verbose=verbose)
+            cls.build_spec(chain=chain, verbose=verbose, mode=mode)
 
 
     @classmethod
@@ -2573,6 +2568,8 @@ class Subspace(c.Module):
         node = c.copy(f'{mode}{tag_seperator}{node}')
 
 
+        chain_path = cls.chain_release_path(mode='docker')
+
         for key_type in ['gran', 'aura']:
 
             if key_type == 'gran':
@@ -2586,12 +2583,16 @@ class Subspace(c.Module):
 
             base_path = cls.resolve_base_path(node=node, chain=chain)
 
-            cmd  = f'''{cls.chain_release_path()} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
+            
+            cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             
             cmds.append(cmd)
 
         for cmd in cmds:
-            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+            c.print(cmd)
+            volumes = f'-v {base_path}:{base_path}'
+            c.cmd(f'docker run {volumes} subspace {cmd} ', verbose=True)
+            # c.cmd(cmd, verbose=True, cwd=cls.chain_path)
 
         return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain, mode=mode)}
 
@@ -2616,18 +2617,29 @@ class Subspace(c.Module):
         return f'{self.chain_path}/target/release/node-subspace'
 
     @classmethod
-    def build_runtime(self, verbose:bool=True):
-        self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
+    def build_runtime(cls, verbose:bool=True, mode=mode):
+        if mode == 'docker':
+            c.module('docker').build(cls.chain_name)
+        elif mode == 'local':
+            self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
+        else:
+            raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
 
     @classmethod
-    def chain_release_path(self):
-        path =   f'{self.chain_path}/release/node-subspace'
-        assert c.exists(path), f'Chain {self.chain_path} does not exist. Please run build_runtime first. -> c build_runtime'
+    def chain_release_path(cls, mode='local'):
+
+        if mode == 'docker':
+            chain_path = f'/subspace'
+        elif mode == 'local':
+            chain_path = cls.chain_path
+        else:
+            raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
+        path =   f'{chain_path}/target/release/node-subspace'
         return path
 
     @classmethod
     def resolve_base_path(cls, node='alice', chain=chain):
-        return cls.resolve_path(f'chains/{chain}/nodes/{node}')
+        return cls.resolve_path(f'nodes/{chain}/{node}')
     
     @classmethod
     def resolve_node_keystore_path(cls, node='alice', chain=chain):
@@ -2643,22 +2655,31 @@ class Subspace(c.Module):
                    snap:bool = False,
                    verbose:bool = True,
                    vali_node_keys:dict = None,
-                   mode = 'local',
+                   mode = 'docker',
                    ):
 
         if snap:
             cls.snap()
 
         chain_spec_path = cls.chain_spec_path(chain)
-        chain_release_path = cls.chain_release_path()
+        chain_release_path = cls.chain_release_path(mode=mode)
 
         cmd = f'{chain_release_path} build-spec --chain {chain}'
         
         if disable_default_bootnode:
             cmd += ' --disable-default-bootnode'  
         cmd += f' > {chain_spec_path}'
-        c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)
-        # add vali nodes        
+        
+        # chain_spec_path_dir = os.path.dirname(chain_spec_path)
+        c.print(cmd)
+        if mode == 'docker':
+            volumes = f'-v {cls.spec_path}:{cls.spec_path}'
+            c.cmd(f'docker run {volumes} subspace bash -c "{cmd}"')
+        elif mode == 'local':
+            c.cmd(cmd, cwd=cls.chain_path, verbose=True)    
+
+
+        # ADD THE VALI NODE KEYS
 
         if vali_node_keys == None:
             vali_node_keys = cls.vali_node_keys(chain=chain)
@@ -2703,7 +2724,7 @@ class Subspace(c.Module):
     def chain_spec_path(cls, chain = None):
         if chain == None:
             chain = cls.network
-        return cls.chain2spec(chain)
+        return cls.spec_path + f'/{chain}.json'
         
     @classmethod
     def new_chain_spec(self, 
@@ -2783,22 +2804,22 @@ class Subspace(c.Module):
     
     
     @classmethod
-    def live_nodes(cls, chain=chain, mode=server_mode):
+    def live_nodes(cls, chain=chain, mode=mode):
         prefix = f'{cls.node_prefix()}.{chain}'
-        if mode == 'pm2':
+        if mode == 'local':
             nodes =  c.pm2ls(prefix)
         else:
             nodes =  c.module('docker').ps(prefix)
 
         return nodes
     @classmethod
-    def node2path(cls, chain=chain, mode = server_mode):
+    def node2path(cls, chain=chain, mode = mode):
         prefix = f'{cls.node_prefix()}.{chain}'
         if mode == 'docker':
             path = prefix
             nodes =  c.module('docker').ps(path)
             return {n.split('.')[-1]: n for n in nodes}
-        elif mode == 'pm2':
+        elif mode == 'local':
         
             nodes =  c.pm2ls(f'{prefix}')
             return {n.split('.')[-1]: n for n in nodes}
@@ -2884,7 +2905,7 @@ class Subspace(c.Module):
                  verbose:bool = False,
                  boot_nodes = None,
                  node_key = None,
-                 server_mode :str = server_mode,
+                 mode :str = mode,
                  rpc_cors = 'all',
                  validator:bool = False,
                  
@@ -2941,47 +2962,28 @@ class Subspace(c.Module):
 
         name = f'{cls.node_prefix()}.{chain}.{node}'
 
-        if server_mode == 'pm2':
+        c.print(f'Starting node {node} for chain {chain} with name {name} and cmd_kwargs {cmd_kwargs}')
+
+        if mode == 'local':
             # 
-            cmd = c.pm2_start(path=cls.chain_release_path(), 
+            cmd = c.pm2_start(path=cls.chain_release_path(mode=mode), 
                             name=name,
                             cmd_kwargs=cmd_kwargs,
                             refresh=refresh,
                             verbose=verbose)
             
-        elif server_mode == 'local':
-            cmd = cmd + cmd_kwargs
-            c.module('docker').run(image='subspace',cmd=cmd, volumes={} )
-            
-        elif server_mode == 'docker':
-
-
-            # we need to change the mapping of the cache path to the inner path
-            cache_path = c.cache_path()
-            tilde_path = c.tilde_path()
-            cache_path_inner = cache_path.replace(tilde_path, '')
-
-            # we need to change the mapping of the cache path to the inner path
-            cmd = cmd + cmd_kwargs
-            cmd = cmd.replace(c.repo_path, '')
-            cmd = cmd.replace(cache_path, cache_path_inner)
-            c.print(cmd, cache_path, cache_path_inner)
-            volumes = f'{cache_path}:{cache_path_inner}'
+        elif mode == 'docker':
 
             # run the docker image
-            c.module('docker').run(image = cls.chain_name, 
-                                    name = name , 
-                                    volumes=volumes, 
-                                    cmd=cmd, 
-                                    build=True,
-                                        run=False, 
-                                        daemon=False)
+            volumes = f'-v {base_path}:{base_path} -v {cls.spec_path}:/subspace/specs'
+            net = '--net host'
+            c.cmd('docker run -d --name  {name} {net} {volumes} subspace bash -c "{cmd}"', verbose=verbose)
         else: 
-            raise Exception(f'unknown mode {server_mode}')
+            raise Exception(f'unknown mode {mode}')
         
         if validator:
             # ensure you add the node to the chain_info if it is a bootnode
-            node_id = cls.get_node_id(node=node, chain=chain, mode=server_mode)
+            node_id = cls.get_node_id(node=node, chain=chain, mode=mode)
             chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
         chain_info['nodes'][node] = node_info
         cls.putc(f'chain_info.{chain}', chain_info)
@@ -3002,8 +3004,8 @@ class Subspace(c.Module):
     
     @classmethod
     def start_chain(cls, 
-                    max_vali_nodes:int = 4,
-                    max_nonvali_nodes:int = 4,
+                    n_valis:int = 8,
+                    n_nonvalis:int = 8,
                     chain:str=chain, 
                     verbose:bool = False,
                     purge_chain:bool = True,
@@ -3022,10 +3024,10 @@ class Subspace(c.Module):
         nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
         vali_nodes = list(cls.vali_node_keys(chain=chain).keys())
         nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())
-        if max_vali_nodes != -1:
-            vali_nodes = vali_nodes[:max_vali_nodes]
-        if max_nonvali_nodes != -1:
-            nonvali_nodes = nonvali_nodes[:max_vali_nodes]
+        if n_valis != -1:
+            vali_nodes = vali_nodes[:n_valis]
+        if n_nonvalis != -1:
+            nonvali_nodes = nonvali_nodes[:n_valis]
 
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
         nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
@@ -3045,6 +3047,8 @@ class Subspace(c.Module):
             if c.pm2_exists(name) and refresh == False:
                 c.print(f'Node {node} for chain {chain} already exists')
                 continue
+
+            # BUILD THE KWARGS TO CREATE A NODE
             node_kwargs = {
                             'chain':chain, 
                             'node':node, 
@@ -3052,6 +3056,7 @@ class Subspace(c.Module):
                             'purge_chain': purge_chain,
                             'validator':  bool(node in vali_nodes),
                             }
+
             # get the ports for (port, rpc_port, ws_port)
             #  make sure they do not conflict (using avoid ports)
             for k in ['port','rpc_port','ws_port']:
@@ -3067,6 +3072,7 @@ class Subspace(c.Module):
                 except Exception as e:
                     c.print(f'Error starting node {node} for chain {chain}, {e}')
                     fails += 1
+                    raise e
                     continue
 
        

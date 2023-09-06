@@ -36,6 +36,7 @@ class c:
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
     cache = {} # cache for module objects
+    home = os.path.expanduser('~') # the home directory
     
     __ss58_format__ = 42 # the ss58 format for the substrate address
 
@@ -559,6 +560,8 @@ class c:
 
         cls.dict_put(config, k, v)
         cls.save_config(config=config)
+
+        return {'success': True, 'msg': f'config({k} = {v})'}
    
    
     @classmethod
@@ -7335,12 +7338,6 @@ class c:
     wallets = my_keys
 
     @classmethod
-    def register_loop(cls, *args, **kwargs):
-        return c.module('subspace')().register_loop(*args, **kwargs)
-    
-    rloop = register_loop
-    
-    @classmethod
     def balance(cls, *args, **kwargs):
         return c.module('subspace')().balance(*args, **kwargs)
     get_balance = balance
@@ -7779,6 +7776,9 @@ class c:
     @classmethod
     def hello(cls):
         c.print('hello')
+
+
+
         
     
     thread_map = {}
