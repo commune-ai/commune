@@ -374,7 +374,3 @@ class Docker(c.Module):
     @classmethod
     def logs(cls, name, sudo=False, follow=False, verbose=False):
         return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=verbose)
-
-
-    def status(cls):
-        return c.cmd('docker stats', verbose=True)

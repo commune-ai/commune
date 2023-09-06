@@ -239,8 +239,8 @@ class Subspace(c.Module):
             
         return key2tokens
     
-    def market_cap(self, network = network, fmt='j', decimals=2):
-        state_dict = self.state_dict(network=network)
+    def market_cap(self, network = network, fmt='j', decimals=2, update=False):
+        state_dict = self.state_dict(network=network, update=update)
         
         market_cap = 0
         for key, value in state_dict['balances'].items():
