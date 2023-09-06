@@ -7830,8 +7830,9 @@ class c:
     def join_threads(self, threads:[str, list]):
 
         threads = self.thread_map
-        for t in threads:
-            self.join_thread(t)
+        for t in threads.values():
+            # throw error if thread is not in thread_map
+            t.join()
 
     @classmethod
     def thread_fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):

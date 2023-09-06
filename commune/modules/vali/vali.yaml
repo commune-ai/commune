@@ -19,4 +19,6 @@ sleep_time: 1
 vote: True
 min_stake: 1
 connect_score: 0.1 
-max_staleness: 1000
+max_staleness: 100
+
+
