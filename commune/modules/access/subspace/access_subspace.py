@@ -47,17 +47,34 @@ class AccessSubspace(c.Module):
 
         # Calculate the rate limit for the address
         stake = self.stakes.get(address, 0)
-        max_rate_limit = (stake / self.config.stake2rate) + self.config.free_rate_limit
+        rate_limit = (stake / self.config.stake2rate) + self.config.free_rate_limit
 
         # get the rate limit for the function
-        user_info = self.user_info.get(address, {'requests': 0, 'last_time_called': 0})
-        address_rate_limit = 1 / (c.time() - user_info['last_time_called'] + 1e-10)
+        user_info = self.user_info.get(address, {'requests': 0, 
+                                                'last_time_called': 0,
+                                                 'rate': 0,
+                                                  'stake': stake})
+
+
+
+        user_rate = 1 / (c.time() - user_info['last_time_called'] + 1e-10)
+
+
+        requirements ={
+            'rate_limit': rate_limit,
+            'stake2rate': self.config.stake2rate,
+        }
+
+        state = c.copy(user_info)
+        state['staleness'] = c.time() - user_info['last_time_called']
         
-        assert requests < rate_limit, f"Rate limit exceeded for {address}, {requests} > {rate_limit} with {stake} stake and stake2rate of {self.config.stake2rate}"
+        assert user_rate < rate_limit, f"Rate limit too high {user_rate} > {rate_limit}"
 
         # update the user info
         user_info['last_time_called'] = c.time()
         user_info['requests'] += 1
+        user_info['rate'] = user_rate
+
         self.user_info[address] = user_info
         return input
 
@@ -67,7 +84,9 @@ class AccessSubspace(c.Module):
         name = 'access_subspace.demo' 
         module = c.serve('module', name=name, wait_for_server=True)
         client = c.connect('module', key='fam')
-        c.print(client.info())
+        for n in range(10):
+            c.sleep(1)
+            c.print(client.info())
         c.kill(name)
         return {'name': name, 'module': module, 'client': client}
         

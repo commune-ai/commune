@@ -787,7 +787,7 @@ class Subspace(c.Module):
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             network:str = None,
-            existential_deposit: float = 0.01,
+            existential_deposit: float = 0.00,
             sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
