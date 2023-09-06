@@ -3004,7 +3004,7 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     n_valis:int = 8,
-                    n_nonvalis:int = 8,
+                    n_nonvalis:int = 12,
                     chain:str=chain, 
                     verbose:bool = False,
                     purge_chain:bool = True,

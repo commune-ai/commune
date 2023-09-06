@@ -342,9 +342,11 @@ class Vali(c.Module):
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             for i, module in enumerate(modules):
-                c.sleep(0.2)
-
+                c.sleep(0.05)
                 self.executor.submit(fn=self.eval_module, kwargs={'module':module})
+
+                num_tasks = self.executor.num_tasks
+                c.print(f'Running {num_tasks} tasks', color='cyan')
 
                 if self.count % 100 == 0 and self.count > 0:
                     stats =  {
