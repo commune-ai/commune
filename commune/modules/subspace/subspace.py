@@ -783,7 +783,7 @@ class Subspace(c.Module):
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             network:str = None,
-            existential_deposit: float = 0.01,
+            existential_deposit: float = 0.1,
             sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
@@ -1499,7 +1499,7 @@ class Subspace(c.Module):
               netuid=None,  
               df:bool=True, 
               update:bool = False, 
-              cols = ['name', 'address', 'registered', 'serving',  'emission', 'stake'],
+              cols: list = ['name', 'address', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake'],
               **kwargs
               ):
         if update:

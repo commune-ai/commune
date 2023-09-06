@@ -118,11 +118,12 @@ class Vali(c.Module):
 
         
         w = response['w']
+        response['timestamp'] = c.time()
         # we only want to save the module stats if the module was successful
         module_stats = self.load_module_stats( module['name'], default=module)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
-        module_stats['timestamp'] = c.timestamp()
+        module_stats['timestamp'] = response['timestamp']
         c.print(f'{prefix} [bold green] {module["name"]} {w}[/bold green] {response.get("message", "")}', color='green')
         # add the history of this module
         module_stats['history'] = module_stats.get('history', []) + [response]
@@ -225,6 +226,13 @@ class Vali(c.Module):
         tag = 'base' if tag == None else tag
         paths = cls.ls(f'stats/{network}/{tag}')
         return paths
+
+    @classmethod
+    def saved_module_names(cls, network:str='main', tag:str=None):
+        paths = cls.saved_module_paths(network=network, tag=tag)
+        modules = [p.split('/')[-1].replace('.json', '') for p in paths]
+        return modules
+        
     @classmethod
     def load_stats(cls, network:str='main', 
                     batch_size:int=20 , 
@@ -264,11 +272,17 @@ class Vali(c.Module):
         return paths
 
     def load_module_stats(self, k:str,default=None):
+        default = default if default != None else {}
         path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
         return self.get_json(path, default=default)
+
+
+    def get_history(self, k:str, default=None):
+        module_stats = self.load_module_stats(k, default=default)
+        return module_stats.get('history', [])
     
     def save_module_stats(self,k:str, v):
-        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
+        path = self.resolve_stats_path(network=self.config.network) + f'/{k}'
         self.put_json(path, v)
 
 

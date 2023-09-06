@@ -33,8 +33,6 @@ class AccessSubspace(c.Module):
         address = input['address']
         fn = input.get('fn')
         if c.is_admin(address):
-            requests = self.requests.get(address, 0) + 1
-            self.last_time_called[address] = c.timestamp()
             return input
 
 

@@ -1273,15 +1273,19 @@ class c:
             return c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
 
     @classmethod
-    def restart_servers(cls, module:str=None, mode:str = 'pm2'):
+    def restart_servers(cls, module:str=None, mode:str = 'server'):
         '''
         Kill the server by the name
         '''
 
         fn = getattr(cls, f'{mode}_restart')
         for module in c.servers(module,network='local'):
-            c.print(f'Restarting {module}', color='red')
-            fn(module)
+            try:
+                c.print(f'Restarting {module}', color='red')
+                fn(module)
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
+                continue
 
     @classmethod
     def pm2_restart_all(cls):
@@ -3202,6 +3206,8 @@ class c:
                  **kwargs ):
         subspace = c.module('subspace')()
 
+        if '::' in module:
+            module, tag = module.split('::')
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         # if not subspace.is_unique_name(server_name, netuid=subnet):
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
@@ -3307,9 +3313,6 @@ class c:
     def restart(cls, name:str, mode:str='server', verbose:bool = False, prefix_match:bool = True):
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
         return refreshed_modules
-
-    
-
 
     refresh = reset = restart
     @classmethod
