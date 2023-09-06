@@ -4,4 +4,5 @@ netuid: 0 # subnet id
 max_staleness: 10 # 10 seconds for 
 sync_interval: 1000 #  1000 seconds per sync with the network
 stake2rate: 100 # 1 call per every 100 stakes per secondstake2rate
+free_rate_limit: 1 # 1 call per second for free
 

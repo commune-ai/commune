@@ -15,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class Vali(c.Module):
 
+    whitelist = ['']
+
     def __init__(self, config=None,  **kwargs):
         self.init_vali(config=config, **kwargs)
 

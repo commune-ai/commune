@@ -6,7 +6,7 @@ class AccessSubspace(c.Module):
         config = self.set_config(kwargs)
         self.module = module
         self.sync()
-        self.requests = {}
+        self.user_info = {}
 
 
     def sync(self):
@@ -34,7 +34,9 @@ class AccessSubspace(c.Module):
         fn = input.get('fn')
         if c.is_admin(address):
             requests = self.requests.get(address, 0) + 1
+            self.last_time_called[address] = c.timestamp()
             return input
+
 
         # if not an admin address, we need to check the whitelist and blacklist
         assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
@@ -42,11 +44,32 @@ class AccessSubspace(c.Module):
 
         # RATE LIMIT CHECKING HERE
         self.sync()
-        stake = self.stakes.get(address, 0)
-        rate_limit = stake / self.config.stake2rate
-        requests = self.requests.get(address, 0) + 1
-        assert requests < rate_limit, f"Rate limit exceeded for {address}, {requests} > {rate_limit} with {stake} stake and stake2rate of {self.config.stake2rate}"
-        self.requests[address] = requests
 
+        # Calculate the rate limit for the address
+        stake = self.stakes.get(address, 0)
+        max_rate_limit = (stake / self.config.stake2rate) + self.config.free_rate_limit
+
+        # get the rate limit for the function
+        user_info = self.user_info.get(address, {'requests': 0, 'last_time_called': 0})
+        address_rate_limit = 1 / (c.time() - user_info['last_time_called'] + 1e-10)
+        
+        assert requests < rate_limit, f"Rate limit exceeded for {address}, {requests} > {rate_limit} with {stake} stake and stake2rate of {self.config.stake2rate}"
+
+        # update the user info
+        user_info['last_time_called'] = c.time()
+        user_info['requests'] += 1
+        self.user_info[address] = user_info
         return input
+
+
+    @classmethod
+    def test(cls):
+        name = 'access_subspace.demo' 
+        module = c.serve('module', name=name, wait_for_server=True)
+        client = c.connect('module', key='fam')
+        c.print(client.info())
+        c.kill(name)
+        return {'name': name, 'module': module, 'client': client}
+        
+
 
