@@ -1269,23 +1269,12 @@ class c:
         elif mode == 'bash':
             return c.run_command(f'kill -9 $(lsof -ti:{port})', bash=True, verbose=True)
 
-
     @classmethod
-    def restart_server(cls, module:str, mode:str = 'pm2'):
+    def restart_servers(cls, module:str=None, mode:str = 'pm2'):
         '''
         Kill the server by the name
         '''
-        if mode == 'pm2':
-            return cls.pm2_restart(module)
-        else:
-            raise NotImplementedError(f"Mode: {mode} is not implemented")
 
-
-    @classmethod
-    def restart_servers(cls, module:str=None, mode:str = 'server'):
-        '''
-        Kill the server by the name
-        '''
         fn = getattr(cls, f'{mode}_restart')
         for module in c.servers(module,network='local'):
             c.print(f'Restarting {module}', color='red')
@@ -1331,7 +1320,7 @@ class c:
         for module in cls.servers():
             if verbose:
                 c.print(f'Restarting {module}', color='red')
-            cls.restart_server(module)
+            cls.server_restart(module)
     @classmethod
     def restart_all(cls):
         cls.restart_all_servers()
@@ -2591,6 +2580,24 @@ class c:
         fn = '__init__'
         return cls.schema(fn)[fn]['input']
 
+
+    @classmethod
+    def save_serve_kwargs(cls,server_name:str,  kwargs:dict):
+        serve_kwargs = c.get('serve_kwargs', {})
+        serve_kwargs[server_name] = kwargs
+        c.put('serve_kwargs', serve_kwargs)
+        return serve_kwargs
+    
+    @classmethod
+    def load_serve_kwargs(cls, server_name:str):
+        serve_kwargs = c.get('serve_kwargs', {})
+        return serve_kwargs.get(server_name, {})
+
+    @classmethod
+    def has_serve_kwargs(cls, server_name:str):
+        serve_kwargs = c.get('serve_kwargs', {})
+        return server_name in serve_kwargs
+
     @classmethod
     def serve(cls, 
               module:Any = None ,
@@ -2630,6 +2637,7 @@ class c:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
             remote_kwargs.pop('module_class') # remove module_class from the kwargs
+            c.save_serve_kwargs(server_name, remote_kwargs)
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name)
@@ -2933,10 +2941,10 @@ class c:
         return path
     
     def self_destruct(self):
-        self.kill(self.server_name)    
+        c.kill(self.server_name)    
         
     def self_restart(self):
-        self.restart(self.server_name)
+        c.restart(self.server_name)
         
     @classmethod
     def set_shortcut(cls, shortcut: str, kwargs: dict) -> dict:
@@ -4869,13 +4877,15 @@ class c:
             
 
     @classmethod
-    def server_restart(cls, module:str, **kwargs) -> None:
+    def restart_server(cls, module:str, **kwargs) -> None:
         config = c.call(module, fn='config')
+        assert c.jsonable(config), f'Config must be jsonable, got {config}'
         address = c.get_address(module)
         ip = address.split(':')[0]
         port = address.split(':')[-1]
-        return c.serve(module, config=config, port=port)
+        return c.serve(module, port=port, **config)
     
+    server_restart = restart_server
     
     # KEY LAND
 
