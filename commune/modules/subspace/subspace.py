@@ -1288,7 +1288,7 @@ class Subspace(c.Module):
                     self.save()
                     times['save'] = current_time
 
-            c.log(f"Subspace Looper running\n", time_elapsed,)
+            c.log(f"Subspace Looper running {time_elapsed}")
             
             
     
