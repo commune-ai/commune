@@ -184,7 +184,7 @@ class Vali(c.Module):
     @classmethod
     def weights(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'staleness', 'uid', 'key']):
         stats = cls.load_stats( network=network, keys=keys)
-        weights = {s['name']: s['w'] for s in stats if s['w'] >= 0}
+        weights = {s['name']: s['w'] for s in stats if s['w'] > 0}
 
 
         if df:
