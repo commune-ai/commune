@@ -101,6 +101,7 @@ class Vali(c.Module):
 
             if my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {self.ip}[/bold red]', color='red')
+            c.print(module['address'])
             module_client = c.connect(module['address'], key=self.key)
             
             response = self.score_module(module_client)

@@ -303,10 +303,11 @@ class Docker(c.Module):
         return c.save_yaml(path, compose)
     
 
-    @classmethod
-    def down(cls, path='frontend'):
-        path = cls.get_compose_path(path)
-        return c.cmd('docker-compose -f {path} down', verbose=True)
+    # @classmethod
+    # def down(cls, path='frontend'):
+    #     path = cls.get_compose_path(path)
+    #     return c.cmd('docker-compose -f {path} down', verbose=True)
+
 
 
     @classmethod
@@ -322,8 +323,7 @@ class Docker(c.Module):
                 cwd : str = None,
                 down: bool = False
                 ):
-        
-
+ 
 
         cmd = f'docker-compose' if dash else f'docker compose'
 
@@ -374,3 +374,7 @@ class Docker(c.Module):
     @classmethod
     def logs(cls, name, sudo=False, follow=False, verbose=False):
         return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=verbose)
+
+
+    def status(cls):
+        return c.cmd('docker stats', verbose=True)

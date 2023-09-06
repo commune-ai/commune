@@ -858,7 +858,7 @@ class Subspace(c.Module):
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             network:str = None,
-            existential_deposit: float = 0.1,
+            existential_deposit: float = 0.01,
             sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
@@ -1588,9 +1588,9 @@ class Subspace(c.Module):
 
     def stats(self, 
               netuid=None,  
-              df:bool=False, 
+              df:bool=True, 
               update:bool = False, 
-              cols = ['name', 'address', 'key', 'registered', 'serving', 'balance', 'incentive', 'dividends', 'emission', 'stake','stake_from',  'stake_to'],
+              cols = ['name', 'address', 'registered', 'serving',  'emission', 'stake'],
               **kwargs
               ):
         if update:
@@ -2145,7 +2145,7 @@ class Subspace(c.Module):
     def kill_nodes(cls, chain=chain, verbose=True):
         for node_path in cls.live_nodes(chain=chain):
             if verbose:
-                c.print(f'killing {node_path}')
+                c.print(f'killing {node_path}',color='red')
             c.pm2_kill(node_path)
 
         return cls.live_nodes(chain=chain)
@@ -2193,10 +2193,7 @@ class Subspace(c.Module):
     @classmethod
     def build_runtime(self, verbose:bool=True):
         self.cmd('cargo build --release --locked', cwd=self.chain_path, verbose=verbose)
-        
 
-        c.cp(f'{self.chain_path}/target/release/node-subspace', f'{self.chain_path}/release/node-subspace')
-    
     @classmethod
     def chain_release_path(self):
         path =   f'{self.chain_path}/release/node-subspace'
@@ -2655,8 +2652,8 @@ class Subspace(c.Module):
     
     @classmethod
     def start_chain(cls, 
-                    max_vali_nodes:int = 24,
-                    max_nonvali_nodes:int = 16,
+                    max_vali_nodes:int = 4,
+                    max_nonvali_nodes:int = 4,
                     chain:str=chain, 
                     verbose:bool = False,
                     purge_chain:bool = True,
@@ -2665,7 +2662,7 @@ class Subspace(c.Module):
                     ):
 
         if refresh:
-            c.print(f'KILLING THE CHAIN ({chain})')
+            c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
 
 
