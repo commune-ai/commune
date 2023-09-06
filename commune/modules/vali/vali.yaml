@@ -14,7 +14,9 @@ verbose: True
 batch_size: 4
 refresh_stats: True
 vote_interval: 100
+sync_interval: 1000
 sleep_time: 1
 vote: True
 min_stake: 1
 connect_score: 0.1 
+max_staleness: 1000
