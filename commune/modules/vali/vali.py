@@ -124,11 +124,7 @@ class Vali(c.Module):
 
 
         try:
-
-            if my_module:
-                c.print(f'{prefix} [bold red] {module["name"]} {self.ip}[/bold red]', color='red')
             module_client = c.connect(module['address'], key=self.key)
-            
             response = self.score_module(module_client)
         except Exception as e:
             if my_module:
@@ -136,10 +132,8 @@ class Vali(c.Module):
             response = {'error': c.detailed_error(e), 'w': 0}
 
         
-        if my_module:
-            c.print(f'{prefix} [bold green] {c.emoji("dank")}  {c.emoji("dank")} MY MODULE {module["name"]}->{module["address"]} W:{response["w"]}[/bold green]', color='green')
-            c.print(response)
-
+        if my_module or response["w"] > 0:
+            c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
         
         w = response['w']
         response['timestamp'] = c.time()
@@ -147,7 +141,6 @@ class Vali(c.Module):
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
         module_stats['timestamp'] = response['timestamp']
-        c.print(f'{prefix} [bold green] {module["name"]} {w}[/bold green] {response.get("message", "")}', color='green')
         # add the history of this module
         module_stats['history'] = module_stats.get('history', []) + [response]
         module_stats['history'] = module_stats['history'][-self.config.max_history:]
@@ -352,7 +345,6 @@ class Vali(c.Module):
                 self.executor.submit(fn=self.eval_module, kwargs={'module':module})
 
                 num_tasks = self.executor.num_tasks
-                c.print(f'Running {num_tasks} tasks', color='cyan')
 
                 if self.count % 100 == 0 and self.count > 0:
                     stats =  {
