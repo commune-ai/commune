@@ -3206,7 +3206,8 @@ class c:
                  **kwargs ):
         subspace = c.module('subspace')()
 
-        if '::' in module:
+        # resolve module name and tag if they are in the server_name
+        if isinstance(module, str) and  '::' in module:
             module, tag = module.split('::')
         server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
         # if not subspace.is_unique_name(server_name, netuid=subnet):

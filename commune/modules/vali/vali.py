@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class Vali(c.Module):
 
     whitelist = ['']
+    last_sync_time = 0
 
     def __init__(self, config=None,  **kwargs):
         self.init_vali(config=config, **kwargs)
@@ -52,12 +53,19 @@ class Vali(c.Module):
 
 
     def sync(self, network:str=None, netuid:int=None, update: bool = True):
+
         if network == None:
             network = self.config.network
         if netuid == None:
             netuid = self.config.netuid
         if not hasattr(self, 'subspace'):
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
+
+        sync_interval = self.config.sync_interval
+        sync_staleness = c.time() - self.last_sync_time
+        if sync_staleness < sync_interval:
+            c.print(f'Not syncing as we synced {sync_staleness} seconds ago', color='yellow')
+            return
         self.modules = self.subspace.modules(update=False, netuid=netuid)
         self.namespace = {v['name']: v['address'] for v in self.modules }
         if self.config.module_prefix != None:
@@ -67,8 +75,9 @@ class Vali(c.Module):
         if self.config.vote_interval == None: 
             self.config['vote_interval'] = self.subspace.seconds_per_epoch()
 
-
+        self.last_sync_time = c.time()
         self.block = self.subspace.block
+
         c.print('Syncing...', color='cyan')
 
 
@@ -99,6 +108,15 @@ class Vali(c.Module):
         self.count += 1
 
         my_module = self.ip in module['address']
+
+        module_stats = self.load_module_stats( module['name'], default=module)
+
+        staleness = c.time() - module_stats.get('timestamp', 0)
+        if staleness < self.config.max_staleness:
+            # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
+            return
+
+
         try:
 
             if my_module:
@@ -120,7 +138,6 @@ class Vali(c.Module):
         w = response['w']
         response['timestamp'] = c.time()
         # we only want to save the module stats if the module was successful
-        module_stats = self.load_module_stats( module['name'], default=module)
         module_stats['count'] = module_stats.get('count', 0) + 1 # update the count of times this module was hit
         module_stats['w'] = module_stats.get('w', w)*(1-self.config.alpha) + w * self.config.alpha
         module_stats['timestamp'] = response['timestamp']
@@ -314,11 +331,18 @@ class Vali(c.Module):
         futures = []
         while self.running:
 
-            self.sync()
+            try:
+                self.sync()
+            except Exception as e:
+                c.print(f'Error syncing {e}', color='red')
+                c.print(traceback.format_exc(), color='red')
+                c.sleep(1)
+                continue
 
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             for i, module in enumerate(modules):
+                c.sleep(0.2)
 
                 self.executor.submit(fn=self.eval_module, kwargs={'module':module})
 
