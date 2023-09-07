@@ -4879,6 +4879,8 @@ class c:
         config = c.call(module, fn='config')
         assert c.jsonable(config), f'Config must be jsonable, got {config}'
         address = c.get_address(module)
+
+        
         ip = address.split(':')[0]
         port = address.split(':')[-1]
         return c.serve(module, port=port, **config)
