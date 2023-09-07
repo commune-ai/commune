@@ -1257,7 +1257,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 intervals:dict= {'save':100, 'register_servers':100},
+                 interval:dict= 10,
                  sleep:float=1,
                  remote:bool=True):
         if remote:
@@ -1267,30 +1267,19 @@ class Subspace(c.Module):
             
         
         time_start = c.time()
-        time_elapsed = 0
-
-        keys = {k:c.get_key(k) for k in c.keys()}
-        times = {k:time_start for k in intervals}
-        time_elapsed = 0
         while True:
             c.sleep(sleep)
             current_time = c.time()
+            time_since_last = int(current_time - time_start)
 
-            time_elapsed  = {k:int(current_time - v) for k,v in times.items()}
-            trigger = {k:time_elapsed[k] > intervals[k] for k in intervals}
-
-            if any(trigger.values()):
+            if time_since_last > interval:
                 self = cls(network=network, netuid=netuid)
-                c.sync()
-                if trigger['register_servers']:
-                    self.register_servers()
-                    times['register_servers'] = current_time
+                self.sync()
+                self.register_servers()
+                 
+                time_start = current_time
 
-                if times['save'] - current_time > intervals['save']:
-                    self.save()
-                    times['save'] = current_time
-
-            c.log(f"Subspace Looper running {time_elapsed}")
+            c.print(f"Looping {time_since_last} / {interval}", color='yellow')
             
             
     
