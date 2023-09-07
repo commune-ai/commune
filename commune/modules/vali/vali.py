@@ -204,6 +204,7 @@ class Vali(c.Module):
         votes['weights'] = [votes['weights'][i] for i in topk_indices]
         votes['uids'] = [votes['uids'][i] for i in topk_indices]
 
+        c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
         try:
             self.subspace.vote(uids=votes['uids'],
                             weights=votes['weights'], 
@@ -218,7 +219,7 @@ class Vali(c.Module):
             c.print(response, color='red')
 
         
-        return {'success': True, 'message': 'Voted', 'votes': vote_dict }
+        return {'success': True, 'message': 'Voted', 'votes': votes }
 
     @property
     def last_vote_time(self):
@@ -313,16 +314,10 @@ class Vali(c.Module):
 
 
     def vote_loop(self):
-        c.sleep(self.config.sleep_time)
         while True:
-            try:
-                if self.vote_staleness > self.config.vote_interval:
-                    self.vote()
-                c.sleep(5)
-            except Exception as e:
-                c.print(f'Error in vote loop {e}', color='red')
-                c.print(traceback.format_exc(), color='red')
-                c.sleep(1)
+            c.print(f'Vote loop -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
+            if self.vote_staleness > self.config.vote_interval:
+                self.vote()
 
 
     def run(self, vote=False):
