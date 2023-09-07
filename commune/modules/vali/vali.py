@@ -32,7 +32,6 @@ class Vali(c.Module):
         self.errors = 0
         self.sync()
         self.process = c.module('process')
-        self.last_vote_time = c.time()
         self.ip = c.ip()
         if self.config.refresh_stats:
             self.refresh_stats(network=self.config.network, tag=self.tag)
@@ -181,17 +180,14 @@ class Vali(c.Module):
 
 
     @classmethod
-    def weights(cls, network='main', df:bool=False, keys=['name', 'w', 'count', 'staleness', 'uid', 'key']):
-        stats = cls.load_stats( network=network, keys=keys)
-        weights = {s['name']: s['w'] for s in stats if s['w'] > 0}
-
-
-        if df:
-            weights = c.df({'module': list(weights.keys()), 'w': list(weights.values())})
-            weights.set_index('module', inplace=True)
-            weights.sort_values('w', ascending=False, inplace=True)
-
-        return weights
+    def votes(cls, network='main', tag=None):
+        stats = cls.load_stats( network=network, keys=['uid', 'w'], tag=tag)
+        votes = {
+            'uids': [v['uid'] for v in stats if v['w'] > 0],  # get all uids where w > 0
+            'weights': [v['w'] for v in stats if v['w'] > 0],  # get all weights where w > 0
+            'timestamp': c.time()
+        }
+        return votes
 
     def vote(self):
         stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
@@ -204,38 +200,55 @@ class Vali(c.Module):
             return result
 
 
-        topk = self.subnet['max_allowed_weights']
 
-        vote_dict = {'uids': [], 'weights': []}
 
-        stats = self.stats(network=self.config.network, df=False, keys=['name', 'w', 'count', 'timestamp', 'uid', 'key'])
-        vote_dict['uids'] = [v['uid'] for v in stats if v['w'] > 0] # get all uids where w > 0
-        vote_dict['weights'] = [v['w'] for v in stats if v['w'] > 0] # get all weights where w > 0
-
+        votes = self.votes(network=self.config.network, tag=self.tag)
         # get topk
-        
-        topk_indices = torch.argsort( torch.tensor(vote_dict['weights']), descending=True)[:topk].tolist()
-
-        topk_indices = [i for i in topk_indices if vote_dict['weights'][i] > 0]
-        if len(topk_indices) == 0:
+        if len(votes['weights']) == 0:
             return {'success': False, 'message': 'No modules to vote on'}
-        
-        vote_dict['weights'] = [vote_dict['weights'][i] for i in topk_indices]
-        vote_dict['uids'] = [vote_dict['uids'][i] for i in topk_indices]
+
+        topk = self.subnet['max_allowed_weights']
+        topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
+        votes['weights'] = [votes['weights'][i] for i in topk_indices]
+        votes['uids'] = [votes['uids'][i] for i in topk_indices]
 
         try:
-            self.subspace.vote(uids=vote_dict['uids'],
-                            weights=vote_dict['weights'], 
+            self.subspace.vote(uids=votes['uids'],
+                            weights=votes['weights'], 
                             key=self.key, 
                             network=self.config.network, 
                             netuid=self.config.netuid)
+
+            self.save_votes(votes)
+
         except Exception as e:
-            response =  {'success': False, 'message': f'Error voting {e}'}
+            response =  c.detailed_error(e)
             c.print(response, color='red')
-        self.last_vote_time = c.time()
+
         
         return {'success': True, 'message': 'Voted', 'votes': vote_dict }
 
+    @property
+    def last_vote_time(self):
+        votes = self.load_votes()
+        return votes.get('timestamp', 0)
+
+    def load_votes(self) -> dict:
+        default={'uids': [], 'weights': [], 'timestamp': 0, 'block': 0}
+        votes = self.get(f'votes/{self.config.network}.{self.tag}', default=default)
+        return votes
+
+    def set_votes(self, votes:dict):
+        assert isinstance(votes, dict), f'Weights must be a dict, got {type(votes)}'
+        assert 'uids' in votes, f'Weights must have a uids key, got {votes.keys()}'
+        assert 'weights' in votes, f'Weights must have a weights key, got {votes.keys()}'
+        assert 'timestamp' in votes, f'Weights must have a timestamp key, got {votes.keys()}'
+        assert 'block' in votes, f'Weights must have a block key, got {votes.keys()}'
+        self.put(f'votes/{self.config.network}.{self.tag}', votes)
+
+    
+
+        
 
     @classmethod
     def saved_module_paths(cls, network:str='main', tag:str=None):

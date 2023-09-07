@@ -206,6 +206,8 @@ class Subspace(c.Module):
         market_cap = 0
         for key, value in state_dict['balances'].items():
             market_cap += value
+
+        c.print(f'Market Cap: {market_cap}')
         for modules in state_dict['modules']:
             for module in modules:
                 market_cap += module['stake']
@@ -3010,6 +3012,8 @@ class Subspace(c.Module):
                     purge_chain:bool = True,
                     refresh: bool = True,
                     trials:int = 3,
+                    reuse_ports: bool = True, 
+                    port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     ):
 
         # KILL THE CHAIN
@@ -3036,7 +3040,18 @@ class Subspace(c.Module):
         nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
 
         # refresh the chain info in the config
+
+        
+        existing_node_ports = {'vali': [], 'nonvali': []}
+        
+        if reuse_ports: 
+            node_infos = cls.getc(f'chain_info.{chain}.nodes')
+            for node, node_info in node_infos.items():
+                k = 'vali' if node_info['validator'] else 'nonvali'
+                existing_node_ports[k].append([node_info[pk] for pk in port_keys])
+
         if refresh:
+            # refresh the chain info in the config
             cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': [], 'url': []})
 
         avoid_ports = []
@@ -3046,12 +3061,8 @@ class Subspace(c.Module):
             c.print(f'Starting node {node} for chain {chain}')
             name = f'{cls.node_prefix()}.{chain}.{node}'
 
-            # if node exists and refresh is False, then skip
-            if c.pm2_exists(name) and refresh == False:
-                c.print(f'Node {node} for chain {chain} already exists')
-                continue
-
             # BUILD THE KWARGS TO CREATE A NODE
+            
             node_kwargs = {
                             'chain':chain, 
                             'node':node, 
@@ -3061,11 +3072,19 @@ class Subspace(c.Module):
                             }
 
             # get the ports for (port, rpc_port, ws_port)
-            #  make sure they do not conflict (using avoid ports)
-            for k in ['port','rpc_port','ws_port']:
-                port = c.free_port(avoid_ports=avoid_ports)
+            # if we are reusing ports, then pop the first ports from the existing_node_ports
+            node_ports= []
+            node_type = 'vali' if node_kwargs['validator'] else 'nonvali'
+            if len(existing_node_ports[node_type]) > 0:
+                node_ports = existing_node_ports[node_type].pop(0)
+            else:
+                node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
+            assert  len(node_ports) == 3, f'node_ports must be of length 3, not {len(node_ports)}'
+
+            for k, port in zip(port_keys, node_ports):
                 avoid_ports.append(port)
                 node_kwargs[k] = port
+
 
             fails = 0
             while trials > fails:
