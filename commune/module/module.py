@@ -31,8 +31,8 @@ class c:
     pwd = os.getenv('PWD') #  
     console = Console()
     helper_whitelist = ['info', 'schema','server_name', 'is_admin'] # whitelist of helper functions to load
-    whitelist = [] # whitelist of modules to load
-    blacklist = [] # blacklist of modules to not load
+    whitelist = [] # whitelist of functions to load
+    blacklist = [] # blacklist of functions to not to access for outside use
     server_mode = 'http' # http, grpc, ws (websocket)
     default_network = 'local' # local, subnet
     cache = {} # cache for module objects
@@ -92,8 +92,6 @@ class c:
     @classmethod
     def getclassattr(cls, k:str)-> Any:
         return getattr(cls,  k)
-    
-    
     
     @classmethod
     def module_file(cls) -> str:
@@ -2576,7 +2574,9 @@ class c:
     
     @whitelist.setter
     def whitelist(self, whitelist:List[str]):
-        self._whitelist = whitelist
+        self._whitelist = whitelist + self.helper_functions
+
+
         return whitelist
     wl = whitelist
     bl = blacklist = []
@@ -2831,11 +2831,6 @@ class c:
                 function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
                 
         return function_schema_map
-    
-    
-    @classmethod
-    def bruh(cls):
-        return 'fam'
 
     @classmethod
     def get_function_annotations(cls, fn):
@@ -2873,8 +2868,6 @@ class c:
             else:
                 fn_schema['input'][k] = v
                 
-
-        
         fn_schema['output'] = fn_schema['input'].pop('return', {})
         
         if docs:         
@@ -2898,8 +2891,6 @@ class c:
     @staticmethod
     def get_annotations(fn:callable) -> dict:
         return fn.__annotations__
-
-
 
     @classmethod
     def kill(cls, module,
