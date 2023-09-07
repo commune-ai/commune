@@ -162,8 +162,14 @@ class Subspace(c.Module):
             self.vote_pool(*args, **kwargs)
 
     def key2stake(self,netuid = None, network = None, fmt='j',  decimals=2):
-        key2stake = {m['name']: c.round_decimals(m['stake'], decimals=decimals) \
+        stakes = {m['key']: c.round_decimals(m['stake'], decimals=decimals) \
                      for m in self.my_modules(netuid=netuid, network=network, fmt=fmt)}
+        key2address = c.key2address()
+        key2stake = {}
+        for key_name, address in key2address.items():
+            if address in stakes:
+                key2stake[key_name]= c.round_decimals(stakes[address], decimals=decimals)
+
         return key2stake
 
     def key2staketo(self,netuid = None, network = None, fmt='j',  decimals=2):
@@ -1257,7 +1263,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 interval:dict= 10,
+                 interval:dict= 100,
                  sleep:float=1,
                  remote:bool=True):
         if remote:
@@ -1274,7 +1280,7 @@ class Subspace(c.Module):
 
             if time_since_last > interval:
                 self = cls(network=network, netuid=netuid)
-                self.sync()
+                c.print(self.sync())
                 self.register_servers()
                  
                 time_start = current_time
@@ -1527,7 +1533,7 @@ class Subspace(c.Module):
         df_stats = df_stats[cols]
     
         if len(df_stats) > 0:
-            df_stats.sort_values(by=['registered'], ascending=False, inplace=True)
+            df_stats.sort_values(by=['registered', 'emission', 'stake'], ascending=False, inplace=True)
 
 
         if not df:
