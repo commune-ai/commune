@@ -2666,7 +2666,7 @@ class Subspace(c.Module):
             volumes = f'-v {cls.spec_path}:{cls.spec_path}'
             c.cmd(f'docker run {volumes} subspace bash -c "{cmd}"')
         elif mode == 'local':
-            c.cmd(cmd, cwd=cls.chain_path, verbose=True)    
+            c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)    
 
 
         # ADD THE VALI NODE KEYS
@@ -2678,8 +2678,7 @@ class Subspace(c.Module):
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
         c.put_json(chain_spec_path, spec)
         resp = {'spec_path': chain_spec_path, 'spec': spec}
-        c.print(resp, verbose=verbose)
-        return resp
+        return {'success':True, 'message':'built spec', 'chain':chain}
 
 
     @classmethod
