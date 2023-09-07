@@ -3012,37 +3012,41 @@ class Subspace(c.Module):
                     trials:int = 3,
                     ):
 
+        # KILL THE CHAIN
         if refresh:
             c.print(f'KILLING THE CHAIN ({chain})', color='red')
             cls.kill_chain(chain=chain)
 
 
         ## VALIDATOR NODES
-
         vali_node_keys  = cls.vali_node_keys(chain=chain)
-        nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
         vali_nodes = list(cls.vali_node_keys(chain=chain).keys())
-        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())
         if n_valis != -1:
             vali_nodes = vali_nodes[:n_valis]
-        if n_nonvalis != -1:
-            nonvali_nodes = nonvali_nodes[:n_valis]
-
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
-        nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
+        assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
+        # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES
         cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
 
-        assert len(vali_nodes) >= 2, 'There must be at least 2 vali nodes'
+        ## NON VALIDATOR NODES
+        nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
+        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())
+        if n_nonvalis != -1:
+            nonvali_nodes = nonvali_nodes[:n_valis]
+        nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
 
-        # refresh the chain info
+        # refresh the chain info in the config
         if refresh:
             cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': [], 'url': []})
 
         avoid_ports = []
 
+        # START THE VALIDATOR NODES
         for node in (vali_nodes + nonvali_nodes):
             c.print(f'Starting node {node} for chain {chain}')
             name = f'{cls.node_prefix()}.{chain}.{node}'
+
+            # if node exists and refresh is False, then skip
             if c.pm2_exists(name) and refresh == False:
                 c.print(f'Node {node} for chain {chain} already exists')
                 continue
@@ -3069,7 +3073,7 @@ class Subspace(c.Module):
                     cls.start_node(**node_kwargs, refresh=refresh)
                     break
                 except Exception as e:
-                    c.print(f'Error starting node {node} for chain {chain}, {e}')
+                    c.print(f'Error starting node {node} for chain {chain}, {e}', color='red')
                     fails += 1
                     raise e
                     continue
