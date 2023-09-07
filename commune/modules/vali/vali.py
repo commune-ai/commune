@@ -199,11 +199,21 @@ class Vali(c.Module):
         if len(votes['weights']) == 0:
             return {'success': False, 'message': 'No modules to vote on'}
 
+        uids = c.copy(votes['uids'])
+        new_votes = {'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
+        for i in range(len(votes['uids'])):
+            if votes['uids'][i] < self.n :
+                new_votes['uids'] += [votes['uids'][i]]
+                new_votes['weights'] += [votes['weights'][i]]
+        
+        votes = new_votes
+    
+
         topk = self.subnet['max_allowed_weights']
         topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
         votes['weights'] = [votes['weights'][i] for i in topk_indices]
         votes['uids'] = [votes['uids'][i] for i in topk_indices]
-
+        
         c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
         try:
             self.subspace.vote(uids=votes['uids'],
@@ -231,12 +241,11 @@ class Vali(c.Module):
         votes = self.get(f'votes/{self.config.network}.{self.tag}', default=default)
         return votes
 
-    def set_votes(self, votes:dict):
+    def save_votes(self, votes:dict):
         assert isinstance(votes, dict), f'Weights must be a dict, got {type(votes)}'
         assert 'uids' in votes, f'Weights must have a uids key, got {votes.keys()}'
         assert 'weights' in votes, f'Weights must have a weights key, got {votes.keys()}'
         assert 'timestamp' in votes, f'Weights must have a timestamp key, got {votes.keys()}'
-        assert 'block' in votes, f'Weights must have a block key, got {votes.keys()}'
         self.put(f'votes/{self.config.network}.{self.tag}', votes)
 
     
@@ -315,9 +324,9 @@ class Vali(c.Module):
 
     def vote_loop(self):
         while True:
-            c.print(f'Vote loop -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
             if self.vote_staleness > self.config.vote_interval:
                 self.vote()
+            c.sleep(1)
 
 
     def run(self, vote=False):
