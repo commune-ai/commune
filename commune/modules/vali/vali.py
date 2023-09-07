@@ -50,22 +50,19 @@ class Vali(c.Module):
         for w in self.workers:
             c.kill(w)
 
+    @property
+    def sync_staleness(self):
+        return int(c.time() - self.last_sync_time) 
+
 
     def sync(self, network:str=None, netuid:int=None, update: bool = True):
-
+        
         try:
             if network == None:
                 network = self.config.network
             if netuid == None:
                 netuid = self.config.netuid
-            if not hasattr(self, 'subspace'):
-                self.subspace = c.module('subspace')(network=network, netuid=netuid)
-
-            sync_interval = self.config.sync_interval
-            sync_staleness = c.time() - self.last_sync_time
-            if sync_staleness < sync_interval:
-                c.print(f'Not syncing as we synced {sync_staleness} seconds ago', color='yellow')
-                return
+            self.subspace = c.module('subspace')(network=network, netuid=netuid)
             self.modules = self.subspace.modules(update=False, netuid=netuid)
             self.namespace = {v['name']: v['address'] for v in self.modules }
             if self.config.module_prefix != None:
@@ -194,13 +191,8 @@ class Vali(c.Module):
 
         if stake < self.config.min_stake:
             result = {'success': False, 'message': f'Not enough stake to vote, need at least {self.config.min_stake} stake'}
+            c.print(result, color='red')
             return result
-        elif self.vote_staleness < self.config.vote_interval:
-            result = ({'success': False, 'message': f'Vote too soon, wait {self.config.vote_interval - self.vote_staleness} more seconds'})
-            return result
-
-
-
 
         votes = self.votes(network=self.config.network, tag=self.tag)
         # get topk
@@ -324,8 +316,9 @@ class Vali(c.Module):
         c.sleep(self.config.sleep_time)
         while True:
             try:
-                c.sleep(1)
-                self.vote()
+                if self.vote_staleness > self.config.vote_interval:
+                    self.vote()
+                c.sleep(5)
             except Exception as e:
                 c.print(f'Error in vote loop {e}', color='red')
                 c.print(traceback.format_exc(), color='red')
@@ -343,14 +336,8 @@ class Vali(c.Module):
         futures = []
         while self.running:
 
-            try:
+            if self.sync_staleness > self.config.sync_interval:
                 self.sync()
-            except Exception as e:
-                c.print(f'Error syncing {e}', color='red')
-                c.print(traceback.format_exc(), color='red')
-                c.sleep(1)
-                continue
-
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             for i, module in enumerate(modules):
