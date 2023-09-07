@@ -3001,7 +3001,7 @@ class Subspace(c.Module):
                     purge_chain:bool = True,
                     refresh: bool = True,
                     trials:int = 3,
-                    reuse_ports: bool = True, 
+                    reuse_ports: bool = False, 
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     ):
 
