@@ -3033,8 +3033,8 @@ class Subspace(c.Module):
     
     @classmethod
     def start_chain(cls, 
-                    n_valis:int = 8,
-                    n_nonvalis:int = 12,
+                    n_valis:int = 4,
+                    n_nonvalis:int = 4,
                     chain:str=chain, 
                     verbose:bool = False,
                     purge_chain:bool = True,

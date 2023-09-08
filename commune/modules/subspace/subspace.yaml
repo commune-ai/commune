@@ -562,139 +562,71 @@ chain_info:
     - /ip4/198.166.138.214/tcp/5004/p2p/12D3KooWPoXbptPQakmTPeNvLkD5MSLymJzEFP7ytaxYE3MmXhaz
     - /ip4/198.166.138.214/tcp/5007/p2p/12D3KooWL1EtGEyGaHdVcQfmRCz4rhS98RdHqjh7xYXvEdb8gmyc
     - /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
-    - /ip4/198.166.138.214/tcp/5013/p2p/12D3KooWR9vyguwbk1eUNe6kGLktGWWu9Wev41SbJiLAy8arkEhh
-    - /ip4/198.166.138.214/tcp/5016/p2p/12D3KooWGY6YVUgmeK1VuWo7Xf6ADbtkn5g6oEuJiJiaYeFKJ2ox
-    - /ip4/198.166.138.214/tcp/5019/p2p/12D3KooWP2WYq1HPQFU6Xps5rH8rWJ8Z79LkyqKuWG6KHjzKGoNY
-    - /ip4/198.166.138.214/tcp/5022/p2p/12D3KooWAh4C3WsmAFxzz4raX56mB5hUYPBptpAsAAEBbCyNikEo
     nodes:
       nonvali_0:
-        boot_nodes: /ip4/198.166.138.214/tcp/5019/p2p/12D3KooWP2WYq1HPQFU6Xps5rH8rWJ8Z79LkyqKuWG6KHjzKGoNY
+        boot_nodes: /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
         chain: main
         ip: 198.166.138.214
         mode: local
         node: nonvali_0
         node_key: null
-        port: 5025
+        port: 5013
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 5026
+        rpc_port: 5014
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5027
+        ws_port: 5015
       nonvali_1:
-        boot_nodes: /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
+        boot_nodes: /ip4/198.166.138.214/tcp/5000/p2p/12D3KooWNKrDRhJmKMMptC7sN63HqKTy9Nn1ZWW1v7MnsYwQx2EK
         chain: main
         ip: 198.166.138.214
         mode: local
         node: nonvali_1
         node_key: null
-        port: 5028
+        port: 5016
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 5029
+        rpc_port: 5017
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5030
+        ws_port: 5018
       nonvali_10:
-        boot_nodes: /ip4/198.166.138.214/tcp/5013/p2p/12D3KooWR9vyguwbk1eUNe6kGLktGWWu9Wev41SbJiLAy8arkEhh
+        boot_nodes: /ip4/198.166.138.214/tcp/5000/p2p/12D3KooWNKrDRhJmKMMptC7sN63HqKTy9Nn1ZWW1v7MnsYwQx2EK
         chain: main
         ip: 198.166.138.214
         mode: local
         node: nonvali_10
         node_key: null
-        port: 5031
+        port: 5019
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 5032
+        rpc_port: 5020
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5033
+        ws_port: 5021
       nonvali_11:
-        boot_nodes: /ip4/198.166.138.214/tcp/5022/p2p/12D3KooWAh4C3WsmAFxzz4raX56mB5hUYPBptpAsAAEBbCyNikEo
+        boot_nodes: /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
         chain: main
         ip: 198.166.138.214
         mode: local
         node: nonvali_11
         node_key: null
-        port: 5034
+        port: 5022
         purge_chain: true
         refresh: true
         rpc_cors: all
-        rpc_port: 5035
+        rpc_port: 5023
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5036
-      nonvali_12:
-        boot_nodes: /ip4/198.166.138.214/tcp/5022/p2p/12D3KooWAh4C3WsmAFxzz4raX56mB5hUYPBptpAsAAEBbCyNikEo
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: nonvali_12
-        node_key: null
-        port: 5037
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5038
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 5039
-      nonvali_13:
-        boot_nodes: /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: nonvali_13
-        node_key: null
-        port: 5040
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5041
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 5042
-      nonvali_14:
-        boot_nodes: /ip4/198.166.138.214/tcp/5007/p2p/12D3KooWL1EtGEyGaHdVcQfmRCz4rhS98RdHqjh7xYXvEdb8gmyc
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: nonvali_14
-        node_key: null
-        port: 5043
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5044
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 5045
-      nonvali_15:
-        boot_nodes: /ip4/198.166.138.214/tcp/5000/p2p/12D3KooWNKrDRhJmKMMptC7sN63HqKTy9Nn1ZWW1v7MnsYwQx2EK
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: nonvali_15
-        node_key: null
-        port: 5046
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5047
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 5048
+        ws_port: 5024
       vali_0:
         boot_nodes: null
         chain: main
@@ -744,7 +676,7 @@ chain_info:
         verbose: false
         ws_port: 5009
       vali_11:
-        boot_nodes: /ip4/198.166.138.214/tcp/5007/p2p/12D3KooWL1EtGEyGaHdVcQfmRCz4rhS98RdHqjh7xYXvEdb8gmyc
+        boot_nodes: /ip4/198.166.138.214/tcp/5004/p2p/12D3KooWPoXbptPQakmTPeNvLkD5MSLymJzEFP7ytaxYE3MmXhaz
         chain: main
         ip: 198.166.138.214
         mode: local
@@ -759,70 +691,6 @@ chain_info:
         validator: true
         verbose: false
         ws_port: 5012
-      vali_12:
-        boot_nodes: /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: vali_12
-        node_key: null
-        port: 5013
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5014
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 5015
-      vali_13:
-        boot_nodes: /ip4/198.166.138.214/tcp/5013/p2p/12D3KooWR9vyguwbk1eUNe6kGLktGWWu9Wev41SbJiLAy8arkEhh
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: vali_13
-        node_key: null
-        port: 5016
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5017
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 5018
-      vali_14:
-        boot_nodes: /ip4/198.166.138.214/tcp/5004/p2p/12D3KooWPoXbptPQakmTPeNvLkD5MSLymJzEFP7ytaxYE3MmXhaz
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: vali_14
-        node_key: null
-        port: 5019
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5020
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 5021
-      vali_15:
-        boot_nodes: /ip4/198.166.138.214/tcp/5010/p2p/12D3KooWHDC5ZnQqkQtTQwvoXttjGxhsVnwugkFHLgUhLTJ8H333
-        chain: main
-        ip: 198.166.138.214
-        mode: local
-        node: vali_15
-        node_key: null
-        port: 5022
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5023
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: true
-        verbose: false
-        ws_port: 5024
     url: []
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 loop: false
