@@ -7,6 +7,14 @@
 # print(tokenizer.encode('hello world'))
 import commune as c
 
+servers = c.servers('vali::var')
 
-module = c.connect('data.truthqa', network='local')
-c.print(module.info())
+daddy_key = 'module'
+
+balance = c.get_balance(daddy_key)
+
+stake_per_server = balance / len(servers)
+
+for server in servers:
+    c.stake(key=daddy_key, module_key=server , amount=stake_per_server)
+    print(f'staked {stake_per_server} to {server}')
