@@ -1257,7 +1257,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 interval:dict= 10,
+                 interval:dict= 100,
                  sleep:float=1,
                  remote:bool=True):
         if remote:
@@ -1274,7 +1274,8 @@ class Subspace(c.Module):
 
             if time_since_last > interval:
                 self = cls(network=network, netuid=netuid)
-                self.sync()
+                c.print(self.sync())
+                
                 self.register_servers()
                  
                 time_start = current_time
