@@ -43,4 +43,10 @@ class WS(c.Module):
             except Exception as e:
                 c.print(f'An error occurred: {e}')  
 
+    @classmethod
+    def test(cls):
+        c.print('Starting test')
+        cls.remote_fn(fn='start', kwargs={})
+        c.print('Finished test')
+
 

@@ -1334,6 +1334,8 @@ class Subspace(c.Module):
         if network == None:
             network = cls.network 
         return [f for f in cls.ls(f'state_dict') if os.path.basename(f).startswith(network)]
+
+    
     @classmethod
     def block2archive(cls, network=network):
         paths = cls.ls_archives(network=network)
@@ -1346,9 +1348,22 @@ class Subspace(c.Module):
 
         block2archive = {int(p.split('time-')[-1].split('.json')[0]):p for p in paths if p.endswith('.json') and f'time-' in p}
         return block2archive
+
+    @classmethod
+    def datetime2archive(cls, network=network):
+        time2archive = cls.time2archive(network=network)
+        datetime2archive = {c.time2datetime(time):archive for time,archive in time2archive.items()}
+        # sort by datetime
+        # 
+        datetime2archive = {k:v for k,v in sorted(datetime2archive.items(), key=lambda x: x[0])}
+        return datetime2archive
+
+
+
     @classmethod
     def latest_archive_path(cls, network=network):
         latest_archive_time = cls.latest_archive_time(network=network)
+    
         if latest_archive_time == None:
             return None
         time2archive = cls.time2archive(network=network)
@@ -2195,7 +2210,8 @@ class Subspace(c.Module):
         weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights if w != None and uid != None}
         uids = self.uids(netuid=netuid, **kwargs)
         weights = {uid: weights[uid] if uid in weights else [] for uid in uids}
-        return weights
+
+        return {uid: len(w) for uid, w in weights.items() if len(w) > 0}
             
         
     def regprefix(self, prefix, netuid = None, network=None, **kwargs):
@@ -2218,7 +2234,7 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         return sorted([v[1].value for v in self.query_map('Uids' , netuid )], reverse=reverse)
 
-    def uid2key(self, network:str=  None,netuid: int = None, **kwargs):
+    def uid2key(self, network:str=None, netuid:int = None, **kwargs):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         
@@ -2288,38 +2304,57 @@ class Subspace(c.Module):
         elif mode == 'local':
             cmd = f'{cmd}'
 
-        c.cmd(cmd, verbose=True)        
+        c.cmd(cmd, verbose=True)  
+
+
+    @classmethod
+    def search_archives(cls, netuid=0):
+        for archive_dt, archive_path in cls.datetime2archive().items():
+            archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
+            archive = c.get(archive_path)
+            c.print(archive_dt, 'stake: ',archive['subnets'][netuid]['stake'], 'block: ', archive['block'] , 'path: ',  archive_path)
+            # break
+
     
+
     @classmethod
     def dashboard(cls):
-        return c.module('subspace.dashboard').dashboard()
+        import streamlit as st
+        block = 7014
+        netuid = 0
+        for archive_dt, archive_path in cls.datetime2archive().items():
+            archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
+            if archive_block != block:
+                continue
+            archive = c.get(archive_path)
+            c.print(archive_dt, 'stake: ',archive['subnets'][netuid]['stake'], 'block: ', archive['block'] , 'path: ',  archive_path)
+            break
+        st.write(archive_path)
+        
+        modules = archive['modules'][0]
+        subnets = archive['subnets'][0]
+        st.write(subnets)
+        st.write(archive['stake_to'][0].keys())
+        # c.module('subspace.dashboard').dashboard()
     
-
-
-    def build_snapshot(self, 
-             state:dict = None,
+    @classmethod
+    def build_snapshot(cls, 
+              path : str ,
              network : str =network,
-             path : str  = None,
-             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_uids', 'founder'],
-            module_params : List[str] = ['key', 'name', 'address', 'stake'],
+             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'founder'],
+            module_params : List[str] = ['key', 'name', 'address'],
             save: bool = True, 
             min_balance:int = 100000,
             verbose: bool = False,
              **kwargs):
         
-        if isinstance(state, str):
-            c.print('Loading statepath from state', path, verbose=verbose)
-            state = c.get(state)
-        elif state is None:
-            state = c.get(self.newest_archive_path())
+        state = cls.get(path)
         
-        for s in range(len(state['modules'])):
-            for i,m in enumerate(state['modules'][s]):
-                state['modules'][s][i] = m
         snap = {
                         'subnets' : [[s[p] for p in subnet_params] for s in state['subnets']],
                         'modules' : [[[m[p] for p in module_params] for m in modules ] for modules in state['modules']],
                         'balances': {k:v for k,v in state['balances'].items() if v > min_balance},
+                        'stake_to': [[[staking_key, stake_to] for staking_key,stake_to in state['stake_to'][i].items()] for i in range(len(state['subnets']))],
                         'block': state['block'],
                         }
                         
@@ -2329,17 +2364,14 @@ class Subspace(c.Module):
         
         # save snapshot into subspace/snapshots/{network}.json
         if save:
-            if path is None:
-                
-                snap_dir = f'{self.chain_path}/snapshots'
-                c.mkdir(snap_dir)
-                path = f'{snap_dir}/{network}.json'
-            c.print('Saving snapshot to', path, verbose=verbose)
-            c.put_json(path, snap)
+            snap_dir = f'{cls.chain_path}/snapshots'
+            c.mkdir(snap_dir)
+            snap_path = f'{snap_dir}/{network}.json'
+            c.print('Saving snapshot to', snap_path, verbose=verbose)
+            c.put_json(snap_path, snap)
+        # c.print(snap['modules'][0][0])
         
-        return snap
-    
-    
+        return {'success': True, 'msg': f'Saved snapshot to {snap_path} from {path}'}    
     
     
     
@@ -3120,3 +3152,6 @@ class Subspace(c.Module):
             c.test_url(url)
         c.print('All nodes are up and running!')
     
+
+if __name__ == "__main__":
+    Subspace.run()
