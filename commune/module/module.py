@@ -1115,7 +1115,10 @@ class c:
         open_ports = []
         for port in range(start_port, end_port + 1):  # ports from start_port to end_port
             if c.port_used(port=port, ip=host):
+                c.print(f'Port {port} is open', color='green')
                 open_ports.append(port)
+            else:
+                c.print(f'Port {port} is closed', color='red')
         return open_ports
 
     @classmethod
@@ -1151,6 +1154,7 @@ class c:
                 c.print(f'Error: {e}', color='red')
                 break
             avoid_ports += [free_ports[-1]]
+        
               
         return free_ports
     

@@ -162,8 +162,14 @@ class Subspace(c.Module):
             self.vote_pool(*args, **kwargs)
 
     def key2stake(self,netuid = None, network = None, fmt='j',  decimals=2):
-        key2stake = {m['name']: c.round_decimals(m['stake'], decimals=decimals) \
+        stakes = {m['key']: c.round_decimals(m['stake'], decimals=decimals) \
                      for m in self.my_modules(netuid=netuid, network=network, fmt=fmt)}
+        key2address = c.key2address()
+        key2stake = {}
+        for key_name, address in key2address.items():
+            if address in stakes:
+                key2stake[key_name]= c.round_decimals(stakes[address], decimals=decimals)
+
         return key2stake
 
     def key2staketo(self,netuid = None, network = None, fmt='j',  decimals=2):
@@ -1253,6 +1259,8 @@ class Subspace(c.Module):
         if len(blocks) == 0:
             return None
         return blocks[-1]
+
+        
     @classmethod
     def loop(cls, 
                 network = network,
@@ -1274,8 +1282,7 @@ class Subspace(c.Module):
 
             if time_since_last > interval:
                 self = cls(network=network, netuid=netuid)
-                c.print(self.sync())
-                
+                c.print(self.sync(), color='green')
                 self.register_servers()
                  
                 time_start = current_time
@@ -1528,7 +1535,7 @@ class Subspace(c.Module):
         df_stats = df_stats[cols]
     
         if len(df_stats) > 0:
-            df_stats.sort_values(by=['registered'], ascending=False, inplace=True)
+            df_stats.sort_values(by=['registered', 'emission', 'stake'], ascending=False, inplace=True)
 
 
         if not df:
@@ -2667,7 +2674,7 @@ class Subspace(c.Module):
             volumes = f'-v {cls.spec_path}:{cls.spec_path}'
             c.cmd(f'docker run {volumes} subspace bash -c "{cmd}"')
         elif mode == 'local':
-            c.cmd(cmd, cwd=cls.chain_path, verbose=True)    
+            c.cmd(f'bash -c "{cmd}"', cwd=cls.chain_path, verbose=True)    
 
 
         # ADD THE VALI NODE KEYS
@@ -2679,8 +2686,7 @@ class Subspace(c.Module):
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
         c.put_json(chain_spec_path, spec)
         resp = {'spec_path': chain_spec_path, 'spec': spec}
-        c.print(resp, verbose=verbose)
-        return resp
+        return {'success':True, 'message':'built spec', 'chain':chain}
 
 
     @classmethod
