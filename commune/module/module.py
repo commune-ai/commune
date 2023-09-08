@@ -5361,7 +5361,7 @@ class c:
             tag = ''
         server_names = []
         for i in range(n):
-            r = cls.register(mopdule=module, tag=tag+str(i),  **kwargs)
+            r = cls.register(module=module, tag=tag+str(i),  **kwargs)
             server_names.append(r['server_name'])
         return {'servers':server_names}
     
