@@ -2308,12 +2308,27 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def search_archives(cls, netuid=0):
+    def search_archives(cls, netuid=0,
+                   start_time = '2023-09-08 04:00:00', 
+                    end_time = '2023-09-08 04:20:00', **kwargs):
+
+        archives  = cls.archives(**kwargs)
         for archive_dt, archive_path in cls.datetime2archive().items():
+            if archive_dt <= start_time:
+                c.print('skipping', archive_dt)
+                continue
+
             archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
             archive = c.get(archive_path)
-            c.print(archive_dt, 'stake: ',archive['subnets'][netuid]['stake'], 'block: ', archive['block'] , 'path: ',  archive_path)
-            # break
+            total_balances = sum([b for b in archive['balances'].values()])
+            total_stake = sum([sum([_[1]for _ in m['stake_from']]) for m in archive['modules'][netuid]])
+            archives += [{'block': archive_block,  'total_stake': total_stake, 'total_balance': total_balances,  'dt': archive_dt,  'block': archive['block'], 'path': archive_path}]
+            c.print(archive_dt)
+            break
+
+        c.print(archives[0])
+
+        return c.df(archives)
 
     
 
