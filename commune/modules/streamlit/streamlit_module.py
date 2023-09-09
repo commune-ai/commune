@@ -22,7 +22,6 @@ class StreamlitModule(c.Module):
     def streamlit_functions(self):
         return [fn for fn in dir(self) if fn.startswith('st_')]  
 
-
     def run(self, data, plots=[], default_plot  ='histogram', title=None ):
 
         self.cols= st.columns([1,3])
@@ -42,7 +41,7 @@ class StreamlitModule(c.Module):
                     plot = plots[0]
             form = st.form(F'Params for {plot}')
             with form:
-                fig = getattr(self, 'st_'+ plot)(df)
+                fig = getattr(self, 'st_plot_'+ plot)(df)
                 form.form_submit_button("Render")
 
         else:
@@ -52,7 +51,7 @@ class StreamlitModule(c.Module):
         
     def plot_options(self, prefix:str ='st_plot'):
         plot_options = self.fns(prefix)
-        return plot_options
+        return [p.replace(prefix+'_', '')for p in plot_options]
 
 
     def show(self, fig):
@@ -378,3 +377,13 @@ class StreamlitModule(c.Module):
                     setattr(self, fn_name, plt_obj)
 
         # self.dag = DagModule()
+
+    @staticmethod
+    def local_css(file_name=os.path.dirname(__file__)+'/style.css'):
+        import streamlit as st
+        
+        
+        with open(file_name) as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+ 
+        

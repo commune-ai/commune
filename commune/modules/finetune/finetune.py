@@ -42,15 +42,16 @@ class FineTuner(c.Module):
         else:
             self.dataset = load_dataset(**config.dataset)
 
-        # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
         sample = self.dataset[0]
         largest_text_field_chars = 0
-
-        for k, v in sample.items():
-            if isinstance(v, str):
-                if len(v) > largest_text_field_chars:
-                    largest_text_field_chars = len(v)
-                    config.trainer.dataset_text_field = k 
+        if config.trainer.dataset_text_field is None:
+            # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
+            for k, v in sample.items():
+                if isinstance(v, str):
+                    if len(v) > largest_text_field_chars:
+                        largest_text_field_chars = len(v)
+                        config.trainer.dataset_text_field = k 
+        assert config.trainer.dataset_text_field sample
 
         self.config = config
     quantize_config_map = {'bnb': BitsAndBytesConfig}

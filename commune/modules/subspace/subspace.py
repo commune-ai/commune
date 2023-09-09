@@ -213,9 +213,12 @@ class Subspace(c.Module):
         for key, value in state_dict['balances'].items():
             market_cap += value
 
-        c.print(f'Market Cap: {market_cap}')
-        for modules in state_dict['modules']:
-            for module in modules:
+        # c.print(f'Market Cap: {market_cap}')
+        # for k, stake_to in state_dict['stake_to'][0].items():
+        #     for _, stake in stake_to:
+        #         market_cap += stake
+        for m in state_dict['modules']:
+            for module in m:
                 market_cap += module['stake']
         return c.round_decimals(self.format_amount(market_cap, fmt=fmt), decimals=decimals)
 
@@ -1194,41 +1197,6 @@ class Subspace(c.Module):
 
 
 
-            
-    def save(self, 
-             network:str= None,
-             snap:bool=True, 
-             max_archives:int=100000000000, 
-             update=True):
-        network = self.resolve_network(network)
-        state_dict = self.state_dict(network=network, update=update)
-        if snap:
-            self.snap(state = state_dict,
-                          network=network, 
-                          path=self.latest_archive_path(network=network),
-                          )
-            
-        while self.num_archives(network=network) > max_archives:
-            c.print(f"Removing oldest archive {self.oldest_archive_path(network=network)}")
-            self.rm_json(self.oldest_archive_path(network=network))
-
-        c.print(f"Saved state to {save_path}")
-            
-            
-    @classmethod
-    def archive_paths(cls, network:str=network) -> List[str]:
-        return sorted(cls.glob(f'archive/{network}/state.B*.json'))
-    archives = archive_paths
-
-    @classmethod
-    def archive_times(cls, network:str=network) -> List[str]:
-        return {f: c.get_ts(f) for f in cls.archive_paths(network=network)}
-    
-    @classmethod
-    def remove_archives(cls, network:str=network):
-        for path in cls.archive_paths(network=network):
-            c.print(f"Removing archive {path}")
-            cls.rm_json(path)
     @classmethod
     def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
         # returns a list of archived blocks 
@@ -1237,14 +1205,12 @@ class Subspace(c.Module):
         blocks = [int(b) for b in blocks]
         sorted_blocks = sorted(blocks, reverse=reverse)
         return sorted_blocks
-    @classmethod
-    def num_archives(cls, network:str=network) -> int:
-        return len(cls.archived_blocks(network=network))
+
     @classmethod
     def oldest_archive_path(cls, network:str=network) -> str:
         oldest_archive_block = cls.oldest_archive_block(network=network)
         assert oldest_archive_block != None, f"No archives found for network {network}"
-        return cls.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
+        return cls.resolve_path(f'state_dict/{network}/state.B{oldest_archive_block}.json')
     @classmethod
     def newest_archive_block(cls, network:str=network) -> str:
         blocks = cls.archived_blocks(network=network, reverse=True)
@@ -1478,7 +1444,7 @@ class Subspace(c.Module):
 
     def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
-        return [submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ]
+        return sum([submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ])
 
 
     def regblock(self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
@@ -2221,7 +2187,7 @@ class Subspace(c.Module):
         
     
     def emission(self, netuid = None, network=None, **kwargs):
-        return self.query_subnet('Emission', netuid=netuid, network=network, **kwargs)
+        return [v.value for v in self.query_subnet('Emission', netuid=netuid, network=network, **kwargs)]
         
     def incentive(self, netuid = None, network=None, **kwargs):
         return self.query_subnet('Incentive', netuid=netuid, network=network, **kwargs)
@@ -2308,49 +2274,83 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def search_archives(cls, netuid=0,
-                   start_time = '2023-09-08 04:00:00', 
-                    end_time = '2023-09-08 04:20:00', **kwargs):
+    def search_archives(cls, 
+                   start_time = '2023-09-08 16:00:00', 
+                    end_time = '2023-09-09 0:10:00', netuid=0, **kwargs):
 
-        archives  = cls.archives(**kwargs)
+        archives  = cls.ls_archives(**kwargs)
         for archive_dt, archive_path in cls.datetime2archive().items():
             if archive_dt <= start_time:
-                c.print('skipping', archive_dt)
+                continue
+
+            if archive_dt >= end_time:
                 continue
 
             archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
             archive = c.get(archive_path)
             total_balances = sum([b for b in archive['balances'].values()])
+            # st.write(archive['modules'][netuid][:3])
             total_stake = sum([sum([_[1]for _ in m['stake_from']]) for m in archive['modules'][netuid]])
-            archives += [{'block': archive_block,  'total_stake': total_stake, 'total_balance': total_balances,  'dt': archive_dt,  'block': archive['block'], 'path': archive_path}]
-            c.print(archive_dt)
-            break
+            row = {
+                    'block': archive_block,  
+                    'total_stake': total_stake*1e-9,
+                    'total_balance': total_balances*1e-9, 
+                    'market_cap': (total_stake+total_balances)*1e-9 , 
+                    'dt': archive_dt, 
+                    'block': archive['block'], 
+                    'path': archive_path
+                }
 
-        c.print(archives[0])
+            archives += [row]
 
-        return c.df(archives)
+        return archives
 
-    
+    @classmethod
+    def archive_history(cls, 
+                     network=network, 
+                     netuid= 0, 
+                    start_time = '2023-09-08 16:00:00', 
+                    end_time = '2023-09-09 0:10:00', 
+                     update=False ):
+        path = f'history/{network}.{netuid}.json'
+
+        archive_history = []
+        if not update:
+            archive_history = cls.get(path, [])
+        if len(archive_history) == 0:
+            archive_history =  cls.search_archives(network=network, netuid=netuid, start_time=start_time, end_time=end_time)
+            cls.put(path, archive_history)
+            
+        
+        return archive_history
+        
+
+        
+
+        
+        
+        
 
     @classmethod
     def dashboard(cls):
         import streamlit as st
         block = 7014
         netuid = 0
-        for archive_dt, archive_path in cls.datetime2archive().items():
-            archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
-            if archive_block != block:
-                continue
-            archive = c.get(archive_path)
-            c.print(archive_dt, 'stake: ',archive['subnets'][netuid]['stake'], 'block: ', archive['block'] , 'path: ',  archive_path)
-            break
-        st.write(archive_path)
+        c.module('subspace.dashboard').dashboard()
         
-        modules = archive['modules'][0]
-        subnets = archive['subnets'][0]
-        st.write(subnets)
-        st.write(archive['stake_to'][0].keys())
-        # c.module('subspace.dashboard').dashboard()
+
+
+    @classmethod
+    def st_search_archives(cls,
+                        start_time = '2023-09-08 04:00:00', 
+                        end_time = '2023-09-08 04:30:00'):
+        start_time = st.text_input('start_time', start_time)
+        end_time = st.text_input('end_time', end_time)
+        df = cls.search_archives(end_time=end_time, start_time=start_time)
+
+        
+        st.write(df)
+
     
     @classmethod
     def build_snapshot(cls, 

@@ -14,16 +14,25 @@ class SubspaceDashboard(c.Module):
         self.set_config(config=config)
         self.load_state(sync=False)
         self.key = c.get_key()
+        self.st = c.module('streamlit')()
 
 
     def sync(self):
         return self.load_state(sync=True)
     
+    
+
+
     def load_state(self, sync:bool=False):
+
+
         self.subspace = c.module('subspace')()
-        if sync:
-            self.subspace.sync()
+
+        
+
         self.state = self.subspace.state_dict()
+
+        
         self.netuid = self.config.netuid
         self.subnets = self.state['subnets']
 
@@ -31,42 +40,15 @@ class SubspaceDashboard(c.Module):
         self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
         self.subnet_names = [s['name'] for s in self.subnets]
         self.my_keys = self.subspace.my_keys()
-        self.my_modules = self.subspace.my_modules(fmt='j')
-
+        self.modules = self.state['modules'][self.netuid]
         self.validators = [m for m in self.modules if m['name'].startswith('vali') ]
-        self.my_validators = [m for m in self.my_modules if m['name'].startswith('vali') ]
         self.keys  = c.keys()
         self.key2index = {k:i for i,k in enumerate(self.keys)}
 
-
-    @property
-    def module_names(self):
-        return [m['name'] for m in self.modules]
-
-    @property
-    def subnet(self):
-        if not hasattr(self, '_subnet'):
-            self._subnet = self.subnet_names[0]
-        return self.state['subnets'][self.netuid]['name']
-    
-    @subnet.setter
-    def subnet(self, subnet):
-        self.netuid = self.subnet2netuid[subnet]
-        self._subnet = subnet
-        return self._subnet
-    
-    @property
-    def namespace(self):
-        return {m['name']: m['address'] for m in self.modules}
-
-    @property
-    def modules(self):
-        return self.state['modules'][self.netuid]
-        
-    @property    
-    def subnet_info(self):
-        subnet_info =  self.subnet2info[self.netuid]
-        return subnet_info
+        self.subnet = self.subnet_names[0]
+        self.namespace = {m['name']: m['address'] for m in self.modules}
+        self.module_names = [m['name'] for m in self.modules]
+        self.subnet_info =  self.subnet2info[self.netuid]
     
 
     def select_key(self,):
@@ -140,23 +122,6 @@ class SubspaceDashboard(c.Module):
         
             self.select_key()
 
-
-    def  my_modules_dashboard(self):
-        df = self.get_module_stats(self.modules)
-
-        options = ['emission', 'incentive', 'dividends', 'stake']
-        y = st.selectbox('Select Columns', options, 0)
-        # filter by stake > 1000
-        df = df[df['stake'] > 10**9]
-        histogram = px.histogram(df, y=y, x='name', title='My Modules')
-
-        st.write(histogram)
-        
-        
-        # st.write(self.my_modules)
-        # st.write(self.my_validators)
-        # st.write(self.my_keys)
-
     def get_module_stats(self, modules):
         df = pd.DataFrame(modules)
         del_keys = ['stake_from', 'stake_to', 'key']
@@ -193,17 +158,15 @@ class SubspaceDashboard(c.Module):
         st.write('Starting Dashboard')
         self.sidebar()
         
-        tabs = st.tabs(['Modules', 'Validators', 'Wallet', 'Stats', 'Keys']) 
+        tabs = st.tabs(['Modules', 'Validators', 'Wallet']) 
         with tabs[0]:   
             self.modules_dashboard()
         with tabs[1]:   
             self.validator_dashboard()
         with tabs[2]:
             self.wallet_dashboard()
-        with tabs[3]:
-            self.stats_dashboard()
-        with tabs[4]:
-            self.key_dashboard()
+        # with tabs[4]:
+        #     self.key_dashboard()
 
     def subnet_dashboard(self):
         st.write('# Subnet')
@@ -304,31 +267,45 @@ class SubspaceDashboard(c.Module):
                 st.write(df)
 
     def modules_dashboard(self):
-        self.launch_dashboard(expanded=False)
-        with st.expander('Modules', expanded=False):
-            self.my_modules_dashboard()
+        # self.launch_dashboard(expanded=False)
+        df = self.get_module_stats(self.modules)
+
+        archive_history = self.subspace.archive_history()
+        df = c.df( archive_history)
+        st.write(df)
+        self.st.run(df)
+
+        # options = ['emission', 'incentive', 'dividends', 'stake']
+        # y = st.selectbox('Select Columns', options, 0)
+        # # filter by stake > 1000
+
+        # df = df[df['stake'] > 10**9]
+        # histogram = px.histogram(df, x=y, title='My Modules')
+
+        # st.write(histogram)
+        
     
     def wallet_dashboard(self):
-        # st.write(self.subspace.my_key_info_map())
-        if self.subspace.is_registered(self.key):
-            self.staking_dashboard()
-            self.transfer_dashboard()
-        else:
-            # with emoji
-            st.error('Please Register Your Key')
+        st.write('# Wallet')
+        # if self.subspace.is_registered(self.key):
+        #     self.staking_dashboard()
+        #     self.transfer_dashboard()
+        # else:
+        #     # with emoji
+        #     st.error('Please Register Your Key')
     
     def validator_dashboard(self):
         validators = [{k:v[k] for k in c.copy(list(v.keys())) if k != 'stake_from'} for v in self.validators if v['stake'] > 0]
-        df = c.df(validators)
-        if len(df) == 0:
-            st.error('No Validators')
-            return
+        # df = c.df(validators)
+        # if len(df) == 0:
+        #     st.error('No Validators')
+        #     return
 
-        df['stake'] = df['stake']/1e9
-        df['emission'] = df['emission']/1e9
-        st.dataframe(df)
-        with st.expander('Register Validator', expanded=False):
-            self.launch_dashboard(expanded=False, prefix='vali')
+        # df['stake'] = df['stake']/1e9
+        # df['emission'] = df['emission']/1e9
+        # st.dataframe(df)
+        # with st.expander('Register Validator', expanded=False):
+        #     self.launch_dashboard(expanded=False, prefix='vali')
         
             
     def launch_dashboard(self, expanded=True, prefix= None ):
