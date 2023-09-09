@@ -568,7 +568,7 @@ chain_info:
     - /ip4/24.83.20.198/tcp/2521/p2p/12D3KooWGBHiNnUBEhe6LEfJCZE5H9xRbVnqqmoaDbfJbFAbgw7P
     nodes:
       nonvali_0:
-        boot_nodes: /ip4/24.83.20.198/tcp/2518/p2p/12D3KooWBkxZkiU4qr63uuNng2DshVZmUC5XGotJUjNo8jAyVgZC
+        boot_nodes: /ip4/24.83.20.198/tcp/2521/p2p/12D3KooWGBHiNnUBEhe6LEfJCZE5H9xRbVnqqmoaDbfJbFAbgw7P
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -584,7 +584,7 @@ chain_info:
         verbose: false
         ws_port: 2526
       nonvali_1:
-        boot_nodes: /ip4/24.83.20.198/tcp/2506/p2p/12D3KooWQGmSbfj16PHcaLQALxQzozejBP5CEKYn2fobTZcz5RTt
+        boot_nodes: /ip4/24.83.20.198/tcp/2512/p2p/12D3KooWC5F6pt6rSobdH4u2fwAxvVvFYqtmunro2rC8oMAoCDad
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -616,7 +616,7 @@ chain_info:
         verbose: false
         ws_port: 2532
       nonvali_11:
-        boot_nodes: /ip4/24.83.20.198/tcp/2512/p2p/12D3KooWC5F6pt6rSobdH4u2fwAxvVvFYqtmunro2rC8oMAoCDad
+        boot_nodes: /ip4/24.83.20.198/tcp/2500/p2p/12D3KooWFNHr2Fc8WquRRC4Wc7aAsYRVuZYAWvXnAYRz8vzMo3Q1
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -632,7 +632,7 @@ chain_info:
         verbose: false
         ws_port: 2535
       nonvali_12:
-        boot_nodes: /ip4/24.83.20.198/tcp/2503/p2p/12D3KooWAVzMiR7Zdy2R8MGUEzPsgrs8kgnpEQVgkpSgtow7VGUB
+        boot_nodes: /ip4/24.83.20.198/tcp/2512/p2p/12D3KooWC5F6pt6rSobdH4u2fwAxvVvFYqtmunro2rC8oMAoCDad
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -648,7 +648,7 @@ chain_info:
         verbose: false
         ws_port: 2538
       nonvali_13:
-        boot_nodes: /ip4/24.83.20.198/tcp/2512/p2p/12D3KooWC5F6pt6rSobdH4u2fwAxvVvFYqtmunro2rC8oMAoCDad
+        boot_nodes: /ip4/24.83.20.198/tcp/2515/p2p/12D3KooWQrY2v1zVSuBiUM4CpUQsdkAL8ADah3JEeU9qjANQL4gJ
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -664,7 +664,7 @@ chain_info:
         verbose: false
         ws_port: 2541
       nonvali_14:
-        boot_nodes: /ip4/24.83.20.198/tcp/2521/p2p/12D3KooWGBHiNnUBEhe6LEfJCZE5H9xRbVnqqmoaDbfJbFAbgw7P
+        boot_nodes: /ip4/24.83.20.198/tcp/2509/p2p/12D3KooWM5tM2B9vjjoCaWgz7MN4vqgPw1BneKXL2r4e1FMkUCrN
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -680,7 +680,7 @@ chain_info:
         verbose: false
         ws_port: 2544
       nonvali_15:
-        boot_nodes: /ip4/24.83.20.198/tcp/2518/p2p/12D3KooWBkxZkiU4qr63uuNng2DshVZmUC5XGotJUjNo8jAyVgZC
+        boot_nodes: /ip4/24.83.20.198/tcp/2521/p2p/12D3KooWGBHiNnUBEhe6LEfJCZE5H9xRbVnqqmoaDbfJbFAbgw7P
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -728,7 +728,7 @@ chain_info:
         verbose: false
         ws_port: 2505
       vali_10:
-        boot_nodes: /ip4/24.83.20.198/tcp/2500/p2p/12D3KooWFNHr2Fc8WquRRC4Wc7aAsYRVuZYAWvXnAYRz8vzMo3Q1
+        boot_nodes: /ip4/24.83.20.198/tcp/2503/p2p/12D3KooWAVzMiR7Zdy2R8MGUEzPsgrs8kgnpEQVgkpSgtow7VGUB
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -760,7 +760,7 @@ chain_info:
         verbose: false
         ws_port: 2511
       vali_12:
-        boot_nodes: /ip4/24.83.20.198/tcp/2506/p2p/12D3KooWQGmSbfj16PHcaLQALxQzozejBP5CEKYn2fobTZcz5RTt
+        boot_nodes: /ip4/24.83.20.198/tcp/2509/p2p/12D3KooWM5tM2B9vjjoCaWgz7MN4vqgPw1BneKXL2r4e1FMkUCrN
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -776,7 +776,7 @@ chain_info:
         verbose: false
         ws_port: 2514
       vali_13:
-        boot_nodes: /ip4/24.83.20.198/tcp/2503/p2p/12D3KooWAVzMiR7Zdy2R8MGUEzPsgrs8kgnpEQVgkpSgtow7VGUB
+        boot_nodes: /ip4/24.83.20.198/tcp/2509/p2p/12D3KooWM5tM2B9vjjoCaWgz7MN4vqgPw1BneKXL2r4e1FMkUCrN
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -792,7 +792,7 @@ chain_info:
         verbose: false
         ws_port: 2517
       vali_14:
-        boot_nodes: /ip4/24.83.20.198/tcp/2512/p2p/12D3KooWC5F6pt6rSobdH4u2fwAxvVvFYqtmunro2rC8oMAoCDad
+        boot_nodes: /ip4/24.83.20.198/tcp/2506/p2p/12D3KooWQGmSbfj16PHcaLQALxQzozejBP5CEKYn2fobTZcz5RTt
         chain: main
         ip: 24.83.20.198
         mode: local
@@ -808,7 +808,7 @@ chain_info:
         verbose: false
         ws_port: 2520
       vali_15:
-        boot_nodes: /ip4/24.83.20.198/tcp/2515/p2p/12D3KooWQrY2v1zVSuBiUM4CpUQsdkAL8ADah3JEeU9qjANQL4gJ
+        boot_nodes: /ip4/24.83.20.198/tcp/2506/p2p/12D3KooWQGmSbfj16PHcaLQALxQzozejBP5CEKYn2fobTZcz5RTt
         chain: main
         ip: 24.83.20.198
         mode: local
