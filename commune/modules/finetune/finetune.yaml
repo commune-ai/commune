@@ -6,7 +6,7 @@ dataset:
 device: cuda
 max_length: 1000
 tag : null
-
+train: true
 quantize:
   mode: bnb
   enabled: true

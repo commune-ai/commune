@@ -1935,7 +1935,7 @@ class Subspace(c.Module):
                     'address': address,
                     'name': uid2name[uid],
                     'key': key,
-                    'emission': emission[uid].value,
+                    'emission': emission[uid],
                     'incentive': incentive[uid].value,
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
