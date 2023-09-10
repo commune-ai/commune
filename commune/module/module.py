@@ -4038,7 +4038,19 @@ class c:
 
     required_libs = []
     @classmethod
-    def ensure_libs(cls, libs:List[str] = None, verbose:bool=False):
+    def ensure_libs(cls, *libs, verbose:bool=False):
+        assert len(libs) > 0, 'No libraries specified'
+        if len(libs) == 1:
+            if isinstance(libs[0], list):
+                libs = libs[0]
+        elif len(libs) == 0:
+            raise Exception('No libraries specified')
+        elif len(libs) > 1:
+            libs = list(libs)
+        else:
+            raise Exception('No libraries specified, WTF WAS THIS')
+
+            
         if libs == None:
             libs = cls.required_libs
         r = []

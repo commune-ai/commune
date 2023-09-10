@@ -33,6 +33,8 @@ class FineTuner(c.Module):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model)
         quantization_config = self.get_quantize_config(config)
         self.model = AutoModelForCausalLM.from_pretrained(config.model, quantization_config=quantization_config)
+        if config.load:
+            self.load_checkpoint()
 
     
     def set_dataset(self, config):
@@ -82,30 +84,31 @@ class FineTuner(c.Module):
         except Exception as e:
             self.logger.error(f"Failed to generate the text: {e}")
             raise
+    
+    forward = __call__
 
+    @property
+    def checkpoint_path(self) -> str:
+        return self.resolve_path( self.config.trainer.args.output_dir + '/' +  self.tag)
+
+    def load_checkpoint(self):
+        if c.exists(self.checkpoint_path):
+            self.model.from_pretrained(self.checkpoint_path)
+        else:
+            c.print(f'No checkpoint found at {self.checkpoint_path}')
+    
+    def save_checkpoint(self):
+        if not c.exists(self.checkpoint_path):
+            c.mkdir(os.path.dirname(self.checkpoint_path))
+        self.trainer.model.save_pretrained(self.checkpoint_path)
 
     def resolve_config(self) -> str:
-        output_dir = self.config.trainer.args.output_dir.format(tag=self.tag if self.tag else 'default')
-        output_dir =  self.resolve_path(output_dir)
-        self.config.trainer.args.output_dir = output_dir
-        return output_dir
+        self.config.trainer.args.output_dir = self.model_path
+        return config
 
 
-    def set_trainer(self, config):
-        if self.config.trainer.task_type == 'CAUSAL_LM':
-            self.peft_config = LoraConfig(**self.config.trainer.lora)
-            self.model = prepare_model_for_int8_training(self.model)
-            self.model = get_peft_model(self.model, self.peft_config)
-            self.trainer = SFTTrainer(
-                model=self.model,
-                train_dataset=self.dataset,
-                peft_config=self.peft_config,
-                dataset_text_field=self.config.trainer.dataset_text_field,
-                max_seq_length=self.config.trainer.max_seq_length,
-                tokenizer=self.tokenizer,
-                args=TrainingArguments(**self.config.trainer.args),
-            )
-    def train(self):
+    def train(self, config):
+        self.set_trainer(config)
         self.trainer.train()
         self.save_checkpoint()
 
@@ -113,7 +116,6 @@ class FineTuner(c.Module):
         checkpoint_output_dir = self.config.trainer.output_dir +  "/final_checkpoint"
         self.trainer.model.save_pretrained(checkpoint_output_dir)
     #lora config
-
 
     def generate(self, prompt_text: str, max_length: int = None):
         max_length = max_length if max_length else self.config.max_length
@@ -125,6 +127,10 @@ class FineTuner(c.Module):
         except Exception as e:
             self.logger.error(f"Failed to generate the text: {e}")
             raise
+
+    @classmethod
+    def ensure_env(cls):
+        c.ensure_libs(['transformers', 'datasets', 'trl', 'peft'])
 
 
 
