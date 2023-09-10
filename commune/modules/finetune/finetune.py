@@ -51,7 +51,7 @@ class FineTuner(c.Module):
                     if len(v) > largest_text_field_chars:
                         largest_text_field_chars = len(v)
                         config.trainer.dataset_text_field = k 
-        assert config.trainer.dataset_text_field sample
+        assert config.trainer.dataset_text_field in sample, f"dataset_text_field {config.trainer.dataset_text_field} not in dataset"
 
         self.config = config
     quantize_config_map = {'bnb': BitsAndBytesConfig}
