@@ -24,8 +24,8 @@ class FineTuner(c.Module):
         self.logger = logging.getLogger(__name__)
         self.set_dataset(config)
         self.set_model(config)
-        if config.train:
-            self.train()
+        self.set_trainer(config)
+        self.train()
 
     def set_model(self, config):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model)
