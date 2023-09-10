@@ -1444,7 +1444,7 @@ class Subspace(c.Module):
 
     def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
-        return sum([submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ])
+        return [submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ]
 
 
     def regblock(self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
@@ -2276,9 +2276,11 @@ class Subspace(c.Module):
     @classmethod
     def search_archives(cls, 
                    start_time = '2023-09-08 16:00:00', 
-                    end_time = '2023-09-09 0:10:00', netuid=0, **kwargs):
+                    end_time = '2023-09-09 0:10:00', 
+                    netuid=0, 
+                    **kwargs):
 
-        archives  = cls.ls_archives(**kwargs)
+        archives = []
         for archive_dt, archive_path in cls.datetime2archive().items():
             if archive_dt <= start_time:
                 continue
@@ -2311,7 +2313,7 @@ class Subspace(c.Module):
                      netuid= 0, 
                     start_time = '2023-09-08 16:00:00', 
                     end_time = '2023-09-09 0:10:00', 
-                     update=False ):
+                     update=True ):
         path = f'history/{network}.{netuid}.json'
 
         archive_history = []
@@ -2972,15 +2974,16 @@ class Subspace(c.Module):
             node_info['ws_port'] = ws_port = free_ports[2]
         # resolve base path
         base_path = cls.resolve_base_path(node=node, chain=chain)
+        
+        # purge chain
+        if purge_chain:
+            cls.purge_chain(base_path=base_path)
+            
         cmd_kwargs = f' --base-path {base_path}'
 
         chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
-        
-
-        # purge chain
-        if purge_chain:
-            cls.purge_chain(base_path=base_path)
+    
             
         if validator :
             cmd_kwargs += ' --validator'
