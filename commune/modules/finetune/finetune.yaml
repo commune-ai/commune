@@ -37,3 +37,5 @@ trainer:
     lora_dropout: 0.1
     bias: "none"
     task_type: CAUSAL_LM
+
+load: true

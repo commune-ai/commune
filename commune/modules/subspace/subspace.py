@@ -205,18 +205,32 @@ class Subspace(c.Module):
                 key2tokens[key] += stake
             
         return key2tokens
-    
-    def market_cap(self, network = network, fmt='j', decimals=2, update=False):
-        state_dict = self.state_dict(network=network, update=update)
-        
-        market_cap = 0
+
+    def total_balance(self, network = None, fmt='j', decimals=2, state_dict = None):
+        state_dict = self.state_dict(network=network) if state_dict == None else state_dict
+        total_balance = 0
         for key, value in state_dict['balances'].items():
-            market_cap += value
+            total_balance += value
+        return total_balance
+
+    def total_stake(self, network = None, fmt='j', decimals=2, state_dict = None):
+        state_dict = self.state_dict(network=network) if state_dict == None else state_dict
+        total_stake = 0
+        for key, value in state_dict['balances'].items():
+            total_stake += value
+        return total_stake
+        
+    def market_cap(self, network = network, fmt:str='j', decimals=2, update=False):
+
+        state_dict = self.state_dict(network=network, update=update)
+        market_cap = 0
 
         c.print(f'Market Cap: {market_cap}')
+
         for modules in state_dict['modules']:
             for module in modules:
                 market_cap += module['stake']
+
         return c.round_decimals(self.format_amount(market_cap, fmt=fmt), decimals=decimals)
 
     mcap = market_cap
@@ -378,15 +392,14 @@ class Subspace(c.Module):
 
 
         network =self.resolve_network(network)
-        netuid = self.get_netuid_for_subnet(subnet)
         address = c.namespace(network='local').get(name)
         address = address.replace('0.0.0.0',c.ip())
-
-
         key = self.resolve_key(name)
 
-        if self.is_registered(key.ss58_address, netuid=netuid):
-            return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+        if self.subnet_exists(subnet, network=network):
+            netuid = self.get_netuid_for_subnet(subnet)
+            if self.is_registered(key.ss58_address, netuid=netuid):
+                return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
 
         stake = stake if stake != None else self.get_balance(key, fmt='n')
 
@@ -1408,13 +1421,12 @@ class Subspace(c.Module):
             self.sync(network=network, remote=remote, local=local, save=save)
             c.sleep(interval)
 
+    def subnet_exists(self, subnet:str, network=None) -> bool:
+        subnets = self.subnets(network=network)
+        return bool(subnet in subnets)
+
     def subnet_states(self, *args, **kwargs):
-        update = kwargs.get('update', False)
-        cache = kwargs.get('cache', True)
-    
-        if cache and not update:
-            c.print('Loading subnet_states from cache')
-            return self.state_dict(key='subnets')
+
         subnet_states = {}
         for netuid in self.netuids():
             subnet_state = self.subnet_state(*args,  netuid=netuid, **kwargs)
@@ -1429,7 +1441,12 @@ class Subspace(c.Module):
                     network = network) -> list:
         
         if cache:
-            subnet_state =  self.state_dict(network=network, key='subnets', update=update )[netuid]
+            subnet_states =  self.state_dict(network=network, key='subnets', update=update )
+            if len(subnet_states) > netuid:
+                return subnet_states[netuid]
+            
+
+            
             
         subnet_stake = self.query_subspace( 'SubnetTotalStake', params=[netuid] ).value
         subnet_emission = self.query_subspace( 'SubnetEmission', params=[netuid] ).value
@@ -1479,6 +1496,10 @@ class Subspace(c.Module):
     def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
         return [submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ]
+
+    def total_emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
+        netuid = self.resolve_netuid( netuid )
+        return sum([submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ])
 
 
     def regblock(self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
