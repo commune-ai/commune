@@ -101,6 +101,7 @@ class FineTuner(c.Module):
                 args=TrainingArguments(**self.config.trainer.args),
             )
     def train(self):
+        self.set_trainer(self.config)
         self.trainer.train()
         self.save_checkpoint()
 
