@@ -27,14 +27,11 @@ class FineTuner(c.Module):
         if config.train:
             self.train()
 
-        
-
     def set_model(self, config):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model)
         quantization_config = self.get_quantize_config(config)
         self.model = AutoModelForCausalLM.from_pretrained(config.model, quantization_config=quantization_config)
 
-    
     def set_dataset(self, config):
 
         if c.module_exists(config.dataset.get('module', None)):
@@ -60,8 +57,6 @@ class FineTuner(c.Module):
         '''
         get quantize config
         '''
-
-
         if config.quantize.enabled:
             mode = config.quantize.mode
 
@@ -83,7 +78,6 @@ class FineTuner(c.Module):
         except Exception as e:
             self.logger.error(f"Failed to generate the text: {e}")
             raise
-
 
     def resolve_config(self) -> str:
         output_dir = self.config.trainer.args.output_dir.format(tag=self.tag if self.tag else 'default')
