@@ -3189,6 +3189,7 @@ class c:
             c.print(f'Launching {module} with command: {command}', color='green')
             
         stdout = c.cmd(command, env=env, verbose=verbose)
+        
         return stdout
 
     @classmethod

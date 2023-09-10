@@ -1,15 +1,12 @@
-model: togethercomputer/LLaMA-2-7B-32K
-# dataset: 
-#   path: opentensor/openvalidators
-#   split: train
-
+model: robertmyers/targon-7b
 dataset: 
-  module: finetune.data
+  path: Anthropic/hh-rlhf
+  split: train
 
 device: cuda
 max_length: 1000
 tag : null
-
+train: true
 quantize:
   mode: bnb
   enabled: true
@@ -19,8 +16,9 @@ quantize:
     bnb_4bit_quant_type: nf4
     bnb_4bit_compute_dtype: torch.bfloat16
     pretraining_tp: 1
-train: true
+
 trainer:
+  dataset_text_field: chosen
   task_type: CAUSAL_LM
   args:
     per_device_train_batch_size: 4
@@ -29,7 +27,6 @@ trainer:
     learning_rate: 0.0002
     logging_steps: 100
     max_steps: 500
-  dataset_text_field: text
   max_seq_length: 1000
   lora:
     r: 64
