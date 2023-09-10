@@ -101,6 +101,10 @@ class FineTuner(c.Module):
                 tokenizer=self.tokenizer,
                 args=TrainingArguments(**self.config.trainer.args),
             )
+    def train(self):
+        self.trainer.train()
+        self.save_checkpoint()
+
     def save_checkpoint(self):
         checkpoint_output_dir = self.config.trainer.output_dir +  "/final_checkpoint"
         self.trainer.model.save_pretrained(checkpoint_output_dir)
