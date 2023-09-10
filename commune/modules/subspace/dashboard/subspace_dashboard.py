@@ -269,12 +269,35 @@ class SubspaceDashboard(c.Module):
     def modules_dashboard(self):
         # self.launch_dashboard(expanded=False)
         df = self.get_module_stats(self.modules)
-
         archive_history = self.subspace.archive_history()
-        df = c.df( archive_history)
+        df = c.df(archive_history[1:])
+        df
+        df['dt'] = pd.to_datetime(df['dt'])
         st.write(df)
-        self.st.run(df)
 
+
+        # plot the history of the archive
+        df['dif_market_cap'] = df['total_stake'].diff()
+        df['diff_block'] = df['block'].diff()
+        df['dif_market_cap'] = df['dif_market_cap']/df['diff_block']
+        fig = px.line(df, x='block', y='dif_market_cap', title='Archive History')
+
+        block2path= {b:df['path'][i] for i,b in enumerate(df['block'])}
+        blocks = list(block2path.keys())
+        paths = list(block2path.values())
+        block = st.select_slider('Block', blocks, blocks[0])
+        path = block2path[block]
+        state = c.get(path)
+        st.write(state.keys())
+        df = pd.DataFrame(state['modules'])
+        st.write(df)
+        subnet_df = pd.DataFrame(state['subnets'])
+        st.write(subnet_df)
+        # st.write(state)
+
+        
+
+        st.write(fig)
         # options = ['emission', 'incentive', 'dividends', 'stake']
         # y = st.selectbox('Select Columns', options, 0)
         # # filter by stake > 1000

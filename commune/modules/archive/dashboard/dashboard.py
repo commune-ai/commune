@@ -242,15 +242,7 @@ class Dashboard(commune.Module):
         self.streamlit_module_launcher(module=self.module)
 
 
-    @staticmethod
-    def local_css(file_name=os.path.dirname(__file__)+'/style.css'):
-        import streamlit as st
-        
-        
-        with open(file_name) as f:
-            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
- 
-        
+
 
 if __name__ == '__main__':
     Dashboard.streamlit()
