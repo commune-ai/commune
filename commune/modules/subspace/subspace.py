@@ -30,6 +30,7 @@ class Subspace(c.Module):
     """
     Handles interactions with the subspace chain.
     """
+    fmt = 'j'
     whitelist = []
     chain_name = 'subspace'
     default_config = c.get_config(chain_name, to_munch=False)
@@ -161,7 +162,7 @@ class Subspace(c.Module):
             c.sleep(sleep_interval)
             self.vote_pool(*args, **kwargs)
 
-    def key2stake(self,netuid = None, network = None, fmt='j',  decimals=2):
+    def key2stake(self,netuid = None, network = None, fmt=fmt,  decimals=2):
         stakes = {m['key']: c.round_decimals(m['stake'], decimals=decimals) \
                      for m in self.my_modules(netuid=netuid, network=network, fmt=fmt)}
         key2address = c.key2address()
@@ -172,11 +173,11 @@ class Subspace(c.Module):
 
         return key2stake
 
-    def key2staketo(self,netuid = None, network = None, fmt='j',  decimals=2):
+    def key2staketo(self,netuid = None, network = None, fmt=fmt,  decimals=2):
         staketo = self.stake_to(netuid=netuid, network=network, fmt=fmt)
         my_keys = self.my_keys()
         return key2stake
-    def key2balance(self, network = None, fmt='j', decimals=2):
+    def key2balance(self, network = None, fmt=fmt, decimals=2):
         network = self.resolve_network(network)
         
         key2address  = c.key2address()
@@ -188,7 +189,7 @@ class Subspace(c.Module):
                 key2balance[key_name]= c.round_decimals(balances[address], decimals=decimals)
         return key2balance
 
-    def key2tokens(self, network = None, fmt='j', decimals=2):
+    def key2tokens(self, network = None, fmt=fmt, decimals=2):
         key2tokens = {}
         key2balance = self.key2balance(network=network, fmt=fmt, decimals=decimals)
         for key, balance in key2balance.items():
@@ -206,55 +207,39 @@ class Subspace(c.Module):
             
         return key2tokens
 
-    def total_balance(self, network = None, fmt='j', decimals=2, state_dict = None):
-        state_dict = self.state_dict(network=network) if state_dict == None else state_dict
+    def total_balance(self, network = None, fmt=fmt, update=False):
+        state_dict = self.state_dict(network=network, update=update)
         total_balance = 0
         for key, value in state_dict['balances'].items():
             total_balance += value
-        return total_balance
+        return self.format_amount(total_balance, fmt=fmt)
 
-    def total_stake(self, network = None, fmt='j', decimals=2, state_dict = None):
-        state_dict = self.state_dict(network=network) if state_dict == None else state_dict
-        total_stake = 0
-        for key, value in state_dict['balances'].items():
-            total_stake += value
-        return total_stake
-        
-    def market_cap(self, network = network, fmt:str='j', decimals=2, update=False):
-
+    def total_stake(self, network = None, fmt=fmt, update=False):
         state_dict = self.state_dict(network=network, update=update)
-        market_cap = 0
-
-        c.print(f'Market Cap: {market_cap}')
-
+        total_stake = 0
         for modules in state_dict['modules']:
             for module in modules:
-                market_cap += module['stake']
+                total_stake += module['stake']
+        return self.format_amount(total_stake, fmt=fmt)
+    
+    def market_cap(self, network = network, fmt:str='j', decimals:int=2, update=False):
 
-        return c.round_decimals(self.format_amount(market_cap, fmt=fmt), decimals=decimals)
-
+        total_balance = self.total_balance(network=network, fmt=fmt, update=update)
+        total_stake = self.total_stake(network=network, fmt=fmt, update=False) # update=False because we already updated above if needed.
+        return c.round_decimals(total_balance + total_stake, decimals=decimals) # update=False because we already updated above if needed.
     mcap = market_cap
     
-    def total_stake(self, network = None, fmt='j', decimals=2):
-        state_dict = self.state_dict(network=network)
-        total_stake = 0
-        for modules in state_dict['modules']:
-            for module in modules:
-                if len(module['weights']) > 0:
-                    total_stake += module['stake']
-        return c.round_decimals(self.format_amount(total_stake, fmt=fmt), decimals=decimals)
-    
 
-    def my_tokens(self, network = None,fmt='j', decimals=2):
+    def my_tokens(self, network = None,fmt=fmt, decimals=2):
         return sum(self.key2tokens(network=network, fmt=fmt, decimals=decimals).values())
 
     key2value = key2tokens
     my_value = my_tokens
     networth = my_tokens
     
-    def my_stake(self, network = None, netuid=None, fmt='j', decimals=2):
+    def my_stake(self, network = None, netuid=None, fmt=fmt, decimals=2):
         return sum(self.key2stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals).values())
-    def my_balance(self, network = None, fmt='j', decimals=2):
+    def my_balance(self, network = None, fmt=fmt, decimals=2):
         return sum(self.key2balance(network=network, fmt=fmt, decimals=decimals).values())
     #####################
     #### Set Weights ####
@@ -352,7 +337,6 @@ class Subspace(c.Module):
         return netuid
 
     def update(self):
-        # self.modules(cache=False)
         self.sync()
 
 
@@ -371,13 +355,21 @@ class Subspace(c.Module):
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
         c.print(servers)
+    def register_ghosts(self, n=10, **kwargs):
+        ip = c.ip()
+        for i in range(n):
+            self.register(name=f'ghost{i}',
+                         address= ip + ':' + str(8000 + i), 
+                          **kwargs)
+
 
     def register(
         self,
-        name: str , # defaults to module.tag
+        name: str , # defaults to module.tage
         stake : int = None,
         subnet: str = None,
         key : str  = None,
+        address : str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         network: str = network,
@@ -392,7 +384,7 @@ class Subspace(c.Module):
 
 
         network =self.resolve_network(network)
-        address = c.namespace(network='local').get(name)
+        address = c.namespace(network='local').get(name, address)
         address = address.replace('0.0.0.0',c.ip())
         key = self.resolve_key(name)
 
@@ -967,7 +959,6 @@ class Subspace(c.Module):
                   *params,
                   block: Optional[int] = None, 
                   network:str = None,
-                  cache = False,
                   max_age = 60,
                   page_size=1000,
                   max_results=100000,
@@ -1202,46 +1193,11 @@ class Subspace(c.Module):
     def block(self, network:str=None) -> int:
         return self.get_current_block(network=network)
 
-    def total_stake (self,block: Optional[int] = None ) -> 'Balance':
-        return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
+    # def total_stake (self,block: Optional[int] = None ) -> 'Balance':
+    #     return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
 
 
 
-            
-    def save(self, 
-             network:str= None,
-             snap:bool=True, 
-             max_archives:int=100000000000, 
-             update=True):
-        network = self.resolve_network(network)
-        state_dict = self.state_dict(network=network, update=update)
-        if snap:
-            self.snap(state = state_dict,
-                          network=network, 
-                          path=self.latest_archive_path(network=network),
-                          )
-            
-        while self.num_archives(network=network) > max_archives:
-            c.print(f"Removing oldest archive {self.oldest_archive_path(network=network)}")
-            self.rm_json(self.oldest_archive_path(network=network))
-
-        c.print(f"Saved state to {save_path}")
-            
-            
-    @classmethod
-    def archive_paths(cls, network:str=network) -> List[str]:
-        return sorted(cls.glob(f'archive/{network}/state.B*.json'))
-    archives = archive_paths
-
-    @classmethod
-    def archive_times(cls, network:str=network) -> List[str]:
-        return {f: c.get_ts(f) for f in cls.archive_paths(network=network)}
-    
-    @classmethod
-    def remove_archives(cls, network:str=network):
-        for path in cls.archive_paths(network=network):
-            c.print(f"Removing archive {path}")
-            cls.rm_json(path)
     @classmethod
     def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
         # returns a list of archived blocks 
@@ -1250,14 +1206,12 @@ class Subspace(c.Module):
         blocks = [int(b) for b in blocks]
         sorted_blocks = sorted(blocks, reverse=reverse)
         return sorted_blocks
-    @classmethod
-    def num_archives(cls, network:str=network) -> int:
-        return len(cls.archived_blocks(network=network))
+
     @classmethod
     def oldest_archive_path(cls, network:str=network) -> str:
         oldest_archive_block = cls.oldest_archive_block(network=network)
         assert oldest_archive_block != None, f"No archives found for network {network}"
-        return cls.resolve_path(f'archive/{network}/state.B{oldest_archive_block}.json')
+        return cls.resolve_path(f'state_dict/{network}/state.B{oldest_archive_block}.json')
     @classmethod
     def newest_archive_block(cls, network:str=network) -> str:
         blocks = cls.archived_blocks(network=network, reverse=True)
@@ -1305,7 +1259,7 @@ class Subspace(c.Module):
             
     
     
-    _state_dict = None
+    state_dict_cache = {}
     def state_dict(self,
                     network=network, 
                     key: Union[str, list]=None, 
@@ -1314,17 +1268,17 @@ class Subspace(c.Module):
                     verbose:bool=False, 
                     **kwargs):
         # cache and update are mutually exclusive 
-        state_dict = {}
         if  update == False:
-            if self._state_dict is None:
-                self._state_dict = state_dict
             c.print('Loading state_dict from cache', verbose=verbose)
             state_dict = self.latest_archive(network=network)
+            if len(state_dict) > 0:
+                self.state_dict_cache = state_dict
 
-        if len(state_dict) == 0:
+
+        if len(self.state_dict_cache) == 0 :
             block = self.block
             netuids = self.netuids()
-            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network,cache=False) for netuid in netuids], 
+            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network, cache=False) for netuid in netuids], 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network) for netuid in netuids] ,
                         'balances': self.balances(network=network),
@@ -1334,8 +1288,12 @@ class Subspace(c.Module):
 
             path = f'state_dict/{network}.block-{self.block}-time-{int(c.time())}'
             c.print(f'Saving state_dict to {path}', verbose=verbose)
-            self.put(path, state_dict)
 
+            
+            self.put(path, state_dict) # put it in storage
+            self.state_dict_cache = state_dict # update it in memory
+
+        state_dict = c.copy(self.state_dict_cache)
         if key in state_dict:
             return state_dict[key]
         if isinstance(key,list):
@@ -1427,27 +1385,24 @@ class Subspace(c.Module):
 
     def subnet_states(self, *args, **kwargs):
 
-        subnet_states = {}
+        subnet_states = []
         for netuid in self.netuids():
             subnet_state = self.subnet_state(*args,  netuid=netuid, **kwargs)
-            subnet_states[subnet_state['name']] = subnet_state
+            subnet_states.append(subnet_state)
         return subnet_states
             
     
     def subnet_state(self, 
                     netuid=netuid,
-                    cache: bool = True,
+                    network = network,
                     update: bool = False,
-                    network = network) -> list:
+                    cache:bool = True) -> list:
         
-        if cache:
+        
+        if cache and not update:
             subnet_states =  self.state_dict(network=network, key='subnets', update=update )
             if len(subnet_states) > netuid:
                 return subnet_states[netuid]
-            
-
-            
-            
         subnet_stake = self.query_subspace( 'SubnetTotalStake', params=[netuid] ).value
         subnet_emission = self.query_subspace( 'SubnetEmission', params=[netuid] ).value
         subnet_founder = self.query_subspace( 'Founder', params=[netuid] ).value
@@ -1590,7 +1545,6 @@ class Subspace(c.Module):
                 key : str , 
                  netuid=None, 
                  fmt='j',
-                 cache = True, 
                  cols=[ 'stake_from', 'stake_to', 'stake'],
                 **kwargs):
         
@@ -1604,7 +1558,7 @@ class Subspace(c.Module):
         for netuid in self.netuids():
             subnet_key_stats = {}
         
-            module = self.key2module(key=key,netuid=netuid, fmt=fmt, cache=True)
+            module = self.key2module(key=key,netuid=netuid, fmt=fmt)
             register = bool(module.get('name', False))
             if register == False:
                 continue
@@ -1741,27 +1695,9 @@ class Subspace(c.Module):
         return sorted(list(self.subnet_namespace.values()))
 
     @property
-    def subnet_namespace(self, cache:bool = True, max_age:int=60, network=network ) -> Dict[str, str]:
-        
-        # Get the namespace for the netuid.
-        cache_path = f'archive/{network}/subnet_namespace'
-        subnet_namespace = {}
-        if cache:
-            cached_subnet_namespace = self.get(cache_path, None, max_age= max_age, cache=cache)
-            if cached_subnet_namespace != None :
-                return cached_subnet_namespace
-            
-            
+    def subnet_namespace(self, network=network ) -> Dict[str, str]:
         records = self.query_map('SubnetNamespace')
-        
-        for r in records:
-            name = r[0].value
-            uid = int(r[1].value)
-            subnet_namespace[name] = int(uid)
-        
-        if cache:
-            self.put(cache_path, subnet_namespace)
-        return subnet_namespace
+        return {k.value:v.value for k,v in records}
 
     
     @property
@@ -1990,7 +1926,7 @@ class Subspace(c.Module):
                     'address': address,
                     'name': uid2name[uid],
                     'key': key,
-                    'emission': emission[uid].value,
+                    'emission': emission[uid],
                     'incentive': incentive[uid].value,
                     'dividends': dividends[uid].value,
                     'stake': stake.get(key, -1),
@@ -2242,7 +2178,7 @@ class Subspace(c.Module):
         
     
     def emission(self, netuid = None, network=None, **kwargs):
-        return self.query_subnet('Emission', netuid=netuid, network=network, **kwargs)
+        return [v.value for v in self.query_subnet('Emission', netuid=netuid, network=network, **kwargs)]
         
     def incentive(self, netuid = None, network=None, **kwargs):
         return self.query_subnet('Incentive', netuid=netuid, network=network, **kwargs)
@@ -2329,49 +2265,85 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def search_archives(cls, netuid=0,
-                   start_time = '2023-09-08 04:00:00', 
-                    end_time = '2023-09-08 04:20:00', **kwargs):
+    def search_archives(cls, 
+                   start_time = '2023-09-08 16:00:00', 
+                    end_time = '2023-09-09 0:10:00', 
+                    netuid=0, 
+                    **kwargs):
 
-        archives  = cls.archives(**kwargs)
+        archives = []
         for archive_dt, archive_path in cls.datetime2archive().items():
             if archive_dt <= start_time:
-                c.print('skipping', archive_dt)
+                continue
+
+            if archive_dt >= end_time:
                 continue
 
             archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
             archive = c.get(archive_path)
             total_balances = sum([b for b in archive['balances'].values()])
+            # st.write(archive['modules'][netuid][:3])
             total_stake = sum([sum([_[1]for _ in m['stake_from']]) for m in archive['modules'][netuid]])
-            archives += [{'block': archive_block,  'total_stake': total_stake, 'total_balance': total_balances,  'dt': archive_dt,  'block': archive['block'], 'path': archive_path}]
-            c.print(archive_dt)
-            break
+            row = {
+                    'block': archive_block,  
+                    'total_stake': total_stake*1e-9,
+                    'total_balance': total_balances*1e-9, 
+                    'market_cap': (total_stake+total_balances)*1e-9 , 
+                    'dt': archive_dt, 
+                    'block': archive['block'], 
+                    'path': archive_path
+                }
 
-        c.print(archives[0])
+            archives += [row]
 
-        return c.df(archives)
+        return archives
 
-    
+    @classmethod
+    def archive_history(cls, 
+                     network=network, 
+                     netuid= 0, 
+                    start_time = '2023-09-08 16:00:00', 
+                    end_time = '2023-09-09 0:10:00', 
+                     update=True ):
+        path = f'history/{network}.{netuid}.json'
+
+        archive_history = []
+        if not update:
+            archive_history = cls.get(path, [])
+        if len(archive_history) == 0:
+            archive_history =  cls.search_archives(network=network, netuid=netuid, start_time=start_time, end_time=end_time)
+            cls.put(path, archive_history)
+            
+        
+        return archive_history
+        
+
+        
+
+        
+        
+        
 
     @classmethod
     def dashboard(cls):
         import streamlit as st
         block = 7014
         netuid = 0
-        for archive_dt, archive_path in cls.datetime2archive().items():
-            archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
-            if archive_block != block:
-                continue
-            archive = c.get(archive_path)
-            c.print(archive_dt, 'stake: ',archive['subnets'][netuid]['stake'], 'block: ', archive['block'] , 'path: ',  archive_path)
-            break
-        st.write(archive_path)
+        c.module('subspace.dashboard').dashboard()
         
-        modules = archive['modules'][0]
-        subnets = archive['subnets'][0]
-        st.write(subnets)
-        st.write(archive['stake_to'][0].keys())
-        # c.module('subspace.dashboard').dashboard()
+
+
+    @classmethod
+    def st_search_archives(cls,
+                        start_time = '2023-09-08 04:00:00', 
+                        end_time = '2023-09-08 04:30:00'):
+        start_time = st.text_input('start_time', start_time)
+        end_time = st.text_input('end_time', end_time)
+        df = cls.search_archives(end_time=end_time, start_time=start_time)
+
+        
+        st.write(df)
+
     
     @classmethod
     def build_snapshot(cls, 
@@ -2993,15 +2965,16 @@ class Subspace(c.Module):
             node_info['ws_port'] = ws_port = free_ports[2]
         # resolve base path
         base_path = cls.resolve_base_path(node=node, chain=chain)
+        
+        # purge chain
+        if purge_chain:
+            cls.purge_chain(base_path=base_path)
+            
         cmd_kwargs = f' --base-path {base_path}'
 
         chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
-        
-
-        # purge chain
-        if purge_chain:
-            cls.purge_chain(base_path=base_path)
+    
             
         if validator :
             cmd_kwargs += ' --validator'

@@ -24,10 +24,9 @@ class FineTuner(c.Module):
         self.logger = logging.getLogger(__name__)
         self.set_dataset(config)
         self.set_model(config)
+        self.set_trainer(config)
         if config.train:
             self.train()
-
-        
 
     def set_model(self, config):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model)
@@ -36,7 +35,6 @@ class FineTuner(c.Module):
         if config.load:
             self.load_checkpoint()
 
-    
     def set_dataset(self, config):
 
         if c.module_exists(config.dataset.get('module', None)):
@@ -44,15 +42,16 @@ class FineTuner(c.Module):
         else:
             self.dataset = load_dataset(**config.dataset)
 
-        # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
         sample = self.dataset[0]
         largest_text_field_chars = 0
-
-        for k, v in sample.items():
-            if isinstance(v, str):
-                if len(v) > largest_text_field_chars:
-                    largest_text_field_chars = len(v)
-                    config.trainer.dataset_text_field = k 
+        if config.trainer.dataset_text_field is None:
+            # FIND THE LARGEST TEXT FIELD IN THE DATASET TO USE AS THE TEXT FIELD
+            for k, v in sample.items():
+                if isinstance(v, str):
+                    if len(v) > largest_text_field_chars:
+                        largest_text_field_chars = len(v)
+                        config.trainer.dataset_text_field = k 
+        assert config.trainer.dataset_text_field in sample, f"dataset_text_field {config.trainer.dataset_text_field} not in dataset"
 
         self.config = config
     quantize_config_map = {'bnb': BitsAndBytesConfig}
@@ -61,8 +60,6 @@ class FineTuner(c.Module):
         '''
         get quantize config
         '''
-
-
         if config.quantize.enabled:
             mode = config.quantize.mode
 
