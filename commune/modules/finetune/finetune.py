@@ -18,19 +18,110 @@ from transformers import (
 
 class FineTuner(c.Module):
 
+    quantize_config_map = {'bnb': BitsAndBytesConfig}
+
     def __init__(self, config=None, **kwargs):
         config = self.set_config(config, kwargs=kwargs)
-        self.resolve_config()
         self.logger = logging.getLogger(__name__)
-        self.set_dataset(config)
         self.set_model(config)
-        self.set_trainer(config)
         if config.train:
-            self.train()
+            self.train(config)
+    def forward(self, prompt_text: str, max_length: int = None):
+        max_length = max_length if max_length else self.config.max_length
+        try:
+            inputs = self.tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
+            with torch.no_grad():
+                outputs = self.model.generate(inputs, max_length=max_length, do_sample=True)
+            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        except Exception as e:
+            self.logger.error(f"Failed to generate the text: {e}")
+            raise
+    
+    __call__ = forward 
+
+    @property
+    def checkpoint_path(self) -> str:
+        return self.resolve_path( self.config.model + '.' +  self.tag)
+
+    def load_checkpoint(self):
+        if c.exists(self.checkpoint_path):
+            self.model.from_pretrained(self.checkpoint_path)
+            msg = {'success': True, 'message': 'loaded checkpoint'}
+        else:
+            msg = {'success': False, 'message': f'No checkpoint found at {self.checkpoint_path}'}
+        c.print(msg)
+        return msg
+
+        
+
+    def save_checkpoint(self):
+        if not c.exists(self.checkpoint_path):
+            c.mkdir(os.path.dirname(self.checkpoint_path))
+        self.trainer.model.save_pretrained(self.checkpoint_path)
+        msg = {'success': True, 'message': f'saved checkpoint to {self.checkpoint_path}'}
+        c.print(msg)
+        return msg
+
+
+    def train(self, config):
+        self.set_trainer(config)
+        for epoch in range(config.trainer.num_epochs):
+            c.print(f"Epoch {epoch}")
+            self.trainer.train()
+            self.save_checkpoint()
+
+    def set_trainer(self, config):
+        if self.config.trainer.task_type == 'CAUSAL_LM':
+            self.peft_config = LoraConfig(**self.config.trainer.lora)
+            self.model = prepare_model_for_int8_training(self.model)
+            self.model = get_peft_model(self.model, self.peft_config)
+            self.trainer = SFTTrainer(
+                model=self.model,
+                train_dataset=self.dataset,
+                peft_config=self.peft_config,
+                dataset_text_field=self.config.trainer.dataset_text_field,
+                max_seq_length=self.config.trainer.max_seq_length,
+                tokenizer=self.tokenizer,
+                args=TrainingArguments(**self.config.trainer.args),
+            )
+        else:
+            return NotImplementedError
+        
+    def generate(self, prompt_text: str, max_length: int = None):
+        max_length = max_length if max_length else self.config.max_length
+        try:
+            inputs = self.tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
+            with torch.no_grad():
+                outputs = self.model.generate(inputs, max_length=max_length, do_sample=True)
+            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        except Exception as e:
+            self.logger.error(f"Failed to generate the text: {e}")
+            raise
+
+    @classmethod
+    def ensure_env(cls):
+        c.ensure_libs(['transformers', 'datasets', 'trl', 'peft', 'bitsandbytes', 'scipy'])
+
+
+
 
     def set_model(self, config):
         self.tokenizer = AutoTokenizer.from_pretrained(config.model)
-        quantization_config = self.get_quantize_config(config)
+
+        '''
+        get quantize config
+        '''
+        if config.quantize.enabled:
+            mode = config.quantize.mode
+
+            if mode == 'bnb':
+                assert config.quantize.config.bnb_4bit_compute_dtype.startswith('torch.')
+                config.quantize.config.bnb_4bit_compute_dtype = eval(config.quantize.config.bnb_4bit_compute_dtype)
+            quantization_config = self.quantize_config_map[mode](**config.quantize.config)
+        else:
+            quantization_config = None
+
+
         self.model = AutoModelForCausalLM.from_pretrained(config.model, quantization_config=quantization_config)
         if config.load:
             self.load_checkpoint()
@@ -54,80 +145,6 @@ class FineTuner(c.Module):
         assert config.trainer.dataset_text_field in sample, f"dataset_text_field {config.trainer.dataset_text_field} not in dataset"
 
         self.config = config
-    quantize_config_map = {'bnb': BitsAndBytesConfig}
-
-    def get_quantize_config(self, config: dict) -> dict:
-        '''
-        get quantize config
-        '''
-        if config.quantize.enabled:
-            mode = config.quantize.mode
-
-            if mode == 'bnb':
-                assert config.quantize.config.bnb_4bit_compute_dtype.startswith('torch.')
-                config.quantize.config.bnb_4bit_compute_dtype = eval(config.quantize.config.bnb_4bit_compute_dtype)
-            quantization_config = self.quantize_config_map[mode](**config.quantize.config)
-        else:
-            quantization_config = None
-        return quantization_config
-
-    def __call__(self, prompt_text: str, max_length: int = None):
-        max_length = max_length if max_length else self.config.max_length
-        try:
-            inputs = self.tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
-            with torch.no_grad():
-                outputs = self.model.generate(inputs, max_length=max_length, do_sample=True)
-            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        except Exception as e:
-            self.logger.error(f"Failed to generate the text: {e}")
-            raise
-    
-    forward = __call__
-
-    @property
-    def checkpoint_path(self) -> str:
-        return self.resolve_path( self.config.trainer.args.output_dir + '/' +  self.tag)
-
-    def load_checkpoint(self):
-        if c.exists(self.checkpoint_path):
-            self.model.from_pretrained(self.checkpoint_path)
-        else:
-            c.print(f'No checkpoint found at {self.checkpoint_path}')
-    
-    def save_checkpoint(self):
-        if not c.exists(self.checkpoint_path):
-            c.mkdir(os.path.dirname(self.checkpoint_path))
-        self.trainer.model.save_pretrained(self.checkpoint_path)
-
-    def resolve_config(self) -> str:
-        self.config.trainer.args.output_dir = self.model_path
-        return config
-
-
-    def train(self, config):
-        self.set_trainer(config)
-        self.trainer.train()
-        self.save_checkpoint()
-
-    def save_checkpoint(self):
-        checkpoint_output_dir = self.config.trainer.output_dir +  "/final_checkpoint"
-        self.trainer.model.save_pretrained(checkpoint_output_dir)
-    #lora config
-
-    def generate(self, prompt_text: str, max_length: int = None):
-        max_length = max_length if max_length else self.config.max_length
-        try:
-            inputs = self.tokenizer.encode(prompt_text, return_tensors="pt").to(self.device)
-            with torch.no_grad():
-                outputs = self.model.generate(inputs, max_length=max_length, do_sample=True)
-            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        except Exception as e:
-            self.logger.error(f"Failed to generate the text: {e}")
-            raise
-
-    @classmethod
-    def ensure_env(cls):
-        c.ensure_libs(['transformers', 'datasets', 'trl', 'peft'])
 
 
 
