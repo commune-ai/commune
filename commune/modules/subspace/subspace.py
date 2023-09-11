@@ -2269,25 +2269,118 @@ class Subspace(c.Module):
 
         c.cmd(cmd, verbose=True)  
 
+ 
+
+    def get_archive_blockchain_archives(self, netuid=netuid, network:str=network, **kwargs) -> List[str]:
+
+        datetime2archive =  self.datetime2archive(network=network, **kwargs) 
+        break_points = []
+        last_block = 10e9
+        blockchain_id = 0
+        get_archive_blockchain_ids = []
+        for dt, archive_path in enumerate(datetime2archive):
+            
+            archive_block = int(archive_path.split('block-')[-1].split('-')[0])
+            if archive_block < last_block :
+                break_points += [archive_block]
+                blockchain_id += 1
+            last_block = archive_block
+            get_archive_blockchain_ids += [{'blockchain_id': blockchain_id, 'archive_path': archive_path, 'block': archive_block}]
+
+            c.print(archive_block, archive_path)
+
+        return get_archive_blockchain_ids
+
+
+
+    def get_archive_blockchain_info(self, netuid=netuid, network:str=network, **kwargs) -> List[str]:
+
+        datetime2archive =  self.datetime2archive(network=network, **kwargs) 
+        break_points = []
+        last_block = 10e9
+        blockchain_id = 0
+        get_archive_blockchain_info = []
+        for i, (dt, archive_path) in enumerate(datetime2archive.items()):
+            c.print(archive_path)
+            archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
+            
+            c.print(archive_block < last_block, archive_block, last_block)
+            if archive_block < last_block :
+                break_points += [archive_block]
+                blockchain_id += 1
+                blockchain_info = {'blockchain_id': blockchain_id, 'archive_path': archive_path, 'block': archive_block, 'earliest_block': archive_block}
+                get_archive_blockchain_info.append(blockchain_info)
+                c.print(archive_block, archive_path)
+            last_block = archive_block
+            if len(break_points) == 0:
+                continue
+
+
+        return get_archive_blockchain_info
+
+
+    
+
+
+            
+
+    @classmethod
+    def most_recent_archives(cls,):
+        archives = cls.search_archives()
+        return archives
+    
+    @classmethod
+    def num_archives(cls, *args, **kwargs):
+        return len(cls.datetime2archive(*args, **kwargs))
 
     @classmethod
     def search_archives(cls, 
-                   start_time = '2023-09-08 16:00:00', 
-                    end_time = '2023-09-09 0:10:00', 
+                    lookback_hours : int = 24,
+                    end_time :str = 'now', 
+                    start_time: Optional[Union[int, str]] = None, 
                     netuid=0, 
+                    n = 100,
                     **kwargs):
 
+
+        if end_time == 'now':
+            end_time = c.time()
+        elif isinstance(end_time, str):
+            c.print(end_time)
+            
+            end_time = c.datetime2time(end_time)
+        elif isinstance(end_time, int):
+            pass
+        else:
+            raise Exception(f'Invalid end_time {end_time}')
+            end_time = c.time2datetime(end_time)
+
+
+
+        if start_time == None:
+            start_time = end_time - lookback_hours*3600
+            start_time = c.time2datetime(start_time)
+
+        if isinstance(start_time, int) or isinstance(start_time, float):
+            start_time = c.time2datetime(start_time)
+        
+        if isinstance(end_time, int) or isinstance(end_time, float):
+            end_time = c.time2datetime(end_time)
+        
+
+        assert end_time > start_time, f'end_time {end_time} must be greater than start_time {start_time}'
+        datetime2archive = cls.datetime2archive()
+        datetime2archive= {k: v for k,v in datetime2archive.items() if k >= start_time and k <= end_time}
+        c.print(len(datetime2archive))
+        factor = len(datetime2archive)//n
         archives = []
-        for archive_dt, archive_path in cls.datetime2archive().items():
 
-            if archive_dt <= start_time:
+        c.print('Searching archives from', start_time, 'to', end_time)
+
+        cnt = 0
+        for i, (archive_dt, archive_path) in enumerate(datetime2archive.items()):
+            if i % factor != 0:
                 continue
-
-            if archive_dt >= end_time:
-                continue
-
-            c.print(archive_dt, archive_path)
-
             archive_block = int(archive_path.split('block-')[-1].split('-time')[0])
             archive = c.get(archive_path)
             total_balances = sum([b for b in archive['balances'].values()])
@@ -2304,24 +2397,20 @@ class Subspace(c.Module):
                 }
 
             archives += [row]
-
-
+            
         return archives
 
     @classmethod
-    def archive_history(cls, 
+    def archive_history(cls, *args, 
                      network=network, 
-                     netuid= 0, 
-                    start_time = '2023-09-08 16:00:00', 
-                    end_time = '2023-09-09 0:10:00', 
-                     update=True ):
+                     netuid= 0 , update=False,  **kwargs):
         path = f'history/{network}.{netuid}.json'
 
         archive_history = []
         if not update:
             archive_history = cls.get(path, [])
         if len(archive_history) == 0:
-            archive_history =  cls.search_archives(network=network, netuid=netuid, start_time=start_time, end_time=end_time)
+            archive_history =  cls.search_archives(*args,network=network, netuid=netuid, **kwargs)
             cls.put(path, archive_history)
             
         
