@@ -268,14 +268,17 @@ class SubspaceDashboard(c.Module):
 
     def modules_dashboard(self):
         # self.launch_dashboard(expanded=False)
+        netuid = 0 
         df = self.get_module_stats(self.modules)
-        archive_history = self.subspace.search_archives(lookback_hours=25, n=100)
+        archive_history = self.subspace.archive_history(lookback_hours=24, n=100, update=True)
         df = c.df(archive_history[1:])
         df['block'] = df['block'].astype(int)
+
 
         df['dt'] = pd.to_datetime(df['dt'])
         df.sort_values('block', inplace=True)
         st.write(df)
+        # df= df[df['market_cap'] < 1e9]
 
 
         fig = px.line(df, x='block', y='market_cap', title='Archive History')
@@ -283,11 +286,18 @@ class SubspaceDashboard(c.Module):
         block2path= {b:df['path'][i] for i,b in enumerate(df['block'])}
         blocks = list(block2path.keys())
         paths = list(block2path.values())
-        block = st.select_slider('Block', blocks, blocks[0])
+        block = st.selectbox('Block', blocks, index=0)
         path = block2path[block]
         state = c.get(path)
         st.write(state.keys())
-        df = pd.DataFrame(state['modules'])
+        modules = state['modules'][netuid]
+        for i in range(len(modules)):
+            for k in ['stake_to', 'stake_from', 'key', 'address']:
+                del modules[i][k]
+            for k in ['emission', 'stake', 'balance']:
+                modules[i][k] = modules[i][k]/1e9
+        df = pd.DataFrame(modules)
+
         st.write(df)
         subnet_df = pd.DataFrame(state['subnets'])
         st.write(subnet_df)

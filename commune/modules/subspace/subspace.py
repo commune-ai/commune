@@ -925,8 +925,9 @@ class Subspace(c.Module):
     """ Queries subspace named storage with params and block. """
     @retry(delay=2, tries=3, backoff=2, max_delay=4)
     def query_subspace( self, name: str,
-                       block: Optional[int] = None, 
                        params: Optional[List[object]] = [], 
+                        block: Optional[int] = None, 
+
                        network=None ) -> Optional[object]:
         network = self.resolve_network(network)
         
@@ -966,7 +967,11 @@ class Subspace(c.Module):
                   ) -> Optional[object]:
         network = self.resolve_network(network)
 
-        params = list(params) if params != None else []
+        if params == None:
+            params = []
+
+        if params != None and not isinstance(params, list):
+            params = [params]
         
         with self.substrate as substrate:
             block_hash = None if block == None else substrate.get_block_hash(block)
@@ -1019,32 +1024,32 @@ class Subspace(c.Module):
     """ Returns network ImmunityPeriod hyper parameter """
     def immunity_period (self, netuid: int = None, block: Optional[int] = None, network :str = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace("ImmunityPeriod", block, netuid ).value
+        return self.query("ImmunityPeriod",params=netuid, block=block ).value
 
 
     """ Returns network MinAllowedWeights hyper parameter """
     def min_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace("MinAllowedWeights", block, netuid ).value
+        return self.query("MinAllowedWeights", params=[netuid], block=block).value
     """ Returns network MinAllowedWeights hyper parameter """
     def max_allowed_weights (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace("MaxAllowedWeights", block, netuid ).value
+        return self.query("MaxAllowedWeights", params=[netuid], block=block).value
 
     """ Returns network SubnetN hyper parameter """
     def n(self, netuid: int = None, block: Optional[int] = None ) -> int:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace('N', block, netuid ).value
+        return self.query('N', netuid, block=block ).value
 
     """ Returns network MaxAllowedUids hyper parameter """
     def max_allowed_uids (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace('MaxAllowedUids', block, netuid ).value
+        return self.query('MaxAllowedUids', netuid, block=block ).value
 
     """ Returns network Tempo hyper parameter """
     def tempo (self, netuid: int = None, block: Optional[int] = None) -> int:
         netuid = self.resolve_netuid( netuid )
-        return self.query_subspace('Tempo', block, netuid ).value
+        return self.query('Tempo', params=[netuid], block=block).value
 
     ##########################
     #### Account functions ###
@@ -1101,7 +1106,7 @@ class Subspace(c.Module):
         
         key_ss58 = self.resolve_key_ss58( key_ss58 )
         netuid = self.resolve_netuid( netuid )
-        stake = self.query_subspace( 'Stake', block, [netuid, key_ss58] ).value
+        stake = self.query( 'Stake',params=[netuid, key_ss58], block=block ).value
         return self.format_amount(stake, fmt=fmt)
 
 
@@ -1121,7 +1126,7 @@ class Subspace(c.Module):
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeTo', block, [netuid, key_address] )]
+        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', block, [netuid, key_address] )]
 
 
 
@@ -1140,7 +1145,7 @@ class Subspace(c.Module):
         key2module = self.key2module(netuid=netuid)
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query_subspace( 'StakeFrom', block, [netuid, key] )]
+        state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeFrom', block=block, params=[netuid, key] )]
  
         if from_key is not None:
             from_key = self.resolve_key_ss58( from_key )
@@ -1195,7 +1200,7 @@ class Subspace(c.Module):
         return self.get_current_block(network=network)
 
     # def total_stake (self,block: Optional[int] = None ) -> 'Balance':
-    #     return Balance.from_nano( self.query_subspace( "TotalStake", block ).value )
+    #     return Balance.from_nano( self.query( "TotalStake", block ).value )
 
 
 
@@ -1408,11 +1413,11 @@ class Subspace(c.Module):
         if cache and not update:
             subnet_states =  self.state_dict(network=network, key='subnets', update=update )
             if len(subnet_states) > netuid:
-                return subnet_statesnetuid
-        subnet_stake = self.query_subspace( 'SubnetTotalStake', params=netuid ).value
-        subnet_emission = self.query_subspace( 'SubnetEmission', params=netuid ).value
-        subnet_founder = self.query_subspace( 'Founder', params=netuid ).value
-        n = self.query_subspace( 'N', params=netuid ).value
+                return subnet_states[netuid]
+        subnet_stake = self.query( 'SubnetTotalStake', params=netuid ).value
+        subnet_emission = self.query( 'SubnetEmission', params=netuid ).value
+        subnet_founder = self.query( 'Founder', params=netuid ).value
+        n = self.query( 'N', params=netuid ).value
         total_stake = self.total_stake()
         subnet = {
                 'name': self.netuid2subnet(netuid),
@@ -1434,11 +1439,11 @@ class Subspace(c.Module):
     
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
-        return self.query_subspace( 'TotalSubnets', block ).value      
+        return self.query( 'TotalSubnets', block=block ).value      
     
     def get_emission_value_by_subnet( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
-        return Balance.from_nano( self.query_subspace( 'EmissionValues', block, [ netuid ] ).value )
+        return Balance.from_nano( self.query( 'EmissionValues', block=block, params=[ netuid ] ).value )
 
 
 
@@ -1451,7 +1456,7 @@ class Subspace(c.Module):
             return False
 
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
-        return self.query_subspace( 'Uids', block, [ netuid, key_ss58 ] ).value  
+        return self.query( 'Uids', block=block, params=[ netuid, key_ss58 ] ).value  
 
 
     def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
@@ -2036,7 +2041,9 @@ class Subspace(c.Module):
 
         return cls.live_nodes(chain=chain)
     
-    def query(self, name,  *params,  network: str = network,  block=None):
+    def query(self, name,  params, block=None,  network: str = network,):
+        if not isinstance(params, list):
+            params = [params]
         self.resolve_network(network)
         with self.substrate as substrate:
             value =  substrate.query(
@@ -2161,12 +2168,6 @@ class Subspace(c.Module):
 
     reged = registered_keys
     
-
-    def query_subnet(self, key, netuid = None, network=None, **kwargs):
-        network = self.resolve_network(network)
-        netuid = self.resolve_netuid(netuid)
-        return self.query_subspace(key, params=[netuid], **kwargs)
-    
     def weights(self, netuid = None, **kwargs) -> list:
         netuid = self.resolve_netuid(netuid)
         subnet_weights =  self.query_map('Weights', netuid, **kwargs)
@@ -2184,14 +2185,14 @@ class Subspace(c.Module):
         
     
     def emission(self, netuid = None, network=None, **kwargs):
-        return [v.value for v in self.query_subnet('Emission', netuid=netuid, network=network, **kwargs)]
+        return [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
         
-    def incentive(self, netuid = None, network=None, **kwargs):
-        return self.query_subnet('Incentive', netuid=netuid, network=network, **kwargs)
+    def incentive(self, netuid = None, block=None,   network=network, **kwargs):
+        return self.query('Incentive', params=netuid, network=network, block=block, **kwargs)
         
     
     def dividends(self, netuid = None, network=None, **kwargs):
-        return self.query_subnet('Dividends', netuid=netuid, network=network,  **kwargs)
+        return self.query('Dividends', params=netuid, network=network,  **kwargs)
 
     def uids(self, netuid: int = None, reverse: bool =False , **kwargs):
         netuid = self.resolve_netuid(netuid)
