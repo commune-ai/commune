@@ -17,6 +17,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class c:
+    # AGI BEGINS 
 
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
@@ -127,7 +128,6 @@ class c:
     
     @classmethod
     def get_module_dirpath(cls, obj=None,  simple:bool=False) -> str:
-       
         return  os.path.dirname(c.get_module_path(obj=obj, simple=simple))
     get_module_dir = get_module_dirpath
     
@@ -2337,7 +2337,7 @@ class c:
         
         if obj is None:
             obj = cls
-        if all([hasattr(obj, k) for k in ['module_class', 'root_module_class']]):
+        if all([hasattr(obj, k) for k in ['module_class', 'root_module_class', 'set_config', '']]):
             module_class = obj.module_class()
             return True
             
@@ -8058,7 +8058,7 @@ class c:
             'check_mark': '✅',
             'checkered_flag': '🏁',
             'warning': '⚠️',
-            'warning_sign': '⚠️',
+            'warning_sign': f'⚠️',
             'question': '❓',
             
     }
