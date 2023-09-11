@@ -4748,9 +4748,10 @@ class c:
         return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
 
     @classmethod
-    def datetime2time(self, dt:str):
+    def datetime2time(cls, x:str):
         import datetime
-        return datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S").timestamp()
+        c.print(x)
+        return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
     
 
     @classmethod
