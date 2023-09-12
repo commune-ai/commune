@@ -81,8 +81,16 @@ class ThreadPool(Thread):
         while True:
             kwargs = queue.get()
             kwargs_key = kwargs.pop('kwargs_key')
+            if 'fn' in kwargs:
+                tmp_fn = kwargs.pop('fn')
+                tmp_fn(**kwargs)
             result = fn(**kwargs)
             output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time()})
+            ## remove memory
+            del kwargs
+            del result
+            del kwargs_key
+
 
 
     def is_full(self):
