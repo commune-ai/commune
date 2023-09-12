@@ -195,7 +195,7 @@ class Keypair(c.Module):
         
         cls.put(path, key_json)
         
-        return {'success': True, 'message': f'key added at {path}', 'key': key_json}
+        return  json.loads(key_json)
     
     @classmethod
     def rename_key(self, new_path):

@@ -365,13 +365,14 @@ class Subspace(c.Module):
     def register(
         self,
         name: str , # defaults to module.tage
-        stake : int = None,
+        stake : float = 0,
         subnet: str = None,
         key : str  = None,
         address : str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         network: str = network,
+        existential_balance: float = 0.1,
         sync: bool = False,
 
     ) -> bool:
@@ -391,8 +392,6 @@ class Subspace(c.Module):
             netuid = self.get_netuid_for_subnet(subnet)
             if self.is_registered(key.ss58_address, netuid=netuid):
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-
-        stake = stake if stake != None else self.get_balance(key, fmt='n')
 
         call_params = { 
                     'network': subnet.encode('utf-8'),
@@ -863,28 +862,28 @@ class Subspace(c.Module):
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
         
-        
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
         old_balance = self.get_balance( key , fmt='j')
 
-        old_stake = self.get_stake_to( key.ss58_address, netuid=netuid, fmt='j', to_key=module_key)
+        old_stake = self.get_stake_to( key.ss58_address, to_key=module_key,  netuid=netuid, fmt='j',)
 
         if amount == None:
             amount = old_stake
 
         amount = self.to_nanos(amount)
-
+        call_params={
+            'amount': amount,
+            'netuid': netuid,
+            'module_key': module_key
+            }
+        c.print(call_params)
         with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
             with self.substrate as substrate:
                 call = substrate.compose_call(
                 call_module='SubspaceModule', 
                 call_function='remove_stake',
-                call_params={
-                    'amount': amount,
-                    'netuid': netuid,
-                    'module_key': module_key
-                    }
+                call_params=call_params
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
@@ -1032,7 +1031,8 @@ class Subspace(c.Module):
         return self.query("MaxAllowedWeights", params=[netuid], block=block).value
 
     """ Returns network SubnetN hyper parameter """
-    def n(self, netuid: int = None, block: Optional[int] = None ) -> int:
+    def n(self, network = network , netuid: int = None, block: Optional[int] = None ) -> int:
+        self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
         return self.query('N', netuid, block=block ).value
 
@@ -1121,9 +1121,7 @@ class Subspace(c.Module):
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', block=block, params = [netuid, key_address] )]
-
-
+        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block )]
 
         if to_key is not None:
             to_key_address = self.resolve_key_ss58( to_key )
@@ -2710,7 +2708,7 @@ class Subspace(c.Module):
         node = c.copy(f'{mode}{tag_seperator}{node}')
 
 
-        chain_path = cls.chain_release_path(mode='docker')
+        chain_path = cls.chain_release_path(mode='local')
 
         for key_type in ['gran', 'aura']:
 
@@ -2731,10 +2729,10 @@ class Subspace(c.Module):
             cmds.append(cmd)
 
         for cmd in cmds:
-            c.print(cmd)
-            volumes = f'-v {base_path}:{base_path}'
-            c.cmd(f'docker run {volumes} subspace {cmd} ', verbose=True)
-            # c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+            # c.print(cmd)
+            # volumes = f'-v {base_path}:{base_path}'
+            # c.cmd(f'docker run {volumes} subspace {cmd} ', verbose=True)
+            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
 
         return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain, mode=mode)}
 
@@ -2836,10 +2834,6 @@ class Subspace(c.Module):
     @classmethod
     def chain_specs(cls):
         return c.ls(f'{cls.spec_path}/')
-    
-    @classmethod
-    def chains(cls)-> str:
-        return list(cls.chain2spec().keys())   
     
     @classmethod
     def chain2spec(cls, chain = None):
