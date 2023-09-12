@@ -975,7 +975,6 @@ class Subspace(c.Module):
         
         with self.substrate as substrate:
             block_hash = None if block == None else substrate.get_block_hash(block)
-            c.print(block_hash, 'block_hash')
             qmap =  substrate.query_map(
                 module='SubspaceModule',
                 storage_function = name,
@@ -1497,6 +1496,7 @@ class Subspace(c.Module):
 
 
     def stats(self, 
+              search = None,
               netuid=None,  
               df:bool=True, 
               update:bool = False, 
@@ -1539,14 +1539,15 @@ class Subspace(c.Module):
         if len(df_stats) > 0:
             df_stats.sort_values(by=['registered', 'emission', 'stake'], ascending=False, inplace=True)
 
-
+        if search is not None:
+            df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
         if not df:
             return df_stats.to_dict('records')
         else:
             return df_stats
         
-    def check_servers(self, netuid=None):
-        for m in c.stats(netuid=netuid, df=False):
+    def check_servers(self, search=None,  netuid=None):
+        for m in c.stats(search=search, netuid=netuid, df=False):
             if m['serving'] == False and m['registered'] == True:
                 c.register(m['name'])
             if m['serving'] == True and m['registered'] == False:
@@ -2184,14 +2185,14 @@ class Subspace(c.Module):
         c.servers(network=network, prefix=prefix)
         
     
-    def emission(self, netuid = None, network=None, **kwargs):
+    def emission(self, netuid = netuid, network=None, **kwargs):
         return [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
         
-    def incentive(self, netuid = None, block=None,   network=network, **kwargs):
+    def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
         return self.query('Incentive', params=netuid, network=network, block=block, **kwargs)
         
     
-    def dividends(self, netuid = None, network=None, **kwargs):
+    def dividends(self, netuid = netuid, network=None, **kwargs):
         return self.query('Dividends', params=netuid, network=network,  **kwargs)
 
     def uids(self, netuid: int = None, reverse: bool =False , **kwargs):
