@@ -1036,7 +1036,8 @@ class Subspace(c.Module):
         return self.query("MaxAllowedWeights", params=[netuid], block=block).value
 
     """ Returns network SubnetN hyper parameter """
-    def n(self, netuid: int = None, block: Optional[int] = None ) -> int:
+    def n(self, network = network , netuid: int = None, block: Optional[int] = None ) -> int:
+        self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
         return self.query('N', netuid, block=block ).value
 
@@ -2707,7 +2708,7 @@ class Subspace(c.Module):
         node = c.copy(f'{mode}{tag_seperator}{node}')
 
 
-        chain_path = cls.chain_release_path(mode='docker')
+        chain_path = cls.chain_release_path(mode='local')
 
         for key_type in ['gran', 'aura']:
 
@@ -2728,10 +2729,10 @@ class Subspace(c.Module):
             cmds.append(cmd)
 
         for cmd in cmds:
-            c.print(cmd)
-            volumes = f'-v {base_path}:{base_path}'
-            c.cmd(f'docker run {volumes} subspace {cmd} ', verbose=True)
-            # c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+            # c.print(cmd)
+            # volumes = f'-v {base_path}:{base_path}'
+            # c.cmd(f'docker run {volumes} subspace {cmd} ', verbose=True)
+            c.cmd(cmd, verbose=True, cwd=cls.chain_path)
 
         return {'success':True, 'node':node, 'chain':chain, 'keys':cls.get_node_key(node=node, chain=chain, mode=mode)}
 
@@ -2833,10 +2834,6 @@ class Subspace(c.Module):
     @classmethod
     def chain_specs(cls):
         return c.ls(f'{cls.spec_path}/')
-    
-    @classmethod
-    def chains(cls)-> str:
-        return list(cls.chain2spec().keys())   
     
     @classmethod
     def chain2spec(cls, chain = None):
