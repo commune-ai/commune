@@ -168,7 +168,8 @@ class Vali(c.Module):
             if len(stats) == 0:
                 return c.df({'module': [], 'w': []})
             stats = c.df(stats)
-            stats.sort_values('w', ascending=False, inplace=True)
+            stats.sort_values(['w'], ascending=False, inplace=True)
+            
 
 
         stats = stats[:topk]
