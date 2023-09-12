@@ -195,7 +195,7 @@ class Keypair(c.Module):
         
         cls.put(path, key_json)
         
-        return {'success': True, 'message': f'key added at {path}', 'key': key_json}
+        return  json.loads(key_json)
     
     @classmethod
     def rename_key(self, new_path):
@@ -312,7 +312,8 @@ class Keypair(c.Module):
         if cls.key_exists(path) == False:
             if create_if_not_exists == True:
                 key = cls.add_key(path, **kwargs)
-                c.print(f'key does not exist, generating new key -> {key["ss"]}')
+                c.print(key, type(key))
+                c.print(f'key does not exist, generating new key -> {key["ss58_address"]}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
             
