@@ -793,7 +793,7 @@ class Subspace(c.Module):
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
             network:str = None,
-            existential_deposit: float = 0.5,
+            existential_deposit: float = 0.0,
             sync: bool = False
         ) -> bool:
         network = self.resolve_network(network)
@@ -804,10 +804,6 @@ class Subspace(c.Module):
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
-
-        if not self.is_registered( module_key, netuid=netuid):
-            return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
-        
         old_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
@@ -1125,7 +1121,7 @@ class Subspace(c.Module):
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', block, [netuid, key_address] )]
+        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', block=block, params = [netuid, key_address] )]
 
 
 
@@ -1609,7 +1605,7 @@ class Subspace(c.Module):
             return substrate.get_block_number(None)
 
 
-    def get_balance(self, key: str = None, block: int = None, fmt='j', network=None) -> Balance:
+    def get_balance(self, key: str , block: int = None, fmt='j', network=None) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -1618,10 +1614,10 @@ class Subspace(c.Module):
             balance (bittensor.utils.balance.Balance):
                 account balance
         """
-        if key is None:
-            return self.my_balance( fmt=fmt, network=network)
         network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
+
+        c.print(f"Getting balance for [bold white]{key_ss58}[/bold white] on network [bold white]{network}[/bold white].", verbose=True)
         
         try:
             @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -2388,6 +2384,7 @@ class Subspace(c.Module):
             total_balances = sum([b for b in archive['balances'].values()])
             # st.write(archive['modules']netuid[:3])
             total_stake = sum([sum([_[1]for _ in m['stake_from']]) for m in archive['modules'][netuid]])
+            subnet = archive['subnets'][netuid]
             row = {
                     'block': archive_block,  
                     'total_stake': total_stake*1e-9,
@@ -2395,8 +2392,14 @@ class Subspace(c.Module):
                     'market_cap': (total_stake+total_balances)*1e-9 , 
                     'dt': archive_dt, 
                     'block': archive['block'], 
-                    'path': archive_path
+                    'path': archive_path, 
+                    'mcap_per_block': 0,
                 }
+            
+            if len(archives) > 0:
+                denominator = ((row['block']//subnet['tempo']) - (archives[-1]['block']//subnet['tempo']))*subnet['tempo']
+                if denominator > 0:
+                    row['mcap_per_block'] = (row['market_cap'] - archives[-1]['market_cap'])/denominator
 
             archives += [row]
             
@@ -3143,9 +3146,9 @@ class Subspace(c.Module):
     
     @classmethod
     def start_chain(cls, 
+                    chain:str=chain, 
                     n_valis:int = 8,
                     n_nonvalis:int = 16,
-                    chain:str=chain, 
                     verbose:bool = False,
                     purge_chain:bool = True,
                     refresh: bool = True,

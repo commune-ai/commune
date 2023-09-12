@@ -312,7 +312,7 @@ class Keypair(c.Module):
         if cls.key_exists(path) == False:
             if create_if_not_exists == True:
                 key = cls.add_key(path, **kwargs)
-                c.print(f'key does not exist, generating new key -> {key["ss"]}')
+                c.print(f'key does not exist, generating new key -> {key["ss58_address"]}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
             

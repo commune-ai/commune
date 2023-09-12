@@ -14,6 +14,7 @@ class SubspaceDashboard(c.Module):
         self.set_config(config=config)
         self.load_state(sync=False)
         self.key = c.get_key()
+        
         self.st = c.module('streamlit')()
 
 
@@ -28,8 +29,7 @@ class SubspaceDashboard(c.Module):
 
         self.subspace = c.module('subspace')()
 
-        
-
+    
         self.state = self.subspace.state_dict()
 
         
@@ -269,6 +269,10 @@ class SubspaceDashboard(c.Module):
     def modules_dashboard(self):
         # self.launch_dashboard(expanded=False)
         netuid = 0 
+        st.write('# Modules')
+    def archive_dashboard(self):
+        # self.launch_dashboard(expanded=False)
+        netuid = 0 
         df = self.get_module_stats(self.modules)
         archive_history = self.subspace.archive_history(lookback_hours=24, n=100, update=True)
         df = c.df(archive_history[1:])
@@ -314,10 +318,10 @@ class SubspaceDashboard(c.Module):
         # histogram = px.histogram(df, x=y, title='My Modules')
 
         # st.write(histogram)
-        
-    
+       
     def wallet_dashboard(self):
         st.write('# Wallet')
+        self.launch_dashboard()
         # if self.subspace.is_registered(self.key):
         #     self.staking_dashboard()
         #     self.transfer_dashboard()
