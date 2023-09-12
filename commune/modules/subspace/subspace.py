@@ -866,28 +866,28 @@ class Subspace(c.Module):
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
         
-        
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
         old_balance = self.get_balance( key , fmt='j')
 
-        old_stake = self.get_stake_to( key.ss58_address, netuid=netuid, fmt='j', to_key=module_key)
+        old_stake = self.get_stake_to( key.ss58_address, to_key=module_key,  netuid=netuid, fmt='j',)
 
         if amount == None:
             amount = old_stake
 
         amount = self.to_nanos(amount)
-
+        call_params={
+            'amount': amount,
+            'netuid': netuid,
+            'module_key': module_key
+            }
+        c.print(call_params)
         with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
             with self.substrate as substrate:
                 call = substrate.compose_call(
                 call_module='SubspaceModule', 
                 call_function='remove_stake',
-                call_params={
-                    'amount': amount,
-                    'netuid': netuid,
-                    'module_key': module_key
-                    }
+                call_params=call_params
                 )
                 extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
                 response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
@@ -1125,7 +1125,7 @@ class Subspace(c.Module):
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', block, [netuid, key_address] )]
+        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block )]
 
 
 
