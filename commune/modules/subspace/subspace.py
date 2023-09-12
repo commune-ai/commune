@@ -365,13 +365,14 @@ class Subspace(c.Module):
     def register(
         self,
         name: str , # defaults to module.tage
-        stake : int = None,
+        stake : float = 0,
         subnet: str = None,
         key : str  = None,
         address : str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
         network: str = network,
+        existential_balance: float = 0.1,
         sync: bool = False,
 
     ) -> bool:
@@ -391,8 +392,6 @@ class Subspace(c.Module):
             netuid = self.get_netuid_for_subnet(subnet)
             if self.is_registered(key.ss58_address, netuid=netuid):
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-
-        stake = stake if stake != None else self.get_balance(key, fmt='n')
 
         call_params = { 
                     'network': subnet.encode('utf-8'),

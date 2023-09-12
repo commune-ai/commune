@@ -208,7 +208,6 @@ class Vali(c.Module):
                 new_votes['weights'] += [votes['weights'][i]]
         
         votes = new_votes
-    
 
         topk = self.subnet['max_allowed_weights']
         topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
@@ -314,7 +313,7 @@ class Vali(c.Module):
         return module_stats.get('history', [])
     
     def save_module_stats(self,k:str, v):
-        path = self.resolve_stats_path(network=self.config.network) + f'/{k}'
+        path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
         self.put_json(path, v)
 
 
