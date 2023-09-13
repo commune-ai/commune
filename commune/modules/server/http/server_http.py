@@ -17,6 +17,7 @@ class HTTPServer(c.Module):
         port: Optional[int] = None,
         address: Optional[str] = None,
         sse: bool = True,
+        chunk_size: int = 42_000,
     ) -> 'Server':
         self.sse = sse
         
@@ -159,6 +160,16 @@ class HTTPServer(c.Module):
             item = self.serializer.serialize({'data': item})
             item = self.key.sign(item, return_json=True)
             item = json.dumps(item)
+            # # get size of chunk
+            # item_size = len(item)
+            # if item_size > chunk_size:
+            #     # if the item is too big, we need to chunk it
+            #     item_hash = c.hash(item)
+            #     chunks =[f'CHUNKSTART:{item_hash}'] + [item[i:i+chunk_size] for i in range(0, item_size, chunk_size)] + [f'CHUNKEND:{item_hash}']
+            #     # we need to yield the chunks in a format that the eventsource response can understand
+            #     for chunk in chunks:
+            #         yield chunk
+            # else:
             yield item
 
 
