@@ -54,6 +54,9 @@ class c:
         config = c.get_config()
         boot_peers = config.get('boot_peers', [])
         return boot_peers
+
+
+
         
         
     @classmethod
@@ -6358,13 +6361,15 @@ class c:
         k = max(int(len(x) * ratio),1)
         return x[:k]
 
-    default_tag = None
+    default_tag = 'base'
     @property
     def tag(self):
         tag = None
         if hasattr(self, 'config') and isinstance(self.config, dict):
             if 'tag' in self.config:
                 tag = self.config['tag']
+        if tag == None:
+            tag = c.default_tag
         return tag
     @tag.setter
     def tag(self, value):
@@ -7964,12 +7969,11 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.kill(m)
 
-
-    def access_modules(self,  module_category:str='access'):
-
+    def access_modules(self, module_category='access'):
         '''
         Get the auth modules (modules that process the message to authrize the right people)
         '''
+        
         if hasattr(self, '_access_modules'):
             return self._access_modules
         access_modules = []
@@ -7979,17 +7983,25 @@ class c:
         # each module has a verify function, that takes in the input and returns the input
         if hasattr(self, 'config') \
             and hasattr(self.config, 'access_modules'):
-
             config = self.config
             for access, access_config in config.access_modules.items():
-                c.print('Adding auth module: ', access, access_config, color='yellow')
+                assert access in modules, f'access module {access} not found'
                 if module_category != None:
                     access = module_category + '.' + access
-                assert access in modules, f'access module {access} not found'
                 access_module = c.module(access)(module=self, **access_config)
                 access_modules.append(access_module)
+
+
+        c.print(f'access_modules: {access_modules}')
         self._access_modules = access_modules
-        return access_modules
+        return self._access_modules
+
+    def __repr__(self) -> str:
+        return f'<{self.class_name()} tag={self.tag}>'
+    def __str__(self) -> str:
+        return f'<{self.class_name()} tag={self.tag}>'
+    
+    
 
 
     # @access_modules.setter

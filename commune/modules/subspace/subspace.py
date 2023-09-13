@@ -123,9 +123,9 @@ class Subspace(c.Module):
         c.print(f'Connected to {network}: {url}...')
         
     def __repr__(self) -> str:
-        return f'<Subspace: network={self.network}, url={self.url}>'
+        return f'<Subspace: network={self.network}>'
     def __str__(self) -> str:
-        return f'<Subspace: network={self.network}, url={self.url}>'
+        return f'<Subspace: network={self.network}>'
     
     
 
