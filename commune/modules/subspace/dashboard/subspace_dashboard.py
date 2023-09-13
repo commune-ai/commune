@@ -21,18 +21,12 @@ class SubspaceDashboard(c.Module):
     def sync(self):
         return self.load_state(sync=True)
     
-    
-
 
     def load_state(self, sync:bool=False):
 
-
         self.subspace = c.module('subspace')()
-
-    
         self.state = self.subspace.state_dict()
 
-        
         self.netuid = self.config.netuid
         self.subnets = self.state['subnets']
 
@@ -149,13 +143,11 @@ class SubspaceDashboard(c.Module):
     #     cols[1].plotly_chart(fig)
 
 
-
     @classmethod
     def dashboard(cls, key = None):
         import streamlit as st
         # plotly
         self = cls()
-        st.write('Starting Dashboard')
         self.sidebar()
         
         tabs = st.tabs(['Modules', 'Validators', 'Wallet']) 
