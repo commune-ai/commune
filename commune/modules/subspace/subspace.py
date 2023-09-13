@@ -934,9 +934,6 @@ class Subspace(c.Module):
                 block_hash = None if block == None else substrate.get_block_hash(block)
                 )
 
-
-
-
     def stake_from(self, netuid = None, block=None):
         netuid  = self.resolve_netuid(netuid)
         return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeFrom', netuid, block=block)}
@@ -945,8 +942,6 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
         return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeTo', netuid, block=block)}
-
-
 
     """ Queries subspace map storage with params and block. """
     def query_map( self, 
@@ -981,11 +976,8 @@ class Subspace(c.Module):
 
             qmap = [(k,v) for k,v  in qmap]
                 
-                
-        
         return qmap
         
-    
     """ Gets a constant from subspace with module_name, constant_name, and block. """
     def query_constant( self, 
                         constant_name: str, 
@@ -1158,10 +1150,10 @@ class Subspace(c.Module):
 
     def stake_multiple( self, 
                         key: str, 
-                       modules:list = None, 
-                        amounts:Union[list, float, int] = None, 
-                        netuid:int = None , 
-                         network: str = None ) -> Optional['Balance']:
+                        modules:list = None,
+                        amounts:Union[list, float, int] = None,
+                        netuid:int = None,
+                        network: str = None) -> Optional['Balance']:
         self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
@@ -1277,15 +1269,15 @@ class Subspace(c.Module):
         if len(self.state_dict_cache) == 0 :
             block = self.block
             netuids = self.netuids()
-            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network, cache=False, block=block) for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, cache=False) for netuid in netuids],
-                        'stake_to': [self.stake_to(network=network) for netuid in netuids] ,
-                        'balances': self.balances(network=network),
-                        'block': self.block,
+            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network, block=block, cache=False) for netuid in netuids], 
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, cache=False) for netuid in netuids],
+                        'stake_to': [self.stake_to(network=network, block=block) for netuid in netuids],
+                        'balances': self.balances(network=network, block=block),
+                        'block': block,
                         'network': network,
                         }
 
-            path = f'state_dict/{network}.block-{self.block}-time-{int(c.time())}'
+            path = f'state_dict/{network}.block-{block}-time-{int(c.time())}'
             c.print(f'Saving state_dict to {path}', verbose=verbose)
 
             
@@ -2412,7 +2404,7 @@ class Subspace(c.Module):
     @classmethod
     def archive_history(cls, *args, 
                      network=network, 
-                     netuid= 0 , update=False,  **kwargs):
+                     netuid= 0 , update=True,  **kwargs):
         path = f'history/{network}.{netuid}.json'
 
         archive_history = []
