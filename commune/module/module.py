@@ -17,6 +17,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class c:
+    # AGI BEGINS 
 
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
@@ -127,7 +128,6 @@ class c:
     
     @classmethod
     def get_module_dirpath(cls, obj=None,  simple:bool=False) -> str:
-       
         return  os.path.dirname(c.get_module_path(obj=obj, simple=simple))
     get_module_dir = get_module_dirpath
     
@@ -2337,7 +2337,7 @@ class c:
         
         if obj is None:
             obj = cls
-        if all([hasattr(obj, k) for k in ['module_class', 'root_module_class']]):
+        if all([hasattr(obj, k) for k in ['module_class', 'root_module_class', 'set_config', '']]):
             module_class = obj.module_class()
             return True
             
@@ -3189,6 +3189,7 @@ class c:
             c.print(f'Launching {module} with command: {command}', color='green')
             
         stdout = c.cmd(command, env=env, verbose=verbose)
+        
         return stdout
 
     @classmethod
@@ -4038,7 +4039,19 @@ class c:
 
     required_libs = []
     @classmethod
-    def ensure_libs(cls, libs:List[str] = None, verbose:bool=False):
+    def ensure_libs(cls, *libs, verbose:bool=False):
+        assert len(libs) > 0, 'No libraries specified'
+        if len(libs) == 1:
+            if isinstance(libs[0], list):
+                libs = libs[0]
+        elif len(libs) == 0:
+            raise Exception('No libraries specified')
+        elif len(libs) > 1:
+            libs = list(libs)
+        else:
+            raise Exception('No libraries specified, WTF WAS THIS')
+
+            
         if libs == None:
             libs = cls.required_libs
         r = []
@@ -4735,9 +4748,10 @@ class c:
         return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
 
     @classmethod
-    def datetime2time(self, dt:str):
+    def datetime2time(cls, x:str):
         import datetime
-        return datetime.datetime.strptime(dt, "%Y-%m-%d %H:%M:%S").timestamp()
+        c.print(x)
+        return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
     
 
     @classmethod
@@ -8045,7 +8059,7 @@ class c:
             'check_mark': '✅',
             'checkered_flag': '🏁',
             'warning': '⚠️',
-            'warning_sign': '⚠️',
+            'warning_sign': f'⚠️',
             'question': '❓',
             
     }
