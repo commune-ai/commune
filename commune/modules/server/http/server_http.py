@@ -129,7 +129,7 @@ class HTTPServer(c.Module):
 
         input['data'] = self.serializer.deserialize(input['data'])
 
-        
+        c.print('BROOOOOOOOO')
         input = self.module.access_module.verify(input)
 
         return input
