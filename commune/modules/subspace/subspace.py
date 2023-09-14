@@ -542,7 +542,7 @@ class Subspace(c.Module):
     
         if address == None:
             namespace_local = c.namespace(network='local')
-            address = namespace_local[name]
+            address = namespace_local.get(name,  f'{c.ip()}:{c.free_port()}'  )
 
         if name == module_info['name'] and address == module_info['address']:
             c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
@@ -1491,7 +1491,7 @@ class Subspace(c.Module):
               netuid=None,  
               df:bool=True, 
               update:bool = False, 
-              cols: list = ['name', 'address', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake'],
+              cols: list = ['name', 'address', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'balance'],
               **kwargs
               ):
         if update:
