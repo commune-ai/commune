@@ -47,26 +47,21 @@ class AccessSubspace(c.Module):
         stake = self.stakes.get(address, 0)
         rate_limit = (stake / self.config.stake2rate) + self.config.free_rate_limit
 
+
+        
+
         # get the rate limit for the function
         user_info = self.user_info.get(address, {'requests': 0, 
                                                 'last_time_called': 0,
                                                  'rate': 0,
                                                   'stake': stake})
 
-
-
         user_rate = 1 / (c.time() - user_info['last_time_called'] + 1e-10)
-
-
-        requirements ={
-            'rate_limit': rate_limit,
-            'stake2rate': self.config.stake2rate,
-        }
 
         state = c.copy(user_info)
         state['staleness'] = c.time() - user_info['last_time_called']
         
-        assert user_rate < rate_limit, f"Rate limit too high {user_rate} > {rate_limit}"
+        assert user_rate < rate_limit, f"Rate limit too high (calls per second) {user_rate} > {rate_limit}"
 
         # update the user info
         user_info['last_time_called'] = c.time()
@@ -79,14 +74,14 @@ class AccessSubspace(c.Module):
 
     @classmethod
     def test(cls):
-        name = 'access_subspace.demo' 
-        module = c.serve('module', name=name, wait_for_server=True)
+        server_name = 'access_subspace.demo' 
+        module = c.serve('module', server_name=server_name, wait_for_server=True)
         client = c.connect('module', key='fam')
         for n in range(10):
             # c.sleep(1)
             c.print(client.info())
-        c.kill(name)
-        return {'name': name, 'module': module, 'client': client}
+        c.kill(server_name)
+        return {'name': server_name, 'module': module, 'client': client}
         
 
 

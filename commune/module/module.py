@@ -7120,7 +7120,7 @@ class c:
                 continue
         raise(e)
 
-    @classmthod
+    @classmethod
     def has_fn(cls,fn_name, obj = None):
         if obj == None:
             obj = cls
@@ -7952,24 +7952,24 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.kill(m)
 
-        
-    default_access_module='access.subspace'
+    @property 
     def access_module(self):
 
         '''
         Get the auth modules (modules that process the message to authrize the right people)
         '''
         
-        if hasattr(self, '_access_module'):
-            return self._access_module
-        # each module has a verify function, that takes in the input and returns the input
-        if hasattr(self, 'config') and hasattr(self.config, 'access_module'):
-            access_config = self.config.access_module
-        else:
-            access_config = c.config()['access_module']
+        if not hasattr(self, '_access_module'):
+            # each module has a verify function, that takes in the input and returns the input
+            access_config = self.config.get('access_module', c.config()['access_module'])
+            self.set_access_module(**access_config)
+        
+        return self._access_module
+
+    default_access_module='access.subspace'
+    def set_access_module(self, **access_config):
         access = access_config.pop('module_name', self.default_access_module)
         access_module = c.module(access)(module=self, **access_config)
-        c.print(f'access_module: {access_module}')
         self._access_module = access_module
         return self._access_module
 
