@@ -1,9 +1,8 @@
 
 network: main # mainnet
 netuid: 0 # subnet id
-max_staleness: 10 # 10 seconds for the signed message to be valid
 sync_interval: 1000 #  1000 seconds per sync with the network
-stake2rate: 100 # 1 call per every N tokens staked per secondstake2rate
-rate: 1 # 1 call per unit for free
 timescale: 'min' # 'sec', 'min', 'hour', 'day'
-
+stake2rate: 100 # 1 call per every N tokens staked per timescale
+rate: 1 # 1 call per timescale
+fn2rate: {} # function name to rate map, this overrides the default rate
