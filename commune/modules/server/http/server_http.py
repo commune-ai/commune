@@ -43,7 +43,7 @@ class HTTPServer(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self.access_modules = module.access_modules() 
+        self.access_module = module.access_module() 
 
               
         self.set_api(ip=self.ip, port=self.port)
@@ -131,9 +131,10 @@ class HTTPServer(c.Module):
         assert self.key.verify(input), f"Data not signed with correct key"
 
         input['data'] = self.serializer.deserialize(input['data'])
+
         
-        for access_module in self.module.access_modules():
-            access_module.verify(input)
+        input = self.access_module.verify(input)
+
         return input
 
 

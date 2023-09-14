@@ -39,6 +39,7 @@ class c:
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     
+    
     __ss58_format__ = 42 # the ss58 format for the substrate address
 
     def __init__(self, config:Dict=None, **kwargs):
@@ -1623,9 +1624,40 @@ class c:
                     # f_classes = []
                     if len(f_classes) > 0:
                         modules.append(f)
+
+            
         cls.module_python_paths = modules
         
         return modules
+
+
+    tree_folders_path = 'module_tree_folders'
+    @classmethod
+    def add_tree_folder(cls, tree_path:str, **kwargs):
+        path = cls.tree_folders_path
+        tree_folder = c.get(path, [])
+        tree_folder += [tree_path]
+        assert os.path.isdir(tree_path)
+        assert isinstance(tree_folder, list)
+        c.put(path, tree_folder, **kwargs)
+        return {'module_tree_folders': tree_folder}
+    
+    @classmethod
+    def ls_tree_folders(cls):
+        path = tree_folders_path
+        tree_folders = c.get(path, [])
+        return tree_folders
+    @classmethod
+    def rm_tree_folder(cls, tree_path:str, **kwargs):
+        path = cls.tree_folders_path
+        tree_folder = c.get(tree_path, [])
+        tree_folder = [f for f in tree_folder if f != patree_pathth]
+        c.put(path, tree_folder)
+        return {'module_tree_folders': tree_folder}
+    
+
+
+        
 
     @classmethod
     def dashboard(cls, *args, **kwargs):
@@ -3855,46 +3887,11 @@ class c:
                 return module
             else:
                 raise Exception(f'Module {module} not found')
-        
-    
-
         # serve the module if the bool is True
         is_class = cls.is_class(module)
         module_class = module if is_class else module.__class__
         
-        
-        
-        class ModuleWrapper(c):
-            def __init__(self, module): 
-                c.__init__(self, *args, **kwargs) 
-                self.merge(self.module)
-                
-            @classmethod
-            def module_file(cls): 
-                return cls.get_module_path(simple=False)
-            
-            
-            def __call__(self, *args, **kwargs):
-                return self.module.__call__(self, *args, **kwargs)
-
-            def __str__(self):
-                return self.module.__str__()
-            
-            def __repr__(self):
-                return self.module.__repr__() 
-            @classmethod
-            def module_path(cls) -> str:
-                return module_class.__name__.lower()
- 
-            @classmethod
-            def functions(cls):
-                return cls.get_functions(module)
-
-
-        if is_class:
-            return ModuleWrapper
-        else:
-            return ModuleWrapper(module=module)
+        return ModuleWrapper(module=module)
         
         
             
@@ -5957,10 +5954,6 @@ class c:
         return {'module':module, 'repo':repo, 'status':'success'}
         
     
-    def rm_module_code(cls, module):
-        module = module.replace('.','/')
-        module_path = c.resolve_module_path(module)
-        cls.rm(module_path)
 
     def new_modules(self, *modules, **kwargs):
         for module in modules:
@@ -6128,14 +6121,6 @@ class c:
         
         return max_memory
             
-    @classmethod
-    def resolve_module_path(cls, module=None):
-        if module == None:
-            module = cls.module_path()
-        if isinstance(module, str):
-            module_path = c.modules_path + '/' + module.replace('.','/')
-        
-        return module_path
 
     @classmethod
     def resolve_module(cls, module=None):
@@ -6368,8 +6353,6 @@ class c:
         if hasattr(self, 'config') and isinstance(self.config, dict):
             if 'tag' in self.config:
                 tag = self.config['tag']
-        if tag == None:
-            tag = c.default_tag
         return tag
     @tag.setter
     def tag(self, value):
@@ -7142,8 +7125,10 @@ class c:
                 continue
         raise(e)
 
-    @staticmethod
-    def has_fn(obj, fn_name):
+    @classmthod
+    def has_fn(cls,fn_name, obj = None):
+        if obj == None:
+            obj = cls
         return callable(getattr(obj, fn_name, None))
 
     @staticmethod
@@ -7969,32 +7954,26 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.kill(m)
 
-    def access_modules(self, module_category='access'):
+        
+    default_access_module='access.subspace'
+    def access_module(self):
+
         '''
         Get the auth modules (modules that process the message to authrize the right people)
         '''
         
-        if hasattr(self, '_access_modules'):
-            return self._access_modules
-        access_modules = []
-        modules = c.modules()
-        if 'access_modules' not in self.config:
-            self.config['access_modules'] = c.config()['access_modules']
+        if hasattr(self, '_access_module'):
+            return self._access_module
         # each module has a verify function, that takes in the input and returns the input
-        if hasattr(self, 'config') \
-            and hasattr(self.config, 'access_modules'):
-            config = self.config
-            for access, access_config in config.access_modules.items():
-                assert access in modules, f'access module {access} not found'
-                if module_category != None:
-                    access = module_category + '.' + access
-                access_module = c.module(access)(module=self, **access_config)
-                access_modules.append(access_module)
-
-
-        c.print(f'access_modules: {access_modules}')
-        self._access_modules = access_modules
-        return self._access_modules
+        if hasattr(self, 'config') and hasattr(self.config, 'access_module'):
+            access_config = self.config.access_module
+        else:
+            access_config = c.config()['access_module']
+        access = access_config.pop('module_name', self.default_access_module)
+        access_module = c.module(access)(module=self, **access_config)
+        c.print(f'access_module: {access_module}')
+        self._access_module = access_module
+        return self._access_module
 
     def __repr__(self) -> str:
         return f'<{self.class_name()} tag={self.tag}>'
@@ -8004,11 +7983,11 @@ class c:
     
 
 
-    # @access_modules.setter
-    # def access_modules(self, access_modules):
-    #     if not hasattr(self, '_access_modules'):
-    #         self._access_modules = []
-    #     self._access_modules = access_modules
+    # @access_module.setter
+    # def access_module(self, access_module):
+    #     if not hasattr(self, '_access_module'):
+    #         self._access_module = []
+    #     self._access_module = access_module
 
     @classmethod
     def emoji(cls,  name:str):
