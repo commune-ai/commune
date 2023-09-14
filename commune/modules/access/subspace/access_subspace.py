@@ -46,10 +46,10 @@ class AccessSubspace(c.Module):
         else:
             rate = self.config.rate
         rate_limit = (stake / self.config.stake2rate)
-        rate_limit = rate_limit / self.timescale_map[self.config.timescale]
+        rate_limit = rate_limit + self.config.base_rate
 
-        if is_registered:
-            rate_limit = rate_limit + self.config.rate
+        # convert the rate limit to the correct timescale
+        rate_limit = rate_limit / self.timescale_map[self.config.timescale]
 
 
         # if 'fn' self.config.fn2rate:
@@ -85,9 +85,8 @@ class AccessSubspace(c.Module):
     def test(cls):
         server_name = 'access_subspace.demo' 
         module = c.serve('module', server_name=server_name, wait_for_server=True)
-        client = c.connect(server_name, key='vali::var9')
+        client = c.connect(server_name, key='fam')
         for n in range(10):
-            c.sleep(1)
             c.print(client.info(timeout=4))
         c.kill(server_name)
         return {'name': server_name, 'module': module, 'client': client}

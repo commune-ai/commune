@@ -2677,8 +2677,8 @@ class c:
         module_class = cls.resolve_module(module)
             
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
-        tag = None # set to none so it doesn't get passed to the server
-        
+        if tag_seperator in server_name:
+            tag = server_name.split(tag_seperator)[-1]        
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs['remote'] = False
@@ -2693,7 +2693,6 @@ class c:
         # this automatically adds 
         kwargs['tag'] = tag
         kwargs['server_name'] = server_name
-
 
 
         self = module_class(**kwargs)
