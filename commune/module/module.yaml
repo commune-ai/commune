@@ -23,9 +23,8 @@ shortcuts:
   f: frontend
 tag: fams
 
-access_modules: 
-  subspace:
-    stake2rate: 100
+access_module: 
+  stake2rate: 100
     
 
     

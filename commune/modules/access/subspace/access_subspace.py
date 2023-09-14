@@ -83,7 +83,7 @@ class AccessSubspace(c.Module):
         module = c.serve('module', name=name, wait_for_server=True)
         client = c.connect('module', key='fam')
         for n in range(10):
-            c.sleep(1)
+            # c.sleep(1)
             c.print(client.info())
         c.kill(name)
         return {'name': name, 'module': module, 'client': client}
