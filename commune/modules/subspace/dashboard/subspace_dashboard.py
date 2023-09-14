@@ -24,16 +24,18 @@ class SubspaceDashboard(c.Module):
 
     def load_state(self, sync:bool=False):
 
+        t = c.timer()
+
         self.subspace = c.module('subspace')()
         self.state = self.subspace.state_dict()
-
+        c.print(f'Loaded State in {t.seconds} seconds')
         self.netuid = self.config.netuid
         self.subnets = self.state['subnets']
 
         self.subnet2info = {s['netuid']: s for s in self.subnets}
         self.subnet2netuid = {s['name']: s['netuid'] for s in self.subnets}
         self.subnet_names = [s['name'] for s in self.subnets]
-        self.my_keys = self.subspace.my_keys()
+
         self.modules = self.state['modules'][self.netuid]
         self.validators = [m for m in self.modules if m['name'].startswith('vali') ]
         self.keys  = c.keys()
@@ -43,8 +45,9 @@ class SubspaceDashboard(c.Module):
         self.namespace = {m['name']: m['address'] for m in self.modules}
         self.module_names = [m['name'] for m in self.modules]
         self.subnet_info =  self.subnet2info[self.netuid]
-    
 
+
+    
     def select_key(self,):
         with st.expander('Select Key', expanded=True):
             key = 'module'
@@ -262,6 +265,23 @@ class SubspaceDashboard(c.Module):
         # self.launch_dashboard(expanded=False)
         netuid = 0 
         st.write('# Modules')
+        for m in self.modules:
+            m['delegate_stake'] = sum([s[1] for s in m['stake_from'][1:]])
+            for k in ['balance', 'stake', 'delegate_stake', 'emission']:
+                m[k] = m[k]/1e9
+            for del_k in ['key', 'stake_from', 'stake_to']:
+                del m[del_k]  
+        df = pd.DataFrame(self.modules)
+        df.sort_values('emission', inplace=True, ascending=False)
+
+        df.reset_index(inplace=True)
+        total_stake = sum(df['stake'])
+        total_emission = sum(df['emission'])
+        total_balance = sum(df['balance'])
+        total_delegate_stake = sum(df['delegate_stake'])
+        st.write(f'Total Stake: {total_stake} | Total Emission: {total_emission} | Total Balance: {total_balance} | Total Delegate Stake: {total_delegate_stake}')
+        # st.plotly_chart(fig)
+        st.write(df)
     def archive_dashboard(self):
         # self.launch_dashboard(expanded=False)
         netuid = 0 
@@ -273,6 +293,7 @@ class SubspaceDashboard(c.Module):
 
         df['dt'] = pd.to_datetime(df['dt'])
         df.sort_values('block', inplace=True)
+        df.reset_index(inplace=True)
         st.write(df)
         # df= df[df['market_cap'] < 1e9]
 
