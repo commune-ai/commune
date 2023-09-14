@@ -38,7 +38,7 @@ class VectorStore(c.Module):
         
         return v
     
-    @classmthod
+    @classmethod
     def resolve_model(self, model=None):
         if model == None:
             model = self.model

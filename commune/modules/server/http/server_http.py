@@ -43,9 +43,6 @@ class HTTPServer(c.Module):
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
-        self.access_module = module.access_module() 
-
-              
         self.set_api(ip=self.ip, port=self.port)
 
 
@@ -133,7 +130,7 @@ class HTTPServer(c.Module):
         input['data'] = self.serializer.deserialize(input['data'])
 
         
-        input = self.access_module.verify(input)
+        input = self.module.access_module.verify(input)
 
         return input
 
