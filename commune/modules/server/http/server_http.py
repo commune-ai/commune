@@ -18,6 +18,7 @@ class HTTPServer(c.Module):
         address: Optional[str] = None,
         sse: bool = True,
         chunk_size: int = 42_000,
+        max_request_staleness: int = 60,
     ) -> 'Server':
         self.sse = sse
         
@@ -27,6 +28,7 @@ class HTTPServer(c.Module):
         self.ip = c.ip()  # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"0.0.0.0:{self.port}" if address == None else address
+        self.max_request_staleness = max_request_staleness
         assert self.address != None, f"Address not set"
 
         # ensure that the module has a name
@@ -126,10 +128,17 @@ class HTTPServer(c.Module):
         assert 'signature' in input, f"Data not signed"
         # you can verify the input with the server key class
         assert self.key.verify(input), f"Data not signed with correct key"
-
+        # deserialize the data
         input['data'] = self.serializer.deserialize(input['data'])
+        # here we want to verify the data is signed with the correct key
+        request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
 
-        c.print('BROOOOOOOOO')
+        # verifty the request is not too old
+        assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+        
+\
+
+        # verify the input with the access module
         input = self.module.access_module.verify(input)
 
         return input

@@ -7958,12 +7958,12 @@ class c:
         '''
         Get the auth modules (modules that process the message to authrize the right people)
         '''
-
         if not hasattr(self, '_access_module'):
             # each module has a verify function, that takes in the input and returns the input
             access_config = self.config.get('access_module', c.config()['access_module'])
+
+            # sets self._access_module
             self.set_access_module(**access_config)
-        c.print(self._access_module)
         return self._access_module
 
     default_access_module='access.subspace'

@@ -19,17 +19,8 @@ class AccessSubspace(c.Module):
             return
         
 
-    def verify_staleness(self, input:dict) -> dict:
-
-        # here we want to verify the data is signed with the correct key
-        request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
-        assert request_staleness < self.config.max_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
-        
-
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
     def verify(self, input:dict) -> dict:
-
-        self.verify_staleness(input)
 
         address = input['address']
         if c.is_admin(address):
@@ -41,10 +32,28 @@ class AccessSubspace(c.Module):
 
         # RATE LIMIT CHECKING HERE
         self.sync()
+
+        is_registered = bool( address in self.stakes)
+
         stake = self.stakes.get(address, 0)
         # get the rate limit for the function
+        if fn in self.config.fn2rate:
+            rate = self.config.fn2rate[fn]
+        else:
+            rate = self.config.rate
         rate_limit = (stake / self.config.stake2rate)
         rate_limit = rate_limit / self.timescale_map[self.config.timescale]
+
+        if is_registered:
+            rate_limit = rate_limit + self.config.rate
+
+
+        # if 'fn' self.config.fn2rate:
+        #     # if the function is in the weight map, we need to check the weight
+        #     # get the weight of the function
+        #     weight = self.fn2weight.get(fn, 1)
+        #     # multiply the rate limit by the weight
+        #     rate_limit = rate_limit * weight
 
         default_user_info = {
                             'requests': 0, 
@@ -52,6 +61,8 @@ class AccessSubspace(c.Module):
                             'rate': 0,
                             'stake': stake
                             }
+
+        
         user_info = self.user_info.get(address, default_user_info)
         user_rate = 1 / (c.time() - user_info['last_time_called'] + 1e-10)        
         assert user_rate < rate_limit, f"Rate limit too high (calls per second) {user_rate} > {rate_limit}"
@@ -68,19 +79,15 @@ class AccessSubspace(c.Module):
 
     @classmethod
     def test(cls):
-        try:
-            server_name = 'access_subspace.demo' 
-            module = c.serve('module', server_name=server_name, wait_for_server=True)
-            client = c.connect(server_name, key='fam')
-            for n in range(10):
-                # c.sleep(1)
-                c.print(client.info(timeout=4))
-            c.kill(server_name)
-            return {'name': server_name, 'module': module, 'client': client}
-        except Exception as e:
-            raise e
-        finally:
-            c.kill(server_name)
+        server_name = 'access_subspace.demo' 
+        module = c.serve('module', server_name=server_name, wait_for_server=True)
+        client = c.connect(server_name, key='vali::var9')
+        for n in range(10):
+            c.sleep(1)
+            c.print(client.info(timeout=4))
+        c.kill(server_name)
+        return {'name': server_name, 'module': module, 'client': client}
+
             
 
 
