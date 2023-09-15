@@ -1937,7 +1937,7 @@ class Subspace(c.Module):
                     'balance': balances.get(key, 0),
                     'stake_from': stake_from.get(key, []),
                     'stake_to': stake_to.get(key, []),
-                    'regblock': regblock.get(key, 0),
+                    'regblock': regblock.get(uid, 0),
                 }
                 
                 if include_weights:
