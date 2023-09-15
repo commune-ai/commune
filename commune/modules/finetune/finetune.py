@@ -24,8 +24,7 @@ class FineTuner(c.Module):
         config = self.set_config(config, kwargs=kwargs)
         self.logger = logging.getLogger(__name__)
         self.set_model(config)
-        if config.train:
-            self.train(config)
+        self.train(config)
     def forward(self, prompt_text: str, max_length: int = None):
         max_length = max_length if max_length else self.config.max_length
         try:
@@ -64,6 +63,8 @@ class FineTuner(c.Module):
 
 
     def train(self, config):
+        if config.train == False:
+            c.print("Skipping training", color='red')
         self.set_trainer(config)
         for epoch in range(config.trainer.num_epochs):
             c.print(f"Epoch {epoch}")
