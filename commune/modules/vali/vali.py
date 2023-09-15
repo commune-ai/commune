@@ -112,6 +112,7 @@ class Vali(c.Module):
         my_module = self.ip in module['address']
 
         module_stats = self.load_module_stats( module['name'], default=module)
+        module_stats.update(module)
 
         staleness = c.time() - module_stats.get('timestamp', 0)
         if staleness < self.config.max_staleness:
