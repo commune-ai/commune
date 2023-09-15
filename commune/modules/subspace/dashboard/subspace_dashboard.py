@@ -8,6 +8,7 @@ import plotly.express as px
 class SubspaceDashboard(c.Module):
     
     def __init__(self, config=None): 
+        self.st = c.module('streamlit')()
         st.set_page_config(layout="wide")
         self.st = c.module('streamlit')()
         self.st.load_style()
@@ -45,6 +46,7 @@ class SubspaceDashboard(c.Module):
         self.namespace = {m['name']: m['address'] for m in self.modules}
         self.module_names = [m['name'] for m in self.modules]
         self.subnet_info =  self.subnet2info[self.netuid]
+        self.block = self.state['block']
 
 
     
@@ -267,21 +269,35 @@ class SubspaceDashboard(c.Module):
         st.write('# Modules')
         for m in self.modules:
             m['delegate_stake'] = sum([s[1] for s in m['stake_from'][1:]])
+            # m['address'] = m['address'].split(':')[0]
             for k in ['balance', 'stake', 'delegate_stake', 'emission']:
                 m[k] = m[k]/1e9
             for del_k in ['key', 'stake_from', 'stake_to']:
                 del m[del_k]  
         df = pd.DataFrame(self.modules)
         df.sort_values('emission', inplace=True, ascending=False)
-
         df.reset_index(inplace=True)
-        total_stake = sum(df['stake'])
-        total_emission = sum(df['emission'])
-        total_balance = sum(df['balance'])
-        total_delegate_stake = sum(df['delegate_stake'])
-        st.write(f'Total Stake: {total_stake} | Total Emission: {total_emission} | Total Balance: {total_balance} | Total Delegate Stake: {total_delegate_stake}')
-        # st.plotly_chart(fig)
+
+        stats = {
+            'total_stake': sum(df['stake']),
+            'total_emission': sum(df['emission']),
+            'total_balance': sum(df['balance']),
+            'total_delegate_stake': sum(df['delegate_stake']),
+            'block': self.block,
+
+        }
+
+        # make df hit the edge of the screen
         st.write(df)
+
+        # make a pie chart of the stake
+        self.st.metrics_dict(stats, num_rows=1)
+
+        with st.expander('Plot', expanded=False):
+            self.st.run(df)
+
+
+
     def archive_dashboard(self):
         # self.launch_dashboard(expanded=False)
         netuid = 0 
