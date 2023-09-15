@@ -166,16 +166,56 @@ class Subspace(c.Module):
                      for m in self.my_modules(netuid=netuid, network=network, fmt=fmt)}
         key2address = c.key2address()
         key2stake = {}
+        stake_to = self.stake_to(netuid=netuid, network=network, fmt=fmt)
         for key_name, address in key2address.items():
             if address in stakes:
                 key2stake[key_name]= c.round_decimals(stakes[address], decimals=decimals)
 
         return key2stake
 
-    def key2staketo(self,netuid = None, network = None, fmt=fmt,  decimals=2):
-        staketo = self.stake_to(netuid=netuid, network=network, fmt=fmt)
-        my_keys = self.my_keys()
+
+    def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
+
+        mystaketo = self.mystaketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals)
+        key2stake = {}
+        for key, staketo_tuples in mystaketo.items():
+            stake = sum([s for a, s in staketo_tuples])
+            key2stake[key] = c.round_decimals(self.format_amount(stake, fmt=fmt), decimals=decimals)
+
+        if search != None:
+            key2stake = {k:v for k,v in key2stake.items() if search in k}
+            
+
         return key2stake
+
+    def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
+        staketo = self.stake_to(netuid=netuid, network=network)
+        mystaketo = {}
+        key2address = c.key2address()
+        for key, address in key2address.items():
+            if address in staketo:
+                mystaketo[key] = [[a, self.format_amount(s, fmt=fmt)] for a, s in staketo[address]]
+
+        if search != None:
+            mystaketo = {k:v for k,v in mystaketo.items() if search in k}
+            
+        return mystaketo
+
+
+    def my_stakefrom(self,netuid = None, network = None, fmt=fmt,  decimals=2):
+        staketo = self.stake_from(netuid=netuid, network=network)
+        mystakefrom = {}
+        key2address = c.key2address()
+        for key, address in key2address.items():
+            if address in stakefrom:
+                mystakefrom[key] = self.format_amount(stakefrom[address])
+    
+        if search != None:
+            mystakefrom = {k:v for k,v in mystakefrom.items() if search in k}
+        return mystakefrom
+
+
+
     def key2balance(self, network = None, fmt=fmt, decimals=2):
         network = self.resolve_network(network)
         
@@ -187,6 +227,8 @@ class Subspace(c.Module):
             if address in balances:
                 key2balance[key_name]= c.round_decimals(balances[address], decimals=decimals)
         return key2balance
+
+    
 
     def key2tokens(self, network = None, fmt=fmt, decimals=2):
         key2tokens = {}
@@ -221,25 +263,17 @@ class Subspace(c.Module):
                 total_stake += module['stake']
         return self.format_amount(total_stake, fmt=fmt)
     
-    def market_cap(self, network = network, fmt:str='j', decimals:int=2, update=False):
 
-        total_balance = self.network_balance(network=network, fmt=fmt, update=update)
-        total_stake = self.network_stake(network=network, fmt=fmt, update=False) # update=False because we already updated above if needed.
-        return c.round_decimals(total_balance + total_stake, decimals=decimals) # update=False because we already updated above if needed.
-    mcap = market_cap
-    
-
-    def my_tokens(self, network = None,fmt=fmt, decimals=2):
+    def my_total_tokens(self, network = None,fmt=fmt, decimals=2):
         return sum(self.key2tokens(network=network, fmt=fmt, decimals=decimals).values())
 
-    key2value = key2tokens
-    my_value = my_tokens
-    networth = my_tokens
-    
-    def my_stake(self, network = None, netuid=None, fmt=fmt, decimals=2):
-        return sum(self.key2stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals).values())
-    def my_balance(self, network = None, fmt=fmt, decimals=2):
-        return sum(self.key2balance(network=network, fmt=fmt, decimals=decimals).values())
+    key2value = key2tokens    
+    def my_total_stake(self, network = None, netuid=None, fmt=fmt, decimals=2):
+        return sum(self.my_stake(network=network, netuid=netuid, fmt=fmt, decimals=decimals).values())
+    def my_total_balance(self, network = None, fmt=fmt, decimals=2):
+        return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
+
+
     #####################
     #### Set Weights ####
     #####################
@@ -373,12 +407,14 @@ class Subspace(c.Module):
         wait_for_finalization: bool = True,
         network: str = network,
         existential_balance: float = 0.1,
+        replace_module: str = None, # if you want to replace a module
         sync: bool = False,
 
     ) -> bool:
         
         assert name != None, f"Module name must be provided"
 
+        # resolve the subnet name
         if subnet == None:
             subnet = self.config.subnet
 
@@ -388,10 +424,19 @@ class Subspace(c.Module):
         address = address.replace('0.0.0.0',c.ip())
         key = self.resolve_key(name)
 
+        # Validate address.
         if self.subnet_exists(subnet, network=network):
             netuid = self.get_netuid_for_subnet(subnet)
             if self.is_registered(key.ss58_address, netuid=netuid):
+                c.print(f":cross_mark: [red]Module {name} already registered[/red]")
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+            else:
+                c.print(f":satellite: Registering {name} with address {address} replacing {replace_module}")
+                if replace_module != None:
+                    assert self.is_registered(replace_module, netuid=netuid), f"Module {replace_module} is not registered"
+                    return self.update_module(name=replace_module, address=address, netuid=netuid, network=network)
+
+                
 
         call_params = { 
                     'network': subnet.encode('utf-8'),
@@ -518,8 +563,9 @@ class Subspace(c.Module):
         return self.format_amount( result.value, fmt = fmt )
         
     #################
-    #### Serving ####
+    #### update or replace a module ####
     #################
+
     def update_module(
         self,
         module: str,
@@ -543,6 +589,7 @@ class Subspace(c.Module):
         if address == None:
             namespace_local = c.namespace(network='local')
             address = namespace_local.get(name,  f'{c.ip()}:{c.free_port()}'  )
+            address = address.replace(c.default_ip, c.ip())
 
         if name == module_info['name'] and address == module_info['address']:
             c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
@@ -1392,6 +1439,8 @@ class Subspace(c.Module):
 
     def total_supply(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
         return self.total_stake(network=network, block=block) + self.total_balance(network=network, block=block, fmt=fmt)
+
+    mcap = market_cap = total_supply
             
     
     def subnet_state(self, 
@@ -1536,7 +1585,22 @@ class Subspace(c.Module):
             return df_stats.to_dict('records')
         else:
             return df_stats
-        
+
+
+    def least_useful_module(self, *args, stats=None,  **kwargs):
+
+        if stats == None:
+            stats = self.stats(*args, df=False, **kwargs)
+        min_stake = 1e10
+        min_module = None
+        for s in stats:
+            if s['emission'] <= min_stake:
+                min_stake = s['emission']
+                min_module = s['name']
+            if min_stake == 0:
+                break
+        c.print(f"Least useful module is {min_module} with {min_stake} emission.")
+        return min_module
     def check_servers(self, search=None,  netuid=None):
         for m in c.stats(search=search, netuid=netuid, df=False):
             if m['serving'] == False and m['registered'] == True:
@@ -1983,13 +2047,22 @@ class Subspace(c.Module):
     def names(self, netuid: int = None, **kwargs) -> List[str]:
         return list(self.namespace(netuid=netuid, **kwargs).keys())
     
-    def my_modules(self, *args, **kwargs):
+    def my_modules(self,search=None, *args, **kwargs):
         my_modules = []
         address2key = c.address2key()
         for module in self.modules(*args, **kwargs):
+            if search != None and search not in module['name']:
+                continue
             if module['key'] in address2key:
                 my_modules += [module]
+            
         return my_modules
+
+    def my_servers(self, search=None,  **kwargs):
+        servers = [m['name'] for m in self.my_modules(**kwargs)]
+        if search != None:
+            servers = [s for s in servers if search in s]
+        return servers
     
     def my_modules_names(self, *args, **kwargs):
         my_modules = self.my_modules(*args, **kwargs)

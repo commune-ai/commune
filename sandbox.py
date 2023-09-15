@@ -9,12 +9,38 @@ import commune as c
 
 servers = c.servers('vali::var')
 
+
 daddy_key = 'module'
+ratio = 0.5
 
+def unstake_ratio(key='module', ratio:float=0.5):
+    s = c.module('subspace')()
+    staketo = s.my_staketo(fmt='j')[daddy_key]
+    c.print(staketo)
+    unstake_amount = {a: int(s*ratio) for a, s in staketo}
+    c.print(unstake_amount, 'unstake_amount')
+    for a, s in unstake_amount.items():
+        c.unstake(key=daddy_key, module_key=a, amount=s)
+
+    return {"success": True, "unstake_amount": unstake_amount}
+
+# def stake_across(key='module', ratio:float=0.5):
+#     s = c.module('subspace')()
+#     staketo = s.my_balance(fmt='j')[daddy_key]
+#     c.print(staketo)
+#     stake_amount = {a: int(s*ratio) for a, s in staketo}
+#     c.print(stake_amount, 'stake_amount')
+#     for a, s in stake_amount.items():
+#         c.stake(key=daddy_key, module_key=a, amount=s)
+
+#     return {"success": True, "stake_amount": stake_amount}
+
+s = c.module('subspace')()
+daddy_key = 'module'
+replace_key = 'storage'
+vali_key = 'vali.text'
+modules = c.my_modules(vali_key)
 balance = c.get_balance(daddy_key)
-
-stake_per_server = balance / len(servers)
-
-for server in servers:
-    c.stake(key=daddy_key, module_key=server , amount=stake_per_server)
-    print(f'staked {stake_per_server} to {server}')
+stake_per_module = int(balance/len(modules))
+for m in modules:
+    c.stake(key=daddy_key, module_key=m['key'], amount=stake_per_module)
