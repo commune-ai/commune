@@ -3384,11 +3384,17 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-100, end_line=-1, verbose=True , mode='cmd'):
+    def pm2_logs(cls, 
+                module:str, 
+                start_line: int =-100, 
+                end_line: int =-1, 
+                verbose: bool=True ,
+                mode: str ='cmd'):
         if mode == 'local':
-
             text = ''
             for m in ['out','error']:
+
+                # I know, this is fucked 
                 path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, start_line=start_line, end_line=end_line)
@@ -3401,8 +3407,13 @@ class c:
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
-
-
+    @staticmethod
+    def memory_usage(fmt='gb'):
+        fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
+        import os, psutil
+        process = psutil.Process()
+        scale = fmt2scale.get(fmt)
+        return (process.memory_info().rss // 1024) / scale
 
     @classmethod
     def argparse(cls, verbose: bool = False):
@@ -6284,12 +6295,13 @@ class c:
         
 
         if name == None:
-            prefix = cls.resolve_module(module).module_path()
-            name = f'{prefix}{tag_seperator}{fn}'
+            name = cls.resolve_module(module).module_path()
 
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
-    
+        else:
+            name = f'{name}{tag_seperator}{fn}'
+
         if 'remote' in kwargs:
             kwargs['remote'] = False
             
