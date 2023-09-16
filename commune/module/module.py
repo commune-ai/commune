@@ -849,11 +849,17 @@ class c:
         return c.module('gradio')(*args, **kwargs)
     
     @classmethod
-    def st(cls, module = None, fn='dashboard'):
+    def st(cls, module = None, fn='dashboard', port=8501):
         module = c.module(module)
         module_filepath = module.filepath()
         c.print(f'Running {module_filepath}', color='green')
-        cls.run_command(f'streamlit run {module_filepath} -- --fn {fn}', verbose=True)
+        # add port to the command
+        port = c.get_port(port)
+        cmd = f'streamlit run {module_filepath}'
+        if port != None:
+            cmd += f' --server.port {port}'
+        cmd+= f' -- --fn {fn}'
+        c.cmd(cmd, verbose=True)
 
     @staticmethod
     def stside(fn):
@@ -5386,6 +5392,17 @@ class c:
         for i in range(n):
             r = cls.register(module=module, tag=tag+str(i),  **kwargs)
             server_names.append(r['server_name'])
+        return {'servers':server_names}
+
+    @classmethod
+    def servefleet(cls,module = None, tag:str=None, n:int=2, refresh=False, **kwargs):
+        subspace = c.module('subspace')()
+        if tag == None:
+            tag = ''
+        server_names = []
+        for i in range(n):
+            r = cls.serve(module=module, tag=tag+str(i), refresh=refresh,  **kwargs)
+            server_names.append(r)
         return {'servers':server_names}
     
     @classmethod

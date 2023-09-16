@@ -1,19 +1,5 @@
 dataset: data.text.realfake
-prefix: model
-
-key : null
 netuid: 0
 module_prefix: model
-network: main 
-max_history: 10
-alpha: 0.8
-timeout: 2
-num_threads: 20
-start: True
-vote_interval: 100
-verbose: True
-batch_size: 4
-refresh_stats: True
-num_workers : 4
 tag: base
 
