@@ -3378,11 +3378,17 @@ class c:
             c.rm(pm2_logs_map[k])
 
     @classmethod
-    def pm2_logs(cls, module:str, start_line=-100, end_line=-1, verbose=True , mode='cmd'):
+    def pm2_logs(cls, 
+                module:str, 
+                start_line: int =-100, 
+                end_line: int =-1, 
+                verbose: bool=True ,
+                mode: str ='cmd'):
         if mode == 'local':
-
             text = ''
             for m in ['out','error']:
+
+                # I know, this is fucked 
                 path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
                     text +=  c.get_text(path, start_line=start_line, end_line=end_line)
