@@ -176,17 +176,32 @@ class Subspace(c.Module):
 
     def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
 
-        mystaketo = self.mystaketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals)
+        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals)
         key2stake = {}
         for key, staketo_tuples in mystaketo.items():
             stake = sum([s for a, s in staketo_tuples])
-            key2stake[key] = c.round_decimals(self.format_amount(stake, fmt=fmt), decimals=decimals)
+            key2stake[key] = c.round_decimals(stake, decimals=decimals)
 
         if search != None:
             key2stake = {k:v for k,v in key2stake.items() if search in k}
             
 
         return key2stake
+
+    def my_balance(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
+
+        balances = self.balances(network=network, fmt=fmt)
+        my_balance = {}
+        key2address = c.key2address()
+        for key, address in key2address.items():
+            if address in balances:
+                my_balance[key] = balances[address]
+
+        if search != None:
+            my_balance = {k:v for k,v in my_balance.items() if search in k}
+            
+
+        return my_balance
 
     def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
         staketo = self.stake_to(netuid=netuid, network=network)
@@ -264,8 +279,10 @@ class Subspace(c.Module):
         return self.format_amount(total_stake, fmt=fmt)
     
 
-    def my_total_tokens(self, network = None,fmt=fmt, decimals=2):
-        return sum(self.key2tokens(network=network, fmt=fmt, decimals=decimals).values())
+    def my_total_supply(self, network = None,fmt=fmt, decimals=2):
+        return self.my_total_stake(network=network) + self.my_total_balance(network=network)
+
+    my_tokens = my_supply = my_value = my_total_supply
 
     key2value = key2tokens    
     def my_total_stake(self, network = None, netuid=None, fmt=fmt, decimals=2):
