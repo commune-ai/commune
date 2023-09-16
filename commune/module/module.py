@@ -6295,12 +6295,13 @@ class c:
         
 
         if name == None:
-            prefix = cls.resolve_module(module).module_path()
-            name = f'{prefix}{tag_seperator}{fn}'
+            name = cls.resolve_module(module).module_path()
 
         if tag != None:
             name = f'{name}{tag_seperator}{tag}'
-    
+        else:
+            name = f'{name}{tag_seperator}{fn}'
+
         if 'remote' in kwargs:
             kwargs['remote'] = False
             
