@@ -2001,8 +2001,8 @@ class c:
                 prefix_match: bool = False,
                 key = None,
                 **kwargs ):
-
-
+        if not isinstance(module, str):
+            return module  
         t = c.time()
         network = c.resolve_network(network)
         key = cls.get_key(key)

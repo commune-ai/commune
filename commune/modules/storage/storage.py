@@ -17,9 +17,6 @@ class Storage(c.Module):
         return path
 
     def put(self, k,  v: Dict, timestamp:int=None, ):
-        if module != None:
-            self = c.module(module)
-
         if timestamp == None:
             timestamp = c.timestamp()
         v = self.serializer.serialize({'data': v, 'timestamp': timestamp})
@@ -36,7 +33,7 @@ class Storage(c.Module):
         if 'data' not in v:
             return {'success': False, 'error': 'No data found'}
         v = self.serializer.deserialize(v['data'])
-        return v
+        return v['data']
 
 
 
@@ -48,13 +45,19 @@ class Storage(c.Module):
     def resolve_seed(self, seed: int = None) -> int:
         return c.timestamp() if seed == None else seed
 
-    def remote_obj_exists(self, k: str, module: str, seed=None, **kwargs) -> bool:
-        storage = c.connect(module, **kwargs)
+    def remote_has(self, k: str, module: str, seed=None, **kwargs) -> bool:
+
+        if isinstance(module, str):
+            module = c.connect(module, **kwargs)
+        
         seed = self.resolve_seed(seed)
 
         obj = self.get(k)
         obj['seed'] = seed
-        return storage.get_hash(k, seed=seed)
+        local_hash = c.hash(obj)
+        remote_hash =  module.get_hash(k, seed=seed)
+        return bool(local_hash == remote_hash)
+        
 
     def exists(self, k) -> bool:
         path = self.resolve_store_path(k)
@@ -93,11 +96,23 @@ class Storage(c.Module):
     def test(cls):
         c.print('STARTING')
         self = cls()
-        object_list = [0, {'fam': 1}, 'whadup']
+        import torch
+        object_list = [0, {'fam': 1}, 'whadup', {'tensor': torch.rand(3,3)}, {'tensor': torch.rand(3,3), 'fam': 1}]
         for obj in object_list:
             c.print(f'putting {obj}')
             self.put('test', obj)
-            assert self.get('test') == obj
+            get_obj = self.get('test')
+            get_obj_str = self.serializer.serialize(obj)
+            obj_str = self.serializer.serialize(obj)
+            assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
+
+
+
+
+    def score_module(module) -> float:
+
+        remote_has = self.remote_has(k, module=module, seed=seed, **kwargs)
+
 
 
 
