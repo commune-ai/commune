@@ -7312,6 +7312,10 @@ class c:
         return c.module('subspace')().get_stake(*args, **kwargs)
     
     @classmethod
+    def stakes(self, *args, **kwargs):
+        return len(c.module('subspace')().stakes(*args, **kwargs))
+    
+    @classmethod
     def stake_multiple(cls, *args, **kwargs):
         return c.module('subspace')().stake_multiple(*args, **kwargs)
     

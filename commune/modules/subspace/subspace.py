@@ -166,16 +166,21 @@ class Subspace(c.Module):
                      for m in self.my_modules(netuid=netuid, network=network, fmt=fmt)}
         key2address = c.key2address()
         key2stake = {}
+        stake_to = self.stake_to(netuid=netuid, network=network, fmt=fmt)
         for key_name, address in key2address.items():
             if address in stakes:
                 key2stake[key_name]= c.round_decimals(stakes[address], decimals=decimals)
 
         return key2stake
 
-    def key2staketo(self,netuid = None, network = None, fmt=fmt,  decimals=2):
+    def mystaketo(self,netuid = None, network = None, fmt=fmt,  decimals=2):
         staketo = self.stake_to(netuid=netuid, network=network, fmt=fmt)
-        my_keys = self.my_keys()
-        return key2stake
+        mystaketo = {}
+        key2address = c.key2address()
+        for key, address  in key2address.items():
+                if address in staketo:
+                    mystaketo[key] = self.get_stake_to(staketo[address], netuid=netuid, fmt=fmt)
+        return mystaketo
     def key2balance(self, network = None, fmt=fmt, decimals=2):
         network = self.resolve_network(network)
         
@@ -1246,9 +1251,6 @@ class Subspace(c.Module):
                 time_start = current_time
 
             c.print(f"Looping {time_since_last} / {interval}", color='yellow')
-            
-            
-    
     
     state_dict_cache = {}
     def state_dict(self,
@@ -2527,9 +2529,6 @@ class Subspace(c.Module):
     @classmethod
     def install_rust(cls, sudo=True):
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
-
-        
-    
 
     @classmethod
     def build(cls, chain:str = chain, 
