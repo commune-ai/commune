@@ -8002,10 +8002,19 @@ class c:
         self._access_module = c.module(access_module_name)(module=self, **access_config)
         return self._access_module
 
+    @classmethod
+    def gc(cls):
+        import gc
+        gc.collect()
+        return {'success': True, 'msg': 'garbage collected'}
+
     def __repr__(self) -> str:
         return f'<{self.class_name()} tag={self.tag}>'
     def __str__(self) -> str:
         return f'<{self.class_name()} tag={self.tag}>'
+
+
+
     
     
 
