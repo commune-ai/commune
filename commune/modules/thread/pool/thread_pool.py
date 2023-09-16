@@ -1,6 +1,7 @@
 import commune as c
 Thread = c.module('thread')
 import asyncio
+import gc
 class ThreadPool(Thread):
     def __init__(self, 
                 fn = None,
@@ -102,6 +103,7 @@ class ThreadPool(Thread):
             kwargs_key = kwargs.pop('kwargs_key')
             if 'fn' in kwargs:
                 tmp_fn = kwargs.pop('fn')
+                assert callable(tmp_fn), f'fn must be callable, got {tmp_fn}'
                 tmp_fn(**kwargs)
             result = fn(**kwargs)
             output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time()})
@@ -109,6 +111,8 @@ class ThreadPool(Thread):
             del kwargs
             del result
             del kwargs_key
+            # garbage collect
+            gc.collect()
 
 
 
