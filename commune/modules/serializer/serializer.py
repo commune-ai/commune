@@ -262,7 +262,7 @@ class Serializer(c.Module):
 
     def get_type_str(self, data):
         data_type = str(type(data)).split("'")[1]
-        if 'Munch' in data_type':
+        if 'Munch' in data_type:
             data_type = 'munch'
         if 'Tensor' in data_type:
             data_type = 'torch'
