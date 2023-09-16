@@ -3407,8 +3407,13 @@ class c:
             return cls.run_command(f"pm2 logs {module}", verbose=verbose)
         else:
             raise NotImplementedError(f'mode {mode} not implemented')
-
-
+    @staticmethod
+    def memory_usage(fmt='gb'):
+        fmt2scale = {'b': 1e0, 'kb': 1e1, 'mb': 1e3, 'gb': 1e6}
+        import os, psutil
+        process = psutil.Process()
+        scale = fmt2scale.get(fmt)
+        return (process.memory_info().rss // 1024) / scale
 
     @classmethod
     def argparse(cls, verbose: bool = False):
