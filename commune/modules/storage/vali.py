@@ -14,8 +14,14 @@ class StorageVali(c.Module):
 
 
     def score_module(module) -> float:
-
-
-
         remote_has = self.storage.score_module(module)
+
+
+
+    def put(self, *args,**kwargs):
+        return self.storage.put(*args,**kwargs)
+
+        
+    def get(self, *args,**kwargs):
+        return self.storage.get(*args,**kwargs)
 
