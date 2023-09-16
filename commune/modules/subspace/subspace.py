@@ -176,11 +176,11 @@ class Subspace(c.Module):
 
     def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
 
-        mystaketo = self.mystaketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals)
+        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals)
         key2stake = {}
         for key, staketo_tuples in mystaketo.items():
             stake = sum([s for a, s in staketo_tuples])
-            key2stake[key] = c.round_decimals(self.format_amount(stake, fmt=fmt), decimals=decimals)
+            key2stake[key] = c.round_decimals(stake, decimals=decimals)
 
         if search != None:
             key2stake = {k:v for k,v in key2stake.items() if search in k}
@@ -1549,7 +1549,7 @@ class Subspace(c.Module):
         servers = c.servers(network='local')
 
         # keys = self.my_keys(netuid=netuid)
-        my_modules = self.my_modules(netuid=netuid, fmt='j')
+        my_modules = self.my_modules(netuid=netuid, fmt='nano')
         module2stats = {}
         for module in my_modules:
             module['registered'] = True
@@ -1566,9 +1566,13 @@ class Subspace(c.Module):
             for k in ['stake_to', 'stake_from']:
                 if k in stats[i]:
                     stats[i][k] = {k: c.round_decimals(v, 2) for k,v in stats[i][k]}
-            for k in ['balance', 'incentive', 'dividends', 'emission', 'stake']:
+            for k in ['balance', 'emission', 'stake']:
                 if k in stats[i]:
-                    stats[i][k] = c.round_decimals(stats[i][k], 4)
+                    stats[i][k] = self.format_amount(stats[i][k], fmt='j')
+
+            for k in ['incentive', 'dividends']:
+                if k in stats[i]:
+                    stats[i][k] = stats[i][k]
 
             stats[i]['my_stake'] = stats[i]['stake_to'].get(stats[i]['key'], 0)
         df_stats =  c.df(stats)

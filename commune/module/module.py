@@ -1639,7 +1639,7 @@ class c:
 
     tree_folders_path = 'module_tree_folders'
     @classmethod
-    def add_tree_folder(cls, tree_path:str, **kwargs):
+    def add_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
         tree_folder = c.get(path, [])
         tree_folder += [tree_path]
@@ -1649,15 +1649,15 @@ class c:
         return {'module_tree_folders': tree_folder}
     
     @classmethod
-    def ls_tree_folders(cls):
+    def ls_trees(cls):
         path = tree_folders_path
         tree_folders = c.get(path, [])
         return tree_folders
     @classmethod
-    def rm_tree_folder(cls, tree_path:str, **kwargs):
+    def rm_tree(cls, tree_path:str, **kwargs):
         path = cls.tree_folders_path
         tree_folder = c.get(tree_path, [])
-        tree_folder = [f for f in tree_folder if f != patree_pathth]
+        tree_folder = [f for f in tree_folder if f != tree_path ]
         c.put(path, tree_folder)
         return {'module_tree_folders': tree_folder}
     

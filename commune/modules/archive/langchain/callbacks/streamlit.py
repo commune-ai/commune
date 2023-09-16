@@ -32,17 +32,6 @@ class StreamlitCallbackHandler(BaseCallbackHandler):
         """Print out that we are entering a chain."""
         class_name = serialized["name"]
         st.write(f"Entering new {class_name} chain...")
-    @staticmethod
-    def metrics_dict(x, num_rows:int = 1):
-        num_elements = len(x)
-        num_cols = num_elements//num_rows
-        row_cols = [st.columns(num_cols) for i in range(num_rows)]
-        for i in range(num_elements):
-            k = list(x.keys())[i]
-            v = list(x.values())[i]
-            row_idx = i//num_cols
-            col_idx = i%num_cols
-            row_cols[row_idx][col_idx].metric(k, int(v))
 
 
     def on_chain_end(self, outputs: Dict[str, Any]) -> None:
