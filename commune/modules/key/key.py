@@ -1160,10 +1160,10 @@ class Keypair(c.Module):
         return {'saved_mems':list(mems.keys()), 'path':path}
 
     @classmethod
-    def loadmems(cls, path=mems_path):
+    def loadmems(cls, path=mems_path, **kwargs):
         mems = c.load_json(path)
         for k,mem in mems.items():
-            cls.add_key(k, mem)
+            cls.add_key(k, mem, **kwargs)
         return {'loaded_mems':list(mems.keys()), 'path':path}
 
     @classmethod

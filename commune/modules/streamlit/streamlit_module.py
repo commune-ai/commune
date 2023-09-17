@@ -175,7 +175,7 @@ class StreamlitModule(c.Module):
             plot_kwargs = {}
             st.markdown("### X-axis")
             plot_kwargs['x'] = st.selectbox("Choose X-Axis Feature", column_options, 0)
-            plot_kwargs['nbins'] = st.slider("Number of Bins", 10, 100, 10)
+            # plot_kwargs['nbins'] = st.slider("Number of Bins", 10, 1000, 10)
 
             st.markdown("### Y-axis")
             plot_kwargs['y'] = st.selectbox("Choose Y-Axis Feature", [None]+ column_options, 0)
