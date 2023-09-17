@@ -539,7 +539,6 @@ chain_info:
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 loop: false
 mode: local
-netuid: 0
 network: main
 retry_params:
   backoff: 2
@@ -547,6 +546,7 @@ retry_params:
   max_delay: 4
   tries: 2
 save_interval: 1800
+netuid: 0
 subnet: commune
 subnet_params:
 - name

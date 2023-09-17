@@ -1,0 +1,109 @@
+version: 2.1
+jobs:
+  local_testing:
+    docker:
+      - image: circleci/python:3.8
+    working_directory: ~/project
+
+    steps:
+      - checkout
+
+      - run:
+          name: Check if litellm dir was updated or if pyproject.toml was modified
+          command: |
+            if [ -n "$(git diff --name-only $CIRCLE_SHA1^..$CIRCLE_SHA1 | grep -E 'pyproject\.toml|litellm/')" ]; then
+              echo "litellm updated"
+            else
+              echo "No changes to litellm or pyproject.toml. Skipping tests."
+              circleci step halt
+            fi
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum ".circleci/requirements.txt" }}
+      - run:
+          name: Install Dependencies
+          command: |
+            python -m pip install --upgrade pip
+            python -m pip install -r .circleci/requirements.txt
+            pip install infisical
+            pip install pytest
+            pip install pytest-asyncio
+            pip install mypy
+            pip install openai[datalib]
+            pip install -Uq chromadb==0.3.29
+            pip install https://github.com/BerriAI/litellm/raw/main/cookbook/bedrock_resources/boto3-1.28.21-py3-none-any.whl
+            pip install https://github.com/BerriAI/litellm/raw/main/cookbook/bedrock_resources/botocore-1.31.21-py3-none-any.whl
+      - save_cache:
+          paths:
+            - ./venv
+          key: v1-dependencies-{{ checksum ".circleci/requirements.txt" }}
+      - run:
+          name: Linting Testing
+          command: |
+            cd litellm
+            python -m pip install types-requests types-setuptools types-redis
+            if ! python -m mypy . --ignore-missing-imports; then
+              echo "mypy detected errors"
+              exit 1
+            fi
+            cd ..
+  
+
+      # Run pytest and generate JUnit XML report
+      - run:
+          name: Run tests
+          command: |
+            python -m pytest --junitxml=test-results/junit.xml
+
+      # Store test results
+      - store_test_results:
+          path: test-results
+
+  publish_to_pypi:
+    docker:
+      - image: cimg/python:3.8
+    working_directory: ~/project
+
+    environment:
+      TWINE_USERNAME: __token__
+
+    steps:
+      - checkout
+
+      - run:
+          name: Checkout code
+          command: git checkout $CIRCLE_SHA1
+
+      # Check if setup.py is modified and publish to PyPI
+      - run:
+          name: PyPI publish
+          command: |
+            if [ -n "$(git diff --name-only $CIRCLE_SHA1^..$CIRCLE_SHA1 | grep 'pyproject.toml')" ]; then
+              echo "pyproject.toml modified"
+              echo -e "[pypi]\nusername = __token__\npassword = $PYPI_API_TOKEN" > ~/.pypirc
+              python -m pip install --upgrade pip
+              pip install build
+              pip install wheel
+              pip install --upgrade twine setuptools
+              rm -rf build dist
+
+              echo "Building package"
+              python -m build
+
+              echo "Twine upload to dist"
+              echo "Contents of dist directory:"
+              ls dist/
+              twine upload --verbose dist/*
+            else
+              echo "No changes to pyproject.toml. Skipping PyPI publish."
+              circleci step halt
+            fi
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - local_testing
+      - publish_to_pypi:
+          requires:
+            - local_testing
