@@ -334,7 +334,6 @@ class Keypair(c.Module):
             return key_json
         else:
             key = cls.from_json(key_json)
-            key.path = path
             return key
         
         

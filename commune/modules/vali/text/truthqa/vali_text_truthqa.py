@@ -1,11 +1,11 @@
 import commune as c
 from typing import *
 import json
-Vali = c.module('vali')
 
+Vali = c.module('vali')
 class ValiTextTruthfulQA(Vali):
-    def __init__(self, config = None, **kwargs):
-        config = self.set_config(config, kwargs=kwargs)
+    def __init__(self,**kwargs):
+        config = self.set_config(kwargs=kwargs)
         self.init_vali(config)
 
     def score_module(self, module='model') -> int:

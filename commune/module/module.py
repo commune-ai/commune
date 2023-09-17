@@ -38,17 +38,13 @@ class c:
     default_network = 'local' # local, subnet
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
-    
-    
     __ss58_format__ = 42 # the ss58 format for the substrate address
 
     def __init__(self, config:Dict=None, **kwargs):
-        
         self.set_config(config=config,kwargs=kwargs)  
-        # c.thread(self.update_loop)
     @classmethod
     def init(cls, *args, **kwargs):
-        cls.__init__(*args, **kwargs)
+        return cls(*args, **kwargs)
     
     @classmethod
     def boot_peers(cls) -> List[str]: 
@@ -304,12 +300,13 @@ class c:
 
 
     @classmethod
-    def fn2code(cls, module=None)-> Dict[str, str]:
+    def fn2code(cls, search=None, module=None)-> Dict[str, str]:
         module = module if module else cls
-        functions = cls.get_functions(module)
+        functions = module.fns(search)
         fn_code_map = {}
         for fn in functions:
-            fn_code_map[fn] = cls.fn_code(fn=fn, module=module)
+            c.print(f'fn: {fn}')
+            fn_code_map[fn] = module.fn_code(fn)
         return fn_code_map
     
             
@@ -3963,7 +3960,7 @@ class c:
             self.__dict__[k] = v
       
     @classmethod
-    def merge(cls, b, 
+    def merge(cls, a = None, b= None, 
                         include_hidden:bool=True, 
                         allow_conflicts:bool=True, 
                         verbose: bool = False):
@@ -3971,7 +3968,11 @@ class c:
         '''
         Merge the functions of a python object into the current object (a)
         '''
-        a =  cls
+        if a == None:
+            a =  cls
+
+        assert a != None, 'a cannot be None'
+        assert b != None, 'b cannot be None'
         
         for b_fn_name in dir(b):
             
@@ -5074,14 +5075,15 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls, *args,**kwargs) -> None:
-
-        future = cls.async_call(*args,**kwargs)
+    def call(cls, fn:str , *args ,n: int=1, return_future:bool=False,  **kwargs) -> None:
+        if n == 1:
+            futures = c.async_call(fn, *args,**kwargs)
+            return c.gather(future)
+        else:
+            futures = [ c.async_call(*args,**kwargs) for i in range(n)]
         if kwargs.get('return_future', False):
             return future
-        else:
-            return cls.gather(future)
-        return c.gather(cls.async_call(*args,**kwargs))
+
 
     @classmethod
     async def async_call(cls,
@@ -7187,6 +7189,14 @@ class c:
     @classmethod
     def my_stake(cls, *args, **kwargs):
         return c.module('subspace')().my_stake(*args, **kwargs)
+
+    @classmethod
+    def my_staketo(cls, *args, **kwargs):
+        return c.module('subspace')().my_staketo(*args, **kwargs)
+
+    @classmethod
+    def my_stakefrom(cls, *args, **kwargs):
+        return c.module('subspace')().my_stakefrom(*args, **kwargs)
 
     @classmethod
     def my_tokens(cls, *args, **kwargs):

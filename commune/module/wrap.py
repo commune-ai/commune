@@ -3,13 +3,11 @@ import commune as c
 from typing import *
 
 class ModuleWrapper(c.Module):
-    protected_attributes = [ 'info', 'serve', 'module_file', 'module_path', 'server_name',  ]
+    protected_attributes = [ 'info', 'serve', 'module_file', 'module_path', 'server_name',  'test']
     def __init__(self, 
                  module:'Any' = None, 
                  protected_attributes:List[str] = None,
                   ): 
-        if module is None:
-            module = c.module()()
         self.module = module
         self.protected_attributes = protected_attributes or self.protected_attributes
         for attr in dir(self.module):
@@ -29,3 +27,17 @@ class ModuleWrapper(c.Module):
     @classmethod
     def module_path(cls) -> str:
         return module_class.__name__.lower()
+
+        
+    def __getattr__(self, key):
+
+        if key in self.protected_attributes :
+            return getattr(self, key)
+        else:
+            return lambda *args, **kwargs : partial(self.remote_call, (key))( *args, **kwargs)
+
+
+
+    @classmethod
+    def test(cls)
+
