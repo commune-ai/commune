@@ -16,17 +16,13 @@ class Storage(c.Module):
         path =  f'{self.store_dirpath}/{key}'
         return path
 
-    def put(self, k,  v: Dict, timestamp:int=None, ):
+    def put(self, k,  v: Dict, timestamp:int=None, encrypt:bool=False, **kwargs):
         if timestamp == None:
             timestamp = c.timestamp()
-        obj = {
-            'data': v,
-            'timestamp': timestamp,
-            'hash': c.hash(v),
-            'size': c.sizeof(v),
-        }
+        obj = {'data': v}
         v = self.serializer.serialize(obj)
         v = self.key.sign(v, return_json=True)
+
         path = self.resolve_store_path(k)
         return c.put(path, v)
 
@@ -34,19 +30,22 @@ class Storage(c.Module):
 
     def get(self,k, deserialize:bool= True) -> Any:
         path = self.resolve_store_path(k)
-        c.print(f'getting {k} from {path}')
         v = c.get(path, {})
         if 'data' not in v:
             return {'success': False, 'error': 'No data found'}
         if deserialize:
             v = self.serializer.deserialize(v['data'])
+
         return v['data']
 
 
 
-    def get_hash(self, k: str, seed : int= None ) -> str:
-        obj = self.get(k)
-        obj['seed'] = self.resolve_seed(seed)
+    def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:
+        obj = self.get(k, deserialize=False)
+        if seed != None:
+            obj = obj + seed_sep + str(seed)
+
+        obj_hash = self.hash(obj, seed=seed)
         return c.hash(obj)
 
     def resolve_seed(self, seed: int = None) -> int:
@@ -109,64 +108,13 @@ class Storage(c.Module):
         for obj in object_list:
             c.print(f'putting {obj}')
             self.put('test', obj)
-            get_obj = self.get('test')
-            get_obj_str = self.serializer.serialize(obj)
+            get_obj = self.get('test', deserialize=False)
             obj_str = self.serializer.serialize(obj)
+
+            # test hash
+            assert self.get_hash('test', seed=1) == self.get_hash('test', seed=1)
+            assert self.get_hash('test', seed=1) != self.get_hash('test', seed=2)
             assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
-
-    storage_peers = {}
-
-
-    def get_storage_peer(self, name, default=None) -> Dict:
-        if default == None:
-            default = {'address': None,  'size': 0, 'stored_keys': [], 'w': 0}
-        return self.get(f'{self.tag}/peers/{name}', {})
-
-
-    def score_module(self, module) -> float:
-
-
-        info = module.info()
-        obj_keys = self.ls_keys()
-        key = c.choice(obj_keys)
-        
-        obj = self.get(key)
-
-        obj_size = c.sizeof(obj)
-
-        remote_has = self.remote_has(remote_obj_key, module=module)
-        if not remote_has:
-            module.put(key, obj)
-        
-
-        storage_peer = self.get_storage_peer(info['name'])
-
-        remote_has = self.remote_has(remote_obj_key, module=module)
-        if remote_has:
-            if key not in storage_peer['stored_keys']:
-                storage_peer['stored_keys'] += [key]
-                storage_peer['size'] += obj_size
-        
-        if not remote_has:
-            remote_obj_key = obj['hash']
-            module.put(remote_obj_key, obj)
-            remote_has = self.remote_has(remote_obj_key, module=module)
-        if remote_has:
-            if key not in storage_peer['stored_keys']:
-                storage_peer['stored_keys'] += [key]
-                storage_peer['size'] += obj_size
-        else:
-
-            storage_peer['size'] -= obj_size
-            storage_peer['size'] = max(storage_peer['size'], 0)
-            storage_peer['stored_keys'] = [k for k in storage_peer['stored_keys'] if k != key]
-
-        # set weight
-        storage_peer['w'] = storage_peer['size']
-        
-
-        return storage_peer
-        
 
 
 

@@ -93,7 +93,7 @@ class Vali(c.Module):
     def modules_per_second(self):
         return self.count / self.lifetime
 
-    def score_module(self, module):
+    def score_module(self, module, **kwargs):
 
         info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
@@ -104,15 +104,24 @@ class Vali(c.Module):
 
 
     def eval_module(self, module:dict):
+        """
+        The following evaluates a module server, from the dictionary
+        """
+        
         epoch = self.count // self.n
+
         prefix = f'[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
         
         self.count += 1
 
         my_module = self.ip in module['address']
 
-        module_stats = self.load_module_stats( module['name'], default=module)
+        # load the module stats
+        module_stats = self.load_module_info( module['name'], default=module)
+
+        # update the module state with the module stats
         module_stats.update(module)
+
 
         staleness = c.time() - module_stats.get('timestamp', 0)
         if staleness < self.config.max_staleness:
@@ -122,7 +131,7 @@ class Vali(c.Module):
 
         try:
             module_client = c.connect(module['address'], key=self.key)
-            response = self.score_module(module_client)
+            response = self.score_module(module_client, info=module, **module)
         except Exception as e:
             if my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
@@ -303,14 +312,14 @@ class Vali(c.Module):
         paths = self.ls(f'stats/{self.config.network}')
         return paths
 
-    def load_module_stats(self, k:str,default=None):
+    def load_module_info(self, k:str,default=None):
         default = default if default != None else {}
         path = self.resolve_stats_path(network=self.config.network, tag=self.tag) + f'/{k}'
         return self.get_json(path, default=default)
 
 
     def get_history(self, k:str, default=None):
-        module_stats = self.load_module_stats(k, default=default)
+        module_stats = self.load_module_info(k, default=default)
         return module_stats.get('history', [])
     
     def save_module_stats(self,k:str, v):
