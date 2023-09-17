@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 class Vali(c.Module):
 
-    whitelist = ['']
+    
     last_sync_time = 0
 
     def __init__(self, config=None,  **kwargs):

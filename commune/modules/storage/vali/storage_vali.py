@@ -42,7 +42,12 @@ class StorageVali(c.Module):
 
         storage_peer = self.get_storage_peer(info['name'])
 
+
+        # does the module have the key
         remote_has = self.storage.remote_has(remote_obj_key, module=module)
+
+
+        # if the module has the key, then add it to the storage_peer
         if remote_has:
             if key not in storage_peer['stored_keys']:
                 storage_peer['stored_keys'] += [key]
