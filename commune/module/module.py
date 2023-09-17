@@ -1447,9 +1447,7 @@ class c:
 
             has_class_bool = all([key_element in line for key_element in key_elements])
 
-            other_exceptions = ['ModuleWrapper' in line, 'key_elements' in line]
-            has_exception = any([exception for exception in other_exceptions])
-            if has_class_bool and (not has_exception):
+            if has_class_bool:
                 if  search != None:
                     if isinstance(search, str):
                         search = [search]

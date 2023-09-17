@@ -264,7 +264,7 @@ class Serializer(c.Module):
         data_type = str(type(data)).split("'")[1]
         if 'Munch' in data_type:
             data_type = 'munch'
-        if 'Tensor' in data_type:
+        if 'Tensor' in data_type or 'torch' in data_type:
             data_type = 'torch'
         if 'ndarray' in data_type:
             data_type = 'numpy'

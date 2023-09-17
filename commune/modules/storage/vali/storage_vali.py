@@ -1,19 +1,21 @@
 import commune as c
+from typing import *
 
 
 class StorageVali(c.Module):
-    def __init__(self, module = 'storage', tag=None)
-        config = self.set_config(kwargs=locals())
-
+    def __init__(self, config=None, **kwargs):
+        config = self.set_config(config, kwargs=kwargs)
         history = {}
 
-        if config.module == None:
-            self.storage = c.module(module)
+        self.storage = c.module('storage')()
 
 
 
 
     storage_peers = {}
+
+
+    
 
 
     def get_storage_peer(self, name, default=None) -> Dict:
@@ -29,27 +31,26 @@ class StorageVali(c.Module):
         obj_keys = self.storage.ls_keys()
         key = c.choice(obj_keys)
         
-        obj = self.storage.get(key)
+        obj = self.storage.get(key, deserialize=False)
 
         obj_size = c.sizeof(obj)
-
-        remote_has = self.remote_has(remote_obj_key, module=module)
+        remote_obj_key = c.hash(obj)
+        remote_has = self.storage.remote_has(remote_obj_key, module=module)
         if not remote_has:
             module.put(key, obj)
         
 
         storage_peer = self.get_storage_peer(info['name'])
 
-        remote_has = self.remote_has(remote_obj_key, module=module)
+        remote_has = self.storage.remote_has(remote_obj_key, module=module)
         if remote_has:
             if key not in storage_peer['stored_keys']:
                 storage_peer['stored_keys'] += [key]
                 storage_peer['size'] += obj_size
         
         if not remote_has:
-            remote_obj_key = obj['hash']
             module.put(remote_obj_key, obj)
-            remote_has = self.remote_has(remote_obj_key, module=module)
+            remote_has = self.storage.remote_has(remote_obj_key, module=module)
         if remote_has:
             if key not in storage_peer['stored_keys']:
                 storage_peer['stored_keys'] += [key]
@@ -74,4 +75,12 @@ class StorageVali(c.Module):
         
     def get(self, *args,**kwargs):
         return self.storage.get(*args,**kwargs)
+
+
+    @classmethod
+    def test(cls, n=10):
+        storage = [c.module('storage')() for i in range(n)]
+        self = cls()
+
+        self.score_module(storage[0])
 
