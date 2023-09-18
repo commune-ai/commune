@@ -964,7 +964,7 @@ class Subspace(c.Module):
 
         amount = self.to_nanos(amount)
         call_params={
-            'amount': amount,
+            'amount': int(amount),
             'netuid': netuid,
             'module_key': module_key
             }
