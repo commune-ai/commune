@@ -544,14 +544,14 @@ class Subspace(c.Module):
 
         # Check balance.
         account_balance = self.get_balance( key.ss58_address , fmt='nano' )
-
         c.print(f"Transferring {amount} to {dest}")
         transfer_balance = self.to_nanos(amount)
 
         if transfer_balance > account_balance:
             c.print(":cross_mark: [red]Insufficient balance[/red]:[bold white]\n  {}[/bold white]".format(account_balance))
             return
-        c.print(f"Transferring {amount} to {dest}")
+
+        dest_balance = self.get_balance( dest , fmt='j')
 
         with c.status(":satellite: Transferring to {}"):
             with self.substrate as substrate:
@@ -580,6 +580,8 @@ class Subspace(c.Module):
                     new_balance = self.get_balance( key.ss58_address , fmt='j')
                     account_balance = self.format_amount(account_balance, fmt='j')
                     c.print("Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(account_balance, new_balance))
+                    new_dest_balance = self.get_balance( dest , fmt='j')
+                    c.print("Destination Balance:\n  [blue]{}[/blue] :arrow_right: [green]{}[/green]".format(dest_balance, new_dest_balance))
                     return {'success': True, 'message': 'Successfully transferred {} to {}'.format(amount, dest)}
                 else:
                     c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
@@ -957,10 +959,13 @@ class Subspace(c.Module):
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
+        c.print(key)
         netuid = self.resolve_netuid(netuid)
         
-        module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
-        old_balance = self.get_balance( key , fmt='j')
+
+        
+        module_key = key.ss58_address if module_key == None else module_key
+        old_balance = self.get_balance( key.ss58_address , fmt='j')
 
         old_stake = self.get_staketo( key.ss58_address, to_key=module_key,  netuid=netuid, fmt='j',)
 
@@ -973,6 +978,7 @@ class Subspace(c.Module):
             'netuid': netuid,
             'module_key': module_key
             }
+
         with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
             with self.substrate as substrate:
@@ -1150,11 +1156,17 @@ class Subspace(c.Module):
     @classmethod
     def resolve_key_ss58(cls, key, create:bool = False):
         if isinstance(key, str):
+
             if not c.key_exists( key ) and create:
                 key = c.get_key( key )
                 key = key.ss58_address
+
+        # if the key has an attribute then its a key
         if hasattr(key, 'ss58_address'):
             key = key.ss58_address
+
+        # TODO: get the key from the name
+
         return key
 
 
