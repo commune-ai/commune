@@ -355,8 +355,6 @@ class Keypair(c.Module):
     @classmethod
     def key2address(cls, prefix=None):
         key2address =  { k: v.ss58_address for k,v  in cls.get_keys(prefix).items()}
-        if prefix in key2address:
-            return key2address[prefix]
         return key2address
     @classmethod
     def address2key(cls, prefix:Optional[str]=None):

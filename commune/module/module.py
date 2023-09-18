@@ -7339,17 +7339,12 @@ class c:
         return c.module('subspace')().get_stake(*args, **kwargs)
     
     @classmethod
-<<<<<<< HEAD
-    def stakes(self, *args, **kwargs):
-        return len(c.module('subspace')().stakes(*args, **kwargs))
-=======
     def get_staketo(cls, *args, **kwargs):
         return c.module('subspace')().get_staketo(*args, **kwargs)
     
     @classmethod
     def get_stakefrom(cls, *args, **kwargs):
         return c.module('subspace')().get_stakefrom(*args, **kwargs)
->>>>>>> 0f8b3aa27afa64f1445537c5af07eff2eac654a5
     
     @classmethod
     def stake_multiple(cls, *args, **kwargs):
