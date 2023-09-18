@@ -2535,12 +2535,7 @@ class c:
 
     @classmethod
     def namespace_subspace(cls, update:bool = False , **kwargs ) -> Dict:
-        if update or not c.exists('namespace_subspace'):
-            namespace = c.module('subspace')().namespace(**kwargs)
-            c.put('namespace_subspace', namespace)
-        else:
-            namespace = c.get('namespace_subspace', None)
-        
+        namespace = c.module('subspace')().namespace(update=update, **kwargs)
         local_namespace = cls.namespace_local()
         namespace = {**namespace, **local_namespace}
         return namespace
@@ -7610,6 +7605,7 @@ class c:
         return c.module('subspace')().n(*args, **kwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
+        t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
     @classmethod
     def check_servers(cls, *args, **kwargs):
