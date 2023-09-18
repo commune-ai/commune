@@ -209,6 +209,7 @@ class Subspace(c.Module):
             key2stake = {k:v for k,v in key2stake.items() if search in k}
 
         return key2stake
+    mys =  mystake = my_stake
 
     def my_balance(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
 
@@ -224,6 +225,7 @@ class Subspace(c.Module):
             
 
         return my_balance
+    myb = mybal = my_balance
 
     def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
         staketo = self.stake_to(netuid=netuid, network=network)
@@ -237,6 +239,7 @@ class Subspace(c.Module):
             mystaketo = {k:v for k,v in mystaketo.items() if search in k}
             
         return mystaketo
+    mysto  = mystaketo = my_staketo
 
 
     def my_stakefrom(self,netuid = None, network = None, fmt=fmt,  decimals=2):
@@ -251,7 +254,7 @@ class Subspace(c.Module):
             mystakefrom = {k:v for k,v in mystakefrom.items() if search in k}
         return mystakefrom
 
-
+    mysfr = mystakefrom = my_stakefrom
 
     def key2balance(self, network = None, fmt=fmt, decimals=2):
         network = self.resolve_network(network)
@@ -529,7 +532,7 @@ class Subspace(c.Module):
     ) -> bool:
         key = c.get_key(key)
         network = self.resolve_network(network)
-        dest = self.resolve_module_key(dest, netuid=netuid)
+        dest = self.resolve_key_ss58(dest)
         # Validate destination address.
         if not is_valid_address_or_public_key( dest ):
             msg = ":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest)
@@ -541,6 +544,8 @@ class Subspace(c.Module):
 
         # Check balance.
         account_balance = self.get_balance( key.ss58_address , fmt='nano' )
+
+        c.print(f"Transferring {amount} to {dest}")
         transfer_balance = self.to_nanos(amount)
 
         if transfer_balance > account_balance:
@@ -832,7 +837,7 @@ class Subspace(c.Module):
         if not self.is_registered( module_key, netuid=netuid):
             return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
         
-        old_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+        old_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
         amount = self.to_nanos(amount - existential_deposit)
@@ -863,7 +868,7 @@ class Subspace(c.Module):
             c.print(":white_heavy_check_mark: [green]Sent[/green]")
             new_balance = self.get_balance(  key.ss58_address , fmt='j')
             c.print(f"Balance ({key.ss58_address}):\n  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]")
-            new_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+            new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
             c.print(f"Stake ({module_key}):\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
                 
         else:
@@ -895,7 +900,7 @@ class Subspace(c.Module):
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
-        old_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+        old_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
         amount = int(self.to_nanos(amount - existential_deposit))
@@ -923,7 +928,7 @@ class Subspace(c.Module):
 
         if response.is_success:
             c.print(":white_heavy_check_mark: [green]Sent[/green]")
-            new_stake = self.get_stake_from( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+            new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
             c.print(f"Stake ({module_key[:4]}..):\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
 
             new_balance = self.get_balance(  key.ss58_address , fmt='j')
@@ -957,7 +962,7 @@ class Subspace(c.Module):
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
         old_balance = self.get_balance( key , fmt='j')
 
-        old_stake = self.get_stake_to( key.ss58_address, to_key=module_key,  netuid=netuid, fmt='j',)
+        old_stake = self.get_staketo( key.ss58_address, to_key=module_key,  netuid=netuid, fmt='j',)
 
         if amount == None:
             amount = old_stake
@@ -968,7 +973,6 @@ class Subspace(c.Module):
             'netuid': netuid,
             'module_key': module_key
             }
-        c.print(call_params)
         with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
 
             with self.substrate as substrate:
@@ -993,7 +997,7 @@ class Subspace(c.Module):
                 new_balance = self.get_balance( key.ss58_address , fmt='j')
                 c.print(f"Balance ({key.ss58_address}):\n  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]")
 
-                new_stake = self.get_stake_from(module_key, from_key=key.ss58_address , fmt='j') # Get stake on hotkey.
+                new_stake = self.get_stakefrom(module_key, from_key=key.ss58_address , fmt='j') # Get stake on hotkey.
                 c.print(f"Stake ({module_key}) :\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
 
 
@@ -1147,9 +1151,8 @@ class Subspace(c.Module):
     def resolve_key_ss58(cls, key, create:bool = False):
         if isinstance(key, str):
             if not c.key_exists( key ) and create:
-                c.add_key( key)
-            key = c.get_key( key )
-            key = key.ss58_address
+                key = c.get_key( key )
+                key = key.ss58_address
         if hasattr(key, 'ss58_address'):
             key = key.ss58_address
         return key
@@ -1202,7 +1205,7 @@ class Subspace(c.Module):
         return staked_modules
         
 
-    def get_stake_to( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , return_names = False) -> Optional['Balance']:
+    def get_staketo( self, key: str, to_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , return_names = False) -> Optional['Balance']:
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
@@ -1215,11 +1218,11 @@ class Subspace(c.Module):
     
 
     def get_stakers( self, key: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
-        stake_from = self.get_stake_from(key=key, block=block, netuid=netuid, fmt=fmt)
+        stake_from = self.get_stakefrom(key=key, block=block, netuid=netuid, fmt=fmt)
         key2module = self.key2module(netuid=netuid)
         return {key2module[k]['name'] : v for k,v in stake_from}
         
-    def get_stake_from( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
+    def get_stakefrom( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
         key2module = self.key2module(netuid=netuid)
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
@@ -1235,7 +1238,7 @@ class Subspace(c.Module):
         
         key = self.resolve_key( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  self.get_stake_to( key, netuid=netuid )
+        stake_to =  self.get_staketo( key, netuid=netuid )
         c.print(f"Unstaking all for [bold white]{key}[/bold white] on network [bold white]{netuid}[/bold white]. -> {stake_to}")
         for (module_key, stake_amount) in stake_to:
             self.unstake( key=key, module_key=module_key, netuid=netuid, amount=stake_amount)
@@ -1689,7 +1692,7 @@ class Subspace(c.Module):
             if 'stake' in cols:
                 subnet_key_stats['stake'] = module.get('stake', 0)
             if 'stake_to' in cols:
-                subnet_key_stats['stake_to'] =  self.get_stake_to(key ,netuid=netuid, fmt=fmt)
+                subnet_key_stats['stake_to'] =  self.get_staketo(key ,netuid=netuid, fmt=fmt)
             if 'stake_from' in cols:
                 subnet_key_stats['stake_from'] =  module.get('stake_from', {})
             if 'incentive' in cols:
