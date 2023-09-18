@@ -49,6 +49,18 @@ class StreamlitModule(c.Module):
         fig.update_layout(height=800)
         self.show(fig)
         
+    @staticmethod
+    def metrics_dict(x, num_rows:int = 1):
+        num_elements = len(x)
+        num_cols = num_elements//num_rows
+        row_cols = [st.columns(num_cols) for i in range(num_rows)]
+        for i in range(num_elements):
+            k = list(x.keys())[i]
+            v = list(x.values())[i]
+            row_idx = i//num_cols
+            col_idx = i%num_cols
+            row_cols[row_idx][col_idx].metric(k, int(v))
+
     def plot_options(self, prefix:str ='st_plot'):
         plot_options = self.fns(prefix)
         return [p.replace(prefix+'_', '')for p in plot_options]

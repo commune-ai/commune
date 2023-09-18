@@ -334,7 +334,6 @@ class Keypair(c.Module):
             return key_json
         else:
             key = cls.from_json(key_json)
-            key.path = path
             return key
         
         
@@ -1224,6 +1223,23 @@ class Keypair(c.Module):
         import multihash
         hashed_public_key = multihash.encode(pk, code=multihash.SHA2_256)
         return hashed_public_key.hex()
+
+
+
+    @classmethod
+    def duplicate_keys(cls) -> dict:
+
+        key2address = cls.key2address()
+        duplicate_keys = {}
+
+        for k,a in key2address.items():
+            if a not in duplicate_keys:
+                duplicate_keys[a] = []
+        
+            duplicate_keys[a] += [k]
+        
+        return {k:v for k,v in duplicate_keys.items() if len(v) > 1}
+
 
 Keypair.run(__name__)
         
