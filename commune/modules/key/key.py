@@ -1240,6 +1240,14 @@ class Keypair(c.Module):
         
         return {k:v for k,v in duplicate_keys.items() if len(v) > 1}
 
+    @classmethod
+    def clean(cls):
+        key2adress = c.key2address()
+        for k,a in key2adress.items():
+            if c.key_exists(a):
+                c.print(f'removing {a}', color='red')
+                c.rm_key(a)
+            c.print('cleaning', k, a,  c.key_exists(a))
 
 Keypair.run(__name__)
         
