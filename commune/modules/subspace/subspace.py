@@ -1125,6 +1125,11 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid( netuid )
         return self.query("MaxAllowedWeights", params=[netuid], block=block).value
 
+
+    def max_immunity_ratio (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
+        netuid = self.resolve_netuid( netuid )
+        return self.query("MaxImmunityRatio", params=[netuid], block=block).value
+
     """ Returns network SubnetN hyper parameter """
     def n(self, network = network , netuid: int = None, block: Optional[int] = None ) -> int:
         self.resolve_network(network)
@@ -1538,6 +1543,7 @@ class Subspace(c.Module):
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid, block=block ),
                 'max_allowed_weights': self.max_allowed_weights( netuid = netuid , block=block),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid , block=block),
+                'max_immunity_ratio': self.max_immunity_ratio( netuid = netuid , block=block),
                 'ratio': subnet_stake / total_stake,
                 'founder': subnet_founder
             }
@@ -1699,42 +1705,20 @@ class Subspace(c.Module):
                 
     def key_stats(self, 
                 key : str , 
-                 netuid=None, 
+                 netuid=netuid, 
+                 network = network,
                  fmt='j',
-                 cols=[ 'stake_from', 'stake_to', 'stake'],
                 **kwargs):
         
-        key_stats = {}
-
+        self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
-        key_stats['balance'] = self.get_balance(key, fmt=fmt)
-
-
-        key_stats['modules'] = {}
-        for netuid in self.netuids():
-            subnet_key_stats = {}
-        
-            module = self.key2module(key=key,netuid=netuid, fmt=fmt)
-            register = bool(module.get('name', False))
-            if register == False:
-                continue
-            if 'stake' in cols:
-                subnet_key_stats['stake'] = module.get('stake', 0)
-            if 'stake_to' in cols:
-                subnet_key_stats['stake_to'] =  self.get_staketo(key ,netuid=netuid, fmt=fmt)
-            if 'stake_from' in cols:
-                subnet_key_stats['stake_from'] =  module.get('stake_from', [])
-            if 'incentive' in cols:
-                subnet_key_stats['incentive'] = module.get('incentive', 0)
-            if 'dividends' in cols:
-                subnet_key_stats['dividends'] = module.get('dividends', 0)
-            if 'emission' in cols:
-                subnet_key_stats['emission'] = module.get('emission', 0)
-            if 'registered' in cols:
-                subnet_key_stats['registered'] = register
-            if 'address' in cols:
-                subnet_key_stats['address'] = module['key']
-            key_stats['modules'] = subnet_key_stats
+        key_address = self.resolve_key_ss58(key)
+        key_stats = {}
+        key_stats['staketo'] =  self.get_staketo(key_address ,netuid=netuid, fmt=fmt)
+        key_stats['total_stake'] = sum([v for k,v in key_stats['staketo']])
+        key_stats['registered'] = self.is_registered(key_address, netuid=netuid)
+        key_stats['balance'] = self.get_balance(key_address, fmt=fmt)
+        key_stats['addresss'] = key_address
         return key_stats
 
         
@@ -2633,15 +2617,15 @@ class Subspace(c.Module):
     
     @classmethod
     def build_snapshot(cls, 
-              path : str ,
+              path : str  = None,
              network : str =network,
-             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'founder'],
+             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'max_immunity_ratio', 'founder'],
             module_params : List[str] = ['key', 'name', 'address'],
             save: bool = True, 
             min_balance:int = 100000,
             verbose: bool = False,
              **kwargs):
-        
+        path = path if path != None else cls.latest_archive_path(network=network)
         state = cls.get(path)
         
         snap = {

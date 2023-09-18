@@ -38,6 +38,7 @@ class Storage(c.Module):
 
         return v['data']
 
+    
 
 
     def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:
