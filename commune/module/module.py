@@ -5075,14 +5075,14 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls, fn:str , *args ,n: int=1, return_future:bool=False,  **kwargs) -> None:
+    def call(cls,  *args ,n: int=1, return_future:bool=False,  **kwargs) -> None:
         if n == 1:
-            futures = c.async_call(fn, *args,**kwargs)
-            return c.gather(future)
+            futures = c.async_call(*args,**kwargs)
+            return c.gather(futures)
         else:
-            futures = [ c.async_call(*args,**kwargs) for i in range(n)]
+            futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
         if kwargs.get('return_future', False):
-            return future
+            return futures
 
 
     @classmethod
@@ -7344,8 +7344,17 @@ class c:
         return c.module('subspace')().get_stake(*args, **kwargs)
     
     @classmethod
+<<<<<<< HEAD
     def stakes(self, *args, **kwargs):
         return len(c.module('subspace')().stakes(*args, **kwargs))
+=======
+    def get_staketo(cls, *args, **kwargs):
+        return c.module('subspace')().get_staketo(*args, **kwargs)
+    
+    @classmethod
+    def get_stakefrom(cls, *args, **kwargs):
+        return c.module('subspace')().get_stakefrom(*args, **kwargs)
+>>>>>>> 0f8b3aa27afa64f1445537c5af07eff2eac654a5
     
     @classmethod
     def stake_multiple(cls, *args, **kwargs):
