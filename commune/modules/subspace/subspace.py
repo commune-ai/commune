@@ -1197,6 +1197,8 @@ class Subspace(c.Module):
         
         if decimals != None:
             x = c.round_decimals(x, decimals=decimals)
+
+        return x
     
     def get_stake( self, key_ss58: str, block: Optional[int] = None, netuid:int = None , fmt='j' ) -> Optional['Balance']:
         
