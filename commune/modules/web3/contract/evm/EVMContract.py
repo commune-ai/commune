@@ -21,7 +21,6 @@ class EVMContract(commune.Module):
         self.set_contracts_dir_path(base_dir=base_dir)
         if compile:
             self.compile()
-
         self.set_network(network=network)
         self.set_account(account=account)
         self.set_contract(contract=contract)
@@ -417,10 +416,6 @@ class EVMContract(commune.Module):
         contract = self.deploy_contract(contract='CommunalCluster',new=True, args=['BRO', 'BROCOIN'])
         # print(contract)
         print(contract.balanceOf(self.account.address))
-
-
-if __name__ == '__main__':
-    EVMContract.streamlit()
 
 
  
