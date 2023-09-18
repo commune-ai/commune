@@ -1,4 +1,5 @@
 netuid: 0
 module_prefix: storage
+storage_timeout: 5
 tag: base
 
