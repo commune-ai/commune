@@ -1725,7 +1725,7 @@ class Subspace(c.Module):
             if 'stake_to' in cols:
                 subnet_key_stats['stake_to'] =  self.get_staketo(key ,netuid=netuid, fmt=fmt)
             if 'stake_from' in cols:
-                subnet_key_stats['stake_from'] =  module.get('stake_from', {})
+                subnet_key_stats['stake_from'] =  module.get('stake_from', [])
             if 'incentive' in cols:
                 subnet_key_stats['incentive'] = module.get('incentive', 0)
             if 'dividends' in cols:
