@@ -1154,10 +1154,10 @@ class Subspace(c.Module):
     
     
     @classmethod
-    def resolve_key_ss58(cls, key, create:bool = False):
+    def resolve_key_ss58(cls, key):
         if isinstance(key, str):
 
-            if not c.key_exists( key ) and create:
+            if c.key_exists( key ):
                 key = c.get_key( key )
                 key = key.ss58_address
 
@@ -1747,6 +1747,7 @@ class Subspace(c.Module):
         """
         network = self.resolve_network(network)
         key_ss58 = self.resolve_key_ss58( key )
+
 
         c.print(f"Getting balance for [bold white]{key_ss58}[/bold white] on network [bold white]{network}[/bold white].", verbose=True)
         
