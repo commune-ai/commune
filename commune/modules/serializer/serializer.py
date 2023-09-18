@@ -78,11 +78,14 @@ class Serializer(c.Module):
         if v_type in [dict, list, tuple, set]:
             new_value = self.serialize(x=v, mode=None)
         else:
-            str_v_type = self.get_str_type(data=v)
+            # GET THE TYPE OF THE VALUE
+            str_v_type = self.get_type_str(data=v)
             if hasattr(self, f'serialize_{str_v_type}'):
+                # SERIALIZE MODE ON
                 v = getattr(self, f'serialize_{str_v_type}')(data=v)
                 new_value = {'data': v, 'data_type': str_v_type,  'serialized': True}
             else:
+                # SERIALIZE MODE OFF
                 new_value = v
 
         return new_value
@@ -132,6 +135,16 @@ class Serializer(c.Module):
     """
     ################ BIG DICT LAND ############################
     """
+
+    def serialize_pandas(self, data: 'pd.DataFrame') -> 'DataBlock':
+        data = data.to_dict()
+        data = self.dict2bytes(data=data)
+        return data
+    
+    def deserialize_pandas(self, data: bytes) -> 'pd.DataFrame':
+        data = self.bytes2dict(data=data)
+        data = pd.DataFrame.from_dict(data)
+        return data
     
     def serialize_dict(self, data: dict) -> str :
         data = self.dict2bytes(data=data)
@@ -247,15 +260,16 @@ class Serializer(c.Module):
 
 
 
-    def get_str_type(self, data):
-    
+    def get_type_str(self, data):
         data_type = str(type(data)).split("'")[1]
-        if data_type in ['munch.Munch', 'Munch']:
+        if 'Munch' in data_type:
             data_type = 'munch'
-        if data_type in ['torch.Tensor', 'Tensor']:
+        if 'Tensor' in data_type or 'torch' in data_type:
             data_type = 'torch'
-        if data_type in ['numpy.ndarray', 'ndarray', 'np.ndarray']:
+        if 'ndarray' in data_type:
             data_type = 'numpy'
+        if  'DataFrame' in data_type:
+            data_type = 'pandas'
         return data_type
 
     @classmethod

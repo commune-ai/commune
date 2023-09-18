@@ -1,40 +1,43 @@
 
 import commune as c
+from typing import *
 
 class ModuleWrapper(c.Module):
+    protected_attributes = [ 'info', 'serve', 'module_file', 'module_path', 'server_name',  'test']
     def __init__(self, 
-                 module:'Any', 
-                 whitelist = None
+                 module:'Any' = None, 
+                 protected_attributes:List[str] = None,
                   ): 
-        if whitelist == None:
-            module_fns = c.get_functions(module)
-        
-        c.__init__(self, *args, **kwargs) 
-        self.merge(self.module)
+        self.module = module
+        self.protected_attributes = protected_attributes or self.protected_attributes
+        for attr in dir(self.module):
+            if attr not in self.whitelist:
+                if attr in self.protected_attributes:
+                    continue
+                if '__' not in attr:
+                    try:
+                        setattr(self, attr, getattr(self.module, attr))
+                    except Exception as e:
+                        c.print(f'Error: {e}')
         
     @classmethod
     def module_file(cls): 
         return cls.get_module_path(simple=False)
     
-    
-    def __call__(self, *args, **kwargs):
-        return self.module.__call__(self, *args, **kwargs)
-
-    def __str__(self):
-        return self.module.__str__()
-    
-    def __repr__(self):
-        return self.module.__repr__() 
     @classmethod
     def module_path(cls) -> str:
         return module_class.__name__.lower()
 
+        
+    def __getattr__(self, key):
+
+        if key in self.protected_attributes :
+            return getattr(self, key)
+        else:
+            return lambda *args, **kwargs : partial(self.remote_call, (key))( *args, **kwargs)
+
+
+
     @classmethod
-    def functions(cls):
-        return cls.get_functions(module)
+    def test(cls)
 
-
-if is_class:
-    return ModuleWrapper
-else:
-    return ModuleWrapper(module=module)
