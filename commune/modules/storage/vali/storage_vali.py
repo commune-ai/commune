@@ -9,20 +9,20 @@ class StorageVali(c.Module):
 
         self.storage = c.module('storage')()
 
-
-
-
     storage_peers = {}
 
+    def get_storage_peer(self, name) -> Dict:
+        default_storage_peer = {'address': None,  'size': 0, 'stored_keys': [], 'w': 0}
+        return self.get(f'{self.tag}/peers/{name}', default_storage_peer)
 
-    
+    def set_storage_peer(self, name, value):
+        assert isinstance(value, dict)
+        assert 'address' in value
+        assert 'size' in value
+        assert 'stored_keys' in value
+        assert 'w' in value
 
-
-    def get_storage_peer(self, name, default=None) -> Dict:
-        if default == None:
-            default = {'address': None,  'size': 0, 'stored_keys': [], 'w': 0}
-        return self.get(f'{self.tag}/peers/{name}', {})
-
+        return self.put(f'{self.tag}/peers/{name}', value)
 
     def score_module(self, module, **kwargs) -> float:
 
@@ -39,9 +39,7 @@ class StorageVali(c.Module):
         if not remote_has:
             module.put(key, obj)
         
-
         storage_peer = self.get_storage_peer(info['name'])
-
 
         # does the module have the key
         remote_has = self.storage.remote_has(remote_obj_key, module=module)
@@ -52,9 +50,8 @@ class StorageVali(c.Module):
             if key not in storage_peer['stored_keys']:
                 storage_peer['stored_keys'] += [key]
                 storage_peer['size'] += obj_size
-        
-        if not remote_has:
-            module.put(remote_obj_key, obj)
+        else:
+            module.put(remote_obj_key, obj, timeout=self.config.storage_timeout)
             remote_has = self.storage.remote_has(remote_obj_key, module=module)
         if remote_has:
             if key not in storage_peer['stored_keys']:
@@ -63,13 +60,16 @@ class StorageVali(c.Module):
         else:
 
             storage_peer['size'] -= obj_size
-            storage_peer['size'] = max(storage_peer['size'], 0)
             storage_peer['stored_keys'] = [k for k in storage_peer['stored_keys'] if k != key]
+        
+        # ensure no duplicates
+        storage_peer['stored_keys'] = list(set(storage_peer['stored_keys']))
+        storage_peer['size'] = max(storage_peer['size'], 0)
 
         # set weight
         storage_peer['w'] = storage_peer['size']
+        self.set_storage_peer(info['name'], storage_peer)
         
-
         return storage_peer
         
 
