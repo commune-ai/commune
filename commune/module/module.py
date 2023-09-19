@@ -7420,7 +7420,7 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
-            self._key = c.get_key(self.server_name)
+            self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
     @key.setter
