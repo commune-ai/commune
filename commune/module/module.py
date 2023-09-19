@@ -3249,7 +3249,7 @@ class c:
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
 
         if c.server_exists(server_name, network='local') and refresh == False:
-            c.print(f':check_mark: Server already Exists ({server_name})')
+            c.print(f'Server already Exists ({server_name})')
         
         else:
             module = cls.resolve_module(module)
