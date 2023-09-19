@@ -3439,7 +3439,41 @@ class Subspace(c.Module):
         self.resolve_network(network)
         return [f['storage_name'] for f in self.substrate.get_metadata_storage_functions( block_hash=block_hash)]
 
+    @classmethod
+    def stake_many(cls, key:str, modules:list:='vali')
+        if isinstance(modules, str):
+            modules = c.my_modules(modules, fmt='j')
+
+        modules = [m for m in modules if m['stake'] < 1_000]
+        balance = cls.get_balance(daddy_key)
+        assert balance > 0, f'balance must be greater than 0, not {balance}'
+        stake_per_module = int(balance/len(modules))
+        module_names = [m['name'] for m in modules]
+        c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
+        for m in modules:
+            c.stake(key=daddy_key, module_key=m['key'], amount=stake_per_module)
     
+
+    @classmethod
+    def unstake_many(cls, modules:list:='vali', key=None, remove_staketo:bool = False)
+        if isinstance(modules, str):
+            modules = c.my_modules(modules, fmt='j')
+
+        modules = [m for m in modules if m['stake'] < 1_000]
+        balance = cls.get_balance(daddy_key)
+        assert balance > 0, f'balance must be greater than 0, not {balance}'
+        stake_per_module = int(balance/len(modules))
+        module_names = [m['name'] for m in modules]
+        c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
+        for m in modules:
+            for module_key, module_stake in m['stake_to']:
+                # if the module_key is the same as the module we are unstaking, then unstake it
+                if remove_staketo or m['key'] ==  module_key:
+                    c.unstake(key=m['key'], module_key=module_key)
+        
+        
+
+            
 
 if __name__ == "__main__":
     Subspace.run()
