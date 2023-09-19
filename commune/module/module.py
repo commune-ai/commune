@@ -7317,6 +7317,15 @@ class c:
     @classmethod
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
+
+    @classmethod
+    def block(self, *args, **kwargs):
+        return c.module('subspace')().block
+
+    @classmethod
+    def total_supply(self, *args, **kwargs):
+        return c.module('subspace')().total_supply(*args, **kwargs)
+
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
