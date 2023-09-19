@@ -1091,6 +1091,13 @@ class c:
     @classmethod
     def get_address(cls, module, **kwargs):
         return c.namespace(**kwargs).get(module, None)
+    @classmethod
+    def get_module_port(cls, module, **kwargs):
+        address =  c.namespace(**kwargs).get(module, None)
+        if address == None:
+            return None
+        
+        return int(address.split(':')[-1])
     
     @classmethod
     def resolve_address(cls, address:str = None):
@@ -2446,6 +2453,8 @@ class c:
         return port 
     
     resolve_port = get_port
+
+
 
 
 
@@ -4904,14 +4913,13 @@ class c:
 
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        config = c.call(module, fn='config')
-        assert c.jsonable(config), f'Config must be jsonable, got {config}'
-        address = c.get_address(module)
+        address = c.get_address(module, network='local')
 
-        
-        ip = address.split(':')[0]
-        port = address.split(':')[-1]
-        return c.serve(module, port=port, **config)
+        port = None
+        if address != None:
+            ip = address.split(':')[0]
+            port = address.split(':')[-1]
+        return c.serve(module, port=port)
     
     server_restart = restart_server
     
