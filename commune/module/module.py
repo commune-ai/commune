@@ -2589,17 +2589,18 @@ class c:
 
     
     @classmethod
-    def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
+    def resolve_server_name(cls, module:str = None, tag:str=None, name:str = None,  tag_seperator:str='::', **kwargs):
         
-        # module::tag name format
-        if module == None:
-            module = cls.module_path()
-        if tag_seperator in module: 
-            module, tag = module.split(tag_seperator)
+
         if name == None:
+            # module::tag name format
             if module == None:
                 module = cls.module_path()
+            if tag_seperator in module: 
+                module, tag = module.split(tag_seperator)
             name = module
+            if tag == 'None':
+                tag = None
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
         assert isinstance(name, str), f'Invalid name {name}'
@@ -3236,7 +3237,6 @@ class c:
                  module = None,
                  tag:str = None,
                  subnet:str = 'commune',
-                 server_name:str = None, 
                  refresh:bool =False,
                  **kwargs ):
         subspace = c.module('subspace')()
@@ -3244,7 +3244,7 @@ class c:
         # resolve module name and tag if they are in the server_name
         if isinstance(module, str) and  '::' in module:
             module, tag = module.split('::')
-        server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
+        server_name = cls.resolve_server_name(module=module, tag=tag)
         # if not subspace.is_unique_name(server_name, netuid=subnet):
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
 
@@ -4765,13 +4765,14 @@ class c:
     def time2datetime(cls, t:float):
         import datetime
         return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
+    time2date = time2datetime
 
     @classmethod
     def datetime2time(cls, x:str):
         import datetime
         c.print(x)
         return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
-    
+    date2time =  datetime2time
 
     @classmethod
     def delta_t(cls, t):

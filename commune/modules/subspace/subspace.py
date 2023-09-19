@@ -293,12 +293,6 @@ class Subspace(c.Module):
         return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
 
 
-
-    def vote_for_my_modules(self, key, netuid=netuid, network=network):
-        modules = self.my_modules(netuid=netuid, network=network)
-        weights = [1 for _ in modules]
-        uids = [m['uid'] for m in modules]
-        self.vote(key=key, uids=uids, weights=weights, netuid=netuid, network=network)
     #####################
     #### Set Weights ####
     #####################

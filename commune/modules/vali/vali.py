@@ -202,7 +202,7 @@ class Vali(c.Module):
         stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
 
         if stake < self.config.min_stake:
-            result = {'success': False, 'message': f'Not enough stake to vote, need at least {self.config.min_stake} stake'}
+            result = {'success': False, 'message': f'Not enough  {self.key.ss58_address} ({self.key.path}) stake to vote, need at least {self.config.min_stake} stake'}
             c.print(result, color='red')
             return result
 
@@ -392,5 +392,13 @@ class Vali(c.Module):
         kwargs['verbose'] = True
         self = cls(**kwargs )
         return self.run()
+
+    @classmethod
+    def vote_staleness_map(cls):
+        vote_paths = [f for f in cls.ls('votes')]
+        tags = [f.split('.')[-2] for f in vote_paths]
+        vote_infos = [cls.get(f) for f in vote_paths]
+        current_time = c.time()
+        return {t: (current_time - v['timestamp'])/60 for t, v in zip(tags, vote_infos)}
 
 
