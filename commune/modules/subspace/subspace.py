@@ -3440,7 +3440,7 @@ class Subspace(c.Module):
         return [f['storage_name'] for f in self.substrate.get_metadata_storage_functions( block_hash=block_hash)]
 
     @classmethod
-    def stake_many(cls, key:str, modules:list:='vali')
+    def stake_many(cls, key:str, modules:list='vali'):
         if isinstance(modules, str):
             modules = c.my_modules(modules, fmt='j')
 
@@ -3455,7 +3455,7 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def unstake_many(cls, modules:list:='vali', key=None, remove_staketo:bool = False)
+    def unstake_many(cls, modules:list ='vali', key=None, remove_staketo:bool = False):
         if isinstance(modules, str):
             modules = c.my_modules(modules, fmt='j')
         assert balance > 0, f'balance must be greater than 0, not {balance}'
