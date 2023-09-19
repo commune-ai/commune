@@ -1615,10 +1615,9 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False, 
               cache: bool = True,
-              cols: list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'balance', 'key'],
+              cols: list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'balance'],
               **kwargs
               ):
-
         if update:
             self.sync()
             cache = False

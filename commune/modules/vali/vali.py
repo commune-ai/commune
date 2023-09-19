@@ -187,6 +187,7 @@ class Vali(c.Module):
         return stats
 
 
+
     @classmethod
     def votes(cls, network='main', tag=None):
         stats = cls.load_stats( network=network, keys=['uid', 'w'], tag=tag)
@@ -391,4 +392,5 @@ class Vali(c.Module):
         kwargs['verbose'] = True
         self = cls(**kwargs )
         return self.run()
+
 
