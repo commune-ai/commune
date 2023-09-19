@@ -293,6 +293,12 @@ class Subspace(c.Module):
         return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
 
 
+
+    def vote_for_my_modules(self, key, netuid=netuid, network=network):
+        modules = self.my_modules(netuid=netuid, network=network)
+        weights = [1 for _ in modules]
+        uids = [m['uid'] for m in modules]
+        self.vote(key=key, uids=uids, weights=weights, netuid=netuid, network=network)
     #####################
     #### Set Weights ####
     #####################
@@ -1614,7 +1620,7 @@ class Subspace(c.Module):
               netuid=None,  
               df:bool=True, 
               update:bool = False, 
-              cache: bool = True,
+              cache: bool = False,
               cols: list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'balance'],
               **kwargs
               ):
@@ -1668,7 +1674,10 @@ class Subspace(c.Module):
         df_stats = df_stats[cols]
     
         if len(df_stats) > 0:
-            df_stats.sort_values(by=['registered', 'emission', 'stake'], ascending=False, inplace=True)
+            sort_cols = ['registered', 'emission', 'stake']
+            sort_cols = [c for c in sort_cols if c in df_stats.columns]
+                
+            df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
 
         df_stats= df_stats[df_stats['registered'] == True]
 
@@ -1695,9 +1704,12 @@ class Subspace(c.Module):
         c.print(f"Least useful module is {min_module} with {min_stake} emission.")
         return min_module
     def check_servers(self, search=None,  netuid=None):
-        for m in c.stats(search=search, netuid=netuid, df=False):
+        cols = ['name', 'registered', 'serving', 'address']
+        for m in c.stats(search=search, netuid=netuid, cols=cols, df=False):
             if m['serving'] == False and m['registered'] == True:
-                c.register(m['name'])
+                ip = m['address'].split(':')[0]
+                port = int(m['address'].split(':')[-1])
+                c.serve(m['name'], port=port)
             if m['serving'] == True and m['registered'] == False:
                 self.register(m['name'])
                 
