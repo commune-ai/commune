@@ -188,8 +188,8 @@ class Subspace(c.Module):
                 
     
 
-    def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
-        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals)
+    def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
+        mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block)
         key2stake = {}
         for key, staketo_tuples in mystaketo.items():
             stake = sum([s for a, s in staketo_tuples])
@@ -200,9 +200,9 @@ class Subspace(c.Module):
         return key2stake
     mys =  mystake = key2stake =  my_stake
 
-    def my_balance(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
+    def my_balance(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
 
-        balances = self.balances(network=network, fmt=fmt)
+        balances = self.balances(network=network, fmt=fmt, block=block)
         my_balance = {}
         key2address = c.key2address()
         for key, address in key2address.items():
@@ -216,8 +216,8 @@ class Subspace(c.Module):
         return my_balance
     key2balance = myb = mybal = my_balance
 
-    def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
-        staketo = self.stake_to(netuid=netuid, network=network)
+    def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
+        staketo = self.stake_to(netuid=netuid, network=network, block=block)
         mystaketo = {}
         key2address = c.key2address()
         for key, address in key2address.items():
@@ -1097,7 +1097,6 @@ class Subspace(c.Module):
                 block_hash = None if block == None else substrate.get_block_hash(block)
             )
             
-        c.print("Constant: [bold white]{}[/bold white] = [bold green]{}[/bold green]".format(constant_name, value))
         return value
             
     def stale_modules(self, *args, **kwargs):
