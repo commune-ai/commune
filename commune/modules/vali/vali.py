@@ -43,7 +43,7 @@ class Vali(c.Module):
         c.thread(self.run)
 
 
-        self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers)
+        self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers, save_outputs=False)
             
 
     def kill_workers(self):
@@ -231,6 +231,8 @@ class Vali(c.Module):
                             weights=votes['weights'], 
                             key=self.key, 
                             network=self.config.network, 
+                            wait_for_inclusion=True,
+                            wait_for_finalization=False,
                             netuid=self.config.netuid)
 
             self.save_votes(votes)
