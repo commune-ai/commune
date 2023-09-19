@@ -677,6 +677,7 @@ class Subspace(c.Module):
         min_allowed_weights: int = None,
         max_allowed_weights: int = None,
         max_allowed_uids: int = None,
+        max_immunity_ratio: int = None,
         tempo: int = None,
         name:str = None,
         founder: str = None,
@@ -704,6 +705,7 @@ class Subspace(c.Module):
             'min_allowed_weights': min_allowed_weights,
             'max_allowed_uids': max_allowed_uids,
             'max_allowed_weights': max_allowed_weights,
+            'max_immunity_ratio': max_immunity_ratio,
             'tempo': tempo,
             'founder': founder,
             'name': name,
@@ -1161,14 +1163,12 @@ class Subspace(c.Module):
     @classmethod
     def resolve_key_ss58(cls, key):
         if isinstance(key, str):
-
             if c.key_exists( key ):
                 key = c.get_key( key )
                 key = key.ss58_address
-
         # if the key has an attribute then its a key
         if hasattr(key, 'ss58_address'):
-            key = key.ss58_address
+            key = key.ss58_addrxess
 
         # TODO: get the key from the name
 
@@ -1518,7 +1518,7 @@ class Subspace(c.Module):
                     network = network,
                     update: bool = False,
                     block : Optional[int] = None,
-                    cache:bool = True) -> list:
+                    cache:bool = False) -> list:
         
         
         if cache and not update:
