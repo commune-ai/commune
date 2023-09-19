@@ -8,7 +8,7 @@ class ThreadPool(Thread):
                  num_workers:int = 4, 
                  max_queue_size:int = 100, 
                  verbose: bool = False, 
-                 save_outputs : bool= True,
+                 save_outputs : bool= False,
                  path = None):
                 
 
