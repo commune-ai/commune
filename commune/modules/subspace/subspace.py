@@ -3458,11 +3458,7 @@ class Subspace(c.Module):
     def unstake_many(cls, modules:list:='vali', key=None, remove_staketo:bool = False)
         if isinstance(modules, str):
             modules = c.my_modules(modules, fmt='j')
-
-        modules = [m for m in modules if m['stake'] < 1_000]
-        balance = cls.get_balance(daddy_key)
         assert balance > 0, f'balance must be greater than 0, not {balance}'
-        stake_per_module = int(balance/len(modules))
         module_names = [m['name'] for m in modules]
         c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
         for m in modules:
@@ -3471,7 +3467,7 @@ class Subspace(c.Module):
                 if remove_staketo or m['key'] ==  module_key:
                     c.unstake(key=m['key'], module_key=module_key)
         
-        
+
 
             
 
