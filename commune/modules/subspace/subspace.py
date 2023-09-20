@@ -2364,6 +2364,11 @@ class Subspace(c.Module):
     def emission(self, netuid = netuid, network=None, **kwargs):
         return [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
         
+    def nonzero_emission(self, netuid = netuid, network=None, **kwargs):
+        emission = self.emission(netuid=netuid, network=network, **kwargs)
+        nonzero_emission =[e for e in emission if e > 0]
+        return len(nonzero_emission)
+
     def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
         
