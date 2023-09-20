@@ -189,16 +189,17 @@ class Vali(c.Module):
 
 
     @classmethod
-    def votes(cls, network='main', tag=None):
+    def votes(cls, network='main', tag=None, base_score=0.01):
         stats = cls.load_stats( network=network, keys=['uid', 'w'], tag=tag)
         votes = {
-            'uids': [v['uid'] for v in stats if v['w'] > 0],  # get all uids where w > 0
-            'weights': [v['w'] for v in stats if v['w'] > 0],  # get all weights where w > 0
+            'uids': [v['uid'] for v in stats if v['w'] >= 0],  # get all uids where w > 0
+            'weights': [v['w'] + base_score for v in stats if v['w'] >= 0],  # get all weights where w > 0
             'timestamp': c.time()
         }
         return votes
 
     def vote(self):
+        c.print(f'Voting on {self.config.network} {self.config.netuid}', color='cyan')
         stake = self.subspace.get_stake(self.key.ss58_address, netuid=self.config.netuid)
 
         if stake < self.config.min_stake:
@@ -337,15 +338,9 @@ class Vali(c.Module):
 
     def vote_loop(self):
         while True:
-            try:
-                if self.vote_staleness > self.config.vote_interval:
-                    self.vote()
-                c.sleep(1)
-            except Exception as e:
-                detailed_error = c.detailed_error(e)
-                c.print(f'Error in vote loop {detailed_error}', color='red')
-                c.sleep(1)
-
+            if self.vote_staleness > self.config.vote_interval:
+                self.vote()
+            c.sleep(1)
 
     def run(self, vote=False):
         c.sleep(self.config.sleep_time)
