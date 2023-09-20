@@ -403,7 +403,10 @@ class Subspace(c.Module):
 
     def register_servers(self, search=None, **kwargs):
         for m in c.servers(network='local'):
-            self.register(name=m)
+            try:
+                self.register(name=m)
+            except Exception as e:
+                c.print(e, color='red')
     reg_servers = register_servers
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
@@ -1337,30 +1340,37 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 interval:dict= 100,
+                 interval = {'sync': 100, 'register': 1},
                  sleep:float=1,
-                 remote:bool=True):
+                 remote:bool=True, **kwargs):
         if remote:
             kwargs = c.locals2kwargs(locals())
             kwargs['remote'] = False
             return cls.remote_fn('loop', kwargs=kwargs)
-            
+
+        if isinstance(interval, int):
+            interval = {'sync': interval, 'register': interval}
+        assert isinstance(interval, dict), f"Interval must be an int or dict. Got {interval}"
+        assert all([k in interval for k in ['sync', 'register']]), f"Interval must contain keys 'sync' and 'register'. Got {interval.keys()}"
+
+        time_since_last = {k:0 for k in interval}
         
         time_start = c.time()
         while True:
             c.sleep(sleep)
             current_time = c.time()
-            time_since_last = int(current_time - time_start)
+            time_since_last = {k:current_time - time_start for k in interval}
 
             # if auto_unstake:
             #     cls.auto_unstake(network=network, netuid=netuid)
+            subspace = cls(network=network, netuid=netuid)
 
-            if time_since_last > interval:
-                self = cls(network=network, netuid=netuid)
-                c.print(self.sync(), color='green')
-                self.register_servers()
-                 
-                time_start = current_time
+            if time_since_last['sync'] > interval['sync']:
+                c.print(subspace.sync(), color='green')
+
+            if time_since_last['register'] > interval['register']:
+                subspace.register_servers()
+                time_since_last['register'] = current_time
 
             c.print(f"Looping {time_since_last} / {interval}", color='yellow')
     
