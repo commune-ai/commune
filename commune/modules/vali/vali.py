@@ -37,10 +37,6 @@ class Vali(c.Module):
             self.refresh_stats(network=self.config.network, tag=self.tag)
         if self.config.start == False:
             return
-        # # # # # main thread
-        if self.config.vote:
-            c.thread(self.vote_loop)
-
         self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers, save_outputs=False)
         c.thread(self.run)
  
@@ -341,13 +337,6 @@ class Vali(c.Module):
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
 
-
-    def vote_loop(self):
-        while True:
-            if self.vote_staleness > self.config.vote_interval:
-                self.vote()
-            c.sleep(1)
-
     def run(self, vote=False):
         c.sleep(self.config.sleep_time)
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
@@ -358,7 +347,8 @@ class Vali(c.Module):
 
         futures = []
         while self.running:
-
+            if self.vote_staleness > self.config.vote_interval:
+                self.executor.submit(fn=self.vote)
             if self.sync_staleness > self.config.sync_interval:
                 self.sync()
             modules = c.shuffle(c.copy(self.modules))
