@@ -337,9 +337,14 @@ class Vali(c.Module):
 
     def vote_loop(self):
         while True:
-            if self.vote_staleness > self.config.vote_interval:
-                self.vote()
-            c.sleep(1)
+            try:
+                if self.vote_staleness > self.config.vote_interval:
+                    self.vote()
+                c.sleep(1)
+            except Exception as e:
+                detailed_error = c.detailed_error(e)
+                c.print(f'Error in vote loop {detailed_error}', color='red')
+                c.sleep(1)
 
 
     def run(self, vote=False):
