@@ -1340,7 +1340,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 interval = {'sync': 100, 'register': 1},
+                 interval = {'sync': 100, 'register': 1, 'vali': 100},
                  sleep:float=1,
                  remote:bool=True, **kwargs):
         if remote:
@@ -1371,6 +1371,10 @@ class Subspace(c.Module):
             if time_since_last['register'] > interval['register']:
                 subspace.register_servers()
                 time_since_last['register'] = current_time
+
+            if time_since_last['vali'] > interval['vali']:
+                c.check_valis()
+                time_since_last['vali'] = current_time
 
             c.print(f"Looping {time_since_last} / {interval}", color='yellow')
     
