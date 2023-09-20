@@ -40,11 +40,10 @@ class Vali(c.Module):
         # # # # # main thread
         if self.config.vote:
             c.thread(self.vote_loop)
-        c.thread(self.run)
-
 
         self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers, save_outputs=False)
-            
+        c.thread(self.run)
+ 
 
     def kill_workers(self):
         for w in self.workers:
@@ -221,10 +220,17 @@ class Vali(c.Module):
         
         votes = new_votes
 
+
+
         topk = self.subnet['max_allowed_weights']
         topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
         votes['weights'] = [votes['weights'][i] for i in topk_indices]
         votes['uids'] = [votes['uids'][i] for i in topk_indices]
+
+        votes['weights'] = torch.tensor(votes['weights'])
+        votes['weights'] = (votes['weights'] / votes['weights'].sum())
+        votes['weights'] = votes['weights'].tolist()
+
         
         c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
         try:
