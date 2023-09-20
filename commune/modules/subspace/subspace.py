@@ -36,7 +36,7 @@ class Subspace(c.Module):
     token_decimals = default_config['token_decimals']
     network = default_config['network']
     chain = network
-    chain_path =  f"{c.repo_path}/subspace"
+    chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
     mode = default_config['mode']
@@ -1340,7 +1340,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 interval = {'sync': 100, 'register': 1, 'vali': 1000},
+                 interval = {'sync': 100, 'register': 1, 'vali': 100},
                  sleep:float=1,
                  remote:bool=True, **kwargs):
         if remote:
@@ -1369,13 +1369,12 @@ class Subspace(c.Module):
                 c.print(subspace.sync(), color='green')
 
             if time_since_last['register'] > interval['register']:
-                subspace.register_servers()
+                subspace.register_servers(network=network)
                 time_since_last['register'] = current_time
 
-            # if time_since_last['vali'] > interval['vali']:
-            #     servers = 
-            #     # time_since_last['register'] = current_time
-
+            if time_since_last['vali'] > interval['vali']:
+                c.check_valis(network=network)
+                time_since_last['vali'] = current_time
 
             c.print(f"Looping {time_since_last} / {interval}", color='yellow')
     
@@ -1705,6 +1704,7 @@ class Subspace(c.Module):
                 break
         c.print(f"Least useful module is {min_module} with {min_stake} emission.")
         return min_module
+    
     def check_servers(self, search=None,  netuid=None):
         cols = ['name', 'registered', 'serving', 'address']
         for m in c.stats(search=search, netuid=netuid, cols=cols, df=False):

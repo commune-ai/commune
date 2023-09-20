@@ -4920,6 +4920,7 @@ class c:
         if address != None:
             ip = address.split(':')[0]
             port = address.split(':')[-1]
+        c.kill_server(module)
         return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
@@ -6491,6 +6492,11 @@ class c:
         import shutil
         path1 = cls.resolve_path(path1)
         path2 = cls.resolve_path(path2)
+        assert os.path.exists(path1), path1
+        if not os.path.isdir(path2):
+            path2_dirpath = os.path.dirname(path2)
+            if not os.path.isdir(path2_dirpath):
+                os.makedirs(path2_dirpath, exist_ok=True)
         shutil.move(path1, path2)
         return path2
 
@@ -7620,6 +7626,17 @@ class c:
     def stats(cls, *args, **kwargs):
         t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
+
+    @classmethod
+    def vali_stats(cls, *args, **kwargs):
+        kwargs['return_all'] = True
+        return c.module('vali').vali_stats(*args, **kwargs)
+    vstats = vali_stats
+
+    @classmethod
+    def check_valis(cls, *args, **kwargs):
+        return c.module('vali').check_valis(*args, **kwargs)
+    
     @classmethod
     def check_servers(cls, *args, **kwargs):
         return c.module('subspace')().check_servers(*args, **kwargs)
