@@ -4920,7 +4920,7 @@ class c:
         if address != None:
             ip = address.split(':')[0]
             port = address.split(':')[-1]
-        return c.serve(module, port=port)
+        return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
     
