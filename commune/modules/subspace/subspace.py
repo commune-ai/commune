@@ -1574,7 +1574,7 @@ class Subspace(c.Module):
 
     def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
-        return [submnet_emissions.value for submnet_emissions  in self.query_map('Emission',netuid, block=block ) ]
+        return len([v.value for v  in self.query_map('Emission',netuid, block=block ) if v.value > 0])
 
     def total_emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
@@ -1584,6 +1584,8 @@ class Subspace(c.Module):
     def regblock(self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
         return {k.value:v.value for k,v  in self.query_map('RegistrationBlock',params=netuid, block=block ) }
+
+
 
 
     def age(self, netuid: int = None) -> Optional[float]:
@@ -2046,6 +2048,7 @@ class Subspace(c.Module):
             stake_from = self.stake_from(netuid=netuid, block=block)
             stake_to = self.stake_to(netuid=netuid, block=block)
             regblock = self.regblock(netuid=netuid, block=block)
+            last_update = self.last_update(netuid=netuid, block=block)
             balances = self.balances(block=block)
             
             if include_weights:
@@ -2069,6 +2072,7 @@ class Subspace(c.Module):
                     'stake_from': stake_from.get(key, []),
                     'stake_to': stake_to.get(key, []),
                     'regblock': regblock.get(uid, 0),
+                    'last_update': last_update[uid],
                 }
                 
                 if include_weights:
@@ -2353,14 +2357,17 @@ class Subspace(c.Module):
         
     
     def emission(self, netuid = netuid, network=None, **kwargs):
-        return [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
+        return len([v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs) if v.value > 0])
         
     def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
-        return self.query('Incentive', params=netuid, network=network, block=block, **kwargs)
+        return [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
+        
+    def last_update(self, netuid = netuid, block=None,   network=network, **kwargs):
+        return [v.value for v in self.query('LastUpdate', params=[netuid], network=network, block=block, **kwargs)]
         
     
     def dividends(self, netuid = netuid, network=None, **kwargs):
-        return self.query('Dividends', params=netuid, network=network,  **kwargs)
+        return [v.value for v in self.query('Dividends', params=netuid, network=network,  **kwargs)]
 
 
     # def uid2key(self, network:str=None, netuid:int = None, **kwargs):
