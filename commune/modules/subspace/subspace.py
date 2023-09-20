@@ -950,7 +950,6 @@ class Subspace(c.Module):
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
-        c.print(key)
         netuid = self.resolve_netuid(netuid)
         
 
@@ -958,6 +957,7 @@ class Subspace(c.Module):
         module_key = key.ss58_address if module_key == None else module_key
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         old_stake = self.get_staketo(key= key.ss58_address, module_key=module_key,   netuid=netuid, fmt='j',)
+        
         if amount == None:
             amount = old_stake
 
@@ -1336,7 +1336,6 @@ class Subspace(c.Module):
     @classmethod
     def loop(cls, 
                 network = network,
-                auto_unstake:bool = True,
                 netuid:int = None,
                  interval:dict= 100,
                  sleep:float=1,
@@ -1353,8 +1352,8 @@ class Subspace(c.Module):
             current_time = c.time()
             time_since_last = int(current_time - time_start)
 
-            if auto_unstake:
-                cls.auto_unstake(network=network, netuid=netuid)
+            # if auto_unstake:
+            #     cls.auto_unstake(network=network, netuid=netuid)
 
             if time_since_last > interval:
                 self = cls(network=network, netuid=netuid)
