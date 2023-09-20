@@ -467,6 +467,7 @@ class Vali(c.Module):
                 vote_info['staleness'] =   current_time - v['timestamp']
                 vote_info['n'] = len(v['uids'])
                 vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
+
                 
                 vote_stats += [vote_info]
 
@@ -499,6 +500,8 @@ class Vali(c.Module):
                 
         if df == True:
             df =  c.df(all_vote_stats)
+            # filter out NaN values for registered modules
+            df = df[df['registered'].notna()]
             df.sort_values(sortby, ascending=False, inplace=True)
             return df
         return all_vote_stats
