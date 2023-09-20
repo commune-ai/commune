@@ -310,12 +310,13 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
-        if uids is None:
-            uids = self.uids()
         
         subnet = self.subnet( netuid = netuid )
         min_allowed_weights = subnet['min_allowed_weights']
         max_allowed_weights = subnet['max_allowed_weights']
+
+        if uids is None:
+            uids = self.uids()
     
         if len(uids) == 0:
             c.print(f'No uids to vote on.')
@@ -337,7 +338,7 @@ class Subspace(c.Module):
         if isinstance(weights, list):
             weights = torch.tensor(weights)
 
-        weights = weights + 0.01 / weights.sum()
+        weights = weights / weights.sum()
         weights = weights * U16_MAX
         weights = weights.tolist()
 
@@ -402,7 +403,7 @@ class Subspace(c.Module):
 
     def register_servers(self, search=None, **kwargs):
         for m in c.servers(network='local'):
-            self.register(name=m, *args, **kwargs)
+            self.register(name=m)
     reg_servers = register_servers
     def reged_servers(self, **kwargs):
         servers =  c.servers(network='local')
