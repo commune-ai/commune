@@ -337,12 +337,12 @@ class Subspace(c.Module):
         if isinstance(weights, list):
             weights = torch.tensor(weights)
 
-        weights = weights / weights.sum()
+        weights = weights + 0.01 / weights.sum()
         weights = weights * U16_MAX
         weights = weights.tolist()
 
         # uids = [int(uid) for uid in uids]
-        uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights) if int(weight) > 0}
+        uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
         
@@ -463,8 +463,6 @@ class Subspace(c.Module):
                     'name': name.encode('utf-8'),
                     'stake': stake,
                 } 
-        # key symbol
-        c.print(f":satellite: Registering (name = {name} key (ss58) = {key.ss58_address[:4]}.. address {address} ")
 
         with self.substrate as substrate:
             
@@ -891,7 +889,6 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
 
-        c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
@@ -907,7 +904,7 @@ class Subspace(c.Module):
                     'module_key': module_key
                     }
 
-        with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+        with c.status(f":satellite: Staking to: {module_key}  [bold white]{self.network}[/bold white] ..."):
 
             with self.substrate as substrate:
 
@@ -1572,10 +1569,6 @@ class Subspace(c.Module):
         return self.query( 'Uids', block=block, params=[ netuid, key_ss58 ] ).value  
 
 
-    def emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
-        netuid = self.resolve_netuid( netuid )
-        return len([v.value for v  in self.query_map('Emission',netuid, block=block ) if v.value > 0])
-
     def total_emission( self, netuid: int = None, block: Optional[int] = None ) -> Optional[float]:
         netuid = self.resolve_netuid( netuid )
         return sum(self.emission(netuid=netuid, block=block))
@@ -1607,8 +1600,6 @@ class Subspace(c.Module):
         for k,v in age.items():
             in_immunity[k] = bool(v < subnet['immunity_period'])
         return in_immunity
-
-    e = emission
 
 
     def stats(self, 
@@ -1675,7 +1666,7 @@ class Subspace(c.Module):
                 
             df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
 
-        df_stats= df_stats[df_stats['registered'] == True]
+        # df_stats= df_stats[df_stats['registered'] == True]
 
         if search is not None:
             df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
@@ -2065,8 +2056,8 @@ class Subspace(c.Module):
                     'name': uid2name[uid],
                     'key': key,
                     'emission': emission[uid],
-                    'incentive': incentive[uid].value,
-                    'dividends': dividends[uid].value,
+                    'incentive': incentive[uid],
+                    'dividends': dividends[uid],
                     'stake': stake.get(key, -1),
                     'balance': balances.get(key, 0),
                     'stake_from': stake_from.get(key, []),
@@ -2327,16 +2318,15 @@ class Subspace(c.Module):
                 most_valuable_key = address2key[m['key']]
         return most_valuable_key
 
-    def most_staked_key(self, netuid = None,  **kwargs):
-        modules = self.my_modules(netuid=netuid, **kwargs)
-        most_staked_value = 0
-        most_staked_key = None
-        address2key = c.address2key()
-        for m in modules:
-            if m['stake'] > most_staked_value:
-                most_staked_value = m['stake']
-                most_staked_key = address2key[m['key']]
-        return most_staked_key
+    def most_staketo_key(self, key, netuid = None,  **kwargs):
+        staketo = self.get_staketo(key, netuid=netuid, **kwargs)
+        most_stake = 0
+        most_stake_key = None
+        for k, v in staketo:
+            if v > most_stake:
+                most_stake = v
+                most_stake_key = k
+        return {'key': most_stake_key, 'stake': most_stake}
 
     reged = registered_keys
     
@@ -2357,7 +2347,7 @@ class Subspace(c.Module):
         
     
     def emission(self, netuid = netuid, network=None, **kwargs):
-        return len([v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs) if v.value > 0])
+        return [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
         
     def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
@@ -3446,19 +3436,17 @@ class Subspace(c.Module):
         self.resolve_network(network)
         return [f['storage_name'] for f in self.substrate.get_metadata_storage_functions( block_hash=block_hash)]
 
-    @classmethod
-    def stake_many(cls, key:str, modules:list='vali'):
+    def stake_spread(self, key:str, modules:list='vali'):
         if isinstance(modules, str):
             modules = c.my_modules(modules, fmt='j')
 
-        modules = [m for m in modules if m['stake'] < 1_000]
-        balance = cls.get_balance(daddy_key)
+        balance = self.get_balance(key)
         assert balance > 0, f'balance must be greater than 0, not {balance}'
         stake_per_module = int(balance/len(modules))
         module_names = [m['name'] for m in modules]
         c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
         for m in modules:
-            c.stake(key=daddy_key, module_key=m['key'], amount=stake_per_module)
+            c.stake(key=key, module_key=m['key'], amount=stake_per_module)
     
 
     @classmethod
