@@ -306,7 +306,7 @@ class Keypair(c.Module):
                 path:str,
                 password:str=None, 
                 json:bool=False,
-                create_if_not_exists:bool = False,
+                create_if_not_exists:bool = True,
                 **kwargs):
         
         if cls.key_exists(path) == False:
