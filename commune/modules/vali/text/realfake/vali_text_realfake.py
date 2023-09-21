@@ -18,7 +18,7 @@ class ValiTextRealfake(Vali):
             raise Exception(f'Invalid output: {output}, expected 0 or 1')
 
 
-    def score_module(self, module):
+    def score_module(self, module, **kwargs):
         w = 0
 
         try:

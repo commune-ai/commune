@@ -2545,8 +2545,6 @@ class c:
     @classmethod
     def namespace_subspace(cls, update:bool = False , **kwargs ) -> Dict:
         namespace = c.module('subspace')().namespace(update=update, **kwargs)
-        local_namespace = cls.namespace_local()
-        namespace = {**namespace, **local_namespace}
         return namespace
 
         
@@ -2584,6 +2582,9 @@ class c:
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
             return namespace
+        if network != 'local':
+            namespace_local = c.namespace_local()
+            namespace = { **namespace, **namespace_local,}
         return namespace
     
 
@@ -4915,7 +4916,6 @@ class c:
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
         address = c.get_address(module, network='local')
-
         port = None
         if address != None:
             ip = address.split(':')[0]
@@ -7332,6 +7332,8 @@ class c:
     @classmethod
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
+
+    send = transfer
 
     @classmethod
     def block(self, *args, **kwargs):
