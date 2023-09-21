@@ -2706,7 +2706,7 @@ class c:
         if c.server_exists(server_name, network='local'): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                ip, port = c.get_address(server_name, network='local').split(':')
+                ip, port = c.get_address(server_name, network='local').split(':')                
                 c.kill(server_name)
             else:  
                 ip, port = c.get_address(server_name, network='local').split(':')
