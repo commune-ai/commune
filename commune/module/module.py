@@ -1091,6 +1091,13 @@ class c:
     @classmethod
     def get_address(cls, module, **kwargs):
         return c.namespace(**kwargs).get(module, None)
+    @classmethod
+    def get_module_port(cls, module, **kwargs):
+        address =  c.namespace(**kwargs).get(module, None)
+        if address == None:
+            return None
+        
+        return int(address.split(':')[-1])
     
     @classmethod
     def resolve_address(cls, address:str = None):
@@ -2449,6 +2456,8 @@ class c:
 
 
 
+
+
     
 
 
@@ -2536,8 +2545,6 @@ class c:
     @classmethod
     def namespace_subspace(cls, update:bool = False , **kwargs ) -> Dict:
         namespace = c.module('subspace')().namespace(update=update, **kwargs)
-        local_namespace = cls.namespace_local()
-        namespace = {**namespace, **local_namespace}
         return namespace
 
         
@@ -2575,22 +2582,26 @@ class c:
         if search:
             namespace = {k:v for k,v in namespace.items() if str(search) in k}
             return namespace
+        if network != 'local':
+            namespace_local = c.namespace_local()
+            namespace = { **namespace, **namespace_local,}
         return namespace
     
 
     
     @classmethod
-    def resolve_server_name(cls, module:str = None, name:str = None, tag:str=None, tag_seperator:str='::', **kwargs):
+    def resolve_server_name(cls, module:str = None, tag:str=None, name:str = None,  tag_seperator:str='::', **kwargs):
         
-        # module::tag name format
-        if module == None:
-            module = cls.module_path()
-        if tag_seperator in module: 
-            module, tag = module.split(tag_seperator)
+
         if name == None:
+            # module::tag name format
             if module == None:
                 module = cls.module_path()
+            if tag_seperator in module: 
+                module, tag = module.split(tag_seperator)
             name = module
+            if tag == 'None':
+                tag = None
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
         assert isinstance(name, str), f'Invalid name {name}'
@@ -2695,7 +2706,7 @@ class c:
         if c.server_exists(server_name, network='local'): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                ip, port = c.get_address(server_name, network='local').split(':')
+                ip, port = c.get_address(server_name, network='local').split(':')                
                 c.kill(server_name)
             else:  
                 ip, port = c.get_address(server_name, network='local').split(':')
@@ -3227,7 +3238,6 @@ class c:
                  module = None,
                  tag:str = None,
                  subnet:str = 'commune',
-                 server_name:str = None, 
                  refresh:bool =False,
                  **kwargs ):
         subspace = c.module('subspace')()
@@ -3235,12 +3245,12 @@ class c:
         # resolve module name and tag if they are in the server_name
         if isinstance(module, str) and  '::' in module:
             module, tag = module.split('::')
-        server_name = cls.resolve_server_name(module=module, tag=tag, name=server_name, **kwargs)
+        server_name = cls.resolve_server_name(module=module, tag=tag)
         # if not subspace.is_unique_name(server_name, netuid=subnet):
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
 
         if c.server_exists(server_name, network='local') and refresh == False:
-            c.print(f':check_mark: Server already Exists ({server_name})')
+            c.print(f'Server already Exists ({server_name})')
         
         else:
             module = cls.resolve_module(module)
@@ -4756,13 +4766,14 @@ class c:
     def time2datetime(cls, t:float):
         import datetime
         return datetime.datetime.fromtimestamp(t).strftime("%Y-%m-%d %H:%M:%S")
+    time2date = time2datetime
 
     @classmethod
     def datetime2time(cls, x:str):
         import datetime
         c.print(x)
         return datetime.datetime.strptime(x, "%Y-%m-%d %H:%M:%S").timestamp()
-    
+    date2time =  datetime2time
 
     @classmethod
     def delta_t(cls, t):
@@ -4904,14 +4915,13 @@ class c:
 
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        config = c.call(module, fn='config')
-        assert c.jsonable(config), f'Config must be jsonable, got {config}'
-        address = c.get_address(module)
-
-        
-        ip = address.split(':')[0]
-        port = address.split(':')[-1]
-        return c.serve(module, port=port, **config)
+        address = c.get_address(module, network='local')
+        port = None
+        if address != None:
+            ip = address.split(':')[0]
+            port = address.split(':')[-1]
+        c.kill_server(module)
+        return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
     
@@ -6482,6 +6492,11 @@ class c:
         import shutil
         path1 = cls.resolve_path(path1)
         path2 = cls.resolve_path(path2)
+        assert os.path.exists(path1), path1
+        if not os.path.isdir(path2):
+            path2_dirpath = os.path.dirname(path2)
+            if not os.path.isdir(path2_dirpath):
+                os.makedirs(path2_dirpath, exist_ok=True)
         shutil.move(path1, path2)
         return path2
 
@@ -7317,6 +7332,17 @@ class c:
     @classmethod
     def transfer(cls, *args, **kwargs):
         return c.module('subspace')().transfer(*args, **kwargs)
+
+    send = transfer
+
+    @classmethod
+    def block(self, *args, **kwargs):
+        return c.module('subspace')().block
+
+    @classmethod
+    def total_supply(self, *args, **kwargs):
+        return c.module('subspace')().total_supply(*args, **kwargs)
+
     @classmethod
     def update_module(cls, *args, **kwargs):
         return c.module('subspace')().update_module(*args, **kwargs)
@@ -7403,7 +7429,7 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
-            self._key = c.get_key(self.server_name)
+            self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
     @key.setter
@@ -7602,6 +7628,17 @@ class c:
     def stats(cls, *args, **kwargs):
         t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
+
+    @classmethod
+    def vali_stats(cls, *args, **kwargs):
+        kwargs['return_all'] = True
+        return c.module('vali').vali_stats(*args, **kwargs)
+    vstats = vali_stats
+
+    @classmethod
+    def check_valis(cls, *args, **kwargs):
+        return c.module('vali').check_valis(*args, **kwargs)
+    
     @classmethod
     def check_servers(cls, *args, **kwargs):
         return c.module('subspace')().check_servers(*args, **kwargs)

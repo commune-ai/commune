@@ -42,7 +42,7 @@ class Storage(c.Module):
     def replicate(self, k, module) -> str:
         self.replicas
 
-        return c.choice(self.ls_keys())
+    
 
 
     def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:
