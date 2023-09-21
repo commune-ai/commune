@@ -6,6 +6,7 @@ class Storage(c.Module):
     whitelist: List = ['put', 'get']
 
     def __init__(self, store: Dict = None, **kwargs):
+        self.replicas = {}
         self.set_config(kwargs=locals()) 
         self.serializer = c.module('serializer')()
     @property
@@ -25,7 +26,6 @@ class Storage(c.Module):
 
         path = self.resolve_store_path(k)
         return c.put(path, v)
-
     
 
     def get(self,k, deserialize:bool= True) -> Any:
@@ -37,7 +37,12 @@ class Storage(c.Module):
             v = self.serializer.deserialize(v['data'])
 
         return v['data']
+    
+    
+    def replicate(self, k, module) -> str:
+        self.replicas
 
+        return c.choice(self.ls_keys())
 
 
     def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:

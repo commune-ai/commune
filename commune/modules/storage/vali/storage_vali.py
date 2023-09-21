@@ -11,11 +11,13 @@ class StorageVali(c.Module):
 
     storage_peers = {}
 
-    def get_storage_peer(self, name) -> Dict:
+    def get_storage_peer_info(self, name:str) -> Dict:
         default_storage_peer = {'address': None,  'size': 0, 'stored_keys': [], 'w': 0}
         return self.get(f'{self.tag}/peers/{name}', default_storage_peer)
+    
+    
 
-    def set_storage_peer(self, name, value):
+    def set_storage_peer_info(self, name:str, value:dict):
         assert isinstance(value, dict)
         assert 'address' in value
         assert 'size' in value
@@ -27,9 +29,9 @@ class StorageVali(c.Module):
     def score_module(self, module, **kwargs) -> float:
 
 
+
         info = module.info()
-        obj_keys = self.storage.ls_keys()
-        key = c.choice(obj_keys)
+        key = self.storage.next_key()
         
         obj = self.storage.get(key, deserialize=False)
 

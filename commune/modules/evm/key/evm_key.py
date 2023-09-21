@@ -22,9 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 class EVMAccount(commune.Module, Account):
-
-
-
     _last_tx_count = dict()
     ENV_PRIVATE_KEY = 'PRIVATE_KEY'
     def __init__(
@@ -35,10 +32,10 @@ class EVMAccount(commune.Module, Account):
     ) -> None:
         """Initialises EVMAccount object."""
         # assert private_key, "private_key is required."
-        self.config = self.set_config(config, kwargs=kwargs)
+        config = self.set_config(config, kwargs=kwargs)
         
         Account.__init__(self, *args, **kwargs)
-        self.set_network(network)
+        self.set_network(config.network)
 
 
     @property
@@ -73,7 +70,7 @@ class EVMAccount(commune.Module, Account):
         tx: Dict[str, Union[int, str, bytes]],
     ) -> HexBytes:
         if tx.get('nonce') == None:
-            nonce = self.get_nonce(web3=self.web3, address=self.address)
+            tx['nonce'] = self.get_nonce(web3=self.web3, address=self.address)
         if tx.get('gasePrice') == None:
             gas_price = int(self.web3.eth.gas_price * 1.1)
             max_gas_price = os.getenv('ENV_MAX_GAS_PRICE', None)
@@ -84,8 +81,7 @@ class EVMAccount(commune.Module, Account):
 
 
         signed_tx = self.web3.eth.account.sign_transaction(tx, self.private_key)
-        logger.debug(f"Using gasPrice: {gas_price}")
-        logger.debug(f"`EVMAccount` signed tx is {signed_tx}")
+
         return signed_tx.rawTransaction
 
     @property
@@ -107,6 +103,7 @@ class EVMAccount(commune.Module, Account):
         'nonce': self.nonce,
         'gasPrice':self.gas_price,
         }
+    
     def send_contract_tx(self, fn:str , value=0):
         '''
         send a contract transaction for your python objecs
