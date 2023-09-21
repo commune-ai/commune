@@ -5,7 +5,7 @@ from typing import *
 class ModuleWrapper(c.Module):
     protected_attributes = [ 'info', 'serve', 'module_file', 'module_path', 'server_name',  'test']
     def __init__(self, 
-                 module:'Any' = None, 
+                 module:'Any' = None
                   ): 
         self.module = module
         

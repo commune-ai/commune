@@ -8,7 +8,7 @@ class ThreadPool(Thread):
                  num_workers:int = 4, 
                  max_queue_size:int = 100, 
                  verbose: bool = False, 
-                 save_outputs : bool= True,
+                 save_outputs : bool= False,
                  path = None):
                 
 
@@ -99,20 +99,24 @@ class ThreadPool(Thread):
     def run(self, fn:'callable', queue:'mp.Queue', output_queue:'mp.Queue',  semaphore:'mp.Semaphore'):
         c.new_event_loop()
         while True:
-            kwargs = queue.get()
-            kwargs_key = kwargs.pop('kwargs_key')
-            if 'fn' in kwargs:
-                tmp_fn = kwargs.pop('fn')
-                assert callable(tmp_fn), f'fn must be callable, got {tmp_fn}'
-                tmp_fn(**kwargs)
-            result = fn(**kwargs)
-            output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time()})
-            ## remove memory
-            del kwargs
-            del result
-            del kwargs_key
-            # garbage collect
-            gc.collect()
+
+            try:
+                kwargs = queue.get()
+                kwargs_key = kwargs.pop('kwargs_key')
+                if 'fn' in kwargs:
+                    tmp_fn = kwargs.pop('fn')
+                    assert callable(tmp_fn), f'fn must be callable, got {tmp_fn}'
+                    tmp_fn(**kwargs)
+                result = fn(**kwargs)
+                output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time()})
+                ## remove memory
+                del kwargs
+                del result
+                del kwargs_key
+                # garbage collect
+                gc.collect()
+            except Exception as e:
+                c.print({'status': 'error', 'error': e})
 
 
 

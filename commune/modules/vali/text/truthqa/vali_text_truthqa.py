@@ -8,7 +8,7 @@ class ValiTextTruthfulQA(Vali):
         config = self.set_config(kwargs=kwargs)
         self.init_vali(config)
 
-    def score_module(self, module='model') -> int:
+    def score_module(self, module='model', **kwargs) -> int:
 
 
         model = c.connect(module) if isinstance(module, str) else module
