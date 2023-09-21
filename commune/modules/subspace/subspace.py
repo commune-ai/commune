@@ -1618,7 +1618,7 @@ class Subspace(c.Module):
         self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
         subnet = self.subnet(netuid=netuid)
-        return sum([s['emission'] for s in self.stats(netuid=netuid, block=block, df=False)])*self.format_amount(subnet['emission'], fmt='j') * 24 * 60 * 60 / (subnet['tempo'] * 4)
+        return sum([s['emission'] for s in self.stats(netuid=netuid, block=block, df=False)])*self.format_amount(subnet['emission'], fmt='j') 
 
     def stats(self, 
               search = None,
