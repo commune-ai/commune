@@ -450,36 +450,47 @@ class Vali(c.Module):
                 c.serve(v['name'], port=port)
 
     @classmethod
-    def vali_stats(cls, return_all=False, network='main', df:bool = True, sortby:str=['name'], ):
+    def vali_stats(cls, return_all=False, network='main', df:bool = True, sortby:str=['name'], update:bool=True):
         if return_all:
             return cls.all_vali_stats(network=network, df=df)
-        vote_stats = []
-        current_time = c.time()
-        module_path = cls.module_path()
-        stats = c.stats(module_path+'::', df=False)
-        name2stats = {s['name']: s for s in stats}
-        for tag, path in cls.tag2path(mode='votes', network=network).items():
-            v = cls.get(path)
-            name = module_path + "::" +tag
-            vote_info = name2stats.get(name, {})
-            if 'timestamp' in v:
-                vote_info['name'] = name
-                vote_info['staleness'] =   current_time - v['timestamp']
-                vote_info['n'] = len(v['uids'])
-                vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
+        vali_stats = []
+        if update == False:
+            vali_stats = cls.get('vali_stats', default=[])
 
-                
-                vote_stats += [vote_info]
+        if len(vali_stats) == 0:
+            module_path = cls.module_path()
+            stats = c.stats(module_path+'::', df=False)
+            name2stats = {s['name']: s for s in stats}
+            for tag, path in cls.tag2path(mode='votes', network=network).items():
+                v = cls.get(path)
+                name = module_path + "::" +tag
+                vote_info = name2stats.get(name, {})
+                if 'timestamp' in v:
+                    vote_info['name'] = name
+                    vote_info['n'] = len(v['uids'])
+                    vote_info['timestamp'] = v['timestamp']
+                    vote_info['avg_w'] = sum(v['weights']) / len(v['uids'])
+
+                    
+                    vali_stats += [vote_info]
+            cls.put('vali_stats', vali_stats)    
+
+        for v in vali_stats:
+            v['staleness'] = int(c.time() - v['timestamp'])
+            del v['timestamp']
 
 
-
-        
         if df:
-            vote_stats = c.df(vote_stats)
-            vote_stats.sort_values(sortby, ascending=False, inplace=True)
-        
-        return vote_stats
+            vali_stats = c.df(vali_stats)
+            # filter out NaN values for registered modules
+            vali_stats = vali_stats[vali_stats['registered'].notna()]
+            vali_stats.sort_values(sortby, ascending=False, inplace=True)
 
+        
+        
+        return vali_stats
+
+    vstats = vali_stats
 
     @classmethod
     def all_vali_stats(cls, network='main', df:bool = True, sortby:str=['name'] ):

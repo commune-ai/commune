@@ -1614,7 +1614,11 @@ class Subspace(c.Module):
         for k,v in age.items():
             in_immunity[k] = bool(v < subnet['immunity_period'])
         return in_immunity
-
+    def daily_emission(self, netuid: int = None, network = None, block: Optional[int] = None ) -> Optional[float]:
+        self.resolve_network(network)
+        netuid = self.resolve_netuid( netuid )
+        subnet = self.subnet(netuid=netuid)
+        return sum([s['emission'] for s in self.stats(netuid=netuid, block=block, df=False)])*self.format_amount(subnet['emission'], fmt='j') * 24 * 60 * 60 / (subnet['tempo'] * 4)
 
     def stats(self, 
               search = None,
@@ -1898,12 +1902,12 @@ class Subspace(c.Module):
             return key2name[key]
             
         
-    def name2key(self, name:str=None,  netuid: int = None) -> Dict[str, str]:
+    def name2key(self, name:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
-             
-        modules = self.modules(netuid=netuid)
-        
-        return { m['name']: m['key'] for m in modules}
+        self.resolve_network(network)
+        names = self.names(netuid=netuid)
+        keys = self.keys(netuid=netuid)
+        return { n: k for n, k in zip(names, keys)}
         
     def is_unique_name(self, name: str, netuid=None):
         return bool(name not in self.namespace(netuid=netuid))
@@ -2231,7 +2235,7 @@ class Subspace(c.Module):
     
 
     def keys(self, netuid = None, **kwargs):
-        return list(self.uids2key(netuid=netuid, **kwargs).values())
+        return list(self.uid2key(netuid=netuid, **kwargs).values())
     def uids(self, netuid = None, **kwargs):
         return list(self.uid2key(netuid=netuid, **kwargs).keys())
 
