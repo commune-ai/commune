@@ -15,7 +15,7 @@ class Agent(c.Module):
         self.tools = tools
 
 
-    def call(self, prompt:str, memory: 'Memory' = None) -> str:
+    def call(self, prompt:str) -> str:
         return {
             'prompt': prompt,
             'response': 'This is a base agent that does nothing.',

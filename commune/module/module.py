@@ -2360,7 +2360,7 @@ class c:
         namespace_local = c.namespace_local()    
         
         namespace_local.pop(name, None)
-        cls.put_json('namespace_local', namespace_local, root=True) 
+        c.put_json('namespace_local', namespace_local, root=True) 
         return namespace_local
   
   
@@ -2695,27 +2695,28 @@ class c:
             if wait_for_server:
                 cls.wait_for_server(server_name)
             return server_name
+        
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
+
         # this automatically adds 
         kwargs['tag'] = tag
         kwargs['server_name'] = server_name
 
 
-        self = module_class(**kwargs)
+        module = module_class(**kwargs)
         if c.server_exists(server_name, network='local'): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 ip, port = c.get_address(server_name, network='local').split(':')                
                 c.kill(server_name)
             else:  
-                ip, port = c.get_address(server_name, network='local').split(':')
-                raise Exception(f'The server {server_name} already exists')
+                return server_name
 
         if port == None:
             port = c.free_port()
             
-        server = c.module(f'server.{server_mode}')(module=self, name= server_name, ip=ip, port=int(port))
+        server = c.module(f'server.{server_mode}')(module=module, name= server_name, ip=ip, port=int(port))
         return server.name
 
     serve_module = serve
@@ -4140,23 +4141,23 @@ class c:
     
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
-        if not hasattr(cls, '__external_ip__'):
-            cls.__external_ip__ =  cls.get_external_ip(*args, **kwargs)
-        ip = cls.__external_ip__
-        assert ip != None, 'External IP is None'
-        assert ip not in ['0.0.0.0', '127.0.0.1'], 'External IP is'
+        return c.module('network').get_external_ip(*args, **kwargs)
         return ip 
     
     @classmethod
     def ip(cls, cache:bool = False, **kwargs) -> str:
-        if cache:
-            ip = c.get('ip', None)
-            if ip != None:
-                return ip
-        
-        ip =  cls.external_ip(**kwargs)
-        if cache:
-            c.set('ip', ip)
+        try:
+            if cache:
+                ip = c.get('ip', None)
+                if ip != None:
+                    return ip
+            
+            ip =  cls.external_ip(**kwargs)
+            if cache:
+                c.set('ip', ip)
+        except Exception as e:
+            return c.default_ip 
+
         return ip
     @classmethod
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
@@ -4183,10 +4184,7 @@ class c:
                 ip = '0.0.0.0'
         assert isinstance(ip, str)
         return ip
-        
-    @classmethod
-    def get_external_ip(cls, *args, **kwargs) ->str:
-        return c.module('network').get_external_ip(*args, **kwargs)
+
     @staticmethod
     def is_class(module: Any) -> bool:
         return type(module).__name__ == 'type' 
@@ -5083,11 +5081,14 @@ class c:
     def call(cls,  *args ,n: int=1, return_future:bool=False,  **kwargs) -> None:
         if n == 1:
             futures = c.async_call(*args,**kwargs)
-            return c.gather(futures)
         else:
             futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
         if kwargs.get('return_future', False):
             return futures
+    
+        return c.gather(futures)
+
+
 
 
     @classmethod
@@ -5099,6 +5100,7 @@ class c:
                 prefix_match:bool = False,
                 network:str = None,
                 key:str = None,
+                ignore_error = False,
                 **kwargs
                 ) -> None:
                          
@@ -5106,8 +5108,12 @@ class c:
             module = c.connect(module, prefix_match=prefix_match, network=network, key=key)
             result = getattr(module, fn)(*args, return_future=True, **kwargs)
             result = await asyncio.wait_for(result, timeout=timeout)
+            return result
         except Exception as e:
-            result = c.detailed_error(e)
+            if ignore_error:
+                result = c.detailed_error(e)
+            else:
+                raise e
         
         return result
 

@@ -9,6 +9,7 @@ class Tool(c.Module):
         tags: list[str] = ['defi', 'tool'], 
         **kwargs
     ):
+        self.set_config(kwargs=locals())
         
         self.name = name
         self.description = description
