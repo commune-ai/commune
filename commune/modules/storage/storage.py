@@ -3,7 +3,7 @@ from typing import *
 import streamlit as st
 
 class Storage(c.Module):
-    whitelist: List = ['put', 'get']
+    whitelist: List = ['put', 'get', 'get_hash']
 
     def __init__(self, store: Dict = None, **kwargs):
         self.replicas = {}
