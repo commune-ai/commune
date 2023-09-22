@@ -4915,6 +4915,9 @@ class c:
 
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
+        if not c.server_exists(module):
+            c.print(f'Server {module} does not exist', color='red')
+            return None
         address = c.get_address(module, network='local')
         port = None
         if address != None:
@@ -5080,15 +5083,15 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls,  *args ,n: int=1, return_future:bool=False,  **kwargs) -> None:
+    def call(cls,  *args , n: int=1, return_future:bool=False,  **kwargs) -> None:
         if n == 1:
             futures = c.async_call(*args,**kwargs)
-            return c.gather(futures)
         else:
             futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
-        if kwargs.get('return_future', False):
+        if return_future:
             return futures
 
+        return c.gather(futures)
 
     @classmethod
     async def async_call(cls,

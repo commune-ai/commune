@@ -1618,7 +1618,7 @@ class Subspace(c.Module):
         self.resolve_network(network)
         netuid = self.resolve_netuid( netuid )
         subnet = self.subnet(netuid=netuid)
-        return sum([s['emission'] for s in self.stats(netuid=netuid, block=block, df=False)])*self.format_amount(subnet['emission'], fmt='j')
+        return sum([s['emission'] for s in self.stats(netuid=netuid, block=block, df=False)])*self.format_amount(subnet['emission'], fmt='j') 
 
     def stats(self, 
               search = None,
@@ -1902,12 +1902,17 @@ class Subspace(c.Module):
             return key2name[key]
             
         
-    def name2key(self, name:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
+    def name2key(self, prefix:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         self.resolve_network(network)
         names = self.names(netuid=netuid)
         keys = self.keys(netuid=netuid)
-        return { n: k for n, k in zip(names, keys)}
+
+        name2key =  { n: k for n, k in zip(names, keys)}
+        if prefix != None:
+            name2key = {k:v for k,v in name2key.items() if k.startswith(prefix)}
+            
+        return name2key
         
     def is_unique_name(self, name: str, netuid=None):
         return bool(name not in self.namespace(netuid=netuid))
@@ -3460,17 +3465,28 @@ class Subspace(c.Module):
         self.resolve_network(network)
         return [f['storage_name'] for f in self.substrate.get_metadata_storage_functions( block_hash=block_hash)]
 
-    def stake_spread(self, key:str, modules:list='vali'):
-        if isinstance(modules, str):
-            modules = c.my_modules(modules, fmt='j')
+    def stake_spread(self, key:str, modules:list='vali', ratio = 1.0):
+        name2key = self.name2key(modules)
+        module_names = list(name2key.keys())
+        module_keys = list(name2key.values())
+        n = len(name2key)
 
+        # get the balance, of the key
         balance = self.get_balance(key)
+        if ratio > 1.0:
+            ratio = 1.0
+        if ratio < 0.0:
+            ratio = 0.0
+        
+        balance = int(balance * ratio)
         assert balance > 0, f'balance must be greater than 0, not {balance}'
-        stake_per_module = int(balance/len(modules))
-        module_names = [m['name'] for m in modules]
+        stake_per_module = int(balance/n)
+
+
         c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
-        for m in modules:
-            c.stake(key=key, module_key=m['key'], amount=stake_per_module)
+        for module_name, module_key in name2key.items():
+            c.print(f'Staking {stake_per_module} for {module_name}')
+            c.stake(key=key, module_key=module_key, amount=stake_per_module)
     
 
     @classmethod
