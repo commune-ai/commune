@@ -6,17 +6,16 @@ class WSClient(c.Module):
     
     
     def __init__(self,
-                 ip = '0.0.0.0',
-                 port:int=None,
-                 queue_size:int=-1,
-                 verbose:bool = False,
-                 start:bool = True):
+                 name , 
+                 start:bool = True, 
+                 network: dict = None,
+                 ):
         if ':' in ip:
             ip, port = ip.split(':')
-        self.ip = c.resolve_ip(ip)
-        self.port = c.resolve_port(port)
-        self.address = f'ws://{self.ip}:{self.port}'
-        self.verbose = verbose
+
+        namespace = c.namespace(network=network)
+        self.address = namespace.get(name, None)
+        
 
     def resolve_address(cls, address=None):
         if address == None:

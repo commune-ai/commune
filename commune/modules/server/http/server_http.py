@@ -13,10 +13,10 @@ class HTTPServer(c.Module):
         self,
         module: Union[c.Module, object],
         name: str = None,
-        ip: Optional[str] = None,
         port: Optional[int] = None,
         address: Optional[str] = None,
         sse: bool = True,
+        ip = None,
         chunk_size: int = 42_000,
         max_request_staleness: int = 60,
     ) -> 'Server':
@@ -25,7 +25,7 @@ class HTTPServer(c.Module):
         self.serializer = c.module('serializer')()
 
         # RESOLVE THE IP AND PORT -> ADDRESS
-        self.ip = c.ip()  # default to '0.0.0.0'
+        self.ip = c.default_ip # default to '0.0.0.0'
         self.port = c.resolve_port(port)
         self.address = f"0.0.0.0:{self.port}" if address == None else address
         self.max_request_staleness = max_request_staleness

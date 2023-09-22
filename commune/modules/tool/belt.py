@@ -6,5 +6,5 @@ class ToolBelt(c.Module):
         tools = [],
     ):
         self.tool_map = {tool.name:tool for tool in tools}
-    def forward(self,tool:str , *args, **kwargs, ):
+    def forward(self,tool:str , *args, **kwargs):
         self.tool_map[tool].forward(*args, **kwargs)

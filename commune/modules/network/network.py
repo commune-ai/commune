@@ -68,7 +68,7 @@ class Network(c.Module):
 
 
     @classmethod
-    def get_external_ip(cls,verbose: bool = False) -> str:
+    def get_external_ip(cls,verbose: bool = False, default_ip='') -> str:
         r""" Checks CURL/URLLIB/IPIFY/AWS for your external ip.
             Returns:
                 external_ip  (:obj:`str` `required`):
@@ -79,12 +79,11 @@ class Network(c.Module):
                     Raised if all external ip attempts fail.
         """
         # --- Try curl.
-        ip = None
+        ip = '0.0.0.0'
         try:
             ip = c.cmd('curl -s ifconfig.me')
             assert isinstance(cls.ip_to_int(ip), int)
             c.print(ip, 'ifconfig.me', verbose=verbose)
-            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
@@ -92,18 +91,13 @@ class Network(c.Module):
             ip = requests.get('https://api.ipify.org').text
             assert isinstance(cls.ip_to_int(ip), int)
             c.print(ip, 'ipify.org', verbose=verbose)
-            return ip 
         except Exception as e:
             c.print(e, verbose=verbose)
 
-        if ip != None:
-            return ip
         # --- Try AWS
         try:
             ip = requests.get('https://checkip.amazonaws.com').text.strip()
             assert isinstance(cls.ip_to_int(ip), int)
-            c.print(ip, 'amazonaws.com', verbose=verbose)
-            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
@@ -111,10 +105,8 @@ class Network(c.Module):
         try:
             process = os.popen('curl -s myip.dnsomatic.com')
             ip  = process.readline()
-            process.close()
             assert isinstance(cls.ip_to_int(ip), int)
-            c.print(ip, 'myip.dnsomatic.com', verbose=verbose)
-            return ip
+            process.close()
         except Exception as e:
             c.print(e, verbose=verbose)    
 
@@ -122,8 +114,6 @@ class Network(c.Module):
         try:
             ip = urllib.request.urlopen('https://ident.me').read().decode('utf8')
             assert isinstance(cls.ip_to_int(ip), int)
-            c.print(ip, 'ident.me')
-            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
@@ -131,11 +121,11 @@ class Network(c.Module):
         try:
             ip = requests.get('https://www.wikipedia.org').headers['X-Client-IP']
             assert isinstance(cls.ip_to_int(ip), int)
-            c.print(ip, 'wikipedia.org')
-            return ip
         except Exception as e:
             c.print(e, verbose=verbose)
 
+        if len(ip) == 0:
+            ip = default_ip
         return ip
 
     @staticmethod
