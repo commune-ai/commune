@@ -11,8 +11,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-
-
 class Vali(c.Module):
 
     
@@ -21,13 +19,12 @@ class Vali(c.Module):
     def __init__(self, config=None,  **kwargs):
         self.init_vali(config=config, **kwargs)
 
-
-
-
     def init_vali(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)
         # merge the config with the default config
         self.count = 0
+
+        # we want to make sure that the config is a munch
         self.config = c.munch({**Vali.config(), **config})
         self.start_time = c.time()
         self.errors = 0
@@ -42,15 +39,9 @@ class Vali(c.Module):
         c.thread(self.run)
         c.thread(self.vote_loop)
  
-
-    def kill_workers(self):
-        for w in self.workers:
-            c.kill(w)
-
     @property
     def sync_staleness(self):
         return int(c.time() - self.last_sync_time) 
-
 
     def vote_loop(self):
         while True:
@@ -63,6 +54,8 @@ class Vali(c.Module):
                     c.print(traceback.format_exc(), color='red')
                     c.sleep(1)
                     continue
+
+
     def sync(self, network:str=None, netuid:int=None, update: bool = True):
         
         try:
@@ -87,28 +80,17 @@ class Vali(c.Module):
         except Exception as e:
             c.print(f'Error syncing {e}', color='red')
             c.print(traceback.format_exc(), color='red')
-            c.sleep(1)
-            return
-
-
+            return {'success': False, 'message': f'Error syncing {e}'}
 
         return {'modules': self.modules, 'subnet': self.subnet}
-
-    @property
-    def lifetime(self):
-        return c.time() - self.start_time
-
-    def modules_per_second(self):
-        return self.count / self.lifetime
 
     def score_module(self, module, **kwargs):
 
         info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
         assert 'address' in info, f'Response must have an error key, got {info.keys()}'
-        w = 1
-        response = {'success': True, 'w': w}
-        return response
+
+        return {'success': True, 'w': 1}
 
 
     def eval_module(self, module:dict):
@@ -129,13 +111,11 @@ class Vali(c.Module):
 
         # update the module state with the module stats
         module_stats.update(module)
-
-
+        
         staleness = c.time() - module_stats.get('timestamp', 0)
         if staleness < self.config.max_staleness:
             # c.print(f'{prefix} [bold yellow] {module["name"]} is too new as we pinged it {staleness}(s) ago[/bold yellow]', color='yellow')
-            return
-
+            return {'error': f'{module["name"]} is too new as we pinged it {staleness}(s) ago'}
 
         try:
             module_client = c.connect(module['address'], key=self.key)
@@ -145,7 +125,6 @@ class Vali(c.Module):
                 c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
             response = {'error': c.detailed_error(e), 'w': 0}
 
-        
         if my_module or response["w"] > 0:
             c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
         
@@ -158,9 +137,7 @@ class Vali(c.Module):
         # add the history of this module
         module_stats['history'] = module_stats.get('history', []) + [response]
         module_stats['history'] = module_stats['history'][-self.config.max_history:]
-
         self.save_module_stats(module['name'], module_stats)
-
 
         return module_stats
 
@@ -422,24 +399,9 @@ class Vali(c.Module):
         self.running = False
         
     @classmethod
-    def test(cls, **kwargs):
-        kwargs['num_workers'] = 0
-        kwargs['vote'] = False
-        kwargs['verbose'] = True
-        self = cls(**kwargs )
-        return self.run()
-
-    @classmethod
-    def vote_staleness_map(cls):
-        vote_paths = [f for f in cls.ls('votes')]
-        tags = [f.split('.')[-2] for f in vote_paths]
-        vote_infos = [cls.get(f) for f in vote_paths]
-        current_time = c.time()
-        return {t: (current_time - v['timestamp'])/60 for t, v in zip(tags, vote_infos)}
-
-    @classmethod
     def check_valis(cls, network='main', max_staleness=300, return_all=True):
-        vali_stats = cls.vali_stats(network=network, df=False, return_all=return_all)
+        # get the up to date vali stats
+        vali_stats = cls.vali_stats(network=network, df=False, return_all=return_all, update=True)
         for v in vali_stats:
             c.print(v)
             if 'serving' not in v:
@@ -455,13 +417,26 @@ class Vali(c.Module):
                     port = int(address.split(':')[-1])
                 c.serve(v['name'], port=port)
 
+    # @classmethod
+    # def stake_spread(cls, modulenetwork='main'):
+    #     subspace = c.module('subspace')(network=network)
+    #     total_stake = self.subspace.total_stake(netuid=self.config.netuid)
+    #     return stake / total_stake
+
     @classmethod
-    def vali_stats(cls, return_all=False, network='main', df:bool = True, sortby:str=['name'], update:bool=True):
+    def vali_stats(cls,     
+                    network='main', 
+                    df:bool = True,
+                    sortby:str=['name'], 
+                    update:bool=False, 
+                    cache_path:str = 'vali_stats',
+                    return_all:bool=False, 
+):
         if return_all:
             return cls.all_vali_stats(network=network, df=df)
         vali_stats = []
         if update == False:
-            vali_stats = cls.get('vali_stats', default=[])
+            vali_stats = cls.get(cache_path, default=[])
 
         if len(vali_stats) == 0:
             module_path = cls.module_path()
@@ -479,7 +454,7 @@ class Vali(c.Module):
 
                     
                     vali_stats += [vote_info]
-            cls.put('vali_stats', vali_stats)    
+            cls.put(cache_path, vali_stats)    
 
         for v in vali_stats:
             v['staleness'] = int(c.time() - v['timestamp'])
@@ -499,14 +474,14 @@ class Vali(c.Module):
     vstats = vali_stats
 
     @classmethod
-    def all_vali_stats(cls, network='main', df:bool = True, sortby:str=['name'] ):
+    def all_vali_stats(cls, network='main', df:bool = True, sortby:str=['name'] , update=False, cache_path:str = 'vali_stats'):
         modules = c.modules('vali')
         all_vote_stats = []
         for m in modules:
             if not m.startswith('vali'):
                 continue 
             try:
-                m_vote_stats = c.module(m).vali_stats(df=False, network=network, return_all=False)
+                m_vote_stats = c.module(m).vali_stats(df=False, network=network, return_all=False, update=False)
                 c.print(f'Got vote stats for {m} (n={len(m_vote_stats)})')
                 if len(m_vote_stats) > 0:
                     all_vote_stats += m_vote_stats
@@ -524,10 +499,19 @@ class Vali(c.Module):
         return all_vote_stats
 
 
+    @property
+    def lifetime(self):
+        return c.time() - self.start_time
 
+    def modules_per_second(self):
+        return self.count / self.lifetime
 
-
-
-
+    @classmethod
+    def test(cls, **kwargs):
+        kwargs['num_workers'] = 0
+        kwargs['vote'] = False
+        kwargs['verbose'] = True
+        self = cls(**kwargs )
+        return self.run()
 
 

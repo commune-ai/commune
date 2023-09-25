@@ -46,7 +46,6 @@ class Subspace(c.Module):
         config = None,
         **kwargs,
     ):
-
         config = self.set_config(config=config,kwargs=kwargs)
         if config.loop:
             c.thread(self.loop)
@@ -212,6 +211,7 @@ class Subspace(c.Module):
         if search != None:
             my_balance = {k:v for k,v in my_balance.items() if search in k}
             
+        my_balance = dict(sorted(my_balance.items(), key=lambda x: x[1], reverse=True))
 
         return my_balance
     key2balance = myb = mybal = my_balance
@@ -1935,6 +1935,38 @@ class Subspace(c.Module):
             return name2uid[name]
         return name2uid
 
+    
+    def name2inc(self, name: str = None, netuid: int = netuid, nonzero_only:bool=True) -> int:
+        name2uid = self.name2uid(name=name, netuid=netuid)
+        incentives = self.incentive(netuid=netuid)
+        name2inc = { k: incentives[uid] for k,uid in name2uid.items() }
+
+        if name != None:
+            return name2inc[name]
+        
+        name2inc = dict(sorted(name2inc.items(), key=lambda x: x[1], reverse=True))
+
+
+        return name2inc
+
+
+    def top_valis(self, netuid: int = netuid, n:int = 10, **kwargs) -> Dict[str, str]:
+        name2div = self.name2div(name=None, netuid=netuid, **kwargs)
+        name2div = dict(sorted(name2div.items(), key=lambda x: x[1], reverse=True))
+        return list(name2div.keys())[:n]
+
+    def name2div(self, name: str = None, netuid: int = netuid, nonzero_only: bool = True) -> int:
+        name2uid = self.name2uid(name=name, netuid=netuid)
+        dividends = self.dividends(netuid=netuid)
+        name2div = { k: dividends[uid] for k,uid in name2uid.items() }
+    
+        if nonzero_only:
+            name2div = {k:v for k,v in name2div.items() if v != 0}
+
+        name2div = dict(sorted(name2div.items(), key=lambda x: x[1], reverse=True))
+        if name != None:
+            return name2div[name]
+        return name2div
 
     @property
     def block_time(self):
@@ -2204,15 +2236,6 @@ class Subspace(c.Module):
             
         return value
         
-    @classmethod
-    def test(cls, network=subnet):
-        subspace = cls()        
-        for key_path, key in c.get_keys('test').items():
-            port  = c.free_port()
-            subspace.register(key=key, 
-                              network=network,
-                              address=f'{c.external_ip()}:{port}', 
-                              name=f'module{key_path}')
 
     @classmethod
     def test_balance(cls):
@@ -2384,29 +2407,22 @@ class Subspace(c.Module):
     def last_update(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('LastUpdate', params=[netuid], network=network, block=block, **kwargs)]
         
-    
     def dividends(self, netuid = netuid, network=None, **kwargs):
         return [v.value for v in self.query('Dividends', params=netuid, network=network,  **kwargs)]
-
-
-    # def uid2key(self, network:str=None, netuid:int = None, **kwargs):
-    #     network = self.resolve_network(network)
-    #     netuid = self.resolve_netuid(netuid)
-        
-    #     keys = self.query_map('Keys', netuid, **kwargs)
-    #     return {k.value:v.value for k, v in keys if k != None and v != None}
-
 
     def registration_blocks(self, netuid: int = None, network:str=  None, **kwargs):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         
         registration_blocks = self.query_map('RegistrationBlock', netuid, **kwargs)
-        return {k.value:v.value for k, v in registration_blocks if k != None and v != None}
-    
-    
-    
-    
+        registration_blocks = {k.value:v.value for k, v in registration_blocks if k != None and v != None}
+        # filter based on key of registration_blocks
+        registration_blocks = {uid:regblock for uid, regblock in sorted(list(registration_blocks.items()), key=lambda v: v[0])}
+        registration_blocks =  list(registration_blocks.values())
+        return registration_blocks
+
+
+
     def key2uid(self, network:str=  None,netuid: int = None, **kwargs):
         return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
 
@@ -3465,8 +3481,24 @@ class Subspace(c.Module):
         self.resolve_network(network)
         return [f['storage_name'] for f in self.substrate.get_metadata_storage_functions( block_hash=block_hash)]
 
-    def stake_spread(self, key:str, modules:list='vali', ratio = 1.0):
-        name2key = self.name2key(modules)
+
+    def stake_spread_top_valis(self):
+        top_valis = self.top_valis()
+        name2key = self.name2key()
+        for vali in top_valis:
+            key = name2key[vali]
+
+
+    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, max_n=10):
+        name2key = self.name2key()
+        if modules == None:
+            modules = self.top_valis()
+
+        modules = modules[:max_n]
+
+        name2key = {k:name2key[k] for k in modules}
+
+
         module_names = list(name2key.keys())
         module_keys = list(name2key.values())
         n = len(name2key)
@@ -3477,7 +3509,6 @@ class Subspace(c.Module):
             ratio = 1.0
         if ratio < 0.0:
             ratio = 0.0
-        
         balance = int(balance * ratio)
         assert balance > 0, f'balance must be greater than 0, not {balance}'
         stake_per_module = int(balance/n)
@@ -3502,9 +3533,14 @@ class Subspace(c.Module):
                 if remove_staketo or m['key'] ==  module_key:
                     c.unstake(key=m['key'], module_key=module_key)
         
+    @classmethod
+    def test(cls, network=subnet):
+        subspace = cls()        
+        for key_path, key in c.get_keys('test').items():
+            port  = c.free_port()
+            subspace.register(key=key, 
+                              network=network,
+                              address=f'{c.external_ip()}:{port}', 
+                              name=f'module{key_path}')
 
-
-            
-
-if __name__ == "__main__":
-    Subspace.run()
+    

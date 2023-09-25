@@ -59,7 +59,7 @@ class Client(c.Module):
         kwargs: dict = None,
         ip: str = None,
         port : int= None,
-        timeout: int = 4,
+        timeout: int = 100,
         stream: bool = True,
         return_error: bool = False,
         asyn: bool = True,
