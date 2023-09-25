@@ -7,9 +7,9 @@ class Test(c.Module):
     def test(self):
         servers = c.servers()
         c.print(servers)
-        module_name = 'module::test'
-        module = c.serve(module='module', name=module_name)
-        c.wait_for_server(module)
+        tag = 'test'
+        module_name = c.serve(module='module', tag=tag)
+        c.wait_for_server(module_name)
         assert module_name in c.servers()
 
         c.kill(module_name)
