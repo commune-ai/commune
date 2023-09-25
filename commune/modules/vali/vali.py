@@ -104,7 +104,8 @@ class Vali(c.Module):
         
         self.count += 1
 
-        my_module = self.ip in module['address']
+        
+        is_my_module = bool(self.ip in module['address'])
 
         # load the module stats
         module_stats = self.load_module_info( module['name'], default=module)
@@ -118,14 +119,14 @@ class Vali(c.Module):
             return {'error': f'{module["name"]} is too new as we pinged it {staleness}(s) ago'}
 
         try:
-            module_client = c.connect(module['address'], key=self.key)
+            module_client = c.connect(module['address'], key=self.key, virtual=self.config.virtual_module)
             response = self.score_module(module_client, info=module, **module)
         except Exception as e:
-            if my_module:
+            if is_my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
             response = {'error': c.detailed_error(e), 'w': 0}
 
-        if my_module or response["w"] > 0:
+        if is_my_module or response["w"] > 0 or self.config.verbose:
             c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
         
         w = response['w']

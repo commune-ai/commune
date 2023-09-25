@@ -20,5 +20,6 @@ vote: True
 min_stake: 1
 connect_score: 0.1 
 max_staleness: 100
+virtual_module: False
 
 

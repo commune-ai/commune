@@ -4626,26 +4626,18 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls):
-        test_responses = {}
-        for fn in cls.fns():
-            test_response = {
-                'passed':False,
-                'response': None
-            }
-            
-            if fn.startswith('test_'):
-                try:
-            
-                    getattr(cls, fn)()
-                    test_response['passed'] = True
-                except Exception as e:
-                   test_response['passed'] = False
-                   test_response['response'] = str(e)
-                test_responses[fn] =test_response
+    def test(cls, modules=['server', 'key'], verbose:bool=False):
+        test_results = []
+        for module_name in modules:
+            c.print(f'Testing {module_name}', color='yellow')
+            module = c.module(module_name)
+            assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
+            module_test_results = module.test()
+            test_results.append(module_test_results)
+            c.print(f'Test Results: {module_test_results}', color='white')
+
+        return test_results
         
-        return test_responses
-       
                
     @classmethod
     def import_bittensor(cls):
