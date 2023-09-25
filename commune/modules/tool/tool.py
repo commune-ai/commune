@@ -17,7 +17,10 @@ class Tool(c.Module):
         self.kwargs = kwargs
 
         ## DEFINE TOOL STUFF
+        pass
 
-    def call(self, x:int , y:int) -> int:
-        return x * 2 + y
+    def call(self, x:int , y:int, z: int ) -> int:
+        return x * 2 + y + z
+
+    
     

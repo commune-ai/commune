@@ -14,13 +14,21 @@ class AccessSubspace(c.Module):
 
 
     def sync(self):
-        sync_time  = c.time() - self.sync_time
-        if sync_time >  self.config.sync_interval :
-            self.sync_time = c.time()
-            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-            self.stakes = self.subspace.stakes(fmt='j')
-        else:
-            return
+        try:
+            sync_time  = c.time() - self.sync_time
+            if sync_time >  self.config.sync_interval :
+                self.sync_time = c.time()
+                self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
+                self.stakes = self.subspace.stakes(fmt='j')
+            else:
+                return
+        except Exception as e:
+            c.print(e, color='red')
+            self.subspace = None
+            self.statsk = {}
+        
+
+            
         
 
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
@@ -28,7 +36,12 @@ class AccessSubspace(c.Module):
 
         address = input['address']
         if c.is_admin(address):
+
             return input
+        
+        if self.subspace == None:
+            return {'success': False, 'error': 'subspace is not initialized, perhaps due to a network error, please check your nework'}
+
         # if not an admin address, we need to check the whitelist and blacklist
         fn = input.get('fn')
         assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
@@ -36,8 +49,6 @@ class AccessSubspace(c.Module):
 
         # RATE LIMIT CHECKING HERE
         self.sync()
-
-        is_registered = bool( address in self.stakes)
 
         stake = self.stakes.get(address, 0)
         # get the rate limit for the function

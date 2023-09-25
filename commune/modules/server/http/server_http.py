@@ -30,15 +30,13 @@ class HTTPServer(c.Module):
         self.address = f"0.0.0.0:{self.port}" if address == None else address
         self.max_request_staleness = max_request_staleness
         assert self.address != None, f"Address not set"
-
-        # ensure that the module has a name
-
-        if isinstance(module, str):
-            module = c.module(module)()
-        elif isinstance(module, type):
-            module = module()
         # RESOLVE THE NAME OF THE SERVER
-        self.name = module.server_name =  name if name != None else module.server_name
+        if name == None:
+            if hasattr(module, 'server_name'):
+                name = module.server_name
+            else:
+                name = c.class_name
+
         self.module = module 
         self.key = module.key      
         # register the server
@@ -86,6 +84,7 @@ class HTTPServer(c.Module):
 
                 success = True
             except Exception as e:
+                raise e
                 result = c.detailed_error(e)
                 success = False
             
@@ -135,8 +134,6 @@ class HTTPServer(c.Module):
 
         # verifty the request is not too old
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
-        
-\
 
         # verify the input with the access module
         input = self.module.access_module.verify(input)
@@ -167,6 +164,8 @@ class HTTPServer(c.Module):
             item = self.serializer.serialize({'data': item})
             item = self.key.sign(item, return_json=True)
             item = json.dumps(item)
+
+
             # # get size of chunk
             # item_size = len(item)
             # if item_size > chunk_size:
