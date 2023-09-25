@@ -110,7 +110,7 @@ class c:
 
     @classmethod
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
-        
+        import inspect
         # odd case where the module is a module in streamlit
         obj = cls.resolve_module(obj)
         try:
@@ -209,8 +209,9 @@ class c:
     def module_class(cls) -> str:
         return cls.__name__
     @classmethod
-    def class_name(cls) -> str:
-        return cls.__name__
+    def class_name(cls, obj= None) -> str:
+        obj = obj if obj != None else cls
+        return obj.__name__
     def get_class_name(cls, obj = None) -> str:
         obj = obj if obj != None else cls
         if not cls.is_class(obj):
@@ -960,15 +961,12 @@ class c:
 
 
     @classmethod
-    def import_object(cls, key:str, verbose: bool = False)-> 'Object':
+    def import_object(cls, key:str, verbose: bool = False)-> Any:
         
         '''
         
-        Import an object from a string with the format of 
-            {module_path}.{object}
-        
-        Examples:
-            import_object("torch.nn"): imports nn from torch
+        Import an object from a string with the format of {module_path}.{object}
+        Examples: import_object("torch.nn"): imports nn from torch
         
         '''
         from importlib import import_module
@@ -999,7 +997,7 @@ class c:
         Assumes the module root directory is the directory containing module.py
         '''
         module_list = list(cls.module_tree().keys())
-        if search:
+        if search != None:
             module_list = [m for m in module_list if search in m]
     
         return module_list
@@ -2286,6 +2284,7 @@ class c:
     def namespace_local(cls,
                         update:bool=False,
                         chunk_size:int=10, 
+                        full_scan = False,
                         **kwargs)-> dict:
         '''
         The module port is where modules can connect with each othe.
@@ -2299,8 +2298,11 @@ class c:
         if update : 
         
         
-            # addresses = c.copy(list(namespace_local.values()))
-            addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
+            addresses = c.copy(list(namespace_local.values()))
+            if full_scan == True or len(addresses) == 0:
+                addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
+
+        
             namespace_local = {}
 
             c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
@@ -2614,6 +2616,7 @@ class c:
             return self._whitelist
         whitelist = c.helper_whitelist
         is_module = c.is_root_module(self)
+        # we want to expose the helper functions
         if not is_module:
             whitelist += self.functions() + self.attributes()
         return whitelist
@@ -2664,7 +2667,7 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
-              update:bool = False,
+              update:bool = True,
               **extra_kwargs
               ):
 
@@ -2720,6 +2723,7 @@ class c:
         return server.name
 
     serve_module = serve
+    
     @classmethod
     def functions(cls, search: str=None , include_parents:bool = False):
         functions = cls.get_functions(include_parents=include_parents)  
@@ -3897,23 +3901,15 @@ class c:
         
         if module is None:
             return cls
-        if isinstance(module, str):
+        elif isinstance(module, str):
             modules = c.modules()
             if module in modules:
                 module =  c.get_module(module,**kwargs)
                 return module
             else:
-                raise Exception(f'Module {module} not found')
-        # serve the module if the bool is True
-        is_class = cls.is_class(module)
-        module_class = module if is_class else module.__class__
-        
-        return ModuleWrapper(module=module)
-        
-        
-            
-        # return module
-
+                return c.module('module.wrap')(module)
+        else: 
+            raise NotImplementedError
 
     m = mod = module
 
@@ -3923,12 +3919,9 @@ class c:
     def modulefn(cls, module, fn, *args, **kwargs):
         return getattr(c.module(module), fn)(*args, **kwargs)
         
-    
-    
     def setattr(self, k, v):
         setattr(self, k, v)
         
-
     def setattributes(self, new_attributes:Dict[str, Any]) -> None:
         '''
         Set a dictionary to the slf attributes 
@@ -3936,24 +3929,7 @@ class c:
         assert isinstance(new_attributes, dict), f'locals must be a dictionary but is a {type(locals)}'
         self.__dict__.update(new_attributes)
         
-    @staticmethod
-    def get_template_args( template:str) -> List[str]:
-        '''
-        get the template arguments from a string such that
-        template = 'hello {name} {age}' returns ['name', 'age']
-        
-        Args:
-            template (str): template string
-        Returns:
-            List[str]: list of template arguments
-            
-            
-        '''
-        from string import Formatter
-        template_args =  [i[1] for i in Formatter().parse(template)  if i[1] is not None] 
-        
-        return template_args
-         
+
     def merge_dict(self, python_obj: Any, include_hidden:bool=False):
         '''
         Merge the dictionaries of a python object into the current object
@@ -4040,7 +4016,7 @@ class c:
     
     @classmethod
     def pip_list(cls, lib=None):
-        pip_list =  cls.cmd(f'pip list', verbose=False).split('\n')
+        pip_list =  c.cmd(f'pip list', verbose=False, bash=True).split('\n')
         if lib != None:
             pip_list = [l for l in pip_list if l.startswith(lib)]
         return pip_list
@@ -5124,11 +5100,14 @@ class c:
     @classmethod
     def live_modules(cls, **kwargs):
         return cls.call_pool(fn='address', **kwargs)
+    
     @classmethod
     def call_pool(cls, *args, **kwargs):
         loop = cls.get_event_loop()
         return loop.run_until_complete(cls.async_call_pool(*args, **kwargs))
+    
     cpool = call_pool
+
     @classmethod
     async def async_call_pool(cls,
                               modules, 
@@ -8069,18 +8048,6 @@ class c:
     def __str__(self) -> str:
         return f'<{self.class_name()} tag={self.tag}>'
 
-
-
-    
-    
-
-
-    # @access_module.setter
-    # def access_module(self, access_module):
-    #     if not hasattr(self, '_access_module'):
-    #         self._access_module = []
-    #     self._access_module = access_module
-
     @classmethod
     def emoji(cls,  name:str):
         emojis = []
@@ -8124,7 +8091,7 @@ class c:
             'thumbs_down': '👎',
             'crown': '👑',
             'cyber_eye': '👁️‍🗨️',
-            'data_stream': '🌐',
+            'data_stream': '🌐', 
             'brain': '🧠',
             'robot': '🤖',
             'lightning': '⚡',
@@ -8152,3 +8119,4 @@ class c:
 Module = c
 Module.run(__name__)
     
+
