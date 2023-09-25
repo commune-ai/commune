@@ -376,9 +376,13 @@ class c:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-        if path == None:
-            path = cls.config_path()
 
+        if path == None: 
+            path = cls.config_path()
+        else:
+            module_tree = cls.module_tree()
+            path = module_tree[path].replace('.py', '.yaml')
+            
         config = cls.load_yaml(path)
 
         # convert to munch
@@ -631,6 +635,7 @@ class c:
     def get_config(cls, 
                    config:dict = None,
                    kwargs:dict=None, 
+                   module = None,
                    to_munch:bool = True) -> Munch:
         '''
         Set the config as well as its local params
@@ -640,6 +645,7 @@ class c:
         if config == None:
             config = cls.load_config()
         elif isinstance(config, str):
+            
             config = cls.load_config(path=config)
             assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
         elif isinstance(config, dict):
