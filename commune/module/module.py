@@ -247,16 +247,6 @@ class c:
             'module': cls.__name__
         }
         return minimal_config
-        
-        
-    @classmethod
-    def __config_file__(cls) -> str:
-        
-        __config_file__ =  cls.module_file().replace('.py', '.yaml')
-        
-        # if the config file does not exist, then create one where the python path is
-
-        return __config_file__
 
 
     @classmethod
@@ -374,19 +364,10 @@ class c:
     
     
     @classmethod
-    
-    def resolve_config_path(cls, module= None) -> str:
-        
-        
-        if module != None: 
-            module_tree = cls.module_tree()
-            path = module_tree[module].replace('.py', '.yaml')
-        else:
-            path = cls.__config_file__()
-        assert isinstance(path, str)
+    def config_path(cls) -> str:
+        path = cls.module_file().replace('.py', '.yaml')
         return path
     
-    config_path = resolve_config_path
     
     @classmethod
     def load_config(cls, path:str=None, to_munch:bool = False, root:bool = False) -> Union[Munch, Dict]:
@@ -395,13 +376,16 @@ class c:
             path: The path to the config file
             to_munch: If true, then convert the config to a munch
         '''
-        path = cls.resolve_config_path(path)
+        if path == None:
+            path = cls.config_path()
 
         config = cls.load_yaml(path)
 
+        # convert to munch
         if config == None:
             config = {}
 
+        # convert to munch
         if to_munch:
             config =  cls.dict2munch(config)
         
@@ -487,44 +471,7 @@ class c:
         return data
     
 
-        
-    @classmethod
-    def get_ts(cls,
-            key:str, 
-            default: Any=None, 
-            password: str=None, 
-            mode:str = 'json',
-            max_age:str = None,
-            cache :bool = True,
-            **kwargs) -> Any:
-        
-        '''
-        Puts a value in sthe config, with the option to encrypt it
 
-        Return the value
-        '''
-        if cache:
-            if key in cls.cache:
-                return cls.cache[key]
-        
-        verbose = kwargs.get('verbose', False)
-        data = getattr(cls, f'get_{mode}')(key,default=default, **kwargs)
-        if data == None: 
-            data = default
-        encrypted = c.is_encrypted(data)
-        if encrypted:
-            data = cls.decrypt(data, password=password)
-        if isinstance(data, dict):
-            if max_age != None:
-                timestamp = data.get('timestamp', None)
-                if timestamp != None:
-                    age = c.get_age(timestamp)
-                    if age > max_age:
-                        if verbose:
-                            c.print(f'{key} is too old, age: {int(age)} > {max_age}', color='red')
-                        return default
-        return data['timestamp']
-    
     @staticmethod
     def get_age(timestamp:int=0):
         return c.time() - timestamp
@@ -2003,15 +1950,18 @@ class c:
                 prefix_match: bool = False,
                 key = None,
                 **kwargs ):
-        if not isinstance(module, str):
-            return module  
-        t = c.time()
+
+        """
+        Connects to a server by the name of the module
+        :param module: name of the module
+        """
+
         network = c.resolve_network(network)
         key = cls.get_key(key)
         if c.is_address(module):
             address = module
         else:
-            namespace = namespace or c.namespace(module, network=network)
+            namespace = namespace if namespace != None else c.namespace(module, network=network)
             modules = list(namespace.keys())
             if prefix_match == True:
                 module = c.choice(modules)
@@ -2026,8 +1976,10 @@ class c:
         # CONNECT TO THE MODULE
         if 'None' in address:
             raise Exception(f'Invalid address {address}')
+
         if ip == c.ip():
             ip = '0.0.0.0'
+
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
         connection_latency = c.time() - t
 
@@ -2040,9 +1992,10 @@ class c:
                     return_info = False,
                     refresh:bool = False,
                     **kwargs):
-        # if not cls.server_exists(name) or refresh:
-        #     cls.launch(name=name, **kwargs)
-        #     cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval)
+
+        """
+        Root module
+        """
         module = cls.connect(name)
         if return_info:
             return module.server_info
@@ -2500,24 +2453,10 @@ class c:
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
-    
-
-    def stop_server(self):
-        self.server.stop()
-        del self.server
-        del self.server_info
         
-        
-        
-    @classmethod
-    def get_streamlit(cls):
-        import streamlit as st
-        return st 
-    
-    
-    
     def attributes(self):
         return list(self.__dict__.keys())
+
     @classmethod
     def get_attributes(cls, search = None, obj=None):
         if obj is None:
@@ -2621,17 +2560,8 @@ class c:
     @whitelist.setter
     def whitelist(self, whitelist:List[str]):
         self._whitelist = whitelist + self.helper_functions
-
-
         return whitelist
-    wl = whitelist
     bl = blacklist = []
-
-
-    @classmethod
-    def init_arg(cls, **kwargs):
-        fn = '__init__'
-        return cls.schema(fn)[fn]['input']
 
 
     @classmethod
@@ -3130,6 +3060,7 @@ class c:
             module_list = [m for m in module_list if search_true(m)]
                 
         return module_list
+
     lspm2 = ls_pm2 = pm2ls = pm2_ls = pm2list = pm2_list
     # commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1]commune.run_command('pm2 status').stdout.split('\n')[5].split('    │')[0].split('  │ ')[-1] 
     
@@ -4148,7 +4079,7 @@ class c:
         return ip 
     
     @classmethod
-    def ip(cls, cache:bool = False, **kwargs) -> str:
+    def ip(cls, cache:bool = True, **kwargs) -> str:
         if cache:
             ip = c.get('ip', None)
             if ip != None:
@@ -4156,7 +4087,7 @@ class c:
         
         ip =  cls.external_ip(**kwargs)
         if cache:
-            c.set('ip', ip)
+            c.put('ip', ip)
         return ip
     @classmethod
     def queue(cls, size:str=-1, *args,  mode='queue', **kwargs):
@@ -5083,14 +5014,9 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls,  *args , n: int=1, return_future:bool=False,  **kwargs) -> None:
-        if n == 1:
-            futures = c.async_call(*args,**kwargs)
-        else:
-            futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
-        if return_future:
-            return futures
-
+    def call(cls,  module , *args, n: int=1, return_future:bool=False,  **kwargs) -> Any:
+        module = c.connect(module, prefix_match=prefix_match, network=network, key=key)
+        result = getattr(module, fn)(*args, return_future=return_future, **kwargs)
         return c.gather(futures)
 
     @classmethod
@@ -7906,18 +7832,6 @@ class c:
             t.join()
 
     @classmethod
-    def thread_fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
-        args = args or []
-        kwargs = kwargs or {}
-        threads = []
-        if tag == None:
-            tag = ''
-        for i in range(n):
-            t = cls.thread(fn=fn, tag=tag+str(i), *args, **kwargs)
-        return cls.thread_map
-
-
-    @classmethod
     def threads(cls, *args, **kwargs):
         return list(cls.thread_map(*args, **kwargs).keys())
 
@@ -7948,13 +7862,10 @@ class c:
         if root_key_address not in users:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
-
-    
     @classmethod
     def is_user(self, address):
         
         return address in self.users() or address in c.users()
-    
     @classmethod
     def get_user(cls, address):
         users = cls.users()
@@ -7986,8 +7897,6 @@ class c:
     @classmethod
     def is_admin(cls, address):
         return cls.get_role(address) == 'admin'
-
-    
     @classmethod
     def admins(cls):
         return [k for k,v in cls.users().items() if v['role'] == 'admin']

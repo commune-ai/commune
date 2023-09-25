@@ -3,6 +3,8 @@ import commune as c
 import threading
 import multiprocessing
 import asyncio
+
+
 class Pool(c.Module):
     def __init__(self, 
                  modules = None
@@ -13,7 +15,6 @@ class Pool(c.Module):
         self.init(**kwargs)
         self.set_fn(fn)
         self.add_workers()
-        
         
         
     def set_fn(self, fn):
@@ -153,7 +154,7 @@ class Pool(c.Module):
             fn = request.get('fn', 'forward') # identity function
             kwargs = request.get('kwargs', {})
             args = request.get('args', [])
-            result = asyncio.run(c.async_call(module=module, fn=fn, *args,**kwargs))
+            result = asyncio.run(c.call(module=module, fn=fn, *args,**kwargs))
             assert callable(fn), f"Invalid function: {fn}"
             output = fn(*args, **kwargs)
             
