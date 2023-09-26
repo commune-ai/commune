@@ -6,6 +6,7 @@ Vali = c.module('vali')
 class ValiTextTruthfulQA(Vali):
     def __init__(self,**kwargs):
         config = self.set_config(kwargs=kwargs)
+        self.dataset = c.module('data.text.truthqa')()
         self.init_vali(config)
 
     def score_module(self, module='model', **kwargs) -> int:
@@ -13,7 +14,7 @@ class ValiTextTruthfulQA(Vali):
 
         model = c.connect(module) if isinstance(module, str) else module
         # get sample
-        sample = c.call(module=self.config.dataset, fn='sample')
+        sample = self.dataset.sample()
         assert isinstance(sample, dict), f'sample is not a dict: {sample}, type: {type(sample)}'
         answers = sample.pop('answers')
         # format the prompt
@@ -24,7 +25,7 @@ class ValiTextTruthfulQA(Vali):
         ```json'''
 
         # generate the output
-        output: str = model.generate(prompt)
+        output: str = model.forward(fn='generate', args=[prompt])
 
         # parse the output to get the answer_idx
         answer_idx = -1

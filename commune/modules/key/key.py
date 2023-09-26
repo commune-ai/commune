@@ -1247,7 +1247,4 @@ class Keypair(c.Module):
                 c.rm_key(a)
             c.print('cleaning', k, a,  c.key_exists(a))
 
-Keypair.run(__name__)
-        
-        
         

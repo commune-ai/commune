@@ -1,8 +1,0 @@
-module: Judge
-tokenizer: gpt2
-price_per_token: 0.0001
-llm: 
-  module: langchain.OpenAI
-  kwargs: 
-    openai_api_key: OPEN_API_KEY
-  model: local
