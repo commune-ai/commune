@@ -780,24 +780,25 @@ class Subspace(c.Module):
 
         return new_name
 
-    def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None):
+    def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None, name2key:dict = None):
         if module_key == None:
             key = self.resolve_key(key)
             assert key != None, "Please provide a key"
             module_key = key.ss58_address
             return module_key
+        
 
         assert isinstance(module_key, str), "Please provide a module_key as a string"
         # is it your key
         if c.key_exists(module_key):
             module_key = c.get_key(module_key).ss58_address
+        
+
         else:
-            # is it a module's key? 
-            module2key =self.module2key(netuid=netuid)
-            if module_key in module2key:
-                module_key = module2key[module_key]
-            else:
-                module_key = module_key
+            if name2key == None:
+                name2key = self.name2key(netuid=netuid)
+            if module_key in name2key:
+                module_key = name2key[module_key]
 
         return module_key
 
@@ -826,8 +827,9 @@ class Subspace(c.Module):
         c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
-        module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
-        new_module_key = self.resolve_module_key(module_key=new_module_key, key=key, netuid=netuid)
+        name2key = self.name2key(netuid=netuid)
+        module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid, name2key=name2key)
+        new_module_key = self.resolve_module_key(module_key=new_module_key, key=key, netuid=netuid, name2key=name2key)
 
         if not self.is_registered( module_key, netuid=netuid):
             return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
