@@ -179,7 +179,13 @@ class Vali(c.Module):
         return self.rm(path)
 
     @classmethod
-    def stats(cls, tag=None, network='main', df:bool=True, keys=['name', 'w', 'count', 'staleness', 'address'], topk=30):
+    def stats(cls,
+             tag=None, 
+             network='main',
+             df:bool=True, 
+             keys: bool =['name', 'w', 'count', 'staleness', 'address'], 
+             topk=30
+             ):
         stats = cls.load_stats( network=network, keys=keys, tag=tag)
 
         if df:
@@ -280,7 +286,7 @@ class Vali(c.Module):
 
     @classmethod
     def tags(cls, network='main', mode='stats'):
-        return list(cls.tag2path(network=network, moode=mode).keys())
+        return list(cls.tag2path(network=network, mode=mode).keys())
 
     @classmethod
     def paths(cls, network='main', mode='stats'):
