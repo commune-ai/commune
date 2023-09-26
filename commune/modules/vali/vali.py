@@ -429,7 +429,7 @@ class Vali(c.Module):
                     network='main', 
                     df:bool = True,
                     sortby:str=['name'], 
-                    update:bool=False, 
+                    update:bool=True, 
                     cache_path:str = 'vali_stats',
                     return_all:bool=False, 
 ):

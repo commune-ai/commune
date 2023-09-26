@@ -2145,7 +2145,7 @@ class Subspace(c.Module):
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
                 for k in ['incentive', 'dividends']:
-                    if module[k] > 0:
+                    if module[k] > 1:
                         module[k] = module[k] / (U16_MAX)
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
                 modules[i] = module
