@@ -1633,7 +1633,7 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = False, 
               cache: bool = False,
-              cols: list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'balance'],
+              cols: list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake'],
               **kwargs
               ):
         if update:
@@ -2092,6 +2092,7 @@ class Subspace(c.Module):
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
 
+
             uid2key = self.uid2key(netuid=netuid, block=block)
             addresses = self.addresses(netuid=netuid, block=block)
             names = self.names(netuid=netuid, block=block)
@@ -2102,6 +2103,8 @@ class Subspace(c.Module):
             regblock = self.regblock(netuid=netuid, block=block)
             last_update = self.last_update(netuid=netuid, block=block)   
             stake_from = self.stake_from(netuid=netuid, block=block)  
+            stake_to = self.stake_from(netuid=netuid, block=block)  
+
 
             # weights are heavy, so only include them if necessary      
             if include_weights:
@@ -2119,6 +2122,7 @@ class Subspace(c.Module):
                     'dividends': dividends[uid],
                     'stake': stake.get(key, -1),
                     'stake_from': stake_from.get(key, []),
+                    'stake_to': stake_to.get(key, []),
                     'regblock': regblock.get(uid, 0),
                     'last_update': last_update[uid],
                 }
