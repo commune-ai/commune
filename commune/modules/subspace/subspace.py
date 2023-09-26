@@ -443,8 +443,8 @@ class Subspace(c.Module):
 
 
         network =self.resolve_network(network)
-        address = c.namespace(network='local').get(name, address)
-        address = address.replace('0.0.0.0',c.ip())
+        address = c.namespace(network='local').get(name, c.default_ip)
+        address = address.replace(c.default_ip,c.ip())
         key = self.resolve_key(name)
 
         # Validate address.
@@ -2241,17 +2241,6 @@ class Subspace(c.Module):
         return value
         
 
-    @classmethod
-    def test_balance(cls):
-        self = cls()
-        key = cls.get_key('//Alice')
-        c.print(self.get_balance(key.ss58_address))
-        
-        key2 = cls.get_key('//Bob')
-        
-        self.transfer(key=key, dest=key2.ss58_address, amount=10)
-        
-        c.print(self.get_balance(key2.ss58_address))
         
     
     @classmethod
@@ -3513,10 +3502,10 @@ class Subspace(c.Module):
 
         # get the balance, of the key
         balance = self.get_balance(key)
-        if ratio > 1.0:
-            ratio = 1.0
-        if ratio < 0.0:
-            ratio = 0.0
+        assert balance > 0, f'balance must be greater than 0, not {balance}'
+        assert ratio <= 1.0, f'ratio must be less than or equal to 1.0, not {ratio}'
+        assert ratio > 0.0, f'ratio must be greater than or equal to 0.0, not {ratio}'
+
         balance = int(balance * ratio)
         assert balance > 0, f'balance must be greater than 0, not {balance}'
         stake_per_module = int(balance/n)
@@ -3541,14 +3530,22 @@ class Subspace(c.Module):
                 if remove_staketo or m['key'] ==  module_key:
                     c.unstake(key=m['key'], module_key=module_key)
         
-    @classmethod
-    def test(cls, network=subnet):
-        subspace = cls()        
-        for key_path, key in c.get_keys('test').items():
-            port  = c.free_port()
-            subspace.register(key=key, 
-                              network=network,
-                              address=f'{c.external_ip()}:{port}', 
-                              name=f'module{key_path}')
 
-    
+    @classmethod
+    def test(cls):
+        s = c.module('subspace')()
+        n = s.n()
+        assert isinstance(n, int)
+        assert n > 0
+
+        market_cap = s.mcap()
+        assert isinstance(market_cap, float), market_cap
+
+        name2key = s.name2key()
+        assert isinstance(name2key, dict)
+        assert len(name2key) == n
+
+        stats = s.stats(df=False)
+        c.print(stats)
+        assert isinstance(stats, list) 
+

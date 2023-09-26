@@ -118,6 +118,33 @@ class Storage(c.Module):
             assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
 
 
+    @classmethod
+    def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
+        import functools
+        path_name = cache_folder+'/'+func.__name__
+        def wrapper(*args, **kwargs):
+            fn_name = func.__name__
+            cache_params = {'max_age': max_age, 'cache': cache}
+            for k, v in cache_params.items():
+                cache_params[k] = kwargs.pop(k, v)
+
+            
+            if not update:
+                result = cls.get(fn_name, default=None, **cache_params)
+                if result != None:
+                    return result
+
+            result = func(*args, **kwargs)
+            
+            if cache:
+                cls.put(fn_name, result, cache=cache)
+
+            return result
+
+        return wrapper
+
+
+
 
 
 
