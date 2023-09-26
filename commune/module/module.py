@@ -45,12 +45,7 @@ class c:
     @classmethod
     def init(cls, *args, **kwargs):
         return cls(*args, **kwargs)
-    
-    @classmethod
-    def boot_peers(cls) -> List[str]: 
-        config = c.get_config()
-        boot_peers = config.get('boot_peers', [])
-        return boot_peers
+
         
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
@@ -434,6 +429,7 @@ class c:
             if 'data' in data:
                 data = data['data']
 
+        # local cache
         if cache:
             cls.cache[key] = data
         return data
@@ -2059,18 +2055,7 @@ class c:
         nest_asyncio.apply()
         nest_asyncio_enabled = True
         
-        
-    @classmethod
-    def get_peer_addresses(cls, ip:str = None  ) -> List[str]:
-        used_local_ports = cls.get_used_ports() 
-        if ip == None:
-            ip = c.default_ip
-        peer_addresses = []
-        for port in used_local_ports:
-            peer_addresses.append(f'{ip}:{port}')
-            
-        return peer_addresses
-            
+
     
 
     @classmethod
@@ -2098,43 +2083,6 @@ class c:
             port2module[address] = name
         return port2module
     address2name = address2module
-        
-        
-    @classmethod
-    def namespace_remote(cls,  
-                         seperator = '::', 
-                         update:bool = False,
-                         prefix:bool = 'R')-> dict:
-    
-        if update:
-            namespace_remote = {}
-        else:
-            namespace_remote = c.get('namespace_remote', {})   
-        
-        remote_modules = c.get('remote_modules', {})
-        namespace_remote.update(remote_modules)
-
-        peer_registry = cls.peer_registry(update=update)  
-        
-        registered_peer_addresses = []
-        for peer_id, (peer_address, peer_info) in enumerate(peer_registry.items()):
-            
-            if isinstance(peer_info, dict):
-                peer_name = f'{prefix}{peer_id}'
-                peer_namespace = peer_info.get('namespace', None)
-                if isinstance(peer_namespace, dict):
-                    for name, address in peer_namespace.items():
-                        if  not address in registered_peer_addresses:
-                            namespace_remote[name+seperator+peer_name] = address
-                            registered_peer_addresses.append(peer_address)
-                else:
-                    c.print(f'Peer {peer_name} has no namespace', color='red')
-        
-        c.put('namespace_remote', namespace_remote)
-        
-        
-
-        return namespace_remote
         
         
     @staticmethod
@@ -2395,10 +2343,10 @@ class c:
 
     @property
     def server_name(self):
-        if not hasattr(self, 'config'):
-            self.config =  Munch({})
         config = self.config
-        if 'server_name' in config:
+        if not hasattr(self, 'config') or not (isinstance(self.config, Munch)):
+            self.config =  Munch({})
+        if 'server_name' in self.config:
             name =  config['server_name']
         else:
             name = self.module_path()
@@ -2418,7 +2366,8 @@ class c:
     def wait_for_server(cls,
                           name: str ,
                           timeout:int = 600,
-                          sleep_interval: int = 1) -> bool :
+                          sleep_interval: int = 1, 
+                          verbose:bool = False) -> bool :
         
         time_waiting = 0
         logs = []
@@ -2427,10 +2376,12 @@ class c:
             time_waiting += sleep_interval
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
             print_logs = [l for l in new_logs if l not in logs]
-            if len(print_logs) > 0:
-                logs.extend(print_logs)
-                logs = list(set(logs))
-                c.print('\n'.join(print_logs))
+
+            if verbose:
+                if len(print_logs) > 0:
+                    logs.extend(print_logs)
+                    logs = list(set(logs))
+                    c.print('\n'.join(print_logs))
             if time_waiting > timeout:
                 raise TimeoutError(f'Timeout waiting for server to start')
         return True
@@ -2455,7 +2406,7 @@ class c:
         
         global_namespace = {
             **cls.namespace_local(),
-            **cls.namespace_remote()
+            **cls.namespace_subspace()
         }
         
         return global_namespace
@@ -2513,14 +2464,14 @@ class c:
     def resolve_server_name(cls, module:str = None, tag:str=None, name:str = None,  tag_seperator:str='::', **kwargs):
         
 
+        # if name is not specified, use the module as the name such that module::tag
         if name == None:
-            # module::tag name format
-            if module == None:
-                module = cls.module_path()
+            # module::tag
+            module = cls.module_path() if module == None else module
             if tag_seperator in module: 
                 module, tag = module.split(tag_seperator)
             name = module
-            if tag == 'None':
+            if tag in ['None','null'] :
                 tag = None
             if tag != None:
                 name = f'{name}{tag_seperator}{tag}'
@@ -2567,8 +2518,8 @@ class c:
               module:Any = None ,
               tag:str=None,
               ip :str = None,
-              port :int = None,
-              server_name:str=None, 
+              port :int = None, # name of the server if None, it will be the module name
+              server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
               wait_for_server:bool = False, # waits for the server to start before returning
@@ -2690,14 +2641,6 @@ class c:
     
 
 
-    @classmethod
-    def get_peer_info(cls, peer: Union[str, 'Module']) -> Dict[str, Any]:
-        if isinstance(peer, str):
-            peer = cls.connect(peer)
-            
-        info = peer.info()
-        return info
-    
     
     def is_fn_allowed(self, fn_name:str) -> bool:
         whitelist = self.whitelist
@@ -2752,8 +2695,7 @@ class c:
     help = info
 
 
-    def peer_info(self) -> Dict[str, Any]:
-        self.info()
+
     @classmethod
     def schema(cls,search: str = None,
                     code : bool = False,
@@ -3480,6 +3422,35 @@ class c:
     #     resource_dict['memory'] = self.memory_usage(mode='ratio')
     #     return  resource_dict
     
+
+    @classmethod
+    def transfer_fn_code(cls, module1= 'module',
+                        fn_prefix = 'ray_',
+                        module2 = 'ray',
+                        refresh = False):
+
+        module1 = c.module(module1)
+        module2 = c.module(module2)
+        module1_fn_code_map = module1.fn2code(fn_prefix)
+        module2_code = module2.code()
+        module2_fns = module2.fns()
+        filepath = module2.filepath()
+        for fn_name, fn_code in module1_fn_code_map.items():
+            c.print(f'adding {fn_name}')
+            c.print('fn_code', fn_code)
+            if fn_name in module2_fns:
+                if refresh:
+                    module2_code = module2_code.replace(module2_fns[fn_name], '')
+                else:
+                    c.print(f'fn_name {fn_name} already in module2_fns {module2_fns}')
+
+            module2_code += '\n'
+            module2_code += '\n'.join([ '    ' + line for line in fn_code.split('\n')])
+            module2_code += '\n'
+        c.print('module2_code', module2_code)
+        c.put_text(filepath, module2_code)
+
+        return {'success': True, 'module2_code': module2_code, 'module2_fns': module2_fns, 'module1_fn_code_map': module1_fn_code_map}
     @classmethod
     def ensure_ray_context(cls, ray_config:dict = None):
         ray_config = ray_config if ray_config != None else {}
@@ -4798,6 +4769,7 @@ class c:
             input = str(input)
         return input
 
+    tostr = string = python2str
     @classmethod
     def str2python(cls, input)-> dict:
         assert isinstance(input, str), 'input must be a string, got {}'.format(input)
@@ -5445,89 +5417,12 @@ class c:
         return port_range
 
     @classmethod
-    def add_peer(cls, *args, **kwargs)-> List:
-        loop = cls.get_event_loop()
-        peer = loop.run_until_complete(cls.async_add_peer(*args, **kwargs))
-        return peer
-    
-    
-    @classmethod
-    async def async_add_peer(cls, 
-                             peer_address,
-                             network = 'local',
-                             timeout:int=1,
-                             verbose:bool = True,
-                             add_peer = True):
-        
-        peer_registry = await cls.async_get_json('peer_registry', default={}, root=True)
-
-
-        peer_info = await cls.async_call(module=peer_address, 
-                                              fn='info',
-                                              include_namespace=True, 
-                                              timeout=timeout)
-        
-        if add_peer:
-            await cls.async_call(module=peer_address, 
-                                              fn='add_peer',
-                                              args=[cls.root_address],
-                                              include_namespace=True, 
-                                              timeout=timeout)
-        
-
-        if 'error' in peer_info:
-            if verbose:
-                c.print(f'Error adding peer {peer_address} due to {peer_info["error"]}',color='red')
-            return None    
-        else:
-            if verbose:
-                c.print(f'Successfully added peer {peer_address}', color='green')
-        
-            
-        assert isinstance(peer_info, dict)
-        assert 'address' in peer_info
-        assert 'namespace' in peer_info
-        
-        peer_ip = ':'.join(peer_info['address'].split(':')[:-1])
-        peer_port = int(peer_info['address'].split(':')[-1])
-        
-        # relace default local ip with external_ip
-        peer_info['namespace'] = {k:v.replace(c.default_ip,peer_ip) for k,v in peer_info['namespace'].items()}
-
-        peer_registry[peer_address] = peer_info
-            
-        await cls.async_put_json('peer_registry', peer_registry, root=True)
-        
-        return peer_registry
-    
-    @classmethod
     def add_module(cls, module:str, address:str):
         c.register_server(module, address)
 
     @classmethod
     def check_module(cls, module:str):
         return c.connect(module)
-
-
-        
-        
-    @classmethod
-    def rm_module(cls, module, cache_path='remote_modules'):
-        remote_modules = c.get(cache_path, {})
-        if module in remote_modules:
-            remote_modules.pop(module)
-            c.put(cache_path, remote_modules)
-            return {'msg': 'Module removed', 'module': module}
-        
-        return {'msg': 'Module not found', 'module': module}
-
-    @classmethod
-    def remote_modules(cls, cache_path='remote_modules'):
-       
-        
-        return c.get(cache_path, {}) 
-
-    
     
     @classmethod
     def is_success(cls, x):
@@ -5543,31 +5438,8 @@ class c:
     @classmethod
     def is_error(cls, x:dict):
         return not self.is_success(x)
-    
-    @classmethod
-    def reset_peers(cls, *args, **kwargs):
-        cls.rm_peers()
-        return cls.add_peers(*args, **kwargs)
-    
-    
-    @classmethod
-    def add_peers(cls, *peer_addresses, **kwargs): 
-        if len(peer_addresses) == 0:
-            peer_addresses = cls.boot_peers()
-            
-        if len(peer_addresses) == 1 and isinstance(peer_addresses[0], list):
-            peer_addresses = peer_addresses[0]
-        jobs = []
-        for peer_address in peer_addresses:
-            job = cls.async_add_peer(peer_address, **kwargs)
-            jobs += [job]
-            
-        loop = cls.get_event_loop()
-        peers = loop.run_until_complete(asyncio.gather(*jobs))
-        peers = [peer for peer in peers if peer != None]
-        return {'added_peers': peers, 'msg': f'Added {len(peers)} peers'}
 
-
+    
     @staticmethod
     def is_number(value):
         try:
@@ -5575,43 +5447,6 @@ class c:
         except ValueError:
             return False
         return True
-
-        
-
-    
-    @classmethod
-    def rm_peer(cls, peer_address: str):
-        peer_registry = c.get_json('peer_registry', default={})
-        result = peer_registry.pop(peer_address, None) 
-        if result != None:
-            result = peer_address      
-            cls.put_json('peer_registry', peer_registry, root=True)
-        return result
-       
-    @classmethod
-    def rm_peers(cls, peer_addresses: list = None):
-        rm_peers = []
-        if peer_addresses == None:
-            peer_addresses = cls.peers()
-        if isinstance(peer_addresses, str):
-            peer_addresses = [peer_addresses]
-        for peer_address in peer_addresses:
-            
-            rm_peers.append(cls.rm_peer(peer_address))
-        return rm_peers
-            
-      
-
-        
-        
-    def store_value(self, key, value, *args, **kwargs):
-        value = {'data': value}
-        self.put_json(key, value, *args, **kwargs)
-        return key
-    def get_value(self, key, *args, **kwargs):
-        value = self.get_json(key, *args, **kwargs)
-        value = value.get('data', None)
-        return value
     
     @classmethod
     def resolve_network(cls, network=None):
@@ -5621,10 +5456,8 @@ class c:
             'l': 'local',
             'g': 'global',
             's': 'subspace',
-            'b': 'bittensor',
+            'bt': 'bittensor',
             'auto': 'autonolous',
-            'a': 'autonolous',
-            'c': 'subspace',
         }
 
         network = network_shortcuts.get(network, network)
@@ -5678,15 +5511,6 @@ class c:
     def sync(cls, *args, **kwargs):
         return c.module('subspace')().sync(*args, **kwargs)
         
-    @classmethod
-    def peer_registry(cls, peers=None, update: bool = False):
-        if update:
-            if peers == None:
-                peers = cls.peers()
-            cls.add_peers(peers)
-        
-        peer_registry = c.get('peer_registry', {})
-        return peer_registry
 
     @classmethod
     def run_jobs(cls, jobs: List, mode ='asyncio',**kwargs):
@@ -5697,16 +5521,6 @@ class c:
         else:
             raise ValueError(f"Invalid mode: {mode}")
         
-    
-    @classmethod
-    def ls_peers(cls, update=False):
-        peer_registry = cls.get_json('peer_registry', default={})
-        return list(peer_registry.keys())
-      
-    @classmethod
-    def peers(cls, update=False):
-        peer_registry = cls.peer_registry(update=update)
-        return list(peer_registry.keys())
 
     @classmethod
     def filter(cls, text_list: List[str], filter_text: str) -> List[str]:
@@ -7675,17 +7489,20 @@ class c:
 
 
     @classmethod
-    def cache_result(cls, func):
+    def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
         import functools
-        
+        path_name = cache_folder+'/'+func.__name__
         def wrapper(*args, **kwargs):
             fn_name = func.__name__
-            cache = kwargs.pop('cache', True)
-            update = kwargs.pop('update', False)
-            max_age = kwargs.pop('max_age', 60)
+            cache_params = {'max_age': max_age, 'cache': cache}
+            for k, v in cache_params.items():
+                cache_params[k] = kwargs.pop(k, v)
 
-            if cache and not update:
-                cls.get(fn_name, max_age=max_age, cache=cache)
+            
+            if not update:
+                result = cls.get(fn_name, default=None, **cache_params)
+                if result != None:
+                    return result
 
             result = func(*args, **kwargs)
             
