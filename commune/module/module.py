@@ -2186,7 +2186,7 @@ class c:
         return c.gather(c.async_get_server_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_server_name(peer_address:str, connect_timeout:int=2, fn_timeout:int=2, verbose:bool=False, **kwargs):
+    async def async_get_server_name(peer_address:str, connect_timeout:int=4, fn_timeout:int=4, verbose:bool=False, **kwargs):
         try:
             peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
 
@@ -2371,8 +2371,10 @@ class c:
         servers = cls.servers(network=network, **kwargs)
         if prefix_match:
             server_exists =  any([s for s in servers if s.startswith(name)])
+            
         else:
             server_exists =  bool(name in servers)
+
         return server_exists
     
     @classmethod
@@ -2613,7 +2615,7 @@ class c:
         self = module_class(**kwargs)
         self.tag = tag
         self.server_name = server_name
-        if c.server_exists(server_name, network='local'): 
+        if c.server_exists(server_name, network='local') and server_name in c.pm2_list(): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 ip, port = c.get_address(server_name, network='local').split(':')                
@@ -4818,15 +4820,15 @@ class c:
 
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        if not c.server_exists(module):
+        if c.server_exists(module):
             c.print(f'Server {module} does not exist', color='red')
-            return None
+            c.kill_server(module)
         address = c.get_address(module, network='local')
         port = None
         if address != None:
             ip = address.split(':')[0]
             port = address.split(':')[-1]
-        c.kill_server(module)
+        
         return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
