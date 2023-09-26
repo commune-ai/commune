@@ -1620,6 +1620,16 @@ class Subspace(c.Module):
         subnet = self.subnet(netuid=netuid)
         return sum([s['emission'] for s in self.stats(netuid=netuid, block=block, df=False)])*self.format_amount(subnet['emission'], fmt='j') 
 
+    def vali_stats(self, netuid: int = None, network = None, block: Optional[int] = None ) -> Optional[float]:
+        self.resolve_network(network)
+        netuid = self.resolve_netuid( netuid )
+        key2uid = self.key2uid(netuid=netuid)
+        names = self.names(netuid=netuid)
+
+        vali_stats = []
+        dividends = self.dividends(netuid=netuid, block=block)
+        emissions = self.emission(netuid=netuid, block=block)
+        
     def stats(self, 
               search = None,
               netuid=None,  
@@ -1926,14 +1936,6 @@ class Subspace(c.Module):
         return servers
         
         
-    
-    
-    def name2uid(self, name: str = None, netuid: int = None) -> int:
-        
-        name2uid = { m['name']: m['uid'] for m in self.modules(netuid=netuid) }
-        if name != None:
-            return name2uid[name]
-        return name2uid
 
 
     @property
@@ -2254,12 +2256,13 @@ class Subspace(c.Module):
         uid2key = {uid: uid2key[uid] for uid in sorted(uids)}
         return uid2key
 
-      
-    def names(self, netuid: int = None, **kwargs) -> List[str]:
+    def uid2name(self, netuid: int = None, **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
         names = {v[0].value: v[1].value for v in self.query_map('Names', params=[netuid], **kwargs)}
-        names = list({k: names[k] for k in sorted(names)}.values())
+        names = {k: names[k] for k in sorted(names)}
         return names
+    def names(self, netuid: int = None, **kwargs) -> List[str]:
+        return list(self.uid2name(netuid=netuid, **kwargs).values())
 
     def addresses(self, netuid: int = None, **kwargs) -> List[str]:
         netuid = self.resolve_netuid(netuid)
