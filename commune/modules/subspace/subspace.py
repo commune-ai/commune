@@ -1342,7 +1342,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = None,
-                 interval = {'sync': 100, 'register': 1, 'vali': 100},
+                 interval = {'sync': 100, 'register': 1, 'vali': 100, 'update_modules': 10},
                  sleep:float=1,
                  remote:bool=True, **kwargs):
         if remote:
@@ -1366,6 +1366,11 @@ class Subspace(c.Module):
             # if auto_unstake:
             #     cls.auto_unstake(network=network, netuid=netuid)
             subspace = cls(network=network, netuid=netuid)
+
+            if time_since_last['update_modules'] > interval['update_modules']:
+                c.update(network='local')
+
+
 
             if time_since_last['sync'] > interval['sync']:
                 c.print(subspace.sync(), color='green')
@@ -3495,7 +3500,7 @@ class Subspace(c.Module):
 
         modules = modules[:max_n]
 
-        name2key = {k:name2key[k] for k in modules}
+        name2key = {k:name2key[k] for k in modules if k in name2key}
 
 
         module_names = list(name2key.keys())

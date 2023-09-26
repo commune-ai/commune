@@ -409,7 +409,7 @@ class Vali(c.Module):
                 continue
             if v['staleness'] > max_staleness:
                 c.print(f'{v["name"]} is stale {v["staleness"]}s, restrting', color='red')
-                c.restart_server(v['name'])
+                c.serve(v['name'])
             if v['serving'] == False:
                 c.print(f'{v["name"]} is not serving, restrting', color='red')
                 address = c.get_address(v['name'])
