@@ -8,7 +8,7 @@ import json
 
 
 
-class HTTPServer(c.Module):
+class ServerHTTP(c.Module):
     def __init__(
         self,
         module: Union[c.Module, object],
@@ -142,12 +142,13 @@ class HTTPServer(c.Module):
 
 
     def process_result(self,  result):
-        if self.sse == True:
+        if self.sse:
             # for sse we want to wrap the generator in an eventsource response
             from sse_starlette.sse import EventSourceResponse
             result = self.generator_wrapper(result)
             return EventSourceResponse(result)
         else:
+            # if we are not
             if c.is_generator(result):
                 result = list(result)
             result = self.serializer.serialize({'data': result})

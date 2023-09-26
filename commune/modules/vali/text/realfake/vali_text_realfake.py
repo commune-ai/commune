@@ -37,7 +37,7 @@ class ValiTextRealfake(Vali):
             '''
 
 
-            output_text = module.generate(prompt)
+            output_text = module.forward(fn='generate', args=[prompt])
             if 'error' in output_text:
                 raise Exception(output_text['error'])
             output = self.parse_output(output_text)

@@ -1,10 +1,11 @@
 import commune as c
 
-class Base(c.Module):
-    def __init__(self, **kwargs):
-        config = self.set_config(kwargs)
-    def run(self, x: int = 1, y: int = 2):
-        a = x + y
-        return {'status': 'success', 'answer': a, 'x': x, 'y': y}
+class Demo(c.Module):
+    def __init__(self, config = None, **kwargs):
+        self.set_config(config, kwargs=kwargs)
 
-
+    def call(self, x:int = 1, y:int = 2) -> int:
+        c.print(self.config.sup)
+        c.print(self.config, 'This is the config, it is a Munch object')
+        return x + y
+    

@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class c:
     # AGI BEGINS 
-
+    description = "This module forms the foundation for commune, it contains all the core functions and classes"
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] 
@@ -51,42 +51,6 @@ class c:
         config = c.get_config()
         boot_peers = config.get('boot_peers', [])
         return boot_peers
-
-
-
-        
-        
-    @classmethod
-    def add_root_path(cls, root_path:str):
-        root_paths = c.getc('root_paths', [])
-        if root_path not in root_paths:
-            root_paths.append(root_path)
-        else: 
-            return {'msg': 'root_path already exists'}
-        c.putc('root_paths', root_paths)
-        return {'msg': 'success'}
-    
-    
-    @classmethod
-    def get_root_paths(cls):
-        root_paths = c.getc('root_paths', [cls.root_path])
-        if cls.root_path not in root_paths:
-            cls.add_root_path(cls.root_path)
-
-        return rot_paths
-    root_paths = get_root_paths
-        
-
-    @classmethod
-    def start_node(cls, *args, **kwargs):
-        c.module('subspace').start_node(*args, **kwargs)
-
-    @classmethod
-    def start_chain(cls, *args, **kwargs):
-        c.module('subspace').start_chain(*args, **kwargs)
-    @classmethod
-    def kill_chain(cls, *args, **kwargs):
-        c.module('subspace').kill_chain(*args, **kwargs)
         
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
@@ -486,21 +450,7 @@ class c:
     def too_old(self, timestamp:int, max_age:int):
         return self.get_age(timestamp) > max_age
     
-    @classmethod
-    def config_keys(self, config:Dict = None) -> List[str]:
-        '''
-        Returns the keys of the config
-        '''
-        config = config or self.config
-        return list(config.keys())
     
-    
-    @classmethod
-    def mutc(cls, k, v, password:str=None, new_password:str=None):
-        old_v = cls.getc(k, password=password)
-        password = password if new_password == None else new_password
-        cls.put_v(v, password=password)
-        
     @classmethod
     def putc(cls, k, v, password=None) -> Munch:
         '''
@@ -631,7 +581,7 @@ class c:
         '''
         Returns true if the config exists
         '''
-        path = path if path else self.__config_file__()
+        path = path if path else self.config_path()
         return self.path_exists(path)
     @classmethod
     def get_config(cls, 
@@ -717,6 +667,19 @@ class c:
         from commune.utils.dict import deep2flat
         return deep2flat(x)
 
+    @classmethod
+    def start_node(cls, *args, **kwargs):
+        c.module('subspace').start_node(*args, **kwargs)
+        return {'success': True, 'msg': 'started node'}
+
+    @classmethod
+    def start_chain(cls, *args, **kwargs):
+        c.module('subspace').start_chain(*args, **kwargs)
+        return {'success': True, 'msg': 'started chain'}
+    @classmethod
+    def kill_chain(cls, *args, **kwargs):
+        c.module('subspace').kill_chain(*args, **kwargs)
+        return {'success': True, 'msg': 'killed chain'}
     def seconds_per_epoch(self, *args, **kwargs):
         return c.module('subspace')().seconds_per_epoch(*args, **kwargs)
 
@@ -1937,23 +1900,32 @@ class c:
         return cls.namespace_local().get(name, {})
 
     @classmethod
-    def connect(cls, *args, **kwargs):
+    def connect(cls,
+                module:str, 
+                network : str = None,
+                namespace = None,
+                mode = server_mode,
+                virtual:bool = True, 
+                verbose: bool = False, 
+                prefix_match: bool = False,
+                key = None,
+                return_future:bool = False,):
 
+        kwargs = c.locals2kwargs(locals())
         return_future = kwargs.pop('return_future', False)
-        loop = kwargs.get('loop', cls.get_event_loop())
-        future = cls.async_connect(*args, **kwargs)
+        future = cls.async_connect(**kwargs)
+
         if return_future:
             return future
-        else:
-            return loop.run_until_complete(future)
-       
+        return c.gather(future)
+
     @classmethod
     async def async_connect(cls, 
                 module:str, 
                 network : str = None,
                 namespace = None,
                 mode = server_mode,
-                virtual:bool = True, 
+                virtual:bool = False, 
                 verbose: bool = True, 
                 prefix_match: bool = False,
                 key = None,
@@ -1970,6 +1942,7 @@ class c:
             address = module
         else:
             namespace = namespace if namespace != None else c.namespace(module, network=network)
+            print(namespace)
             modules = list(namespace.keys())
             if prefix_match == True:
                 module = c.choice(modules)
@@ -1989,7 +1962,6 @@ class c:
             ip = '0.0.0.0'
 
         client= c.get_client(ip=ip, port=int(port), key=key, mode=mode, virtual=virtual, **kwargs)
-        connection_latency = c.time() - t
 
         return client
      
@@ -2073,7 +2045,6 @@ class c:
         Returns a client to a server
         '''
         client = c.module(f'server.{mode}.client')(ip=ip, port=port,**kwargs)
-
         # if virtual turn client into a virtual client, making it act like if the server was local
         if virtual:
             client = c.virtual_client(client)
@@ -2217,7 +2188,7 @@ class c:
         return c.gather(c.async_get_server_name(*args,**kwargs), timeout=1)
         
     @staticmethod
-    async def async_get_server_name(peer_address:str, connect_timeout:int=2, fn_timeout:int=2, verbose:bool=False, **kwargs):
+    async def async_get_server_name(peer_address:str, connect_timeout:int=4, fn_timeout:int=4, verbose:bool=False, **kwargs):
         try:
             peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
 
@@ -2406,8 +2377,10 @@ class c:
         servers = cls.servers(network=network, **kwargs)
         if prefix_match:
             server_exists =  any([s for s in servers if s.startswith(name)])
+            
         else:
             server_exists =  bool(name in servers)
+
         return server_exists
     
     @classmethod
@@ -2428,6 +2401,8 @@ class c:
 
     @property
     def server_name(self):
+        if not hasattr(self, 'config'):
+            self.config =  Munch({})
         config = self.config
         if 'server_name' in config:
             name =  config['server_name']
@@ -2628,9 +2603,11 @@ class c:
             
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
         if tag_seperator in server_name:
-            tag = server_name.split(tag_seperator)[-1]        
+            tag = server_name.split(tag_seperator)[-1] 
+
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
+            remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
             remote_kwargs.pop('module_class') # remove module_class from the kwargs
             c.save_serve_kwargs(server_name, remote_kwargs)
@@ -2643,12 +2620,11 @@ class c:
         kwargs.update(extra_kwargs)
 
         # this automatically adds 
-        kwargs['tag'] = tag
-        kwargs['server_name'] = server_name
 
-
-        module = module_class(**kwargs)
-        if c.server_exists(server_name, network='local'): 
+        self = module_class(**kwargs)
+        self.tag = tag
+        self.server_name = server_name
+        if c.server_exists(server_name, network='local') and server_name in c.pm2_list(): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
                 ip, port = c.get_address(server_name, network='local').split(':')                
@@ -4626,26 +4602,18 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls):
-        test_responses = {}
-        for fn in cls.fns():
-            test_response = {
-                'passed':False,
-                'response': None
-            }
-            
-            if fn.startswith('test_'):
-                try:
-            
-                    getattr(cls, fn)()
-                    test_response['passed'] = True
-                except Exception as e:
-                   test_response['passed'] = False
-                   test_response['response'] = str(e)
-                test_responses[fn] =test_response
+    def test(cls, modules=['server', 'key'], verbose:bool=False):
+        test_results = []
+        for module_name in modules:
+            c.print(f'Testing {module_name}', color='yellow')
+            module = c.module(module_name)
+            assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
+            module_test_results = module.test()
+            test_results.append(module_test_results)
+            c.print(f'Test Results: {module_test_results}', color='white')
+
+        return test_results
         
-        return test_responses
-       
                
     @classmethod
     def import_bittensor(cls):
@@ -4826,15 +4794,15 @@ class c:
 
     @classmethod
     def restart_server(cls, module:str, **kwargs) -> None:
-        if not c.server_exists(module):
+        if c.server_exists(module):
             c.print(f'Server {module} does not exist', color='red')
-            return None
+            c.kill_server(module)
         address = c.get_address(module, network='local')
         port = None
         if address != None:
             ip = address.split(':')[0]
             port = address.split(':')[-1]
-        c.kill_server(module)
+        
         return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
@@ -5003,13 +4971,12 @@ class c:
             return futures
     
         return c.gather(futures)
-
     @classmethod
     async def async_call(cls,
                 module : str, 
                 fn : str = 'info',
                 *args,
-                timeout : int = 1,
+                timeout : int = 10,
                 prefix_match:bool = False,
                 network:str = None,
                 key:str = None,
@@ -5018,10 +4985,9 @@ class c:
                 ) -> None:
                          
         try:
-            module = c.connect(module, prefix_match=prefix_match, network=network, key=key)
-            result = getattr(module, fn)(*args, return_future=True, **kwargs)
-            result = await asyncio.wait_for(result, timeout=timeout)
-            return result
+            module = c.connect(module, prefix_match=prefix_match, network=network, virtual=False, key=key)
+            future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)
+            result = await asyncio.wait_for(future, timeout=timeout)
         except Exception as e:
             if ignore_error:
                 result = c.detailed_error(e)
@@ -6295,13 +6261,14 @@ class c:
     @property
     def tag(self):
         tag = None
-        if hasattr(self, 'config') and isinstance(self.config, dict):
-            if 'tag' in self.config:
-                tag = self.config['tag']
+        if not hasattr(self, 'config') or not isinstance(self.config, dict):
+            self.config = c.dict2munch({})
+        if 'tag' in self.config:
+            tag = self.config['tag']
         return tag
     @tag.setter
     def tag(self, value):
-        if not hasattr(self, 'config'):
+        if not hasattr(self, 'config') or not isinstance(self.config, dict):
             self.config = c.dict2munch({})
         self.config['tag'] = value
         return value
@@ -7297,6 +7264,10 @@ class c:
     @classmethod
     def stake_multiple(cls, *args, **kwargs):
         return c.module('subspace')().stake_multiple(*args, **kwargs)
+
+    @classmethod
+    def stake_spread(cls, *args, **kwargs):
+        return c.module('subspace')().stake_spread(*args, **kwargs)
     
     @classmethod
     def snap(cls, *args, **kwargs):
