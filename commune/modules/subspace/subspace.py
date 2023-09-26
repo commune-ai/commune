@@ -2095,21 +2095,19 @@ class Subspace(c.Module):
             dividends = self.dividends(netuid=netuid, block=block)
             stake = self.stakes(netuid=netuid, block=block) # self.stake(netuid=netuid)
             regblock = self.regblock(netuid=netuid, block=block)
-            last_update = self.last_update(netuid=netuid, block=block)      
+            last_update = self.last_update(netuid=netuid, block=block)   
+            stake_from = self.stake_from(netuid=netuid, block=block)  
 
             # weights are heavy, so only include them if necessary      
             if include_weights:
                 weights = self.weights(netuid=netuid, block=block)
             
-            for uid, address in uid2addresses.items():
-                if uid not in uid2key:
-                    c.error(f"Module {uid} has no key")
-                    continue
-                key = uid2key[uid]
+            for uid, key in uid2key.items():
+
                 module= {
                     'uid': uid,
-                    'address': address,
-                    'name': uid2name[uid],
+                    'address': addresses[uid],
+                    'name': names[uid],
                     'key': key,
                     'emission': emission[uid],
                     'incentive': incentive[uid],
