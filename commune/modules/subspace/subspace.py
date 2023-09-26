@@ -2085,7 +2085,7 @@ class Subspace(c.Module):
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
 
-            uid2key = self.query_map('Uid2Key', params=netuid, block=block)
+            uid2key = self.uid2key(netuid=netuid, block=block)
             addresses = self.addresses(netuid=netuid, block=block)
             names = self.names(netuid=netuid, block=block)
             emission = self.emission(netuid=netuid, block=block)
