@@ -2084,20 +2084,18 @@ class Subspace(c.Module):
         if len(modules) == 0:
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
-            uid2addresses = { r[0].value: r[1].value for r in self.query_map('Address', netuid)}
-            uid2key = { r[0].value: r[1].value for r in self.query_map('Keys', netuid)}
-            uid2name = { r[0].value : r[1].value for r in self.query_map('Names', [netuid])}
-            
+
+            uid2key = self.query_map('Uid2Key', params=netuid, block=block)
+            addresses = self.addresses(netuid=netuid, block=block)
+            names = self.names(netuid=netuid, block=block)
             emission = self.emission(netuid=netuid, block=block)
             incentive = self.incentive(netuid=netuid, block=block)
             dividends = self.dividends(netuid=netuid, block=block)
             stake = self.stakes(netuid=netuid, block=block) # self.stake(netuid=netuid)
-            stake_from = self.stake_from(netuid=netuid, block=block)
-            stake_to = self.stake_to(netuid=netuid, block=block)
             regblock = self.regblock(netuid=netuid, block=block)
-            last_update = self.last_update(netuid=netuid, block=block)
-            balances = self.balances(block=block)
-            
+            last_update = self.last_update(netuid=netuid, block=block)      
+
+            # weights are heavy, so only include them if necessary      
             if include_weights:
                 weights = self.weights(netuid=netuid, block=block)
             
@@ -2115,9 +2113,7 @@ class Subspace(c.Module):
                     'incentive': incentive[uid],
                     'dividends': dividends[uid],
                     'stake': stake.get(key, -1),
-                    'balance': balances.get(key, 0),
                     'stake_from': stake_from.get(key, []),
-                    'stake_to': stake_to.get(key, []),
                     'regblock': regblock.get(uid, 0),
                     'last_update': last_update[uid],
                 }
@@ -2145,14 +2141,13 @@ class Subspace(c.Module):
                 modules[i] ={k: module[k] for k in keys}
  
 
-                for k in ['balance', 'stake', 'emission']:
+                for k in ['stake', 'emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
                 for k in ['incentive', 'dividends']:
-                    if module[k] > 1:
+                    if module[k] > 0:
                         module[k] = module[k] / (U16_MAX)
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
-                module['stake_to']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_to']]
                 modules[i] = module
 
         if df:
@@ -2404,6 +2399,8 @@ class Subspace(c.Module):
     def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
         
+    def trust(self, netuid = netuid, network=None, **kwargs):
+        return [v.value for v in self.query('Trust', params=netuid, network=network, **kwargs)]
     def last_update(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('LastUpdate', params=[netuid], network=network, block=block, **kwargs)]
         
@@ -3489,10 +3486,12 @@ class Subspace(c.Module):
             key = name2key[vali]
 
 
-    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, max_n=10):
+    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, max_n=30):
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis()
+        if isinstance(modules, str):
+            modules = c.servers(modules, network='local')
 
         modules = modules[:max_n]
 

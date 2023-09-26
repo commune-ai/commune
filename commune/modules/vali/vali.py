@@ -125,7 +125,7 @@ class Vali(c.Module):
             if is_my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
             response = {'error': c.detailed_error(e), 'w': 0}
-
+        c.print(response, color='green')
         if is_my_module or response["w"] > 0 or self.config.verbose:
             c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
         

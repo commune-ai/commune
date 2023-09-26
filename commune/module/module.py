@@ -7281,6 +7281,10 @@ class c:
     @classmethod
     def stake_multiple(cls, *args, **kwargs):
         return c.module('subspace')().stake_multiple(*args, **kwargs)
+
+    @classmethod
+    def stake_spread(cls, *args, **kwargs):
+        return c.module('subspace')().stake_spread(*args, **kwargs)
     
     @classmethod
     def snap(cls, *args, **kwargs):
