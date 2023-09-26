@@ -16,6 +16,7 @@ COPY ./setup.py /commune/setup.py
 COPY ./README.md /commune/README.md
 COPY ./bin /commune/bin
 COPY ./scripts /commune/scripts
+RUN chmod +x /commune/scripts/*
 RUN ./scripts/install_python_env.sh
 RUN pip3 install -e .
 
