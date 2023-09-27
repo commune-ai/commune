@@ -7,7 +7,6 @@ import requests
 import torch
 import scalecodec
 from substrateinterface import Keypair
-from substrateinterface.utils import ss58
 from .registration import *
 
 RAOPERTAO = 1e9
@@ -72,7 +71,8 @@ def version_checking():
     if latest_version_as_int > bittensor.__version_as_int__:
         print('\u001b[33mBittensor Version: Current {}/Latest {}\nPlease update to the latest version at your earliest convenience\u001b[0m'.format(bittensor.__version__,latest_version))
 
-def is_valid_ss58_address( address: str ) -> bool:
+@staticmethod
+def is_valid_ss58_address( address: str, valid_ss58_format=42 ) -> bool:
     """
     Checks if the given address is a valid ss58 address.
 
@@ -82,9 +82,9 @@ def is_valid_ss58_address( address: str ) -> bool:
     Returns:
         True if the address is a valid ss58 address for Bittensor, False otherwise.
     """
+    from substrateinterface.utils import ss58
     try:
-        return ss58.is_valid_ss58_address( address, valid_ss58_format=bittensor.__ss58_format__ ) or \
-                ss58.is_valid_ss58_address( address, valid_ss58_format=42 ) # Default substrate ss58 format (legacy)
+        return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format )  # Default substrate ss58 format (legacy)
     except (IndexError):
         return False
 
@@ -99,6 +99,8 @@ def is_valid_ed25519_pubkey( public_key: Union[str, bytes] ) -> bool:
         True if the public_key is a valid ed25519 key, False otherwise.
     
     """
+    from substrateinterface.utils import ss58
+
     try:
         if isinstance( public_key, str ):
             if len(public_key) != 64 and len(public_key) != 66:

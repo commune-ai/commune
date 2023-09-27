@@ -1248,3 +1248,19 @@ class Keypair(c.Module):
             c.print('cleaning', k, a,  c.key_exists(a))
 
         
+    @staticmethod
+    def is_valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
+        """
+        Checks if the given address is a valid ss58 address.
+
+        Args:
+            address(str): The address to check.
+
+        Returns:
+            True if the address is a valid ss58 address for Bittensor, False otherwise.
+        """
+        from substrateinterface.utils import ss58
+        try:
+            return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
+        except Exception as e:
+            return False
