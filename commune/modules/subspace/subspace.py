@@ -800,6 +800,7 @@ class Subspace(c.Module):
             if module_key in name2key:
                 module_key = name2key[module_key]
 
+        assert c.is_valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         return module_key
 
 
@@ -1168,14 +1169,15 @@ class Subspace(c.Module):
         if isinstance(key, str):
             if c.key_exists( key ):
                 key = c.get_key( key )
-                key = key.ss58_address
+                key_address = key.ss58_address
         # if the key has an attribute then its a key
         if hasattr(key, 'ss58_address'):
-            key = key.ss58_addrxess
+            key_address = key.ss58_addrxess
+        else:
+            key_address = key
 
-        # TODO: get the key from the name
-
-        return key
+        assert c.is_valid_ss58_address(key), f"Invalid Key {key} as it should have ss58_address attribute."
+        return key_address
 
 
     @classmethod
@@ -3558,6 +3560,8 @@ class Subspace(c.Module):
     @classmethod
     def install_telemetry(cls):
         c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=True)
+
+
 
 
     # @c.timeit

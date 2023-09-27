@@ -7158,6 +7158,10 @@ class c:
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
+    @staticmethod
+    def is_valid_ss58_address(address:str):
+        return c.module('key').is_valid_ss58_address(address)
+
     @key.setter
     def key(self, key):
         self._key = c.get_key(key)
