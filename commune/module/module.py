@@ -7357,7 +7357,6 @@ class c:
 
     @classmethod
     def vali_stats(cls, *args, **kwargs):
-        kwargs['return_all'] = True
         return c.module('vali').vali_stats(*args, **kwargs)
     vstats = vali_stats
 
