@@ -14,7 +14,8 @@ class DataTextRealfake(c.Module):
                input_chars:int = 500,
                output_chars: int = 500,
                start_index: int = None,
-                real_prob:float=0.5):
+                real_prob:float=0.5, 
+                random_line_ratio: float = 0.2):
         
         if idx == None:
             while True:

@@ -1650,7 +1650,7 @@ class Subspace(c.Module):
             servers = c.servers(network='local')
 
             # keys = self.my_keys(netuid=netuid)
-            my_modules = self.my_modules(netuid=netuid, fmt='nano')
+            my_modules = self.my_modules(netuid=netuid, fmt='nano', cache=False)
             module2stats = {}
             for module in my_modules:
                 module['registered'] = True
