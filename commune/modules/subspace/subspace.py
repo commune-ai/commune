@@ -3483,13 +3483,18 @@ class Subspace(c.Module):
         for vali in top_valis:
             key = name2key[vali]
 
+    def ensure_stake(self, min_balance:int = 100, network:str='main', netuid:int=0):
+        my_balance = self.my_balance(network=network, netuid=netuid)
+        return my_balance
 
-    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, max_n=30):
+
+
+    def stake_spread(self, key:str, modules:list='vali', ratio = 1.0, max_n=30):
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis()
         if isinstance(modules, str):
-            modules = c.servers(modules, network='local')
+            modules = {k:v for k,v in name2key.items() if k.startswith(modules)}
 
         modules = modules[:max_n]
 
@@ -3549,3 +3554,32 @@ class Subspace(c.Module):
         c.print(stats)
         assert isinstance(stats, list) 
 
+
+    # @c.timeit
+    @classmethod
+    def modules(cls,
+                network = 'main',
+                netuid: int = 0,
+                block: int = None, # defaults to latest block
+                fmt: str='nano', 
+                keys : List[str] = ['name', 'key', 'emission', 'incentive', 'dividends', 'stake_from', 'stake_to', 'regblock', 'last_update', 'weights'],
+                update: bool = False,
+                include_weights = False,
+                cache = True,
+                df = False,
+                ) -> Dict[str, ModuleInfo]:
+        
+        def get_attr(attr:str, network:str, netuid:int, block:int):
+            s = c.module('subspace')(network=network)
+            color = c.random_color()
+            c.print('Getting -> ',attr, color=color)
+            return getattr(s, attr)(netuid=netuid, block=block)
+
+
+        pool = c.module('thread.pool')()
+        for attr in keys:
+            pool.submit(fn=get_attr, kwargs={'attr':attr, 'network':network, 'netuid':netuid, 'block':block})
+
+        
+        return modules
+       
