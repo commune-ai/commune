@@ -1675,6 +1675,10 @@ class Subspace(c.Module):
                     if k in stats[i]:
                         stats[i][k] = stats[i][k] / 1e9
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 670d5172732a24713636ea6b2369e0ef0097a711
         if cache:
             self.put(cache_path, stats)
 
