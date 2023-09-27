@@ -1666,14 +1666,14 @@ class Subspace(c.Module):
                 stats[i]['serving'] = bool(stats[i]['name'] in servers)
                 for k in ['stake_to', 'stake_from']:
                     if k in stats[i]:
-                        stats[i][k] = {k: c.round_decimals(v, 2) for k,v in stats[i][k]}
+                        stats[i][k] = {k: self.format_amount(c.round_decimals(v, 2), fmt='j') for k,v in stats[i][k]}
                 for k in ['balance', 'emission', 'stake']:
                     if k in stats[i]:
                         stats[i][k] = self.format_amount(stats[i][k], fmt='j')
 
                 for k in ['incentive', 'dividends']:
                     if k in stats[i]:
-                        stats[i][k] = stats[i][k]
+                        stats[i][k] = stats[i][k] / 1e9
 
                 stats[i]['my_stake'] = stats[i]['stake_to'].get(stats[i]['key'], 0)
 
@@ -2075,14 +2075,14 @@ class Subspace(c.Module):
                 keys = None,
                 update: bool = False,
                 include_weights = False,
-                cache = True,
+                cache = False,
                 df = False,
                 ) -> Dict[str, ModuleInfo]:
         
 
 
         modules = []
-        if cache:
+        if cache and not update :
             if netuid == None: 
                 netuid = 0
             modules = self.state_dict(key='modules', network=network, update=update)[netuid]
@@ -2092,47 +2092,51 @@ class Subspace(c.Module):
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
 
+            keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
 
-            uid2key = self.uid2key(netuid=netuid, block=block)
-            addresses = self.addresses(netuid=netuid, block=block)
-            names = self.names(netuid=netuid, block=block)
-            emission = self.emission(netuid=netuid, block=block)
-            incentive = self.incentive(netuid=netuid, block=block)
-            dividends = self.dividends(netuid=netuid, block=block)
-            stake = self.stakes(netuid=netuid, block=block) # self.stake(netuid=netuid)
-            regblock = self.regblock(netuid=netuid, block=block)
-            last_update = self.last_update(netuid=netuid, block=block)   
-            stake_from = self.stake_from(netuid=netuid, block=block)  
-            stake_to = self.stake_from(netuid=netuid, block=block)  
+            if include_weights:
+                keys += ['weights']
+
+
+            async def get_key_data(key, netuid, block):
+                c.print('starting', key)
+                results =  getattr(self, key)(netuid=netuid, block=block)
+                c.print('finshing', key)
+                return results
+            
+            futures = [get_key_data(key, netuid, block) for key in keys]
+            
+            values = c.gather(futures)
+
+            state = dict(zip(keys, values))
 
 
             # weights are heavy, so only include them if necessary      
             if include_weights:
                 weights = self.weights(netuid=netuid, block=block)
             
-            for uid, key in uid2key.items():
+            for uid, key in state['uid2key'].items():
 
                 module= {
                     'uid': uid,
-                    'address': addresses[uid],
-                    'name': names[uid],
+                    'address': state['addresses'][uid],
+                    'name': state['names'][uid],
                     'key': key,
-                    'emission': emission[uid],
-                    'incentive': incentive[uid],
-                    'dividends': dividends[uid],
-                    'stake': stake.get(key, -1),
-                    'stake_from': stake_from.get(key, []),
-                    'stake_to': stake_to.get(key, []),
-                    'regblock': regblock.get(uid, 0),
-                    'last_update': last_update[uid],
+                    'emission': state['emission'][uid],
+                    'incentive': state['incentive'][uid],
+                    'dividends': state['dividends'][uid],
+                    'stake_from': state['stake_from'].get(key, []),
+                    'regblock': state['regblock'].get(uid, 0),
+                    'last_update': state['last_update'][uid],
                 }
+                module['stake'] = sum([v for k,v in module['stake_from']])
                 
                 if include_weights:
-                    if hasattr(weights[uid], 'value'):
+                    if hasattr(state['weights'][uid], 'value'):
                         
-                        module['weight'] = weights[uid].value
-                    elif isinstance(weights[uid], list):
-                        module['weight'] = weights[uid]
+                        module['weight'] = state['weights'][uid].value
+                    elif isinstance(state['weights'][uid], list):
+                        module['weight'] =state['weights'][uid]
                     else: 
                         raise Exception(f"Invalid weight for module {uid}")
 
@@ -2141,8 +2145,7 @@ class Subspace(c.Module):
 
 
         if len(modules) > 0:
-            if keys == None:
-                keys = list(modules[0].keys())
+            keys = list(modules[0].keys())
             if isinstance(keys, str):
                 keys = [keys]
             keys = list(set(keys))
@@ -2150,7 +2153,7 @@ class Subspace(c.Module):
                 modules[i] ={k: module[k] for k in keys}
  
 
-                for k in ['stake', 'emission']:
+                for k in ['emission']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
                 for k in ['incentive', 'dividends']:
@@ -2377,7 +2380,7 @@ class Subspace(c.Module):
         uids = self.uids(netuid=netuid, **kwargs)
         weights = {uid: weights[uid] if uid in weights else [] for uid in uids}
 
-        return {uid: len(w) for uid, w in weights.items() if len(w) > 0}
+        return {uid: w for uid, w in weights.items()}
             
         
     def regprefix(self, prefix, netuid = None, network=None, **kwargs):
@@ -3553,6 +3556,9 @@ class Subspace(c.Module):
         stats = s.stats(df=False)
         c.print(stats)
         assert isinstance(stats, list) 
+    @classmethod
+    def install_telemetry(cls):
+        c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=True)
 
 
     # @c.timeit

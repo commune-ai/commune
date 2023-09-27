@@ -444,7 +444,7 @@ class Vali(c.Module):
 
         if len(vali_stats) == 0:
             module_path = cls.module_path()
-            stats = c.stats(module_path+'::', df=False)
+            stats = c.stats(module_path+'::', df=False, network=network)
             name2stats = {s['name']: s for s in stats}
             for tag, path in cls.tag2path(mode='votes', network=network).items():
                 v = cls.get(path)
