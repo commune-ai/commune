@@ -1675,7 +1675,6 @@ class Subspace(c.Module):
                     if k in stats[i]:
                         stats[i][k] = stats[i][k] / 1e9
 
-                stats[i]['my_stake'] = stats[i]['stake_to'].get(stats[i]['key'], 0)
 
         if cache:
             self.put(cache_path, stats)
@@ -3491,8 +3490,8 @@ class Subspace(c.Module):
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis()
-        if isinstance(modules, str):
-            modules = c.servers(modules, network='local')
+        elif isinstance(modules, str):
+            modules = [k for k in name2key if k.startswith(modules)]
 
         modules = modules[:max_n]
 
