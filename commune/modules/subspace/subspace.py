@@ -3485,13 +3485,18 @@ class Subspace(c.Module):
         for vali in top_valis:
             key = name2key[vali]
 
+    def ensure_stake(self, min_balance:int = 100, network:str='main', netuid:int=0):
+        my_balance = self.my_balance(network=network, netuid=netuid)
+        return my_balance
 
-    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, max_n=30):
+
+
+    def stake_spread(self, key:str, modules:list='vali', ratio = 1.0, max_n=30):
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis()
-        elif isinstance(modules, str):
-            modules = [k for k in name2key if k.startswith(modules)]
+        if isinstance(modules, str):
+            modules = {k:v for k,v in name2key.items() if k.startswith(modules)}
 
         modules = modules[:max_n]
 
@@ -3554,45 +3559,32 @@ class Subspace(c.Module):
     def install_telemetry(cls):
         c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=True)
 
-    def run_telemetry(self, port = None ):
-        ports  = c.free_ports(n=3)
 
-        # create the network
-        cmd = "docker network create telemetry"
-        c.cmd(cmd, sudo=True)
-        # run the backend core
-        cmd = f"""
-        docker run --rm -it --network=telemetry \
-            --name backend-core \
-            -p {ports[0]}:{ports[0]} \
-            --read-only \
-            parity/substrate-telemetry-backend \
-            telemetry_core -l 0.0.0.0:{ports[0]}
-        """
-        c.cmd(cmd, sudo=True)
+    # @c.timeit
+    @classmethod
+    def modules(cls,
+                network = 'main',
+                netuid: int = 0,
+                block: int = None, # defaults to latest block
+                fmt: str='nano', 
+                keys : List[str] = ['name', 'key', 'emission', 'incentive', 'dividends', 'stake_from', 'stake_to', 'regblock', 'last_update', 'weights'],
+                update: bool = False,
+                include_weights = False,
+                cache = True,
+                df = False,
+                ) -> Dict[str, ModuleInfo]:
+        
+        def get_attr(attr:str, network:str, netuid:int, block:int):
+            s = c.module('subspace')(network=network)
+            color = c.random_color()
+            c.print('Getting -> ',attr, color=color)
+            return getattr(s, attr)(netuid=netuid, block=block)
 
-        # run the backend shard
-        cmd = f"""
-            docker run --rm -it --network=telemetry --name backend-shard  -p {ports[1]}:{ports[1]} \
-            --read-only \
-            parity/substrate-telemetry-backend \
-            telemetry_shard -l 0.0.0.0:{ports[1]} -c http://backend-core:{ports[0]}/shard_submit
-            """
 
-        c.cmd(cmd, sudo=True)
+        pool = c.module('thread.pool')()
+        for attr in keys:
+            pool.submit(fn=get_attr, kwargs={'attr':attr, 'network':network, 'netuid':netuid, 'block':block})
 
         
-        cmd = f"""
-                docker run --rm -it -p 80:8000 --name frontend \
-                            -e SUBSTRATE_TELEMETRY_URL=ws://localhost:8000/feed \
-                            --tmpfs /var/cache/nginx:uid=101,gid=101 \
-                            --tmpfs /var/run:uid=101,gid=101 \
-                            --tmpfs /app/tmp:uid=101,gid=101 \
-                            --read-only \
-                            parity/substrate-telemetry-frontend
-        """
-
-        c.cmd(cmd, sudo=True)
-
-        
-        # run the backend core
+        return modules
+       
