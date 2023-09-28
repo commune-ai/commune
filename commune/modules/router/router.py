@@ -7,9 +7,17 @@ class Router(c.Module):
         self.executor = c.module('executor')()
 
     
+
+
     def submit(self, module : str, fn: str, args=None, kwargs=None):
         args = args or []
         kwargs = kwargs or {}
-        module = c.call(module=module, fn=fn, *args, **kwargs)
-        task =  self.executor.submit(module, *args, **kwargs)
+        task =  self.executor.submit(fn=c.call, kwargs={'module': module, 'fn': fn, 'args': args, 'kwargs': kwargs}})
         self.task_map[task.] = module
+
+
+    
+    # @classmethod
+    # def test(cls):
+
+

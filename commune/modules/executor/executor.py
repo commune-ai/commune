@@ -7,6 +7,7 @@ import random
 import weakref
 import itertools
 import threading
+import gc
 
 from loguru import logger
 from typing import Callable

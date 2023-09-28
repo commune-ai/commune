@@ -5270,9 +5270,52 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, **kwargs):
+    def fleet(cls,n=2, tag=None, **kwargs):
+        executor = c.module('executor')(max_workers=n)
+        futures = []
         for i in range(n):
-            cls.serve(tag=str(i), **kwargs)
+            if tag != None:
+                tag = tag + str(i)
+            else:
+                tag = str(i)
+            c.print(f'Launching {tag}')
+            future = executor.submit(fn=cls.serve, kwargs={'tag':str(i), **kwargs})
+            futures = futures + [future]
+
+        return c.wait(futures)
+
+    @classmethod
+    def kill_fleet(cls, tag=None, network='local', **kwargs):
+
+        path = cls.resolve_server_name(tag=tag)
+        servers = c.servers(path, network=network)
+        executor = c.module('executor')()
+        for server in servers:
+            futures += [executor.submit(fn=cls.kill_server, kwargs={'server_name':p, 'network':network})]
+
+        return c.wait(futures)
+
+    @classmethod
+    def get_executor(cls, *args, **kwargs):
+        if not hasattr(cls, 'executor'):
+            self.executor = c.module('executor')()
+        return c.module('executor')(*args, **kwargs)
+
+    def submit(cls, module, fn, args:list = [], kwargs: dict = {}, timeout:int = 20, return_future:bool=True):
+        executor = c.get_executor()
+        future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        if return_future:
+            return future
+        return future.result()
+
+    @classmethod
+    def submit_batch(cls, module, fn, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, *args, **kwargs):
+        n = len(batch_kwargs)
+        executor = c.get_executor(max_workers=n)
+        futures = [ executor.submit(fn=fn, kwargs=batch_kwargs[i], timeout=timeout) for i in range(n)]
+        if return_future:
+            return futures
+        return c.wait(futures)
 
     @classmethod
     def regfleet(cls,module = None, tag:str=None, n:int=2, **kwargs):

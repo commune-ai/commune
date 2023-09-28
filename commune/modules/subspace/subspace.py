@@ -961,11 +961,8 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
-        
-
-        
+    
         module_key = key.ss58_address if module_key == None else module_key
-
 
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         old_stake = self.get_staketo(key= key.ss58_address, module_key=module_key,   netuid=netuid, fmt='j',)
@@ -1171,10 +1168,8 @@ class Subspace(c.Module):
     
     
     def resolve_key_ss58(self, key:str, network='main', netuid:int=0):
-        c.print(key)
         if isinstance(key, str):
             if c.is_valid_ss58_address(key):
-                c.print('a')
                 key_address = key
             else:
                 if c.key_exists( key ):
