@@ -14,6 +14,7 @@ import concurrent
 from concurrent.futures._base import Future
 import commune as c
 
+
 # Workers are created as daemon threads. This is done to allow the interpreter
 # to exit when there are still idle threads in a ThreadPoolExecutor's thread
 # pool (i.e. shutdown() was not called). However, allowing workers to die with
@@ -28,48 +29,9 @@ import commune as c
 # workers to exit when their work queues are empty and then waits until the
 # threads finish.
 
+Task = c.module('executor.task')
+NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
-class WorkItem(object):
-    def __init__(self, fn, args, kwargs, timeout:int=10):
-        self.future = Future()
-        self.fn = fn
-        self.start_time = time.time()
-        self.args = args
-        self.kwargs = kwargs
-        self.timeout = timeout
-
-    def info(self):
-        return {
-            'fn': self.fn.__name__,
-            'kwargs': self.kwargs,
-            'args': self.args,
-            'timeout': self.timeout
-        }
-
-    def run(self):
-        """Run the given work item"""
-        # Checks if future is canceled or if work item is stale
-        if (not self.future.set_running_or_notify_cancel()) or (
-            time.time() - self.start_time > self.timeout
-        ):
-            return
-
-        try:
-            result = self.fn(*self.args, **self.kwargs)
-        except Exception as e:
-            result = c.detailed_error(e)
-
-        # set the result of the future
-        self.future.set_result(result)
-
-        return result
-
-    def result(self):
-        return self.future.result()
-    
-
-
-NULL_ENTRY = (sys.maxsize, WorkItem(None, (), {}))
 
 class PriorityThreadPoolExecutor(c.Module):
     """Base threadpool executor with a priority queue"""
@@ -109,6 +71,7 @@ class PriorityThreadPoolExecutor(c.Module):
     def is_empty(self):
         return self.work_queue.empty()
 
+    
     def submit(self, fn: Callable, args=None, kwargs=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
@@ -123,7 +86,7 @@ class PriorityThreadPoolExecutor(c.Module):
             start_time = time.time()
             if "priority" in kwargs:
                 del kwargs["priority"]
-            w = WorkItem(fn=fn, args=args, kwargs=kwargs)
+            w = Task(fn=fn, args=args, kwargs=kwargs)
             self.work_queue.put((priority, w), block=False)
             self.adjust_thread_count()
             

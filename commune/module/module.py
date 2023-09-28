@@ -42,13 +42,14 @@ class c:
 
     def __init__(self, config:Dict=None, **kwargs):
         self.set_config(config=config,kwargs=kwargs)  
+
     @classmethod
     def init(cls, *args, **kwargs):
         return cls(*args, **kwargs)
 
-        
     def getattr(self, k:str)-> Any:
         return getattr(self,  k)
+
     @classmethod
     def getclassattr(cls, k:str)-> Any:
         return getattr(cls,  k)
@@ -66,7 +67,6 @@ class c:
         # get the directory of the module
         return os.path.dirname(cls.module_file())
     
-
     @classmethod
     def get_module_path(cls, obj=None,  simple:bool=False) -> str:
         
@@ -587,19 +587,20 @@ class c:
         Set the config as well as its local params
         '''
         if not cls.has_config():
-            return {}
-        if config == None:
-            config = cls.load_config()
-        elif isinstance(config, str):
-            
-            config = cls.load_config(path=config)
-            assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
-        elif isinstance(config, dict):
-            default_config = cls.load_config()
-            config = {**default_config, **config}
+            config =  {}
         else:
-            raise ValueError(f'config must be a dict, str or None, not {type(config)}')
-        
+            if config == None:
+                config = cls.load_config()
+            elif isinstance(config, str):
+                
+                config = cls.load_config(path=config)
+                assert isinstance(config, dict), f'config must be a dict, not {type(config)}'
+            elif isinstance(config, dict):
+                default_config = cls.load_config()
+                config = {**default_config, **config}
+            else:
+                raise ValueError(f'config must be a dict, str or None, not {type(config)}')
+            
         assert isinstance(config, dict), f'config must be a dict, not {config}'
         
         # SET THE CONFIG FROM THE KWARGS, FOR NESTED FIELDS USE THE DOT NOTATION, 
@@ -2343,9 +2344,13 @@ class c:
 
     @property
     def server_name(self):
-        config = self.config
         if not hasattr(self, 'config') or not (isinstance(self.config, Munch)):
             self.config =  Munch({})
+        
+        else:
+            assert isinstance(self.config, Munch)
+            config = self.config
+
         if 'server_name' in self.config:
             name =  config['server_name']
         else:
@@ -5269,9 +5274,6 @@ class c:
         for i in range(n):
             cls.serve(tag=str(i), **kwargs)
 
-
-            
-
     @classmethod
     def regfleet(cls,module = None, tag:str=None, n:int=2, **kwargs):
         subspace = c.module('subspace')()
@@ -7402,8 +7404,6 @@ class c:
     def model_menu(cls):
         return c.model_shortcuts()
     
-
-
     @classmethod
     def talk(cls , *args, module = 'model', num_jobs=1, timeout=6, **kwargs):
         jobs = []
@@ -7421,9 +7421,7 @@ class c:
 
         return 'Im sorry I dont know how to respond to that, can you rephrase that?'
 
-
     chat = talk
-
 
     def x(self, y=1):
         c.print('fam', y)
@@ -7432,12 +7430,9 @@ class c:
     def ask(cls, *args, **kwargs):
         return c.module('model.hf').talk(*args, **kwargs)
 
-
     @classmethod
     def containers(cls):
         return c.module('docker').containers()
-
-
 
     @staticmethod
     def chunk(sequence:list = [0,2,3,4,5,6,67,],
@@ -7627,7 +7622,8 @@ class c:
 
         return t
 
-    def join_threads(self, threads:[str, list]):
+    @classmethod
+    def join_threads(cls, threads:[str, list]):
 
         threads = self.thread_map
         for t in threads.values():
@@ -7665,6 +7661,7 @@ class c:
         if root_key_address not in users:
             cls.add_admin(root_key_address)
         return cls.get('users', {})
+    
     @classmethod
     def is_user(self, address):
         
@@ -7753,7 +7750,7 @@ class c:
             self.set_access_module(**access_config)
         return self._access_module
 
-    default_access_module='access.subspace'
+    default_access_module='access'
     def set_access_module(self, **access_config):
         if hasattr(self, '_access_module'):
             # each module has a verify function, that takes in the input and returns the input
