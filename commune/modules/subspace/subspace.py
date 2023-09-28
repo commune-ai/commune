@@ -199,7 +199,7 @@ class Subspace(c.Module):
         return key2stake
     mys =  mystake = key2stake =  my_stake
 
-    def my_balance(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None, min_value:int = 0):
+    def my_balance(self, search:str=None, netuid:int = 0, network:str = 'main', fmt=fmt,  decimals=2, block=None, min_value:int = 0):
 
         balances = self.balances(network=network, fmt=fmt, block=block)
         my_balance = {}
@@ -1675,10 +1675,6 @@ class Subspace(c.Module):
                     if k in stats[i]:
                         stats[i][k] = stats[i][k] / 1e9
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 670d5172732a24713636ea6b2369e0ef0097a711
         if cache:
             self.put(cache_path, stats)
 
@@ -2351,19 +2347,11 @@ class Subspace(c.Module):
     
     unreged = unreged_servers = unregistered_servers
                 
-    def most_valuable_key(self, netuid = None, **kwargs):
-        modules = self.my_modules(netuid=netuid, **kwargs)
-        most_valuable_value = 0
-        most_valuable_key = None
-        address2key = c.address2key()
-        for m in modules:
-            value = m['stake'] + m['balance']
-            if value > most_valuable_value:
-                most_valuable_value  = value
-                most_valuable_key = address2key[m['key']]
-        return most_valuable_key
+    def most_valuable_key(self, **kwargs):
+        my_balance = self.my_balance( **kwargs)
+        return  dict(sorted(my_balance.items(), key=lambda item: item[1]))
 
-    def most_staketo_key(self, key, netuid = None,  **kwargs):
+    def most_staketo_key(self, key, netuid = 0,  **kwargs):
         staketo = self.get_staketo(key, netuid=netuid, **kwargs)
         most_stake = 0
         most_stake_key = None
@@ -3564,8 +3552,26 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def sand(cls):
-        my_balance = cls.my_balance()
+    def transfer_to_controller(cls, search: Optional[str]=None, controller_key:str = 'module' , min_amount=100, network='main'):
+        self = cls(network=network)
+        my_balance = self.my_balance()
+        if search != None:
+            my_balance = {k:v for k,v in my_balance.items() if k.startswith(search) and v > min_amount}
+        c.print(f'transferring {my_balance} to {controller_key}')
+
+        executor = c.module('executor')()
+
+        for k,v in my_balance.items():
+            future = executor.submit(fn=c.transfer, kwargs={'key':k, 'dest':controller_key, 'amount':v})
+            futures += [future]
+
+        c.print(f'waiting for {len(futures)} transfers to complete')
+        # return as soon as all the futures are done
+    
+        for future in conccurent.futures.as_completed(futures):
+            c.print(future.result())
+        
+
 
 
 
