@@ -228,10 +228,15 @@ class Subspace(c.Module):
             mystaketo = {k:v for k,v in mystaketo.items() if search in k}
             
         return mystaketo
-    mysto  = mystaketo = my_staketo
+    my_stake_to = my_staketo
 
 
-    def my_stakefrom(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2):
+    def my_stakefrom(self, 
+                    search:str=None, 
+                    netuid:int = None, 
+                    network:str = None, 
+                    fmt:str=fmt,  
+                    decimals:int=2):
         staketo = self.stake_from(netuid=netuid, network=network)
         mystakefrom = {}
         key2address = c.key2address()
@@ -243,7 +248,7 @@ class Subspace(c.Module):
             mystakefrom = {k:v for k,v in mystakefrom.items() if search in k}
         return mystakefrom
 
-    mysfr = mystakefrom = my_stakefrom
+    my_stake_from = my_stakefrom
 
     
 
@@ -786,15 +791,12 @@ class Subspace(c.Module):
             assert key != None, "Please provide a key"
             module_key = key.ss58_address
             return module_key
-        
-
-        assert isinstance(module_key, str), "Please provide a module_key as a string"
-        # is it your key
         if c.key_exists(module_key):
+            # your key exists locally
             module_key = c.get_key(module_key).ss58_address
-        
 
         else:
+            # the name matches a key in the subspace namespace
             if name2key == None:
                 name2key = self.name2key(netuid=netuid)
             if module_key in name2key:
@@ -3591,4 +3593,6 @@ class Subspace(c.Module):
 
         
         return modules
+
+        
        
