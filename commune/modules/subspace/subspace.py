@@ -121,7 +121,6 @@ class Subspace(c.Module):
                                     auto_reconnect=auto_reconnect, 
                                     *args,
                                     **kwargs)
-        c.print(f'Connected to {network}: {url}...')
         
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
@@ -1421,8 +1420,8 @@ class Subspace(c.Module):
         if len(self.state_dict_cache) == 0 :
             block = self.block
             netuids = self.netuids()
-            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network, block=block, cache=False) for netuid in netuids], 
-                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, cache=False) for netuid in netuids],
+            state_dict = {'subnets': [self.subnet_state(netuid=netuid, network=network, block=block, update=True) for netuid in netuids], 
+                        'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block) for netuid in netuids],
                         'balances': self.balances(network=network, block=block),
                         'block': block,
@@ -1655,9 +1654,6 @@ class Subspace(c.Module):
               fmt : str = 'j',
               **kwargs
               ):
-    
-
-        
         
         if update:
             self.sync()
@@ -1672,16 +1668,19 @@ class Subspace(c.Module):
         ip = c.ip()
         if len(stats) == 0:
 
-            modules = self.modules(netuid=netuid, update=update, fmt=fmt,  cache=True, keys=['name', 'registered', 'serving', 'address', 'emission', 'dividends', 'incentive', 'stake'])
+            modules = self.modules(netuid=netuid, update=update, fmt=fmt, keys=['name', 'registered', 'serving', 'address', 'emission', 'dividends', 'incentive', 'stake'])
             for i, m in enumerate(modules):
 
                 m['serving'] = bool(m['name'] in local_namespace)
                 if local and ip not in m['address']:
                     continue
-                m['stake_from'] = sum([v for k,v in m['stake_from']])
+                # sum the stake_from
+                m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
                 m['registered'] = True
+
+                # we want to round these values to make them look nice
                 for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
-                    m[k] = c.round_decimals(m[k], decimals=3)
+                    m[k] = c.round(m[k], sig=4)
 
                 stats.append(c.copy(m))
         if update:
@@ -2071,11 +2070,9 @@ class Subspace(c.Module):
 
 
     @classmethod
-    async def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
-        c.print('starting', key)
-
+    def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
+        self = cls(network=network)
         results =  getattr(self, key)(netuid=netuid, block=block)
-        c.print('finshing', key)
         return results
               
     # @c.timeit
@@ -2087,41 +2084,30 @@ class Subspace(c.Module):
                 keys = None,
                 update: bool = False,
                 include_weights = False,
-                cache = True,
                 df = False,
                 max_workers:int = 8,
                 ) -> Dict[str, ModuleInfo]:
         
 
+        cache_path = f'modules/{network}.{netuid}'
 
         modules = []
-        if cache and not update :
-            if netuid == None: 
-                netuid = 0
-            modules = self.state_dict(key='modules', network=network, update=update)[netuid]
-    
+        if not update :
+            modules = self.get(cache_path, [])
 
         if len(modules) == 0:
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
 
+            
             keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
-
             if include_weights:
                 keys += ['weights']
-
-            executor = c.module('executor')(max_workers=max_workers)
-
+            executor = c.module('executor')(max_workers=len(keys))
             futures = [executor.submit(fn=self.get_key_data, kwargs={'key': key, 'netuid': netuid, 'block': block, 'network': network}) for key in keys]
             values = c.wait(futures)
 
             state = dict(zip(keys, values))
-
-
-            # weights are heavy, so only include them if necessary      
-            if include_weights:
-                weights = self.weights(netuid=netuid, block=block)
-            
             for uid, key in state['uid2key'].items():
 
                 module= {
@@ -2148,6 +2134,8 @@ class Subspace(c.Module):
                         raise Exception(f"Invalid weight for module {uid}")
 
                 modules.append(module)
+
+            self.put(cache_path, modules)
             
 
 
@@ -3492,14 +3480,14 @@ class Subspace(c.Module):
 
 
 
-    def stake_spread(self, key:str, modules:list='vali', ratio = 1.0, max_n=30):
+    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, n:int=5):
         name2key = self.name2key()
         if modules == None:
-            modules = self.top_valis()
+            modules = self.top_valis(n=n)
         if isinstance(modules, str):
             modules = [k for k,v in name2key.items() if k.startswith(modules)]
 
-        modules = modules[:max_n]
+        modules = modules[:n]
 
         name2key = {k:name2key[k] for k in modules if k in name2key}
 
@@ -3521,8 +3509,8 @@ class Subspace(c.Module):
 
         c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
         for module_name, module_key in name2key.items():
-            c.print(f'Staking {stake_per_module} for {module_name}')
             c.stake(key=key, module_key=module_key, amount=stake_per_module)
+
     
 
     @classmethod

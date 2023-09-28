@@ -1,5 +1,7 @@
 
 import commune as c
+from concurrent.futures._base import Future
+import time
 class Task(c.Module):
     def __init__(self, fn, args, kwargs, timeout:int=10):
         self.future = Future()
@@ -25,16 +27,17 @@ class Task(c.Module):
         """Run the given work item"""
         # Checks if future is canceled or if work item is stale
         if (not self.future.set_running_or_notify_cancel()) or (
-            time.time() - self.start_time > self.timeout
+            (time.time() - self.start_time) > self.timeout
         ):
-            return
+            self.future.set_exception(TimeoutError('Task timed out'))
 
 
         try:
             result = self.fn(*self.args, **self.kwargs)
+
         except Exception as e:
             result = c.detailed_error(e)
-
+            self.future.set_exception(e)
         # set the result of the future
         self.future.set_result(result)
 

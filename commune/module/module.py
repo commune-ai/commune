@@ -6116,6 +6116,23 @@ class c:
     @classmethod
     def rand_tag(cls):
         return cls.choice(cls.tags())
+    @staticmethod
+    def wait(futures:list, timeout:int = 20) -> list:
+        import concurrent.futures
+        futures = [futures] if not isinstance(futures, list) else futures
+        results = []
+        start_time = c.time()
+
+        for future in futures:
+            results += [future.result()]
+        if c.time() - start_time > timeout:
+            # cancel all futures
+            for future in futures:
+                future.cancel()
+            raise TimeoutError(f'waited too long for futures: {futures}')
+
+        return results
+
     
     @classmethod
     def gather(cls,jobs:list, mode='asyncio', loop=None, timeout = 20)-> list:
