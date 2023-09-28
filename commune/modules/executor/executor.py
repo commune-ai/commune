@@ -5,8 +5,6 @@ import time
 import queue
 import random
 import weakref
-import argparse
-import bittensor
 import itertools
 import threading
 
@@ -85,7 +83,6 @@ class PriorityThreadPoolExecutor(c.Module):
         maxsize=-1,
         max_workers=None,
         thread_name_prefix="",
-        initargs=(),
     ):
         """Initializes a new ThreadPoolExecutor instance.
         Args:
@@ -100,9 +97,9 @@ class PriorityThreadPoolExecutor(c.Module):
             
         self._max_workers = max_workers
         self.work_queue = queue.PriorityQueue(maxsize=maxsize)
-        self._idle_semaphore = threading.Semaphore(0)
-        self._threads = set()
-        self._broken = False
+        self.idle_semaphore = threading.Semaphore(0)
+        self.threads = []
+        self.broken = False
         self.shutdown = False
         self.shutdown_lock = threading.Lock()
         self.thread_name_prefix = thread_name_prefix or ("ThreadPoolExecutor-%d" % self._counter() )
@@ -115,7 +112,7 @@ class PriorityThreadPoolExecutor(c.Module):
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
-            if self._broken:
+            if self.broken:
                 raise Exception("ThreadPoolExecutor is broken")
 
             if self.shutdown:
@@ -128,12 +125,16 @@ class PriorityThreadPoolExecutor(c.Module):
             w = WorkItem(fn=fn, args=args, kwargs=kwargs)
             self.work_queue.put((priority, w), block=False)
             self.adjust_thread_count()
+            
             return w.future
+
+        
+        
 
 
     def adjust_thread_count(self):
         # if idle threads are available, don't spin new threads
-        if self._idle_semaphore.acquire(timeout=0):
+        if self.idle_semaphore.acquire(timeout=0):
             return
 
         # When the executor gets lost, the weakref callback will wake up
@@ -141,7 +142,7 @@ class PriorityThreadPoolExecutor(c.Module):
         def weakref_cb(_, q=self.work_queue):
             q.put(NULL_ENTRY)
 
-        num_threads = len(self._threads)
+        num_threads = len(self.theads)
         if num_threads < self._max_workers:
             thread_name = "%s_%d" % (self.thread_name_prefix or self, num_threads)
             t = threading.Thread(
@@ -154,7 +155,7 @@ class PriorityThreadPoolExecutor(c.Module):
             )
             t.daemon = True
             t.start()
-            self._threads.add(t)
+            self.theads.append(t)
             self.threads_queues[t] = self.work_queue
 
     def shutdown(self, wait=True):
@@ -163,7 +164,7 @@ class PriorityThreadPoolExecutor(c.Module):
             self.work_queue.put(NULL_ENTRY)
 
         if wait:
-            for t in self._threads:
+            for t in self.theads:
                 try:
                     t.join(timeout=2)
                 except Exception:
