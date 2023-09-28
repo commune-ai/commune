@@ -16,36 +16,27 @@ class Storage(c.Module):
         path =  f'{self.store_dirpath}/{key}'
         return path
 
-    def put(self, k,  v: Dict, timestamp:int=None, encrypt:bool=False, **kwargs):
-        if timestamp == None:
-            timestamp = c.timestamp()
+    def put(self, k,  v: Dict, encrypt:bool=False, **kwargs):
+        timestamp = c.timestamp()
         obj = {'data': v}
         v = self.serializer.serialize(obj)
         v = self.key.sign(v, return_json=True)
-
         path = self.resolve_store_path(k)
         return c.put(path, v)
 
-    
-
-    def get(self,k, deserialize:bool= True) -> Any:
+    def get(self,k:str, deserialize:bool= True) -> Any:
         path = self.resolve_store_path(k)
         v = c.get(path, {})
         if 'data' not in v:
             return {'success': False, 'error': 'No data found'}
         if deserialize:
             v = self.serializer.deserialize(v['data'])
-
         return v['data']
-
-    
-
 
     def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:
         obj = self.get(k, deserialize=False)
         if seed != None:
             obj = obj + seed_sep + str(seed)
-
         obj_hash = self.hash(obj, seed=seed)
         return c.hash(obj)
 
@@ -53,19 +44,15 @@ class Storage(c.Module):
         return c.timestamp() if seed == None else seed
 
     def remote_has(self, k: str, module: str, seed=None, **kwargs) -> bool:
-
         if isinstance(module, str):
             module = c.connect(module, **kwargs)
-        
         seed = self.resolve_seed(seed)
-
         obj = self.get(k)
         obj['seed'] = seed
         local_hash = c.hash(obj)
         remote_hash =  module.get_hash(k, seed=seed)
         return bool(local_hash == remote_hash)
         
-
     def exists(self, k) -> bool:
         path = self.resolve_store_path(k)
         return c.exists(path)
@@ -76,19 +63,15 @@ class Storage(c.Module):
         path = self.resolve_store_path(k)
         return c.rm(path)
 
-
     def ls_keys(self, search=None) -> List:
         path = self.store_dirpath
         path += f'/{search}' if search != None else ''
         return c.ls(path)
 
-
     def refresh(self) -> None:
         path = self.store_dirpath
         return c.rm(path)
 
-
-    
     @property
     def key2address(self) -> Dict:
         key2address = {}
@@ -99,6 +82,29 @@ class Storage(c.Module):
             else:
                 key2address[v['ss58_address']] = [k]
         return key2address
+
+    @classmethod
+    def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
+        import functools
+        path_name = cache_folder+'/'+func.__name__
+        def wrapper(*args, **kwargs):
+            fn_name = func.__name__
+            cache_params = {'max_age': max_age, 'cache': cache}
+            for k, v in cache_params.items():
+                cache_params[k] = kwargs.pop(k, v)
+            if not update:
+                result = cls.get(fn_name, default=None, **cache_params)
+                if result != None:
+                    return result
+
+            result = func(*args, **kwargs)
+            
+            if cache:
+                cls.put(fn_name, result, cache=cache)
+
+            return result
+
+        return wrapper
         
     @classmethod
     def test(cls):
@@ -119,29 +125,17 @@ class Storage(c.Module):
 
 
     @classmethod
-    def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
-        import functools
-        path_name = cache_folder+'/'+func.__name__
-        def wrapper(*args, **kwargs):
-            fn_name = func.__name__
-            cache_params = {'max_age': max_age, 'cache': cache}
-            for k, v in cache_params.items():
-                cache_params[k] = kwargs.pop(k, v)
-
-            
-            if not update:
-                result = cls.get(fn_name, default=None, **cache_params)
-                if result != None:
-                    return result
-
-            result = func(*args, **kwargs)
-            
-            if cache:
-                cls.put(fn_name, result, cache=cache)
-
-            return result
-
-        return wrapper
+    def test_verify(cls):
+        storage_modules = [cls() for i in range(10)]
+        object_list = [0, {'fam': 1}, 'whadup', {'tensor': torch.rand(3,3)}, {'tensor': torch.rand(3,3), 'fam': 1}]
+        for i, x in enumerate(object_list):
+            for i, storage in enumerate(storage_modules):
+                storage.put('test', x)
+            seed = c.time()
+            for i, storage_i in enumerate(storage_modules):
+                for j, storage_j in enumerate(storage_modules):
+                    c.print(f'Verifying i={i} j={j}')
+                    assert storage_i.get_hash('test', seed=seed) == storage_j.get_hash('test', seed=seed)
 
 
 
