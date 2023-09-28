@@ -16,7 +16,7 @@ class Storage(c.Module):
         path =  f'{self.store_dirpath}/{key}'
         return path
 
-    def put(self, k,  v: Dict, encrypt:bool=False, **kwargs):
+    def put(self, k,  v: Dict, encrypt:bool=False, remote = False):
         timestamp = c.timestamp()
         obj = {'data': v}
         v = self.serializer.serialize(obj)
@@ -122,8 +122,7 @@ class Storage(c.Module):
             assert self.get_hash('test', seed=1) == self.get_hash('test', seed=1)
             assert self.get_hash('test', seed=1) != self.get_hash('test', seed=2)
             assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
-
-
+            
     @classmethod
     def test_verify(cls):
         storage_modules = [cls() for i in range(10)]

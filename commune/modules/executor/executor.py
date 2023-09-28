@@ -106,7 +106,7 @@ class PriorityThreadPoolExecutor(c.Module):
         def weakref_cb(_, q=self.work_queue):
             q.put(NULL_ENTRY)
 
-        num_threads = len(self.theads)
+        num_threads = len(self.threads)
         if num_threads < self._max_workers:
             thread_name = "%s_%d" % (self.thread_name_prefix or self, num_threads)
             t = threading.Thread(
@@ -119,7 +119,7 @@ class PriorityThreadPoolExecutor(c.Module):
             )
             t.daemon = True
             t.start()
-            self.theads.append(t)
+            self.threads.append(t)
             self.threads_queues[t] = self.work_queue
 
     def shutdown(self, wait=True):
@@ -128,7 +128,7 @@ class PriorityThreadPoolExecutor(c.Module):
             self.work_queue.put(NULL_ENTRY)
 
         if wait:
-            for t in self.theads:
+            for t in self.threads:
                 try:
                     t.join(timeout=2)
                 except Exception:
@@ -199,6 +199,12 @@ class PriorityThreadPoolExecutor(c.Module):
 
         for future in futures:
             c.print(future.result())
+        for i in range(100):
+            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
+
+        results = c.wait(futures)
+        c.print(results)
+        
         while self.num_tasks > 0:
             c.print(self.num_tasks)
 
