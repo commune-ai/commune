@@ -10,7 +10,8 @@ import threading
 
 from loguru import logger
 from typing import Callable
-from concurrent.futures import _base
+import concurrent
+from concurrent.futures._base import Future
 import commune as c
 
 # Workers are created as daemon threads. This is done to allow the interpreter
@@ -30,7 +31,7 @@ import commune as c
 
 class WorkItem(object):
     def __init__(self, fn, args, kwargs, timeout:int=10):
-        self.future = _base.Future()
+        self.future = Future()
         self.fn = fn
         self.start_time = time.time()
         self.args = args
@@ -108,7 +109,7 @@ class PriorityThreadPoolExecutor(c.Module):
     def is_empty(self):
         return self.work_queue.empty()
 
-    def submit(self, fn: Callable, args=None, kwargs=None) -> _base.Future:
+    def submit(self, fn: Callable, args=None, kwargs=None) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
@@ -213,6 +214,13 @@ class PriorityThreadPoolExecutor(c.Module):
     def num_tasks(self):
         return self.work_queue.qsize()
 
+    @staticmethod
+    def wait(futures:list) -> list:
+        futures = [futures] if not isinstance(futures, list) else futures
+        results = []
+        for future in conccurent.futures.as_completed(futures):
+            results += [future.result()]
+        return results
 
     
     @classmethod

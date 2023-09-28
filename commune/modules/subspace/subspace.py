@@ -199,7 +199,7 @@ class Subspace(c.Module):
         return key2stake
     mys =  mystake = key2stake =  my_stake
 
-    def my_balance(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
+    def my_balance(self, search:str=None, netuid:int = 0, network:str = 'main', fmt=fmt,  decimals=2, block=None, min_value:int = 0):
 
         balances = self.balances(network=network, fmt=fmt, block=block)
         my_balance = {}
@@ -212,6 +212,9 @@ class Subspace(c.Module):
             my_balance = {k:v for k,v in my_balance.items() if search in k}
             
         my_balance = dict(sorted(my_balance.items(), key=lambda x: x[1], reverse=True))
+
+        if min_value > 0:
+            my_balance = {k:v for k,v in my_balance.items() if v > min_value}
 
         return my_balance
     key2balance = myb = mybal = my_balance
@@ -791,10 +794,13 @@ class Subspace(c.Module):
             assert key != None, "Please provide a key"
             module_key = key.ss58_address
             return module_key
+        
+
+        assert isinstance(module_key, str), "Please provide a module_key as a string"
+        # is it your key, or is it a key on the network? (it can be both)
         if c.key_exists(module_key):
             # your key exists locally
             module_key = c.get_key(module_key).ss58_address
-
         else:
             # the name matches a key in the subspace namespace
             if name2key == None:
@@ -804,9 +810,6 @@ class Subspace(c.Module):
 
         assert c.is_valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         return module_key
-
-
-
 
     def transfer_stake(
             self,
@@ -963,6 +966,8 @@ class Subspace(c.Module):
 
         
         module_key = key.ss58_address if module_key == None else module_key
+
+
         old_balance = self.get_balance( key.ss58_address , fmt='j')
         old_stake = self.get_staketo(key= key.ss58_address, module_key=module_key,   netuid=netuid, fmt='j',)
         
@@ -1166,19 +1171,27 @@ class Subspace(c.Module):
     
     
     
-    @classmethod
-    def resolve_key_ss58(cls, key):
+    def resolve_key_ss58(self, key:str, network='main', netuid:int=0):
+        c.print(key)
         if isinstance(key, str):
-            if c.key_exists( key ):
-                key = c.get_key( key )
-                key_address = key.ss58_address
+            if c.is_valid_ss58_address(key):
+                c.print('a')
+                key_address = key
+            else:
+                if c.key_exists( key ):
+                    key = c.get_key( key )
+                    key_address = key.ss58_address
+                else:
+                    name2key = self.name2key()
+                    assert key in name2key, f"Invalid Key {key} as it should have ss58_address attribute."
+                    if key in name2key:
+                        key_address = name2key[key]
+                    else:
+                        raise Exception(f"Invalid Key {key} as it should have ss58_address attribute.")   
         # if the key has an attribute then its a key
-        if hasattr(key, 'ss58_address'):
+        elif hasattr(key, 'ss58_address'):
             key_address = key.ss58_addrxess
-        else:
-            key_address = key
-
-        assert c.is_valid_ss58_address(key), f"Invalid Key {key} as it should have ss58_address attribute."
+        assert c.is_valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
         return key_address
 
 
@@ -1260,7 +1273,7 @@ class Subspace(c.Module):
             state_from ={ k:v for k, v in state_from}.get(from_key, 0)
 
         return state_from
-
+    get_stake_from = get_stakefrom
     def unstake_all( self, key: str, netuid:int = None  ) -> Optional['Balance']:
         
         key = self.resolve_key( key )
@@ -1654,7 +1667,7 @@ class Subspace(c.Module):
             servers = c.servers(network='local')
 
             # keys = self.my_keys(netuid=netuid)
-            my_modules = self.my_modules(netuid=netuid, fmt='nano', cache=False)
+            my_modules = self.modules(netuid=netuid, fmt='nano', cache=False)
             module2stats = {}
             for module in my_modules:
                 module['registered'] = True
@@ -1678,7 +1691,6 @@ class Subspace(c.Module):
                 for k in ['incentive', 'dividends']:
                     if k in stats[i]:
                         stats[i][k] = stats[i][k] / 1e9
-
 
         if cache:
             self.put(cache_path, stats)
@@ -2078,7 +2090,7 @@ class Subspace(c.Module):
                 keys = None,
                 update: bool = False,
                 include_weights = False,
-                cache = False,
+                cache = True,
                 df = False,
                 ) -> Dict[str, ModuleInfo]:
         
@@ -2352,19 +2364,11 @@ class Subspace(c.Module):
     
     unreged = unreged_servers = unregistered_servers
                 
-    def most_valuable_key(self, netuid = None, **kwargs):
-        modules = self.my_modules(netuid=netuid, **kwargs)
-        most_valuable_value = 0
-        most_valuable_key = None
-        address2key = c.address2key()
-        for m in modules:
-            value = m['stake'] + m['balance']
-            if value > most_valuable_value:
-                most_valuable_value  = value
-                most_valuable_key = address2key[m['key']]
-        return most_valuable_key
+    def most_valuable_key(self, **kwargs):
+        my_balance = self.my_balance( **kwargs)
+        return  dict(sorted(my_balance.items(), key=lambda item: item[1]))
 
-    def most_staketo_key(self, key, netuid = None,  **kwargs):
+    def most_staketo_key(self, key, netuid = 0,  **kwargs):
         staketo = self.get_staketo(key, netuid=netuid, **kwargs)
         most_stake = 0
         most_stake_key = None
@@ -3500,7 +3504,7 @@ class Subspace(c.Module):
         if modules == None:
             modules = self.top_valis()
         if isinstance(modules, str):
-            modules = {k:v for k,v in name2key.items() if k.startswith(modules)}
+            modules = [k for k,v in name2key.items() if k.startswith(modules)]
 
         modules = modules[:max_n]
 
@@ -3564,35 +3568,55 @@ class Subspace(c.Module):
         c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=True)
 
 
-
-
-    # @c.timeit
     @classmethod
-    def modules(cls,
-                network = 'main',
-                netuid: int = 0,
-                block: int = None, # defaults to latest block
-                fmt: str='nano', 
-                keys : List[str] = ['name', 'key', 'emission', 'incentive', 'dividends', 'stake_from', 'stake_to', 'regblock', 'last_update', 'weights'],
-                update: bool = False,
-                include_weights = False,
-                cache = True,
-                df = False,
-                ) -> Dict[str, ModuleInfo]:
+    def transfer_to_controller(cls, search: Optional[str]=None, controller_key:str = 'module' , min_amount=100, network='main'):
+        self = cls(network=network)
+        my_balance = self.my_balance()
+        if search != None:
+            my_balance = {k:v for k,v in my_balance.items() if k.startswith(search) and v > min_amount}
+        c.print(f'transferring {my_balance} to {controller_key}')
+
+        executor = c.module('executor')()
+
+        for k,v in my_balance.items():
+            future = executor.submit(fn=c.transfer, kwargs={'key':k, 'dest':controller_key, 'amount':v})
+            futures += [future]
+
+        c.print(f'waiting for {len(futures)} transfers to complete')
+        # return as soon as all the futures are done
+    
+        for future in conccurent.futures.as_completed(futures):
+            c.print(future.result())
         
-        def get_attr(attr:str, network:str, netuid:int, block:int):
-            s = c.module('subspace')(network=network)
-            color = c.random_color()
-            c.print('Getting -> ',attr, color=color)
-            return getattr(s, attr)(netuid=netuid, block=block)
 
 
-        pool = c.module('thread.pool')()
-        for attr in keys:
-            pool.submit(fn=get_attr, kwargs={'attr':attr, 'network':network, 'netuid':netuid, 'block':block})
+
+
+    # # @c.timeit
+    # @classmethod
+    # def modules(cls,
+    #             network = 'main',
+    #             netuid: int = 0,
+    #             block: int = None, # defaults to latest block
+    #             fmt: str='nano', 
+    #             keys : List[str] = ['name', 'key', 'emission', 'incentive', 'dividends', 'stake_from', 'stake_to', 'regblock', 'last_update', 'weights'],
+    #             update: bool = False,
+    #             include_weights = False,
+    #             cache = True,
+    #             df = False,
+    #             ) -> Dict[str, ModuleInfo]:
+        
+    #     def get_attr(attr:str, network:str, netuid:int, block:int):
+    #         s = c.module('subspace')(network=network)
+    #         color = c.random_color()
+    #         c.print('Getting -> ',attr, color=color)
+    #         return getattr(s, attr)(netuid=netuid, block=block)
+
+
+    #     pool = c.module('thread.pool')()
+    #     for attr in keys:
+    #         pool.submit(fn=get_attr, kwargs={'attr':attr, 'network':network, 'netuid':netuid, 'block':block})
 
         
-        return modules
-
-        
+    #     return modules
        
