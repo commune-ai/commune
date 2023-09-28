@@ -19,7 +19,10 @@ class Storage(c.Module):
     def put(self, k,  v: Dict, encrypt:bool=False, remote = False):
         timestamp = c.timestamp()
         obj = {'data': v}
+        # serialize
         v = self.serializer.serialize(obj)
+        if encrypt:
+            v = self.key.encrypt(v, return_json=True)
         v = self.key.sign(v, return_json=True)
         path = self.resolve_store_path(k)
         return c.put(path, v)
@@ -122,6 +125,8 @@ class Storage(c.Module):
             assert self.get_hash('test', seed=1) == self.get_hash('test', seed=1)
             assert self.get_hash('test', seed=1) != self.get_hash('test', seed=2)
             assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
+
+            self.rm('test')
             
     @classmethod
     def test_verify(cls):
@@ -139,6 +144,16 @@ class Storage(c.Module):
 
 
 
+    @classmethod
+    def peers(cls, network:str='local', tag=None):
+
+        module = cls.resolve_server_name(tag=tag)
+        return c.servers(module, network=network)
+
+    @classmethod
+    def random_peer(cls, network:str='local', tag=None):
+        peers = cls.peers(network=network, tag=tag)
+        return c.choice(peers)
 
 
 

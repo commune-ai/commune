@@ -2,8 +2,10 @@
 import commune as c
 from concurrent.futures._base import Future
 import time
+import gc
+
 class Task(c.Module):
-    def __init__(self, fn, args, kwargs, timeout:int=10):
+    def __init__(self, fn:str, args:list, kwargs:dict, timeout:int=10):
         self.future = Future()
         self.fn = fn
         self.start_time = time.time()
@@ -40,8 +42,10 @@ class Task(c.Module):
             self.future.set_exception(e)
         # set the result of the future
         self.future.set_result(result)
-
-        return result
+        del result
+        del self.fn
+        del self.args
+        del self.kwargs
 
     def result(self):
         return self.future.result()
