@@ -1680,6 +1680,9 @@ class Subspace(c.Module):
                     continue
                 m['stake_from'] = sum([v for k,v in m['stake_from']])
                 m['registered'] = True
+                for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
+                    m[k] = c.round_decimals(m[k], decimals=3)
+
                 stats.append(c.copy(m))
         if update:
             self.put(cache_path, stats)
