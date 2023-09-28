@@ -9,13 +9,17 @@ class Task(c.Module):
         self.kwargs = kwargs
         self.timeout = timeout
 
-    def info(self):
+    @property
+    def info(self) -> dict:
         return {
             'fn': self.fn.__name__,
             'kwargs': self.kwargs,
             'args': self.args,
-            'timeout': self.timeout
+            'timeout': self.timeout,
+            'start_time': self.start_time
         }
+
+    
 
     def run(self):
         """Run the given work item"""

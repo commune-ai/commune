@@ -1649,64 +1649,48 @@ class Subspace(c.Module):
               netuid=None,  
               df:bool=True, 
               update:bool = False, 
-              cache: bool = False,
-              cols: list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake'],
+              cache : bool = False,
+              local: bool = True,
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from'],
+              fmt : str = 'j',
               **kwargs
               ):
+    
+
+        
+        
         if update:
             self.sync()
             cache = False
-
-        cache_path = f'stats/{self.tag}'
         if cache:
+            cache_path = f'stats/{self.tag}'
             stats = self.get(cache_path, [])
         else:
             stats = []
 
+        local_namespace = c.namespace(network='local')
+
         if len(stats) == 0:
-            servers = c.servers(network='local')
 
-            # keys = self.my_keys(netuid=netuid)
-            my_modules = self.modules(netuid=netuid, fmt='nano', cache=False)
-            module2stats = {}
-            for module in my_modules:
-                module['registered'] = True
-                module2stats[module['name']] = module
+            modules = self.modules(netuid=netuid, update=update, fmt=fmt,  cache=True, keys=['name', 'registered', 'serving', 'address', 'emission', 'dividends', 'incentive', 'stake'])
+            for i, m in enumerate(modules):
 
-            # add the servers tht are running that arent 
-            for s in servers:
-                if s not in module2stats:
-                    module2stats[s] = {**self.null_module, **{'name': s, 'registered': False}}
-
-            stats = list(module2stats.values())
-            for i in range(len(stats)):
-                stats[i]['serving'] = bool(stats[i]['name'] in servers)
-                for k in ['stake_to', 'stake_from']:
-                    if k in stats[i]:
-                        stats[i][k] = {k: self.format_amount(c.round_decimals(v, 2), fmt='j') for k,v in stats[i][k]}
-                for k in ['balance', 'emission', 'stake']:
-                    if k in stats[i]:
-                        stats[i][k] = self.format_amount(stats[i][k], fmt='j')
-
-                for k in ['incentive', 'dividends']:
-                    if k in stats[i]:
-                        stats[i][k] = stats[i][k] / 1e9
-
-        if cache:
+                m['serving'] = bool(m['name'] in local_namespace)
+                if local and m['serving'] == False:
+                    continue
+                m['stake_from'] = sum([v for k,v in m['stake_from']])
+                m['registered'] = True
+                stats.append(c.copy(m))
+        if update:
             self.put(cache_path, stats)
 
+        
         df_stats =  c.df(stats)
-        # sort based on registered and balance
-
         df_stats = df_stats[cols]
-    
-        if len(df_stats) > 0:
-            sort_cols = ['registered', 'emission', 'stake']
-            sort_cols = [c for c in sort_cols if c in df_stats.columns]
-                
-            df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
 
-        # df_stats= df_stats[df_stats['registered'] == True]
+        sort_cols = ['registered', 'emission', 'stake']
+        sort_cols = [c for c in sort_cols if c in df_stats.columns]  
+        df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
 
         if search is not None:
             df_stats = df_stats[df_stats['name'].str.contains(search, case=True)]
@@ -2080,7 +2064,17 @@ class Subspace(c.Module):
             module[k] = v
         
         
-        return module    
+        return module  
+
+
+    @classmethod
+    async def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
+        c.print('starting', key)
+
+        results =  getattr(self, key)(netuid=netuid, block=block)
+        c.print('finshing', key)
+        return results
+              
     # @c.timeit
     def modules(self,
                 network = network,
@@ -2092,6 +2086,7 @@ class Subspace(c.Module):
                 include_weights = False,
                 cache = True,
                 df = False,
+                max_workers:int = 8,
                 ) -> Dict[str, ModuleInfo]:
         
 
@@ -2112,16 +2107,10 @@ class Subspace(c.Module):
             if include_weights:
                 keys += ['weights']
 
+            executor = c.module('executor')(max_workers=max_workers)
 
-            async def get_key_data(key, netuid, block):
-                c.print('starting', key)
-                results =  getattr(self, key)(netuid=netuid, block=block)
-                c.print('finshing', key)
-                return results
-            
-            futures = [get_key_data(key, netuid, block) for key in keys]
-            
-            values = c.gather(futures)
+            futures = [executor.submit(fn=self.get_key_data, kwargs={'key': key, 'netuid': netuid, 'block': block, 'network': network}) for key in keys]
+            values = c.wait(futures)
 
             state = dict(zip(keys, values))
 
@@ -2168,12 +2157,13 @@ class Subspace(c.Module):
                 modules[i] ={k: module[k] for k in keys}
  
 
-                for k in ['emission']:
+                for k in ['emission', 'stake']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
                 for k in ['incentive', 'dividends']:
                     if module[k] > 1:
                         module[k] = module[k] / (U16_MAX)
+                
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
                 modules[i] = module
 
