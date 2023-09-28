@@ -1669,14 +1669,14 @@ class Subspace(c.Module):
             stats = []
 
         local_namespace = c.namespace(network='local')
-
+        ip = c.ip()
         if len(stats) == 0:
 
             modules = self.modules(netuid=netuid, update=update, fmt=fmt,  cache=True, keys=['name', 'registered', 'serving', 'address', 'emission', 'dividends', 'incentive', 'stake'])
             for i, m in enumerate(modules):
 
                 m['serving'] = bool(m['name'] in local_namespace)
-                if local and m['serving'] == False:
+                if local and ip not in m['address']:
                     continue
                 m['stake_from'] = sum([v for k,v in m['stake_from']])
                 m['registered'] = True
