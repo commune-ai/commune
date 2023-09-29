@@ -2103,7 +2103,6 @@ class Subspace(c.Module):
             executor = c.module('executor')(max_workers=len(keys))
             block = self.block if block == None else block
             state = {key: self.get_key_data(key=key, netuid=netuid, block=block, network=network) for key in keys}
-            state = dict(zip(keys, values))
             for uid, key in state['uid2key'].items():
 
                 module= {
