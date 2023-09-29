@@ -1,8 +1,6 @@
 
-
-FROM ubuntu:22.10
-SHELL ["/bin/bash", "-c"]
 # syntax=docker/dockerfile:1
+FROM nvidia/cuda:12.0.0-devel-ubuntu22.04
 WORKDIR /commune
 RUN rm -f /etc/apt/sources.list.d/*.list
 ARG DEBIAN_FRONTEND=noninteractive
@@ -17,7 +15,9 @@ COPY ./requirements.txt /commune/requirements.txt
 COPY ./setup.py /commune/setup.py
 COPY ./README.md /commune/README.md
 COPY ./bin /commune/bin
-
+COPY ./scripts /commune/scripts
+RUN chmod +x /commune/scripts/*
+RUN ./scripts/install_python_env.sh
 RUN pip3 install -e .
 
 # INTSALL NPM PACKAGES

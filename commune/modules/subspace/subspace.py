@@ -1641,22 +1641,20 @@ class Subspace(c.Module):
 
     def stats(self, 
               search = None,
-              netuid=None,  
+              netuid=0,  
+              network = network,
               df:bool=True, 
               update:bool = False, 
-              cache : bool = False,
               local: bool = True,
               cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from'],
               fmt : str = 'j',
               **kwargs
               ):
-        
+        cache_path = f'stats/{network}_net{netuid}.json'
         if update:
             self.sync()
-            cache = False
-        if cache:
-            cache_path = f'stats/{self.tag}'
-            stats = self.get(cache_path, [])
+
+        
         else:
             stats = []
 
