@@ -5,22 +5,45 @@ import time
 import gc
 
 class Task(c.Module):
-    def __init__(self, fn:str, args:list, kwargs:dict, timeout:int=10):
+    def __init__(self, fn:str, args:list, kwargs:dict, timeout:int=10, priority:int=1, path=None, **extra_kwargs):
         self.future = Future()
-        self.fn = fn
-        self.start_time = time.time()
-        self.args = args
-        self.kwargs = kwargs
-        self.timeout = timeout
+        self.fn = fn # the function to run
+        self.start_time = time.time() # the time the task was created
+        self.args = args # the arguments of the task
+        self.kwargs = kwargs # the arguments of the task
+        self.timeout = timeout # the timeout of the task
+        self.priority = priority # the priority of the task
+        self.path = path # the path to store the state of the task
+        self.status = 'pending' # pending, running, done
+        self.data = None # the result of the task
+
+        # for the sake of simplicity, we'll just add all the extra kwargs to the task object
+        self.extra_kwargs = extra_kwargs
+        self.__dict__.update(extra_kwargs)
+
+        # store the state of the task if a path is given
+        if self.path:
+            self.save()
+    @property
+    def lifetime(self) -> float:
+        return time.time() - self.start_time
 
     @property
-    def info(self) -> dict:
+    def save(self):
+        self.put(self.path, self.state)
+
+    @property
+    def state(self) -> dict:
         return {
             'fn': self.fn.__name__,
             'kwargs': self.kwargs,
             'args': self.args,
             'timeout': self.timeout,
-            'start_time': self.start_time
+            'start_time': self.start_time, 
+            'priority': self.lifetime,
+            'status': self.status,
+            'data': self.data, 
+            **{k: self.__dict__[k] for k,v in self.extra_kwargs.items()}
         }
 
     
@@ -33,20 +56,39 @@ class Task(c.Module):
         ):
             self.future.set_exception(TimeoutError('Task timed out'))
 
+        self.status = 'running'
 
         try:
-            result = self.fn(*self.args, **self.kwargs)
-
+            data = self.fn(*self.args, **self.kwargs)
+            self.status = 'done'
         except Exception as e:
-            result = c.detailed_error(e)
+            # what does this do? A: it sets the exception of the future, and sets the status to failed
             self.future.set_exception(e)
-        # set the result of the future
-        self.future.set_result(result)
-        del result
-        del self.fn
-        del self.args
-        del self.kwargs
+            self.status = 'failed'
+            data = c.detailed_error(e)
 
-    def result(self):
+        # store the result of the task
+        self.data = data       
+
+        # store the state of the task 
+        if self.path:
+            self.save()
+
+        # set the result of the future
+        self.future.set_result(data)
+
+    def result(self) -> object:
         return self.future.result()
+
+    def cancel(self) -> bool:
+        self.future.cancel()
+
+    def running(self) -> bool:
+        return self.future.running()
+    
+    def done(self) -> bool:
+        return self.future.done()
+
+    
+
     
