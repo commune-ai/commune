@@ -12,8 +12,7 @@ class Router(c.Module):
     def submit(self, module : str, fn: str, args=None, kwargs=None):
         args = args or []
         kwargs = kwargs or {}
-        task =  self.executor.submit(fn=c.call, kwargs={'module': module, 'fn': fn, 'args': args, 'kwargs': kwargs}})
-        self.task_map[task.] = module
+        c.fleet()
 
 
     
