@@ -26,3 +26,6 @@
 [submodule "subtensor"]
 	path = repo/subtensor
 	url = https://github.com/opentensor/subtensor
+[submodule "telemetry"]
+	path = telemetry
+	url = https://github.com/commune-ai/telemetry.git

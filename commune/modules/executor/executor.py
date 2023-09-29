@@ -33,7 +33,7 @@ Task = c.module('executor.task')
 NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
 
-class PriorityThreadPoolExecutor(c.Module):
+class TaskExecutor(c.Module):
     """Base threadpool executor with a priority queue"""
 
     # Used to assign unique thread names when thread_name_prefix is not supplied.
@@ -43,9 +43,9 @@ class PriorityThreadPoolExecutor(c.Module):
 
     def __init__(
         self,
-        maxsize=-1,
-        max_workers=None,
-        thread_name_prefix="",
+        maxsize : int =-1,
+        max_workers: int =None,
+        thread_name_prefix : str ="",
     ):
         """Initializes a new ThreadPoolExecutor instance.
         Args:
@@ -58,7 +58,7 @@ class PriorityThreadPoolExecutor(c.Module):
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
             
-        self._max_workers = max_workers
+        self.max_workers = max_workers
         self.work_queue = queue.PriorityQueue(maxsize=maxsize)
         self.idle_semaphore = threading.Semaphore(0)
         self.threads = []
@@ -86,14 +86,14 @@ class PriorityThreadPoolExecutor(c.Module):
             start_time = time.time()
             if "priority" in kwargs:
                 del kwargs["priority"]
-            w = Task(fn=fn, args=args, kwargs=kwargs)
-            self.work_queue.put((priority, w), block=False)
+            task = Task(fn=fn, args=args, kwargs=kwargs)
+            # add the work item to the queue
+            self.work_queue.put((priority, task), block=False)
+            # adjust the thread count to match the new task
             self.adjust_thread_count()
             
-            return w.future
-
-        
-        
+            # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+            return task
 
 
     def adjust_thread_count(self):
@@ -107,7 +107,7 @@ class PriorityThreadPoolExecutor(c.Module):
             q.put(NULL_ENTRY)
 
         num_threads = len(self.threads)
-        if num_threads < self._max_workers:
+        if num_threads < self.max_workers:
             thread_name = "%s_%d" % (self.thread_name_prefix or self, num_threads)
             t = threading.Thread(
                 name=thread_name,
@@ -126,7 +126,6 @@ class PriorityThreadPoolExecutor(c.Module):
         with self.shutdown_lock:
             self.shutdown = True
             self.work_queue.put(NULL_ENTRY)
-
         if wait:
             for t in self.threads:
                 try:
@@ -177,11 +176,16 @@ class PriorityThreadPoolExecutor(c.Module):
     def num_tasks(self):
         return self.work_queue.qsize()
 
+    @classmethod
+    def as_completed(futures: list):
+        assert isinstance(futures, list), "futures must be a list"
+        return [f for f in futures if not f.done()]
+
     @staticmethod
     def wait(futures:list) -> list:
         futures = [futures] if not isinstance(futures, list) else futures
         results = []
-        for future in conccurent.futures.as_completed(futures):
+        for future in c.as_completed(futures):
             results += [future.result()]
         return results
 

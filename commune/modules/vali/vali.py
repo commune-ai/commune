@@ -189,7 +189,6 @@ class Vali(c.Module):
             'timestamp': c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
-        assert len(votes['uids']) > 0, f'Length of uids must be greater than 0, got {len(votes["uids"])} uids'
 
         return votes
 
@@ -203,6 +202,10 @@ class Vali(c.Module):
             return result
 
         votes = self.votes(network=self.config.network, tag=self.tag)
+
+        if len(votes['uids']) == 0:
+            c.print(f'No modules to vote on', color='red')
+            return {'success': False, 'message': 'No modules to vote on'}
 
         # get topk
         if len(votes['weights']) == 0:

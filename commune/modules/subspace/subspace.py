@@ -2073,8 +2073,8 @@ class Subspace(c.Module):
               
     # @c.timeit
     def modules(self,
-                network = network,
-                netuid: int = netuid,
+                network = 'main',
+                netuid: int = 0,
                 block: Optional[int] = None,
                 fmt='nano', 
                 keys = None,
@@ -2100,6 +2100,7 @@ class Subspace(c.Module):
             if include_weights:
                 keys += ['weights']
             executor = c.module('executor')(max_workers=len(keys))
+            block = self.block if block == None else block
             futures = [executor.submit(fn=self.get_key_data, kwargs={'key': key, 'netuid': netuid, 'block': block, 'network': network}) for key in keys]
             values = c.wait(futures)
 
@@ -3542,7 +3543,7 @@ class Subspace(c.Module):
         assert isinstance(stats, list) 
     @classmethod
     def install_telemetry(cls):
-        c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=True)
+        c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=False, bash=True)
 
 
     @classmethod

@@ -3,7 +3,7 @@ import commune as c
 class Server(c.Module):
 
     @classmethod
-    def test(cls):
+    def test(cls) -> dict:
         servers = c.servers()
         c.print(servers)
         tag = 'test'
@@ -13,4 +13,4 @@ class Server(c.Module):
 
         c.kill(module_name)
         assert module_name not in c.servers()
-        c.print(c.print(servers))
+        return {'success': True, 'msg': 'server test passed'}

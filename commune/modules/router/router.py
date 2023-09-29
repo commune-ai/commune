@@ -9,14 +9,18 @@ class Router(c.Module):
     
 
 
-    def submit(self, module : str, fn: str, args=None, kwargs=None):
-        args = args or []
-        kwargs = kwargs or {}
-        c.fleet()
+    def submit(self, module : str, fn: str, args=None, kwargs=None, timeout=10, priority=1, return_future = False):
+        kwargs = {'module': module, 'fn': fn, 'args': args, 'kwargs': kwargs}
+        future = self.executor.submit(fn=c.call, kwargs=args, timeout=timeout, priority=priority)
+        if return_future:
+            return future
+        else:
+            return future.result()
+        return future
 
 
     
-    # @classmethod
-    # def test(cls):
+    @classmethod
+    def test(cls):
 
 
