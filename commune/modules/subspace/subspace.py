@@ -2068,6 +2068,7 @@ class Subspace(c.Module):
     @classmethod
     def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
         self = cls(network=network)
+        c.print(f"Getting key data for {key} on {network} at block {block}")
         results =  getattr(self, key)(netuid=netuid, block=block)
         return results
               
@@ -2101,9 +2102,7 @@ class Subspace(c.Module):
                 keys += ['weights']
             executor = c.module('executor')(max_workers=len(keys))
             block = self.block if block == None else block
-            futures = [executor.submit(fn=self.get_key_data, kwargs={'key': key, 'netuid': netuid, 'block': block, 'network': network}, timeout=40) for key in keys]
-            values = c.wait(futures)
-
+            state = {key: self.get_key_data(key=key, netuid=netuid, block=block, network=network) for key in keys}
             state = dict(zip(keys, values))
             for uid, key in state['uid2key'].items():
 
