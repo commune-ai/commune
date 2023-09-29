@@ -4604,7 +4604,7 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, modules=['server', 'key', 'subspace'], verbose:bool=False):
+    def test(cls, modules=['server', 'key', 'subspace', 'executor'], verbose:bool=False):
         test_results = []
         for module_name in modules:
             c.print(f'Testing {module_name}', color='yellow')

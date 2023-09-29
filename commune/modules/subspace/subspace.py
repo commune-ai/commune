@@ -1181,6 +1181,7 @@ class Subspace(c.Module):
                     if key in name2key:
                         key_address = name2key[key]
                     else:
+   
                         raise Exception(f"Invalid Key {key} as it should have ss58_address attribute.")   
         # if the key has an attribute then its a key
         elif hasattr(key, 'ss58_address'):
