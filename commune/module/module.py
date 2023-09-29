@@ -6160,7 +6160,7 @@ class c:
     def rand_tag(cls):
         return cls.choice(cls.tags())
     @staticmethod
-    def wait(futures:list, timeout:int = 20) -> list:
+    def wait(futures:list, timeout:int = 100) -> list:
         import concurrent.futures
         futures = [futures] if not isinstance(futures, list) else futures
         results = []
