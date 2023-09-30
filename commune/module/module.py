@@ -7811,8 +7811,10 @@ class c:
         return self._access_module
 
     default_access_module='access'
-    def set_access_module(self, **access_config):
+    def set_access_module(self, refresh=False, **access_config):
         if hasattr(self, '_access_module'):
+            if not refresh:
+                return self._access_module
             # each module has a verify function, that takes in the input and returns the input
             access_config = {**self._access_module.config, **access_config}
         # get the access module if specified
