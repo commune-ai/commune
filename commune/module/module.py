@@ -2346,10 +2346,8 @@ class c:
     def server_name(self):
         if not hasattr(self, 'config') or not (isinstance(self.config, Munch)):
             self.config =  Munch({})
-        
-        else:
-            assert isinstance(self.config, Munch)
-            config = self.config
+
+        config = self.config
 
         if 'server_name' in self.config:
             name =  config['server_name']

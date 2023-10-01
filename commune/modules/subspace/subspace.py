@@ -1353,8 +1353,9 @@ class Subspace(c.Module):
     @classmethod
     def loop(cls, 
                 network = network,
-                netuid:int = None,
-                 interval = {'sync': 100, 'register': 1, 'vali': 100, 'update_modules': 10},
+                netuid:int = 0,
+                 interval = {'sync': 100, 'register': 5000, 'vali': 100, 'update_modules': 10},
+                 modules = ['model'], 
                  sleep:float=1,
                  remote:bool=True, **kwargs):
         if remote:
@@ -1388,7 +1389,9 @@ class Subspace(c.Module):
                 c.print(subspace.sync(), color='green')
 
             if time_since_last['register'] > interval['register']:
-                subspace.register_servers(network=network)
+                for m in modules:
+                    c.print(f"Registering servers with {m} in it on {network}", color='yellow')
+                    subspace.register_servers(m ,network=network, netuid=netuid)
                 time_since_last['register'] = current_time
 
             if time_since_last['vali'] > interval['vali']:
