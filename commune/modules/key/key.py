@@ -438,16 +438,14 @@ class Keypair(c.Module):
     @classmethod
     def rm_keys(cls, rm_keys, verbose:bool=False):
         
-        removed_keys = []
+        if isinstance(rm_keys, str):
+            rm_keys = cls.keys(rm_keys)
         
+        assert isinstance(rm_keys, list), f'rm_keys must be list, got {type(rm_keys)}'
+
         for rm_key in rm_keys:
-            keys = cls.keys()
-            for key in cls.keys():
-                if key.startswith(rm_key):
-                    cls.rm_key(key)
-                    c.print(f'removed key {key}')
-                    removed_keys.append(key)
-            
+            cls.rm_key(rm_key)
+        
         return {'removed_keys':rm_keys}
     
     @classmethod

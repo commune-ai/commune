@@ -557,7 +557,7 @@ class c:
         if config == None:
             config = cls.get_config()
         
-        path = path if path else cls.__config_file__()
+        path = path if path else cls.config_path()
         
         if isinstance(config, Munch):
             config = cls.munch2dict(deepcopy(config))
@@ -6697,6 +6697,7 @@ class c:
     @classmethod
     def build(cls, *args, **kwargs): 
         return c.module('docker').build(*args, **kwargs)
+    build_image = build
     @classmethod
     def has_gpus(cls): 
         return bool(len(c.gpus())>0)
