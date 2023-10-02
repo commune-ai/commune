@@ -578,13 +578,9 @@ class CortexTrainer(commune.Module):
         module_path =  inspect.getmodule(self).__file__
         return module_path
 
-    @property
-    def __config_file__(self):
-        return self.__file__.replace('.py', '.yaml')
-
     def load_config(self, config:Optional[Union[str, dict]]=None):
         if config == None:
-            config = load_yaml(self.__config_file__)
+            config = load_yaml(self.config_path())
         elif isinstance(config, str):
             config =  load_yaml(config)
         elif isinstance(config, dict):
