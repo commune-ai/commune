@@ -7165,7 +7165,7 @@ class c:
     
     @classmethod
     def snap(cls, *args, **kwargs):
-        return c.module('subspace')().snap(*args, **kwargs)   
+        return c.module('subspace')().build_snapshot(*args, **kwargs)   
 
     @classmethod
     def build_spec(cls, *args, **kwargs): 

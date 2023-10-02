@@ -1743,18 +1743,6 @@ class Subspace(c.Module):
         
     
 
-        
-
-    def get_block(self, network=None) -> int:
-        r""" Returns the current block number on the chain.
-        Returns:
-            block_number (int):
-                Current chain blocknumber.
-        """     
-
-        network = self.resolve_network(network)   
-        with self.substrate as substrate:
-            return substrate.get_block_number(None)
 
 
     def get_balance(self, key: str , block: int = None, fmt='j', network=None) -> Balance:
@@ -1979,7 +1967,7 @@ class Subspace(c.Module):
 
     def get_block(self, network=None, block_hash=None): 
         self.resolve_network(network)
-        return self.substrate.get_block( block_hash=block_hash)
+        return self.substrate.get_block( block_hash=block_hash)['header']['number']
 
     def seconds_per_epoch(self, netuid=None, network=None):
         self.resolve_network(network)
@@ -2240,8 +2228,7 @@ class Subspace(c.Module):
     @classmethod
     def test_chain(cls, chain:str = chain, verbose:bool=True, snap:bool=False ):
 
-        cls.cmd('cargo test', cwd=cls.chain_path, verbose=verbose)
-        cls.build_spec(chain, snap=snap)    
+        cls.cmd('cargo test', cwd=cls.chain_path, verbose=verbose) 
         
 
     @classmethod
@@ -2652,7 +2639,7 @@ class Subspace(c.Module):
             save: bool = True, 
             min_balance:int = 100000,
             verbose: bool = False,
-            sync: bool = False,
+            sync: bool = True,
              **kwargs):
         if sync:
             c.sync(network=network)
@@ -2684,7 +2671,7 @@ class Subspace(c.Module):
         
         return {'success': True, 'msg': f'Saved snapshot to {snap_path} from {path}', 'date': date}    
     
-    
+    snap = build_snapshot
     
     @classmethod
     def check(cls, netuid=0):
@@ -2733,23 +2720,19 @@ class Subspace(c.Module):
 
     @classmethod
     def build(cls, chain:str = chain, 
-             build_image = True,
              build_spec:bool=True, 
              build_runtime:bool=True,
              build_snapshot:bool=False,  
              verbose:bool=True, 
-             mode = mode
+             mode = mode,
+             sync:bool=False,
 
              ):
-
-        if build_image:
-            cls.build_image()
-
         if build_runtime:
             cls.build_runtime(verbose=verbose , mode=mode)
 
-        if build_snapshot:
-            cls.build_snapshot(chain=chain, verbose=verbose)
+        if build_snapshot or sync:
+            cls.build_snapshot(chain=chain, verbose=verbose, sync=sync)
 
         if build_spec:
             cls.build_spec(chain=chain, verbose=verbose, mode=mode)
@@ -2994,15 +2977,10 @@ class Subspace(c.Module):
     def build_spec(cls,
                    chain = chain,
                    disable_default_bootnode: bool = True,
-                   snap:bool = True,
                    verbose:bool = True,
                    vali_node_keys:dict = None,
                    mode : str = mode,
-                   sync: bool = False,
                    ):
-
-        if snap:
-            cls.build_snapshot(chain=chain, verbose=verbose, sync=sync)
 
         chain_spec_path = cls.chain_spec_path(chain)
         chain_release_path = cls.chain_release_path(mode=mode)
