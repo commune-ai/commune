@@ -16,10 +16,6 @@ class Frontend(c.Module):
     def logs(self):
         c.cmd('docker logs -f frontend.commune.v0')
 
-    
-    def down(self):
-        
-
     def docs_path(self):
         return self.frontend_path + '/docs'
 

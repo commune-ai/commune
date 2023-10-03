@@ -1654,10 +1654,11 @@ class Subspace(c.Module):
         cache_path = f'stats/{network}_net{netuid}.json'
         if update:
             self.sync()
-
-        
-        else:
             stats = []
+        else:
+            stats = self.get(cache_path, [])
+            
+    
 
         local_namespace = c.namespace(network='local')
         ip = c.ip()
@@ -2056,7 +2057,6 @@ class Subspace(c.Module):
     @classmethod
     def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
         self = cls(network=network)
-        c.print(f"Getting key data for {key} on {network} at block {block}")
         results =  getattr(self, key)(netuid=netuid, block=block)
         return results
               
@@ -2070,7 +2070,8 @@ class Subspace(c.Module):
                 update: bool = False,
                 include_weights = False,
                 df = False,
-                max_workers:int = 8,
+                max_workers:int = 1,
+                timeout=200
                 ) -> Dict[str, ModuleInfo]:
         
 
@@ -2088,9 +2089,14 @@ class Subspace(c.Module):
             keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
             if include_weights:
                 keys += ['weights']
-            executor = c.module('executor')(max_workers=len(keys))
             block = self.block if block == None else block
-            state = {key: self.get_key_data(key=key, netuid=netuid, block=block, network=network) for key in keys}
+            if max_workers > 1:
+                executor = c.module('executor')(max_workers=max_workers)
+                results = [executor.submit(self.get_key_data, key=key, netuid=netuid, block=block, network=network, timeout=timeout) for key in keys]
+                results = c.wait(results)
+                state = {key: result  for key, result in zip(keys, results)}
+            else: 
+                state = {key: self.get_key_data(key=key, netuid=netuid, block=block, network=network) for key in keys}
             for uid, key in state['uid2key'].items():
 
                 module= {

@@ -4563,7 +4563,11 @@ class c:
             if color:
                 kwargs['style'] = color
             console = cls.resolve_console(console)
-            return console.print(*text, **kwargs)
+            try:
+                return console.print(*text, **kwargs)
+            except Exception as e:
+                print(e)
+                # print(*text, **kwargs)
 
     @classmethod
     def success(cls, *args, **kwargs):
