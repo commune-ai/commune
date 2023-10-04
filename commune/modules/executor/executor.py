@@ -72,7 +72,7 @@ class TaskExecutor(c.Module):
         return self.work_queue.empty()
 
     
-    def submit(self, fn: Callable, args=None, kwargs=None) -> Future:
+    def submit(self, fn: Callable, args=None, kwargs=None, timeout=200) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
@@ -86,7 +86,7 @@ class TaskExecutor(c.Module):
             start_time = time.time()
             if "priority" in kwargs:
                 del kwargs["priority"]
-            task = Task(fn=fn, args=args, kwargs=kwargs)
+            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)
             # adjust the thread count to match the new task
