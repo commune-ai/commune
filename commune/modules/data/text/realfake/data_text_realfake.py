@@ -15,6 +15,7 @@ class DataTextRealfake(c.Module):
                output_chars: int = 500,
                start_index: int = None,
                 real_prob:float=0.5, 
+                line_break_prob: float = 0.2,
                 random_line_ratio: float = 0.2):
         
         if idx == None:
@@ -37,6 +38,9 @@ class DataTextRealfake(c.Module):
         input_bounds = [start_index, start_index + input_chars]
         output_bounds = [start_index + input_chars, start_index + input_chars + output_chars]
         
+
+        # split the filetext and randomly add line breaks
+
         sample = {
                 'input_text': file_text[input_bounds[0]:input_bounds[1]], 
                 'output_text': file_text[output_bounds[0]:output_bounds[1]], 
@@ -47,6 +51,10 @@ class DataTextRealfake(c.Module):
                 'output_chars': output_chars,
 
                  }
+
+        # add line breaks in the input text
+        for k in ['input_text', 'output_text']:
+            sample[k] = '\n'.join([t + '\n' if c.random_float() > line_break_prob else t for t in sample[k].split('\n')])
 
         # do a kick flip
         real  = c.random_float(0,1) < real_prob

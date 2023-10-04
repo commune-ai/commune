@@ -163,7 +163,9 @@ class Subspace(c.Module):
 
     def shortyaddy(self, address, first_chars=4):
         return address[:first_chars] + '...' 
-    def auto_unstake(self, search=None, netuid = None, network = None,  controller=None):
+
+
+    def auto_unstake(self, search=None, netuid = 1, network = 'main',  controller=None):
         my_staketo = self.my_staketo(netuid=netuid, network=network)
         controller = c.get_key(controller)
         address2key = c.address2key()
@@ -216,6 +218,7 @@ class Subspace(c.Module):
             my_balance = {k:v for k,v in my_balance.items() if v > min_value}
 
         return my_balance
+        
     key2balance = myb = mybal = my_balance
 
     def my_staketo(self,search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
@@ -1352,7 +1355,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = 0,
-                 interval = {'sync': 100, 'register': 5000, 'vali': 100, 'update_modules': 10},
+                 interval = {'sync': 100, 'register': None, 'vali': 100, 'update_modules': 100},
                  modules = ['model'], 
                  sleep:float=1,
                  remote:bool=True, **kwargs):
@@ -1383,16 +1386,16 @@ class Subspace(c.Module):
 
 
 
-            if time_since_last['sync'] > interval['sync']:
+            if interval['sync'] != None and time_since_last['sync'] > interval['sync']:
                 c.print(subspace.sync(), color='green')
 
-            if time_since_last['register'] > interval['register']:
+            if interval['register'] != None and time_since_last['register'] > interval['register']:
                 for m in modules:
                     c.print(f"Registering servers with {m} in it on {network}", color='yellow')
                     subspace.register_servers(m ,network=network, netuid=netuid)
                 time_since_last['register'] = current_time
 
-            if time_since_last['vali'] > interval['vali']:
+            if interval['vali'] != None and time_since_last['vali'] > interval['vali']:
                 c.check_valis(network=network)
                 time_since_last['vali'] = current_time
 
@@ -1405,6 +1408,7 @@ class Subspace(c.Module):
                     inlcude_weights:bool=False, 
                     update:bool=False, 
                     verbose:bool=False, 
+                    netuids: List[int] = [0],
                     **kwargs):
         # cache and update are mutually exclusive 
         if  update == False:
@@ -1416,7 +1420,7 @@ class Subspace(c.Module):
 
         if len(self.state_dict_cache) == 0 :
             block = self.block
-            netuids = self.netuids()
+            netuids = self.netuids() if netuids == None else netuids
             state_dict = {'subnets': [self.subnet(netuid=netuid, network=network, block=block, update=True) for netuid in netuids], 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block) for netuid in netuids],
@@ -2057,7 +2061,9 @@ class Subspace(c.Module):
     @classmethod
     def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
         self = cls(network=network)
+
         results =  getattr(self, key)(netuid=netuid, block=block)
+        c.print(f"Got {key} for netuid {netuid} at block {block}")
         return results
               
     # @c.timeit
@@ -2082,17 +2088,19 @@ class Subspace(c.Module):
             modules = self.get(cache_path, [])
 
         if len(modules) == 0:
+
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
+            block = self.block if block == None else block
+
 
             
             keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
             if include_weights:
                 keys += ['weights']
-            block = self.block if block == None else block
             if max_workers > 1:
                 executor = c.module('executor')(max_workers=max_workers)
-                results = [executor.submit(self.get_key_data, key=key, netuid=netuid, block=block, network=network, timeout=timeout) for key in keys]
+                results = [executor.submit(self.get_key_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout) for key in keys]
                 results = c.wait(results)
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
