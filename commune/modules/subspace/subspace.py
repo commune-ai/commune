@@ -957,7 +957,6 @@ class Subspace(c.Module):
             wait_for_finalization:bool = False,
             prompt: bool = False,
             network: str= None,
-            sync: bool = True
         ) -> bool:
         network = self.resolve_network(network)
         key = c.get_key(key)
@@ -1016,9 +1015,6 @@ class Subspace(c.Module):
 
         else:
             response = { 'success': response.is_success , 'message': response.error_message}
-
-        if sync:
-            self.sync()
 
         c.print(":white_heavy_check_mark: [green]Finalized[/green]")
 
@@ -1664,14 +1660,12 @@ class Subspace(c.Module):
             
     
 
-        local_namespace = c.namespace(network='local')
         ip = c.ip()
         if len(stats) == 0:
 
             modules = self.modules(netuid=netuid, update=update, fmt=fmt, keys=['name', 'registered', 'serving', 'address', 'emission', 'dividends', 'incentive', 'stake'])
             for i, m in enumerate(modules):
 
-                m['serving'] = bool(m['name'] in local_namespace)
                 if local and ip not in m['address']:
                     continue
                 # sum the stake_from
@@ -1683,8 +1677,15 @@ class Subspace(c.Module):
                     m[k] = c.round(m[k], sig=4)
 
                 stats.append(c.copy(m))
+
+
         if update:
             self.put(cache_path, stats)
+
+        servers = c.servers(network='local')
+        for i in range(len(stats)):
+            stats[i]['serving'] = bool(stats[i]['name'] in servers)
+            
 
         
         df_stats =  c.df(stats)
@@ -3562,7 +3563,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def transfer_to_controller(cls, search: Optional[str]=None, controller_key:str = 'module' , min_amount=100, network='main'):
+    def transfer_to_controller(cls, search: Optional[str]=None, controller_key:str = 'module' , min_amount=100, network='main', timeout=100):
         self = cls(network=network)
         my_balance = self.my_balance()
         if search != None:
@@ -3572,11 +3573,10 @@ class Subspace(c.Module):
         executor = c.module('executor')()
 
         for k,v in my_balance.items():
-            future = executor.submit(fn=c.transfer, kwargs={'key':k, 'dest':controller_key, 'amount':v})
+            future = executor.submit(fn=c.transfer, kwargs={'key':k, 'dest':controller_key, 'amount':v}, timeout=timeout)
             futures += [future]
 
         c.print(f'waiting for {len(futures)} transfers to complete')
         # return as soon as all the futures are done
     
-        for future in conccurent.futures.as_completed(futures):
-            c.print(future.result())
+        c.wait(futures)
