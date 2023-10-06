@@ -39,7 +39,7 @@ class Subspace(c.Module):
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    mode = default_config['mode']
+    mode = 'local'
     
     def __init__( 
         self, 
@@ -3019,7 +3019,7 @@ class Subspace(c.Module):
         elif mode == 'local':
             cmd = f'bash -c "{cmd} > {chain_spec_path}"'
             c.print(cmd)
-            c.cmd(cmd, cwd=cls.chain_path, verbose=False)    
+            c.cmd(cmd, cwd=cls.chain_path, verbose=True)    
         if vali_node_keys == None:
             vali_node_keys = cls.vali_node_keys(chain=chain)
 
