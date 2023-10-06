@@ -295,22 +295,6 @@ chain_info:
     - /ip4/24.83.20.198/tcp/2566/p2p/12D3KooWH5xUvjBSbFsE8mMWHR5jShE5TXdpataTerukiZFRWXkn
     - /ip4/24.83.20.198/tcp/2569/p2p/12D3KooWKTDnNuZtgXmMWQgFLMnBiyVDPW1yu5fqrQ2F2b5ckw9r
     nodes:
-      nonvali_0:
-        boot_nodes: /ip4/24.83.20.198/tcp/2524/p2p/12D3KooWFPFSyAaxTptC5fsZh4RtRHKYMix5t8jUbVWFtS5SrwYh
-        chain: main
-        ip: 24.83.20.198
-        mode: local
-        node: nonvali_0
-        node_key: null
-        port: 5002
-        purge_chain: true
-        refresh: true
-        rpc_cors: all
-        rpc_port: 5003
-        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
-        validator: false
-        verbose: false
-        ws_port: 5004
       nonvali_1:
         boot_nodes: /ip4/24.83.20.198/tcp/2542/p2p/12D3KooWS1xDoQhM6sigkZipBbsd8wKZW5WL7beJUbDudafoyrJq
         chain: main
