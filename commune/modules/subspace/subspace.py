@@ -39,7 +39,8 @@ class Subspace(c.Module):
     chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
-    mode = 'local'
+    image = 'vivonasg/subspace:latest'
+    mode = 'docker'
     
     def __init__( 
         self, 
@@ -2459,7 +2460,7 @@ class Subspace(c.Module):
         chain_release_path = cls.chain_release_path(mode=mode)
         cmd = f'{chain_release_path} --help'
         if mode == 'docker':
-            cmd = f'docker run subspace {cmd}'
+            cmd = f'docker run {cls.image} {cmd}'
         elif mode == 'local':
             cmd = f'{cmd}'
 
@@ -2931,8 +2932,8 @@ class Subspace(c.Module):
             # c.print(cmd)
             if mode == 'docker':
                 container_base_path = base_path.replace(cls.chain_path, '/subspace')
-                volumes = f'-v {base_path}:{base_path}'
-                docker_cmd = f'docker run {volumes} subspace {cmd}'
+                volumes = f'-v {container_base_path}:{base_path}'
+                docker_cmd = f'docker run {volumes} {cls.image} {cmd}'
                 c.print(c.cmd(docker_cmd, verbose=True))
             elif mode == 'local':
                 c.cmd(cmd, verbose=True, cwd=cls.chain_path)
@@ -2948,11 +2949,16 @@ class Subspace(c.Module):
                     base_path:str = None,
                     chain:str = chain,
                     node:str = 'alice',
+                    mode = mode,
                     sudo = False):
         if base_path == None:
             base_path = cls.resolve_base_path(node=node, chain=chain)
+        path = base_path+'/chains/commune/db'
+        if mode == 'docker':
+            c.chown(path)
+
         
-        return c.rm(base_path+'/chains/commune/db')
+        return c.rm(path)
     
     
 
@@ -3019,7 +3025,7 @@ class Subspace(c.Module):
                          + f' -v {cls.snap_path}:{container_snap_path}'
 
             
-            cmd = f'bash -c "docker run {volumes} subspace {cmd} > {chain_spec_path}"'
+            cmd = f'bash -c "docker run {volumes} {cls.image} {cmd} > {chain_spec_path}"'
             value = c.cmd(cmd, verbose=False)
         elif mode == 'local':
             cmd = f'bash -c "{cmd} > {chain_spec_path}"'
@@ -3252,7 +3258,9 @@ class Subspace(c.Module):
 
         node_info = c.locals2kwargs(locals())
 
-        cmd = cls.chain_release_path()
+        chain_release_path = cls.chain_release_path()
+
+        cmd = chain_release_path
 
         # get free ports (if not specified)
         free_ports = c.free_ports(n=3)
@@ -3312,16 +3320,27 @@ class Subspace(c.Module):
                             verbose=verbose)
             
         elif mode == 'docker':
+            cmd = cmd + ' ' + cmd_kwargs
+            container_chain_release_path = chain_release_path.replace(cls.chain_path, '/subspace')
+            cmd = cmd.replace(chain_release_path, container_chain_release_path)
 
             # run the docker image
-            container_spec_path = cls.spec_path.replace(cls.chain_path, '/subspace')
-            container_snap_path = cls.snap_path.replace(cls.chain_path, '/subspace')
-            volumes = f'-v {cls.spec_path}:{container_spec_path}'\
-                         + f' -v {cls.snap_path}:{container_snap_path}'
+            container_spec_path = chain_spec_path.replace(cls.chain_path, '/subspace')
+            cmd = cmd.replace(chain_spec_path, container_spec_path)
 
-            
-            net = '--net host' # set the host to be the host ip
-            c.cmd('docker run -d --name  {name} {net} {volumes} subspace bash -c "{cmd}"', verbose=verbose)
+            key_path = cls.resolve_node_keystore_path(node=node, chain=chain)
+            container_base_path = base_path.replace(cls.tmp_dir(), '')
+            cmd = cmd.replace(base_path, container_base_path)
+    
+            volumes = f'-v {chain_spec_path}:{container_spec_path}'\
+                         + f' -v {base_path}:{container_base_path}'
+
+        
+
+
+            docker_cmd = f'docker run -d --name  {name} --net host {volumes} {cls.image} bash -c "{cmd}"'
+            c.print(docker_cmd)
+            c.cmd(docker_cmd, verbose=True)
         else: 
             raise Exception(f'unknown mode {mode}')
         
@@ -3354,7 +3373,7 @@ class Subspace(c.Module):
     def start_chain(cls, 
                     chain:str=chain, 
                     valis:int = 8,
-                    nonvalis:int = 16,
+                    nonvalis:int = 1,
                     verbose:bool = False,
                     purge_chain:bool = True,
                     refresh: bool = True,
@@ -3376,7 +3395,7 @@ class Subspace(c.Module):
             vali_nodes = vali_nodes[:valis]
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
         if len(vali_nodes) <= valis:
-            cls.add_node_keys(chain=chain, valis=valis)
+            cls.add_node_keys(chain=chain, valis=valis, nonvalis=nonvalis)
 
         assert len(vali_nodes) >= valis, 'There must be at least 2 vali nodes'
         # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES
