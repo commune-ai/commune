@@ -99,28 +99,33 @@ class Subspace(c.Module):
             
         self.network = network
         
-        url = c.choice(self.urls(network=network))
-
-        if not url.startswith('ws://'):
-            url = 'ws://' + url
-
-    
-        self.url = url
         
+        while True:
 
-        self.substrate= SubstrateInterface(
-                                    url=url, 
-                                    websocket=websocket, 
-                                    ss58_format=ss58_format, 
-                                    type_registry=type_registry, 
-                                    type_registry_preset=type_registry_preset, 
-                                    cache_region=cache_region, 
-                                    runtime_config=runtime_config, 
-                                    ws_options=ws_options, 
-                                    auto_discover=auto_discover, 
-                                    auto_reconnect=auto_reconnect, 
-                                    *args,
-                                    **kwargs)
+            url = c.choice(self.urls(network=network))
+            if not url.startswith('ws://'):
+                url = 'ws://' + url
+
+            
+            self.url = url
+            try:
+                self.substrate= SubstrateInterface(
+                                            url=url, 
+                                            websocket=websocket, 
+                                            ss58_format=ss58_format, 
+                                            type_registry=type_registry, 
+                                            type_registry_preset=type_registry_preset, 
+                                            cache_region=cache_region, 
+                                            runtime_config=runtime_config, 
+                                            ws_options=ws_options, 
+                                            auto_discover=auto_discover, 
+                                            auto_reconnect=auto_reconnect, 
+                                            *args,
+                                            **kwargs)
+            except Exception as e:
+                continue
+            break
+
         
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
