@@ -11,6 +11,23 @@ chain_info:
     - /ip4/198.166.138.214/tcp/5078/p2p/12D3KooWPn88acEZoGe63y4grTM7ui2AcWYetec92bSxUFoBR8RR
     - /ip4/198.166.138.214/tcp/5083/p2p/12D3KooWRzBjAom4YhH8j9jwPZ2EPBNXccnprpdXhC4CFFRL65uS
     nodes:
+      alice:
+        boot_nodes: /ip4/198.166.138.214/tcp/5083/p2p/12D3KooWRzBjAom4YhH8j9jwPZ2EPBNXccnprpdXhC4CFFRL65uS
+        chain: dev
+        ip: 24.83.20.222
+        local: false
+        mode: docker
+        node: alice
+        node_key: null
+        port: 3010
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 3011
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 3012
       nonvali_0:
         boot_nodes: /ip4/198.166.138.214/tcp/5062/p2p/12D3KooWPttfeuyCyA5avpStrNRA8p4taDFcuiBFsfjrSdwVPwph
         chain: dev
@@ -295,6 +312,23 @@ chain_info:
     - /ip4/24.83.20.198/tcp/2566/p2p/12D3KooWH5xUvjBSbFsE8mMWHR5jShE5TXdpataTerukiZFRWXkn
     - /ip4/24.83.20.198/tcp/2569/p2p/12D3KooWKTDnNuZtgXmMWQgFLMnBiyVDPW1yu5fqrQ2F2b5ckw9r
     nodes:
+      alice:
+        boot_nodes: /ip4/24.83.20.198/tcp/2542/p2p/12D3KooWS1xDoQhM6sigkZipBbsd8wKZW5WL7beJUbDudafoyrJq
+        chain: main
+        ip: 24.83.20.222
+        local: false
+        mode: docker
+        node: alice
+        node_key: null
+        port: 3003
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 3004
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 3006
       nonvali_1:
         boot_nodes: /ip4/24.83.20.198/tcp/2542/p2p/12D3KooWS1xDoQhM6sigkZipBbsd8wKZW5WL7beJUbDudafoyrJq
         chain: main
@@ -1048,8 +1082,6 @@ chain_info:
         verbose: false
         ws_port: 2571
     url: []
-
-
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 loop: false
 mode: local

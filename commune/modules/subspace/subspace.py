@@ -103,7 +103,7 @@ class Subspace(c.Module):
         
         while True:
 
-            url = c.choice(self.urls(network=network))
+            url = self.resolve_node_url(url=url, chain=network)
             if not url.startswith('ws://'):
                 url = 'ws://' + url
 
@@ -3232,9 +3232,31 @@ class Subspace(c.Module):
         for node in nodes:
             self.start_node(node=node, chain=chain, **kwargs)
 
+    @classmethod
+    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, **kwargs):
+        cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
+        cls.start_node(node=node, chain=chain, mode=mode, local=True, **kwargs)
 
+    @classmethod
+    def local_nodes(cls, chain=chain):
+        return cls.ls(f'local_nodes/{chain}')
 
+    @classmethod
+    def has_local_node(cls, chain=chain):
+        return len(cls.local_nodes(chain=chain)) > 0
 
+    @classmethod
+    def resolve_node_url(self, url = None, chain=chain):
+        if url != None:
+            return url
+        local_node_paths = self.local_nodes(chain=chain)
+        if len(local_node_paths) > 0:
+            local_node_info = self.get(local_node_paths[0])
+            port = local_node_info['ws_port']
+            url = f'ws://0.0.0.0:{port}'
+        else:
+            url = c.choice(self.urls(chain=chain))
+        return url
     @classmethod
     def start_node(cls,
                  node : str,
@@ -3251,6 +3273,7 @@ class Subspace(c.Module):
                  mode :str = mode,
                  rpc_cors = 'all',
                  validator:bool = False,
+                 local:bool = False,
                  
                  ):
 
@@ -3320,6 +3343,9 @@ class Subspace(c.Module):
                             verbose=verbose)
             
         elif mode == 'docker':
+            docker = c.module('docker')()
+            if docker.exists(name):
+                docker.kill(name)
             cmd = cmd + ' ' + cmd_kwargs
             container_chain_release_path = chain_release_path.replace(cls.chain_path, '/subspace')
             cmd = cmd.replace(chain_release_path, container_chain_release_path)
@@ -3339,7 +3365,6 @@ class Subspace(c.Module):
 
 
             docker_cmd = f'docker run -d --name  {name} --net host {volumes} {cls.image} bash -c "{cmd}"'
-            c.print(docker_cmd)
             c.cmd(docker_cmd, verbose=True)
         else: 
             raise Exception(f'unknown mode {mode}')
@@ -3348,8 +3373,13 @@ class Subspace(c.Module):
             # ensure you add the node to the chain_info if it is a bootnode
             node_id = cls.get_node_id(node=node, chain=chain, mode=mode)
             chain_info['boot_nodes'] +=  [f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}']
+
         chain_info['nodes'][node] = node_info
-        cls.putc(f'chain_info.{chain}', chain_info)
+
+        if local:
+            cls.put(f'local_nodes/{chain}/{node}', node_info)
+        else:
+            cls.putc(f'chain_info.{chain}', chain_info)
 
 
         return {'success':True, 'msg': f'Node {node} is not a validator, so it will not be added to the chain'}
