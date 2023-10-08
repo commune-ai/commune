@@ -1,3 +1,0 @@
-max_active_clients: 100
-modules: dataset
-max_staleness: 10
