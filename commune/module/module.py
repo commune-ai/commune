@@ -2132,86 +2132,6 @@ class c:
         else:
             return False
 
-    @classmethod
-    def get_server_name(cls, *args,**kwargs):
-        return c.gather(c.async_get_server_name(*args,**kwargs), timeout=1)
-        
-    @staticmethod
-    async def async_get_server_name(peer_address:str, connect_timeout:int=4, fn_timeout:int=4, verbose:bool=False, **kwargs):
-        try:
-            peer_address = c.default_ip + ':' + peer_address.split(':')[-1]
-
-            peer = await c.async_connect(peer_address, namespace={}, timeout=connect_timeout, virtual=False, ignore_error=True)
-
-            if peer == None: 
-                return peer
-
-            server_name = peer(fn='server_name',  return_future=True)
-
-
-            server_name = await asyncio.wait_for(server_name, timeout=fn_timeout)
-
-            c.print(f'Getting peer name from {server_name}', color='green', verbose=verbose)
-
-            if c.check_response(server_name):
-                return server_name
-            else:
-                return server_name
-        except Exception as e:
-            c.print(c.detailed_error(e))
-            return {'error':str(e)}
-
-            
-                
-    @classmethod
-    def namespace_local(cls,
-                        update:bool=False,
-                        chunk_size:int=10, 
-                        full_scan = False,
-                        **kwargs)-> dict:
-        '''
-        The module port is where modules can connect with each othe.
-        When a module is served "module.serve())"
-        it will register itself with the namespace_local dictionary.
-        '''
-
-        namespace_local = c.get('namespace_local', {}) # get local namespace from redis
-        modules = list(namespace_local.keys()) # list of modules in local namespace
-
-        if update : 
-        
-        
-            addresses = c.copy(list(namespace_local.values()))
-            if full_scan == True or len(addresses) == 0:
-                addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
-
-        
-            namespace_local = {}
-
-            c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
-
-            for i in range(0, len(addresses), chunk_size):
-                addresses_chunk = addresses[i:i+chunk_size]
-                names_chunk = c.gather([cls.async_get_server_name(address) for address in addresses_chunk])
-                for i in range(len(names_chunk)):
-                    if isinstance(names_chunk[i], str):
-                        namespace_local[names_chunk[i]] = addresses_chunk[i]
-
-            c.put('namespace_local', namespace_local)
-            
-        for k, v in namespace_local.items():
-            namespace_local[k] = c.default_ip + ':' + v.split(':')[-1]
-        return namespace_local
-    
-    @classmethod
-    def rename_server(cls, name:str, new_name:str) -> Dict:
-        namespace_local = cls.namespace_local()
-        namespace_local[new_name] = namespace_local.pop(name)
-        cls.put_json(path='namespace_local', data=namespace_local, root=True) 
-        return {new_name:namespace_local[new_name]}
-    
-    rename = rename_module = rename_server
-    
     
     
     @classmethod
@@ -2219,6 +2139,7 @@ class c:
         import fcntl
         fcntl.flock(f, fcntl.LOCK_EX)
         return f
+    
     @classmethod
     def unlock_file(cls, f):
         import fcntl
@@ -2227,27 +2148,12 @@ class c:
     
     
     @classmethod
-    def register_server(cls, name: str, ip: str,port: int = None,  **kwargs)-> dict:
-        namespace_local = c.namespace_local(update=False)    
+    def register_server(cls, name: str, address:str, network='local')-> dict:
+        return c.module(c.namespace_module).register_server(name=name, address=address, network=network)
 
-        if c.is_address(ip):
-            port = int(ip.split(':')[-1])
-            ip = ip.split(':')[0]
-        namespace_local[name] = f'{ip}:{port}'
-        c.put_json('namespace_local', namespace_local, root=True) 
-        assert c.server_exists(name), f'Failed to register server {name} with address {ip}:{port}'
-        return namespace_local
-
-
-    
     @classmethod
-    def deregister_server(cls, name: str)-> dict:
-        namespace_local = c.namespace_local()    
-        
-        namespace_local.pop(name, None)
-        c.put_json('namespace_local', namespace_local, root=True) 
-        return namespace_local
-  
+    def deregister_server(cls, name: str, network:str = 'local')-> dict:
+        return c.module(c.namespace_module).deregister_server(name=name, network=network)
   
     @classmethod
     def is_address(cls, address:str) -> bool:
@@ -2341,13 +2247,6 @@ class c:
     
     resolve_port = get_port
 
-
-
-
-
-    
-
-
     @property
     def server_name(self):
         if not hasattr(self, 'config') or not (isinstance(self.config, Munch)):
@@ -2410,61 +2309,29 @@ class c:
             attrs = [a for a in attrs if search in a]
         return attrs
 
-    @classmethod
-    def namespace_global(cls, update=False) -> Dict:
-        
-        global_namespace = {
-            **cls.namespace_local(),
-            **cls.namespace_subspace()
-        }
-        
-        return global_namespace
-    
-    
-
-    @classmethod
-    def namespace_subspace(cls, update:bool = False , **kwargs ) -> Dict:
-        namespace = c.module('subspace')().namespace(update=update, **kwargs)
-        return namespace
-
         
     @classmethod
-    def name2address(cls, name:str, **kwargs) -> str:
-        namespace = cls.namespace(**kwargs)
-        address =  namespace.get(name, None)
-        ip = c.ip()
-    
-        address = address.replace(c.default_ip, ip)
-        assert ip in address, f'ip {ip} not in address {address}'
-        return address
-
+    def name2address(cls, name:str, network:str='local') -> str:
+        return c.module(c.namespace_module).name2address(name=name, network=network)
 
     @classmethod
-    def virtual_client(cls, module=None): 
+    def virtual_client(cls, module): 
         virtual_client =  c.import_object('commune.modules.client.virtual.VirtualClient')
-        if module != None:
-            return virtual_client(module)
-        return virtual_client
-        
+        return virtual_client(module)
+    
+    namespace_module = 'module.namespace'
     @classmethod
     def namespace(cls,
                   search:str = None,
-                  network:str=None,
-                  verbose: bool = False,
-                  update: bool = False,
-                  max_staleness:int = 30,
-                  **kwargs):
+                  network:str='local',
+                  update: bool = False):
 
-
-        network = c.resolve_network(network)
-        namespace_fn = getattr(cls, f'namespace_{network}')
-        namespace = namespace_fn(update=update, **kwargs)        
-        if search:
-            namespace = {k:v for k,v in namespace.items() if str(search) in k}
-            return namespace
-        if network != 'local':
-            namespace_local = c.namespace_local()
-            namespace = { **namespace, **namespace_local,}
+        namespace = c.module(c.namespace_module).get_namespace(search=search, network=network, update=update)
+        return namespace
+    
+    @classmethod
+    def put_namespace(cls,*args, **kwargs):
+        namespace = c.module(c.namespace_module).put_namespace(*args, **kwargs)
         return namespace
     
 
@@ -2572,7 +2439,6 @@ class c:
         
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
-
         # this automatically adds 
 
         self = module_class(**kwargs)
@@ -2589,7 +2455,7 @@ class c:
         if port == None:
             port = c.free_port()
             
-        server = c.module(f'server.{server_mode}')(module=module, name= server_name, ip=ip, port=int(port))
+        server = c.module(f'server.{server_mode}')(module=self, name= server_name, port=int(port))
         return server.name
 
     serve_module = serve
@@ -2695,13 +2561,10 @@ class c:
             auth = self.key.sign(info, return_json=True)
             info['signature'] = auth['signature']
             info['ss58_address'] = auth['address']
-
-        if peers:
-            info['peers'] = self.peers()
-        if namespace:
-            info['namespace'] = c.namespace()
         if schema:
-            info['schema'] = self.schema()
+            schema = self.schema(defaults=True)
+            info['schema'] = {fn: schema[fn] for fn in fns}
+
         return info
     
     help = info
@@ -2740,7 +2603,7 @@ class c:
             fn_obj = getattr(obj, fn )
             if callable(fn_obj):
                 function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
-                
+    
         return function_schema_map
 
     @classmethod
@@ -2794,6 +2657,7 @@ class c:
             if arg in ['self', 'cls']:
                 fn_schema['type'] = arg
                 fn_schema['input'].pop(arg)
+                fn_schema['default'].pop(arg, None)
                 
 
         return fn_schema
@@ -3138,7 +3002,6 @@ class c:
     r = reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        output_list = []
         pm2_list = cls.pm2_list()
         if name in pm2_list:
             rm_list = [name]
@@ -3147,7 +3010,6 @@ class c:
                 rm_list = [ p for p in pm2_list if p.startswith(name)]
             else:
                 raise Exception(f'pm2 process {name} not found')
-
         if len(rm_list) == 0:
             if verbose:
                 c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
@@ -3156,10 +3018,9 @@ class c:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.cmd(f"pm2 delete {n}", verbose=False)
-
             cls.pm2_rm_logs(n)
-
         return rm_list
+    
     @staticmethod
     def detailed_error(e) -> dict:
         import traceback
@@ -3174,6 +3035,7 @@ class c:
             'line_text': line_text
         }   
         return response
+    
     @classmethod
     def pm2_restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         pm2_list = cls.pm2_list()
@@ -3192,11 +3054,9 @@ class c:
         for n in rm_list:
             c.print(f'Restarting {n}', color='cyan')
             cls.cmd(f"pm2 restart {n}", verbose=False)
-            cls.pm2_rm_logs(n)
-            
+            cls.pm2_rm_logs(n)  
         return rm_list
        
-        
     @classmethod
     def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()
@@ -3515,7 +3375,6 @@ class c:
         else:
             module_class = c.module(module)
             
-        name = self.get_server_name(name=name, tag=tag) 
         assert isinstance(name, str)
         
         actor_kwargs['name'] = name
@@ -3794,11 +3653,9 @@ class c:
             return cls
         elif isinstance(module, str):
             modules = c.modules()
-            if module in modules:
-                module =  c.get_module(module,**kwargs)
-                return module
-            else:
-                return c.module('module.wrap')(module)
+            assert module in modules, f'{module} does not exist'
+            module =  c.get_module(module,**kwargs)
+            return module
         else: 
             raise NotImplementedError
 
@@ -4008,18 +3865,22 @@ class c:
     
     @classmethod
     def external_ip(cls, *args, **kwargs) -> str:
-        return c.module('network').get_external_ip(*args, **kwargs)
-        return ip 
+        ip = c.module('network').get_external_ip(*args, **kwargs)
+        if ip == None or len(ip) == 0:
+            ip = c.default_ip
+        return ip
     
     @classmethod
-    def ip(cls, cache:bool = True, **kwargs) -> str:
-        if cache:
+    def ip(cls, update:bool = False, **kwargs) -> str:
+        if not update:
             ip = c.get('ip', None)
             if ip != None:
                 return ip
         
         ip =  cls.external_ip(**kwargs)
-        if cache:
+        if ip == None:
+            ip = '0.0.0.0'
+        if update:
             c.put('ip', ip)
         return ip
     @classmethod
@@ -4580,7 +4441,7 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, modules=['server', 'key', 'subspace', 'executor'], verbose:bool=False):
+    def test(cls, modules=['server', 'key', 'executor', 'namespace'], verbose:bool=False):
         test_results = []
         for module_name in modules:
             c.print(f'Testing {module_name}', color='yellow')
@@ -5530,8 +5391,10 @@ class c:
                ):
         
         # update local namespace
+        c.ip(update=True)
         c.namespace(network=network, update=True)
         servers = c.servers(network=network)
+        
 
         return {'success': True, 'servers': servers}
 
@@ -7194,11 +7057,6 @@ class c:
     def key_info_map(cls, *args, **kwargs):
         return c.module('key').key_info_map(*args, **kwargs)
     
-
-    @classmethod
-    def name(cls, *args, **kwargs):
-        return c.module('subspace')().name(*args, **kwargs)
-
     @property
     def key(self):
         if not hasattr(self, '_key'):
@@ -7334,10 +7192,7 @@ class c:
         cls.upgrade_proto()
         cls.build_proto()
 
-
-
     # SUBSPACE LAND
-
     @classmethod
     def register_servers(cls, *args, **kwargs):
         return c.module('subspace')().register_servers(*args, **kwargs)
@@ -7501,7 +7356,6 @@ class c:
     @classmethod
     def batch(cls, x: list, batch_size:int=8): 
         return c.chunk(x, chunk_size=batch_size)
-
     
     @classmethod 
     def chmod_scripts(cls):
@@ -7530,7 +7384,6 @@ class c:
         cls.chmod_scripts()
         c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
-
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
         import functools
@@ -7551,11 +7404,8 @@ class c:
             
             if cache:
                 cls.put(fn_name, result, cache=cache)
-
             return result
-
         return wrapper
-
 
     @classmethod
     def ss58_encode(cls, data:Union[str, bytes], ss58_format=42, **kwargs):
@@ -7826,7 +7676,6 @@ class c:
                 emojis += [v]
    
         return c.choice(emojis)
-
         
     emojis = {'dank': '🔥',
             'error': '💥',
@@ -7883,8 +7732,6 @@ class c:
             'question': '❓',
             
     }
-
-
     
 Module = c
 Module.run(__name__)

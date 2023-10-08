@@ -24,23 +24,6 @@ class AccessSubspace(c.Module):
         self.user_info = {}
 
     def sync(self):
-<<<<<<< HEAD
-        try:
-            sync_time  = c.time() - self.sync_time
-            if sync_time >  self.config.sync_interval :
-                self.sync_time = c.time()
-                self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
-                self.stakes = self.subspace.stakes(fmt='j')
-            else:
-                return
-        except Exception as e:
-            c.print(e, color='red')
-            self.subspace = None
-            self.statsk = {}
-        
-
-            
-=======
         sync_time  = c.time() - self.sync_time
         # if the sync time is greater than the sync interval, we need to sync
         if sync_time >  self.config.sync_interval :
@@ -50,7 +33,6 @@ class AccessSubspace(c.Module):
         else:
             c.print(f"Sync time {sync_time} < {self.config.sync_interval}, skipping sync")
             return
->>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         
 
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}

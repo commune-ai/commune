@@ -5,10 +5,14 @@ import streamlit as st
 class Storage(c.Module):
     whitelist: List = ['put', 'get', 'get_hash']
 
-    def __init__(self, store: Dict = None, **kwargs):
-        self.replicas = {}
+    def __init__(self, max_replicas:int = 1, network='local', **kwargs):
+        self.replica_map = {}
+        self.max_replicas = max_replicas
+        self.network = network
         self.set_config(kwargs=locals()) 
         self.serializer = c.module('serializer')()
+
+
     @property
     def store_dirpath(self) -> str:
         return self.resolve_path(f'{self.tag}.store')
@@ -27,14 +31,20 @@ class Storage(c.Module):
         v = self.key.sign(v, return_json=True)
         path = self.resolve_store_path(k)
         return c.put(path, v)
-<<<<<<< HEAD
+    
+    @property
+    def peers(self):
+        return [m for m in c.servers(self.module_path()) if m != self.server_name]
+    
+
+    def check_replicas(self):
+        
+        replicas = self.replicas
+        c.print(replicas)
+        c.print(replicas)
     
 
     def get(self,k, deserialize:bool= True) -> Any:
-=======
-
-    def get(self,k:str, deserialize:bool= True) -> Any:
->>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         path = self.resolve_store_path(k)
         v = c.get(path, {})
         if 'data' not in v:

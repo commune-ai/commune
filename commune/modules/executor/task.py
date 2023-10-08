@@ -89,6 +89,11 @@ class Task(c.Module):
     def done(self) -> bool:
         return self.future.done()
 
-    
-
+    def __lt__(self, other):
+        if isinstance(other, Task):
+            return self.priority < other.priority
+        elif isinstance(other, int):
+            return self.priority < other
+        else:
+            raise TypeError(f"Cannot compare Task with {type(other)}")
     

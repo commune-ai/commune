@@ -14,39 +14,34 @@ class ServerHTTP(c.Module):
         module: Union[c.Module, object],
         name: str = None,
         port: Optional[int] = None,
-        address: Optional[str] = None,
         sse: bool = True,
-        ip = None,
         chunk_size: int = 42_000,
         max_request_staleness: int = 60,
     ) -> 'Server':
         self.sse = sse
-        
         self.serializer = c.module('serializer')()
-
-        # RESOLVE THE IP AND PORT -> ADDRESS
         self.ip = c.default_ip # default to '0.0.0.0'
         self.port = c.resolve_port(port)
-        self.address = f"0.0.0.0:{self.port}" if address == None else address
+        self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
-        assert self.address != None, f"Address not set"
-        # RESOLVE THE NAME OF THE SERVER
+        self.chunk_size = chunk_size
+
         if name == None:
             if hasattr(module, 'server_name'):
                 name = module.server_name
             else:
-                name = c.class_name
+                name = module.__class__.__name__
+        
 
         self.module = module 
+        c.print(self.module, type(self.module), module.key)
         self.key = module.key      
         # register the server
+        self.name = name
         module.ip = self.ip
         module.port = self.port
         module.address  = self.address
         self.set_api(ip=self.ip, port=self.port)
-
-
-    
 
     def set_api(self, ip = None, port = None):
         ip = self.ip if ip == None else ip
@@ -66,7 +61,6 @@ class ServerHTTP(c.Module):
 
         @self.app.post("/{fn}")
         async def forward_api(fn:str, input:dict):
-            address_abbrev = None
             try:
 
                 input['fn'] = fn
@@ -77,29 +71,21 @@ class ServerHTTP(c.Module):
                 args = data.get('args',[])
                 kwargs = data.get('kwargs', {})
                 
-                result = self.forward(fn=fn,
-                                    args=args,
-                                    kwargs=kwargs,
-                                    )
-
+                result = self.forward(fn=fn,args=args, kwargs=kwargs)
                 success = True
+
             except Exception as e:
-                raise e
                 result = c.detailed_error(e)
                 success = False
-            
+
             result = self.process_result(result)
-            
 
             if success:
-                
-                c.print(f'\033[32m Success: {self.name}::{fn} --> {input["address"][:5]}... 🎉\033 ')
+                c.print(f'✅ Success: {self.name}::{fn} --> {input["address"][:5]}... ✅\033 ')
             else:
+                c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"][:5]}... 🚨\033')
                 c.print(result)
-                c.print(f'\033🚨 Error: {self.name}::{fn} --> {input["address"][:5]}... 🚨\033')
 
-            # send result to
-            #  client
             return result
         
         self.serve()
@@ -184,8 +170,8 @@ class ServerHTTP(c.Module):
         import uvicorn
 
         try:
-            c.print(f'\033🚀 Serving {self.name} on {self.ip}:{self.port} 🚀\033')
-            c.register_server(name=self.name, ip=self.ip, port=self.port)
+            c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
+            c.register_server(name=self.name, address = self.address)
 
             c.print(f'\033🚀 Registered {self.name} on {self.ip}:{self.port} 🚀\033')
 

@@ -15,7 +15,7 @@ class ModuleWrapper(c.Module):
         return cls.get_module_path(simple=False)
     
     def module_path(cls) -> str:
-        return .module.__name__.lower()
+        return cls.__name__.lower()
 
 
     def schema(self, **kwargs) -> Dict[str, Any]:

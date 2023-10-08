@@ -2727,25 +2727,15 @@ class Subspace(c.Module):
     def snapshot_map(cls):
         return {l.split('/')[-1].split('.')[0]: l for l in c.ls(f'{cls.chain_path}/snapshots')}
         
-    @classmethod
-    def get_snapshot(cls, chain=chain):
-        return c.get_json(cls.snapshot_map()[chain])
-
-    def update_snapshot(cls, chain=chain):
-        snapshot = cls.get_snapshot(chain=chain)
-        version = snapshot.get('version', 0)
-        if version == 0:
-            # version 0 does not have weights
-            max_allowed_weights = 100
-            snapshot['subnets'] = [[*s[:4], max_allowed_weights ,*s[4:]] for s in snapshot['subnets']]
+    
     @classmethod
     def install_rust(cls, sudo=True):
         c.cmd(f'chmod +x scripts/install_rust_env.sh',  cwd=cls.chain_path, sudo=sudo)
 
     @classmethod
     def build(cls, chain:str = chain, 
-             build_spec:bool=True, 
              build_runtime:bool=True,
+             build_spec:bool=True, 
              build_snapshot:bool=False,  
              verbose:bool=True, 
              mode = mode,
@@ -3258,7 +3248,7 @@ class Subspace(c.Module):
             port = local_node_info['ws_port']
             url = f'ws://0.0.0.0:{port}'
         else:
-            url = c.choice(self.urls(chain=chain))
+            url = c.choice(self.urls(network=chain))
         return url
     @classmethod
     def start_node(cls,
