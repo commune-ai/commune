@@ -127,7 +127,8 @@ class Subspace(c.Module):
                 continue
             break
 
-        
+        c.print(f'Connecting to {url}...')
+
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
     def __str__(self) -> str:
