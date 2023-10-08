@@ -5,7 +5,11 @@ class Namespace(c.Module):
     network : str = 'local'
 
     @classmethod
+<<<<<<< HEAD
     def register_server(cls, name:str, address:str, network:str=network) -> None:
+=======
+    def register_server(cls, name:str, address:str, network=network) -> None:
+>>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         namespace = cls.get_namespace(network)
         namespace[name] = address
         cls.put_namespace(network, namespace)
@@ -23,7 +27,11 @@ class Namespace(c.Module):
             return {'status': 'failure', 'msg': f'Block {name} not found.'}
 
     @classmethod
+<<<<<<< HEAD
     def get_block(cls, name:str, network:str=network) -> dict:
+=======
+    def get_block(cls, name:str, network=network) -> dict:
+>>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         namespace = cls.get_namespace(network)
         return namespace.get(name, None)
 
@@ -45,7 +53,11 @@ class Namespace(c.Module):
             return {'status': 'failure', 'msg': f'Namespace {network} not found.'}
     
     @classmethod
+<<<<<<< HEAD
     def namespaces(cls) -> dict:
+=======
+    def networks(cls) -> dict:
+>>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         return [p.split('/')[-1].split('.')[0] for p in cls.ls()]
     
     @classmethod
@@ -59,7 +71,11 @@ class Namespace(c.Module):
         cls.rm_namespace(network)
         cls.rm_namespace(network2)
 
+<<<<<<< HEAD
         assert cls.get_namespace(network) == {}, f'Namespace not empty. {cls.get_namespace(network)}'
+=======
+        assert cls.get_namespace(network) == {}, 'Namespace not empty.'
+>>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         cls.register_server('test', 'test', network=network)
         assert cls.get_namespace(network) == {'test': 'test'}, f'Namespace not updated. {cls.get_namespace(network)}'
 
@@ -75,6 +91,7 @@ class Namespace(c.Module):
         
         return {'status': 'success', 'msg': 'Namespace tests passed.'}
     
+<<<<<<< HEAD
     @classmethod
     def modules(cls, network:List=network) -> List[str]:
         return list(cls.get_namespace(network=network).keys())
@@ -87,4 +104,9 @@ class Namespace(c.Module):
     def module_exists(cls, module:str, network:str=network) -> bool:
         namespace = cls.get_namespace(network=network)
         return bool(module in namespace)
+=======
+    
+
+    
+>>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
 

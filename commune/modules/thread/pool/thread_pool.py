@@ -1,10 +1,11 @@
 import commune as c
 Thread = c.module('thread')
 import asyncio
+from typing import *
 import gc
 class ThreadPool(Thread):
     def __init__(self, 
-                fn = None,
+                fn : Optional['Callable'] = None,
                  num_workers:int = 4, 
                  max_queue_size:int = 100, 
                  verbose: bool = False, 
@@ -13,16 +14,15 @@ class ThreadPool(Thread):
                 
 
         self.path = path if path != None else self.resolve_path('store')
-
         self.verbose = verbose
-
         self.input_queue = self.queue(maxsize=max_queue_size)
         self.output_queue = self.queue(maxsize=max_queue_size)
         self.save_outputs = save_outputs
 
-
+        # start workers
         for i in range(num_workers):
-            self.thread(fn=self.run, kwargs=dict(fn=fn, queue = self.input_queue, semaphore=self.semaphore(num_workers), output_queue=self.output_queue), tag=f'worker_{i}')
+            kwargs =dict(fn=fn, queue = self.input_queue, semaphore=self.semaphore(num_workers),output_queue=self.output_queue)
+            self.thread(fn=self.run, kwargs=kwargs , tag=f'worker_{i}')
 
         self.fn = fn
 
@@ -32,21 +32,24 @@ class ThreadPool(Thread):
 
 
 
+    reserverd_keys = ['kwargs_key']
+
     def submit(self, 
              fn = None,
-             kwargs= None,
+             kwargs : dict = None,
              wait_until_response:bool = False, 
              timeout = 10, 
              sleep_inteval = 0.01):
         start_time = c.time()
         if kwargs == None:
             kwargs = {}
-        assert 'kwargs_key' not in kwargs, 'kwargs_key is a reserved key'
 
+        assert all([key not in kwargs for key in self.reserverd_keys]), f'{self.reserverd_keys} are reserved keys'
         kwargs_key = c.hash(kwargs) +'_T'+str(c.time())
+
         input = {'kwargs_key': kwargs_key, 'kwargs': kwargs, 'fn': fn}
-        kwargs['kwargs_key'] = kwargs_key
-        self.input_queue.put(kwargs)
+        # if self.verbose:
+        self.input_queue.put(input)
 
         if wait_until_response:
             c.print('Waiting for response')
@@ -101,18 +104,25 @@ class ThreadPool(Thread):
         while True:
 
             try:
-                kwargs = queue.get()
-                kwargs_key = kwargs.pop('kwargs_key')
-                if 'fn' in kwargs:
-                    tmp_fn = kwargs.pop('fn')
+                input = queue.get()
+                kwargs = input['kwargs']
+                kwargs_key = input['kwargs_key']
+                if input['fn'] != None:
+                    tmp_fn = input['fn']
                     assert callable(tmp_fn), f'fn must be callable, got {tmp_fn}'
-                    tmp_fn(**kwargs)
-                result = fn(**kwargs)
-                output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time()})
+                    result = tmp_fn(**kwargs)
+                    fn_name = tmp_fn.__name__
+                else:
+                    result = fn(**kwargs)
+                    fn_name = fn.__name__
+                
+                output_queue.put({'key': kwargs_key, 'result': result, 'kwargs': kwargs, 'time': c.time(), 'fn': fn_name})
                 ## remove memory
                 del kwargs
                 del result
                 del kwargs_key
+                del fn_name
+                del input
                 # garbage collect
                 gc.collect()
             except Exception as e:
@@ -130,9 +140,6 @@ class ThreadPool(Thread):
 
 
 
-    def __del__(self):
-        self.close()
-        
 
 
     
@@ -150,10 +157,7 @@ class ThreadPool(Thread):
             c.print(self.num_tasks)
 
 
-
-        
-
-
+        return {'success': True, 'msg': 'thread pool test passed'}
 
         
 

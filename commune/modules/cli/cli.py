@@ -11,6 +11,7 @@ class CLI(c.Module):
     def __init__(
             self,
             config: c.Config = None,
+            module_overrides: dict = ['network', 'key'],
 
         ) :
         c.new_event_loop(True)
@@ -35,7 +36,7 @@ class CLI(c.Module):
                 module = args.pop(0)
                 module = c.module(module)
             
-            elif args[0] in functions and args[0] not in self.module.config['module_overrides']:
+            elif args[0] in functions and args[0] not in module_overrides:
                 # is a function
                 module = c.Module
                 fn = args.pop(0)

@@ -1,16 +1,6 @@
-boot_peers:
-- 162.157.13.236:9057
-- 162.157.13.236:9402
+
 ip: 162.157.13.236
-module_overrides:
-- network
-- key
 network: subspace
-network2url: {}
-networks:
-- subspace
-- local
-- global
 shortcuts:
   bt: bittensor
   chain: subspace

@@ -6,14 +6,25 @@ import commune as c
 
 class AccessSubspace(c.Module):
     sync_time = 0
-    def __init__(self, module, **kwargs):
-        config = self.set_config(kwargs)
+    def __init__(self, 
+                module : Any, # the module or any python object
+                network: str =  'main', # mainnet
+                netuid: int = 0, # subnet id
+                sync_interval: int =  1000, #  1000 seconds per sync with the network
+                timescale:str =  'min', # 'sec', 'min', 'hour', 'day'
+                stake2rate: int =  100,  # 1 call per every N tokens staked per timescale
+                rate: int =  1,  # 1 call per timescale
+                base_rate: int =  0,# base level of calls per timescale (free calls) per account
+                fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
+                **kwargs):
+
+        config = self.set_config(kwargs=locals())
         self.module = module
         self.sync()
         self.user_info = {}
 
-
     def sync(self):
+<<<<<<< HEAD
         try:
             sync_time  = c.time() - self.sync_time
             if sync_time >  self.config.sync_interval :
@@ -29,6 +40,17 @@ class AccessSubspace(c.Module):
         
 
             
+=======
+        sync_time  = c.time() - self.sync_time
+        # if the sync time is greater than the sync interval, we need to sync
+        if sync_time >  self.config.sync_interval :
+            self.sync_time = c.time()
+            self.subspace = c.module('subspace')(network=self.config.network, netuid=self.config.netuid)
+            self.stakes = self.subspace.stakes(fmt='j')
+        else:
+            c.print(f"Sync time {sync_time} < {self.config.sync_interval}, skipping sync")
+            return
+>>>>>>> 59894203cf3bd502839dbaff9d41ada1ebe04228
         
 
     timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
@@ -44,6 +66,8 @@ class AccessSubspace(c.Module):
 
         # if not an admin address, we need to check the whitelist and blacklist
         fn = input.get('fn')
+
+        
         assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
         assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
 
