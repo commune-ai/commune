@@ -11,7 +11,7 @@ class OpenAILLM(c.Module):
     
     prompt = """{x}"""
 
-    whitelist = ['forward', 'chat', 'ask', 'generate']
+    whitelist = ['generate']
     
     def __init__(self, 
                  config: Union[str, Dict[str, Any], None] = None,
@@ -163,16 +163,27 @@ class OpenAILLM(c.Module):
         stats = [{k:v for k,v in cls.get(path).items() if k not in skip_keys} for path in stat_paths]
 
         return  stats
+    
+
     @classmethod
-    def tokens_per_hour(self):
-        return self.tokens_per_period(period=3600)
-    @classmethod
-    def tokens_per_period(cls, period=3600):
+    def tokens_per_period(cls, timescale='m'):
         stats = cls.stats()
+
+        if timescale == 's':
+            period = 1
+        elif timescale == 'm':
+            period = 60
+        elif timescale == 'h':
+            period = 3600
+        else:
+            raise NotImplemented(timescale)
+        
+
+        
         one_hour_ago = c.time() - period
         stats = [s for s in stats if s['timestamp'] > one_hour_ago]
-        tokens_per_hour = sum([s['input_tokens'] + s['output_tokens'] for s in stats])
-        return tokens_per_hour
+        tokens_per_period = sum([s['input_tokens'] + s['output_tokens'] for s in stats])
+        return tokens_per_period
 
     def add_stats(self, tag:str, stats:dict,  ):
         self.put(f'stats/{tag}.json', stats)
@@ -186,26 +197,6 @@ class OpenAILLM(c.Module):
 
     generate = call = forward
 
-
-    def resolve_params(self, params = None):
-        if params == None:
-            params = {}
-        params = c.locals2kwargs(params)
-        output_params = {}
-        for p in self.params:
-            if p in  self.params:
-                if params.get(p) == None:
-                    output_params[p] = self.params[p]
-                else:
-                    assert isinstance(params[p], type(self.params[p])), f"Parameter {p} must be of type {type(self.params[p])}, not {type(params[p])}"
-                    output_params[p] = params[p]
-            
-        return output_params
-
-
-        
-        
-        
     @classmethod
     def chat(cls, *args, **kwargs):
         return cls().forward(*args, **kwargs)
@@ -290,6 +281,7 @@ class OpenAILLM(c.Module):
     @classmethod
     def valid_api_key(self):
         return self.valid_api_keys()[0]
+    
     @classmethod
     def valid_api_keys(cls, verbose:bool = True):
         api_keys = cls.api_keys()
@@ -307,7 +299,7 @@ class OpenAILLM(c.Module):
     @classmethod
     def api_keys(cls, update:bool = False):
         if update:
-            cls.put('api_keys', self.valid_api_keys())
+            cls.put('api_keys', cls.valid_api_keys())
         return cls.get('api_keys', [])
         
     def num_tokens(self, text:str) -> int:
@@ -322,41 +314,32 @@ class OpenAILLM(c.Module):
     @classmethod
     def test(cls, input:str = 'What is the meaning of life?',**kwargs):
         module = cls()
-        c.print(module.ask(input))
+        output = module.generate(input)
+        assert isinstance(output, str)
+        return {'success': True, 'msg': 'test'}
 
     
     @classmethod
-    def verify_api_key(cls, api_key:str, text:str='ping'):
+    def verify_api_key(cls, api_key:str, text:str='ping', verbose:bool = True):
         model = cls(api_key=api_key)
         output = model.forward(text, max_tokens=1, api_key=api_key, retry=False)
         if 'error' in output:
-            c.print(f'ERROR \u2717 -> {api_key}', output['error'], color='red')
+            c.print(f'ERROR \u2717 -> {api_key}', output['error'], color='red', verbose=verbose)
             return False
         else:
             # checkmark = u'\u2713'
-            c.print(f'Verified \u2713 -> {api_key} ', output, color='green')
+            c.print(f'Verified \u2713 -> {api_key} ', output, color='green', verbose=verbose)
         return True
-
-    @classmethod
-    def restart_miners(cls, *args,**kwargs):
-        for m in cls.miners(*args, **kwargs):
-            c.restart(m)
+    
          
-    def set_tokenizer(self, tokenizer: str):
-
-        if tokenizer == None and hasattr(self, 'tokenizer'):
-            return self.tokenizer
-             
-        if tokenizer == None:
-            tokenizer = 'gpt2'
+    def set_tokenizer(self, tokenizer: str = 'gpt2'):
         from transformers import AutoTokenizer
 
-        if isinstance(tokenizer, str):
-            try:
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
-            except ValueError:
-                print('resorting ot use_fast = False')
-                tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast= True)
+        except ValueError:
+            print('resorting ot use_fast = False')
+            tokenizer = AutoTokenizer.from_pretrained(tokenizer, use_fast=False)
         
         tokenizer.pad_token = tokenizer.eos_token 
             
@@ -364,11 +347,9 @@ class OpenAILLM(c.Module):
     
         return self.tokenizer
 
-    
-    
-    
     def decode_tokens(self,input_ids: Union[torch.Tensor, List[int]], **kwargs) -> Union[str, List[str], torch.Tensor]:
         return self.tokenizer.decode(input_ids, **kwargs)
+    
     def encode_tokens(self, 
                  text: Union[str, List[str], torch.Tensor], 
                  return_tensors='pt', 
@@ -382,10 +363,6 @@ class OpenAILLM(c.Module):
                          padding=padding, 
                          truncation=truncation, 
                          max_length=max_length)
-    # @classmethod
-    # def serve(cls, *args, **kwargs):
-    #     name = cls.name()
-
 
     @classmethod
     def validate(cls, text = 'What is the meaning of life?', max_tokens=10):
@@ -408,35 +385,5 @@ class OpenAILLM(c.Module):
             response[s] = result
 
         return response
-
-
-
-
- 
-    @classmethod     
-    def st(cls):
-        import streamlit as st
-        model = cls()
-        
-        buttons = {}
-        st.write(c.python2types(model.__dict__))
-        response = 'bro what is up?'
-        prompt = '''
-        {x}
-        Document this in a markdown format that i can copy
-        '''
-        
-        
-        st.write(model.forward(model.fn2str()['forward'], prompt=prompt, max_tokens=1000))
-        
-        
-        
-        # for i in range(10):
-        #     response = model.forward(prompt='What is the meaning of life?', max_tokens=1000)
-        #     st.write(response, model.stats)
-        # st.write(model.forward(prompt='What is the meaning of life?'))
-        # model.save()
-        # model.test()
-        # st.write('fuckkkkffffff')
 
 
