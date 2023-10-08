@@ -22,17 +22,15 @@ class ServerHTTP(c.Module):
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'
         self.port = c.resolve_port(port)
-        self.address = f"0.0.0.0:{self.port}"
+        self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
-        assert self.address != None, f"Address not set"
-        # RESOLVE THE NAME OF THE SERVER
 
         if name == None:
             if hasattr(module, 'server_name'):
                 name = module.server_name
             else:
-                name = c.class_name
+                name = module.__class__.__name__
         
 
         self.module = module 
