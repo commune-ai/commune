@@ -2337,6 +2337,11 @@ class c:
         namespace = c.module(c.namespace_module).get_namespace(search=search, network=network, update=update)
         return namespace
     
+    @classmethod
+    def put_namespace(cls,*args, **kwargs):
+        namespace = c.module(c.namespace_module).put_namespace(*args, **kwargs)
+        return namespace
+    
 
     
     @classmethod
@@ -2443,7 +2448,7 @@ class c:
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
         # this automatically adds 
-        
+
         self = module_class(**kwargs)
         self.tag = tag
         self.server_name = server_name
@@ -2572,13 +2577,10 @@ class c:
             auth = self.key.sign(info, return_json=True)
             info['signature'] = auth['signature']
             info['ss58_address'] = auth['address']
-
-        if peers:
-            info['peers'] = self.peers()
-        if namespace:
-            info['namespace'] = c.namespace()
         if schema:
-            info['schema'] = self.schema()
+            schema = self.schema(defaults=True)
+            info['schema'] = {fn: schema[fn] for fn in fns}
+
         return info
     
     help = info
@@ -2618,7 +2620,7 @@ class c:
             fn_obj = getattr(obj, fn )
             if callable(fn_obj):
                 function_schema_map[fn] = cls.fn_schema(fn, defaults=defaults, code=code, docs=docs)
-                
+    
         return function_schema_map
 
     @classmethod
@@ -2672,6 +2674,7 @@ class c:
             if arg in ['self', 'cls']:
                 fn_schema['type'] = arg
                 fn_schema['input'].pop(arg)
+                fn_schema['default'].pop(arg, None)
                 
 
         return fn_schema
@@ -3016,7 +3019,6 @@ class c:
     r = reg = register
     @classmethod
     def pm2_kill(cls, name:str, verbose:bool = False, prefix_match:bool = True):
-        output_list = []
         pm2_list = cls.pm2_list()
         if name in pm2_list:
             rm_list = [name]
@@ -3025,7 +3027,6 @@ class c:
                 rm_list = [ p for p in pm2_list if p.startswith(name)]
             else:
                 raise Exception(f'pm2 process {name} not found')
-
         if len(rm_list) == 0:
             if verbose:
                 c.print(f'ERROR: No pm2 processes found for {name}',  color='red')
@@ -3034,10 +3035,9 @@ class c:
             if verbose:
                 c.print(f'Killing {n}', color='red')
             cls.cmd(f"pm2 delete {n}", verbose=False)
-
             cls.pm2_rm_logs(n)
-
         return rm_list
+    
     @staticmethod
     def detailed_error(e) -> dict:
         import traceback
@@ -3052,6 +3052,7 @@ class c:
             'line_text': line_text
         }   
         return response
+    
     @classmethod
     def pm2_restart(cls, name:str, verbose:bool = False, prefix_match:bool = True):
         pm2_list = cls.pm2_list()
@@ -3070,11 +3071,9 @@ class c:
         for n in rm_list:
             c.print(f'Restarting {n}', color='cyan')
             cls.cmd(f"pm2 restart {n}", verbose=False)
-            cls.pm2_rm_logs(n)
-            
+            cls.pm2_rm_logs(n)  
         return rm_list
        
-        
     @classmethod
     def pm2_restart_prefix(cls, name:str = None, verbose:bool=False):
         pm2_list = cls.pm2_list()
@@ -7441,7 +7440,6 @@ class c:
     @classmethod
     def batch(cls, x: list, batch_size:int=8): 
         return c.chunk(x, chunk_size=batch_size)
-
     
     @classmethod 
     def chmod_scripts(cls):
