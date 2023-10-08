@@ -184,12 +184,11 @@ class Vali(c.Module):
     def votes(cls, network='main', tag=None, base_score=0.01):
         stats = cls.load_stats( network=network, keys=['uid', 'w'], tag=tag)
         votes = {
-            'uids': [v['uid'] + base_score for v in stats],  # get all uids where w > 0
+            'uids': [v['uid'] for v in stats],  # get all uids where w > 0
             'weights': [v['w'] + base_score for v in stats],  # get all weights where w > 0
             'timestamp': c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
-        assert len(votes['uids']) > 0, f'Length of uids must be greater than 0, got {len(votes["uids"])} uids'
 
         return votes
 
@@ -203,6 +202,10 @@ class Vali(c.Module):
             return result
 
         votes = self.votes(network=self.config.network, tag=self.tag)
+
+        if len(votes['uids']) == 0:
+            c.print(f'No modules to vote on', color='red')
+            return {'success': False, 'message': 'No modules to vote on'}
 
         # get topk
         if len(votes['weights']) == 0:
@@ -354,6 +357,9 @@ class Vali(c.Module):
     def vote_staleness(self) -> int:
         return int(c.time() - self.last_vote_time)
 
+
+    
+
     def run(self, vote=False):
         c.sleep(self.config.sleep_time)
         c.print(f'Running -> network:{self.config.network} netuid: {self.config.netuid}', color='cyan')
@@ -441,7 +447,7 @@ class Vali(c.Module):
 
         if len(vali_stats) == 0:
             module_path = cls.module_path()
-            stats = c.stats(module_path+'::', df=False)
+            stats = c.stats(module_path+'::', df=False, network=network)
             name2stats = {s['name']: s for s in stats}
             for tag, path in cls.tag2path(mode='votes', network=network).items():
                 v = cls.get(path)
@@ -475,20 +481,21 @@ class Vali(c.Module):
     vstats = vali_stats
 
     @classmethod
-    def all_vali_stats(cls, network='main', df:bool = True, sortby:str=['name'] , update=False, cache_path:str = 'vali_stats'):
+    def all_vali_stats(cls, network='main', df:bool = True, sortby:str=['name'] , update=True, cache_path:str = 'vali_stats'):
         modules = c.modules('vali')
         all_vote_stats = []
         for m in modules:
             if not m.startswith('vali'):
                 continue 
             try:
-                m_vote_stats = c.module(m).vali_stats(df=False, network=network, return_all=False, update=False)
+                # WE ONLY WANT TO UPDATE THE STATS IF THE MODULE IS RUNNING
+                m_vote_stats = c.module(m).vali_stats(df=False, network=network, return_all=False, update=update)
                 c.print(f'Got vote stats for {m} (n={len(m_vote_stats)})')
                 if len(m_vote_stats) > 0:
                     all_vote_stats += m_vote_stats
             except Exception as e:
                 e = c.detailed_error(e)
-                c.print(e, color='red')
+                c.print(c.dict2str(e), color='red')
                 continue
                 
         if df == True:

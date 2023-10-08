@@ -315,9 +315,10 @@ class Keypair(c.Module):
                 c.print(f'key does not exist, generating new key -> {key["ss58_address"]}')
             else:
                 raise ValueError(f'key does not exist at --> {path}')
-            
         
         key_json = cls.get(path)
+
+        # if key is encrypted, decrypt it
         if c.is_encrypted(key_json):
             key_json = cls.decrypt(data=key_json, password=password)
             if key_json == None:
@@ -437,16 +438,14 @@ class Keypair(c.Module):
     @classmethod
     def rm_keys(cls, rm_keys, verbose:bool=False):
         
-        removed_keys = []
+        if isinstance(rm_keys, str):
+            rm_keys = cls.keys(rm_keys)
         
+        assert isinstance(rm_keys, list), f'rm_keys must be list, got {type(rm_keys)}'
+
         for rm_key in rm_keys:
-            keys = cls.keys()
-            for key in cls.keys():
-                if key.startswith(rm_key):
-                    cls.rm_key(key)
-                    c.print(f'removed key {key}')
-                    removed_keys.append(key)
-            
+            cls.rm_key(rm_key)
+        
         return {'removed_keys':rm_keys}
     
     @classmethod
@@ -1248,3 +1247,19 @@ class Keypair(c.Module):
             c.print('cleaning', k, a,  c.key_exists(a))
 
         
+    @staticmethod
+    def is_valid_ss58_address( address: str, valid_ss58_format:int=42  ) -> bool:
+        """
+        Checks if the given address is a valid ss58 address.
+
+        Args:
+            address(str): The address to check.
+
+        Returns:
+            True if the address is a valid ss58 address for Bittensor, False otherwise.
+        """
+        from substrateinterface.utils import ss58
+        try:
+            return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
+        except Exception as e:
+            return False

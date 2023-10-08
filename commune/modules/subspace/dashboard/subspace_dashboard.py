@@ -7,7 +7,7 @@ import plotly.express as px
 
 class SubspaceDashboard(c.Module):
     
-    def __init__(self, config=None): 
+    def __init__(self, netuid = 0, network = 'main'): 
         self.st = c.module('streamlit')()
         st.set_page_config(layout="wide")
         self.st = c.module('streamlit')()
@@ -23,14 +23,14 @@ class SubspaceDashboard(c.Module):
         return self.load_state(sync=True)
     
 
-    def load_state(self, sync:bool=False):
+    def load_state(self, sync:bool=False, netuid=0, network='main'):
 
         t = c.timer()
 
         self.subspace = c.module('subspace')()
         self.state = self.subspace.state_dict()
         c.print(f'Loaded State in {t.seconds} seconds')
-        self.netuid = self.config.netuid
+        self.netuid = self.netuid
         self.subnets = self.state['subnets']
 
         self.subnet2info = {s['netuid']: s for s in self.subnets}
@@ -423,7 +423,7 @@ class SubspaceDashboard(c.Module):
                                                         tag=tag, 
                                                         subnet=subnet, 
                                                         kwargs=kwargs, 
-                                                        network=self.config.network, 
+                                                        network=self.network, 
                                                         serve=serve)
             except Exception as e:
                 response = {'success': False, 'message': str(e)}

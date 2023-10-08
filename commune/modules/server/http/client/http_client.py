@@ -59,7 +59,7 @@ class Client(c.Module):
         kwargs: dict = None,
         ip: str = None,
         port : int= None,
-        timeout: int = 100,
+        timeout: int = 10,
         stream: bool = True,
         return_error: bool = False,
         asyn: bool = True,
@@ -81,6 +81,7 @@ class Client(c.Module):
                         "timestamp": c.timestamp(),
                         }
         
+        # serialize this into a json string
         request_data = self.serializer.serialize( request_data)
 
         # sign the request
