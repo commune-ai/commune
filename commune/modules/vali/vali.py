@@ -1,18 +1,9 @@
-# import nest_asyncio
-# nest_asyncio.apply()
-import commune as c
 import torch
 import traceback
-import threading 
-import queue
-import concurrent.futures
-import gc
-import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import commune as c
 
 
 class Vali(c.Module):
-
     
     last_sync_time = 0
 
@@ -63,13 +54,15 @@ class Vali(c.Module):
                 network = self.config.network
             if netuid == None:
                 netuid = self.config.netuid
+            
+            self.n  = len(self.modules)
             self.subspace = c.module('subspace')(network=network, netuid=netuid)
             self.modules = self.subspace.modules(update=False, netuid=netuid)
-            self.namespace = {v['name']: v['address'] for v in self.modules }
             if self.config.module_prefix != None:
                 self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
-            self.n  = len(self.modules)
-            self.subnet = self.subspace.subnet()
+                
+            self.subnet = self.subspace.subnet(netuid=netuid)
+
             if self.config.vote_interval == None: 
                 self.config['vote_interval'] = self.subspace.seconds_per_epoch()
 
@@ -86,10 +79,16 @@ class Vali(c.Module):
 
     def score_module(self, module, **kwargs):
 
+        '''
+        params:
+            module: module client
+            kwargs : the key word arguments
+        
+        '''
+
         info = module.info()
         assert isinstance(info, dict), f'Response must be a dict, got {type(info)}'
         assert 'address' in info, f'Response must have an error key, got {info.keys()}'
-
         return {'success': True, 'w': 1}
 
 
@@ -99,15 +98,9 @@ class Vali(c.Module):
         """
         
         epoch = self.count // self.n
-
         prefix = f'[bold cyan] [bold white]EPOCH {epoch}[/bold white] [bold yellow]SAMPLES :{self.count}/{self.n} [/bold yellow]'
-        
-        self.count += 1
-
-        
         is_my_module = bool(self.ip in module['address'])
-
-        # load the module stats
+        # load the module stats (if it exists)
         module_stats = self.load_module_info( module['name'], default=module)
 
         # update the module state with the module stats
@@ -119,16 +112,20 @@ class Vali(c.Module):
             return {'error': f'{module["name"]} is too new as we pinged it {staleness}(s) ago'}
 
         try:
+            # this is where we connect to the client
             module_client = c.connect(module['address'], key=self.key, virtual=self.config.virtual_module)
             response = self.score_module(module_client, info=module, **module)
         except Exception as e:
             if is_my_module:
                 c.print(f'{prefix} [bold red] {module["name"]} {e}[/bold red]', color='red')        
             response = {'error': c.detailed_error(e), 'w': 0}
+        
         c.print(response, color='green')
         if is_my_module or response["w"] > 0 or self.config.verbose:
             c.print(f'{prefix}[bold white]{c.emoji("dank")}{module["name"]}->{module["address"][:8]}.. W:{response["w"]}[/bold white] {c.emoji("dank")} ', color='green')
         
+        self.count += 1
+
         w = response['w']
         response['timestamp'] = c.time()
         # we only want to save the module stats if the module was successful
@@ -227,10 +224,13 @@ class Vali(c.Module):
         votes['weights'] = [votes['weights'][i] for i in topk_indices]
         votes['uids'] = [votes['uids'][i] for i in topk_indices]
 
+        # normalize vote
         votes['weights'] = torch.tensor(votes['weights'])
         votes['weights'] = (votes['weights'] / votes['weights'].sum())
         votes['weights'] = votes['weights'].tolist()
         c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
+
+
         try:
             self.subspace.vote(uids=votes['uids'],
                             weights=votes['weights'], 
@@ -437,8 +437,7 @@ class Vali(c.Module):
                     sortby:str=['name'], 
                     update:bool=True, 
                     cache_path:str = 'vali_stats',
-                    return_all:bool=False, 
-):
+                    return_all:bool=False):
         if return_all:
             return cls.all_vali_stats(network=network, df=df)
         vali_stats = []

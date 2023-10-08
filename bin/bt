@@ -1,8 +1,0 @@
-#!/usr/bin/env python3
-
-import commune
-import sys
-if __name__ == '__main__':
-    argv = sys.argv
-    commune.cli(['bt']+sys.argv[1:])
-    
