@@ -35,9 +35,14 @@ class Namespace(c.Module):
             network = cls.network
 
         if network == 'subspace':
-            namespace =  c.module(network).namespace()
+            namespace =  c.module(network).namespace(update=update)
         else:
+            if update:
+                cls.update_namespace(network=network)
+
             namespace = cls.get(network, {})
+                
+
         if search != None:
             namespace = {k:v for k,v in namespace.items()}
         return namespace
@@ -109,33 +114,35 @@ class Namespace(c.Module):
 
     @classmethod
     def update_namespace(cls,
+                        network:str = network,
                         chunk_size:int=10, 
                         timeout:int = 10,
-                        full_scan:bool = False,
-                        network:str = network,)-> dict:
+                        full_scan:bool = False)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
         it will register itself with the namespace_local dictionary.
         '''
 
-        namespace = cls.get_namespace(network=network, update=False) # get local namespace from redis
-        addresses = c.copy(list(namespace.values()))
+        old_namespace = cls.get_namespace(network=network, update=False) # get local namespace from redis
+        addresses = c.copy(list(old_namespace.values()))
 
         if full_scan == True or len(addresses) == 0:
             addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
-
+        namespace = {}
         c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
-
+    
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
-            names_chunk = c.gather([c.async_call(address, fn='server_name', timeout=timeout) for address in addresses_chunk])
+            names_chunk = c.gather([c.async_call(address, fn='server_name', timeout=timeout, ignore_error=True) for address in addresses_chunk])
             for i in range(len(names_chunk)):
                 if isinstance(names_chunk[i], str):
                     namespace[names_chunk[i]] = addresses_chunk[i]
             
         for k, v in namespace.items():
             namespace[k] = c.default_ip + ':' + v.split(':')[-1]
+
+        cls.put_namespace(network, namespace)
 
         return namespace
     

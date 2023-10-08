@@ -2330,6 +2330,10 @@ class c:
         return namespace
     
     @classmethod
+    def update_namespace(cls, network:str='local',):
+        return c.module(c.namespace_module).update_namespace(network=network)
+    
+    @classmethod
     def put_namespace(cls,*args, **kwargs):
         namespace = c.module(c.namespace_module).put_namespace(*args, **kwargs)
         return namespace
@@ -2403,7 +2407,7 @@ class c:
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
-              update:bool = True,
+              update:bool = False,
               **extra_kwargs
               ):
 
@@ -2545,9 +2549,8 @@ class c:
              peers: bool = False) -> Dict[str, Any]:
         fns = [fn for fn in self.fns() if self.is_fn_allowed(fn)]
         attributes =[ attr for attr in self.attributes() if self.is_fn_allowed(attr)]
-    
         info  = dict(
-            address = self.address,
+            address = self.address.replace(c.default_ip, c.ip(update=False)),
             functions =  fns, # get the functions of the module
             attributes = attributes, # get the attributes of the module
             name = self.server_name() if callable(self.server_name) else self.server_name, # get the name of the module
@@ -5145,12 +5148,31 @@ class c:
             self.executor = c.module('executor')()
         return c.module('executor')(*args, **kwargs)
 
-    def submit(cls, module, fn, args:list = [], kwargs: dict = {}, timeout:int = 20, return_future:bool=True):
-        executor = c.get_executor()
+    @classmethod
+    def submit(cls, 
+                module, 
+                fn, 
+                args:list = [], 
+                kwargs: dict = {}, 
+                timeout:int = 20, 
+                return_future:bool=False,
+                init_args : list = [],
+                init_kwargs:dict= {}
+                ):
+
+        executor = c.module('executor')()
+        module = c.module(module)
+        args = c.copy(args)
+        kwargs = c.copy(kwargs)
+        init_kwargs = c.copy(init_kwargs)
+        init_args = c.copy(init_args)
+        module = module(*init_args, **init_kwargs)
+        fn = getattr(module, fn)
         future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
         if return_future:
             return future
-        return future.result()
+        else:
+            return c.wait(future, timeout=timeout)
 
     @classmethod
     def submit_batch(cls, module, fn, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, *args, **kwargs):
@@ -6012,15 +6034,10 @@ class c:
         futures = [futures] if not isinstance(futures, list) else futures
         results = []
         start_time = c.time()
-
-        for future in futures:
+        
+        for future in concurrent.futures.as_completed(futures, timeout=timeout):
             results += [future.result()]
-        if c.time() - start_time > timeout:
-            # cancel all futures
-            for future in futures:
-                future.cancel()
-            raise TimeoutError(f'waited too long for futures: {futures}')
-
+            
         return results
 
     
