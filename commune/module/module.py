@@ -2660,7 +2660,8 @@ class c:
             if arg in ['self', 'cls']:
                 fn_schema['type'] = arg
                 fn_schema['input'].pop(arg)
-                fn_schema['default'].pop(arg, None)
+                if 'default' in fn_schema:
+                    fn_schema['default'].pop(arg, None)
                 
 
         return fn_schema
