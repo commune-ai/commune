@@ -51,6 +51,11 @@ class Docker(c.Module):
     def kill(self, name, sudo=False, verbose=True):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
+        return {'status': 'killed', 'name': name}
+    @classmethod
+    def rm(cls, name, sudo=False, verbose=True):
+        c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
+        return {'status': 'removed', 'name': name}
 
     def exists(self, name:str):
         return name in self.ps()
@@ -374,3 +379,16 @@ class Docker(c.Module):
     @classmethod
     def logs(cls, name, sudo=False, follow=False, verbose=False):
         return c.cmd(f'docker  logs {name} {"-f" if follow else ""}', verbose=verbose)
+
+    @classmethod
+    def tag(image:str, tag:str):
+        c.cmd(f'docker tag {image} {tag}', verbose=True)
+        c.cmd(f'docker push {tag}', verbose=True)
+    @classmethod
+    def login(self, username:str, password:str):
+        c.cmd(f'docker login -u {username} -p {password}', verbose=True)
+
+    @classmethod
+    def logout(self, image:str):
+        c.cmd(f'docker logout {image}', verbose=True)
+
