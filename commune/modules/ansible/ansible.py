@@ -1,255 +1,70 @@
-import commune as c
 import os
-import streamlit as st
+import subprocess
+import getpass
 
-class Ansible(c.Module): 
-    def __init__(self,  
-                 inventory_path: str=None,
-                 playbook_path: str=None, 
-                 ):
-        self.set_config()
-        self.set_playbook(playbook_path)
-        self.set_inventory(inventory_path)
-        
+import os
+import getpass
+import commune as c
 
+class Ansible(c.Module):
+    def __init__(self, inventory_file=c.libpath +'/inventory.ini'):
+        self.inventory_file = inventory_file
+        self.host_counter = self.get_last_host_number() + 1
 
-    def update(self):
-        self.ping()
-        self.save()
+    def get_last_host_number(self):
+        if os.path.exists(self.inventory_file):
+            with open(self.inventory_file, 'r') as file:
+                lines = [line.strip() for line in file.readlines() if line.strip()]
+                if lines:
+                    last_host = lines[-1].split()[0].replace('host', '')
+                    return int(last_host)
+        return 0
 
-    @property
-    def inventory(self):
-        if not hasattr(self, '_inventory'):
-            self._inventory = self.load_yaml(path=self.inventory_path)
-        return self._inventory
-    
-    @inventory.setter
-    def inventory(self, inventory):
-        self._inventory = inventory
+    def prompt_user(self):
+        ip = input("Remote server IP: ").strip()
+        port = input("Remote server port: ").strip()
+        username = input("Remote server username: ").strip()
+        print("Remote server password: ", end="")
+        password = getpass.getpass()
+        return ip, port, username, password
 
-        
-    def flatten_inventory(self, inventory: dict, prefix: str = '', inventory_list: list = None):
-        inventory_list = inventory_list if inventory_list != None else []
-        for k,v in inventory.items():
-            if isinstance(v, dict):
-                if 'ansible_host' in v:
-                    inventory_list.append(prefix+k)
-                else:
-                    self.flatten_inventory(v, prefix=prefix+k+'.', inventory_list=inventory_list)
-            else:
-                inventory_list.append(prefix+k)
-                
-        return inventory_list
-    @classmethod
-    def inventory_list(self):
-        return self.print(self.flatten_inventory(self.inventory))
-        
-    def cp_node(self, from_node: str, to_node: str):
-        '''
-        Copy Node
-        
-        '''
-        assert self.dict_has(self.inventory, from_node), f"from_node: {from_node} not in inventory"
-        assert not self.dict_has(self.inventory, to_node), f"to_node: {to_node} already in inventory"
-        self.print(f"mv_node: from_node: {from_node} to_node: {to_node}")
-        from_node_data = self.copy(self.dict_get(self.inventory, from_node))
-        to_node_data = self.copy(self.dict_get(self.inventory, to_node))
-        self.dict_put(self.inventory, to_node, from_node_data)
-        self.dict_delete(self.inventory, from_node)
-        
-    def mv_node(self, from_node: str, to_node: str):
-        '''
-        
-        Move Node
-        '''
-        self.cp_node(from_node, to_node)
-        self.dict_delete(self.inventory, from_node)
+    def update_inventory(self, ip, port, username, password):
+        host_line = f"host{self.host_counter} ansible_host={ip} ansible_user={username} ansible_ssh_pass={password} ansible_port={port}"
 
-    def save(self, inventory = None, playbook = None):
-        inventory = inventory if inventory != None else self.inventory
-        playbook = playbook if playbook != None else self.plays
-        self.save_yaml(path=self.inventory_path, data=inventory)
-        # self.save_yaml(path=self.playbook_path, data=playbook)
+        with open(self.inventory_file, 'a') as file:
+            if self.host_counter == 1:  # or another condition to decide when to add [all]
+                file.write("[all]\n")
+            file.write(host_line + "\n")
+        print(f"Added host{self.host_counter} to {self.inventory_file}")
 
-    def encrypt(self):
-        inventory = self.inventory 
-        for group_name, group in inventory.items():
-            for host_name, host in group['hosts'].items():
-                inventory[group_name]['hosts'][host_name] = self.key.encrypt(host)
+        self.host_counter += 1
 
-        
-        self.save(inventory=inventory)
+    def cmd(self, command, pwd=None):
+        # Disable Host Key Checking
+        os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
 
-        return self.inventory
+        # Get SSH Password
+        if pwd is None:
+            pwd = getpass.getpass()
 
-    def decrypt(self):
-        inventory = self.inventory 
-        for group_name, group in inventory.items():
-            for host_name, host in group['hosts'].items():
-                if isinstance(host, str):
-                    inventory[group_name]['hosts'][host_name] = self.key.decrypt(host)
-                assert isinstance(inventory[group_name]['hosts'][host_name], dict)
-        self.save()
-        return self.inventory
+        try:
+            output = subprocess.check_output(
+                [
+                    'ansible',
+                    'all',
+                    '-i', self.inventory_file,
+                    '-m', 'shell',
+                    '-a', command,
+                    '-u', 'root',
+                    '--ask-pass',
+                    '--extra-vars', f'ansible_ssh_pass={pwd}'
+                ],
+                stderr=subprocess.STDOUT,
+                universal_newlines=True
+            )
+            print("Output:")
+            print(output)
 
-
-    def load(self, inventory_path: str=None, playbook_path: str=None):
-        self.set_inventory(inventory_path)
-        self.set_playbook(playbook_path)
-
-
-    def set_inventory(self, inventory_path: str=None):
-        self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
-
-        self.decrypt()
-        self.inventory = self.load_yaml(path=self.inventory_path)
-
-    
-        
-    def save_inventory(self, inventory_path: str=None):
-        self.inventory_path = inventory_path if inventory_path!= None else self.dirpath()+'/inventory.yaml'
-        return self.save_yaml(self.inventory_path, self.inventory)
-        
-    def set_playbook(self, playbook_path: str=None):
-        self.playbook_path = playbook_path if playbook_path else self.dirpath()+'/playbook'
-        
-        self.play_paths = self.glob(self.playbook_path+'/**')
-        
-        self.play_paths = self.glob(self.playbook_path+'/**')
- 
-        self.playbook = {}
-        for play_path in self.play_paths:
-            play_name = os.path.basename(play_path).split('.')[0]
-            try:
-                self.playbook[play_name] = self.load_yaml(play_path)
-            except Exception as e:
-                self.print(play_name)
-                continue
-                
-        
-        self.plays = list(self.playbook.keys())
-
-    @classmethod
-    def sandbox(cls):
-        self = cls()
-        self.print(self.shell('cd commune && make pull'), color='green')
-        # cls.print(self.inventory)
-        # self.mv_node('all2', 'all')
-        # self.save()
-        
-        
-        
-    def play(self, play_name: str):
-        return self.cmd(f"ansible-playbook {self.playbook_path}/{play_name}.yaml -i {self.inventory_path}")
-    def ping(self):
-        return self.cmd(f"ansible all -m ping -i {self.inventory_path}")
-    
-    @property
-    def inventory_groups(self) -> list:
-        return list(self.inventory.keys())
-    def resolve_inventory(self, inventory_group: str) -> str:
-        if inventory_group == None:
-            inventory_group = self.inventory_groups[0]
-        return inventory_group
-    
-    def shell(self, args:str ,
-              inventory_group  : str = None, 
-              chdir:str="commune", 
-              verbose:bool = True) -> dict:
-        
-        if args.startswith('commune '):
-            args = 'python3 bin/commune' + args[len('commune'):]
-        inventory_group = self.resolve_inventory(inventory_group)
-        command = f'ansible {inventory_group} -i {self.inventory_path} -m shell -a "cd {chdir}; {args}"'
-        output_text = self.cmd(command, output_text=True)
-        node_chunks = output_text.split('>>')
-        self.print(node_chunks)
-        node2stdout = {}
-        for i, node_chunk in enumerate(node_chunks):
-            if i == 0:
-                node_name = node_chunk.split('|')[0].strip()
-            else:
-                node_name = node_chunks[i-1].split('\n')[-1].split('|')[0].strip()
-            if i < len(node_chunks)-1:
-                node_chunk = '\n'.join(node_chunk.split('\n')[:-1])
-            node2stdout[node_name] = node_chunk
-
-        return node2stdout
-    
-
-    
-    @classmethod
-    def run(cls, *args, **kwargs) -> str:
-        self = cls()
-        return self.shell(*args, **kwargs)
-        
-    
-    @property
-    def host_map(self):
-        host_map = {}
-        for group_key, group_hosts in self.inventory.items():
-            for host, host_info in group_hosts['hosts'].items():
-                host_map[host] = host_info
-                
-        return host_map
-    
-    @property
-    def hosts(self):
-        return list(self.host_map.keys())
-                
-        
-    
-    def streamlit_sidebar(self):
-        self.selected_hosts = st.multiselect('Selected Hosts', self.hosts, self.hosts)
-        hosts = {k:self.host_map[k] for k in self.selected_hosts}
-        self.inventory['selected'] = {'hosts': hosts}
-        self.streamlit_peer_management()
-        
-    def get_group_hosts(self, group):
-        group_hosts = self.inventory[group]['hosts']
-        return list(group_hosts.keys())
-        
-    def streamlit_peer_management(self):
-        with st.expander('Add Peer', True):
-            peer_info = {}
-            group = st.text_input('Group', self.inventory_groups[0])
-            name = st.text_input('Name','host')
-            peer_info['ansible_ip'] = st.text_input('IP address','0.0.0.0')
-            peer_info['ansible_port'] = st.number_input('Port', value=1000)
-            peer_info['ansible_user'] = st.text_input('User', value=1000)
-            
-            add_peer = st.button('Add Peer')
-            
-            if add_peer:
-                if group not in self.inventory:
-                    self.inventory_group[group] = {'hosts':{}}
-      
-                    
-                    
-                self.inventory[group]['hosts'][name] = peer_info
-              
-     
-    @classmethod
-    def dashboard(cls, ):
-        
-        self = cls()
-        
-        with st.sidebar:
-            self.streamlit_sidebar()
-        command_text = st.text_area(label='Enter Command',value='ls')
-        run_command_button = st.button('Run Command')
-
-        if run_command_button:
-            self.save_inventory()
-            st.write(self.shell(command_text, inventory_group='selected'))
-
-
-    @classmethod
-    def test(cls): 
-        self = cls()
-        self.key('test')
-
-
-    def __exit__(self):
-        self.encrypt()
-    
+        except subprocess.CalledProcessError as error:
+            print("Error:")
+            print(error.output)
