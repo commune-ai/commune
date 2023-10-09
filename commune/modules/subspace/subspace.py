@@ -3264,6 +3264,13 @@ class Subspace(c.Module):
         else:
             url = c.choice(self.urls(network=chain))
         return url
+
+    @classmethod
+    def start_nodes(self, node='nonvali', n=10, chain=chain, **kwargs):
+        results  = []
+        for i in range(n):
+            results += [self.start_node(node= f'{node}_{i}', chain=chain, **kwargs)]
+        return results
     @classmethod
     def start_node(cls,
                  node : str,
