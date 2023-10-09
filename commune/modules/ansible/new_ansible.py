@@ -7,8 +7,10 @@ import getpass
 import commune as c
 
 class Ansible(c.Module):
-    def __init__(self, inventory_file=c.libpath +'/inventory.ini'):
+    def __init__(self, inventory_file=c.libpath +'/data/inventory.ini'):
         self.inventory_file = inventory_file
+        assert os.path.exists(self.inventory_file), f"Inventory file not found: {self.inventory_file}"
+
         self.host_counter = self.get_last_host_number() + 1
 
     def get_last_host_number(self):
@@ -43,9 +45,9 @@ class Ansible(c.Module):
         # Disable Host Key Checking
         os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
 
-        # Get SSH Password
-        if pwd is None:
-            pwd = getpass.getpass()
+        # # Get SSH Password
+        # if pwd is None:
+        #     pwd = getpass.getpass()
 
         try:
             output = subprocess.check_output(
@@ -56,8 +58,8 @@ class Ansible(c.Module):
                     '-m', 'shell',
                     '-a', command,
                     '-u', 'root',
-                    '--ask-pass',
-                    '--extra-vars', f'ansible_ssh_pass={pwd}'
+                    # '--ask-pass',
+                    # '--extra-vars', f'ansible_ssh_pass={pwd}'
                 ],
                 stderr=subprocess.STDOUT,
                 universal_newlines=True
