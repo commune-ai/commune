@@ -4454,7 +4454,6 @@ class c:
             module_test_results = module.test()
             test_results.append(module_test_results)
             c.print(f'Test Results: {module_test_results}', color='white')
-
         return test_results
         
                
