@@ -2330,12 +2330,12 @@ class c:
         return namespace
     
     @classmethod
-    def update_namespace(cls, network:str='local',):
-        return c.module(c.namespace_module).update_namespace(network=network)
+    def update_namespace(cls, network:str='local',**kwargs):
+        return c.module(c.namespace_module).update_namespace(network=network, **kwaargs)
     
     @classmethod
-    def put_namespace(cls,*args, **kwargs):
-        namespace = c.module(c.namespace_module).put_namespace(*args, **kwargs)
+    def put_namespace(cls,network:str, namespace:dict, **kwargs):
+        namespace = c.module(c.namespace_module).put_namespace(network=network, namespace=namespace, **kwargs)
         return namespace
     
 
