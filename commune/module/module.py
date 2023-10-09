@@ -6231,8 +6231,10 @@ class c:
     @classmethod
     def pull(cls, stash:bool = True):
         if stash:
-            cls.cmd('git stash')
-        return cls.cmd('git pull')
+            c.cmd('git stash')
+        c.cmd('git pull')
+        subspace_libpath = c.module('subspace').chain_path
+        return c.cmd(f'cd {subspace_libpath}; git pull')
 
     # @classmethod
     # def push(cls, msg):
