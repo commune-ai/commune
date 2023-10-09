@@ -2789,12 +2789,9 @@ class Subspace(c.Module):
             c.rm_key(key)
         return {'success':True, 'message':'removed all node keys', 'chain':chain, 'keys_left':cls.node_keys(chain=chain)}
     
+        
     @classmethod
-    def vali_node_key2address(cls,chain=chain):
-        key2address =  c.key2address(f'{cls.node_key_prefix}.{chain}')
-        return key2address
-    @classmethod
-    def resolve_node_key_path(cls, node:str='alice', vali:bool=True,chain=chain, tag_seperator='_'):
+    def resolve_node_path(cls, node:str='alice', chain=chain, vali:bool=True, tag_seperator='_'):
         node = str(node)
         if vali:
             node_type = 'vali'
@@ -2821,7 +2818,7 @@ class Subspace(c.Module):
         if not cls.node_exists(node=node, chain=chain, vali=vali):
             cls.add_node_key(node=node, vali=vali, chain=chain)
         
-        key_path = cls.resolve_node_key_path(node=node, vali=vali, chain=chain)
+        key_path = cls.resolve_node_path(node=node, vali=vali, chain=chain)
         keys = c.keys(key_path)
         return keys
     
@@ -2884,7 +2881,7 @@ class Subspace(c.Module):
 
     @classmethod
     def node_key_exists(cls, node='alice', chain=chain, vali: bool = True):
-        path = cls.resolve_node_key_path(node=node, vali=vali, chain=chain)
+        path = cls.resolve_node_path(node=node, vali=vali, chain=chain)
         c.print(path)
         return len(c.keys(path+'.')) > 0
 
@@ -3241,11 +3238,6 @@ class Subspace(c.Module):
     def get_boot_nodes(cls, chain=chain):
         return cls.getc('chain_info.{chain}.boot_nodes')
 
-    @classmethod
-    def start_nodes(self, node='node', n=10, chain=chain, **kwargs):
-        nodes = self.nodes(chain=chain)
-        for node in nodes:
-            self.start_node(node=node, chain=chain, **kwargs)
 
     @classmethod
     def start_local_node(cls, node:str='alice', mode=mode, chain=chain, **kwargs):
