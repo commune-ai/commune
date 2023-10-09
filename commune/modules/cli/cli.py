@@ -31,15 +31,15 @@ class CLI(c.Module):
             # is it a fucntion, assume it is for the module
 
             module_list = c.modules()
-            if args[0] in module_list:
+            if args[0] in functions and args[0] not in module_overrides:
+                # is a function
+                module = c.Module
+                fn = args.pop(0)
+            elif args[0] in module_list:
                 # is a module
                 module = args.pop(0)
                 module = c.module(module)
             
-            elif args[0] in functions and args[0] not in module_overrides:
-                # is a function
-                module = c.Module
-                fn = args.pop(0)
             else:
                 # is a a namespace
                 namespace = self.namespace(update=False)

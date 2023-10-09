@@ -57,7 +57,7 @@ class Task(c.Module):
             self.future.set_exception(TimeoutError('Task timed out'))
 
         self.status = 'running'
-
+        c.print('fam')
         try:
             data = self.fn(*self.args, **self.kwargs)
             self.status = 'done'
@@ -67,6 +67,7 @@ class Task(c.Module):
             self.status = 'failed'
             data = c.detailed_error(e)
 
+   
         # store the result of the task
         self.data = data       
 
@@ -79,6 +80,17 @@ class Task(c.Module):
 
     def result(self) -> object:
         return self.future.result()
+
+    @property
+    def _condition(self) -> bool:
+        return self.future._condition
+    @property
+    def _state(self, *args, **kwargs) -> bool:
+        return self.future._state
+
+    @property
+    def _waiters(self) -> bool:
+        return self.future._waiters
 
     def cancel(self) -> bool:
         self.future.cancel()

@@ -22,7 +22,6 @@ class Access(c.Module):
         config = self.set_config(kwargs=locals())
         c.print(config)
         self.module = module
-        self.sync()
         self.user_info = {}
 
     def sync(self):
