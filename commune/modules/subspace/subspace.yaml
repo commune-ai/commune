@@ -52,90 +52,345 @@ chain_info:
     - /ip4/24.66.238.82/tcp/5130/p2p/12D3KooWBE3476cgm3idSbEZLeEviWUi89hyxU1GPQ8kcSZvoRSo
     nodes:
       nonvali_0:
-        boot_nodes: /ip4/24.66.238.82/tcp/5103/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
+        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
         chain: main
-        ip: 24.66.238.82
+        ip: 165.22.186.112
         local: false
         mode: docker
         node: nonvali_0
         node_key: null
-        port: 5133
+        port: 50053
         purge_chain: true
-        refresh: true
+        refresh: false
         rpc_cors: all
-        rpc_port: 5134
+        rpc_port: 50054
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5135
+        ws_port: 50055
       nonvali_1:
-        boot_nodes: /ip4/24.66.238.82/tcp/5031/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
+        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooW9xkihW81MZwWnfgRjVsHd7qfHmMqQLp7HEbMZryS5634
         chain: main
-        ip: 24.66.238.82
+        ip: 165.22.186.112
         local: false
         mode: docker
         node: nonvali_1
         node_key: null
-        port: 5136
+        port: 50053
         purge_chain: true
-        refresh: true
+        refresh: false
         rpc_cors: all
-        rpc_port: 5137
+        rpc_port: 50054
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5138
-      nonvali_2:
-        boot_nodes: /ip4/24.66.238.82/tcp/5109/p2p/12D3KooWKin1CnWLti3ikzWeDKabPz3Ac9ypXoPFd6WzaSdhrZZF
+        ws_port: 50055
+      nonvali_10:
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
         chain: main
-        ip: 24.66.238.82
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_10
+        node_key: null
+        port: 50068
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50069
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50070
+      nonvali_11:
+        boot_nodes: /ip4/24.66.238.82/tcp/5094/p2p/12D3KooWLqMxbKVkCuRBtbQqgLevdrX2KShR75wvXcFqf63mBhbD
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_11
+        node_key: null
+        port: 50071
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50072
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50073
+      nonvali_12:
+        boot_nodes: /ip4/24.66.238.82/tcp/5082/p2p/12D3KooWQzoP2zkk8c3Kb16AHrqY8ysdZEGmWYNbSYTuNrbg6qUb
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_12
+        node_key: null
+        port: 50071
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50072
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50073
+      nonvali_13:
+        boot_nodes: /ip4/24.66.238.82/tcp/5127/p2p/12D3KooWKGL7oCuyqXdW9v8RT1d95c2fh8EvH1rgD5mC9uhLKWoi
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_13
+        node_key: null
+        port: 50074
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50075
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50076
+      nonvali_14:
+        boot_nodes: /ip4/24.66.238.82/tcp/5124/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_14
+        node_key: null
+        port: 50074
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50075
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50076
+      nonvali_15:
+        boot_nodes: /ip4/24.66.238.82/tcp/5106/p2p/12D3KooWG4kYJrdadAtZDMY5Wjtm9fGWpxZ4irBsi4r2aQWkWtdG
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_15
+        node_key: null
+        port: 50077
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50078
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50079
+      nonvali_16:
+        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHQgfWYiYdE3BVyjmA5SuRbsE2MecmwuCx2eU6zyWWY3o
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_16
+        node_key: null
+        port: 50077
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50078
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50079
+      nonvali_17:
+        boot_nodes: /ip4/24.66.238.82/tcp/5073/p2p/12D3KooWL8cw7HNWpQtaHU8pKkMZbz5qnae3HH7Fg4A8fRQmUE7T
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_17
+        node_key: null
+        port: 50080
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50081
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50082
+      nonvali_18:
+        boot_nodes: /ip4/24.66.238.82/tcp/5112/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_18
+        node_key: null
+        port: 50080
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50081
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50082
+      nonvali_19:
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_19
+        node_key: null
+        port: 50083
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50084
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50085
+      nonvali_2:
+        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWDykbZ8xo65BDe9zv4yJLzwbxHgpDJiWnDexcbpAf3HNv
+        chain: main
+        ip: 165.22.186.112
         local: false
         mode: docker
         node: nonvali_2
         node_key: null
-        port: 5139
+        port: 50056
         purge_chain: true
-        refresh: true
+        refresh: false
         rpc_cors: all
-        rpc_port: 5140
+        rpc_port: 50057
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5141
+        ws_port: 50058
       nonvali_3:
-        boot_nodes: /ip4/24.66.238.82/tcp/5094/p2p/12D3KooWLqMxbKVkCuRBtbQqgLevdrX2KShR75wvXcFqf63mBhbD
+        boot_nodes: /ip4/24.66.238.82/tcp/5079/p2p/12D3KooWAv3J9Tm2xmktSwXnSfrYLM9tcvmKf6rjnpWLjZuVFk4Q
         chain: main
-        ip: 24.66.238.82
+        ip: 165.22.186.112
         local: false
         mode: docker
         node: nonvali_3
         node_key: null
-        port: 5142
+        port: 50056
         purge_chain: true
-        refresh: true
+        refresh: false
         rpc_cors: all
-        rpc_port: 5143
+        rpc_port: 50057
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5144
+        ws_port: 50058
       nonvali_4:
-        boot_nodes: /ip4/24.66.238.82/tcp/5106/p2p/12D3KooWG4kYJrdadAtZDMY5Wjtm9fGWpxZ4irBsi4r2aQWkWtdG
+        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
-        ip: 24.66.238.82
+        ip: 165.22.186.112
         local: false
         mode: docker
         node: nonvali_4
         node_key: null
-        port: 5145
+        port: 50059
         purge_chain: true
-        refresh: true
+        refresh: false
         rpc_cors: all
-        rpc_port: 5146
+        rpc_port: 50060
         telemetry_url: wss://telemetry.gpolkadot.io/submit/0
         validator: false
         verbose: false
-        ws_port: 5147
+        ws_port: 50061
+      nonvali_5:
+        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_5
+        node_key: null
+        port: 50059
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50060
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50061
+      nonvali_6:
+        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_6
+        node_key: null
+        port: 50062
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50063
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50064
+      nonvali_7:
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_7
+        node_key: null
+        port: 50065
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50066
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50067
+      nonvali_8:
+        boot_nodes: /ip4/24.66.238.82/tcp/5106/p2p/12D3KooWG4kYJrdadAtZDMY5Wjtm9fGWpxZ4irBsi4r2aQWkWtdG
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_8
+        node_key: null
+        port: 50065
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50066
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50067
+      nonvali_9:
+        boot_nodes: /ip4/24.66.238.82/tcp/5103/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
+        chain: main
+        ip: 165.22.186.112
+        local: false
+        mode: docker
+        node: nonvali_9
+        node_key: null
+        port: 50068
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50069
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 50070
       vali_0:
         boot_nodes: null
         chain: main
