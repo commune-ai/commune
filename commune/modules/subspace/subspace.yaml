@@ -1,5 +1,5 @@
 block_time: 4
-local: False
+local: True
 chain_info:
   dev:
     boot_nodes: []
