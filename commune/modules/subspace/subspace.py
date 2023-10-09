@@ -103,7 +103,7 @@ class Subspace(c.Module):
         
         while True:
 
-            url = self.resolve_node_url(url=url, chain=network)
+            url = self.resolve_node_url(url=url, chain=network, local=self.config.local)
             if not url.startswith('ws://'):
                 url = 'ws://' + url
 
@@ -3244,6 +3244,12 @@ class Subspace(c.Module):
         cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
         cls.start_node(node=node, chain=chain, mode=mode, local=True, **kwargs)
 
+
+    @classmethod
+    def start_local_fleet(cls, node:str='alice', mode=mode, chain=chain, **kwargs):
+        cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
+        cls.start_node(node=node, chain=chain, mode=mode, local=True, **kwargs)
+
     @classmethod
     def local_nodes(cls, chain=chain):
         return cls.ls(f'local_nodes/{chain}')
@@ -3253,10 +3259,11 @@ class Subspace(c.Module):
         return len(cls.local_nodes(chain=chain)) > 0
 
     @classmethod
-    def resolve_node_url(self, url = None, chain=chain):
+    def resolve_node_url(self, url = None, chain=chain, local:bool = False):
         if url != None:
             return url
-        local_node_paths = self.local_nodes(chain=chain)
+        
+        local_node_paths = self.local_nodes(chain=chain) if local else []
         if len(local_node_paths) > 0:
             local_node_info = self.get(local_node_paths[0])
             port = local_node_info['ws_port']
