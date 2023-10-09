@@ -2909,7 +2909,6 @@ class Subspace(c.Module):
         node_type = 'vali' if vali else 'nonvali'
         node = c.copy(f'{node_type}{tag_seperator}{node}')
         node_key_exists = cls.node_key_exists(node=node, chain=chain, vali=vali)
-        c.print(node_key_exists, 'fro', node)
         if node_key_exists and not refresh:
 
             c.print(f'node key {node} for chain {chain} already exists')

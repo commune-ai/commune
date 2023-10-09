@@ -670,6 +670,10 @@ class c:
         return {'success': True, 'msg': 'started node'}
 
     @classmethod
+    def start_local_node(cls, *args, **kwargs):
+        c.module('subspace').start_local_node(*args, **kwargs)
+
+    @classmethod
     def start_chain(cls, *args, **kwargs):
         c.module('subspace').start_chain(*args, **kwargs)
         return {'success': True, 'msg': 'started chain'}

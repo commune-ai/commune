@@ -52,7 +52,7 @@ chain_info:
     - /ip4/24.66.238.82/tcp/5130/p2p/12D3KooWBE3476cgm3idSbEZLeEviWUi89hyxU1GPQ8kcSZvoRSo
     nodes:
       nonvali_0:
-        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooW9xkihW81MZwWnfgRjVsHd7qfHmMqQLp7HEbMZryS5634
+        boot_nodes: /ip4/24.66.238.82/tcp/5103/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
         chain: main
         ip: 24.66.238.82
         local: false
@@ -69,7 +69,7 @@ chain_info:
         verbose: false
         ws_port: 5135
       nonvali_1:
-        boot_nodes: /ip4/24.66.238.82/tcp/5130/p2p/12D3KooWBE3476cgm3idSbEZLeEviWUi89hyxU1GPQ8kcSZvoRSo
+        boot_nodes: /ip4/24.66.238.82/tcp/5031/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         ip: 24.66.238.82
         local: false
@@ -86,7 +86,7 @@ chain_info:
         verbose: false
         ws_port: 5138
       nonvali_2:
-        boot_nodes: /ip4/24.66.238.82/tcp/5010/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
+        boot_nodes: /ip4/24.66.238.82/tcp/5109/p2p/12D3KooWKin1CnWLti3ikzWeDKabPz3Ac9ypXoPFd6WzaSdhrZZF
         chain: main
         ip: 24.66.238.82
         local: false
@@ -103,7 +103,7 @@ chain_info:
         verbose: false
         ws_port: 5141
       nonvali_3:
-        boot_nodes: /ip4/24.66.238.82/tcp/5109/p2p/12D3KooWKin1CnWLti3ikzWeDKabPz3Ac9ypXoPFd6WzaSdhrZZF
+        boot_nodes: /ip4/24.66.238.82/tcp/5094/p2p/12D3KooWLqMxbKVkCuRBtbQqgLevdrX2KShR75wvXcFqf63mBhbD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -120,7 +120,7 @@ chain_info:
         verbose: false
         ws_port: 5144
       nonvali_4:
-        boot_nodes: /ip4/24.66.238.82/tcp/5094/p2p/12D3KooWLqMxbKVkCuRBtbQqgLevdrX2KShR75wvXcFqf63mBhbD
+        boot_nodes: /ip4/24.66.238.82/tcp/5106/p2p/12D3KooWG4kYJrdadAtZDMY5Wjtm9fGWpxZ4irBsi4r2aQWkWtdG
         chain: main
         ip: 24.66.238.82
         local: false
@@ -205,7 +205,7 @@ chain_info:
         verbose: false
         ws_port: 5012
       vali_12:
-        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -222,7 +222,7 @@ chain_info:
         verbose: false
         ws_port: 5015
       vali_13:
-        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
         chain: main
         ip: 24.66.238.82
         local: false
@@ -239,7 +239,7 @@ chain_info:
         verbose: false
         ws_port: 5018
       vali_14:
-        boot_nodes: /ip4/24.66.238.82/tcp/5010/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
+        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
         chain: main
         ip: 24.66.238.82
         local: false
@@ -256,7 +256,7 @@ chain_info:
         verbose: false
         ws_port: 5021
       vali_15:
-        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
         chain: main
         ip: 24.66.238.82
         local: false
@@ -273,7 +273,7 @@ chain_info:
         verbose: false
         ws_port: 5024
       vali_16:
-        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
+        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         ip: 24.66.238.82
         local: false
@@ -290,7 +290,7 @@ chain_info:
         verbose: false
         ws_port: 5027
       vali_17:
-        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
+        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         ip: 24.66.238.82
         local: false
@@ -307,7 +307,7 @@ chain_info:
         verbose: false
         ws_port: 5030
       vali_18:
-        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWKzTEneMPJ7pYC6LwmAZLScTHhBcvJgS1xfFXLT2TEFyY
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
         chain: main
         ip: 24.66.238.82
         local: false
@@ -324,7 +324,7 @@ chain_info:
         verbose: false
         ws_port: 5033
       vali_19:
-        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWKzTEneMPJ7pYC6LwmAZLScTHhBcvJgS1xfFXLT2TEFyY
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
         chain: main
         ip: 24.66.238.82
         local: false
@@ -341,7 +341,7 @@ chain_info:
         verbose: false
         ws_port: 5036
       vali_2:
-        boot_nodes: /ip4/24.66.238.82/tcp/5028/p2p/12D3KooWPxa2WSo6wf6QzgeTEaDMkwPfQSHi4eXo2LrpeiVF3sgz
+        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHQgfWYiYdE3BVyjmA5SuRbsE2MecmwuCx2eU6zyWWY3o
         chain: main
         ip: 24.66.238.82
         local: false
@@ -358,7 +358,7 @@ chain_info:
         verbose: false
         ws_port: 5039
       vali_20:
-        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -375,7 +375,7 @@ chain_info:
         verbose: false
         ws_port: 5042
       vali_21:
-        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWKzTEneMPJ7pYC6LwmAZLScTHhBcvJgS1xfFXLT2TEFyY
+        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -392,7 +392,7 @@ chain_info:
         verbose: false
         ws_port: 5045
       vali_22:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
+        boot_nodes: /ip4/24.66.238.82/tcp/5028/p2p/12D3KooWPxa2WSo6wf6QzgeTEaDMkwPfQSHi4eXo2LrpeiVF3sgz
         chain: main
         ip: 24.66.238.82
         local: false
@@ -409,7 +409,7 @@ chain_info:
         verbose: false
         ws_port: 5048
       vali_23:
-        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHQgfWYiYdE3BVyjmA5SuRbsE2MecmwuCx2eU6zyWWY3o
         chain: main
         ip: 24.66.238.82
         local: false
@@ -426,7 +426,7 @@ chain_info:
         verbose: false
         ws_port: 5051
       vali_24:
-        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
+        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -443,7 +443,7 @@ chain_info:
         verbose: false
         ws_port: 5054
       vali_25:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -460,7 +460,7 @@ chain_info:
         verbose: false
         ws_port: 5057
       vali_26:
-        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
         chain: main
         ip: 24.66.238.82
         local: false
@@ -477,7 +477,7 @@ chain_info:
         verbose: false
         ws_port: 5060
       vali_27:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
+        boot_nodes: /ip4/24.66.238.82/tcp/5031/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         ip: 24.66.238.82
         local: false
@@ -494,7 +494,7 @@ chain_info:
         verbose: false
         ws_port: 5063
       vali_28:
-        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         ip: 24.66.238.82
         local: false
@@ -511,7 +511,7 @@ chain_info:
         verbose: false
         ws_port: 5066
       vali_29:
-        boot_nodes: /ip4/24.66.238.82/tcp/5037/p2p/12D3KooWJiyxNXbP4kQs3v2o5yVMcnYF6JtGAaYdDQ3Yqw7RLQ4v
+        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         ip: 24.66.238.82
         local: false
@@ -528,7 +528,7 @@ chain_info:
         verbose: false
         ws_port: 5069
       vali_3:
-        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWDykbZ8xo65BDe9zv4yJLzwbxHgpDJiWnDexcbpAf3HNv
+        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWJp1hD5hKSfSntNsZSPvih4SofJVfU7ANN4KWV4Yk1vfT
         chain: main
         ip: 24.66.238.82
         local: false
@@ -545,7 +545,7 @@ chain_info:
         verbose: false
         ws_port: 5072
       vali_30:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -562,7 +562,7 @@ chain_info:
         verbose: false
         ws_port: 5075
       vali_31:
-        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWS3CqbPVeUEWCQ4sFtFhdKn6nwCbQiMnitbpyqZg3vubJ
+        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWJp1hD5hKSfSntNsZSPvih4SofJVfU7ANN4KWV4Yk1vfT
         chain: main
         ip: 24.66.238.82
         local: false
@@ -579,7 +579,7 @@ chain_info:
         verbose: false
         ws_port: 5078
       vali_32:
-        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5073/p2p/12D3KooWL8cw7HNWpQtaHU8pKkMZbz5qnae3HH7Fg4A8fRQmUE7T
         chain: main
         ip: 24.66.238.82
         local: false
@@ -596,7 +596,7 @@ chain_info:
         verbose: false
         ws_port: 5081
       vali_33:
-        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
         chain: main
         ip: 24.66.238.82
         local: false
@@ -613,7 +613,7 @@ chain_info:
         verbose: false
         ws_port: 5084
       vali_34:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
+        boot_nodes: /ip4/24.66.238.82/tcp/5010/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
         chain: main
         ip: 24.66.238.82
         local: false
@@ -630,7 +630,7 @@ chain_info:
         verbose: false
         ws_port: 5087
       vali_35:
-        boot_nodes: /ip4/24.66.238.82/tcp/5085/p2p/12D3KooWA83bnacaiWPHeL4HsSh64boeUwFu54AD74BawHCtTbhn
+        boot_nodes: /ip4/24.66.238.82/tcp/5076/p2p/12D3KooWK7hXPctDYvNYpkfpjS4aedfXTgaf6z5xgMHrB2VXamS1
         chain: main
         ip: 24.66.238.82
         local: false
@@ -647,7 +647,7 @@ chain_info:
         verbose: false
         ws_port: 5090
       vali_36:
-        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWJp1hD5hKSfSntNsZSPvih4SofJVfU7ANN4KWV4Yk1vfT
+        boot_nodes: /ip4/24.66.238.82/tcp/5076/p2p/12D3KooWK7hXPctDYvNYpkfpjS4aedfXTgaf6z5xgMHrB2VXamS1
         chain: main
         ip: 24.66.238.82
         local: false
@@ -664,7 +664,7 @@ chain_info:
         verbose: false
         ws_port: 5093
       vali_37:
-        boot_nodes: /ip4/24.66.238.82/tcp/5076/p2p/12D3KooWK7hXPctDYvNYpkfpjS4aedfXTgaf6z5xgMHrB2VXamS1
+        boot_nodes: /ip4/24.66.238.82/tcp/5055/p2p/12D3KooWAEC5pjrwrnupaDf1wV7bFS6vdGLBCoBDXQkhXzLCgV9c
         chain: main
         ip: 24.66.238.82
         local: false
@@ -681,7 +681,7 @@ chain_info:
         verbose: false
         ws_port: 5096
       vali_38:
-        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
+        boot_nodes: /ip4/24.66.238.82/tcp/5061/p2p/12D3KooWDztdjVrf7NMXrmEbHLH7puWicDC8k5WsnXThpFkpPfa3
         chain: main
         ip: 24.66.238.82
         local: false
@@ -698,7 +698,7 @@ chain_info:
         verbose: false
         ws_port: 5099
       vali_39:
-        boot_nodes: /ip4/24.66.238.82/tcp/5082/p2p/12D3KooWQzoP2zkk8c3Kb16AHrqY8ysdZEGmWYNbSYTuNrbg6qUb
+        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
         chain: main
         ip: 24.66.238.82
         local: false
@@ -715,7 +715,7 @@ chain_info:
         verbose: false
         ws_port: 5102
       vali_4:
-        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         ip: 24.66.238.82
         local: false
@@ -732,7 +732,7 @@ chain_info:
         verbose: false
         ws_port: 5105
       vali_40:
-        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWJp1hD5hKSfSntNsZSPvih4SofJVfU7ANN4KWV4Yk1vfT
+        boot_nodes: /ip4/24.66.238.82/tcp/5076/p2p/12D3KooWK7hXPctDYvNYpkfpjS4aedfXTgaf6z5xgMHrB2VXamS1
         chain: main
         ip: 24.66.238.82
         local: false
@@ -749,7 +749,7 @@ chain_info:
         verbose: false
         ws_port: 5108
       vali_41:
-        boot_nodes: /ip4/24.66.238.82/tcp/5103/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
+        boot_nodes: /ip4/24.66.238.82/tcp/5049/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
         chain: main
         ip: 24.66.238.82
         local: false
@@ -766,7 +766,7 @@ chain_info:
         verbose: false
         ws_port: 5111
       vali_5:
-        boot_nodes: /ip4/24.66.238.82/tcp/5076/p2p/12D3KooWK7hXPctDYvNYpkfpjS4aedfXTgaf6z5xgMHrB2VXamS1
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
         chain: main
         ip: 24.66.238.82
         local: false
@@ -783,7 +783,7 @@ chain_info:
         verbose: false
         ws_port: 5114
       vali_6:
-        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWS3CqbPVeUEWCQ4sFtFhdKn6nwCbQiMnitbpyqZg3vubJ
         chain: main
         ip: 24.66.238.82
         local: false
@@ -800,7 +800,7 @@ chain_info:
         verbose: false
         ws_port: 5117
       vali_7:
-        boot_nodes: /ip4/24.66.238.82/tcp/5085/p2p/12D3KooWA83bnacaiWPHeL4HsSh64boeUwFu54AD74BawHCtTbhn
+        boot_nodes: /ip4/24.66.238.82/tcp/5082/p2p/12D3KooWQzoP2zkk8c3Kb16AHrqY8ysdZEGmWYNbSYTuNrbg6qUb
         chain: main
         ip: 24.66.238.82
         local: false
@@ -817,7 +817,7 @@ chain_info:
         verbose: false
         ws_port: 5120
       vali_8:
-        boot_nodes: /ip4/24.66.238.82/tcp/5061/p2p/12D3KooWDztdjVrf7NMXrmEbHLH7puWicDC8k5WsnXThpFkpPfa3
+        boot_nodes: /ip4/24.66.238.82/tcp/5082/p2p/12D3KooWQzoP2zkk8c3Kb16AHrqY8ysdZEGmWYNbSYTuNrbg6qUb
         chain: main
         ip: 24.66.238.82
         local: false
@@ -834,7 +834,7 @@ chain_info:
         verbose: false
         ws_port: 5123
       vali_9:
-        boot_nodes: /ip4/24.66.238.82/tcp/5094/p2p/12D3KooWLqMxbKVkCuRBtbQqgLevdrX2KShR75wvXcFqf63mBhbD
+        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         ip: 24.66.238.82
         local: false
@@ -851,7 +851,7 @@ chain_info:
         verbose: false
         ws_port: 5126
       vali_alice:
-        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWJp1hD5hKSfSntNsZSPvih4SofJVfU7ANN4KWV4Yk1vfT
+        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWDykbZ8xo65BDe9zv4yJLzwbxHgpDJiWnDexcbpAf3HNv
         chain: main
         ip: 24.66.238.82
         local: false
@@ -868,7 +868,7 @@ chain_info:
         verbose: false
         ws_port: 5129
       vali_vali_0:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
+        boot_nodes: /ip4/24.66.238.82/tcp/5031/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         ip: 24.66.238.82
         local: false
