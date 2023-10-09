@@ -6246,6 +6246,14 @@ class c:
 
     
     @classmethod
+    def pull(cls, msg='update'):
+        c.cmd(f'cd ')
+        cls.cmd(f'git pull')
+        cls.cmd(f'git commit -m "{msg}"', bash=True)
+        cls.cmd(f'git push')
+    
+    
+    @classmethod
     def make_pull(cls):
         return cls.cmd('make pull')
     
