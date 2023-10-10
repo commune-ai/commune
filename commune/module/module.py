@@ -4448,7 +4448,9 @@ class c:
     def test(cls, modules=['server', 'key', 'executor', 'namespace'], verbose:bool=False):
         test_results = []
         for module_name in modules:
-            c.print(f'Testing {module_name}', color='yellow')
+            c.print('#'*300)
+            c.print(f'[bold cyan]Testing {module_name}[/bold cyan]', color='yellow')
+
             module = c.module(module_name)
             assert hasattr(module, 'test'), f'Module {module_name} does not have a test function'
             module_test_results = module.test()
@@ -5475,8 +5477,8 @@ class c:
             if end_byte <= 0:
                 end_byte = file_size - end_byte 
 
-            assert end_byte > start_byte, f"end_byte must be less than or equal to {file_size}"
-
+            if end_byte < start_byte:
+                end_byte = start_byte + 100
             chunk_size = end_byte - start_byte + 1
 
             file.seek(start_byte)
@@ -7718,6 +7720,10 @@ class c:
             'question': '❓',
             
     }
+    @staticmethod
+    def tqdm(*args, **kwargs):
+        from tqdm import tqdm
+        return tqdm(*args, **kwargs)
     
 Module = c
 Module.run(__name__)
