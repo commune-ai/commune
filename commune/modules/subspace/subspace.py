@@ -3280,9 +3280,9 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_bot_nodes:int=4, **kwargs):
+    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=4, **kwargs):
         cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
-        response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_bot_nodes=max_bot_nodes, **kwargs)
+        response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
         node_info = response['node_info']
         cls.put(f'local_nodes/{chain}/{node}', node_info)
 
