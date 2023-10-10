@@ -57,7 +57,6 @@ class Task(c.Module):
             self.future.set_exception(TimeoutError('Task timed out'))
 
         self.status = 'running'
-        c.print('fam')
         try:
             data = self.fn(*self.args, **self.kwargs)
             self.status = 'done'
