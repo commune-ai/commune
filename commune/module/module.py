@@ -666,8 +666,7 @@ class c:
 
     @classmethod
     def start_node(cls, *args, **kwargs):
-        c.module('subspace').start_node(*args, **kwargs)
-        return {'success': True, 'msg': 'started node'}
+        return c.module('subspace').start_node(*args, **kwargs)
 
     @classmethod
     def start_local_node(cls, *args, **kwargs):
@@ -4846,6 +4845,11 @@ class c:
     @classmethod
     def live_modules(cls, **kwargs):
         return cls.call_pool(fn='address', **kwargs)
+
+
+    def servers(self, node, chain=None):
+        
+        return 
     
     @classmethod
     def call_pool(cls, *args, **kwargs):

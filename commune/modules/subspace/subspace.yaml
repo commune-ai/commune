@@ -1,5 +1,4 @@
 block_time: 4
-local: False
 chain_info:
   dev:
     boot_nodes: []
@@ -52,6 +51,23 @@ chain_info:
     - /ip4/24.66.238.82/tcp/5127/p2p/12D3KooWKGL7oCuyqXdW9v8RT1d95c2fh8EvH1rgD5mC9uhLKWoi
     - /ip4/24.66.238.82/tcp/5130/p2p/12D3KooWBE3476cgm3idSbEZLeEviWUi89hyxU1GPQ8kcSZvoRSo
     nodes:
+      fam:
+        boot_nodes: /ip4/24.66.238.82/tcp/5124/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
+        chain: main
+        ip: 24.66.238.82
+        local: false
+        mode: docker
+        node: fam
+        node_key: null
+        port: 5052
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 5053
+        telemetry_url: wss://telemetry.gpolkadot.io/submit/0
+        validator: false
+        verbose: false
+        ws_port: 5054
       nonvali_0:
         boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
         chain: main
@@ -1142,6 +1158,7 @@ chain_info:
         ws_port: 5132
     url: []
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
+local: true
 loop: false
 mode: local
 netuid: 0
