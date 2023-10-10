@@ -1932,16 +1932,21 @@ class Subspace(c.Module):
     def is_unique_name(self, name: str, netuid=None):
         return bool(name not in self.namespace(netuid=netuid))
 
-        
-    def servers(self, name=None, **kwargs) -> Dict[str, str]:
-        servers = list(self.namespace( **kwargs).keys())
+    @classmethod
+    def node_paths(cls, name=None, network=network, mode=mode) -> Dict[str, str]:
+        if mode == 'docker':
+            paths = c.module('docker').ps('subspace')
+        elif mode == 'local':
+            paths = c.pm2ls('subspace')
+        else:
+            raise ValueError(f"Mode {mode} not recognized. Must be 'docker' or 'local'")
+        return paths
 
-        if name != None:
-            servers = [s for s in servers if name in s]
-        return servers
-        
-        
-
+    @classmethod
+    def node2logs(cls, name=None, network=network, mode=mode, tail=10) -> Dict[str, str]:
+        paths = cls.node_paths(name=name, network=network, mode=mode)
+        node2logs = {path: c.dlogs(path, tail=tail) for path in paths}
+        return node2logs
     
     def name2inc(self, name: str = None, netuid: int = netuid, nonzero_only:bool=True) -> int:
         name2uid = self.name2uid(name=name, netuid=netuid)
@@ -2115,6 +2120,7 @@ class Subspace(c.Module):
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
                 state = {key: self.get_key_data(key=key, netuid=netuid, block=block, network=network) for key in keys}
+            c.print(state['uid2key'])
             for uid, key in state['uid2key'].items():
 
                 module= {
@@ -2440,7 +2446,7 @@ class Subspace(c.Module):
         while indicator not in node_logs and max_trials > 0:
             if mode == 'docker':
                 node_path = node2path[node]
-                node_logs = c.module('docker').logs(node_path)
+                node_logs = c.module('docker').logs(node_path, tail=400)
             elif mode == 'local':
                 node_logs = c.logs(node_path, start_line = 0 , end_line=400, mode='local')
             else:
@@ -2844,6 +2850,24 @@ class Subspace(c.Module):
         return vali_node_keys
 
     @classmethod
+    def node_key_mems(cls,chain=chain, mode = 'all'):
+        vali_node_keys = {}
+        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
+            name = key_name.split('.')[-2]
+            role = key_name.split('.')[-1]
+            key = c.get_key(key_name)
+            if name not in vali_node_keys:
+                vali_node_keys[name] = { }
+            vali_node_keys[name][role] =  key.mnemonic
+        return vali_node_keys
+    @classmethod
+    def send_node_keys(cls, module):
+        node_key_mems = cls.node_key_mems()
+        for node, key_mems in node_key_mems.items():
+            module.add_node_key(node=node, node_key_mems=key_mems)
+
+
+    @classmethod
     def node_key_info_map(cls,chain=chain, mode = 'all'):
         keys = cls.node_keys(chain=chain, mode=mode)
         return {k:c.key_info(k) for k in keys}
@@ -2892,7 +2916,7 @@ class Subspace(c.Module):
                      vali: bool = True,
                      chain = chain,
                      tag_seperator = '_', 
-                     node_key:dict = None, # pass the keys
+                     key_mems:dict = {'aura': None, 'gran': None}, # pass the keys mems
                      refresh: bool = False,
                      ):
         '''
@@ -2925,8 +2949,8 @@ class Subspace(c.Module):
             # we need to resolve the key path based on the key type
             key_path = f'{cls.node_key_prefix}.{chain}.{node}.{key_type}'
 
-            if node_key != None:
-                assert key_type in node_key, f'key_type {key_type} not in keys {node_key}'
+            if key_mems != None:
+                assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
                 c.add_key(key_path, mnemonic = node_key[key_type], refresh=True)
 
             # we need to resolve the key based on the key path
@@ -2947,7 +2971,7 @@ class Subspace(c.Module):
             else:
                 raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
 
-        return {'success':True, 'node':node, 'chain':chain}
+        return {'success':True, 'node':node, 'chain':chain, 'keys': cls.node_keys(chain=chain)}
 
 
 
@@ -3304,19 +3328,20 @@ class Subspace(c.Module):
 
         if port == None:
             node_info['port'] = port = free_ports[0]
-            
         if rpc_port == None:
             node_info['rpc_port'] = rpc_port = free_ports[1]
         if ws_port == None:
             node_info['ws_port'] = ws_port = free_ports[2]
-        # resolve base path
 
-        if not cls.node_key_exists(node=node, chain=chain):
+        key_exsits = cls.node_key_exists(node=node, chain=chain)
+
+        # add the node key if it does not exist
+        if key_exists:
             cls.add_node_key(node=node, vali=validator, chain=chain, refresh=refresh, mode=mode)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
-        # purge chain
+        # purge chain's  db if it exists and you want to start from scratch
         if purge_chain:
             cls.purge_chain(base_path=base_path)
             
@@ -3324,7 +3349,6 @@ class Subspace(c.Module):
 
         chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
-    
         
         if validator :
             cmd_kwargs += ' --validator'

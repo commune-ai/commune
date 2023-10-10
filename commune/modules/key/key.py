@@ -1,26 +1,8 @@
-# Python Substrate Interface Library
-#
-# Copyright 2018-2023 Stichting Polkascan (Polkascan Foundation).
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 import json
-
 from scalecodec.utils.ss58 import ss58_encode, ss58_decode, get_ss58_format
-
 from scalecodec.base import ScaleBytes
 from typing import Union, Optional
-
 import time
 import binascii
 import re
@@ -41,6 +23,7 @@ from substrateinterface.utils.encrypted_json import decode_pair_from_encrypted_j
 from bip39 import bip39_to_mini_secret, bip39_generate, bip39_validate
 import sr25519
 import ed25519_zebra
+import commune as c
 
 __all__ = ['Keypair', 'KeypairType', 'MnemonicLanguageCode']
 
@@ -82,11 +65,9 @@ class MnemonicLanguageCode:
     KOREAN = 'ko'
     SPANISH = 'es'
 
-import commune as c
-
 
 class Keypair(c.Module):
-
+    keys_path = c.data_path + '/keys.json'
     def __init__(self, 
                  ss58_address: str = None, 
                  public_key: Union[bytes, str] = None,
@@ -266,8 +247,6 @@ class Keypair(c.Module):
     @classmethod
     def key_info_map(cls, *args, **kwargs):
         return {key: cls.key_info(key) for key in cls.keys(*args, **kwargs)}
-    
-    keys_path = c.data_path + '/keys.json'
 
     @classmethod
     def load_key(cls, path):
@@ -1013,24 +992,24 @@ class Keypair(c.Module):
                 
         assert password is not None, "No encryption key found, please make sure you have set either private_key, mnemonic or seed_hex"
         
-        
         return password
     
-    def resolve_encryption_password(self, password: str = None) -> str:
-        if password is None:
-            password = self.private_key
-        return password
-    
-    
-    def encrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        password = self.resolve_encryption_password(password)
-        encrypted_data = c.encrypt(data=data, password=password)
-        return encrypted_data
 
-    def decrypt(self, data: Union[str, bytes], password: str = None) -> bytes:
-        password = self.resolve_encryption_password(password)
-        encrypted_data = c.decrypt(data=data, password=password)
-        return encrypted_data
+
+    @property
+    def aes_key(self):
+        if not hasattr(self, '_aes_key'):
+            password = self.private_key
+            self._aes_key = c.module('key.aes')(c.bytes2str(password))
+        return self._aes_key
+
+    
+    
+    def encrypt(self, data: Union[str, bytes], password: str = None, **kwargs) -> bytes:
+        return self.aes_key.encrypt(data, **kwargs)
+
+    def decrypt(self, data: Union[str, bytes]) -> bytes:
+        return self.aes_key.decrypt(data)
 
 
 
