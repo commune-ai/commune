@@ -401,27 +401,20 @@ class c:
     def put(cls, 
             k, 
             v, 
-            password: bool = None,
             mode: bool = 'json',
             key : str = None,
-            **kwargs
+            encrypt: bool = False,
             ):
         '''
         Puts a value in the config
         '''
         
-
-        encrypt =  password != None
-        v = cls.copy(v)
         if encrypt:
-            data = key.encrypt(v, key=key, return_dict=True)
-        else:
-            data = {'data': v, 'encrypted': encrypt}
-
-        data['timestamp'] = c.timestamp()
-            
+            data = c.encrypt(v, key=key, return_dict=True)
+        
+        data = {'data': v, 'encrypted': encrypt, 'timestamp': c.timestamp()}            
         # default json 
-        getattr(cls,f'put_{mode}')(k, data, **kwargs)
+        getattr(cls,f'put_{mode}')(k, data)
     
         return data
     
@@ -430,12 +423,12 @@ class c:
         
     @classmethod
     def get(cls,
-            key:str, 
+            k:str, 
             default: Any=None, 
-            password: str=None, 
             mode:str = 'json',
             max_age:str = None,
             cache :bool = False,
+            full :bool = False,
             **kwargs) -> Any:
         
         '''
@@ -444,17 +437,17 @@ class c:
         Return the value
         '''
         if cache:
-            if key in cls.cache:
-                return cls.cache[key]
+            if k in cls.cache:
+                return cls.cache[k]
             
 
         verbose = kwargs.get('verbose', False)
-        data = getattr(cls, f'get_{mode}')(key,default=default, **kwargs)
+        data = getattr(cls, f'get_{mode}')(k,default=default, **kwargs)
         if data == None: 
             data = default
         encrypted = c.is_encrypted(data)
         if encrypted:
-            data = cls.decrypt(data, password=password)
+            data = cls.decrypt(data, key=key)
         if isinstance(data, dict):
             if max_age != None:
                 timestamp = data.get('timestamp', None)
@@ -467,13 +460,15 @@ class c:
         else:
             data = default
             
-        if isinstance(data, dict):
-            if 'data' in data:
-                data = data['data']
+        if not full:
+            if isinstance(data, dict):
+                if 'data' in data:
+                    data = data['data']
 
         # local cache
         if cache:
-            cls.cache[key] = data
+            cls.cache[k] = data
+
         return data
     
 
@@ -1433,7 +1428,7 @@ class c:
         if cls.root_module_class in module_tree:
             module_tree[cls.module_path()] = module_tree.pop(cls.root_module_class)
         if cache or update:
-            c.put('module_tree', module_tree, cache=cache)
+            c.put('module_tree', module_tree)
         return module_tree
     
     available_modules = tree = module_tree
@@ -5462,6 +5457,7 @@ class c:
     @classmethod
     def get_text(cls, 
                  path: str, 
+                 tail = None,
                  start_byte:int = 0,
                  end_byte:int = 0,
                  start_line :int= None,
