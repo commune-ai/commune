@@ -86,7 +86,6 @@ class TaskExecutor(c.Module):
                 del kwargs["priority"]
             task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
             # add the work item to the queue
-            c.print(f"Adding task with priority {priority}", color='green')
             self.work_queue.put((priority, task), block=False)
             # adjust the thread count to match the new task
             self.adjust_thread_count()
@@ -199,17 +198,15 @@ class TaskExecutor(c.Module):
         futures = []
         for i in range(100):
             futures += [self.submit(fn=fn, kwargs=dict(x=i))]
-
-        for future in futures:
-            c.print(future.result())
+        for future in c.tqdm(futures):
+            future.result()
         for i in range(100):
             futures += [self.submit(fn=fn, kwargs=dict(x=i))]
 
         results = c.wait(futures)
-        c.print(results)
         
         while self.num_tasks > 0:
-            c.print(self.num_tasks)
+            c.print(self.num_tasks, 'tasks remaining', color='red')
 
 
         return {'success': True, 'msg': 'thread pool test passed'}
