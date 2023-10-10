@@ -3280,9 +3280,9 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, **kwargs):
+    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_bot_nodes:int=4, **kwargs):
         cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
-        response = cls.start_node(node=node, chain=chain, mode=mode, local=True, **kwargs)
+        response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_bot_nodes=max_bot_nodes, **kwargs)
         node_info = response['node_info']
         cls.put(f'local_nodes/{chain}/{node}', node_info)
 
@@ -3331,6 +3331,7 @@ class Subspace(c.Module):
                  validator:bool = False,
                  local:bool = False,
                  ip = None,
+                 max_boot_nodes:int = 24,
                  
                  ):
 
@@ -3377,7 +3378,7 @@ class Subspace(c.Module):
         
         # add the node to the boot nodes
         if len(boot_nodes) > 0:
-            node_info['boot_nodes'] = c.choice(boot_nodes) # choose a random boot node (at we chose one)
+            node_info['boot_nodes'] = c.choice(boot_nodes[:max_boot_nodes]) # choose a random boot node (at we chose one)
             cmd_kwargs += f" --bootnodes {node_info['boot_nodes']}"
     
         if node_key != None:
