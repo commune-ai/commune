@@ -3293,7 +3293,7 @@ class Subspace(c.Module):
             node_name = f'{node}_{i}'
             response = cls.start_node(node=node_name , chain=chain, mode=mode, validator=False, max_boot_nodes=max_boot_nodes, **kwargs)
             node_info = response['node_info']
-            cls.put(f'chain_info.{chain}.{node_name}', node_info)
+            cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
             
     @classmethod
     def local_nodes(cls, chain=chain):
@@ -3316,6 +3316,13 @@ class Subspace(c.Module):
         else:
             url = c.choice(self.urls(network=chain))
         return url
+
+    @classmethod
+    def start_nodes(self, node='nonvali', n=10, chain=chain, **kwargs):
+        results  = []
+        for i in range(n):
+            results += [self.start_node(node= f'{node}_{i}', chain=chain, **kwargs)]
+        return results
     @classmethod
     def start_node(cls,
                  node : str,
