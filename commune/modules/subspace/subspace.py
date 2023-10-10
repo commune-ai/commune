@@ -3288,10 +3288,13 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def start_local_fleet(cls, node:str='alice', mode=mode, chain=chain, **kwargs):
-        cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
-        cls.start_node(node=node, chain=chain, mode=mode, local=True, **kwargs)
-
+    def start_public_nodes(cls, node:str='nonvali', n:int=10, mode=mode, chain=chain, max_boot_nodes=24, **kwargs):
+        for i in range(n):
+            node_name = f'{node}_{i}'
+            response = cls.start_node(node=node_name , chain=chain, mode=mode, validator=False, max_boot_nodes=max_boot_nodes, **kwargs)
+            node_info = response['node_info']
+            cls.put(f'chain_info.{chain}.{node_name}', node_info)
+            
     @classmethod
     def local_nodes(cls, chain=chain):
         return cls.ls(f'local_nodes/{chain}')
