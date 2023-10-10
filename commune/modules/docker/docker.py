@@ -382,7 +382,7 @@ class Docker(c.Module):
         return c.cmd(cmd, verbose=verbose)
 
     @classmethod
-    def tag(image:str, tag:str):
+    def tag(cls, image:str, tag:str):
         c.cmd(f'docker tag {image} {tag}', verbose=True)
         c.cmd(f'docker push {tag}', verbose=True)
     @classmethod
