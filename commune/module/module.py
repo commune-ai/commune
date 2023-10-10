@@ -2990,7 +2990,7 @@ class c:
             module = cls.resolve_module(module)
             server_name = module.serve(
                                 server_name=server_name, 
-                                wait_for_server=True, 
+                                wait_for_server=False, 
                                 refresh=refresh, 
                                 tag=tag,
                                 **kwargs)
