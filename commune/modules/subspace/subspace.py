@@ -2239,7 +2239,7 @@ class Subspace(c.Module):
 
     @classmethod
     def kill_node(cls, node=None, chain=chain, mode=mode):
-        node_path = self.resolve_node_path(node=node, chain=chain)
+        node_path = cls.resolve_node_path(node=node, chain=chain)
         if mode == 'docker':
             c.module('docker')().kill(node_path)
         elif mode == 'local':
@@ -3315,10 +3315,8 @@ class Subspace(c.Module):
         if ws_port == None:
             node_info['ws_port'] = ws_port = free_ports[2]
 
-        key_exsits = cls.node_key_exists(node=node, chain=chain)
-
         # add the node key if it does not exist
-        if key_exists:
+        if not cls.node_key_exists(node=node, chain=chain):
             cls.add_node_key(node=node, vali=validator, chain=chain, refresh=refresh, mode=mode)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
@@ -3418,6 +3416,12 @@ class Subspace(c.Module):
     @classmethod
     def node_exists(cls, node:str, chain:str=chain, vali:bool=False):
         return node in cls.nodes(chain=chain, vali=vali)
+
+    @classmethod
+    def node_running(self, node:str, chain:str=chain) -> bool:
+        contianers = c.ps()
+        name = f'{self.node_prefix()}.{chain}.{node}'
+        return name in contianers
         
 
     @classmethod
