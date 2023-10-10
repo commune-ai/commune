@@ -86,7 +86,6 @@ class TaskExecutor(c.Module):
                 del kwargs["priority"]
             task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
             # add the work item to the queue
-            c.print(f"Adding task with priority {priority}", color='green')
             self.work_queue.put((priority, task), block=False)
             # adjust the thread count to match the new task
             self.adjust_thread_count()
