@@ -1937,16 +1937,23 @@ class Subspace(c.Module):
         if mode == 'docker':
             paths = c.module('docker').ps('subspace')
         elif mode == 'local':
-            paths = c.pm2ls('subspace')
+            paths = c.pm2ls('subspace.node')
         else:
             raise ValueError(f"Mode {mode} not recognized. Must be 'docker' or 'local'")
         return paths
 
     @classmethod
-    def node2logs(cls, name=None, network=network, mode=mode, tail=10) -> Dict[str, str]:
-        paths = cls.node_paths(name=name, network=network, mode=mode)
-        node2logs = {path: c.dlogs(path, tail=tail) for path in paths}
-        return node2logs
+    def node_info(cls, node=None, chain=chain, mode=mode) -> Dict[str, str]:
+        path = cls.resolve_node_path(node=node, chain=chain)
+        logs = cls.node_logs(node=node, chain=chain)
+        node_key = cls.get_node_key(node=node, chain=chain)
+        
+        return {'path': path, 'logs': logs, 'node_key': node_key }
+
+    @classmethod
+    def node_logs(cls, node=None, chain=chain, mode=mode, tail=10) -> Dict[str, str]:
+        path = cls.resolve_node_path(node=node, chain=chain)
+        return c.dlogs(path, tail=tail) 
     
     def name2inc(self, name: str = None, netuid: int = netuid, nonzero_only:bool=True) -> int:
         name2uid = self.name2uid(name=name, netuid=netuid)
@@ -2229,9 +2236,21 @@ class Subspace(c.Module):
     @classmethod
     def refresh_chain_info(cls, chain=chain):
         cls.putc(f'chain_info.{chain}', {'nodes': {}, 'boot_nodes': []})
+
+    @classmethod
+    def kill_node(cls, node=None, chain=chain, mode=mode):
+        node_path = self.resolve_node_path(node=node, chain=chain)
+        if mode == 'docker':
+            c.module('docker')().kill(node_path)
+        elif mode == 'local':
+            c.kill(node_path)
+        return {'success': True, 'message': f'killed {node} on {chain}'}
+
     @classmethod
     def kill_nodes(cls, chain=chain, verbose=True, mode=mode):
-        for node_path in cls.live_nodes(chain=chain):
+
+        kill_node_paths = []
+        for node_path in cls.node_paths(chain=chain):
             if verbose:
                 c.print(f'killing {node_path}',color='red')
             if mode == 'local':
@@ -2239,7 +2258,15 @@ class Subspace(c.Module):
             elif mode == 'docker':
                 c.module('docker')().kill(node_path)
 
-        return cls.live_nodes(chain=chain)
+            kill_node_paths.append(node_path)
+
+        return {
+                'success': True, 
+                'message': f'killed all nodes on {chain}', 
+                'killed_nodes': kill_node_paths,
+                'nodes': cls.node_paths(chain=chain)
+                }
+
     
     def query(self, name,  params, block=None,  network: str = network,):
         if not isinstance(params, list):
@@ -2809,24 +2836,11 @@ class Subspace(c.Module):
         return f'{cls.node_key_prefix}.{chain}.{node_type}{tag_seperator}{node}'
 
     @classmethod
-    def random_node_key(cls, mode='vali', chain=chain):
-        return c.choice(cls.node_keys(mode=mode, chain=chain))
-
-    @classmethod
-    def resolve_node_key(cls, node=None, mode='vali', chain=chain):
-        if node == None:
-            cls.vali_node_keys(chain)
-        
-        return 
-
-    @classmethod
-    def get_node_key(cls, node='alice', chain=chain, vali=True):
-        if not cls.node_exists(node=node, chain=chain, vali=vali):
-            cls.add_node_key(node=node, vali=vali, chain=chain)
-        
-        key_path = cls.resolve_node_path(node=node, vali=vali, chain=chain)
-        keys = c.keys(key_path)
-        return keys
+    def get_node_key(cls, node='alice', chain=chain, vali=True, crease_if_not_exists:bool=True):
+        if crease_if_not_exists:
+            if not cls.node_exists(node=node, chain=chain, vali=vali):
+                cls.add_node_key(node=node, vali=vali, chain=chain)
+        return cls.node_keys(chain=chain)[node]
     
     @classmethod
     def node_key_paths(cls, node=None, chain=chain, vali: bool = True):
@@ -2838,16 +2852,31 @@ class Subspace(c.Module):
     
 
     @classmethod
-    def node_keys(cls,chain=chain, mode = 'all'):
-        vali_node_keys = {}
-        for key_name in c.keys(f'{cls.node_key_prefix}.{chain}'):
-            name = key_name.split('.')[-2]
+    def node_keys(cls,chain=chain, vali= True):
+        prefix = f'{cls.node_key_prefix}.{chain}'
+        if vali:
+            prefix = f'{prefix}.vali'
+        else:
+            prefix = f'{prefix}.nonvali'
+        node_keys = {}
+        for k in c.keys(prefix):
+            name = k.split('.')[-2]
+            key_type = k.split('.')[-1]
+            if name not in node_keys:
+                node_keys[name] = {}
+            node_keys[name][key_type] = c.get_key(k).ss58_address
+        return node_keys
+
+    @classmethod
+    def node_key(cls, name, chain=chain):
+        path = cls.resolve_node_path(node=name, chain=chain)
+        node_key = {}
+        for key_name in c.keys(path):
             role = key_name.split('.')[-1]
             key = c.get_key(key_name)
-            if name not in vali_node_keys:
-                vali_node_keys[name] = { }
-            vali_node_keys[name][role] =  key.ss58_address
-        return vali_node_keys
+            node_key[role] =  key.ss58_address
+        return node_key
+
 
     @classmethod
     def node_key_mems(cls,chain=chain, mode = 'all'):
@@ -2868,22 +2897,12 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def node_key_info_map(cls,chain=chain, mode = 'all'):
-        keys = cls.node_keys(chain=chain, mode=mode)
-        return {k:c.key_info(k) for k in keys}
-
-    @classmethod
-    def nodes(cls, vali='all', chain=chain):
+    def nodes(cls, vali:bool=True, chain=chain):
         nodes = list(cls.node_keys(chain=chain).keys())
         if vali:
             nodes = [n for n in nodes if n.startswith('vali')]
-        elif mode == 'nonvali':
-            nodes = [n for n in nodes if n.startswith('nonvali')]
-        elif mode == 'all':
-            pass
         else:
-            raise ValueError(f'Unknown mode {mode}, must be one of vali, nonvali, all')
-
+            nodes = [n for n in nodes if n.startswith('nonvali')]
         return nodes
 
     @classmethod
@@ -3171,31 +3190,6 @@ class Subspace(c.Module):
         return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
     
     @classmethod
-    def insert_node_keys(cls,
-                   aura_suri : str, 
-                   grandpa_suri :str,
-                    node='node01',
-                   password_interactive = False,
-                   ):
-        '''
-        Insert aura and gran keys for a node
-        '''
-        cls.insert_node_key(node=node, key_type='aura',  suri=aura_suri)
-        cls.insert_node_key(node=node, key_type='gran', suri=grandpa_suri)
-       
-        return c.cmd(cmd, cwd=cls.chain_path, verbose=True)
-    
-    
-    @classmethod
-    def live_nodes(cls, chain=chain, mode=mode):
-        prefix = f'{cls.node_prefix()}.{chain}'
-        if mode == 'local':
-            nodes =  c.pm2ls(prefix)
-        else:
-            nodes =  c.module('docker').ps(prefix)
-
-        return nodes
-    @classmethod
     def node2path(cls, chain=chain, mode = mode):
         prefix = f'{cls.node_prefix()}.{chain}'
         if mode == 'docker':
@@ -3233,18 +3227,6 @@ class Subspace(c.Module):
         default = {} if default == None else default
         return cls.getc(f'chain_info.{chain}', default)
 
-
-    @classmethod
-    def node_info(cls, node='alice', chain=chain): 
-        return cls.getc(f'chain_info.{chain}.{node}')
-
-    @classmethod
-    def is_vali_node(cls, node='alice', chain=chain):
-        node_info = cls.node_info(node=node, chain=chain)
-        if node_info == None:
-            return False
-        assert 'validator' in node_info, f'node_info for {node} on {chain} does not have a validator key'
-        return node_info['validator']
 
     @classmethod
     def rm_node(cls, node='bobby',  chain=chain): 

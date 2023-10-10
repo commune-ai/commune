@@ -198,17 +198,15 @@ class TaskExecutor(c.Module):
         futures = []
         for i in range(100):
             futures += [self.submit(fn=fn, kwargs=dict(x=i))]
-
-        for future in futures:
-            c.print(future.result())
+        for future in c.tqdm(futures):
+            future.result()
         for i in range(100):
             futures += [self.submit(fn=fn, kwargs=dict(x=i))]
 
         results = c.wait(futures)
-        c.print(results)
         
         while self.num_tasks > 0:
-            c.print(self.num_tasks)
+            c.print(self.num_tasks, 'tasks remaining', color='red')
 
 
         return {'success': True, 'msg': 'thread pool test passed'}
