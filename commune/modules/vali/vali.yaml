@@ -19,7 +19,7 @@ sleep_time: 1
 vote: True
 min_stake: 1
 connect_score: 0.1 
-max_staleness: 100
+max_staleness: 2000
 virtual_module: False
 
 
