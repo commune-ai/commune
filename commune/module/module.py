@@ -18,6 +18,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class c:
     # AGI BEGINS 
+    encrypted_prefix = 'ENCRYPTED'
     description = "This module forms the foundation for commune, it contains all the core functions and classes"
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
@@ -357,6 +358,44 @@ class c:
     
     
     default_config = load_config
+
+    @classmethod
+    def encrypt_path(cls, path:str, key=None, prefix='ENCRYPTED') -> str:
+        '''
+        Encrypts the path
+        '''
+        path = cls.resolve_path(path)
+        text = c.get_text(path)
+        encrypted_text = prefix + c.encrypt(text, key=key)
+        c.put_text(path, encrypted_text)
+
+        return {'success': True, 'msg': f'encrypted {path}'}
+        
+
+    @classmethod
+    def decrypt_path(cls, path:str, key=None, prefix='ENCRYPTED') -> str:
+        '''
+        Encrypts the path
+        '''
+        path = cls.resolve_path(path)
+        text = c.get_text(path)
+        assert text.startswith(prefix), f'path {path} is not encrypted'
+        text = text[len(prefix):]
+        encrypted_text = c.decreypt(text, key=key)
+        c.put_text(path, encrypted_text)
+
+        return {'success': True, 'msg': f'encrypted {path}'}
+        
+
+    def is_encrypted_path(self, path:str, prefix='ENCRYPTED') -> bool:
+        '''
+        Encrypts the path
+        '''
+        path = self.resolve_path(path)
+        text = c.get_text(path)
+        return text.startswith(prefix)
+
+
     
     @classmethod
     def put(cls, 
@@ -364,6 +403,7 @@ class c:
             v, 
             password: bool = None,
             mode: bool = 'json',
+            key : str = None,
             **kwargs
             ):
         '''
@@ -374,7 +414,7 @@ class c:
         encrypt =  password != None
         v = cls.copy(v)
         if encrypt:
-            data = cls.encrypt(v, password=password, return_dict=True)
+            data = key.encrypt(v, key=key, return_dict=True)
         else:
             data = {'data': v, 'encrypted': encrypt}
 
@@ -473,48 +513,9 @@ class c:
    
     delc = rmc
     setc = putc
-    @classmethod
-    def encryptc(cls, k, password=None) -> Munch:
-        '''
-        Saves the config to a yaml file
-        '''
-        config = cls.config()
-        assert k in config, f'key {k} not found in config'
-        v = cls.dict_get(config, k)
-        # assert isinstance(v,str), f'cannot encrypt {v} of type {type(v)}, strings only'
-        if password:
-            v = cls.encrypt(v,  password=password)
 
-        cls.dict_put(config, k, v)
-        cls.save_config(config=config)
-        return v
-   
-    encc=encryptc
-    @classmethod
-    def decryptc(cls, k, password=None) -> Munch:
-        '''
-        Saves the config to a yaml file
-        '''
-        config = cls.config()
-        v = config[k]
-        if password:
-            v = cls.decrypt(v,  password=password)
 
-        if v != None:
-            config[k] = v
-            cls.save_config(config=config)
-        
-        return v
-    
-    decc = decryptc
-    
-    @classmethod
-    def is_encryptedc(cls, k) -> Munch:
-        '''
-        Saves the config to a yaml file
-        '''
-        config = cls.getc(c)
-        return c.is_encrypted(v)
+
     @classmethod
     def frontend(cls):
         return c.compose('frontend')
@@ -3120,10 +3121,11 @@ class c:
     @classmethod
     def pm2_logs(cls, 
                 module:str, 
-                start_line: int =-100, 
-                end_line: int =-1, 
+                tail: int =100, 
                 verbose: bool=True ,
                 mode: str ='cmd'):
+
+        
         if mode == 'local':
             text = ''
             for m in ['out','error']:
@@ -3131,7 +3133,7 @@ class c:
                 # I know, this is fucked 
                 path = f'{cls.pm2_dir}/logs/{module.replace("/", "-")}-{m}.log'.replace(':', '-').replace('_', '-')
                 try:
-                    text +=  c.get_text(path, start_line=start_line, end_line=end_line)
+                    text +=  c.get_text(path, tail=tail)
                 except Exception as e:
                     c.print(e)
                     continue
@@ -4734,66 +4736,29 @@ class c:
         return password
 
 
-    encrypted_prefix = 'AESKEY'
     @classmethod
     def encrypt(cls, 
                 data: Union[str, bytes],
-                password: str = 'bitconnect', 
+                key: str = None, 
                 prefix = encrypted_prefix) -> bytes:
-        password = c.resolve_password(password)
-        data = c.python2str(data)
-        
 
-        assert isinstance(password, str),  f'{password}'
-        key = c.module('key.aes')(key=password)
+        key = c.get_key(key)
+        data = c.python2str(data)
         encrypted_data = key.encrypt(data)
-        if prefix != None:
-            encrypted_data = f'{prefix}::{encrypted_data}'
         return encrypted_data
     
 
-    
     @classmethod
     def decrypt(cls, 
-                data: str,
-                password= None,
-                ignore_error: bool = True,
-                prefix = encrypted_prefix,
-                verbose:bool = False) -> Any:
-        password = c.resolve_password(password)
-        key = c.module('key.aes')(password)
-        
-        if not c.is_encrypted(data, prefix=prefix):
-            return data
-        
-        if isinstance(data, str):
-            if data.startswith(prefix):
-                data = data[len(prefix):]
-            else:
-                return {'error': 'data does not start with prefix'}
-        if isinstance(data, Munch):
-            data = c.munch2dict(data)
-        if isinstance(data, dict):
-            data = data['data']
-        try:
-            data = key.decrypt(data)
-        except Exception as e:
-            return None 
-        if isinstance(data, str):
-            data = cls.str2python(data)
-            
-        if isinstance(data, str) and len(data) == 0:
+                data: Union[str, bytes],
+                key: str = None, 
+                prefix = encrypted_prefix) -> bytes:
+
+        key = c.get_key(key)
+        data = c.python2str(data)
+        encrypted_data = key.decrypt(data)
+        return encrypted_data
     
-            if ignore_error:
-                data = None
-                if verbose:
-                    c.print(f'Exception: Wrong Password, try another',color='red')
-            else:
-                raise Exception(f'could not decrypt data, try another pasword')
-        
-        return data
-    enc = encrypt
-    dec = decrypt
     @classmethod
     def put_cache(cls,k,v ):
         cls.cache[k] = v
@@ -4846,11 +4811,6 @@ class c:
     def live_modules(cls, **kwargs):
         return cls.call_pool(fn='address', **kwargs)
 
-
-    def servers(self, node, chain=None):
-        
-        return 
-    
     @classmethod
     def call_pool(cls, *args, **kwargs):
         loop = cls.get_event_loop()
@@ -4999,36 +4959,13 @@ class c:
     def get_signer(cls, data:dict ) -> bool:        
         return c.module('key').get_signer(data)
     
-    def get_auth(self, 
-                 data:dict  = None, 
-                 key: str = None,
-                 return_dict:bool = True,
-                 encrypt: bool = False,
-                 ) -> dict:
-        
-        key = self.resolve_key(key)
-        if data == None:
-            data = {'utc_timestamp': self.time()}
-
-        sig_dict = key.sign(data, return_dict=return_dict)
-
-        if encrypt:
-            sig_dict['data'] = key.encrypt(sig_dict['data'])
-
-        sig_dict['encrypted'] = encrypt
-            
-        
-        
-        return sig_dict
-    
-    
     @classmethod
     def start(cls, *args, **kwargs):
         return cls(*args, **kwargs)
     
 
     @classmethod
-    def is_encrypted(cls, data, prefix='AESKEY'):
+    def is_encrypted(cls, data, prefix=encrypted_prefix):
         if isinstance(data, str):
             if data.startswith(prefix):
                 return True
@@ -5466,13 +5403,20 @@ class c:
         return file_contents
 
     @classmethod
-    def put_text(cls, path:str, text:str, root=False) -> None:
+    def put_text(cls, path:str, text:str, root=False, key=None) -> None:
         # Get the absolute path of the file
         path = cls.resolve_path(path, root=root)
-
+        if key != None:
+            text = c.get_key(key).encrypt(text)
         # Write the text to the file
         with open(path, 'w') as file:
             file.write(text)
+
+        # get size
+        text_size = len(text)*8
+    
+
+        return {'success': True, 'msg': f'Wrote text to {path}', 'size': text_size}
             
             
     @classmethod
@@ -5521,24 +5465,29 @@ class c:
                  start_byte:int = 0,
                  end_byte:int = 0,
                  start_line :int= None,
-                 end_line:int = None,
-                  root=False, ) -> str:
+                 end_line:int = None ) -> str:
         # Get the absolute path of the file
-        
-        path = cls.resolve_path(path, root=root)
+        path = cls.resolve_path(path)
+
         # Read the contents of the file
         with open(path, 'rb') as file:
-        
-                
+
             file.seek(0, 2) # this is done to get the fiel size
             file_size = file.tell()  # Get the file size
             if start_byte < 0:
                 start_byte = file_size - start_byte
             if end_byte <= 0:
                 end_byte = file_size - end_byte 
+
+            assert end_byte > start_byte, f"end_byte must be less than or equal to {file_size}"
+
             chunk_size = end_byte - start_byte + 1
+
             file.seek(start_byte)
+
             content_bytes = file.read(chunk_size)
+
+            # Convert the bytes to a string
             try:
                 content = content_bytes.decode()
             except UnicodeDecodeError as e:
@@ -5546,8 +5495,12 @@ class c:
                     content = content_bytes.hex()
                 else:
                     raise e
-                
-            if start_line != None or end_line != None:
+
+            if tail != None:
+                content = content.split('\n')
+                content = '\n'.join(content[-tail:])
+    
+            elif start_line != None or end_line != None:
                 
                 content = content.split('\n')
                 if end_line == None or end_line == 0 :
@@ -5559,6 +5512,8 @@ class c:
                 if end_line < 0 :
                     end_line = end_line + len(content)
                 content = '\n'.join(content[start_line:end_line])
+            else:
+                content = content_bytes.decode()
         return content
     
     load_text = get_text
