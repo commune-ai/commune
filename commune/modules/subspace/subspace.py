@@ -2970,7 +2970,7 @@ class Subspace(c.Module):
 
             if key_mems != None:
                 assert key_type in key_mems, f'key_type {key_type} not in keys {key_mems}'
-                c.add_key(key_path, mnemonic = node_key[key_type], refresh=True)
+                c.add_key(key_path, mnemonic = key_mems[key_type], refresh=True)
 
             # we need to resolve the key based on the key path
             key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
