@@ -1189,7 +1189,7 @@ class Subspace(c.Module):
                         raise Exception(f"Invalid Key {key} as it should have ss58_address attribute.")   
         # if the key has an attribute then its a key
         elif hasattr(key, 'ss58_address'):
-            key_address = key.ss58_addrxess
+            key_address = key.ss58_address
         assert c.is_valid_ss58_address(key_address), f"Invalid Key {key_address} as it should have ss58_address attribute."
         return key_address
 
@@ -1915,6 +1915,13 @@ class Subspace(c.Module):
         key2name =  { m['key']: m['name']for m in modules}
         if key != None:
             return key2name[key]
+        
+    def name2uid(self, name: str = None, netuid: int = None, network: str = None) -> int:
+        modules = self.modules(netuid=netuid)
+        name2uid =  { m['name']: m['uid']for m in modules}
+        if name != None:
+            return name2uid[name]
+        return name2uid
             
         
     def name2key(self, prefix:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
@@ -2185,7 +2192,6 @@ class Subspace(c.Module):
             modules = c.df(modules)
 
         return modules
-        
     
 
     def my_modules(self,search=None, *args, **kwargs):
