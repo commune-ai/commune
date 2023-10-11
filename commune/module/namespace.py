@@ -132,7 +132,6 @@ class Namespace(c.Module):
         if full_scan == True or len(addresses) == 0:
             addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
         namespace = {}
-        c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
     
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
@@ -143,7 +142,6 @@ class Namespace(c.Module):
             
         for k, v in namespace.items():
             namespace[k] = c.default_ip + ':' + v.split(':')[-1]
-        c.print(f'Updated local namespace with {len(namespace)} addresses', color='green')
         cls.put_namespace(network, namespace)
 
         return namespace
