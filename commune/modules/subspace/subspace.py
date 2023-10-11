@@ -2109,7 +2109,7 @@ class Subspace(c.Module):
                 update: bool = False,
                 include_weights = False,
                 df = False,
-                max_workers:int = 1,
+                max_workers:int = 10,
                 timeout=200
                 ) -> Dict[str, ModuleInfo]:
         
@@ -3289,9 +3289,18 @@ class Subspace(c.Module):
     def get_boot_nodes(cls, chain=chain):
         return cls.getc('chain_info.{chain}.boot_nodes')
 
+    @classmethod
+    def pull_image(cls):
+        return c.cmd(f'docker pull {cls.image}')
+    
+    @classmethod
+    def push_image(cls):
+        cls.build_image()
+        return c.cmd(f'docker push {cls.image}')
 
     @classmethod
     def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=4, **kwargs):
+        self.pull_node_image()
         cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
         response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
         node_info = response['node_info']

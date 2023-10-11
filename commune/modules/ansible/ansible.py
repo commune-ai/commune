@@ -41,6 +41,8 @@ class Ansible(c.Module):
 
         self.host_counter += 1
 
+    def ping(self):
+        return c.cmd('ansible all -i '+ self.inventory_file +' -m ping -u root')
     def cmd(self, command, pwd=None):
         # Disable Host Key Checking
         os.environ['ANSIBLE_HOST_KEY_CHECKING'] = 'False'
