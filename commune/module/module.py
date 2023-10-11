@@ -3098,6 +3098,12 @@ class c:
         refreshed_modules = getattr(cls, f'{mode}_restart')(name, verbose=verbose, prefix_match=prefix_match)
         return refreshed_modules
 
+    def restart_self(self):
+        c.restart_server(self.server_name)
+
+    def kill_self(self):
+        c.kill(self.server_name)
+
     refresh = reset = restart
     @classmethod
     def pm2_status(cls, verbose=True):
@@ -4660,11 +4666,7 @@ class c:
             c.print(f'Server {module} does not exist', color='red')
             c.kill_server(module)
         address = c.get_address(module, network='local')
-        port = None
-        if address != None:
-            ip = address.split(':')[0]
-            port = address.split(':')[-1]
-        
+        port = address.split(':')[-1] if address != None else None
         return c.serve(module, port=port, **kwargs)
     
     server_restart = restart_server
