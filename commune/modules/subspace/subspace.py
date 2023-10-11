@@ -3027,8 +3027,8 @@ class Subspace(c.Module):
             if mode == 'docker':
                 container_base_path = base_path.replace(cls.chain_path, '/subspace')
                 volumes = f'-v {container_base_path}:{base_path}'
-                docker_cmd = f'docker run {volumes} {cls.image} {cmd}'
-                c.print(c.cmd(docker_cmd, verbose=True))
+                cmd = f'docker run {volumes} {cls.image} {cmd}'
+                c.print(c.cmd(cmd, verbose=True))
             elif mode == 'local':
                 c.cmd(cmd, verbose=True, cwd=cls.chain_path)
             else:
@@ -3448,28 +3448,30 @@ class Subspace(c.Module):
             volumes = f'-v {chain_spec_path}:{container_spec_path}'\
                          + f' -v {base_path}:{container_base_path}'
 
-    
-            docker_cmd = f'docker run  -d --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
-            output = c.cmd(docker_cmd, verbose=True)
+            # cmd = "ls /subspace/specs"
+            cmd = f'docker run -d --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
+            output = c.cmd(cmd, verbose=True)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
                 container_id = output.split(logs_sig)[-1].split('"')[0]
                 c.print(container_id)
                 c.module('docker').rm(container_id)
-                output = c.cmd(docker_cmd, verbose=False)
+                output = c.cmd(cmd, verbose=True)
         else: 
             raise Exception(f'unknown mode {mode}')
         response = {
             'success':True,
-            'msg': f'Started node {node} for chain {chain} with name {name} and cmd_kwargs {cmd_kwargs}',
+            'msg': f'Started node {node} for chain {chain} with name {name}',
             'node_info': node_info,
+            'logs': output,
+            'cmd': cmd
 
         }
         if validator:
             # ensure you add the node to the chain_info if it is a bootnode
             node_id = cls.get_node_id(node=node, chain=chain, mode=mode)
             response['boot_node'] =  f'/ip4/{ip}/tcp/{node_info["port"]}/p2p/{node_id}'
-
+    
         return response
        
     @classmethod
