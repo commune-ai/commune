@@ -2236,7 +2236,7 @@ class c:
             server_exists =  bool(name in servers)
 
         return server_exists
-    
+    alive = server_exists
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
         port = port if port is not None and port != 0 else cls.free_port(**kwargs)
@@ -2330,7 +2330,7 @@ class c:
     
     @classmethod
     def update_namespace(cls, network:str='local',**kwargs):
-        return c.module(c.namespace_module).update_namespace(network=network, **kwaargs)
+        return c.module(c.namespace_module).update_namespace(network=network, **kwargs)
     
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
@@ -5059,19 +5059,24 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, **kwargs):
-        executor = c.module('executor')(max_workers=n)
+    def fleet(cls,n=2, tag=None, max_workers=1,  **kwargs):
+        executor = c.module('executor')(max_workers=max_workers)
         futures = []
+        if tag == None:
+            tag = ''
         for i in range(n):
-            if tag != None:
-                tag = tag + str(i)
-            else:
-                tag = str(i)
             c.print(f'Launching {tag}')
-            future = executor.submit(fn=cls.serve, kwargs={'tag':str(i), **kwargs})
-            futures = futures + [future]
-
-        return c.wait(futures)
+            server_kwargs={'tag':tag + str(i), **kwargs}
+            if max_workers == 1:
+                result = cls.serve(**server_kwargs)
+            else:
+                future = executor.submit(fn=cls.serve, kwargs=server_kwargs)
+                futures = futures + [future]
+            
+        if max_workers > 1:
+            return c.wait(futures)
+        else:
+            return result
 
     @classmethod
     def kill_fleet(cls, tag=None, network='local', **kwargs):
@@ -5996,8 +6001,12 @@ class c:
         results = []
         start_time = c.time()
         
+
+        # wait for the futures as they complete
         for future in concurrent.futures.as_completed(futures, timeout=timeout):
-            results += [future.result()]
+            pass
+    
+        results = [f.result() for f in futures]
             
         return results
 
@@ -7724,6 +7733,31 @@ class c:
     def tqdm(*args, **kwargs):
         from tqdm import tqdm
         return tqdm(*args, **kwargs)
+    
+    # PEER LAND
+    @classmethod
+    def peers(cls, network:str='local', tag=None):
+        module = cls.module_path()
+        return c.servers(module, network=network)
+
+    @classmethod
+    def random_peer(cls, network:str='local', tag=None):
+        peers = cls.peers(network=network, tag=tag)
+        return c.choice(peers)
+
+    @classmethod
+    def random_peer_address(cls, network:str='local', tag=None):
+        random_peer = cls.random_peer(network=network, tag=tag)
+        address = c.namespace(network=network).get(random_peer)
+        return address
+
+    @classmethod
+    def random_peers(cls, network:str='local', n=2, tag=None):
+        peers = cls.peers(network=network, tag=tag)
+        return c.shuffle(peers)[:n]
+
+
+
     
 Module = c
 Module.run(__name__)

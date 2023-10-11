@@ -28,7 +28,9 @@ class Namespace(c.Module):
     def get_module(cls, name:str, network:str=network) -> dict:
         namespace = cls.get_namespace(network)
         return namespace.get(name, None)
-
+    @classmethod
+    def namespace(cls, search:str = None, network:str = 'local', update:bool = True) -> dict:
+        return cls.get_namespace(cls, network = network, update = update, search = search )
     @classmethod
     def get_namespace(cls, network:str = 'local', update:bool = True, search:str = None ) -> dict:
         if network == None: 
@@ -44,7 +46,7 @@ class Namespace(c.Module):
                 
 
         if search != None:
-            namespace = {k:v for k,v in namespace.items()}
+            namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
     @classmethod
     def put_namespace(cls, network:str, namespace:dict) -> None:
@@ -141,7 +143,7 @@ class Namespace(c.Module):
             
         for k, v in namespace.items():
             namespace[k] = c.default_ip + ':' + v.split(':')[-1]
-
+        c.print(f'Updated local namespace with {len(namespace)} addresses', color='green')
         cls.put_namespace(network, namespace)
 
         return namespace
