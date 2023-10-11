@@ -1662,7 +1662,7 @@ class Subspace(c.Module):
               netuid=0,  
               network = network,
               df:bool=True, 
-              update:bool = False, 
+              update:bool = True, 
               local: bool = True,
               cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from'],
               fmt : str = 'j',
@@ -1678,22 +1678,21 @@ class Subspace(c.Module):
     
 
         ip = c.ip()
-        if len(stats) == 0:
 
-            modules = self.modules(netuid=netuid, fmt=fmt)
-            for i, m in enumerate(modules):
+        modules = self.modules(netuid=netuid, fmt=fmt, update=update, network=network, **kwargs)
+        for i, m in enumerate(modules):
 
-                if local and ip not in m['address']:
-                    continue
-                # sum the stake_from
-                m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
-                m['registered'] = True
+            if local and ip not in m['address']:
+                continue
+            # sum the stake_from
+            m['stake_from'] = sum([v for k,v in m['stake_from']][1:])
+            m['registered'] = True
 
-                # we want to round these values to make them look nice
-                for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
-                    m[k] = c.round(m[k], sig=4)
+            # we want to round these values to make them look nice
+            for k in ['emission', 'dividends', 'incentive', 'stake', 'stake_from']:
+                m[k] = c.round(m[k], sig=4)
 
-                stats.append(c.copy(m))
+            stats.append(c.copy(m))
 
 
         if update:
@@ -1706,11 +1705,10 @@ class Subspace(c.Module):
 
         
         df_stats =  c.df(stats)
-        # df_stats = df_stats[cols]
 
         if len(stats) == 0:
             return df_stats
-
+        df_stats = df_stats[cols]
         sort_cols = ['registered', 'emission', 'stake']
         sort_cols = [c for c in sort_cols if c in df_stats.columns]  
         df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
@@ -2141,9 +2139,9 @@ class Subspace(c.Module):
             else: 
                 state = {}
                 num_keys = len(keys)
-                for i, key in enumerate(keys):
+
+                for  key in c.tqdm(keys):
                     state[key] =  getattr(self, key)(netuid=netuid, block=block)
-                    c.print(f"Got {key} for netuid {netuid} at block {block} ({i}/{len(keys)})")
             c.print(state['uid2key'])
             for uid, key in state['uid2key'].items():
 
