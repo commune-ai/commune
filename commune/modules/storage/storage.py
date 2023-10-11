@@ -5,12 +5,13 @@ import streamlit as st
 class Storage(c.Module):
     whitelist: List = ['put', 'get', 'get_hash']
 
-    def __init__(self, max_replicas:int = 1, network='local', **kwargs):
+    def __init__(self, max_replicas:int = 1, network='local',**kwargs):
         self.replica_map = {}
         self.max_replicas = max_replicas
         self.network = network
         self.set_config(kwargs=locals()) 
         self.serializer = c.module('serializer')()
+        self.executor = c.module('executor')()
 
 
     @property
@@ -21,7 +22,7 @@ class Storage(c.Module):
         path =  f'{self.store_dirpath}/{key}'
         return path
 
-    def put(self, k,  v: Dict, encrypt:bool=False, remote = False):
+    def put(self, k,  v: Dict, encrypt:bool=False, replicas = 1):
         timestamp = c.timestamp()
         obj = {'data': v}
         # serialize
@@ -30,12 +31,18 @@ class Storage(c.Module):
             v = self.key.encrypt(v, return_json=True)
         v = self.key.sign(v, return_json=True)
         path = self.resolve_store_path(k)
+        if replicas > 1:
+            self.replicate(k, v, replicas=replicas)
         return c.put(path, v)
     
-    @property
-    def peers(self):
-        return [m for m in c.servers(self.module_path()) if m != self.server_name]
-    
+    def replicate(self, k, v, replicas=2):
+        replica_map = self.get('replica_map', default={})
+        peer = self.random_peer()
+        peer.put(k, v)
+        replica_map[k] = [peer]
+
+
+
 
     def check_replicas(self):
         
@@ -87,7 +94,7 @@ class Storage(c.Module):
         path = self.resolve_store_path(k)
         return c.rm(path)
 
-    def ls_keys(self, search=None) -> List:
+    def items(self, search=None) -> List:
         path = self.store_dirpath
         path += f'/{search}' if search != None else ''
         return c.ls(path)
@@ -162,20 +169,3 @@ class Storage(c.Module):
                     c.print(f'Verifying i={i} j={j}')
                     assert storage_i.get_hash('test', seed=seed) == storage_j.get_hash('test', seed=seed)
 
-
-
-
-    @classmethod
-    def peers(cls, network:str='local', tag=None):
-
-        module = cls.resolve_server_name(tag=tag)
-        return c.servers(module, network=network)
-
-    @classmethod
-    def random_peer(cls, network:str='local', tag=None):
-        peers = cls.peers(network=network, tag=tag)
-        return c.choice(peers)
-
-
-
-    

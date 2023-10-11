@@ -1669,8 +1669,8 @@ class Subspace(c.Module):
               **kwargs
               ):
         cache_path = f'stats/{network}_net{netuid}.json'
+
         if update:
-            self.sync()
             stats = []
         else:
             stats = self.get(cache_path, [])
@@ -1680,7 +1680,7 @@ class Subspace(c.Module):
         ip = c.ip()
         if len(stats) == 0:
 
-            modules = self.modules(netuid=netuid, update=update, fmt=fmt, keys=['name', 'registered', 'serving', 'address', 'emission', 'dividends', 'incentive', 'stake'])
+            modules = self.modules(netuid=netuid, fmt=fmt)
             for i, m in enumerate(modules):
 
                 if local and ip not in m['address']:
@@ -1706,7 +1706,10 @@ class Subspace(c.Module):
 
         
         df_stats =  c.df(stats)
-        df_stats = df_stats[cols]
+        # df_stats = df_stats[cols]
+
+        if len(stats) == 0:
+            return df_stats
 
         sort_cols = ['registered', 'emission', 'stake']
         sort_cols = [c for c in sort_cols if c in df_stats.columns]  
@@ -2136,7 +2139,11 @@ class Subspace(c.Module):
                 results = c.wait(results)
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
-                state = {key: self.get_key_data(key=key, netuid=netuid, block=block, network=network) for key in keys}
+                state = {}
+                num_keys = len(keys)
+                for i, key in enumerate(keys):
+                    state[key] =  getattr(self, key)(netuid=netuid, block=block)
+                    c.print(f"Got {key} for netuid {netuid} at block {block} ({i}/{len(keys)})")
             c.print(state['uid2key'])
             for uid, key in state['uid2key'].items():
 
