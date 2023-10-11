@@ -3300,7 +3300,7 @@ class Subspace(c.Module):
 
     @classmethod
     def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=4, **kwargs):
-        self.pull_node_image()
+        cls.pull_image()
         cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
         response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
         node_info = response['node_info']
@@ -3429,6 +3429,7 @@ class Subspace(c.Module):
                             verbose=verbose)
             
         elif mode == 'docker':
+            cls.pull_image()
             docker = c.module('docker')()
             if docker.exists(name):
                 docker.kill(name)
