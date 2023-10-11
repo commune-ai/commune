@@ -2998,7 +2998,8 @@ class c:
         server_name = cls.resolve_server_name(module=module, tag=tag)
         # if not subspace.is_unique_name(server_name, netuid=subnet):
         #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
-
+        if not c.key_exists(server_name):
+            c.add_key(server_name)
         if c.server_exists(server_name, network='local') and refresh == False:
             c.print(f'Server already Exists ({server_name})')
         
