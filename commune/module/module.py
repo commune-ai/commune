@@ -901,6 +901,7 @@ class c:
         '''
         return module in c.modules()
 
+
     
     @classmethod
     def modules(cls, search=None)-> List[str]:
@@ -1440,8 +1441,17 @@ class c:
     @classmethod
     def servers(cls, *args, **kwargs) -> List[str]:
         modules = list(c.namespace(*args, **kwargs).keys())
+
         return modules
     
+    
+    @classmethod
+    def servers_info(cls, *args, **kwargs) -> List[str]:
+        servers = c.servers(*args, **kwargs)
+        futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info'}, return_future=True) for s in servers]
+        return c.wait(futures)
+    
+
     @classmethod
     def has_server(cls, *args, **kwargs):
         return bool(len(c.servers(*args, **kwargs)) > 0)
@@ -2708,7 +2718,13 @@ class c:
 
     @classmethod
     def kill_prefix(cls, prefix:str, **kwargs):
-        return cls.kill(prefix, prefix_match=True, **kwargs)
+        servers = c.servers(network='local')
+        killed_servers = []
+        for s in servers:
+            if s.startswith(prefix):
+                c.kill(s, **kwargs)
+                killed_servers.append(s)
+        return {'success':True, 'message':f'Killed servers with prefix {prefix}'}
     killpre = kill_prefix
         
     delete = kill_server = kill
@@ -5092,29 +5108,40 @@ class c:
     @classmethod
     def get_executor(cls, *args, **kwargs):
         if not hasattr(cls, 'executor'):
-            self.executor = c.module('executor')()
+            cls.executor = c.module('executor')()
         return c.module('executor')(*args, **kwargs)
 
     @classmethod
     def submit(cls, 
-                module, 
                 fn, 
                 args:list = [], 
                 kwargs: dict = {}, 
                 timeout:int = 20, 
                 return_future:bool=False,
                 init_args : list = [],
-                init_kwargs:dict= {}
+                init_kwargs:dict= {},
+                executor = None,
+                module = None,
                 ):
 
-        executor = c.module('executor')()
-        module = c.module(module)
+        executor = c.get_executor() if executor == None else executor
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)
         init_args = c.copy(init_args)
-        module = module(*init_args, **init_kwargs)
-        fn = getattr(module, fn)
+        if module == None:
+            module = cls
+        else:
+            module = c.module(module)
+        if isinstance(fn, str):
+            method_type = c.classify_method(getattr(module, fn))
+        elif callable(fn):
+            method_type = c.classify_method(fn)
+        else:
+            raise ValueError('fn must be a string or a callable')
+        
+        if method_type == 'self':
+            module = module(*init_args, **init_kwargs)
         future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
         if return_future:
             return future
@@ -5122,10 +5149,11 @@ class c:
             return c.wait(future, timeout=timeout)
 
     @classmethod
-    def submit_batch(cls, module, fn, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, *args, **kwargs):
+    def submit_batch(cls,  fn:str, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, module = None,  *args, **kwargs):
         n = len(batch_kwargs)
+        module = cls if module == None else module
         executor = c.get_executor(max_workers=n)
-        futures = [ executor.submit(fn=fn, kwargs=batch_kwargs[i], timeout=timeout) for i in range(n)]
+        futures = [ executor.submit(fn=getattr(module, fn), kwargs=batch_kwargs[i], timeout=timeout) for i in range(n)]
         if return_future:
             return futures
         return c.wait(futures)
@@ -6526,6 +6554,8 @@ class c:
         fn = cls.resolve_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
+    
+
     
     fn_args = get_fn_args =  get_function_args
     
