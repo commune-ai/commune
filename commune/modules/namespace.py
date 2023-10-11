@@ -125,7 +125,6 @@ class Namespace(c.Module):
         if full_scan == True or len(addresses) == 0:
             addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
 
-        c.print(f'Updating local namespace with {len(addresses)} addresses', color='green')
 
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
