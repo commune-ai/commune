@@ -666,7 +666,7 @@ class c:
 
     @classmethod
     def start_local_node(cls, *args, **kwargs):
-        c.module('subspace').start_local_node(*args, **kwargs)
+        return c.module('subspace').start_local_node(*args, **kwargs)
 
     @classmethod
     def start_chain(cls, *args, **kwargs):
@@ -1145,7 +1145,7 @@ class c:
         ip = ip if ip else c.default_ip
 
         if random_selection:
-            ports = cls.shuffle(ports)
+            ports = c.shuffle(ports)
             
         reserved_ports = cls.reserved_ports()
         # return only when the port is available
