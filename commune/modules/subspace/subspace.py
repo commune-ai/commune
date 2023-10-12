@@ -65,7 +65,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 1,
+                max_trials:int = 10,
                 **kwargs):
 
         '''
