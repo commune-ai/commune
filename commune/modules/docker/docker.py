@@ -47,8 +47,8 @@ class Docker(c.Module):
             tag = path.split('/')[-2]
 
         return c.cmd(f'docker build -t {tag} .', sudo=sudo, env=env,cwd=os.path.dirname(path),  verbose=verbose)
-    
-    def kill(self, name, sudo=False, verbose=True):
+    @classmethod
+    def kill(cls, name, sudo=False, verbose=True):
         c.cmd(f'docker kill {name}', sudo=sudo, verbose=verbose)
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
         return {'status': 'killed', 'name': name}
@@ -57,8 +57,9 @@ class Docker(c.Module):
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
         return {'status': 'removed', 'name': name}
 
-    def exists(self, name:str):
-        return name in self.ps()
+    @classmethod
+    def exists(cls, name:str):
+        return name in cls.ps()
 
     @classmethod
     def rm_sudo(cls, sudo:bool=True, verbose:bool=True):

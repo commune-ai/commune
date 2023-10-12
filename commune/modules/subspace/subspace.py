@@ -101,6 +101,7 @@ class Subspace(c.Module):
         while trials < max_trials :
             trials += 1
             url = self.resolve_node_url(url=url, chain=network, local=self.config.local)
+            c.print()
             kwargs.update(url=url, 
                         websocket=websocket, 
                         ss58_format=ss58_format, 
@@ -115,6 +116,7 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
+                c.print(f'Failed to connect to {url} with error: {e}')
                 self.config.local = False
                 url = None
                 
@@ -1938,7 +1940,7 @@ class Subspace(c.Module):
     @classmethod
     def node_paths(cls, name=None, chain=chain, mode=mode) -> Dict[str, str]:
         if mode == 'docker':
-            paths = c.module('docker').ps('subspace')
+            paths = c.module('docker').ps(f'subspace.node.{chain}')
         elif mode == 'local':
             paths = c.pm2ls('subspace.node')
         else:
@@ -2250,7 +2252,7 @@ class Subspace(c.Module):
     def kill_node(cls, node=None, chain=chain, mode=mode):
         node_path = cls.resolve_node_path(node=node, chain=chain)
         if mode == 'docker':
-            c.module('docker')().kill(node_path)
+            c.module('docker').kill(node_path)
         elif mode == 'local':
             c.kill(node_path)
         return {'success': True, 'message': f'killed {node} on {chain}'}
@@ -2265,7 +2267,7 @@ class Subspace(c.Module):
             if mode == 'local':
                 c.pm2_kill(node_path)
             elif mode == 'docker':
-                c.module('docker')().kill(node_path)
+                c.module('docker').kill(node_path)
 
             kill_node_paths.append(node_path)
 
@@ -2853,7 +2855,7 @@ class Subspace(c.Module):
     node_key_prefix = 'subspace.node'
     
     @classmethod
-    def rm_node_keys(cls,node=None, chain=chain):
+    def rm_node_keys(cls,node, chain=chain):
         for key in cls.node_key_paths(node=node, chain=chain):
             c.print(f'removing node key {key}')
             c.rm_key(key)
@@ -2882,9 +2884,7 @@ class Subspace(c.Module):
     @classmethod
     def node_key_paths(cls, node=None, chain=chain, vali: bool = True):
         node_type = 'vali' if vali else 'nonvali'
-        key = f'{cls.node_key_prefix}.{chain}.{node_type}'
-        if node != None:
-            key = f'{key}_{node}'
+        key = f'{cls.node_key_prefix}.{chain}.{node}'
         return c.keys(key)
     
 
@@ -2902,6 +2902,8 @@ class Subspace(c.Module):
             if name not in node_keys:
                 node_keys[name] = {}
             node_keys[name][key_type] = c.get_key(k).ss58_address
+
+
         return node_keys
 
     @classmethod
@@ -2933,15 +2935,18 @@ class Subspace(c.Module):
         for node, key_mems in node_key_mems.items():
             module.add_node_key(node=node, node_key_mems=key_mems)
 
+    @classmethod
+    def node_infos(cls, chain=chain):
+        return cls.getc(f'chain_info.{chain}.nodes', {})
 
     @classmethod
     def nodes(cls, vali:bool=True, chain=chain):
-        nodes = list(cls.node_keys(chain=chain).keys())
+        nodes = list(cls.node_infos(chain=chain).keys())
         if vali:
             nodes = [n for n in nodes if n.startswith('vali') if c.is_number(n.split('_')[-1])]
             nodes = sorted(nodes, key=lambda n: int(n.split('_')[-1]))
         else:
-            nodes = [n for n in nodes if n.startswith('nonvali')]
+            nodes = [n for n in nodes if not n.startswith('vali')]
         return nodes
 
     @classmethod
@@ -2954,13 +2959,13 @@ class Subspace(c.Module):
 
     @classmethod
     def vali_node_keys(cls,chain=chain):
-        return {k:v for k,v in  self.node_keys(chain=chain).items() if k.startswith('vali')}
+        keys =  {k:v for k,v in  cls.node_keys(chain=chain).items() if k.startswith('vali')}
+        return sorted(keys, key=lambda k: int(k.split('_')[-1]))
     
     @classmethod
     def nonvali_node_keys(self,chain=chain):
-        return {k:v for k,v in  self.node_keys(chain=chain).items() if k.startswith('nonvali')}
+        return {k:v for k,v in  self.node_keys(chain=chain).items() if not k.startswith('vali')}
     
-
     @classmethod
     def node_key_exists(cls, node='alice', chain=chain, vali: bool = True):
         path = cls.resolve_node_path(node=node, vali=vali, chain=chain)
@@ -3098,7 +3103,7 @@ class Subspace(c.Module):
                    chain = chain,
                    disable_default_bootnode: bool = True,
                    verbose:bool = True,
-                   vali_nodes:dict = None,
+                   vali_nodes_keys:dict = None,
                    valis:int = 24,
                    mode : str = mode,
                    ):
@@ -3126,10 +3131,10 @@ class Subspace(c.Module):
             c.cmd(cmd, cwd=cls.chain_path, verbose=True)  
             
               
-        if vali_nodes == None:
-            vali_nodes = cls.vali_nodes(chain=chain)
-        
-        vali_node_keys = [cls.node_key(node, chain=chain) for node in vali_nodes][:valis]
+        if vali_nodes_keys == None:
+            vali_node_keys = cls.vali_node_keys(node, chain=chain)
+        vali_nodes = list(vali_node_keys.keys())
+        vali_node_keys = {k:vali_node_keys[k] for k in vali_nodes}
         spec = c.get_json(chain_spec_path)
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys]
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys]
@@ -3301,13 +3306,23 @@ class Subspace(c.Module):
         node_info = response['node_info']
         cls.put(f'local_nodes/{chain}/{node}', node_info)
 
+        return response
+
 
     @classmethod
-    def start_public_nodes(cls, node:str='nonvali', n:int=10, mode=mode, chain=chain, max_boot_nodes=24, **kwargs):
+    def start_public_nodes(cls, node:str='nonvali', n:int=20, mode=mode, chain=chain, max_boot_nodes=24, **kwargs):
+        avoid_ports = []
         for i in range(n):
             node_name = f'{node}_{i}'
+            free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
+            avoid_ports += free_ports
+            kwargs['port'] = free_ports[0]
+            kwargs['rpc_port'] = free_ports[1]
+            kwargs['ws_port'] = free_ports[2]
+
             response = cls.start_node(node=node_name , chain=chain, mode=mode, validator=False, max_boot_nodes=max_boot_nodes, **kwargs)
             node_info = response['node_info']
+
             cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
             
     @classmethod
@@ -3349,7 +3364,7 @@ class Subspace(c.Module):
                  port:int=None,
                  rpc_port:int=None,
                  ws_port:int=None,
-                 telemetry_url:str = 'wss://telemetry.gpolkadot.io/submit/0',
+                 telemetry_url:str = None,
                  purge_chain:bool = True,
                  refresh:bool = False,
                  verbose:bool = False,
@@ -3395,6 +3410,12 @@ class Subspace(c.Module):
 
         chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
+
+        if telemetry_url == None:
+            telemetry_url = cls.telemetry_url(chain=chain)
+        cmd_kwargs += f' --telemetry-url {telemetry_url}'
+
+
         
         if validator :
             cmd_kwargs += ' --validator'
@@ -3429,7 +3450,7 @@ class Subspace(c.Module):
             
         elif mode == 'docker':
             cls.pull_image()
-            docker = c.module('docker')()
+            docker = c.module('docker')
             if docker.exists(name):
                 docker.kill(name)
             cmd = cmd + ' ' + cmd_kwargs
@@ -3446,9 +3467,8 @@ class Subspace(c.Module):
     
             volumes = f'-v {chain_spec_path}:{container_spec_path}'\
                          + f' -v {base_path}:{container_base_path}'
-
             # cmd = "ls /subspace/specs"
-            cmd = f'docker run -d --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
+            cmd = f'docker run --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
             output = c.cmd(cmd, verbose=True)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
@@ -3514,19 +3534,18 @@ class Subspace(c.Module):
 
 
         ## VALIDATOR NODES
-        vali_nodes  = cls.vali_nodes(chain=chain)
-        if len(vali_nodes) <= valis:
-            cls.add_node_keys(chain=chain, valis=valis)
-            vali_nodes = cls.vali_nodes(chain=chain)
-        vali_nodes = vali_nodes[:valis]
+        vali_node_keys  = cls.vali_node_keys(chain=chain)
+        if len(vali_node_keys) <= valis:
+            cls.add_node_keys(chain=chain, valis=valis, refresh=False)
+            vali_node_keys  = cls.vali_node_keys(chain=chain)
+        vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
         # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES
-        cls.build_spec(chain=chain, verbose=verbose, vali_nodes=vali_nodes)
+        cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
+        vali_nodes = list(vali_node_keys.keys())[:valis]
 
         ## NON VALIDATOR NODES
         nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
-        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())
-        if nonvalis != -1:
-            nonvali_nodes = nonvali_nodes[:valis]
+        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())[:nonvalis]
         nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
         
         existing_node_ports = {'vali': [], 'nonvali': []}
@@ -3700,10 +3719,72 @@ class Subspace(c.Module):
         stats = s.stats(df=False)
         c.print(stats)
         assert isinstance(stats, list) 
+
+    telemetry_image = 'parity/substrate-telemetry-backend'
     @classmethod
     def install_telemetry(cls):
-        c.cmd('docker build -t parity/substrate-telemetry-backend .', sudo=False, bash=True)
+        c.cmd(f'docker build -t {cls.telemetry_image} .', sudo=False, bash=True)
 
+    @classmethod
+    def start_telemetry(cls, port:int=None, network:str='host',  name='telemetry',  chain=chain):
+        port_core, port_shard = c.free_ports(n=2)
+        c.print(f'port_core: {port_core}, port_shard: {port_shard}')
+        cmd = {}
+        cmd['core'] = f"docker run   --network={network} --name {name} \
+                --read-only \
+                {cls.telemetry_image} \
+                telemetry_core -l 0.0.0.0:{port_core}"
+
+        shard_name = f'{name}.shard'
+        cmd['shard'] = f"docker run  --network={network} \
+                    --name {shard_name} \
+                    --read-only \
+                     {cls.telemetry_image} \
+                    telemetry_shard -l 0.0.0.0:{port_shard} -c http://0.0.0.0:{port_core}/shard_submit"
+
+        config = cls.config()
+
+        docker = c.module('docker')
+        if docker.exists(name):
+            docker.kill(name)
+        if docker.exists(shard_name):
+            docker.kill(shard_name)
+        output = {}
+        output['core'] = c.cmd(cmd['core'])
+        output['shard'] = c.cmd(cmd['shard'])
+
+        success = bool('error' not in output['core'].lower()) and bool('error' not in output['shard'].lower())
+        
+        if success:
+            k = f'chain_info.{chain}.telemetry_urls'
+            telemtry_urls = cls.get(k, {})
+            telemtry_urls[name] = c.ip() + ':' + str(port)
+            cls.putc(k, telemtry_urls)
+
+        return {
+            'success': success,
+            'cmd': cmd,
+            'output': output,
+        }
+
+    @classmethod
+    def telemetry_urls(cls, chain=chain):
+        return list(cls.getc(f'chain_info.{chain}.telemetry_urls', {}).values())
+    @classmethod
+    def telemetry_url(cls, chain=chain):
+        url =  c.choice(cls.telemetry_urls(chain=chain))
+        if not url.startswith('ws://'):
+            url = 'ws://' + url
+        url = url.replace(c.ip(), '0.0.0.0') + '/feed'
+        return url
+
+    @classmethod
+    def stop_telemetry(cls, name='telemetry'):
+        return c.module('docker').kill(name)
+
+
+    def telemetry_running(self):
+        return c.module('docker').exists('telemetry')
 
     @classmethod
     def transfer_to_controller(cls, search: Optional[str]=None, controller_key:str = 'module' , min_amount=100, network='main', timeout=100):
