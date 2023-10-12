@@ -3377,8 +3377,8 @@ class Subspace(c.Module):
                  validator:bool = False,
                  local:bool = False,
                  ip = None,
-                 sync:bool = 'full', 
-                 pruning:str = 'archive',
+                 sync:bool = 'warp', 
+                 pruning:str = 1000,
                  max_boot_nodes:int = 24,                 
                  ):
 
