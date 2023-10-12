@@ -245,7 +245,9 @@ class Docker(c.Module):
         df = cls.psdf()
         paths =  df['names'].tolist()
         if path != None:
-            paths = [p for p in paths if path in p]
+            paths = [p for p in paths if p != None and path in p]
+
+        
 
         return paths
     
