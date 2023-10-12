@@ -65,7 +65,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                *args, 
+                max_trials:int = 10,
                 **kwargs):
 
         '''
@@ -97,38 +97,33 @@ class Subspace(c.Module):
         if network == None:
             network = self.config.network
 
-            
-        self.network = network
-        
-        
-        while True:
-
+        trials = 0
+        while trials < max_trials :
+            trials += 1
             url = self.resolve_node_url(url=url, chain=network, local=self.config.local)
-            if not url.startswith('ws://'):
-                url = 'ws://' + url
-
-            
-            self.url = url
+            kwargs.update(url=url, 
+                        websocket=websocket, 
+                        ss58_format=ss58_format, 
+                        type_registry=type_registry, 
+                        type_registry_preset=type_registry_preset, 
+                        cache_region=cache_region, 
+                        runtime_config=runtime_config, 
+                        ws_options=ws_options, 
+                        auto_discover=auto_discover, 
+                        auto_reconnect=auto_reconnect)
             try:
-                self.substrate= SubstrateInterface(
-                                            url=url, 
-                                            websocket=websocket, 
-                                            ss58_format=ss58_format, 
-                                            type_registry=type_registry, 
-                                            type_registry_preset=type_registry_preset, 
-                                            cache_region=cache_region, 
-                                            runtime_config=runtime_config, 
-                                            ws_options=ws_options, 
-                                            auto_discover=auto_discover, 
-                                            auto_reconnect=auto_reconnect, 
-                                            *args,
-                                            **kwargs)
+                self.substrate= SubstrateInterface(**kwargs)
+                break
             except Exception as e:
-                continue
-            break
-
+                self.config.local = False
+                url = None
+                
         c.print(f'Connecting to {url}...')
+        self.url = url
+        self.network = network
+        response = {'success': True, 'message': f'Connected to {url}', 'network': network, 'url': url}
 
+        return response
     def __repr__(self) -> str:
         return f'<Subspace: network={self.network}>'
     def __str__(self) -> str:
@@ -3335,6 +3330,10 @@ class Subspace(c.Module):
             url = f'ws://0.0.0.0:{port}'
         else:
             url = c.choice(self.urls(network=chain))
+
+        if not url.startswith('ws://'):
+            url = 'ws://' + url
+
         return url
 
     @classmethod
