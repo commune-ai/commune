@@ -532,7 +532,7 @@ class c:
         return list(config.keys())
         
     @classmethod  
-    def getc(cls, key, password=None, default= None) -> Any:
+    def getc(cls, key, default= None, password=None) -> Any:
         '''
         Saves the config to a yaml file
         '''
