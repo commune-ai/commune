@@ -666,7 +666,7 @@ class c:
 
     @classmethod
     def start_local_node(cls, *args, **kwargs):
-        c.module('subspace').start_local_node(*args, **kwargs)
+        return c.module('subspace').start_local_node(*args, **kwargs)
 
     @classmethod
     def start_chain(cls, *args, **kwargs):

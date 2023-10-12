@@ -65,7 +65,7 @@ class Subspace(c.Module):
                 auto_discover=True, 
                 auto_reconnect=True, 
                 verbose:bool=False,
-                max_trials:int = 10,
+                max_trials:int = 1,
                 **kwargs):
 
         '''
@@ -1313,8 +1313,9 @@ class Subspace(c.Module):
     ###########################
 
     @property
-    def block(self, network:str=None) -> int:
+    def block(self, network:str=None, trials=100) -> int:
         return self.get_block(network=network)
+   
 
     def total_stake (self,block: Optional[int] = None ) -> 'Balance':
         return Balance.from_nano( self.query( "TotalStake", block=block ).value )
@@ -3299,9 +3300,9 @@ class Subspace(c.Module):
         return c.cmd(f'docker push {cls.image}')
 
     @classmethod
-    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=4, **kwargs):
+    def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=24, **kwargs):
         cls.pull_image()
-        cls.add_node_key(node=node, chain=chain, mode=mode, **kwargs)
+        cls.add_node_key(node=node, chain=chain, mode=mode)
         response = cls.start_node(node=node, chain=chain, mode=mode, local=True, max_boot_nodes=max_boot_nodes, **kwargs)
         node_info = response['node_info']
         cls.put(f'local_nodes/{chain}/{node}', node_info)
@@ -3322,6 +3323,7 @@ class Subspace(c.Module):
 
             response = cls.start_node(node=node_name , chain=chain, mode=mode, validator=False, max_boot_nodes=max_boot_nodes, **kwargs)
             node_info = response['node_info']
+            c.print('started node', node_name, '--> ', response['logs'])
 
             cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
             
@@ -3375,9 +3377,9 @@ class Subspace(c.Module):
                  validator:bool = False,
                  local:bool = False,
                  ip = None,
-                 sync:bool = 'fast', 
-                 max_boot_nodes:int = 24,
-                 
+                 sync:bool = 'full', 
+                 pruning:str = 'archive',
+                 max_boot_nodes:int = 24,                 
                  ):
 
         ip = c.ip() if ip == None else ip
@@ -3409,14 +3411,16 @@ class Subspace(c.Module):
             
 
         cmd_kwargs = f' --base-path {base_path}'
+        cmd_kwargs += f" --pruning={pruning}"
 
         chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
 
-        if telemetry_url != None:
-            if telemetry_url == True:
+        if telemetry_url != False:
+            if telemetry_url in [True]:
                 telemetry_url = cls.telemetry_urls(chain=chain)['shard']
             cmd_kwargs += f" --telemetry-url '{telemetry_url}'"
+
         cmd_kwargs += f" --sync {sync}"
         
         if validator :
@@ -3470,13 +3474,13 @@ class Subspace(c.Module):
             volumes = f'-v {chain_spec_path}:{container_spec_path}'\
                          + f' -v {base_path}:{container_base_path}'
             # cmd = "ls /subspace/specs"
-            cmd = f'docker run --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
-            output = c.cmd(cmd, verbose=True)
+            cmd = f'docker run -d --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
+            output = c.cmd(cmd, verbose=False)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
                 container_id = output.split(logs_sig)[-1].split('"')[0]
                 c.module('docker').rm(container_id)
-                output = c.cmd(cmd, verbose=True)
+                output = c.cmd(cmd, verbose=False)
         else: 
             raise Exception(f'unknown mode {mode}')
         response = {
