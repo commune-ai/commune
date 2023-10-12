@@ -2961,7 +2961,8 @@ class Subspace(c.Module):
     @classmethod
     def vali_node_keys(cls,chain=chain):
         keys =  {k:v for k,v in  cls.node_keys(chain=chain).items() if k.startswith('vali')}
-        return sorted(keys, key=lambda k: int(k.split('_')[-1]))
+        keys = dict(sorted(keys.items(), key=lambda k: int(k[0].split('_')[-1])))
+        return keys
     
     @classmethod
     def nonvali_node_keys(self,chain=chain):
@@ -3104,7 +3105,7 @@ class Subspace(c.Module):
                    chain = chain,
                    disable_default_bootnode: bool = True,
                    verbose:bool = True,
-                   vali_nodes_keys:dict = None,
+                   vali_node_keys:dict = None,
                    valis:int = 24,
                    mode : str = mode,
                    ):
@@ -3132,13 +3133,15 @@ class Subspace(c.Module):
             c.cmd(cmd, cwd=cls.chain_path, verbose=True)  
             
               
-        if vali_nodes_keys == None:
-            vali_node_keys = cls.vali_node_keys(node, chain=chain)
+        if vali_node_keys == None:
+            vali_node_keys = cls.vali_node_keys(chain=chain)
+
+        c.print(vali_node_keys)
         vali_nodes = list(vali_node_keys.keys())
         vali_node_keys = {k:vali_node_keys[k] for k in vali_nodes}
         spec = c.get_json(chain_spec_path)
-        spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys]
-        spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys]
+        spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
+        spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
         c.put_json(chain_spec_path, spec)
         resp = {'spec_path': chain_spec_path, 'spec': spec}
         return {'success':True, 'message':'built spec', 'chain':chain}
@@ -3295,9 +3298,11 @@ class Subspace(c.Module):
         return c.cmd(f'docker pull {cls.image}')
     
     @classmethod
-    def push_image(cls):
-        cls.build_image()
-        return c.cmd(f'docker push {cls.image}')
+    def push_image(cls, image='vivonasg/subspace'):
+        c.build_image('subspace')
+        c.cmd(f'docker tag subspace {image}', verbose=True)
+        c.cmd(f'docker push {image}', verbose=True)
+        return {'success':True, 'msg': f'pushed image {image}'}
 
     @classmethod
     def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=24, **kwargs):
@@ -3377,9 +3382,9 @@ class Subspace(c.Module):
                  validator:bool = False,
                  local:bool = False,
                  ip = None,
-                 sync:bool = 'warp', 
-                 pruning:str = 1000,
-                 max_boot_nodes:int = 24,                 
+                 max_boot_nodes:int = 24,
+                 daemon : bool = True,
+                 
                  ):
 
         ip = c.ip() if ip == None else ip
@@ -3417,9 +3422,10 @@ class Subspace(c.Module):
         cmd_kwargs += f' --chain {chain_spec_path}'
 
         if telemetry_url != False:
-            if telemetry_url in [True]:
-                telemetry_url = cls.telemetry_urls(chain=chain)['shard']
-            cmd_kwargs += f" --telemetry-url '{telemetry_url}'"
+            if telemetry_url == None:
+                telemetry_url = cls.telemetry_url(chain=chain)
+            cmd_kwargs += f' --telemetry-url {telemetry_url}'
+
 
         cmd_kwargs += f" --sync {sync}"
         
@@ -3474,8 +3480,8 @@ class Subspace(c.Module):
             volumes = f'-v {chain_spec_path}:{container_spec_path}'\
                          + f' -v {base_path}:{container_base_path}'
             # cmd = "ls /subspace/specs"
-            cmd = f'docker run -d --name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
-            output = c.cmd(cmd, verbose=False)
+            cmd = 'docker run -d '  + f'--name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
+            output = c.cmd(cmd, verbose=True)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
                 container_id = output.split(logs_sig)[-1].split('"')[0]
@@ -3543,10 +3549,10 @@ class Subspace(c.Module):
         if len(vali_node_keys) <= valis:
             cls.add_node_keys(chain=chain, valis=valis, refresh=False)
             vali_node_keys  = cls.vali_node_keys(chain=chain)
+        vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
         # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES
         cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
-        vali_nodes = list(vali_node_keys.keys())[:valis]
 
         ## NON VALIDATOR NODES
         nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
