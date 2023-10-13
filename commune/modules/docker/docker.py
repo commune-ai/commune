@@ -242,6 +242,7 @@ class Docker(c.Module):
                 row = [_.strip() for _ in row.split('  ') if len(_) > 0]
                 rows.append(row)
 
+        c.print(rows)
         df = pd.DataFrame(rows, columns=columns)
         df['ports'] = df['ports'].apply(lambda x: x.split('->')[0].strip() if len(x.split('->')) > 1 else x)
         df = df[keys]
@@ -249,14 +250,14 @@ class Docker(c.Module):
         return df   
 
     @classmethod
-    def ps(cls, path = None):
-        df = cls.psdf()
-        paths =  df['names'].tolist()
+    def ps(cls, path = None, df:bool = False):
+
+        psdf = cls.psdf()
+        paths =  psdf['names'].tolist()
         if path != None:
             paths = [p for p in paths if p != None and path in p]
-
-        
-
+        if df:
+            return psdf
         return paths
     
 

@@ -119,7 +119,7 @@ class Namespace(c.Module):
                         network:str = network,
                         chunk_size:int=10, 
                         timeout:int = 10,
-                        full_scan:bool = False)-> dict:
+                        full_scan:bool = True)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"

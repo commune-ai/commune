@@ -1125,7 +1125,7 @@ class Keypair(c.Module):
     def __str__(self):
         return f'<Keypair (address={self.ss58_address[:6]}.., path={self.path},  crypto_type: {self.crypto_type_name})>'
 
-    mems_path = c.repo_path + '/data/mems.json'
+    mems_path = c.repo_path + '/data/keymems.json'
     
     @classmethod
     def savemems(cls, path=mems_path):
@@ -1142,10 +1142,13 @@ class Keypair(c.Module):
         return {'loaded_mems':list(mems.keys()), 'path':path}
 
     @classmethod
-    def mems(cls):
+    def mems(cls, search=None):
         mems = {}
         for key in cls.keys():
             mems[key] = cls.getmem(key)
+
+        if search:
+            mems = {k:v for k,v in mems.items() if search in k or search in v}
         return mems
 
     def __repr__(self):
