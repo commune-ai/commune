@@ -168,7 +168,7 @@ class TaskExecutor(c.Module):
                 del executor
         except Exception as e:
             c.print("work_item", work_item, color='red')
-            cf.print("Exception in worker", e, color='red')
+            c.print("Exception in worker", e, color='red')
 
     @property
     def num_tasks(self):
