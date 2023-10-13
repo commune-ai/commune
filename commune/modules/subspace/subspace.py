@@ -3379,6 +3379,8 @@ class Subspace(c.Module):
                  node_key = None,
                  mode :str = mode,
                  rpc_cors = 'all',
+                 pruning:str = 20000,
+                 sync:str = 'full',
                  validator:bool = False,
                  local:bool = False,
                  ip = None,
@@ -3416,7 +3418,8 @@ class Subspace(c.Module):
             
 
         cmd_kwargs = f' --base-path {base_path}'
-        cmd_kwargs += f" --pruning={pruning}"
+
+
 
         chain_spec_path = cls.chain_spec_path(chain)
         cmd_kwargs += f' --chain {chain_spec_path}'
@@ -3426,8 +3429,9 @@ class Subspace(c.Module):
                 telemetry_url = cls.telemetry_url(chain=chain)
             cmd_kwargs += f' --telemetry-url {telemetry_url}'
 
-
-        cmd_kwargs += f" --sync {sync}"
+        if not validator:
+            cmd_kwargs += f" --pruning={pruning}"
+            cmd_kwargs += f" --sync {sync}"
         
         if validator :
             cmd_kwargs += ' --validator'
