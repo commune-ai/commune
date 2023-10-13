@@ -11,6 +11,7 @@ shortcuts:
   s: subspace
   tg: textgen
   f: frontend
+  store: storage
 tag: fams
 
 access_module: 

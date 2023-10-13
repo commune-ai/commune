@@ -14,26 +14,43 @@ class Storage(c.Module):
         self.executor = c.module('executor')()
 
 
+
     @property
     def store_dirpath(self) -> str:
-        return self.resolve_path(f'{self.tag}.store')
+        tag = self.tag
+        if tag == None:
+            tag = 'base'
+        return self.resolve_path(f'{tag}.store')
 
     def resolve_store_path(self, key: str) -> str:
         path =  f'{self.store_dirpath}/{key}'
         return path
 
-    def put(self, k,  v: Dict, encrypt:bool=False, replicas = 1):
+    def resolve_key(self, key=None) -> str:
+        if key == None:
+            key = self.key
+        if isinstance(key, str):
+            key = c.get_key(key)
+        return key
+
+    def put(self, k,  v: Dict, encrypt:bool=False, replicas = 1, key=None):
         timestamp = c.timestamp()
         obj = {'data': v}
+
+        k = self.resolve_store_path(k)
         # serialize
         v = self.serializer.serialize(obj)
         if encrypt:
-            v = self.key.encrypt(v, return_json=True)
+            v = self.key.encrypt(v)
         v = self.key.sign(v, return_json=True)
-        path = self.resolve_store_path(k)
+        v['encrypted'] = encrypt
+        v['timestamp'] = timestamp
+        
         if replicas > 1:
             self.replicate(k, v, replicas=replicas)
-        return c.put(path, v)
+        self.put_json(k, v)
+        size_bytes = self.sizeof(v)
+        return {'success': True, 'key': k,  'size_bytes': size_bytes, 'replica_map': self.replica_map}
     
     def replicate(self, k, v, replicas=2):
         replica_map = self.get('replica_map', default={})
@@ -51,11 +68,18 @@ class Storage(c.Module):
         c.print(replicas)
     
 
-    def get(self,k, deserialize:bool= True) -> Any:
-        path = self.resolve_store_path(k)
-        v = c.get(path, {})
+    def get(self,k, deserialize:bool= True, key=None) -> Any:
+        k = self.resolve_store_path(k)
+        v = self.get_json(k, {})
+
         if 'data' not in v:
             return {'success': False, 'error': 'No data found'}
+        c.print(v)
+        if 'encrypted' in v and v['encrypted']:
+            c.print(v)
+            v['data'] = self.key.decrypt(v['data'])
+
+
         if deserialize:
             v = self.serializer.deserialize(v['data'])
         return v['data']

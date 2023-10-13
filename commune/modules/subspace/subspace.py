@@ -2090,7 +2090,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def get_key_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
+    def get_chain_data(cls, key:str, network:str='main', block:int=None, netuid:int=0):
         self = cls(network=network)
 
         results =  getattr(self, key)(netuid=netuid, block=block)
@@ -2107,8 +2107,8 @@ class Subspace(c.Module):
                 update: bool = False,
                 include_weights = False,
                 df = False,
-                max_workers:int = 10,
-                timeout=200
+                multithread:bool = False ,
+                timeout=200 # for multi-threading
                 ) -> Dict[str, ModuleInfo]:
         
 
@@ -2129,10 +2129,13 @@ class Subspace(c.Module):
             keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
             if include_weights:
                 keys += ['weights']
-            if max_workers > 1:
-                executor = c.module('executor')(max_workers=max_workers)
-                results = [executor.submit(self.get_key_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout) for key in keys]
-                results = c.wait(results)
+            if multithread:
+                executor = c.module('executor')(max_workers=len(keys))
+                futures = []
+                for key in keys:
+                    futures += [executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout)]
+
+                results  = c.wait(futures)
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
                 state = {}
@@ -3637,6 +3640,10 @@ class Subspace(c.Module):
     def urls(cls, network: str = network) -> str:
         return list(cls.node2url(network=network).values())
 
+    def random_urls(self, network: str = network, n=4) -> str:
+        urls = self.urls(network=network)
+        return c.sample(urls, n=1)
+
 
     @classmethod
     def test_node_urls(cls, network: str = network) -> str:
@@ -3743,6 +3750,7 @@ class Subspace(c.Module):
 
 
 
+
     @classmethod
     def start_telemetry(cls, 
                     port:int=None, 
@@ -3772,6 +3780,9 @@ class Subspace(c.Module):
                                         'feed': f"ws://{c.ip()}:{ports['core']}/feed", 
                                         'frontend': f'http://{c.ip()}:{ports["frontend"]}'}
                 reuse_ports = False
+
+            
+
 
             if reuse_ports:
                 ports = {k:int(v.split(':')[-1].split('/')[0]) for k, v in telemetry_urls.items()}
@@ -3859,3 +3870,5 @@ class Subspace(c.Module):
         # return as soon as all the futures are done
     
         c.wait(futures)
+
+

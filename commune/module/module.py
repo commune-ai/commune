@@ -664,6 +664,11 @@ class c:
     def start_node(cls, *args, **kwargs):
         return c.module('subspace').start_node(*args, **kwargs)
 
+
+    @classmethod
+    def start_telemetry(cls, *args, **kwargs):
+        return c.module('subspace').start_telemetry(*args, **kwargs)
+
     @classmethod
     def start_local_node(cls, *args, **kwargs):
         return c.module('subspace').start_local_node(*args, **kwargs)
@@ -980,6 +985,8 @@ class c:
         The path is determined by the module path 
         
         '''
+        if path == None:
+            path = cls.tmp_dir()
         
         if path.startswith('/'):
             path = path
@@ -1823,6 +1830,16 @@ class c:
         path = cls.resolve_path(path=path, root=root)
         return os.path.isfile(path)
 
+
+    def rm_many(cls, paths:List[str]):
+        paths = c.ls(paths)
+
+    
+
+
+        # for path in paths:
+        #     cls.rm(path)
+
     @classmethod
     def rm(cls, path, extension=None, root=False, mode = 'json'):
         path = cls.resolve_path(path=path, extension=extension, root=root)
@@ -1843,7 +1860,7 @@ class c:
 
     
     @classmethod
-    def glob(cls,  path ='~/', files_only:bool = True, root:bool = False, recursive:bool=False):
+    def glob(cls,  path =None, files_only:bool = True, root:bool = False, recursive:bool=True):
         
         path = cls.resolve_path(path, extension=None, root=root)
         
@@ -1855,6 +1872,11 @@ class c:
         if files_only:
             paths =  list(filter(lambda f:os.path.isfile(f), paths))
         return paths
+
+    @classmethod
+    def get_file_size(cls, path:str):
+        path = cls.resolve_path(path)
+        return os.path.getsize(path)
          
     @classmethod
     def ls_json(cls, path:str = '', recursive:bool = True):
@@ -5162,15 +5184,23 @@ class c:
         return c.wait(futures)
 
     @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, **kwargs):
+    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , multithread:bool=False, **kwargs):
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
         server_names = []
-        for i in range(n):
-            r = cls.register(module=module, tag=tag+str(i),  **kwargs)
-            server_names.append(r['server_name'])
-        return {'servers':server_names}
+        if multithread:
+            executor = c.module('executor')(max_workers=n)
+            futures = []
+            for i in range(n):
+                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), **kwargs}, timeout=timeout)
+                futures = futures + [future]
+            return c.wait(futures, timeout=timeout)
+        else:
+            for i in range(n):
+                r = cls.register(module=module, tag=tag+str(i),  **kwargs)
+                server_names.append(r['server_name'])
+            return {'servers':server_names}
 
     @classmethod
     def servefleet(cls,module = None, tag:str=None, n:int=2, refresh=False, **kwargs):
@@ -5956,6 +5986,14 @@ class c:
         return random.choice(options)
 
     @classmethod
+    def sample(cls, options:list, n=2):
+        if isinstance(options, int):
+            options = list(range(options))
+        options = c.shuffle(options)
+        return options[:n]
+        
+
+    @classmethod
     def chown(cls, path:str = None, sudo:bool =True):
         path = cls.resolve_path(path)
         user = c.env('USER')
@@ -6029,17 +6067,26 @@ class c:
         
         import concurrent.futures
         futures = [futures] if not isinstance(futures, list) else futures
+        future2idx = {future:i for i,future in enumerate(futures)}
+
         results = []
         start_time = c.time()
-        
 
         # wait for the futures as they complete
+
+        results = []
+        results = [None]*len(futures)
+
         for future in concurrent.futures.as_completed(futures, timeout=timeout):
-            pass
-    
-        results = [f.result() for f in futures]
-            
+            idx = future2idx[future]
+            results[idx] = future.result()
+
         return results
+
+    @staticmethod
+    def as_completed( futures, timeout=10, **kwargs):
+        import concurrent.futures
+        return concurrent.futures.as_completed(futures, timeout=timeout, **kwargs)
 
     
     @classmethod
@@ -6605,11 +6652,7 @@ class c:
     @classmethod
     def ps(cls, *args, **kwargs):
         return c.module('docker').ps(*args, **kwargs)
-
-    @classmethod
-    def play(cls):
-        c.print(c.rm_key('brodfdf'))
-        
+ 
 
     @staticmethod
     def get_parents(obj) -> List[str]:
@@ -7790,7 +7833,9 @@ class c:
         return c.shuffle(peers)[:n]
 
 
-
+    @classmethod
+    def play(cls):
+        c.module('music').play()
     
 Module = c
 Module.run(__name__)
