@@ -116,7 +116,6 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
-                c.print(f'Failed to connect to {url} with error: {e}')
                 self.config.local = False
                 url = None
                 
@@ -965,15 +964,12 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
-    
-        module_key = key.ss58_address if module_key == None else module_key
-
-        old_balance = self.get_balance( key.ss58_address , fmt='j')
-        old_stake = self.get_staketo(key= key.ss58_address, module_key=module_key,   netuid=netuid, fmt='j',)
-        
-        if amount == None:
-            amount = old_stake
-
+        old_balance = self.get_balance( key.ss58_address , fmt='j')       
+        # get most stake from the module
+        most_staketo_key = self.most_staketo_key(key=key, netuid=netuid)
+        module_key = most_staketo_key['key'] if module_key == None else module_key
+        old_stake = most_staketo_key['stake']
+        amount = old_stake if amount == None else amount
         amount = self.to_nanos(amount)
         call_params={
             'amount': int(amount),
