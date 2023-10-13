@@ -28,7 +28,7 @@ chain_info:
     - /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
     nodes:
       vali_0:
-        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWS3CqbPVeUEWCQ4sFtFhdKn6nwCbQiMnitbpyqZg3vubJ
+        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -38,16 +38,18 @@ chain_info:
         node: vali_0
         node_key: null
         port: 5001
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5002
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5003
       vali_1:
-        boot_nodes: /ip4/24.66.238.82/tcp/5010/p2p/12D3KooWPxa2WSo6wf6QzgeTEaDMkwPfQSHi4eXo2LrpeiVF3sgz
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWJiyxNXbP4kQs3v2o5yVMcnYF6JtGAaYdDQ3Yqw7RLQ4v
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -57,16 +59,18 @@ chain_info:
         node: vali_1
         node_key: null
         port: 5004
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5005
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5006
       vali_10:
-        boot_nodes: /ip4/24.66.238.82/tcp/5061/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
+        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -76,16 +80,18 @@ chain_info:
         node: vali_10
         node_key: null
         port: 5031
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5032
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5033
       vali_11:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5037/p2p/12D3KooWHQgfWYiYdE3BVyjmA5SuRbsE2MecmwuCx2eU6zyWWY3o
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -95,16 +101,18 @@ chain_info:
         node: vali_11
         node_key: null
         port: 5034
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5035
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5036
       vali_12:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooW9xkihW81MZwWnfgRjVsHd7qfHmMqQLp7HEbMZryS5634
+        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWGhfTqWeervtyzEGrDhUM3TGygqVoE6KgNzXCQvkBmUxV
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -114,16 +122,18 @@ chain_info:
         node: vali_12
         node_key: null
         port: 5037
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5038
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5039
       vali_13:
-        boot_nodes: /ip4/24.66.238.82/tcp/5028/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWMDaTdB45wnM3TcD1ca9mGJWmDhS4txC19ndC7MdHPRSS
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -133,16 +143,18 @@ chain_info:
         node: vali_13
         node_key: null
         port: 5040
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5041
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5042
       vali_14:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
+        boot_nodes: /ip4/24.66.238.82/tcp/5037/p2p/12D3KooWHQgfWYiYdE3BVyjmA5SuRbsE2MecmwuCx2eU6zyWWY3o
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -152,16 +164,18 @@ chain_info:
         node: vali_14
         node_key: null
         port: 5043
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5044
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5045
       vali_15:
-        boot_nodes: /ip4/24.66.238.82/tcp/5067/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5067/p2p/12D3KooWS3CqbPVeUEWCQ4sFtFhdKn6nwCbQiMnitbpyqZg3vubJ
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -171,16 +185,18 @@ chain_info:
         node: vali_15
         node_key: null
         port: 5046
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5047
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5048
       vali_16:
-        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWS3CqbPVeUEWCQ4sFtFhdKn6nwCbQiMnitbpyqZg3vubJ
+        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -190,16 +206,18 @@ chain_info:
         node: vali_16
         node_key: null
         port: 5049
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5050
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5051
       vali_17:
-        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWJiyxNXbP4kQs3v2o5yVMcnYF6JtGAaYdDQ3Yqw7RLQ4v
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -209,16 +227,18 @@ chain_info:
         node: vali_17
         node_key: null
         port: 5052
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5053
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5054
       vali_18:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWHybLZ66JVWVfGc1BzjzZVKBVkMk4kvBpXWWSeqs3DGDo
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -228,16 +248,18 @@ chain_info:
         node: vali_18
         node_key: null
         port: 5055
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5056
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5057
       vali_19:
-        boot_nodes: /ip4/24.66.238.82/tcp/5067/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -247,16 +269,18 @@ chain_info:
         node: vali_19
         node_key: null
         port: 5058
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5059
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5060
       vali_2:
-        boot_nodes: /ip4/24.66.238.82/tcp/5055/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
+        boot_nodes: /ip4/24.66.238.82/tcp/5028/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -266,16 +290,18 @@ chain_info:
         node: vali_2
         node_key: null
         port: 5007
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5008
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5009
       vali_20:
-        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
+        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -285,16 +311,18 @@ chain_info:
         node: vali_20
         node_key: null
         port: 5061
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5062
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5063
       vali_21:
-        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
+        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -304,16 +332,18 @@ chain_info:
         node: vali_21
         node_key: null
         port: 5064
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5065
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5066
       vali_22:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
+        boot_nodes: /ip4/24.66.238.82/tcp/5019/p2p/12D3KooWGhfTqWeervtyzEGrDhUM3TGygqVoE6KgNzXCQvkBmUxV
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -323,16 +353,18 @@ chain_info:
         node: vali_22
         node_key: null
         port: 5067
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5068
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5069
       vali_23:
-        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
+        boot_nodes: /ip4/24.66.238.82/tcp/5055/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -342,16 +374,18 @@ chain_info:
         node: vali_23
         node_key: null
         port: 5070
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5071
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5072
       vali_3:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
+        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -361,16 +395,18 @@ chain_info:
         node: vali_3
         node_key: null
         port: 5010
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5011
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5012
       vali_4:
-        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
+        boot_nodes: /ip4/24.66.238.82/tcp/5010/p2p/12D3KooW9xkihW81MZwWnfgRjVsHd7qfHmMqQLp7HEbMZryS5634
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -380,16 +416,18 @@ chain_info:
         node: vali_4
         node_key: null
         port: 5013
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5014
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5015
       vali_5:
-        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWGhfTqWeervtyzEGrDhUM3TGygqVoE6KgNzXCQvkBmUxV
+        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -399,16 +437,18 @@ chain_info:
         node: vali_5
         node_key: null
         port: 5016
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5017
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5018
       vali_6:
-        boot_nodes: /ip4/24.66.238.82/tcp/5031/p2p/12D3KooWJiyxNXbP4kQs3v2o5yVMcnYF6JtGAaYdDQ3Yqw7RLQ4v
+        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -418,16 +458,18 @@ chain_info:
         node: vali_6
         node_key: null
         port: 5019
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5020
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5021
       vali_7:
-        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
+        boot_nodes: /ip4/24.66.238.82/tcp/5061/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -437,16 +479,18 @@ chain_info:
         node: vali_7
         node_key: null
         port: 5022
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5023
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5024
       vali_8:
-        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWMDaTdB45wnM3TcD1ca9mGJWmDhS4txC19ndC7MdHPRSS
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWMDaTdB45wnM3TcD1ca9mGJWmDhS4txC19ndC7MdHPRSS
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -456,16 +500,18 @@ chain_info:
         node: vali_8
         node_key: null
         port: 5025
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5026
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
         ws_port: 5027
       vali_9:
-        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWKzTEneMPJ7pYC6LwmAZLScTHhBcvJgS1xfFXLT2TEFyY
+        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         daemon: true
         ip: 24.66.238.82
@@ -475,10 +521,12 @@ chain_info:
         node: vali_9
         node_key: null
         port: 5028
+        pruning: 20000
         purge_chain: true
         refresh: true
         rpc_cors: all
         rpc_port: 5029
+        sync: full
         telemetry_url: false
         validator: true
         verbose: false
