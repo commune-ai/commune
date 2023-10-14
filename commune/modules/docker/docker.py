@@ -242,7 +242,6 @@ class Docker(c.Module):
                 row = [_.strip() for _ in row.split('  ') if len(_) > 0]
                 rows.append(row)
 
-        c.print(rows)
         df = pd.DataFrame(rows, columns=columns)
         df['ports'] = df['ports'].apply(lambda x: x.split('->')[0].strip() if len(x.split('->')) > 1 else x)
         df = df[keys]
