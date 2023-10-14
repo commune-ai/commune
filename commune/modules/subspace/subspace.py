@@ -101,7 +101,10 @@ class Subspace(c.Module):
         while trials < max_trials :
             trials += 1
             url = self.resolve_node_url(url=url, chain=network, local=self.config.local)
-            c.print()
+            c.print(f'Connecting to {url}...')
+            ip = c.ip()
+            url = url.replace(ip, '0.0.0.0')
+
             kwargs.update(url=url, 
                         websocket=websocket, 
                         ss58_format=ss58_format, 
@@ -116,10 +119,10 @@ class Subspace(c.Module):
                 self.substrate= SubstrateInterface(**kwargs)
                 break
             except Exception as e:
+                c.print(e, url)
                 self.config.local = False
                 url = None
                 
-        c.print(f'Connecting to {url}...')
         self.url = url
         self.network = network
         response = {'success': True, 'message': f'Connected to {url}', 'network': network, 'url': url}
@@ -1372,7 +1375,7 @@ class Subspace(c.Module):
         while True:
             c.sleep(sleep)
             current_time = c.time()
-            time_since_last = {k:current_time - time_start for k in interval}
+            time_since_last = {k:int(current_time - time_start) for k in interval}
 
             # if auto_unstake:
             #     cls.auto_unstake(network=network, netuid=netuid)
@@ -2257,6 +2260,8 @@ class Subspace(c.Module):
             c.kill(node_path)
         return {'success': True, 'message': f'killed {node} on {chain}'}
 
+
+
     @classmethod
     def kill_nodes(cls, chain=chain, verbose=True, mode=mode):
 
@@ -2941,6 +2946,7 @@ class Subspace(c.Module):
 
     @classmethod
     def nodes(cls, vali:bool=True, chain=chain):
+        node_infos = cls.node_infos(chain=chain)
         nodes = list(cls.node_infos(chain=chain).keys())
         if vali:
             nodes = [n for n in nodes if n.startswith('vali') if c.is_number(n.split('_')[-1])]
@@ -3315,10 +3321,23 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def start_public_nodes(cls, node:str='nonvali', n:int=20, mode=mode, chain=chain, max_boot_nodes=24, **kwargs):
+    def start_public_nodes(cls, node:str='nonvali', n:int=20, i=0, mode=mode, chain=chain, max_boot_nodes=24, refresh:bool = False, **kwargs):
         avoid_ports = []
-        for i in range(n):
+        node_infos = cls.node_infos(chain= chain)
+        served_nodes = []
+
+        while len(served_nodes) <= n:
+            i += 1
             node_name = f'{node}_{i}'
+
+            if node_name in node_infos and refresh == False:
+                c.print(f'Skipping {node_name} (Already exists)')
+                continue
+            else:
+                c.print(f'Deploying {node_name}')
+
+            served_nodes += [node_name]
+
             free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
             avoid_ports += free_ports
             kwargs['port'] = free_ports[0]
@@ -3330,7 +3349,10 @@ class Subspace(c.Module):
             c.print('started node', node_name, '--> ', response['logs'])
 
             cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
-            
+
+
+
+     
     @classmethod
     def local_nodes(cls, chain=chain):
         return cls.ls(f'local_nodes/{chain}')
@@ -3379,7 +3401,7 @@ class Subspace(c.Module):
                  mode :str = mode,
                  rpc_cors = 'all',
                  pruning:str = 20000,
-                 sync:str = 'full',
+                 sync:str = 'warp',
                  validator:bool = False,
                  local:bool = False,
                  ip = None,
@@ -3479,11 +3501,13 @@ class Subspace(c.Module):
             key_path = cls.resolve_node_keystore_path(node=node, chain=chain)
             container_base_path = base_path.replace(cls.tmp_dir(), '')
             cmd = cmd.replace(base_path, container_base_path)
-    
-            volumes = f'-v {chain_spec_path}:{container_spec_path}'\
+
+            volumes = f'-v {os.path.dirname(chain_spec_path)}:{os.path.dirname(container_spec_path)}'\
                          + f' -v {base_path}:{container_base_path}'
-            # cmd = "ls /subspace/specs"
-            cmd = 'docker run -d '  + f'--name {name} --net host {volumes} {cls.image}  bash -c "{cmd}"'
+
+            daemon_str = '-d' if daemon else ''
+            # cmd = 'cat /subspace/specs/main.json'
+            cmd = 'docker run ' + daemon_str  + f' --net host --name {name} {volumes} {cls.image}  bash -c "{cmd}"'
             output = c.cmd(cmd, verbose=True)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
@@ -3673,13 +3697,14 @@ class Subspace(c.Module):
 
 
 
-    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, n:int=5):
+    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, n:int=20):
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis(n=n)
         if isinstance(modules, str):
-            modules = [k for k,v in name2key.items() if k.startswith(modules)]
+            modules = [k for k,v in name2key.items() if modules in k]
 
+        c.print(modules)
         modules = modules[:n]
 
         name2key = {k:name2key[k] for k in modules if k in name2key}
