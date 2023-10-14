@@ -3691,13 +3691,14 @@ class Subspace(c.Module):
 
 
 
-    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, n:int=5):
+    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, n:int=20):
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis(n=n)
         if isinstance(modules, str):
-            modules = [k for k,v in name2key.items() if k in modules]
+            modules = [k for k,v in name2key.items() if modules in k]
 
+        c.print(modules)
         modules = modules[:n]
 
         name2key = {k:name2key[k] for k in modules if k in name2key}
