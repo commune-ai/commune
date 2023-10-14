@@ -1375,7 +1375,7 @@ class Subspace(c.Module):
         while True:
             c.sleep(sleep)
             current_time = c.time()
-            time_since_last = {k:current_time - time_start for k in interval}
+            time_since_last = {k:int(current_time - time_start) for k in interval}
 
             # if auto_unstake:
             #     cls.auto_unstake(network=network, netuid=netuid)
@@ -2260,6 +2260,8 @@ class Subspace(c.Module):
             c.kill(node_path)
         return {'success': True, 'message': f'killed {node} on {chain}'}
 
+
+
     @classmethod
     def kill_nodes(cls, chain=chain, verbose=True, mode=mode):
 
@@ -2944,6 +2946,7 @@ class Subspace(c.Module):
 
     @classmethod
     def nodes(cls, vali:bool=True, chain=chain):
+        node_infos = cls.node_infos(chain=chain)
         nodes = list(cls.node_infos(chain=chain).keys())
         if vali:
             nodes = [n for n in nodes if n.startswith('vali') if c.is_number(n.split('_')[-1])]
@@ -3346,7 +3349,10 @@ class Subspace(c.Module):
             c.print('started node', node_name, '--> ', response['logs'])
 
             cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
-            
+
+
+
+     
     @classmethod
     def local_nodes(cls, chain=chain):
         return cls.ls(f'local_nodes/{chain}')
