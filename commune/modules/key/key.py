@@ -160,8 +160,6 @@ class Keypair(c.Module):
 
         self.mnemonic = mnemonic
 
-emerge shadow cake present dragon more deposit fly gauge oak display thunder
-    
     @classmethod
     def add_key(cls, path:str, mnemonic:str = None, password:str=None, refresh:bool=False, **kwargs):
         
