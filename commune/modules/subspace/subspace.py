@@ -44,15 +44,17 @@ class Subspace(c.Module):
     
     def __init__( 
         self, 
-        config = None,
+        url: str = None,
+        network: str = network,
+        local:bool = False,
         **kwargs,
     ):
-        config = self.set_config(config=config,kwargs=kwargs)
+        config = self.set_config(kwargs=locals())
         if config.loop:
             c.thread(self.loop)
 
     def set_network(self, 
-                network:str = None,
+                network:str = network,
                 url : str = None,
                 websocket:str=None, 
                 ss58_format:int=42, 
@@ -2870,9 +2872,7 @@ class Subspace(c.Module):
     @classmethod
     def resolve_node_path(cls, node:str='alice', chain=chain, tag_seperator='_'):
         node = str(node)
-        if node_type in node:
-            node = node.split(tag_seperator)[-1]
-        return f'{cls.node_key_prefix}.{chain}.{node_type}{tag_seperator}{node}'
+        return f'{cls.node_key_prefix}.{chain}.{node}'
 
     @classmethod
     def get_node_key(cls, node='alice', chain=chain, vali=True, crease_if_not_exists:bool=True):
@@ -2940,23 +2940,34 @@ class Subspace(c.Module):
         return cls.getc(f'chain_info.{chain}.nodes', {})
 
     @classmethod
-    def nodes(cls, vali:bool=True, chain=chain):
+    def nodes(cls, chain=chain):
         node_infos = cls.node_infos(chain=chain)
         nodes = list(cls.node_infos(chain=chain).keys())
-        if vali:
-            nodes = [n for n in nodes if n.startswith('vali') if c.is_number(n.split('_')[-1])]
-            nodes = sorted(nodes, key=lambda n: int(n.split('_')[-1]))
-        else:
-            nodes = [n for n in nodes if not n.startswith('vali')]
         return nodes
 
     @classmethod
     def vali_nodes(cls, chain=chain):
-        return cls.nodes(vali=True, chain=chain)
+        return [k for k,v in cls.node_infos(chain=chain).items() if v['validator']]
 
     @classmethod
     def nonvali_nodes(cls, chain=chain):
-        return cls.nodes(vali=False, chain=chain)
+        return [k for k,v in cls.node_infos(chain=chain).items() if not v['validator']]
+
+    public_nodes = nonvali_nodes
+
+
+    @classmethod
+    def remove_nonvali_nodes(cls, chain=chain):
+        config = cls.config()
+        
+        nodes = {}
+        for node, node_info in config['chain_info'][chain]['nodes'].items():
+            if node_info['validator']:
+                nodes[node] = node_info
+        config['chain_info'][chain]['nodes'] = nodes
+        cls.save_config(config)
+            
+        return {'success':True, 'message':'removed all nonvali node keys', 'chain':chain, 'keys_left':cls.node_keys(chain=chain)}
 
     @classmethod
     def vali_node_keys(cls,chain=chain):
@@ -3315,6 +3326,12 @@ class Subspace(c.Module):
         return response
 
 
+
+    @classmethod
+    def check_public_nodes(cls):
+        config = cls.config()
+
+
     @classmethod
     def start_public_nodes(cls, node:str='nonvali', n:int=20, i=0, mode=mode, chain=chain, max_boot_nodes=24, refresh:bool = False, **kwargs):
         avoid_ports = []
@@ -3350,37 +3367,38 @@ class Subspace(c.Module):
      
     @classmethod
     def local_nodes(cls, chain=chain):
-        return cls.ls(f'local_nodes/{chain}')
+        return [p for p in cls.ls(f'local_nodes/{chain}')]
 
     @classmethod
     def kill_local_node(cls, node, chain=chain):
-        node_path = cls.resovle_node_path(node=node, chain=chain)
+        node_path = cls.resolve_node_path(node=node, chain=chain)
         docker = c.module('docker')
         if docker.exists(node_path):
-            docker.kill(node_path):
-
-            
-        return cls.rm(f'local_nodes/{chain}')
+            docker.kill(node_path)
+        
+        return cls.rm(f'local_nodes/{chain}/{node}')
 
     @classmethod
     def has_local_node(cls, chain=chain):
         return len(cls.local_nodes(chain=chain)) > 0
 
     @classmethod
-    def resolve_node_url(self, url = None, chain=chain, local:bool = False):
+    def resolve_node_url(cls, url = None, chain=chain, local:bool = False):
+        node2url = cls.node2url(network=chain)
         if url != None:
             return url
-        
-        local_node_paths = self.local_nodes(chain=chain) if local else []
-        if len(local_node_paths) > 0:
-            local_node_info = self.get(local_node_paths[0])
-            port = local_node_info['ws_port']
-            url = f'ws://0.0.0.0:{port}'
         else:
-            url = c.choice(self.urls(network=chain))
+            if local:
+                local_node_paths = cls.local_nodes(chain=chain)
+                c.print(local_node_paths)
+                local_node_info = cls.get(c.choice(local_node_paths))
+                port = local_node_info['ws_port']
+                url = f'ws://0.0.0.0:{port}'
+            else:
+                url = c.choice(cls.urls(network=chain))
 
-        if not url.startswith('ws://'):
-            url = 'ws://' + url
+            if not url.startswith('ws://'):
+                url = 'ws://' + url
 
         return url
 
@@ -3646,8 +3664,9 @@ class Subspace(c.Module):
             
         # save the chain info into the config at chain_info.{chain}
         cls.putc(f'chain_info.{chain}', chain_info)
+
+    
                
-       
     @classmethod
     def node2url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
@@ -3672,11 +3691,16 @@ class Subspace(c.Module):
 
     @classmethod
     def test_node_urls(cls, network: str = network) -> str:
-        urls = cls.urls(network=network)
-        for url in urls:
-            c.print(f'Testing {url}...')
-            c.test_url(url)
-        c.print('All nodes are up and running!')
+        nodes = cls.nonvali_nodes()
+        for node in nodes:
+            try:
+                url = cls.resolve_node_url(node)
+                s = cls()
+                s.set_network(url=url)
+                c.print(s.block, 'block for node', node)
+            except Exception as e:
+                c.print(c.detailed_error(e))
+                c.print(f'node {node} is down')
 
 
     def storage_functions(self, network=network, block_hash = None):
@@ -3897,4 +3921,8 @@ class Subspace(c.Module):
     
         c.wait(futures)
 
+
+    def check_storage(self, storage_name:str, block_hash = None):
+        self.resolve_network(network)
+        return self.substrate.get_metadata_storage_functions( block_hash=block_hash)
 
