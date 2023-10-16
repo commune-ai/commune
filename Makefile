@@ -8,6 +8,9 @@ SUBTENSOR=0.0.0.0:9944
 
 PYTHON=python3
 
+build:
+	docker-compose build
+
 down:
 	docker-compose down
 stop:
@@ -20,9 +23,6 @@ restart:
 	make down && make up
 logs:
 	./$(COMMUNE).sh --commune
-
-build:
-	docker-compose build
 
 subspace:
 	make bash arg=$(SUBSPACE)
