@@ -37,7 +37,8 @@ class BitAPAI(c.Module):
                  # added exclude_unavailable to ensure no empty responses are returned
                  exclude_unavailable:bool = True,
                  uids: list = None,
-                 api_key:str = None, history:list=None) -> str: 
+                 api_key:str = None, 
+                 history:list=None) -> str: 
         api_key = api_key if api_key != None else self.api_key
         # build payload
 
@@ -83,6 +84,7 @@ class BitAPAI(c.Module):
         res = self.conn.getresponse()
         data = res.read().decode("utf-8")
         data = json.loads(data)
+        c.print(len(data['choices']))
 
         return data['choices'][0]['message']['content']
     

@@ -1357,7 +1357,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = 0,
-                 interval = {'sync': 100, 'register': None, 'vali': 100, 'update_modules': 100},
+                 interval = {'sync': 100, 'register': None, 'vali': None, 'update_modules': 100},
                  modules = ['model'], 
                  sleep:float=1,
                  remote:bool=True, **kwargs):
