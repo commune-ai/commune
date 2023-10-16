@@ -1357,7 +1357,7 @@ class Subspace(c.Module):
     def loop(cls, 
                 network = network,
                 netuid:int = 0,
-                 interval = {'sync': 100, 'register': None, 'vali': None, 'update_modules': 100},
+                 interval = {'sync': 1000, 'register': None, 'vali': None, 'update_modules': None},
                  modules = ['model'], 
                  sleep:float=1,
                  remote:bool=True, **kwargs):
@@ -1379,14 +1379,11 @@ class Subspace(c.Module):
             current_time = c.time()
             time_since_last = {k:int(current_time - time_start) for k in interval}
 
-            # if auto_unstake:
-            #     cls.auto_unstake(network=network, netuid=netuid)
+
             subspace = cls(network=network, netuid=netuid)
 
-            if time_since_last['update_modules'] > interval['update_modules']:
+            if  interval['update_modules'] != None and time_since_last['update_modules'] > interval['update_modules']:
                 c.update(network='local')
-
-
 
             if interval['sync'] != None and time_since_last['sync'] > interval['sync']:
                 c.print(subspace.sync(), color='green')
@@ -3409,6 +3406,18 @@ class Subspace(c.Module):
         for i in range(n):
             results += [self.start_node(node= f'{node}_{i}', chain=chain, **kwargs)]
         return results
+
+    @classmethod
+    def local_public_nodes(cls, chain=chain):
+        config = cls.config()
+        ip = c.ip()
+        nodes = []
+        for node, node_info in config['chain_info'][chain]['nodes'].items():
+            if node_info['ip'] == ip:
+                nodes.append(node)
+
+        return nodes
+
     @classmethod
     def start_node(cls,
                  node : str,
