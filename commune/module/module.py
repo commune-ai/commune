@@ -6892,8 +6892,8 @@ class c:
     
     @classmethod
     def giturl(cls):
-        return c.cmd('git remote -v').split('\n')[0].split('\t')[1].split(' ')[0]
-    
+        return c.cmd('git remote -v', verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
+    url = giturl
 
     @classmethod
     def my_modules(cls, *args, **kwargs):
@@ -7448,14 +7448,16 @@ class c:
         c.cmd('./scripts/install_rust_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
 
     @classmethod
-    def install_npm(cls, sudo=True) :
-        cls.chmod_scripts()
-        c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+    def install_npm(cls, sudo=False) :
+        c.cmd('apt install npm', sudo=sudo)
+
+    @classmethod
+    def install_pm2(cls, sudo=True) :
+        c.cmd('npm install pm2 -g', sudo=sudo)
 
     @classmethod
     def install_python(cls, sudo=True) :
-        cls.chmod_scripts()
-        c.cmd('./scripts/install_npm_env.sh', cwd=cls.libpath, verbose=True, bash=True, sudo=sudo)
+        c.cmd('apt install -y python3-dev python3-pip', verbose=True, bash=True, sudo=sudo)
 
     @classmethod
     def cachefn(cls, func, max_age=60, update=False, cache=True, cache_folder='cachefn'):
