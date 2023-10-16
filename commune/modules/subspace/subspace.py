@@ -46,7 +46,7 @@ class Subspace(c.Module):
         self, 
         url: str = None,
         network: str = network,
-        local:bool = False,
+        local:bool = True,
         **kwargs,
     ):
         config = self.set_config(kwargs=locals())
@@ -2144,7 +2144,6 @@ class Subspace(c.Module):
 
                 for  key in c.tqdm(keys):
                     state[key] =  getattr(self, key)(netuid=netuid, block=block)
-            c.print(state['uid2key'])
             for uid, key in state['uid2key'].items():
 
                 module= {
@@ -3742,8 +3741,8 @@ class Subspace(c.Module):
         if isinstance(modules, str):
             modules = [k for k,v in name2key.items() if modules in k]
 
-        c.print(modules)
         modules = modules[:n]
+        modules = c.shuffle(modules)
 
         name2key = {k:name2key[k] for k in modules if k in name2key}
 
@@ -3764,8 +3763,11 @@ class Subspace(c.Module):
 
 
         c.print(f'staking {stake_per_module} per module for ({module_names}) modules')
+
+        s = c.module('subspace')()
+
         for module_name, module_key in name2key.items():
-            c.stake(key=key, module_key=module_key, amount=stake_per_module)
+            s.stake(key=key, module_key=module_key, amount=stake_per_module)
 
     
 
