@@ -35,7 +35,7 @@ class Storage(c.Module):
 
     def put(self, k,  v: Dict, encrypt:bool=False, replicas = 1, key=None):
         timestamp = c.timestamp()
-        obj = {'data': v}
+        obj = v
 
         k = self.resolve_store_path(k)
         # serialize
@@ -81,7 +81,7 @@ class Storage(c.Module):
 
 
         if deserialize:
-            v = self.serializer.deserialize(v['data'])
+            v['data'] = self.serializer.deserialize(v['data'])
         return v['data']
     
     
@@ -90,10 +90,10 @@ class Storage(c.Module):
 
     def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:
         obj = self.get(k, deserialize=False)
+        c.print(obj)
         if seed != None:
-            obj = obj + seed_sep + str(seed)
-        obj_hash = self.hash(obj, seed=seed)
-        return c.hash(obj)
+            obj = str(obj) + seed_sep + str(seed)
+        return self.hash(obj, seed=seed)
 
     def resolve_seed(self, seed: int = None) -> int:
         return c.timestamp() if seed == None else seed
@@ -167,18 +167,20 @@ class Storage(c.Module):
         self = cls()
         import torch
         object_list = [0, {'fam': 1}, 'whadup', {'tensor': torch.rand(3,3)}, {'tensor': torch.rand(3,3), 'fam': 1}]
-        for obj in object_list:
-            c.print(f'putting {obj}')
-            self.put('test', obj)
-            get_obj = self.get('test', deserialize=False)
-            obj_str = self.serializer.serialize(obj)
 
-            # test hash
-            assert self.get_hash('test', seed=1) == self.get_hash('test', seed=1)
-            assert self.get_hash('test', seed=1) != self.get_hash('test', seed=2)
-            assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
+        for encrypt in [True, False]:
+            for obj in object_list:
+                c.print(f'putting {obj}')
+                self.put('test', obj,encrypt=encrypt)
+                get_obj = self.get('test', deserialize=False)
+                obj_str = self.serializer.serialize(obj)
 
-            self.rm('test')
+                # test hash
+                assert self.get_hash('test', seed=1) == self.get_hash('test', seed=1)
+                assert self.get_hash('test', seed=1) != self.get_hash('test', seed=2)
+                assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
+
+                self.rm('test')
             
     @classmethod
     def test_verify(cls):

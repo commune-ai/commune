@@ -2868,15 +2868,10 @@ class Subspace(c.Module):
     
         
     @classmethod
-    def resolve_node_path(cls, node:str='alice', chain=chain, vali:bool=True, tag_seperator='_'):
+    def resolve_node_path(cls, node:str='alice', chain=chain, tag_seperator='_'):
         node = str(node)
-        if vali:
-            node_type = 'vali'
-        else:
-            node_type = 'nonvali'
         if node_type in node:
             node = node.split(tag_seperator)[-1]
-
         return f'{cls.node_key_prefix}.{chain}.{node_type}{tag_seperator}{node}'
 
     @classmethod
@@ -2974,8 +2969,8 @@ class Subspace(c.Module):
         return {k:v for k,v in  self.node_keys(chain=chain).items() if not k.startswith('vali')}
     
     @classmethod
-    def node_key_exists(cls, node='alice', chain=chain, vali: bool = True):
-        path = cls.resolve_node_path(node=node, vali=vali, chain=chain)
+    def node_key_exists(cls, node='alice', chain=chain):
+        path = cls.resolve_node_path(node=node, chain=chain)
         c.print(path)
         return len(c.keys(path+'.')) > 0
 
@@ -2999,7 +2994,7 @@ class Subspace(c.Module):
         c.print(f'adding node key {node} for chain {chain}')
         node_type = 'vali' if vali else 'nonvali'
         node = c.copy(f'{node_type}{tag_seperator}{node}')
-        node_key_exists = cls.node_key_exists(node=node, chain=chain, vali=vali)
+        node_key_exists = cls.node_key_exists(node=node, chain=chain)
         if node_key_exists and not refresh:
 
             c.print(f'node key {node} for chain {chain} already exists')
@@ -3356,6 +3351,16 @@ class Subspace(c.Module):
     @classmethod
     def local_nodes(cls, chain=chain):
         return cls.ls(f'local_nodes/{chain}')
+
+    @classmethod
+    def kill_local_node(cls, node, chain=chain):
+        node_path = cls.resovle_node_path(node=node, chain=chain)
+        docker = c.module('docker')
+        if docker.exists(node_path):
+            docker.kill(node_path):
+
+            
+        return cls.rm(f'local_nodes/{chain}')
 
     @classmethod
     def has_local_node(cls, chain=chain):
