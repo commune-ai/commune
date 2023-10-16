@@ -3386,6 +3386,8 @@ class Subspace(c.Module):
     def resolve_node_url(cls, url = None, chain=chain, local:bool = False):
         node2url = cls.node2url(network=chain)
         if url != None:
+            if url in node2url: 
+                url = node2url[url] 
             return url
         else:
             if local:
@@ -3692,15 +3694,22 @@ class Subspace(c.Module):
     @classmethod
     def test_node_urls(cls, network: str = network) -> str:
         nodes = cls.nonvali_nodes()
+        config = cls.config()
+        
         for node in nodes:
             try:
                 url = cls.resolve_node_url(node)
                 s = cls()
                 s.set_network(url=url)
                 c.print(s.block, 'block for node', node)
+                
             except Exception as e:
                 c.print(c.detailed_error(e))
                 c.print(f'node {node} is down')
+                del config['chain_info'][network]['nodes'][node]
+
+        cls.save_config(config)
+
 
 
     def storage_functions(self, network=network, block_hash = None):
