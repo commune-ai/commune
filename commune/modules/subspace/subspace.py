@@ -3388,10 +3388,12 @@ class Subspace(c.Module):
         else:
             if local:
                 local_node_paths = cls.local_nodes(chain=chain)
-                c.print(local_node_paths)
                 local_node_info = cls.get(c.choice(local_node_paths))
-                port = local_node_info['ws_port']
-                url = f'ws://0.0.0.0:{port}'
+                if local_node_info == None:
+                    url = c.choice(list(node2url.values()))
+                else:
+                    port = local_node_info['ws_port']
+                    url = f'ws://0.0.0.0:{port}'
             else:
                 url = c.choice(cls.urls(network=chain))
 
