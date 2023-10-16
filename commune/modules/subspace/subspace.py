@@ -3357,7 +3357,7 @@ class Subspace(c.Module):
         node_path = cls.resovle_node_path(node=node, chain=chain)
         docker = c.module('docker')
         if docker.exists(node_path):
-            docker.kill(node_path):
+            docker.kill(node_path)
 
             
         return cls.rm(f'local_nodes/{chain}')
