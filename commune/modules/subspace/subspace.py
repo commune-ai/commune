@@ -46,7 +46,7 @@ class Subspace(c.Module):
         self, 
         url: str = None,
         network: str = network,
-        local:bool = True,
+        local:bool = False,
         **kwargs,
     ):
         config = self.set_config(kwargs=locals())
@@ -2953,7 +2953,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def remove_nonvali_nodes(cls, chain=chain):
+    def rm_nonvali_nodes(cls, chain=chain):
         config = cls.config()
         
         nodes = {}
