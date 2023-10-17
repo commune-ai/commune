@@ -28,7 +28,7 @@ chain_info:
     - /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
     nodes:
       nonvali_1:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
+        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -37,19 +37,19 @@ chain_info:
         mode: docker
         node: nonvali_1
         node_key: null
-        port: 50116
+        port: 50050
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50117
+        rpc_port: 50051
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50118
+        ws_port: 50052
       nonvali_10:
-        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWPxa2WSo6wf6QzgeTEaDMkwPfQSHi4eXo2LrpeiVF3sgz
+        boot_nodes: /ip4/24.66.238.82/tcp/5022/p2p/12D3KooWMDaTdB45wnM3TcD1ca9mGJWmDhS4txC19ndC7MdHPRSS
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -57,300 +57,6 @@ chain_info:
         max_boot_nodes: 24
         mode: docker
         node: nonvali_10
-        node_key: null
-        port: 50143
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50144
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50145
-      nonvali_11:
-        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_11
-        node_key: null
-        port: 50146
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50147
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50148
-      nonvali_12:
-        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_12
-        node_key: null
-        port: 50149
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50150
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50151
-      nonvali_13:
-        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_13
-        node_key: null
-        port: 50152
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50153
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50154
-      nonvali_14:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_14
-        node_key: null
-        port: 50155
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50156
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50157
-      nonvali_15:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_15
-        node_key: null
-        port: 50158
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50159
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50160
-      nonvali_17:
-        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_17
-        node_key: null
-        port: 50164
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50165
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50166
-      nonvali_18:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_18
-        node_key: null
-        port: 50167
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50168
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50169
-      nonvali_19:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_19
-        node_key: null
-        port: 50170
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50171
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50172
-      nonvali_2:
-        boot_nodes: /ip4/24.66.238.82/tcp/5061/p2p/12D3KooWDthdM6z7WY1kF21eb5cizPyH4zZqWxeHW2be38MPEHzD
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_2
-        node_key: null
-        port: 50119
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50120
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50121
-      nonvali_20:
-        boot_nodes: /ip4/24.66.238.82/tcp/5028/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_20
-        node_key: null
-        port: 50173
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50174
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50175
-      nonvali_21:
-        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_21
-        node_key: null
-        port: 50176
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50177
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50178
-      nonvali_25:
-        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_25
-        node_key: null
-        port: 50066
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50067
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50068
-      nonvali_27:
-        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_27
-        node_key: null
-        port: 50075
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50076
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50077
-      nonvali_28:
-        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_28
         node_key: null
         port: 50078
         pruning: 20000
@@ -363,57 +69,57 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 50080
-      nonvali_29:
-        boot_nodes: /ip4/24.66.238.82/tcp/5067/p2p/12D3KooWS3CqbPVeUEWCQ4sFtFhdKn6nwCbQiMnitbpyqZg3vubJ
+      nonvali_11:
+        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_29
+        node: nonvali_11
         node_key: null
-        port: 50082
+        port: 50081
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50083
+        rpc_port: 50082
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50084
-      nonvali_3:
-        boot_nodes: /ip4/24.66.238.82/tcp/5037/p2p/12D3KooWHQgfWYiYdE3BVyjmA5SuRbsE2MecmwuCx2eU6zyWWY3o
+        ws_port: 50083
+      nonvali_12:
+        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_3
+        node: nonvali_12
         node_key: null
-        port: 50122
+        port: 50084
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50123
+        rpc_port: 50085
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50124
-      nonvali_30:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
+        ws_port: 50086
+      nonvali_13:
+        boot_nodes: /ip4/24.66.238.82/tcp/5055/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_30
+        node: nonvali_13
         node_key: null
         port: 50087
         pruning: 20000
@@ -426,15 +132,15 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 50089
-      nonvali_31:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
+      nonvali_14:
+        boot_nodes: /ip4/24.66.238.82/tcp/5028/p2p/12D3KooWNfsq1LYHJEUvjfBoFBZCckYhNQiJY1jarjUHReHFBgTo
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_31
+        node: nonvali_14
         node_key: null
         port: 50090
         pruning: 20000
@@ -447,15 +153,15 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 50092
-      nonvali_32:
-        boot_nodes: /ip4/24.66.238.82/tcp/5058/p2p/12D3KooWQCKq11CQ657NhVhZtnTc7WttDRbN5W6dWPT2B6idoMj1
+      nonvali_15:
+        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_32
+        node: nonvali_15
         node_key: null
         port: 50093
         pruning: 20000
@@ -468,78 +174,120 @@ chain_info:
         validator: false
         verbose: false
         ws_port: 50095
-      nonvali_33:
-        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
+      nonvali_16:
+        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWHybLZ66JVWVfGc1BzjzZVKBVkMk4kvBpXWWSeqs3DGDo
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_33
+        node: nonvali_16
         node_key: null
-        port: 50098
+        port: 50096
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50099
+        rpc_port: 50097
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50100
-      nonvali_34:
-        boot_nodes: /ip4/24.66.238.82/tcp/5016/p2p/12D3KooWHuzaZVeoyrpExGnAaXCgbUHu62QQVZjW4o4i8puP4eaU
+        ws_port: 50098
+      nonvali_17:
+        boot_nodes: /ip4/24.66.238.82/tcp/5025/p2p/12D3KooWHybLZ66JVWVfGc1BzjzZVKBVkMk4kvBpXWWSeqs3DGDo
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_34
+        node: nonvali_17
         node_key: null
-        port: 50101
+        port: 50099
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50102
+        rpc_port: 50100
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50103
-      nonvali_35:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
+        ws_port: 50101
+      nonvali_18:
+        boot_nodes: /ip4/24.66.238.82/tcp/5055/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_35
+        node: nonvali_18
         node_key: null
-        port: 50104
+        port: 50102
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50105
+        rpc_port: 50103
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50106
-      nonvali_36:
-        boot_nodes: /ip4/24.66.238.82/tcp/5031/p2p/12D3KooWFHBEcAZxjKm9vfBhx8zefeBcAWHQTnXYjaTYW33R4Bi5
+        ws_port: 50104
+      nonvali_19:
+        boot_nodes: /ip4/24.66.238.82/tcp/5055/p2p/12D3KooWPeNp87praGGtYJCQQ8cbuJapQcDxMByZmhohEPpeSq8V
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_36
+        node: nonvali_19
+        node_key: null
+        port: 50105
+        pruning: 20000
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50106
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50107
+      nonvali_2:
+        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: nonvali_2
+        node_key: null
+        port: 50053
+        pruning: 20000
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50054
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50055
+      nonvali_20:
+        boot_nodes: /ip4/24.66.238.82/tcp/5007/p2p/12D3KooWJiyxNXbP4kQs3v2o5yVMcnYF6JtGAaYdDQ3Yqw7RLQ4v
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: nonvali_20
         node_key: null
         port: 50108
         pruning: 20000
@@ -551,8 +299,29 @@ chain_info:
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50111
-      nonvali_38:
+        ws_port: 50110
+      nonvali_21:
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: nonvali_21
+        node_key: null
+        port: 50111
+        pruning: 20000
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50112
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50114
+      nonvali_22:
         boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
         chain: main
         daemon: true
@@ -560,42 +329,63 @@ chain_info:
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_38
+        node: nonvali_22
         node_key: null
-        port: 50116
+        port: 50115
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50117
+        rpc_port: 50116
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50118
-      nonvali_39:
-        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
+        ws_port: 50117
+      nonvali_23:
+        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main
         daemon: true
         ip: 165.22.186.112
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: nonvali_39
+        node: nonvali_23
         node_key: null
-        port: 50119
+        port: 50118
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50120
+        rpc_port: 50119
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50121
+        ws_port: 50120
+      nonvali_3:
+        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: nonvali_3
+        node_key: null
+        port: 50056
+        pruning: 20000
+        purge_chain: true
+        refresh: false
+        rpc_cors: all
+        rpc_port: 50057
+        sync: warp
+        telemetry_url: false
+        validator: false
+        verbose: false
+        ws_port: 50058
       nonvali_4:
-        boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
+        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -604,61 +394,19 @@ chain_info:
         mode: docker
         node: nonvali_4
         node_key: null
-        port: 50125
+        port: 50059
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50126
+        rpc_port: 50060
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50127
-      nonvali_40:
-        boot_nodes: /ip4/24.66.238.82/tcp/5013/p2p/12D3KooWHrZGdAyAVAFUjuSdqX6ad7tbd1idKnUxZiPGQpcaFiXu
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_40
-        node_key: null
-        port: 50122
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50124
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50126
-      nonvali_41:
-        boot_nodes: /ip4/24.66.238.82/tcp/5010/p2p/12D3KooW9xkihW81MZwWnfgRjVsHd7qfHmMqQLp7HEbMZryS5634
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: nonvali_41
-        node_key: null
-        port: 50128
-        pruning: 20000
-        purge_chain: true
-        refresh: false
-        rpc_cors: all
-        rpc_port: 50129
-        sync: warp
-        telemetry_url: false
-        validator: false
-        verbose: false
-        ws_port: 50130
+        ws_port: 50061
       nonvali_5:
-        boot_nodes: /ip4/24.66.238.82/tcp/5070/p2p/12D3KooWBeF9Q9DHPCZUeQgpm2rjs449vsguwhbXzzp2osNiLkJB
+        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -667,19 +415,19 @@ chain_info:
         mode: docker
         node: nonvali_5
         node_key: null
-        port: 50128
+        port: 50062
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50129
+        rpc_port: 50063
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50130
+        ws_port: 50064
       nonvali_6:
-        boot_nodes: /ip4/24.66.238.82/tcp/5043/p2p/12D3KooWJdeeGJAe3pncF5RG1JkhcgjvzkkayWHyW4ss79mSwXjj
+        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWPxa2WSo6wf6QzgeTEaDMkwPfQSHi4eXo2LrpeiVF3sgz
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -688,19 +436,19 @@ chain_info:
         mode: docker
         node: nonvali_6
         node_key: null
-        port: 50131
+        port: 50065
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50132
+        rpc_port: 50066
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50133
+        ws_port: 50067
       nonvali_7:
-        boot_nodes: /ip4/24.66.238.82/tcp/5046/p2p/12D3KooWBhtnoxy6EbPX3kbXPP8sni4yev1jYQ8LYG2pAsu8VECw
+        boot_nodes: /ip4/24.66.238.82/tcp/5004/p2p/12D3KooWAk2E5bGd2fgZrL3uYv16ac7o5fQ9UMPzWERhZxfW9oUD
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -709,19 +457,19 @@ chain_info:
         mode: docker
         node: nonvali_7
         node_key: null
-        port: 50134
+        port: 50069
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50135
+        rpc_port: 50070
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50136
+        ws_port: 50071
       nonvali_8:
-        boot_nodes: /ip4/24.66.238.82/tcp/5052/p2p/12D3KooWPxa2WSo6wf6QzgeTEaDMkwPfQSHi4eXo2LrpeiVF3sgz
+        boot_nodes: /ip4/24.66.238.82/tcp/5064/p2p/12D3KooWGQvdYFXforYQiYUfV7vfar1Q4L1yRfYdCVHieW7nCRHP
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -730,19 +478,19 @@ chain_info:
         mode: docker
         node: nonvali_8
         node_key: null
-        port: 50137
+        port: 50072
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50138
+        rpc_port: 50073
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50139
+        ws_port: 50074
       nonvali_9:
-        boot_nodes: /ip4/24.66.238.82/tcp/5034/p2p/12D3KooWHfqiML9VGSGX4Qn8jhNGApNPaCiXekDYmmqd3oXDJDJ2
+        boot_nodes: /ip4/24.66.238.82/tcp/5001/p2p/12D3KooWJ5qZ95cs45mk5m8SwjMWMAyETHeryxtBa5xnoU4NZrCs
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -751,17 +499,17 @@ chain_info:
         mode: docker
         node: nonvali_9
         node_key: null
-        port: 50140
+        port: 50075
         pruning: 20000
         purge_chain: true
         refresh: false
         rpc_cors: all
-        rpc_port: 50141
+        rpc_port: 50076
         sync: warp
         telemetry_url: false
         validator: false
         verbose: false
-        ws_port: 50142
+        ws_port: 50077
       vali_0:
         boot_nodes: /ip4/24.66.238.82/tcp/5040/p2p/12D3KooWKkDYdK78Ugg48Ev1rxNYJcu5btdJutPuvJzqNFjCSZvE
         chain: main

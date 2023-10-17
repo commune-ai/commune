@@ -227,7 +227,7 @@ class Docker(c.Module):
        
     
     @classmethod
-    def psdf(cls, load=True, save=False, keys = [ 'container_id', 'names', 'ports'], idx_key ='container_id'):
+    def psdf(cls, load=True, save=False, idx_key ='container_id'):
         output_text = c.cmd('docker ps', verbose=False)
 
         rows = []
@@ -240,11 +240,12 @@ class Docker(c.Module):
                     row_splits = row.split(NA_SPACE)
                     row = row_splits[0] + '  NA  ' + ' '.join(row_splits[1:])
                 row = [_.strip() for _ in row.split('  ') if len(_) > 0]
-                rows.append(row)
+                if len(row) == len(columns):
+                    rows.append(row)
+                else:
+                    c.print(rows)
 
         df = pd.DataFrame(rows, columns=columns)
-        df['ports'] = df['ports'].apply(lambda x: x.split('->')[0].strip() if len(x.split('->')) > 1 else x)
-        df = df[keys]
         df.set_index(idx_key, inplace=True)
         return df   
 
