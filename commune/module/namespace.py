@@ -28,25 +28,21 @@ class Namespace(c.Module):
     def get_module(cls, name:str, network:str=network) -> dict:
         namespace = cls.get_namespace(network)
         return namespace.get(name, None)
+
     @classmethod
-    def namespace(cls, search:str = None, network:str = 'local', update:bool = True) -> dict:
-        return cls.get_namespace(cls, network = network, update = update, search = search )
-    @classmethod
-    def get_namespace(cls, network:str = 'local', update:bool = True, search:str = None ) -> dict:
+    def get_namespace(cls, network:str = 'local', update:bool = False, search:str = None ) -> dict:
         if network == None: 
             network = cls.network
 
+
         if network == 'subspace':
-            namespace =  c.module(network).namespace(update=update)
+            namespace =  c.module(network).namespace()
         else:
             if update:
-                cls.update_namespace(network=network)
-
+                cls.update_namespace(network=network, full_scan=bool(network=='local'))
             namespace = cls.get(network, {})
-                
-
         if search != None:
-            namespace = {k:v for k,v in namespace.items() if search in k}
+            namespace = {k:v for k,v in namespace.items()}
         return namespace
     @classmethod
     def put_namespace(cls, network:str, namespace:dict) -> None:
@@ -85,9 +81,9 @@ class Namespace(c.Module):
         cls.rm_namespace(network)
         cls.rm_namespace(network2)
 
-        assert cls.get_namespace(network) == {}, 'Namespace not empty.'
+        assert cls.get_namespace(network=network) == {}, 'Namespace not empty.'
         cls.register_server('test', 'test', network=network)
-        assert cls.get_namespace(network) == {'test': 'test'}, f'Namespace not updated. {cls.get_namespace(network)}'
+        assert cls.get_namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.get_namespace(network)}'
 
         assert cls.get_namespace(network2) == {}
         cls.register_server('test', 'test', network=network2)
@@ -116,33 +112,32 @@ class Namespace(c.Module):
 
     @classmethod
     def update_namespace(cls,
-                        network:str = network,
                         chunk_size:int=10, 
                         timeout:int = 10,
-                        full_scan:bool = True)-> dict:
+                        full_scan:bool = True,
+                        network:str = network,)-> dict:
         '''
         The module port is where modules can connect with each othe.
         When a module is served "module.serve())"
         it will register itself with the namespace_local dictionary.
         '''
 
-        old_namespace = cls.get_namespace(network=network, update=False) # get local namespace from redis
-        addresses = c.copy(list(old_namespace.values()))
+        namespace = cls.get_namespace(network=network, update=False) # get local namespace from redis
+        addresses = c.copy(list(namespace.values()))
 
         if full_scan == True or len(addresses) == 0:
             addresses = [c.default_ip+':'+str(p) for p in c.used_ports()]
-        namespace = {}
-    
+
+
         for i in range(0, len(addresses), chunk_size):
             addresses_chunk = addresses[i:i+chunk_size]
-            names_chunk = c.gather([c.async_call(address, fn='server_name', timeout=timeout, ignore_error=True) for address in addresses_chunk])
+            names_chunk = c.gather([c.async_call(address, fn='server_name', timeout=timeout) for address in addresses_chunk])
             for i in range(len(names_chunk)):
                 if isinstance(names_chunk[i], str):
                     namespace[names_chunk[i]] = addresses_chunk[i]
             
         for k, v in namespace.items():
             namespace[k] = c.default_ip + ':' + v.split(':')[-1]
-        cls.put_namespace(network, namespace)
 
         return namespace
     

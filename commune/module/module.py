@@ -1977,7 +1977,7 @@ class c:
             else:
                 modules = [m for m in modules if m==module]
                 
-            assert len(modules) > 0, f'No modules found in namespace {namespace}'
+            assert len(modules) > 0, f'No modules with {module} found in namespace {namespace.keys()}'
             address = namespace[module]
 
         ip, port = address.split(':')
@@ -2359,6 +2359,9 @@ class c:
 
         namespace = c.module(c.namespace_module).get_namespace(search=search, network=network, update=update)
         return namespace
+    @classmethod
+    def rm_namespace(cls, network:str='local', **kwargs):
+        return c.module(c.namespace_module).rm_namespace(network=network, **kwargs)
     
     @classmethod
     def update_namespace(cls, network:str='local',**kwargs):
@@ -2434,7 +2437,7 @@ class c:
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = False, # waits for the server to start before returning
+              wait_for_server:bool = True , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
@@ -2479,6 +2482,7 @@ class c:
         self = module_class(**kwargs)
         self.tag = tag
         self.server_name = server_name
+
         if c.server_exists(server_name, network='local') and server_name in c.pm2_list(): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
@@ -5335,9 +5339,40 @@ class c:
         return cls.get_port_range(port_range)
         return port_range
 
+
+    remote_modules_path ='remote_modules'
     @classmethod
-    def add_module(cls, module:str, address:str):
-        c.register_server(module, address)
+    def add_remote(cls, address:str, name=None, network:str = 'remote', **kwargs):
+        module = c.connect(address)
+        module_info = module.info()
+        name = module_info['name'] if name == None else name
+        c.register_server(name, address, network=network)
+
+        # register the server info
+        remote_modules = c.get(cls.remote_modules_path, {})
+        remote_modules[name] = module_info
+        c.put(cls.remote_modules_path, remote_modules )
+        return {'success': True, 'msg': f'Added {address} to remote modules', 'remote_modules': remote_modules}
+    
+    @classmethod
+    def remote_servers(cls, network:str = 'remote', **kwargs):
+        return c.servers(network=network)
+
+    @classmethod
+    def rm_remote_server(cls,  name, network:str = 'remote', path='remote_modules', **kwargs):
+        if c.server_exists(name, network=network):
+            address = c.namespace(network=network).get(name)
+
+            # reregister
+            c.deregister_server(name, network=network)
+            remote_modules = c.get(cls.remote_modules_path, {})
+            remote_modules.pop(name, None)
+
+
+            return {'success': True, 'msg': f'Added {address} to remote modules', 'remote_modules': remote_modules}
+        
+    
+
 
     @classmethod
     def check_module(cls, module:str):
