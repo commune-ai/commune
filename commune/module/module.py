@@ -6273,8 +6273,15 @@ class c:
     @classmethod
     def pull(cls, stash:bool = True):
         if stash:
-            c.cmd('git stash')
-        c.cmd('git pull')
+            c.cmd('git stash', cwd=c.libpath)
+        c.cmd('git pull', cwd=c.libpath)
+        return {'success':True, 'message':'pulled'}
+
+    @classmethod
+    def pull(cls, stash:bool = True):
+        if stash:
+            c.cmd('git stash', cwd=c.libpath)
+        c.cmd('git pull', cwd=c.libpath)
         return {'success':True, 'message':'pulled'}
 
     # @classmethod
