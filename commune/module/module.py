@@ -1448,7 +1448,6 @@ class c:
     @classmethod
     def servers(cls, *args, **kwargs) -> List[str]:
         modules = list(c.namespace(*args, **kwargs).keys())
-
         return modules
     
     
@@ -2351,6 +2350,14 @@ class c:
         return virtual_client(module)
     
     namespace_module = 'module.namespace'
+
+    @classmethod
+    def add_server(cls, *args, **kwargs):
+        return c.module(c.namespace_module).add_server(*args, **kwargs)
+    @classmethod
+    def rm_server(cls, *args, **kwargs):
+        return c.module(c.namespace_module).rm_server(*args, **kwargs)
+
     @classmethod
     def namespace(cls,
                   search:str = None,
@@ -5338,44 +5345,6 @@ class c:
     def resolve_port_range(cls, port_range: list = None) -> list:
         return cls.get_port_range(port_range)
         return port_range
-
-
-
-    remote_modules_path ='remote_modules'
-    @classmethod
-    def add_server(cls, address:str, name=None, network:str = 'local', **kwargs):
-        module = c.connect(address)
-        module_info = module.info()
-        name = module_info['name'] if name == None else name
-        c.register_server(name, address, network=network)
-
-        path = cls.remote_modules_path
-        # register the server info
-        remote_modules = c.get(path, {})
-        remote_modules[name] = module_info
-        c.put(path, remote_modules )
-        return {'success': True, 'msg': f'Added {address} to remote modules', 'remote_modules': remote_modules}
-    
-    @classmethod
-    def remote_servers(cls, network:str = 'local', **kwargs):
-        return c.servers(network=network)
-
-    @classmethod
-    def rm_server(cls,  name, network:str = 'local', **kwargs):
-        if c.server_exists(name, network=network):
-            # reregister
-            address = c.get_address(name, network=network)
-            c.deregister_server(name, network=network)
-            remote_modules = c.get(cls.remote_modules_path, {})
-            remote_modules.pop(name, None)
-            servers = c.servers(network=network)
-            assert c.server_exists(name, network=network) == False, f'{name} still exists'
-            return {'success': True, 'msg': f'removed {address} to remote modules', 'servers': servers, 'network': network}
-        else:
-            return {'success': False, 'msg': f'{name} does not exist'}
-        
-    
-
 
     @classmethod
     def check_module(cls, module:str):
