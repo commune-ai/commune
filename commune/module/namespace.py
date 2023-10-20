@@ -6,7 +6,7 @@ class Namespace(c.Module):
 
     @classmethod
     def register_server(cls, name:str, address:str, network=network) -> None:
-        namespace = cls.get_namespace(network)
+        namespace = cls.get_namespace(network=network)
         namespace[name] = address
         cls.put_namespace(network, namespace)
         return {'status': 'success', 'msg': f'Block {name} registered to {network}.'}
@@ -23,10 +23,8 @@ class Namespace(c.Module):
             return {'status': 'failure', 'msg': f'Block {name} not found.'}
 
     @classmethod
-
-
-    def get_module(cls, name:str, network:str=network) -> dict:
-        namespace = cls.get_namespace(network)
+    def get_address(cls, name:str, network:str=network) -> dict:
+        namespace = cls.get_namespace(network=network)
         return namespace.get(name, None)
 
     @classmethod
@@ -123,6 +121,15 @@ class Namespace(c.Module):
         namespace = c.get_json('local_namespace', {})
         c.put_namespace(network, namespace)
 
+    @classmethod
+    def merge_namespace(cls, from_network:str, to_network:str):
+        from_namespace = c.get_namespace(network=from_network)
+        to_namespace = c.get_namespace(network=to_network)
+        to_namespace.update(from_namespace)
+        c.put_namespace(to_network, to_namespace)
+        return {'status': 'success', 'msg': f'Namespace {from_network} merged into {to_network}.'}
+
+
     remote_modules_path ='remote_modules'
     @classmethod
     def add_server(cls, address:str, name=None, network:str = 'local', **kwargs):
@@ -132,31 +139,41 @@ class Namespace(c.Module):
         # check if name exists
         base_name = name
         cnt = 0
-        while cls.server_exists(name, network=network) == False:
+        while cls.server_exists(name, network=network) == True:
             c.print(f'{name} already exists, trying {base_name + str(cnt)}')
-            name = base_name + str(cnt)
+            name = base_name + module_info['ss58_address'][:4]
             cnt += 1
+        
         cls.register_server(name, address, network=network)
         path = cls.remote_modules_path
         # register the server info
         remote_modules = c.get(path, {})
         remote_modules[name] = module_info
         c.put(path, remote_modules )
-        return {'success': True, 'msg': f'Added {address} to remote modules', 'remote_modules': remote_modules}
+        return {'success': True, 'msg': f'Added {address} to {network} modules', 'remote_modules': remote_modules}
     
     @classmethod
     def remote_servers(cls, network:str = 'local', **kwargs):
         return c.servers(network=network)
     
     @classmethod
+    def add_servers(cls, *servers, network:str='local', **kwargs):
+        responses = []
+        for server in servers:
+            try:
+                response = cls.add_server(server, network=network)
+            except Exception as e:
+                response = {'success': False, 'msg': str(e)}
+            responses.append(response)
+        return responses
+
+
+    
+    @classmethod
     def servers_info(cls, search=None, network=network) -> List[str]:
         servers = cls.servers(search=search, network=network)
         futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info'}, return_future=True) for s in servers]
         return c.wait(futures)
-    
-    @classmethod
-    def get_address(cls, name:str, network:str = 'local', **kwargs):
-        return cls.get_module(name, network=network)
     
     @classmethod
     def rm_server(cls,  name, network:str = 'local', **kwargs):
@@ -198,6 +215,8 @@ class Namespace(c.Module):
             server_exists =  bool(name in servers)
 
         return server_exists
+    
+    
 
     @classmethod
     def test(cls):
@@ -208,11 +227,11 @@ class Namespace(c.Module):
 
         assert cls.get_namespace(network=network) == {}, 'Namespace not empty.'
         cls.register_server('test', 'test', network=network)
-        assert cls.get_namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.get_namespace(network)}'
+        assert cls.get_namespace(network=network) == {'test': 'test'}, f'Namespace not updated. {cls.get_namespace(network=network)}'
 
         assert cls.get_namespace(network2) == {}
         cls.register_server('test', 'test', network=network2)
-        assert cls.get_namespace(network) == {'test': 'test'}, f'Namespace not restored. {cls.get_namespace(network)}'
+        assert cls.get_namespace(network=network) == {'test': 'test'}, f'Namespace not restored. {cls.get_namespace(network=network)}'
         cls.deregister_server('test', network=network2)
         assert cls.get_namespace(network2) == {}
         cls.rm_namespace(network)
@@ -233,3 +252,4 @@ class Namespace(c.Module):
             server_exists =  bool(name in servers)
 
         return server_exists
+

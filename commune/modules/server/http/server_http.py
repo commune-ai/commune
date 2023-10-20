@@ -13,6 +13,7 @@ class ServerHTTP(c.Module):
         self,
         module: Union[c.Module, object],
         name: str = None,
+        network:str = 'local',
         port: Optional[int] = None,
         sse: bool = True,
         chunk_size: int = 42_000,
@@ -25,6 +26,7 @@ class ServerHTTP(c.Module):
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
+        self.network = network
 
         if name == None:
             if hasattr(module, 'server_name'):
@@ -171,16 +173,14 @@ class ServerHTTP(c.Module):
 
         try:
             c.print(f'\033🚀 Serving {self.name} on {self.address} 🚀\033')
-            c.register_server(name=self.name, address = self.address)
-
+            c.register_server(name=self.name, address = self.address, network=self.network)
             c.print(f'\033🚀 Registered {self.name} on {self.ip}:{self.port} 🚀\033')
-
             uvicorn.run(self.app, host=c.default_ip, port=self.port)
         except Exception as e:
             c.print(e, color='red')
-            c.deregister_server(self.name)
+            c.deregister_server(self.name, network=self.network)
         finally:
-            c.deregister_server(self.name)
+            c.deregister_server(self.name, network=self.network)
         
 
     def forward(self, fn: str, args: List = None, kwargs: Dict = None, **extra_kwargs):
