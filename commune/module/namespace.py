@@ -30,19 +30,18 @@ class Namespace(c.Module):
         return namespace.get(name, None)
 
     @classmethod
-    def get_namespace(cls, network:str = 'local', update:bool = False, search:str = None ) -> dict:
+    def get_namespace(cls, search=None, network:str = 'local', update:bool = False) -> dict:
         if network == None: 
             network = cls.network
 
-
         if network == 'subspace':
-            namespace =  c.module(network).namespace()
+            namespace =  c.module(network)().namespace()
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))
             namespace = cls.get(network, {})
         if search != None:
-            namespace = {k:v for k,v in namespace.items()}
+            namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
     @classmethod
     def put_namespace(cls, network:str, namespace:dict) -> None:
