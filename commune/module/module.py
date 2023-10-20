@@ -1008,17 +1008,6 @@ class c:
         return path
     
     @classmethod
-    def get_address(cls, module, **kwargs):
-        return c.namespace(**kwargs).get(module, None)
-    @classmethod
-    def get_module_port(cls, module, **kwargs):
-        address =  c.namespace(**kwargs).get(module, None)
-        if address == None:
-            return None
-        
-        return int(address.split(':')[-1])
-    
-    @classmethod
     def resolve_address(cls, address:str = None):
         if address == None:
             address = c.free_address()
@@ -1405,9 +1394,7 @@ class c:
 
 
     @classmethod
-    def get_module(cls, path:str, verbose:bool = False, handle_error:bool=True) -> str:
-        
-        og_path = path
+    def get_module(cls, path:str) -> str:
         path = cls.simple2path(path)
         path = cls.path2objectpath(path)
         return cls.import_object(path)
@@ -2272,13 +2259,14 @@ class c:
     @classmethod
     def wait_for_server(cls,
                           name: str ,
+                          network: str = 'local',
                           timeout:int = 600,
                           sleep_interval: int = 1, 
                           verbose:bool = False) -> bool :
         
         time_waiting = 0
         logs = []
-        while not c.server_exists(name, network='local'):
+        while not c.server_exists(name, network=network):
             c.sleep(sleep_interval)
             time_waiting += sleep_interval
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
@@ -2323,6 +2311,15 @@ class c:
     def servers(cls, *args, **kwargs) -> List[str]:
         return c.module(c.namespace_module).servers(*args, **kwargs)
     @classmethod
+    def get_address(cls, module, **kwargs):
+        return c.module(c.namespace_module).get_address(module, **kwargs)
+    @classmethod
+    def get_module_port(cls, module, **kwargs):
+        address =  cls.get_address(module, **kwargs)
+        if address == None:
+            return None
+        return int(address.split(':')[-1])
+    @classmethod
     def servers_info(cls, *args, **kwargs) -> List[str]:
         return c.module(c.namespace_module).servers_info(*args, **kwargs)
     @classmethod
@@ -2338,11 +2335,19 @@ class c:
     @classmethod
     def deregister_server(cls, name: str, network:str = 'local')-> dict:
         return c.module(c.namespace_module).deregister_server(name=name, network=network)
+    @classmethod
     def add_server(cls, *args, **kwargs):
         return c.module(c.namespace_module).add_server(*args, **kwargs)
     @classmethod
+    def add_servers(cls, *args, **kwargs):
+        return c.module(c.namespace_module).add_servers(*args, **kwargs)
+    @classmethod
     def rm_server(cls, *args, **kwargs):
         return c.module(c.namespace_module).rm_server(*args, **kwargs)
+
+    @classmethod
+    def remote_servers(cls, *args, **kwargs):
+        return c.module(c.namespace_module).remote_servers(*args, **kwargs)
 
     @classmethod
     def namespace(cls,
@@ -2424,6 +2429,7 @@ class c:
               module:Any = None ,
               tag:str=None,
               ip :str = None,
+              network = 'local',
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
@@ -2463,7 +2469,7 @@ class c:
             c.save_serve_kwargs(server_name, remote_kwargs)
             cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
-                cls.wait_for_server(server_name)
+                cls.wait_for_server(server_name, network=network)
             return server_name
         
         module_class = cls.resolve_module(module)
@@ -2474,18 +2480,19 @@ class c:
         self.tag = tag
         self.server_name = server_name
 
-        if c.server_exists(server_name, network='local') and server_name in c.pm2_list(): 
+        if c.server_exists(server_name, network=network) and server_name in c.pm2_list(): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                ip, port = c.get_address(server_name, network='local').split(':')                
+                ip, port = c.get_address(server_name, network=network).split(':')                
                 c.kill(server_name)
+                c.deregister_server(server_name, network=network)
             else:  
                 return server_name
 
         if port == None:
             port = c.free_port()
             
-        server = c.module(f'server.{server_mode}')(module=self, name= server_name, port=int(port))
+        server = c.module(f'server.{server_mode}')(module=self, name= server_name, port=int(port), network=network)
         return server.name
 
     serve_module = serve
@@ -2721,7 +2728,7 @@ class c:
             delete_modules.append(killed_module)
         # update modules
         
-        c.deregister_server(module)
+        c.deregister_server(module, network=network)
 
         assert c.server_exists(module, network=network) == False, f'module {module} still exists'
 
@@ -6268,8 +6275,7 @@ class c:
         if stash:
             c.cmd('git stash')
         c.cmd('git pull')
-        subspace_libpath = c.module('subspace').chain_path
-        return c.cmd(f'cd {subspace_libpath}; git pull')
+        return {'success':True, 'message':'pulled'}
 
     # @classmethod
     # def push(cls, msg):
@@ -6281,14 +6287,7 @@ class c:
         cls.cmd(f'git commit -m "{msg}"', bash=True)
         cls.cmd(f'git push')
 
-    
-    @classmethod
-    def pull(cls, msg='update'):
-        c.cmd(f'cd ')
-        cls.cmd(f'git pull')
-        cls.cmd(f'git commit -m "{msg}"', bash=True)
-        cls.cmd(f'git push')
-    
+
     
     @classmethod
     def make_pull(cls):
