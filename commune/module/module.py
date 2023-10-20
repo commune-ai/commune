@@ -1967,21 +1967,23 @@ class c:
         return client
      
     @classmethod
-    def root_module(cls, name:str='module',
+    def root_address(cls, name:str='module',
+                    network : str = 'local',
                     timeout:int = 100, 
                     sleep_interval:int = 1,
-                    return_info = False,
-                    refresh:bool = False,
                     **kwargs):
 
         """
         Root module
         """
-        module = cls.connect(name)
-        if return_info:
-            return module.server_info
-        return module
-    
+        if not c.server_exists(name, network=network):
+            c.serve(name, network=network, wait_for_server=True, **kwargs)
+        address = c.call('module', 'address', network=network, timeout=timeout)
+        ip = c.ip()
+        address = ip+':'+address.split(':')[-1]
+        return address
+        addy = root_address
+
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
@@ -2008,25 +2010,8 @@ class c:
         """
         x = float(x)
         return round(x, decimals)
-
-    @classmethod
-    def root_address(cls, name:str='module',
-                    timeout:int = 100, 
-                    sleep_interval:int = 1,
-                    return_info = False,
-                    refresh:bool = False,
-                    **kwargs):
-        if not cls.server_exists(name, network='local') or refresh:
-            cls.launch(name=name, **kwargs)
-            cls.wait_for_server(name, timeout=timeout, sleep_interval=sleep_interval, network='local')
-       
-        address =  c.connect('module').address
-        return address
     
     
-    addy = root_address
-    anchor = root_module
-    anchor_address = root_address
 
  
     
