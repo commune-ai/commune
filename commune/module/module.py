@@ -1445,22 +1445,9 @@ class c:
         modules = list(cls.module_tree(search).keys())
         return modules
     
-    @classmethod
-    def servers(cls, *args, **kwargs) -> List[str]:
-        modules = list(c.namespace(*args, **kwargs).keys())
-        return modules
-    
-    
-    @classmethod
-    def servers_info(cls, *args, **kwargs) -> List[str]:
-        servers = c.servers(*args, **kwargs)
-        futures = [c.submit(c.call, kwargs={'module':s, 'fn':'info'}, return_future=True) for s in servers]
-        return c.wait(futures)
-    
 
-    @classmethod
-    def has_server(cls, *args, **kwargs):
-        return bool(len(c.servers(*args, **kwargs)) > 0)
+
+
     @classmethod
     def get_tags(cls, module, *args, **kwargs):
         servers =  c.servers(module, *args, **kwargs)
@@ -2175,15 +2162,7 @@ class c:
         import fcntl
         fcntl.flock(f, fcntl.LOCK_UN)
         return f
-    
-    
-    @classmethod
-    def register_server(cls, name: str, address:str, network='local')-> dict:
-        return c.module(c.namespace_module).register_server(name=name, address=address, network=network)
 
-    @classmethod
-    def deregister_server(cls, name: str, network:str = 'local')-> dict:
-        return c.module(c.namespace_module).deregister_server(name=name, network=network)
   
     @classmethod
     def is_address(cls, address:str) -> bool:
@@ -2257,17 +2236,7 @@ class c:
 
         return loop
 
-    @classmethod
-    def server_exists(cls, name:str, network:str = None,  prefix_match:bool=False, **kwargs) -> bool:
-        servers = cls.servers(network=network, **kwargs)
-        if prefix_match:
-            server_exists =  any([s for s in servers if s.startswith(name)])
-            
-        else:
-            server_exists =  bool(name in servers)
 
-        return server_exists
-    alive = server_exists
     @classmethod
     def get_port(cls, port:int = None, **kwargs)->int:
         port = port if port is not None and port != 0 else cls.free_port(**kwargs)
@@ -2339,19 +2308,36 @@ class c:
             attrs = [a for a in attrs if search in a]
         return attrs
 
-        
-    @classmethod
-    def name2address(cls, name:str, network:str='local') -> str:
-        return c.module(c.namespace_module).name2address(name=name, network=network)
-
+    
     @classmethod
     def virtual_client(cls, module): 
         virtual_client =  c.import_object('commune.modules.client.virtual.VirtualClient')
         return virtual_client(module)
     
+    # NAMESPACE::MODULE
     namespace_module = 'module.namespace'
+    @classmethod
+    def name2address(cls, name:str, network:str='local') -> str:
+        return c.module(c.namespace_module).name2address(name=name, network=network)
+    @classmethod
+    def servers(cls, *args, **kwargs) -> List[str]:
+        return c.module(c.namespace_module).servers(*args, **kwargs)
+    @classmethod
+    def servers_info(cls, *args, **kwargs) -> List[str]:
+        return c.module(c.namespace_module).servers_info(*args, **kwargs)
+    @classmethod
+    def has_server(cls, *args, **kwargs):
+        return c.module(c.namespace_module).has_server(*args, **kwargs)
+    @classmethod
+    def server_exists(cls, name:str, network:str = 'local',  prefix_match:bool=False, **kwargs) -> bool:
+        return c.module(c.namespace_module).server_exists(name=name, network=network,  prefix_match=prefix_match, **kwargs)
+    @classmethod
+    def register_server(cls, name: str, address:str, network='local')-> dict:
+        return c.module(c.namespace_module).register_server(name=name, address=address, network=network)
 
     @classmethod
+    def deregister_server(cls, name: str, network:str = 'local')-> dict:
+        return c.module(c.namespace_module).deregister_server(name=name, network=network)
     def add_server(cls, *args, **kwargs):
         return c.module(c.namespace_module).add_server(*args, **kwargs)
     @classmethod
@@ -2363,9 +2349,7 @@ class c:
                   search:str = None,
                   network:str='local',
                   update: bool = False):
-
-        namespace = c.module(c.namespace_module).get_namespace(search=search, network=network, update=update)
-        return namespace
+        return c.module(c.namespace_module).namespace(search=search, network=network, update=update)
     @classmethod
     def rm_namespace(cls, network:str='local', **kwargs):
         return c.module(c.namespace_module).rm_namespace(network=network, **kwargs)
