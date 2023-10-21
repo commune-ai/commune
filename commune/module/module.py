@@ -792,6 +792,13 @@ class c:
     def st_load_css(*args, **kwargs):
         c.module('streamlit').load_css(*args, **kwargs)
 
+    def sshcall(self, *args, **kwargs):
+        return c.module('ssh').call(*args, **kwargs)
+    
+    @classmethod
+    def sshpool(self, *args, **kwargs):
+        return c.module('ssh').pool(*args, **kwargs)
+
     @classmethod
     def cmd(cls, 
                     command:Union[str, list],
@@ -896,7 +903,7 @@ class c:
         obj =  getattr(import_module(module), object_name)
         return obj
     
-    get_object = importobj = import_object
+    imp = get_object = importobj = import_object
 
 
 
@@ -1982,8 +1989,7 @@ class c:
         ip = c.ip()
         address = ip+':'+address.split(':')[-1]
         return address
-        addy = root_address
-
+    addy = root_address
 
     @staticmethod
     def round(x:Union[float, int], sig: int=6, small_value: float=1.0e-9):
@@ -2629,7 +2635,7 @@ class c:
 
     @classmethod
     def get_function_annotations(cls, fn):
-        fn = cls.resolve_fn(fn)
+        fn = cls.get_fn(fn)
         return fn.__annotations__
         
     @classmethod
@@ -5234,7 +5240,9 @@ class c:
         from google.protobuf.json_format import MessageToJson
         return MessageToJson(data)
 
-
+    @classmethod
+    def process(cls, *args, **kwargs):
+        return c.module('process').process(*args, **kwargs)
 
     @classmethod
     def json2proto(cls, data):
@@ -5814,17 +5822,22 @@ class c:
     thread_map = {}
 
     @classmethod
-    def resolve_fn(cls, fn:str, seperator=':'):
-        if seperator in fn:
-            # module:fn
-            module, fn = fn.split(seperator)
-            module = c.module(module)
-        else:
-            module = cls
-        # get the mdoule function
-        fn = getattr(module, fn)
-        
+    def get_fn(cls, fn:str, seperator='.'):
+        if isinstance(fn, str):
+            if seperator in fn:
+                # module:fn
+                fn_splits = fn.split(seperator)
+                module = seperator.join(fn_splits[:-1])
+                fn = fn_splits[-1]
+                module = c.module(module)
+            else:
+                module = cls
+            # get the mdoule function
+            fn = getattr(module, fn)
+        assert callable(fn), f'fn must be a callable, got {type(fn)}'
+            
         return fn
+    
 
             
             
@@ -6581,21 +6594,10 @@ class c:
         return method_type_map
 
 
-    @classmethod
-    def resolve_fn(cls,fn, obj=None, ensure_exists:bool=True):
-        if obj is None:
-            obj = cls
-        if isinstance(fn, str):
-            if hasattr(obj, fn):
-                fn = getattr(obj, fn)  
-            else:
-                if ensure_exists:
-                    raise Exception(f"Object {obj} does not have attribute {fn}")
-        return fn
-    
+
     @classmethod
     def get_function_args(cls, fn):
-        fn = cls.resolve_fn(fn)
+        fn = cls.get_fn(fn)
         args = inspect.getfullargspec(fn).args
         return args
     
@@ -6605,7 +6607,7 @@ class c:
     
     @classmethod
     def classify_method(cls, fn):
-        fn = cls.resolve_fn(fn)
+        fn = cls.get_fn(fn)
         args = cls.get_function_args(fn)
         if len(args) == 0:
             return 'static'
@@ -6667,7 +6669,7 @@ class c:
         '''
         is the function a property
         '''
-        fn = cls.resolve_fn(fn,ensure_exists=False)
+        fn = cls.get_fn(fn,ensure_exists=False)
         return isinstance(fn, property)
 
     @classmethod
@@ -6799,7 +6801,7 @@ class c:
     def get_function_defaults(cls, fn):
         import inspect
         
-        fn = cls.resolve_fn(fn)
+        fn = cls.get_fn(fn)
         function_defaults = dict(inspect.signature(fn)._parameters)
         for k,v in function_defaults.items():
             if v._default != inspect._empty and  v._default != None:
@@ -7555,7 +7557,7 @@ class c:
                     tag_seperator:str=':'):
 
         if isinstance(fn, str):
-            fn = c.resolve_fn(fn)
+            fn = c.get_fn(fn)
         if args == None:
             args = []
         if kwargs == None:

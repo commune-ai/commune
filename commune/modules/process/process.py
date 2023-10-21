@@ -19,7 +19,7 @@ class Process(c.Module):
                     tag_seperator:str=':'):
 
         if isinstance(fn, str):
-            fn = c.resolve_fn(fn)
+            fn = c.get_fn(fn)
         if args == None:
             args = []
         if kwargs == None:
@@ -118,8 +118,6 @@ class Process(c.Module):
         name = cls.oldest_process_name()
         return cls.remove(name)
 
-        
-
     @classmethod
     def fleet(cls, fn:str, n=10,  tag:str=None,  args:list = None, kwargs:dict=None):
         args = args or []
@@ -136,14 +134,17 @@ class Process(c.Module):
     def processes(cls, *args, **kwargs):
         return list(cls.process_map(*args, **kwargs).keys())
 
+    @classmethod
+    def fn(cls):
+        return 1
+    
 
     @classmethod
     def test(cls, n=10):
-        def fn():
-            return 1
+
 
         for i in range(n):
-            cls.start(fn=fn, tag='test', start=True)
+            cls.start(fn=cls.fn, tag='test', start=True)
             c.print('Started process', i+1, 'of', n, 'processes')
             assert cls.n() == i+1, 'process not added'
         
