@@ -152,6 +152,8 @@ class Namespace(c.Module):
         c.put(path, remote_modules )
         return {'success': True, 'msg': f'Added {address} to {network} modules', 'remote_modules': remote_modules}
     
+    
+
     @classmethod
     def remote_servers(cls, network:str = 'local', **kwargs):
         return c.servers(network=network)
