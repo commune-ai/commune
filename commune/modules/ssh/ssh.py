@@ -4,7 +4,7 @@ class SSH(c.Module):
     host_data_path = f'{c.datapath}/ssh.json'
     @classmethod
     def call(cls, 
-            *cmd_args, hostname = None,  cwd=None ):
+            *cmd_args, hostname = None,  cwd=None, stream=False, **kwargs ):
         """s
         Run a command on a remote server using SSH.
 
@@ -44,6 +44,16 @@ class SSH(c.Module):
         
         # Execute command
         stdin, stdout, stderr = client.exec_command(command)
+
+
+        if stream:
+            # Print the output of ls command
+            def generate_output():
+                for line in stdout.readlines():
+                    yield line.strip('\n')
+                
+            return generate_output()
+
         output = stdout.read().decode('utf-8')
         error = stderr.read().decode('utf-8')
 
