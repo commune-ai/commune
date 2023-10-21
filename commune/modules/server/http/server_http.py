@@ -17,8 +17,8 @@ class ServerHTTP(c.Module):
         port: Optional[int] = None,
         sse: bool = True,
         chunk_size: int = 42_000,
-        max_request_staleness: int = 60,
-    ) -> 'Server':
+        max_request_staleness: int = 60) -> 'Server':
+        
         self.sse = sse
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'

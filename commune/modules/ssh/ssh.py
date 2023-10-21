@@ -4,7 +4,7 @@ class SSH(c.Module):
     host_data_path = f'{c.datapath}/ssh.json'
     @classmethod
     def call(cls, 
-            *cmd_args, hostname = None,  cwd=None, stream=False, **kwargs ):
+            *cmd_args, host  = None,  cwd=None, stream=False, **kwargs ):
         """s
         Run a command on a remote server using SSH.
 
@@ -16,31 +16,31 @@ class SSH(c.Module):
         :return: Command output.
         """
         command = ' '.join(cmd_args)
-        import paramiko
 
-        hosts = cls.hosts()
-        if hostname == None:
-            hostname = list(hosts.keys())[0]
-        if hostname not in hosts:
-            raise Exception(f'Host {host} not found')
-        
-        host = hosts[hostname]
-        hostname = host['host']
-        port = host['port']
-        user = host['user']
-        pwd = host['pwd']
         if cwd != None:
             command = f'cd {cwd} ; {command}'
 
+
+        import paramiko
+        hosts = cls.hosts()
+        if host == None:
+            host = list(hosts.keys())[0]
+        if host not in hosts:
+            raise Exception(f'Host {host} not found')
+        host = hosts[host]
+
         # Create an SSH client instance.
         client = paramiko.SSHClient()
-        
+
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        
+                
         # Connect to the remote server
-        client.connect(hostname, port=port, username=user, password=pwd)
+        client.connect(host['host'],
+                       port=host['port'], 
+                       username=host['user'], 
+                       password=host['pwd'])
         
         # Execute command
         stdin, stdout, stderr = client.exec_command(command)
@@ -77,7 +77,7 @@ class SSH(c.Module):
                  port:int = 22,
                  user:str = 'root',
                  pwd:str = None,
-                 name = None
+                 name : str = None
                  ):
         
         hosts = cls.hosts()
@@ -96,8 +96,12 @@ class SSH(c.Module):
                 cnt += 1
         
         hosts[name] = host
-        cls.put_json(cls.host_data_path, hosts)
+        cls.save_hosts(hosts)
         return {'status': 'success', '': f'Host added', }
+    
+    @classmethod
+    def save_hosts(cls, hosts):
+        cls.put_json(cls.host_data_path, hosts)
     @classmethod
     def rm_host(cls, name):
         hosts = cls.hosts()
@@ -117,8 +121,14 @@ class SSH(c.Module):
     
     @classmethod
     def host(self, name):
-        return self.hosts()[name]
+        hosts = self.hosts()
+
+        if name not in hosts:
+            raise Exception(f'Host {name} not found')
+        
+        return hosts[name]
     
+
     @classmethod
     def host_exists(self, name):
         return name in self.hosts()
@@ -133,13 +143,13 @@ class SSH(c.Module):
         c.print(self.call('ls'))
 
     @classmethod
-    def callpool(cls, *commands,  search=None, cwd=None, **kwargs):
+    def pool(cls, *commands,  search=None, cwd=None, timeout=100, **kwargs):
         hosts = cls.hosts(search=search)
         results = {}
         for host in hosts:
-            result_future = c.submit(cls.call, args=commands, kwargs=dict(hostname=host, cwd=cwd, **kwargs), return_future=True)
+            result_future = c.submit(cls.call, args=commands, kwargs=dict(host=host, cwd=cwd, **kwargs), return_future=True)
             results[host] = result_future
 
-        result_values = c.wait(list(results.values()))
+        result_values = c.wait(list(results.values()), timeout=timeout)
         results =  dict(zip(results.keys(), result_values))
-        return results
+        return {k:v.split('\n') for k,v in results.items()}

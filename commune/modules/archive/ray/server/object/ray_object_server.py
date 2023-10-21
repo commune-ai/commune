@@ -38,7 +38,7 @@ class ObjectServer(Module):
         return 
 
     @property
-    def resolve_fn(fn):
+    def get_fn(fn):
         if isinstance(fn, str):
             fn =  eval(f'lambda x: {fn}')
         elif callable(fn):

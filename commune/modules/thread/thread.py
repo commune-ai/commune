@@ -14,7 +14,7 @@ class Thread(c.Module):
                     tag_seperator:str=':'):
 
         if isinstance(fn, str):
-            fn = c.resolve_fn(fn)
+            fn = c.get_fn(fn)
         if args == None:
             args = []
         if kwargs == None:

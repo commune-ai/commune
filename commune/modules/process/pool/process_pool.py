@@ -14,8 +14,7 @@ class ProcessPool(Process):
         self.path = path if path != None else self.resolve_path('store')
 
         self.verbose = verbose
-
-        self.input_queue = Process.queue(maxsize=max_queue_size)
+        self.input_queue = c.queue(maxsize=max_queue_size, mode='process')
         self.output_queue = Process.queue(maxsize=max_queue_size)
 
         self.fn = fn
