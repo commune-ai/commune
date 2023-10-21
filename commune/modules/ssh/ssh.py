@@ -89,19 +89,30 @@ class SSH(c.Module):
         }
         if name == None:
             cnt = 0
-            name = f'server{cnt}'
+            name = f'{user}{cnt}'
 
             while name in hosts:
-                name = f'server{cnt}'
+                name = f'{user}{cnt}'
                 cnt += 1
         
         hosts[name] = host
         cls.save_hosts(hosts)
+
         return {'status': 'success', '': f'Host added', }
     
     @classmethod
     def save_hosts(cls, hosts):
         cls.put_json(cls.host_data_path, hosts)
+    @classmethod
+    def load_hosts(cls):
+        return cls.get_json(cls.host_data_path, {})
+    
+    @classmethod
+    def switch_hosts(cls, path):
+        hosts = c.get_json(path)
+        cls.save_hosts(hosts)
+        return {'status': 'success', 'msg': f'Host data path switched to {path}'}
+    
     @classmethod
     def rm_host(cls, name):
         hosts = cls.hosts()
@@ -153,3 +164,4 @@ class SSH(c.Module):
         result_values = c.wait(list(results.values()), timeout=timeout)
         results =  dict(zip(results.keys(), result_values))
         return {k:v.split('\n') for k,v in results.items()}
+    
