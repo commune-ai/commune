@@ -27,6 +27,7 @@ class c:
     address = '0.0.0.0:8888' # the address of the server
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = os.path.dirname(root_path) # the path to the library
+    datapath = os.path.join(libpath, 'data') # the path to the data folder
     modules_path = os.path.join(root_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
@@ -3906,6 +3907,8 @@ class c:
             ip = c.default_ip
         return ip
     
+
+    
     @classmethod
     def ip(cls, update:bool = False, **kwargs) -> str:
         if not update:
@@ -4609,7 +4612,6 @@ class c:
     
     @classmethod
     def bytes2str(cls, data: bytes, mode: str = 'utf-8') -> str:
-        
         if hasattr(data, 'hex'):
             return data.hex()
         else:
@@ -4736,10 +4738,19 @@ class c:
 
         return key
     
-        
-        
+    
+    def idcard(self) -> str:
+        seed = str(c.timestamp())
+        idcard = self.key.sign(seed)
+        return c.python2str(idcard)
+    
+    def verify_idcard(self, idcard:str = None) -> bool:
+        if idcard == None:
+            idcard = self.idcard()
+        idcard = c.str2bytes(idcard)
+        return self.key.verify(idcard)
+    
 
-            
     @classmethod
     def hash(cls, 
              data: Union[str, bytes], 
@@ -5136,6 +5147,7 @@ class c:
                 module = None,
                 ):
 
+
         executor = c.get_executor() if executor == None else executor
         args = c.copy(args)
         kwargs = c.copy(kwargs)
@@ -5154,6 +5166,7 @@ class c:
         
         if method_type == 'self':
             module = module(*init_args, **init_kwargs)
+
         future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
         if return_future:
             return future
