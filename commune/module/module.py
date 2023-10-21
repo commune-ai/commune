@@ -1944,7 +1944,6 @@ class c:
             address = module
         else:
             namespace = namespace if namespace != None else c.namespace(module, network=network)
-            print(namespace)
             modules = list(namespace.keys())
             if prefix_match == True:
                 module = c.choice(modules)
