@@ -163,5 +163,14 @@ class SSH(c.Module):
 
         result_values = c.wait(list(results.values()), timeout=timeout)
         results =  dict(zip(results.keys(), result_values))
-        return {k:v.split('\n') for k,v in results.items()}
+        results =  {k:v for k,v in results.items()}
+        for k,v in results.items():
+            if isinstance(v, str):
+                results[k] = v.split('\n')
+                if len(results[k])>0 and len(results[k][-1]) == 0:
+                    results[k] = results[k][:-1]
+            
+
+
+        return results
     

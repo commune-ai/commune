@@ -40,7 +40,7 @@ class Docker(c.Module):
         return path
     
     @classmethod
-    def build(cls, path , tag = None , sudo=False, verbose=True, env={'DOCKER_BUILDKIT':'1'}):
+    def build(cls, path , tag = None , sudo=False, verbose=True, env={}):
 
         path = cls.resolve_docker_path(path)
         if tag is None:

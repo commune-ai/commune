@@ -289,8 +289,10 @@ class c:
 
     @classmethod
     def sandbox(cls):
-        c.cmd(f'python3 sandbox.py')
+        
+        c.cmd(f'python3 {c.libpath}/sandbox.py')
     sand = sandbox
+
     @classmethod
     def save_yaml(cls, path:str,  data: dict, root:bool = False) -> Dict:
         '''
@@ -303,6 +305,8 @@ class c:
             data = cls.munch2dict(deepcopy(data))
             
         return save_yaml(data=data , path=path)
+    
+    put_yaml = save_yaml
 
     def merge_config(self, config:Dict, overrite_keys:bool = False) -> Dict:
         '''
@@ -792,11 +796,8 @@ class c:
     def st_load_css(*args, **kwargs):
         c.module('streamlit').load_css(*args, **kwargs)
 
-    def sshcall(self, *args, **kwargs):
-        return c.module('ssh').call(*args, **kwargs)
-    
     @classmethod
-    def sshpool(self, *args, **kwargs):
+    def rcmd(cls, *args, **kwargs):
         return c.module('ssh').pool(*args, **kwargs)
 
     @classmethod
@@ -1398,14 +1399,14 @@ class c:
     @classmethod
     def path2object(cls, path:str) -> str:
         path = cls.path2objectpath(path)
-        return cls.import_object(path)
+        return c.import_object(path)
 
 
     @classmethod
     def get_module(cls, path:str) -> str:
         path = cls.simple2path(path)
         path = cls.path2objectpath(path)
-        return cls.import_object(path)
+        return c.import_object(path)
 
 
     @classmethod
@@ -2297,13 +2298,13 @@ class c:
     namespace_module = 'module.namespace'
     @classmethod
     def name2address(cls, name:str, network:str='local') -> str:
-        return c.module(c.namespace_module).name2address(name=name, network=network)
+        return c.module("namespace").name2address(name=name, network=network)
     @classmethod
     def servers(cls, *args, **kwargs) -> List[str]:
-        return c.module(c.namespace_module).servers(*args, **kwargs)
+        return c.module("namespace").servers(*args, **kwargs)
     @classmethod
     def get_address(cls, module, **kwargs):
-        return c.module(c.namespace_module).get_address(module, **kwargs)
+        return c.module("namespace").get_address(module, **kwargs)
     @classmethod
     def get_module_port(cls, module, **kwargs):
         address =  cls.get_address(module, **kwargs)
@@ -2312,51 +2313,56 @@ class c:
         return int(address.split(':')[-1])
     @classmethod
     def servers_info(cls, *args, **kwargs) -> List[str]:
-        return c.module(c.namespace_module).servers_info(*args, **kwargs)
+        return c.module("namespace").servers_info(*args, **kwargs)
     @classmethod
     def has_server(cls, *args, **kwargs):
-        return c.module(c.namespace_module).has_server(*args, **kwargs)
+        return c.module("namespace").has_server(*args, **kwargs)
     @classmethod
     def server_exists(cls, name:str, network:str = 'local',  prefix_match:bool=False, **kwargs) -> bool:
-        return c.module(c.namespace_module).server_exists(name=name, network=network,  prefix_match=prefix_match, **kwargs)
+        return c.module("namespace").server_exists(name=name, network=network,  prefix_match=prefix_match, **kwargs)
     @classmethod
     def register_server(cls, name: str, address:str, network='local')-> dict:
-        return c.module(c.namespace_module).register_server(name=name, address=address, network=network)
+        return c.module("namespace").register_server(name=name, address=address, network=network)
 
     @classmethod
     def deregister_server(cls, name: str, network:str = 'local')-> dict:
-        return c.module(c.namespace_module).deregister_server(name=name, network=network)
+        return c.module("namespace").deregister_server(name=name, network=network)
     @classmethod
     def add_server(cls, *args, **kwargs):
-        return c.module(c.namespace_module).add_server(*args, **kwargs)
+        return c.module("namespace").add_server(*args, **kwargs)
     @classmethod
     def add_servers(cls, *args, **kwargs):
-        return c.module(c.namespace_module).add_servers(*args, **kwargs)
+        return c.module("namespace").add_servers(*args, **kwargs)
     @classmethod
     def rm_server(cls, *args, **kwargs):
-        return c.module(c.namespace_module).rm_server(*args, **kwargs)
+        return c.module("namespace").rm_server(*args, **kwargs)
 
     @classmethod
     def remote_servers(cls, *args, **kwargs):
-        return c.module(c.namespace_module).remote_servers(*args, **kwargs)
+        return c.module("namespace").remote_servers(*args, **kwargs)
 
     @classmethod
     def namespace(cls,
                   search:str = None,
                   network:str='local',
                   update: bool = False):
-        return c.module(c.namespace_module).namespace(search=search, network=network, update=update)
+        return c.module("namespace").namespace(search=search, network=network, update=update)
     @classmethod
-    def rm_namespace(cls, network:str='local', **kwargs):
-        return c.module(c.namespace_module).rm_namespace(network=network, **kwargs)
+    def rm_namespace(cls, *args, **kwargs):
+        return c.module("namespace").rm_namespace(*args, **kwargs)
     
     @classmethod
     def update_namespace(cls, network:str='local',**kwargs):
-        return c.module(c.namespace_module).update_namespace(network=network, **kwargs)
+        return c.module("namespace").update_namespace(network=network, **kwargs)
     
     @classmethod
     def put_namespace(cls,network:str, namespace:dict, **kwargs):
-        namespace = c.module(c.namespace_module).put_namespace(network=network, namespace=namespace, **kwargs)
+        namespace = c.module("namespace").put_namespace(network=network, namespace=namespace, **kwargs)
+        return namespace
+    
+    @classmethod
+    def rm_namespace(cls,network:str, **kwargs):
+        namespace = c.module("namespace").rm_namespace(network=network, **kwargs)
         return namespace
     
 
@@ -3794,15 +3800,15 @@ class c:
         
     @classmethod
     def int_to_ip(cls, *args, **kwargs):
-        return cls.import_object('commune.utils.network.int_to_ip')(*args, **kwargs)
+        return c.import_object('commune.utils.network.int_to_ip')(*args, **kwargs)
         
     @classmethod
     def ip_to_int(cls, *args, **kwargs):
-        return cls.import_object('commune.utils.network.ip_to_int')(*args, **kwargs)
+        return c.import_object('commune.utils.network.ip_to_int')(*args, **kwargs)
 
     @classmethod
     def ip_version(cls, *args, **kwargs):
-        return cls.import_object('commune.utils.network.ip_version')(*args, **kwargs)
+        return c.import_object('commune.utils.network.ip_version')(*args, **kwargs)
     
     @classmethod
     def pip_list(cls, lib=None):
@@ -3960,7 +3966,7 @@ class c:
     
     @classmethod
     def upnpc_create_port_map(cls, port:int):
-        return cls.import_object('commune.utils.network.upnpc_create_port_map')(port=port)
+        return c.import_object('commune.utils.network.upnpc_create_port_map')(port=port)
 
     @classmethod
     def set_env(cls, key:str, value:str)-> None:
@@ -4249,6 +4255,9 @@ class c:
     @classmethod
     def rm_model_shortcut(cls, *args, **kwargs):
         return  c.module('hf').rm_model_shortcut(*args, **kwargs)
+    
+    def add_remote(self, *args, **kwargs):
+        return c.module('namespace').add_remote(*args, **kwargs)
 
     @classmethod
     def model_options(cls):
@@ -4556,20 +4565,20 @@ class c:
     
     @classmethod
     def dict_put(cls, *args, **kwargs):
-        dict_put = cls.import_object('commune.utils.dict.dict_put')
+        dict_put = c.import_object('commune.utils.dict.dict_put')
         return dict_put(*args, **kwargs)
     @classmethod
     def dict_get(cls, *args, **kwargs):
-        dict_get = cls.import_object('commune.utils.dict.dict_get')
+        dict_get = c.import_object('commune.utils.dict.dict_get')
         return dict_get(*args, **kwargs)
     @classmethod
     def dict_delete(cls, *args, **kwargs):
-        dict_delete = cls.import_object('commune.utils.dict.dict_delete')
+        dict_delete = c.import_object('commune.utils.dict.dict_delete')
         return dict_delete(*args, **kwargs)
     dict_rm = dict_delete
     @classmethod
     def dict_has(cls, *args, **kwargs):
-        dict_has = cls.import_object('commune.utils.dict.dict_has')
+        dict_has = c.import_object('commune.utils.dict.dict_has')
         return dict_has(*args, **kwargs)
     
     @classmethod
@@ -4864,15 +4873,15 @@ class c:
                               modules, 
                               fn = 'info',
                               *args, 
+                              network =  'local',
                               n=None,
-
                             **kwargs):
         
         args = args or []
         kwargs = kwargs or {}
         
         if isinstance(modules, str) or modules == None:
-            modules = c.servers(modules)
+            modules = c.servers(modules, network=network)
         if n == None:
             n = len(modules)
         modules = cls.shuffle(modules)[:n]
@@ -5029,11 +5038,14 @@ class c:
     net = network
     
     @classmethod
-    def networks(cls) -> List[str]:
-        return c.getc('networks')
-    nets = networks
+    def networks(cls, *args, **kwargs) -> List[str]:
+        return c.module('namespace').networks( *args, **kwargs)
 
-
+    @classmethod
+    def network2namespace(self, *args, **kwargs) -> str:
+        return c.module("namespace").network2namespace(*args, **kwargs)
+    all = network2namespace
+    
     def remove_user(self, key: str) -> None:
         if not hasattr(self, 'users'):
             self.users = []
@@ -5108,19 +5120,24 @@ class c:
         futures = []
         if tag == None:
             tag = ''
-        for i in range(n):
-            c.print(f'Launching {tag}')
-            server_kwargs={'tag':tag + str(i), **kwargs}
-            if max_workers == 1:
+
+        if max_workers == 1:
+            results = []
+            for i in range(n):
+                c.print(f'Launching {tag}')
+                server_kwargs={'tag':tag + str(i), **kwargs}
                 result = cls.serve(**server_kwargs)
-            else:
+                results = results + [result]
+        else:
+            for i in range(n):
                 future = executor.submit(fn=cls.serve, kwargs=server_kwargs)
                 futures = futures + [future]
-            
-        if max_workers > 1:
-            return c.wait(futures)
-        else:
-            return result
+                results =  c.wait(futures)
+
+        return results
+        
+                
+        
 
     @classmethod
     def kill_fleet(cls, tag=None, network='local', **kwargs):
@@ -5153,6 +5170,7 @@ class c:
                 ):
 
 
+        fn = c.get_fn(fn)
         executor = c.get_executor() if executor == None else executor
         args = c.copy(args)
         kwargs = c.copy(kwargs)
@@ -5257,7 +5275,7 @@ class c:
     
     @classmethod
     def launchpad(cls):
-        return cls.import_object('commune.launchpad.Launchpad')()
+        return c.import_object('commune.launchpad.Launchpad')()
     @classmethod
     def determine_type(cls, x):
         if x.lower() == 'null' or x == 'None':
@@ -5833,7 +5851,10 @@ class c:
             else:
                 module = cls
             # get the mdoule function
-            fn = getattr(module, fn)
+            if hasattr(module, fn):
+                fn = getattr(module, fn)
+            else:
+                return None
         assert callable(fn), f'fn must be a callable, got {type(fn)}'
             
         return fn
@@ -6454,7 +6475,7 @@ class c:
 
     @classmethod
     def df(cls, *args, **kwargs):
-        df =  cls.import_object('pandas.DataFrame')
+        df =  c.import_object('pandas.DataFrame')
         if len(args) > 0 or len(kwargs) > 0:
             df = df(*args, **kwargs)
         return df
@@ -6465,7 +6486,7 @@ class c:
 
     @classmethod
     def tensor(cls, *args, **kwargs):
-        return cls.import_object('torch.tensor')(*args, **kwargs)
+        return c.import_object('torch.tensor')(*args, **kwargs)
 
     @staticmethod
     def json2df(json_data):
@@ -6669,7 +6690,7 @@ class c:
         '''
         is the function a property
         '''
-        fn = cls.get_fn(fn,ensure_exists=False)
+        fn = cls.get_fn(fn)
         return isinstance(fn, property)
 
     @classmethod
@@ -7812,7 +7833,9 @@ class c:
     @classmethod
     def peers(cls, network:str='local', tag=None):
         module = cls.module_path()
-        return c.servers(module, network=network)
+        servers = c.servers(network=network)
+        peers = [s for s in servers if s.startswith(module)]
+        return peers
 
     @classmethod
     def random_peer(cls, network:str='local', tag=None):

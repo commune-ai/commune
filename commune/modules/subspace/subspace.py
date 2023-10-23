@@ -1318,11 +1318,6 @@ class Subspace(c.Module):
         return self.get_block(network=network)
    
 
-    def total_stake (self,block: Optional[int] = None ) -> 'Balance':
-        return Balance.from_nano( self.query( "TotalStake", block=block ).value )
-
-
-
     @classmethod
     def archived_blocks(cls, network:str=network, reverse:bool = True) -> List[int]:
         # returns a list of archived blocks 
@@ -1559,7 +1554,7 @@ class Subspace(c.Module):
             subnet_states =  self.state_dict(network=network, key='subnets', update=update )
             if len(subnet_states) > netuid:
                 return subnet_states[netuid]
-        subnet_stake = self.query( 'SubnetTotalStake', params=netuid , block=block).value
+        subnet_stake = self.query( 'TotalStake', params=netuid , block=block).value
         subnet_emission = self.query( 'SubnetEmission', params=netuid, block=block ).value
         subnet_founder = self.query( 'Founder', params=netuid, block=block ).value
         n = self.query( 'N', params=netuid, block=block ).value
