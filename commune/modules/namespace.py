@@ -23,9 +23,13 @@ class Namespace(c.Module):
             return {'status': 'failure', 'msg': f'Block {name} not found.'}
 
     @classmethod
-    def get_address(cls, name:str, network:str=network) -> dict:
+    def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
         namespace = cls.get_namespace(network=network)
-        return namespace.get(name, None)
+        address = namespace.get(name, None)
+        if external:
+            address = address.replace(c.default_ip, c.ip())
+            
+        return address
 
     @classmethod
     def get_namespace(cls, search=None, network:str = 'local', update:bool = False) -> dict:

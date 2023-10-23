@@ -2304,7 +2304,9 @@ class c:
         return c.module("namespace").servers(*args, **kwargs)
     @classmethod
     def get_address(cls, module, **kwargs):
-        return c.module("namespace").get_address(module, **kwargs)
+        address = c.module("namespace").get_address(module, **kwargs)
+
+        return address
     @classmethod
     def get_module_port(cls, module, **kwargs):
         address =  cls.get_address(module, **kwargs)
@@ -2480,7 +2482,8 @@ class c:
         if c.server_exists(server_name, network=network) and server_name in c.pm2_list(): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                ip, port = c.get_address(server_name, network=network).split(':')                
+                address = c.get_address(server_name, network=network)      
+                ip, port = address[0], int(address[1])        
                 c.kill(server_name)
                 c.deregister_server(server_name, network=network)
             else:  
