@@ -48,57 +48,45 @@ class Access(c.Module):
         else:
             if self.subspace == None:
                 raise Exception("Subspace not initialized")
-        # if not an admin address, we need to check the whitelist and blacklist
-        fn = input.get('fn')
+            # if not an admin address, we need to check the whitelist and blacklist
+            fn = input.get('fn')
+            assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
+            assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
 
-        
-        assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
-        assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
+            # RATE LIMIT CHECKING HERE
+            self.sync()
+            stake = self.stakes.get(address, 0)
+            # get the rate limit for the function
+            if fn in self.config.fn2rate:
+                rate = self.config.fn2rate[fn]
+            else:
+                rate = self.config.rate
+            rate_limit = (stake / self.config.stake2rate)
+            rate_limit = rate_limit + self.config.base_rate
 
-        # RATE LIMIT CHECKING HERE
-        self.sync()
-        is_registered = bool( address in self.stakes)
+            # convert the rate limit to the correct timescale
+            rate_limit = rate_limit / self.timescale_map[self.config.timescale]
 
-        stake = self.stakes.get(address, 0)
-        # get the rate limit for the function
-        if fn in self.config.fn2rate:
-            rate = self.config.fn2rate[fn]
-        else:
-            rate = self.config.rate
-        rate_limit = (stake / self.config.stake2rate)
-        rate_limit = rate_limit + self.config.base_rate
+            default_user_info = {
+                                'requests': 0, 
+                                'last_time_called': 0,
+                                'rate': 0,
+                                'stake': stake
+                                }
 
-        # convert the rate limit to the correct timescale
-        rate_limit = rate_limit / self.timescale_map[self.config.timescale]
+            
+            user_info = self.user_info.get(address, default_user_info)
+            user_rate = 1 / (c.time() - user_info['last_time_called'] + 1e-10)        
+            assert user_rate < rate_limit, f"Rate limit too high (calls per second) {user_rate} > {rate_limit}"
+            # update the user info
+            user_info['last_time_called'] = c.time()
+            user_info['requests'] += 1
+            user_info['rate'] = user_rate
+            user_info['rate_limit'] = rate_limit
 
-
-        # if 'fn' self.config.fn2rate:
-        #     # if the function is in the weight map, we need to check the weight
-        #     # get the weight of the function
-        #     weight = self.fn2weight.get(fn, 1)
-        #     # multiply the rate limit by the weight
-        #     rate_limit = rate_limit * weight
-
-        default_user_info = {
-                            'requests': 0, 
-                            'last_time_called': 0,
-                            'rate': 0,
-                            'stake': stake
-                            }
-
-        
-        user_info = self.user_info.get(address, default_user_info)
-        user_rate = 1 / (c.time() - user_info['last_time_called'] + 1e-10)        
-        assert user_rate < rate_limit, f"Rate limit too high (calls per second) {user_rate} > {rate_limit}"
-        # update the user info
-        user_info['last_time_called'] = c.time()
-        user_info['requests'] += 1
-        user_info['rate'] = user_rate
-        user_info['rate_limit'] = rate_limit
-
-        self.user_info[address] = user_info
-        
-        return input
+            self.user_info[address] = user_info
+            
+            return input
 
 
     @classmethod
