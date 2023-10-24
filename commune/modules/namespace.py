@@ -176,6 +176,7 @@ class Namespace(c.Module):
                 c.print(response)
             except Exception as e:
                 response = {'success': False, 'msg': str(e)}
+                c.print(response)
             responses.append(response)
         return responses
 
