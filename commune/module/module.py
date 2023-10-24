@@ -7643,21 +7643,13 @@ class c:
     ##################################
     @classmethod
     def add_user(cls, address, role='user', **kwargs):
-        users = cls.get('users', {})
-        info = {'role': role, **kwargs}
-        users[address] = info
-        cls.put('users', users)
-        return {'success': True, 'user': address,'info':info}
-    
-
+        return c.module('user').add_user(address, role=role, **kwargs)
     @classmethod
     def users(cls, *args, **kwargs):
-        c.module('user').user(*args, **kwargs)
-
+        return c.module('user').user(*args, **kwargs)
     @classmethod
     def is_user(cls, address):
         return c.module('user').is_user(address)
-    
     @classmethod
     def is_user(self, address):
         return c.module('user').is_user(address)
@@ -7666,46 +7658,37 @@ class c:
         return c.module('user').get_user(address)
     @classmethod
     def update_user(cls, *args, **kwargs):
-        return c.module('user').update_user(address, **kwargs)
+        return c.module('user').update_user(*args, **kwargs)
     @classmethod
     def get_role(cls, *args, **kwargs):
         return c.module('user').get_role(*args, **kwargs)
-        
     @classmethod
     def refresh_users(cls):
-        cls.put('users', {})
-        assert len(cls.users()) == 0, 'users not refreshed'
-        return {'success': True, 'msg': 'refreshed users'}
+        return c.module('user').refresh_users()
     @classmethod
     def user_exists(cls, address):
         return address in cls.get('users', {})
-
     @classmethod
     def is_root_key(cls, address:str)-> str:
         return address == c.root_key().ss58_address
     @classmethod
-    def is_admin(cls, address):
-        return cls.get_role(address) == 'admin'
+    def is_admin(cls, *args, **kwargs):
+        return c.module('user').is_admin(*args, **kwargs)
     @classmethod
     def admins(cls):
-        return [k for k,v in cls.users().items() if v['role'] == 'admin']
+        return c.module('user').admins()
     @classmethod
     def add_admin(cls, address):
-        return  cls.add_user(address, role='admin')
+        return  c.module('user').add_admin(address)
     @classmethod
     def rm_admin(cls, address):
-        return  cls.rm_user(address)
-
-    def num_roles(self, role:str):
-        return len([k for k,v in self.users().items() if v['role'] == role])
+        return  c.module('user').rm_admin(address)
+    @classmethod
+    def num_roles(cls, role:str):
+        return c.module('user').num_roles(role)
     @classmethod
     def rm_user(cls, address):
-        users = cls.get('users', {})
-        users.pop(address)
-        cls.put('users', users)
-        assert not cls.user_exists(address), f'{address} still in users'
-        return {'success': True, 'msg': f'removed {address} from users'}
-
+        return c.module('user').rm_user(address)
     ##################################
     # REPLICA LAND
     ##################################

@@ -69,9 +69,9 @@ class User(c.Module):
     @classmethod
     def rm_admin(cls, address):
         return  cls.rm_user(address)
-
-    def num_roles(self, role:str):
-        return len([k for k,v in self.users().items() if v['role'] == role])
+    @classmethod
+    def num_roles(cls, role:str):
+        return len([k for k,v in cls.users().items() if v['role'] == role])
     @classmethod
     def rm_user(cls, address):
         users = cls.get('users', {})
