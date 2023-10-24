@@ -20,7 +20,8 @@ class Access(c.Module):
                 base_rate: int =  0,# base level of calls per timescale (free calls) per account
                 fn2rate: dict =  {}, # function name to rate map, this overrides the default rate
                 **kwargs):
-
+        self.subspace = None
+        self.stakes = {}
         config = self.set_config(kwargs=locals())
         c.print(config)
         self.module = module
@@ -28,8 +29,6 @@ class Access(c.Module):
 
     def sync(self):
         sync_time  = c.time() - self.sync_time
-        self.stakes = {}
-        self.subspace = None
         # if the sync time is greater than the sync interval, we need to sync
         if sync_time >  self.config.sync_interval :
             self.sync_time = c.time()
