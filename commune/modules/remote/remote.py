@@ -211,6 +211,6 @@ class Remote(c.Module):
     def servers_info(self, network='remote'):
         return c.servers_info(network=network)
     @classmethod
-    def push(cls, *args, **kwargs):
-        c.push(*args, **kwargs)
-        c.rcmd('c pull')
+    def push(cls,**kwargs):
+        c.push()
+        return c.rcmd('c pull', **kwargs)
