@@ -2890,13 +2890,15 @@ class Subspace(c.Module):
             prefix = f'{prefix}.vali'
         else:
             prefix = f'{prefix}.nonvali'
+        key_module= c.module('key')
         node_keys = {}
         for k in c.keys(prefix):
             name = k.split('.')[-2]
             key_type = k.split('.')[-1]
             if name not in node_keys:
                 node_keys[name] = {}
-            node_keys[name][key_type] = c.get_key(k).ss58_address
+            c.print(k)
+            node_keys[name][key_type] = key_module.get_key(k).ss58_address
 
 
         return node_keys
@@ -2913,7 +2915,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def node_key_mems(cls,node, chain=chain):
+    def node_key_mems(cls,node = None, chain=chain):
         vali_node_keys = {}
         for key_name in c.keys(f'{cls.node_key_prefix}.{chain}.{node}'):
             name = key_name.split('.')[-2]
@@ -2922,6 +2924,9 @@ class Subspace(c.Module):
             if name not in vali_node_keys:
                 vali_node_keys[name] = { }
             vali_node_keys[name][role] =  key.mnemonic
+
+        if node in vali_node_keys:
+            return vali_node_keys[node]
         return vali_node_keys
     @classmethod
     def send_node_keys(cls, node:str, chain:str=chain, module:str=None):
@@ -3443,8 +3448,15 @@ class Subspace(c.Module):
                  ip = None,
                  max_boot_nodes:int = 24,
                  daemon : bool = True,
+                 remote_address : str = None 
                  
                  ):
+
+        if remote_address != None:
+            remote_kwargs = c.locals2kwargs(locals())
+            remote_kwargs['remote_address'] = None
+            return c.submit(remote_address, fn='submit', kwargs={'fn': 'start_node', 'kwargs': remote_kwargs})
+
 
         ip = c.ip() if ip == None else ip
 
@@ -3569,7 +3581,7 @@ class Subspace(c.Module):
        
     @classmethod
     def node_exists(cls, node:str, chain:str=chain, vali:bool=False):
-        return node in cls.nodes(chain=chain, vali=vali)
+        return node in cls.nodes(chain=chain)
 
     @classmethod
     def node_running(self, node:str, chain:str=chain) -> bool:
@@ -3591,7 +3603,7 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 24,
+                    valis:int = 42,
                     nonvalis:int = 1,
                     verbose:bool = False,
                     purge_chain:bool = True,
