@@ -7,6 +7,8 @@ from typing import *
 
 class Access(c.Module):
     sync_time = 0
+    timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
+
     def __init__(self, 
                 module : Any, # the module or any python object
                 network: str =  'main', # mainnet
@@ -26,6 +28,8 @@ class Access(c.Module):
 
     def sync(self):
         sync_time  = c.time() - self.sync_time
+        self.stakes = {}
+        self.subspace = None
         # if the sync time is greater than the sync interval, we need to sync
         if sync_time >  self.config.sync_interval :
             self.sync_time = c.time()
@@ -36,12 +40,14 @@ class Access(c.Module):
             return
         
 
-    timescale_map  = {'sec': 1, 'min': 60, 'hour': 3600, 'day': 86400}
     def verify(self, input:dict) -> dict:
 
         address = input['address']
         if c.is_admin(address):
             return input
+        else:
+            if self.subspace == None:
+                raise Exception("Subspace not initialized")
         # if not an admin address, we need to check the whitelist and blacklist
         fn = input.get('fn')
 
@@ -51,7 +57,6 @@ class Access(c.Module):
 
         # RATE LIMIT CHECKING HERE
         self.sync()
-
         is_registered = bool( address in self.stakes)
 
         stake = self.stakes.get(address, 0)
