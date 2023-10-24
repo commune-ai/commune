@@ -1,21 +1,17 @@
-
+access_module:
+  stake2rate: 100
 ip: 162.157.13.236
 network: subspace
 shortcuts:
   bt: bittensor
   chain: subspace
   d: docker
+  f: frontend
   freegpt: model.freegpt
   lit: lit_gpt
   openai: model.openai
+  r: remote
   s: subspace
-  tg: textgen
-  f: frontend
   store: storage
+  tg: textgen
 tag: fams
-
-access_module: 
-  stake2rate: 100
-    
-
-    

@@ -4,7 +4,7 @@ import pandas as pd
 from typing import List, Dict, Union
 import commune as c
 
-class Docker(c.Module): 
+class Docker(c.Module):
     @classmethod
     def dockerfile(cls, path = c.repo_path): 
         path =  [f for f in c.ls(path) if f.endswith('Dockerfile')][0]
@@ -12,7 +12,6 @@ class Docker(c.Module):
     
     @classmethod
     def resolve_repo_path(cls, path):
-
         if path is None:
             path = c.repo_path
         else:
@@ -26,7 +25,6 @@ class Docker(c.Module):
     def resolve_docker_compose_path(cls,path = None):
         path = cls.resolve_repo_path(path)
         return [f for f in c.ls(path) if 'docker-compose' in os.path.basename(f)][0]
-        return path
 
     @classmethod
     def docker_compose(cls, path = c.repo_path): 
@@ -37,7 +35,6 @@ class Docker(c.Module):
     def resolve_docker_path(cls, path = None):
         path = cls.resolve_repo_path(path)
         return [f for f in c.ls(path) if 'Dockerfile' in os.path.basename(f)][0]
-        return path
     
     @classmethod
     def build(cls, path , tag = None , sudo=False, verbose=True, env={}):

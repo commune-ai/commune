@@ -15,24 +15,24 @@ import asyncio
 from typing import Union, Dict, Optional, Any, List, Tuple
 import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
-
+# AGI BEGINS 
 class c:
-    # AGI BEGINS 
+    description = """This is a module"""
+    base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
-    description = "This module forms the foundation for commune, it contains all the core functions and classes"
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
-    default_port_range = [50050, 50150] 
+    default_port_range = [50050, 50150] # the port range between 50050 and 50150
     default_ip = '0.0.0.0'
-    address = '0.0.0.0:8888' # the address of the server
+    address = '0.0.0.0:8888' # the address of the server (default)
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = os.path.dirname(root_path) # the path to the library
     datapath = os.path.join(libpath, 'data') # the path to the data folder
     modules_path = os.path.join(root_path, 'modules') # the path to the modules folder
     repo_path  = os.path.dirname(root_path) # the path to the repo
     library_name = libname = lib = root_dir = root_path.split('/')[-1] # the name of the library
-    pwd = os.getenv('PWD') #  
-    console = Console()
+    pwd = os.getenv('PWD') # the current working directory from the process starts 
+    console = Console() # the consolve
     helper_whitelist = ['info', 'schema','server_name', 'is_admin'] # whitelist of helper functions to load
     whitelist = [] # whitelist of functions to load
     blacklist = [] # blacklist of functions to not to access for outside use
@@ -41,6 +41,7 @@ class c:
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
+
 
     def __init__(self, config:Dict=None, **kwargs):
         self.set_config(config=config,kwargs=kwargs)  
@@ -798,7 +799,8 @@ class c:
 
     @classmethod
     def rcmd(cls, *args, **kwargs):
-        return c.module('ssh').pool(*args, **kwargs)
+        return c.module('remote').cmd(*args, **kwargs)
+    
 
     @classmethod
     def cmd(cls, 
@@ -1414,8 +1416,7 @@ class c:
                     mode='path', 
                     cache:bool = True,
                     update:bool = False,
-                    verbose:bool = False,
-                    max_age:int=1_000_000_000,) -> List[str]:
+                    verbose:bool = False) -> List[str]:
                 
         if update and verbose:
             c.print('Building module tree', verbose=verbose)
@@ -1496,7 +1497,7 @@ class c:
 
     @classmethod
     def simple2path(cls, path) -> Dict[str, str]:
-        module_tree = cls.module_tree()
+        module_tree = c.module_tree()
         return module_tree[path]
 
 
@@ -2305,10 +2306,9 @@ class c:
     @classmethod
     def get_address(cls, module, **kwargs):
         address = c.module("namespace").get_address(module, **kwargs)
-
         return address
     @classmethod
-    def get_module_port(cls, module, **kwargs):
+    def get_port(cls, module, **kwargs):
         address =  cls.get_address(module, **kwargs)
         if address == None:
             return None
@@ -2404,8 +2404,7 @@ class c:
         self._whitelist = whitelist + self.helper_functions
         return whitelist
     bl = blacklist = []
-
-
+    
     @classmethod
     def save_serve_kwargs(cls,server_name:str,  kwargs:dict):
         serve_kwargs = c.get('serve_kwargs', {})
@@ -3693,22 +3692,27 @@ class c:
         else:
             return fn()
     module_fn = fn
+
+    module_cache = {}
     
     @classmethod
-    def module(cls,module: Any = None ,*args, network=None, **kwargs):
+    def module(cls,module: Any = 'module' , tree=None, **kwargs):
         '''
         Wraps a python class as a module
         '''
-        
         if module is None:
-            return cls
-        elif isinstance(module, str):
-            modules = c.modules()
-            assert module in modules, f'{module} does not exist'
-            module =  c.get_module(module,**kwargs)
-            return module
-        else: 
-            raise NotImplementedError
+            module = cls.module_path()
+        modules = c.modules()
+        assert module in modules, f'{module} does not exist'
+        if module in c.module_cache:
+            module_class = c.module_cache[module]
+        else:
+            module_class =  c.get_module(module,**kwargs)
+            c.module_cache[module] = module_class
+        
+        return module_class
+        
+
 
     m = mod = module
 
@@ -5380,7 +5384,7 @@ class c:
     
     @classmethod
     def is_error(cls, x:dict):
-        return not self.is_success(x)
+        return not cls.is_success(x)
 
     
     @staticmethod
@@ -6037,8 +6041,6 @@ class c:
     def chown_cache(cls, sudo:bool = True):
         return c.chown(c.cache_path(), sudo=sudo)
         
-    
-    
     @classmethod
     def colors(cls):
         return ['black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white', 'bright_black', 'bright_red', 'bright_green', 'bright_yellow', 'bright_blue', 'bright_magenta', 'bright_cyan', 'bright_white']
@@ -6047,8 +6049,8 @@ class c:
     def random_color(cls):
         import random
         return random.choice(cls.colors())
+    randcolor = randcolour = colour = color = random_colour = random_color
 
-    random_colour = random_color
     @classmethod
     def random_float(cls, min=0, max=1):
         import random
@@ -6095,23 +6097,26 @@ class c:
     def rand_tag(cls):
         return cls.choice(cls.tags())
     @staticmethod
-    def wait(futures:list, timeout:int = 100) -> list:
+    def wait(futures:list, timeout:int = 20, verbose:bool = False) -> list:
         
         import concurrent.futures
         futures = [futures] if not isinstance(futures, list) else futures
         future2idx = {future:i for i,future in enumerate(futures)}
 
         results = []
-        start_time = c.time()
 
         # wait for the futures as they complete
 
         results = []
         results = [None]*len(futures)
 
-        for future in concurrent.futures.as_completed(futures, timeout=timeout):
-            idx = future2idx[future]
-            results[idx] = future.result()
+        try:
+            for future in concurrent.futures.as_completed(futures, timeout=timeout):
+                idx = future2idx[future]
+                results[idx] = future.result()
+        except Exception as e:
+            if verbose:
+                c.print(c.detailed_error(e))
 
         return results
 
@@ -7644,34 +7649,28 @@ class c:
         cls.put('users', users)
         return {'success': True, 'user': address,'info':info}
     
+
     @classmethod
-    def users(cls):
-        users = cls.get('users', {})
-        root_key_address  = c.root_key().ss58_address
-        if root_key_address not in users:
-            cls.add_admin(root_key_address)
-        return cls.get('users', {})
+    def users(cls, *args, **kwargs):
+        c.module('user').user(*args, **kwargs)
+
+    @classmethod
+    def is_user(cls, address):
+        return c.module('user').is_user(address)
     
     @classmethod
     def is_user(self, address):
-        
-        return address in self.users() or address in c.users()
+        return c.module('user').is_user(address)
     @classmethod
     def get_user(cls, address):
-        users = cls.users()
-        return users.get(address, {})
+        return c.module('user').get_user(address)
     @classmethod
-    def update_user(cls, address, **kwargs):
-        info = cls.get_user(address)
-        info.update(kwargs)
-        return cls.add_user(address, **info)
+    def update_user(cls, *args, **kwargs):
+        return c.module('user').update_user(address, **kwargs)
     @classmethod
-    def get_role(cls, address:str, verbose:bool=False):
-        try:
-            return cls.get_user(address)['role']
-        except Exception as e:
-            c.print(e, color='red', verbose=verbose)
-            return None
+    def get_role(cls, *args, **kwargs):
+        return c.module('user').get_role(*args, **kwargs)
+        
     @classmethod
     def refresh_users(cls):
         cls.put('users', {})
@@ -7827,6 +7826,9 @@ class c:
             'question': '❓',
             
     }
+    
+    
+    
     @staticmethod
     def tqdm(*args, **kwargs):
         from tqdm import tqdm
