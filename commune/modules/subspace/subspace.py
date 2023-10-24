@@ -3110,9 +3110,8 @@ class Subspace(c.Module):
     def build_spec(cls,
                    chain = chain,
                    disable_default_bootnode: bool = True,
-                   verbose:bool = True,
                    vali_node_keys:dict = None,
-                   valis:int = 24,
+                   return_spec:bool = False,
                    mode : str = mode,
                    ):
 
@@ -3149,8 +3148,11 @@ class Subspace(c.Module):
         spec['genesis']['runtime']['aura']['authorities'] = [k['aura'] for k in vali_node_keys.values()]
         spec['genesis']['runtime']['grandpa']['authorities'] = [[k['gran'],1] for k in vali_node_keys.values()]
         c.put_json(chain_spec_path, spec)
-        resp = {'spec_path': chain_spec_path, 'spec': spec}
-        return {'success':True, 'message':'built spec', 'chain':chain}
+
+        if return_spec:
+            return spec
+        else:
+            return {'success':True, 'message':'built spec', 'chain':chain}
 
 
     @classmethod
