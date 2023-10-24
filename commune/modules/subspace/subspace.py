@@ -2849,6 +2849,10 @@ class Subspace(c.Module):
         for i in range(nonvalis):
             cls.add_node_key(node=i,  vali=False , chain=chain, refresh=refresh, mode=mode)
 
+    @classmethod
+    def add_vali_keys(cls, valis:int=24, chain:str=chain,  refresh:bool=False , mode=mode):
+        for i in range(valis):
+            cls.add_node_key(node=i,  vali=True, chain=chain, refresh=refresh, mode=mode)
 
     node_key_prefix = 'subspace.node'
     
@@ -2963,7 +2967,7 @@ class Subspace(c.Module):
     @classmethod
     def vali_node_keys(cls,chain=chain):
         keys =  {k:v for k,v in  cls.node_keys(chain=chain).items() if k.startswith('vali')}
-        keys = dict(sorted(keys.items(), key=lambda k: int(k[0].split('_')[-1])))
+        keys = dict(sorted(keys.items(), key=lambda k: int(k[0].split('_')[-1]) if k[0].split('_')[-1].isdigit() else 0))
         return keys
     
     @classmethod
@@ -3657,6 +3661,7 @@ class Subspace(c.Module):
             for k, port in zip(port_keys, node_ports):
                 avoid_ports.append(port)
                 node_kwargs[k] = port
+
 
             # start the node and get 
             response = cls.start_node(**node_kwargs, refresh=refresh)

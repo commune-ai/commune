@@ -4849,9 +4849,12 @@ class c:
                 network:str = None,
                 key:str = None,
                 ignore_error = False,
-                **kwargs
+                kwargs = None,
+                **extra_kwargs
                 ) -> None:
-                         
+
+        kwargs = kwargs or {}
+        kwargs.update(extra_kwargs)    
         try:
             module = c.connect(module, prefix_match=prefix_match, network=network, virtual=False, key=key)
             future =  module.async_forward(fn=fn, kwargs=kwargs, args=args)

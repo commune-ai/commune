@@ -214,3 +214,12 @@ class Remote(c.Module):
     def push(cls,**kwargs):
         c.push()
         return c.rcmd('c pull', **kwargs)
+
+    @classmethod
+    def check_servers(cls):
+        for a in c.addresses(network='remote'):
+            try:
+                c.print(c.call(a))
+            except Exception as e:
+                c.rm_server(a, network='remote')
+                c.print('failed')

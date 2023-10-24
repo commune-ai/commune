@@ -271,8 +271,8 @@ class Keypair(c.Module):
         return {'status': 'success', 'message': f'keys loaded from {path}', 'keys': keys}
 
     @classmethod
-    def save_keys(cls, path=keys_path, verbose:bool = False,  **kwargs):
-        key_info_map = cls.key_info_map()
+    def save_keys(cls, search=None, path=keys_path, verbose:bool = False,  **kwargs):
+        key_info_map = cls.key_info_map(search)
         cls.put_json(path, key_info_map)
         return {'status': 'success', 'message': f'keys saved to {path}'}
         
