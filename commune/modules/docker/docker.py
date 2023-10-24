@@ -111,19 +111,6 @@ class Docker(c.Module):
     #     self.build(path=self.libpath, sudo=sudo)
 
     @classmethod
-    def build(cls,path:str = None, tag:str = None,  sudo=False):
-        path = cls.resolve_dockerfile(path)
-
-        if tag is None:
-            tag = path.split('/')[-2]
-        assert tag is not None, 'tag must be specified'
-
-        cmd = f'docker build -t {tag} .'
-        dockerfile_dir = os.path.dirname(path)
-
-        c.cmd(cmd,cwd = dockerfile_dir, env={'DOCKER_BUILDKIT':'1'}, verbose=True, sudo=sudo, bash=False)
-
-    @classmethod
     def images(cls, df=True):
         text = c.cmd('docker images', verbose=False)
         if df:
