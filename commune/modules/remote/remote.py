@@ -167,13 +167,30 @@ class Remote(c.Module):
         for k,v in results.items():
             if isinstance(v, str):
                 if  v.endswith('\n'):
-                    results[k] =  v[:-2]
+                    results[k] =  v[:-1]
         if return_list:
             return list(results.values())
 
         return results
     
 
+    @classmethod
+    def addy(cls): 
+        addy = cls.cmd('c addy').items()
+        return addy
+    
+    @classmethod
+    def add_admin(cls):
+        root_key_address = c.root_key().ss58_address
+        return cls.cmd(f'c add_admin {root_key_address}')
+    
+    @classmethod
+    def is_admin(cls):
+        root_key_address = c.root_key().ss58_address
+        results =  cls.cmd(f'c is_admin {root_key_address}')
+        for host, r in results.items():
+            results[host] = bool(r)
+        return results
     
     @classmethod
     def add_servers(cls, *args, **kwargs):

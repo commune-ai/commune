@@ -88,7 +88,6 @@ class PoolTaskExecutor(c.Module):
             self.work_queue.put((priority, task), block=False)
             # adjust the process count to match the new task
             self.adjust_process_count()
-            
             # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
             return task.future
 
