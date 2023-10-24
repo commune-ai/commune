@@ -2823,7 +2823,7 @@ class Subspace(c.Module):
             cls.build_snapshot(chain=chain, verbose=verbose, sync=sync)
 
         if build_spec:
-            cls.build_spec(chain=chain, verbose=verbose, mode=mode)
+            cls.build_spec(chain=chain, mode=mode)
 
     @classmethod
     def build_image(cls):
@@ -3007,13 +3007,9 @@ class Subspace(c.Module):
         node = c.copy(f'{node_type}{tag_seperator}{node}')
         node_key_exists = cls.node_key_exists(node=node, chain=chain)
         if node_key_exists and not refresh:
-
             c.print(f'node key {node} for chain {chain} already exists')
             return {'success':False, 'msg':f'node key {node} for chain {chain} already exists'}
-
-
         chain_path = cls.chain_release_path(mode=mode)
-
         for key_type in ['gran', 'aura']:
 
             # we need to resolve the schema based on the key type
@@ -3118,6 +3114,7 @@ class Subspace(c.Module):
                    vali_node_keys:dict = None,
                    return_spec:bool = False,
                    mode : str = mode,
+                   valis: int = 12,
                    ):
 
         chain_spec_path = cls.chain_spec_path(chain)
@@ -3454,7 +3451,7 @@ class Subspace(c.Module):
                  local:bool = False,
                  ip = None,
                  max_boot_nodes:int = 24,
-                 daemon : bool = False,
+                 daemon : bool = True,
                  remote_address : str = None ,
                  key_mems:dict = {'aura': None, 'gran': None},
                  
@@ -3639,7 +3636,7 @@ class Subspace(c.Module):
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
         # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES'
         if build_spec:
-            cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
+            cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
 
         ## NON VALIDATOR NODES
         nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
