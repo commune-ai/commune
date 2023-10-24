@@ -36,7 +36,7 @@ class Subspace(c.Module):
     token_decimals = default_config['token_decimals']
     network = default_config['network']
     chain = network
-    chain_path = c.libpath + '/subspace'
+    libpath = chain_path = c.libpath + '/subspace'
     spec_path = f"{chain_path}/specs"
     netuid = default_config['netuid']
     image = 'vivonasg/subspace:latest'
@@ -3318,6 +3318,13 @@ class Subspace(c.Module):
         return {'success':True, 'msg': f'pushed image {image}'}
 
     @classmethod
+    def push(cls):
+        return c.push(cwd=cls.libpath)
+    @classmethod
+    def pull(cls):
+        return c.pull(cwd=cls.libpath)
+
+    @classmethod
     def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=24, **kwargs):
         cls.pull_image()
         cls.add_node_key(node=node, chain=chain, mode=mode)
@@ -3454,8 +3461,9 @@ class Subspace(c.Module):
 
         if remote_address != None:
             remote_kwargs = c.locals2kwargs(locals())
-            remote_kwargs['remote_address'] = None
-            return c.submit(remote_address, fn='submit', kwargs={'fn': 'start_node', 'kwargs': remote_kwargs})
+            remote_kwargs.pop('remote_address')
+            c.print(f'calling remote node {remote_address} with kwargs {remote_kwargs}')
+            return c.call(remote_address, fn='submit', kwargs={'fn': 'subspace.start_node', 'kwargs': remote_kwargs})[0]
 
 
         ip = c.ip() if ip == None else ip
@@ -3611,6 +3619,8 @@ class Subspace(c.Module):
                     trials:int = 3,
                     reuse_ports: bool = False, 
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
+                    remote:bool = False,
+                    build_spec :bool = False
                     ):
 
         # KILL THE CHAIN
@@ -3626,8 +3636,9 @@ class Subspace(c.Module):
             vali_node_keys  = cls.vali_node_keys(chain=chain)
         vali_nodes = list(vali_node_keys.keys())[:valis]
         vali_node_keys = {k: vali_node_keys[k] for k in vali_nodes}
-        # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES
-        cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
+        # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES'
+        if build_spec:
+            cls.build_spec(chain=chain, verbose=verbose, vali_node_keys=vali_node_keys)
 
         ## NON VALIDATOR NODES
         nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
@@ -3646,8 +3657,10 @@ class Subspace(c.Module):
 
         avoid_ports = []
 
+        if remote: 
+            remote_addresses = c.addresses('module', network='remote')
         # START THE VALIDATOR NODES
-        for node in (vali_nodes + nonvali_nodes):
+        for i, node in enumerate(vali_nodes + nonvali_nodes):
             c.print(f'Starting node {node} for chain {chain}')
             name = f'{cls.node_prefix()}.{chain}.{node}'
 
@@ -3659,6 +3672,7 @@ class Subspace(c.Module):
                             'verbose':verbose,
                             'purge_chain': purge_chain,
                             'validator':  bool(node in vali_nodes),
+                            'remote_address': remote_addresses[i % len(remote_addresses)] if remote else None
                             }
 
             # get the ports for (port, rpc_port, ws_port)
@@ -3956,6 +3970,9 @@ class Subspace(c.Module):
         # return as soon as all the futures are done
     
         c.wait(futures)
+
+
+
 
 
     def check_storage(self, storage_name:str, block_hash = None):

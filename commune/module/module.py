@@ -6320,10 +6320,12 @@ class c:
         return {'success':True, 'message':'pulled'}
 
     @classmethod
-    def pull(cls, stash:bool = False):
+    def pull(cls, stash:bool = False, cwd=None):
+        if cwd is None:
+            cwd = c.libpath
         if stash:
-            c.cmd('git stash', cwd=c.libpath)
-        c.cmd('git pull', cwd=c.libpath)
+            c.cmd('git stash', cwd=cwd)
+        c.cmd('git pull', cwd=cwd)
         return {'success':True, 'message':'pulled'}
 
     # @classmethod
@@ -6331,13 +6333,13 @@ class c:
     #     return c.cmd(f'git add .; git commit -m "{msg}"; git push;')
     
     @classmethod
-    def push(cls, msg='update'):
-        cls.cmd(f'git add .')
-        cls.cmd(f'git commit -m "{msg}"', bash=True)
-        cls.cmd(f'git push')
+    def push(cls, msg='update', cwd=None):
+        if cwd is None:
+            cwd = c.libpath
+        c.cmd(f'git add .', cwd=cwd)
+        c.cmd(f'git commit -m "{msg}"', bash=True, cwd=cwd)
+        c.cmd(f'git push', cwd=cwd)
 
-
-    
     @classmethod
     def make_pull(cls):
         return cls.cmd('make pull')
