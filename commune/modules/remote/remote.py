@@ -3,8 +3,7 @@ import commune as c
 class Remote(c.Module):
     host_data_path = f'{c.datapath}/hosts.json'
     @classmethod
-    def call(cls, 
-            *cmd_args, host  = None,  cwd=None, stream=False, **kwargs ):
+    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False,  **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -23,15 +22,15 @@ class Remote(c.Module):
 
         import paramiko
         hosts = cls.hosts()
-        if host == None:
+        host_name = host
+        if host_name == None:
             host = list(hosts.keys())[0]
-        if host not in hosts:
-            raise Exception(f'Host {host} not found')
-        host = hosts[host]
+        if host_name not in hosts:
+            raise Exception(f'Host {host_name} not found')
+        host = hosts[host_name]
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
-
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -46,19 +45,24 @@ class Remote(c.Module):
         stdin, stdout, stderr = client.exec_command(command)
 
 
-        if stream:
-            # Print the output of ls command
-            def generate_output():
-                for line in stdout.readlines():
-                    yield line.strip('\n')
-                
-            return generate_output()
 
-        output = stdout.read().decode('utf-8')
-        error = stderr.read().decode('utf-8')
+        color = c.random_color()
+        # Print the output of ls command
+        outputs = {'error': '', 'output': ''}
 
-        if len(error) > 0:
-            output = {'error': error, 'output': output}
+        for line in stdout.readlines():
+            if verbose:
+                c.print(f'[bold]{host_name}[/bold]', line.strip('\n'), color=color)
+            outputs['output'] += line
+
+        for line in stderr.readlines():
+            if verbose:
+                c.print(f'[bold]{host}[/bold]', line.strip('\n'))
+            outputs['error'] += line
+
+
+        if len(outputs['error']) == 0:
+            output = outputs['output']
         
         stdin.close()
         stdout.close()
@@ -68,9 +72,7 @@ class Remote(c.Module):
 
         return output
 
-    def serve(self, **kwargs):
-        return self.call(**kwargs)
-    
+
     @classmethod
     def add_host(cls, 
                  host:str = '0.0.0.0',
@@ -126,6 +128,8 @@ class Remote(c.Module):
     @classmethod
     def hosts(cls, search=None):
         hosts = cls.get_json(cls.host_data_path, {})
+        if len(hosts) == 0:
+            assert False, f'No hosts found, please add your hosts to {cls.host_data_path}'
         if search != None:
             hosts = {k:v for k,v in hosts.items() if search in k}
         return hosts
@@ -151,14 +155,14 @@ class Remote(c.Module):
 
     def test(self):
         # Test Remote
-        c.print(self.call('ls'))
+        c.print(self.ssh_cmd('ls'))
 
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False,  **kwargs):
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False, stream=True, **kwargs):
         hosts = cls.hosts(search=search)
         results = {}
         for host in hosts:
-            result_future = c.submit(cls.call, args=commands, kwargs=dict(host=host, cwd=cwd, **kwargs), return_future=True)
+            result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, stream=stream, **kwargs), return_future=True, timeout=timeout)
             results[host] = result_future
 
         result_values = c.wait(list(results.values()), timeout=timeout)
@@ -172,12 +176,6 @@ class Remote(c.Module):
             return list(results.values())
 
         return results
-    
-
-    @classmethod
-    def addy(cls): 
-        addy = cls.cmd('c addy').items()
-        return addy
     
     @classmethod
     def add_admin(cls):
@@ -193,7 +191,22 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, **kwargs):
-        for host, address in cls.addy().items():
-            cls.add_server(host=host, *args, **kwargs)
+    def add_servers(cls, *args, add_admins:bool=False, network='remote'):
+    
+        if add_admins:
+            c.print('Adding admin')
+            cls.add_admin()
+        servers = list(cls.cmd('c addy', verbose=True).values())
+        c.add_servers(*servers, network=network)
 
+    @classmethod
+    def servers(self, network='remote'):
+        return c.servers(network=network)
+    
+    @classmethod
+    def addresses(self, network='remote'):
+        return c.addresses(network=network)
+    
+    @classmethod
+    def servers_info(self, network='remote'):
+        return c.servers_info(network=network)

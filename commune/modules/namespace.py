@@ -172,6 +172,7 @@ class Namespace(c.Module):
         responses = []
         for server in servers:
             try:
+                c.print(f'Adding {server} to {network} modules')
                 response = cls.add_server(server, network=network)
             except Exception as e:
                 response = {'success': False, 'msg': str(e)}

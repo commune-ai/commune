@@ -14,7 +14,5 @@ import commune as c
 # for v in output.values():
 #     c.add_server(v[0], network=network)
 
-address = '167.99.229.96:50168'
-fn = 'submit'
-result = c.call(address, fn, kwargs=dict(fn='module.cmd', args=['ls']))
-c.print(result)
+
+c.print(c.rcmd('c ip update=True'))
