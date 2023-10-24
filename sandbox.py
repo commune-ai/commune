@@ -14,5 +14,9 @@ import commune as c
 # for v in output.values():
 #     c.add_server(v[0], network=network)
 
-
-c.print(c.rcmd('c ip update=True'))
+for a in c.addresses(network='remote'):
+    try:
+        c.print(c.call(a))
+    except Exception as e:
+        c.rm_server(a, network='remote')
+        c.print('failed')
