@@ -45,15 +45,15 @@ class Access(c.Module):
         if c.is_admin(address):
             return input
         else:
+            self.sync()
             if self.subspace == None:
-                raise Exception("Subspace not initialized")
+                raise Exception(f"Subspace not initialized and you are not an authorized admin {input['address']}, authorized admins: {c.admins()}")
             # if not an admin address, we need to check the whitelist and blacklist
             fn = input.get('fn')
             assert fn in self.module.whitelist or fn in c.helper_whitelist, f"Function {fn} not in whitelist"
             assert fn not in self.module.blacklist, f"Function {fn} is blacklisted" 
 
             # RATE LIMIT CHECKING HERE
-            self.sync()
             stake = self.stakes.get(address, 0)
             # get the rate limit for the function
             if fn in self.config.fn2rate:
