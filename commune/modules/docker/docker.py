@@ -57,6 +57,14 @@ class Docker(c.Module):
             cls.kill(server, sudo=sudo, verbose=verbose)
             c.print(f'killed {server}', verbose=verbose)
         return {'status': 'killed', 'name': name}
+
+    @classmethod
+    def kill_all(cls, sudo=False, verbose=True):
+        servers = cls.ps()
+        for server in servers:
+            cls.kill(server, sudo=sudo, verbose=verbose)
+            c.print(f'killed {server}', verbose=verbose)
+        return {'status': 'killed'}
     @classmethod
     def rm(cls, name, sudo=False, verbose=True):
         c.cmd(f'docker rm {name}', sudo=sudo, verbose=verbose)
