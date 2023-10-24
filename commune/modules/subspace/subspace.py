@@ -3455,7 +3455,8 @@ class Subspace(c.Module):
                  ip = None,
                  max_boot_nodes:int = 24,
                  daemon : bool = True,
-                 remote_address : str = None 
+                 remote_address : str = None ,
+                 key_mems:dict = {'aura': None, 'gran': None},
                  
                  ):
 
@@ -3485,7 +3486,7 @@ class Subspace(c.Module):
 
         # add the node key if it does not exist
         if not cls.node_key_exists(node=node, chain=chain):
-            cls.add_node_key(node=node, vali=validator, chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
@@ -3672,8 +3673,12 @@ class Subspace(c.Module):
                             'verbose':verbose,
                             'purge_chain': purge_chain,
                             'validator':  bool(node in vali_nodes),
-                            'remote_address': remote_addresses[i % len(remote_addresses)] if remote else None
+
                             }
+            if remote:
+                node_kwargs =   remote_addresses[i % len(remote_addresses)]
+                node_kwargs['key_mems'] = c.get_node_key(node, chain=chain)
+
 
             # get the ports for (port, rpc_port, ws_port)
             # if we are reusing ports, then pop the first ports from the existing_node_ports

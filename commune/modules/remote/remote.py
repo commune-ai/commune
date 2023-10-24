@@ -223,3 +223,6 @@ class Remote(c.Module):
             except Exception as e:
                 c.rm_server(a, network='remote')
                 c.print('failed')
+
+
+    
