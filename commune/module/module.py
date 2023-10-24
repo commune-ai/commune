@@ -4896,7 +4896,7 @@ class c:
         c.print(f'Calling {fn} on {len(modules)} modules', color='green')
         jobs = []
         for m in modules:
-            job = c.call(m, fn, *args, return_future=True, **kwargs)
+            job = c.call(m, fn, *args, return_future=True, network=network, **kwargs)
             jobs.append(job)
         
         responses = await asyncio.gather(*jobs)
