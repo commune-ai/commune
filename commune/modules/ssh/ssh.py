@@ -4,7 +4,7 @@ class SSH(c.Module):
     host_data_path = f'{c.datapath}/ssh.json'
     @classmethod
     def call(cls, 
-            *cmd_args, host  = None,  cwd=None, stream=False, **kwargs ):
+            *cmd_args, host  = None,  cwd=None, verbose=False, **kwargs ):
         """s
         Run a command on a remote server using SSH.
 
@@ -45,17 +45,24 @@ class SSH(c.Module):
         # Execute command
         stdin, stdout, stderr = client.exec_command(command)
 
+        output = []
+        for line in stdout.readlines():
+            output += [line.strip()]
+            if verbose:
+                text = f'[green]{host}[/green] | {line.strip()}'
+                c.print(text, color='green')
 
-        if stream:
-            # Print the output of ls command
-            def generate_output():
-                for line in stdout.readlines():
-                    yield line.strip('\n')
-                
-            return generate_output()
 
-        output = stdout.read().decode('utf-8')
-        error = stderr.read().decode('utf-8')
+        error = []
+        for line in stderr.readlines():
+            error += [line.strip()]
+            if verbose:
+                text = f'[red]{host}[/red] | {line.strip()}'
+                c.print(text, color='red')
+  
+        # Return the result
+        error = '\n'.join(error)
+        output = '\n'.join(output)
 
         if len(error) > 0:
             output = {'error': error, 'output': output}
