@@ -3454,7 +3454,7 @@ class Subspace(c.Module):
                  local:bool = False,
                  ip = None,
                  max_boot_nodes:int = 24,
-                 daemon : bool = True,
+                 daemon : bool = False,
                  remote_address : str = None ,
                  key_mems:dict = {'aura': None, 'gran': None},
                  
@@ -3485,8 +3485,8 @@ class Subspace(c.Module):
             node_info['ws_port'] = ws_port = free_ports[2]
 
         # add the node key if it does not exist
-        if not cls.node_key_exists(node=node, chain=chain):
-            cls.add_node_key(node=node,chain=chain, key_mems=key_mems)
+        if key_mems['aura'] != None:
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
@@ -3676,9 +3676,8 @@ class Subspace(c.Module):
 
                             }
             if remote:
-                node_kwargs =   remote_addresses[i % len(remote_addresses)]
-                node_kwargs['key_mems'] = c.get_node_key(node, chain=chain)
-
+                node_kwargs['remote_address'] =   remote_addresses[i % len(remote_addresses)]
+            node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
             # get the ports for (port, rpc_port, ws_port)
             # if we are reusing ports, then pop the first ports from the existing_node_ports
