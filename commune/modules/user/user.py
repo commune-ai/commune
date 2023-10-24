@@ -28,12 +28,11 @@ class User(c.Module):
     
     @classmethod
     def is_user(self, address):
-        
         return address in self.users() or address in c.users()
     @classmethod
     def get_user(cls, address):
         users = cls.users()
-        return users.get(address, {})
+        return users.get(address, None)
     @classmethod
     def update_user(cls, address, **kwargs):
         info = cls.get_user(address)

@@ -4,22 +4,20 @@ from typing import *
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import commune as c
 
-
-
-urls = [
-    'http://0.0.0.0:21027/generate', #3090s models8x1 good
-    'http://0.0.0.0:21088/generate',
-    'http://0.0.0.0:21086/generate',
-    'http://0.0.0.0:21051/generate',
-    'http://0.0.0.0:21078/generate',
-    'http://0.0.0.0:21090/generate',
-    'http://0.0.0.0:21050/generate',
-    'http://0.0.0.0:21075/generate',
-]
-
 class RemoteModel(c.Module):
+
+    urls = [
+        'http://0.0.0.0:21027/generate', #3090s models8x1 good
+        'http://0.0.0.0:21088/generate',
+        'http://0.0.0.0:21086/generate',
+        'http://0.0.0.0:21051/generate',
+        'http://0.0.0.0:21078/generate',
+        'http://0.0.0.0:21090/generate',
+        'http://0.0.0.0:21050/generate',
+        'http://0.0.0.0:21075/generate',
+    ]
     def __init__( self, urls: List[str] = urls , num_workers : int= 100, access={'base_rate': 10}, **kwargs):
-        self.urls = urls
+        self.urls = urls 
         self.executor = ThreadPoolExecutor(max_workers=num_workers)
         self.set_access_module(**access)
 
