@@ -443,6 +443,7 @@ class Subspace(c.Module):
         stake : float = 0,
         subnet: str = None,
         key : str  = None,
+        module_key : str = None,
         address : str = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization: bool = True,
@@ -463,12 +464,13 @@ class Subspace(c.Module):
         network =self.resolve_network(network)
         address = c.namespace(network='local').get(name, c.default_ip)
         address = address.replace(c.default_ip,c.ip())
-        key = self.resolve_key(name)
+        module_key = self.resolve_key(name)
+        key = self.resolve_key(key)
 
         # Validate address.
         if self.subnet_exists(subnet, network=network):
             netuid = self.get_netuid_for_subnet(subnet)
-            if self.is_registered(key.ss58_address, netuid=netuid):
+            if self.is_registered(module_key.ss58_address, netuid=netuid):
                 c.print(f":cross_mark: [red]Module {name} already registered[/red]")
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
             else:
@@ -484,6 +486,7 @@ class Subspace(c.Module):
                     'address': address.encode('utf-8'),
                     'name': name.encode('utf-8'),
                     'stake': stake,
+                    'module_key': module_key.ss58_address,
                 } 
 
         with self.substrate as substrate:
@@ -1194,6 +1197,8 @@ class Subspace(c.Module):
 
     @classmethod
     def resolve_key(cls, key, create:bool = False):
+        if key == None:
+            key = 'module'
         if isinstance(key, str):
             if c.key_exists( key ):
                 key = c.get_key( key )
@@ -1529,9 +1534,10 @@ class Subspace(c.Module):
         return subnet_states
 
 
-    def total_stake(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
+    def total_stake(self, network=network, block: Optional[int] = None, netuid:int=None, fmt='j') -> 'Balance':
         self.resolve_network(network)
-        return self.format_amount(self.query_constant( "TotalStake", block=block, network=network ).value, fmt=fmt)
+        netuid = self.resolve_netuid(netuid)
+        return self.format_amount(self.query( "TotalStake", params=[netuid], block=block, network=network ).value, fmt=fmt)
 
     def total_balance(self, network=network, block: Optional[int] = None, fmt='j') -> 'Balance':
         return sum(list(self.balances(network=network, block=block, fmt=fmt).values()))
@@ -1791,7 +1797,7 @@ class Subspace(c.Module):
     balance =  get_balance
 
 
-    def get_balances(self,fmt:str = 'n', network = None, block: int = None, ) -> Dict[str, Balance]:
+    def get_balances(self,fmt:str = 'n', network = None, block: int = None, n = None ) -> Dict[str, Balance]:
         
         network = self.resolve_network(network)
         @retry(delay=2, tries=3, backoff=2, max_delay=4)
@@ -1807,6 +1813,11 @@ class Subspace(c.Module):
         for r in result:
             bal = self.format_amount(int( r[1]['data']['free'].value ), fmt=fmt)
             return_dict[r[0].value] = bal
+
+        # sort by decending balance
+        return_dict = {k:v for k,v in sorted(return_dict.items(), key=lambda x: x[1], reverse=True)}
+        if isinstance(n, int):
+            return_dict = {k:v for k,v in list(return_dict.items())[:n]}
         return return_dict
     
     balances = get_balances
@@ -3363,8 +3374,10 @@ class Subspace(c.Module):
         return c.pull(cwd=cls.libpath)
 
     @classmethod
-    def push(cls):
-        return c.push(cwd=cls.libpath)
+    def push(cls, rpull:bool=True):
+        c.push(cwd=cls.libpath)
+        if rpull:
+            c.rcmd('c s pull', verbose=True)
     @classmethod
     def status(cls):
         return c.status(cwd=cls.libpath)
@@ -3387,7 +3400,7 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def start_public_nodes(cls, node:str='nonvali', n:int=20, i=0, mode=mode, chain=chain, max_boot_nodes=24, refresh:bool = False, **kwargs):
+    def start_public_nodes(cls, node:str='nonvali', n:int=4, i=0, mode=mode, chain=chain, max_boot_nodes=24, refresh:bool = False, **kwargs):
         avoid_ports = []
         node_infos = cls.node_infos(chain= chain)
         served_nodes = []
@@ -3395,7 +3408,6 @@ class Subspace(c.Module):
         while len(served_nodes) <= n:
             i += 1
             node_name = f'{node}_{i}'
-
             if node_name in node_infos and refresh == False:
                 c.print(f'Skipping {node_name} (Already exists)')
                 continue
@@ -3670,7 +3682,6 @@ class Subspace(c.Module):
                     purge_chain:bool = True,
                     refresh: bool = True,
                     trials:int = 3,
-                    reuse_ports: bool = False, 
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     remote:bool = False,
                     build_spec :bool = True
@@ -3695,20 +3706,6 @@ class Subspace(c.Module):
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
 
 
-
-        ## NON VALIDATOR NODES
-        nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
-        nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())[:nonvalis]
-        nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
-        existing_node_ports = {'vali': [], 'nonvali': []}
-        c.print(f'vali_nodes {vali_node_keys}')
-        
-        if reuse_ports: 
-            node_infos = cls.getc(f'chain_info.{chain}.nodes')
-            for node, node_info in node_infos.items():
-                k = 'vali' if node_info['validator'] else 'nonvali'
-                existing_node_ports[k].append([node_info[pk] for pk in port_keys])
-
         chain_info = {'nodes':{}, 'boot_nodes':[]}
         
 
@@ -3717,7 +3714,7 @@ class Subspace(c.Module):
         if remote: 
             remote_addresses = c.addresses('module', network='remote')
         # START THE VALIDATOR NODES
-        for i, node in enumerate(vali_nodes + nonvali_nodes):
+        for i, node in enumerate(vali_nodes):
             c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
             name = f'{cls.node_prefix()}.{chain}.{node}'
 
@@ -3728,43 +3725,31 @@ class Subspace(c.Module):
                             'node':node, 
                             'verbose':verbose,
                             'purge_chain': purge_chain,
-                            'validator':  bool(node in vali_nodes),
+                            'validator':  True,
 
                             }
             if remote:
                 node_kwargs['remote_address'] =   remote_addresses[i % len(remote_addresses)]
-            # node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+                node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
-            # get the ports for (port, rpc_port, ws_port)
-            # if we are reusing ports, then pop the first ports from the existing_node_ports
-            node_ports= []
-
-            node_type = 'vali' if node_kwargs['validator'] else 'nonvali'
-            if len(existing_node_ports[node_type]) > 0:
-                node_ports = existing_node_ports[node_type].pop(0)
             else:
                 node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
-            assert  len(node_ports) == 3, f'node_ports must be of length 3, not {len(node_ports)}'
+                for k, port in zip(port_keys, node_ports):
+                    avoid_ports.append(port)
+                    node_kwargs[k] = port
 
-            for k, port in zip(port_keys, node_ports):
-                avoid_ports.append(port)
-                node_kwargs[k] = port
-
-
-            # start the node and get 
-            c.print(f'[bold]Starting node {node} with kwargs {node_kwargs}[/bold]\n')
             response = cls.start_node(**node_kwargs, refresh=refresh)
             node_info = response['node_info']
 
-            if node_kwargs['validator']:
-                assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
-                boot_node = response['boot_node']
-                chain_info['boot_nodes'].append(boot_node)
-            
+            assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
+            boot_node = response['boot_node']
+            chain_info['boot_nodes'].append(boot_node)
             chain_info['nodes'][node] = node_info
-            
-            # save the chain info into the config at chain_info.{chain}
-            cls.putc(f'chain_info.{chain}', chain_info)
+        
+        cls.putc(f'chain_info.{chain}', chain_info)
+        if nonvalis > 0:
+            cls.start_public_nodes(n=nonvalis, chain=chain, refresh=True)
+
 
     
                

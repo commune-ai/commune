@@ -5875,7 +5875,8 @@ class c:
                 fn = getattr(module, fn)
             else:
                 return None
-        assert callable(fn), f'fn must be a callable, got {type(fn)}'
+        if not callable(fn):
+            return fn
             
         return fn
     
@@ -6341,6 +6342,20 @@ class c:
     @classmethod
     def make_pull(cls):
         return cls.cmd('make pull')
+
+    @staticmethod
+    def retry(fn, trials:int = 3, verbose:bool = True): 
+        def wrapper(*args, **kwargs):
+            for i in range(trials):
+                try:
+                    c.print(fn)
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    if verbose:
+                        c.print(c.detailed_error(e), color='red')
+                        c.print(f'Retrying {fn.__name__} {i+1}/{trials}', color='red')
+
+        return wrapper
     
     
     @staticmethod
