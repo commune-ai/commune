@@ -3363,6 +3363,13 @@ class Subspace(c.Module):
         return c.pull(cwd=cls.libpath)
 
     @classmethod
+    def push(cls):
+        return c.push(cwd=cls.libpath)
+    @classmethod
+    def status(cls):
+        return c.status(cwd=cls.libpath)
+
+    @classmethod
     def start_local_node(cls, node:str='alice', mode=mode, chain=chain, max_boot_nodes:int=24, **kwargs):
         cls.pull_image()
         cls.add_node_key(node=node, chain=chain, mode=mode)
