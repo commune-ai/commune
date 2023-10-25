@@ -2845,14 +2845,14 @@ class Subspace(c.Module):
     @classmethod
     def add_node_keys(cls, chain:str=chain, valis:int=24, nonvalis:int=16, refresh:bool=False , mode=mode):
         for i in range(valis):
-            cls.add_node_key(node=i,  vali=True, chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=f'vali.{i}',  chain=chain, refresh=refresh, mode=mode)
         for i in range(nonvalis):
-            cls.add_node_key(node=i,  vali=False , chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=f'nonvali.{i}',  vali=False , chain=chain, refresh=refresh, mode=mode)
 
     @classmethod
     def add_vali_keys(cls, valis:int=24, chain:str=chain,  refresh:bool=False , mode=mode):
         for i in range(valis):
-            cls.add_node_key(node=i,  vali=True, chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=f'vali.{i}',  vali=True, chain=chain, refresh=refresh, mode=mode)
 
     node_key_prefix = 'subspace.node'
     
@@ -2877,8 +2877,7 @@ class Subspace(c.Module):
         return cls.node_keys(chain=chain)[node]
     
     @classmethod
-    def node_key_paths(cls, node=None, chain=chain, vali: bool = True):
-        node_type = 'vali' if vali else 'nonvali'
+    def node_key_paths(cls, node=None, chain=chain):
         key = f'{cls.node_key_prefix}.{chain}.{node}'
         return c.keys(key)
     
@@ -2989,7 +2988,6 @@ class Subspace(c.Module):
     def add_node_key(cls,
                      node:str,
                      mode = mode,
-                     vali: bool = True,
                      chain = chain,
                      tag_seperator = '_', 
                      key_mems:dict = {'aura': None, 'gran': None}, # pass the keys mems
@@ -3003,15 +3001,12 @@ class Subspace(c.Module):
         node = str(node)
 
         c.print(f'adding node key {node} for chain {chain}')
-        node_type = 'vali' if vali else 'nonvali'
-        node = c.copy(f'{node_type}{tag_seperator}{node}')
         node_key_exists = cls.node_key_exists(node=node, chain=chain)
         if node_key_exists and not refresh:
             c.print(f'node key {node} for chain {chain} already exists')
             return {'success':False, 'msg':f'node key {node} for chain {chain} already exists'}
         chain_path = cls.chain_release_path(mode=mode)
         for key_type in ['gran', 'aura']:
-
             # we need to resolve the schema based on the key type
             if key_type == 'gran':
                 schema = 'Ed25519'
@@ -3030,7 +3025,6 @@ class Subspace(c.Module):
 
             # we need to resolve the base path based on the node and chain
             base_path = cls.resolve_base_path(node=node, chain=chain)
-
             cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
             # c.print(cmd)
             if mode == 'docker':
@@ -3483,6 +3477,7 @@ class Subspace(c.Module):
 
         # add the node key if it does not exist
         if key_mems['aura'] != None:
+            c.print(f'adding node key for {key_mems}')
             cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
@@ -3504,14 +3499,13 @@ class Subspace(c.Module):
                 telemetry_url = cls.telemetry_url(chain=chain)
             cmd_kwargs += f' --telemetry-url {telemetry_url}'
 
-        if not validator:
-            cmd_kwargs += f" --pruning={pruning}"
-            cmd_kwargs += f" --sync {sync}"
-        
         if validator :
             cmd_kwargs += ' --validator'
         else:
             cmd_kwargs += ' --ws-external --rpc-external'
+            cmd_kwargs += f" --pruning={pruning}"
+            cmd_kwargs += f" --sync {sync}"
+
         cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
         
         chain_info = cls.getc(f'chain_info.{chain}', {})
@@ -3562,7 +3556,7 @@ class Subspace(c.Module):
             daemon_str = '-d' if daemon else ''
             # cmd = 'cat /subspace/specs/main.json'
             cmd = 'docker run ' + daemon_str  + f' --net host --name {name} {volumes} {cls.image}  bash -c "{cmd}"'
-            output = c.cmd(cmd, verbose=True)
+            output = c.cmd(cmd, verbose=False)
             logs_sig = ' is already in use by container "'
             if logs_sig in output:
                 container_id = output.split(logs_sig)[-1].split('"')[0]
@@ -3609,7 +3603,7 @@ class Subspace(c.Module):
     @classmethod
     def start_chain(cls, 
                     chain:str=chain, 
-                    valis:int = 42,
+                    valis:int = 8,
                     nonvalis:int = 1,
                     verbose:bool = False,
                     purge_chain:bool = True,
@@ -3618,7 +3612,7 @@ class Subspace(c.Module):
                     reuse_ports: bool = False, 
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     remote:bool = False,
-                    build_spec :bool = False
+                    build_spec :bool = True
                     ):
 
         # KILL THE CHAIN
@@ -3642,8 +3636,10 @@ class Subspace(c.Module):
         nonvali_node_keys = cls.nonvali_node_keys(chain=chain)
         nonvali_nodes = list(cls.nonvali_node_keys(chain=chain).keys())[:nonvalis]
         nonvali_node_keys = {k: nonvali_node_keys[k] for k in nonvali_nodes}
-        
         existing_node_ports = {'vali': [], 'nonvali': []}
+
+
+        c.print(f'vali_nodes {vali_node_keys}')
         
         if reuse_ports: 
             node_infos = cls.getc(f'chain_info.{chain}.nodes')
@@ -3693,6 +3689,7 @@ class Subspace(c.Module):
 
 
             # start the node and get 
+            c.print(f'starting node {node} with kwargs {node_kwargs}')
             response = cls.start_node(**node_kwargs, refresh=refresh)
             node_info = response['node_info']
 
