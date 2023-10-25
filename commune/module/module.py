@@ -6335,9 +6335,9 @@ class c:
     def push(cls, msg='update', cwd=None):
         return c.module('git').push(msg=msg, cwd=cwd)
 
-    @classmethod
-    def status(cls,  cwd=None):
-        return c.module('git').status(cwd=cwd)
+    # @classmethod
+    # def status(cls,  cwd=None):
+    #     return c.module('git').status(cwd=cwd)
 
     @classmethod
     def make_pull(cls):
