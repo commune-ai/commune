@@ -825,10 +825,11 @@ class c:
         if isinstance(command, list):
             kwargs = c.locals2kwargs(locals())
             for idx,cmd in enumerate(command):
-                c.print(f'Running {idx}/{len(command)}', color='green')
+                assert isinstance(cmd, str), f'command must be a string, not {type(cmd)}'
                 kwargs['command'] = cmd
-                c.cmd(**kwargs)
-            command = command.split(' ')
+                response = c.cmd(**kwargs)
+            return response
+
         import subprocess
         import shlex
         import time
@@ -6320,34 +6321,22 @@ class c:
         random.shuffle(x)
         return x
     
-
-    @classmethod
-    def pull(cls, stash:bool = True):
-        if stash:
-            c.cmd('git stash', cwd=c.libpath)
-        c.cmd('git pull', cwd=c.libpath)
-        return {'success':True, 'message':'pulled'}
-
     @classmethod
     def pull(cls, stash:bool = False, cwd=None):
-        if cwd is None:
-            cwd = c.libpath
-        if stash:
-            c.cmd('git stash', cwd=cwd)
-        c.cmd('git pull', cwd=cwd)
-        return {'success':True, 'message':'pulled'}
+        return c.module('git').pull(stash=stash, cwd=cwd)
 
-    # @classmethod
-    # def push(cls, msg):
-    #     return c.cmd(f'git add .; git commit -m "{msg}"; git push;')
-    
+    @classmethod
+    def push(cls, cwd=None):
+        return c.module('git').push( cwd=cwd)
+
+
     @classmethod
     def push(cls, msg='update', cwd=None):
-        if cwd is None:
-            cwd = c.libpath
-        c.cmd(f'git add .', cwd=cwd)
-        c.cmd(f'git commit -m "{msg}"', bash=True, cwd=cwd)
-        c.cmd(f'git push', cwd=cwd)
+        return c.module('git').push(msg=msg, cwd=cwd)
+
+    @classmethod
+    def status(cls,  cwd=None):
+        return c.module('git').status(cwd=cwd)
 
     @classmethod
     def make_pull(cls):

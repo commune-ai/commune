@@ -20,9 +20,9 @@ class Git(c.Module):
         
 
     @staticmethod
-    def gitcontent(url='LambdaLabsML/examples/main/stable-diffusion-finetuning/pokemon_finetune.ipynb',
+    def content(url='LambdaLabsML/examples/main/stable-diffusion-finetuning/pokemon_finetune.ipynb',
                    prefix='https://raw.githubusercontent.com'):
-        return c.module('web').rget(url=f'{prefix}/{url}')
+        return c.module('tool.web').rget(url=f'{prefix}/{url}')
     
     submodule_path = c.repo_path + '/repos'
     def add_submodule(self, url, name=None, prefix=submodule_path):
@@ -36,13 +36,34 @@ class Git(c.Module):
 
     addsub = add_submodule
 
-    def push(self):
-        c.cmd('git push')
-    
-    def pull(self):
-        c.cmd('git pull')
+    @classmethod
+    def pull(cls, stash:bool = False, cwd=None):
+        if cwd is None:
+            cwd = c.libpath
+        if stash:
+            c.cmd('git stash', cwd=cwd)
+        c.cmd('git pull', cwd=cwd)
+        return {'success':True, 'message':'pulled'}
 
-    def commit(self, message='update', push:bool = True):
+    @classmethod
+    def push(cls, msg:str='update', cwd=None):
+        if cwd is None:
+            cwd = c.libpath
+        c.cmd(f'git add .', cwd=cwd)
+        c.cmd(f'git commit -m "{msg}"', bash=True, cwd=cwd)
+        c.cmd(f'git push', cwd=cwd)
+
+    @classmethod
+    def status(cls, cwd=None):
+        if cwd is None:
+            cwd = c.libpath
+        return c.cmd(f'git status', cwd=cwd, verbose=False)
+        
+
+
+    @classmethod
+    def commit(cls, message='update', push:bool = True):
         c.cmd(f'git commit -m "{message}"')
         if push:
-            self.push()
+            cls.push()
+
