@@ -259,7 +259,10 @@ class c:
         fn_code_map = {}
         for fn in functions:
             c.print(f'fn: {fn}')
-            fn_code_map[fn] = module.fn_code(fn)
+            try:
+                fn_code_map[fn] = module.fn_code(fn)
+            except Exception as e:
+                c.print(f'Error: {e}', color='red')
         return fn_code_map
     
             
@@ -2303,6 +2306,12 @@ class c:
     @classmethod
     def servers(cls, *args, **kwargs) -> List[str]:
         return c.module("namespace").servers(*args, **kwargs)
+
+    @classmethod
+    def rservers(cls, *args, **kwargs) -> List[str]:
+        return c.module("remote").servers(*args, **kwargs)
+
+    
     @classmethod
     def get_address(cls, module, **kwargs):
         address = c.module("namespace").get_address(module, **kwargs)

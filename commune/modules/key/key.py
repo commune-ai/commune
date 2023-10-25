@@ -119,8 +119,8 @@ class Keypair(c.Module):
             public_key = ss58_decode(ss58_address, valid_ss58_format=ss58_format)
 
         if private_key:
-            if type(private_key) is str:
-                private_key = bytes.fromhex(private_key.replace('0x', ''))
+            if type(private_key) == str:
+                private_key = c.str2bytes(private_key)
 
             if self.crypto_type == KeypairType.SR25519:
                 if len(private_key) != 64:
@@ -1243,3 +1243,7 @@ class Keypair(c.Module):
             return ss58.is_valid_ss58_address( address, valid_ss58_format=valid_ss58_format ) # Default substrate ss58 format (legacy)
         except Exception as e:
             return False
+
+    @classmethod
+    def from_private_key(cls, private_key:str):
+        return cls(private_key=private_key)
