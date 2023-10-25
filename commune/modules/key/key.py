@@ -393,7 +393,12 @@ class Keypair(c.Module):
     
     @classmethod
     def key_exists(cls, key):
-        return key in cls.keys()
+        key_exists =  key in cls.keys()
+        if not key_exists:
+            addresses = list(cls.key2address().values())
+            if key in addresses:
+                key_exists = True
+        return key_exists
     
     
     @classmethod

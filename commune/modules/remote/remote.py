@@ -157,25 +157,34 @@ class Remote(c.Module):
         # Test Remote
         c.print(self.ssh_cmd('ls'))
 
+
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False, stream=True, **kwargs):
-        hosts = cls.hosts(search=search)
-        results = {}
-        for host in hosts:
-            result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, stream=stream, **kwargs), return_future=True, timeout=timeout)
-            results[host] = result_future
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False, verbose:bool = False, num_trials=3, **kwargs):
 
-        result_values = c.wait(list(results.values()), timeout=timeout)
-        results =  dict(zip(results.keys(), result_values))
-        results =  {k:v for k,v in results.items()}
-        for k,v in results.items():
-            if isinstance(v, str):
-                if  v.endswith('\n'):
-                    results[k] =  v[:-1]
-        if return_list:
-            return list(results.values())
+        for i in range(num_trials):
+            try:
+                hosts = cls.hosts(search=search)
+                results = {}
+                for host in hosts:
+                    result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True, timeout=timeout)
+                    results[host] = result_future
+                result_values = c.wait(list(results.values()), timeout=timeout)
+                results =  dict(zip(results.keys(), result_values))
+                results =  {k:v for k,v in results.items()}
+                for k,v in results.items():
+                    if isinstance(v, str):
+                        if  v.endswith('\n'):
+                            results[k] =  v[:-1]
+                if return_list:
+                    return list(results.values())
 
-        return results
+                return results
+            except Exception as e:
+                c.print('Error', e)
+                c.print('Retrying')
+                continue
+        raise Exception(f'Command {commands} failed after {num_trials} trials')
+
     
     @classmethod
     def add_admin(cls):
