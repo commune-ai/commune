@@ -2852,7 +2852,7 @@ class Subspace(c.Module):
     @classmethod
     def add_vali_keys(cls, valis:int=24, chain:str=chain,  refresh:bool=False , mode=mode):
         for i in range(valis):
-            cls.add_node_key(node=f'vali.{i}',  vali=True, chain=chain, refresh=refresh, mode=mode)
+            cls.add_node_key(node=f'vali.{i}',  chain=chain, refresh=refresh, mode=mode)
 
     node_key_prefix = 'subspace.node'
     
