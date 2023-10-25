@@ -3,20 +3,16 @@ chain_info:
   main:
     boot_nodes:
     - /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWGn9nFv6xVVXWx69A8xxNAZcyySJzVncTeP8ENEaqH4g5
-    - /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWCVk7hWqsymsomzDT24DedeHYvSyVRtRGXqA4EWWJAdDw
-    - /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWGc57jbDpz8iL1tQ15TvepPNPwkhGt3P2tniakTdTpoU3
-    - /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWJsqiXw6QWRsTctRke8xMKF52FmB6eD3Fk9yQPTeLuG8U
-    - /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWLfz99dvAiZKdp6ZhPf81DbLcNQH3kwQG96g9niTXQmgq
-    - /ip4/165.22.186.112/tcp/50066/p2p/12D3KooWFZWK8dm5Yenrn9Ju6nLZdPYZQPKUju2fxFF6pz4n2mZq
-    - /ip4/165.22.186.112/tcp/50070/p2p/12D3KooWNWvYhNgBFvwzgJdTGbJD2nbQRA5yQAXYoBvr3dRwMsqe
-    - /ip4/165.22.186.112/tcp/50073/p2p/12D3KooWB9j93UDQQviqeq4QN9fngSUXtZhND6A74H11gFr1ifHg
-    - /ip4/165.22.186.112/tcp/50076/p2p/12D3KooWSwrbUhGbDkKae92P9kEevvLYFuW9Mfp36WcPtGppuibW
-    - /ip4/165.22.186.112/tcp/50079/p2p/12D3KooWQyTUVpj9wc1xWjQFfS69HHEeCxS4F4ER2GreAZswac37
-    - /ip4/165.22.186.112/tcp/50083/p2p/12D3KooWJHWq689UCg3tKanw4AfQavXBagSAJLvHbPA5bsoVxDgN
-    - /ip4/165.22.186.112/tcp/50087/p2p/12D3KooWBiabn7T2K6uPCqx7KNSuJYWgLaH8pR26CZLCdNMx7Fcn
+    - /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWJsqiXw6QWRsTctRke8xMKF52FmB6eD3Fk9yQPTeLuG8U
+    - /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWFZWK8dm5Yenrn9Ju6nLZdPYZQPKUju2fxFF6pz4n2mZq
+    - /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWB9j93UDQQviqeq4QN9fngSUXtZhND6A74H11gFr1ifHg
+    - /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWQyTUVpj9wc1xWjQFfS69HHEeCxS4F4ER2GreAZswac37
+    - /ip4/165.22.186.112/tcp/50066/p2p/12D3KooWBiabn7T2K6uPCqx7KNSuJYWgLaH8pR26CZLCdNMx7Fcn
+    - /ip4/165.22.186.112/tcp/50070/p2p/12D3KooWCKTpoTSdB8WkQSHNkBHqHN7934oUdqXqW9Rhuf1qmTgL
+    - /ip4/165.22.186.112/tcp/50073/p2p/12D3KooWM8ysTthZX1gyRHmgRNfvpzKfSWLewTZktVzy6v9Ys4VN
     nodes:
       vali_0:
-        boot_nodes: /ip4/165.22.186.112/tcp/50096/p2p/12D3KooWC7pgGAxLyvMSHV6f7atRUbB3GodSQNLtx7q9DLp834SZ
+        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWFZWK8dm5Yenrn9Ju6nLZdPYZQPKUju2fxFF6pz4n2mZq
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -41,7 +37,7 @@ chain_info:
         verbose: false
         ws_port: 50052
       vali_1:
-        boot_nodes: /ip4/165.22.186.112/tcp/50116/p2p/12D3KooWAU76MVJUT49g3bD9DQawhP6DJHsKj9qkFdUUtgb9EeiC
+        boot_nodes: /ip4/165.22.186.112/tcp/50070/p2p/12D3KooWCKTpoTSdB8WkQSHNkBHqHN7934oUdqXqW9Rhuf1qmTgL
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -53,139 +49,6 @@ chain_info:
         max_boot_nodes: 24
         mode: docker
         node: vali_1
-        node_key: null
-        port: 50059
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50060
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50061
-      vali_2:
-        boot_nodes: /ip4/165.22.186.112/tcp/50108/p2p/12D3KooWD8MrosfZiJ4J2wfQ2vxK4NcDsVfRRGc2wTGZvQHHEk5K
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: account section code dwarf market success pink anchor swear cook dove
-            autumn
-          gran: fit setup adult nerve guilt blush leisure pigeon link excuse vacuum
-            student
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_2
-        node_key: null
-        port: 50066
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50067
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50069
-      vali_3:
-        boot_nodes: /ip4/165.22.186.112/tcp/50073/p2p/12D3KooWCKTpoTSdB8WkQSHNkBHqHN7934oUdqXqW9Rhuf1qmTgL
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: gospel clock need model syrup weird oven jelly sight glare cherry
-            vacant
-          gran: history undo where inside charge kangaroo wing love bird another hybrid
-            drift
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_3
-        node_key: null
-        port: 50073
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50074
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50075
-      vali_4:
-        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWJsqiXw6QWRsTctRke8xMKF52FmB6eD3Fk9yQPTeLuG8U
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: quiz little near machine hat embark kingdom brush canal spatial slush
-            legal
-          gran: hour media search silk swap casino trumpet settle shift expand jealous
-            hover
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_4
-        node_key: null
-        port: 50079
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50080
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50082
-      vali_5:
-        boot_nodes: /ip4/165.22.186.112/tcp/50056/p2p/12D3KooWJsqiXw6QWRsTctRke8xMKF52FmB6eD3Fk9yQPTeLuG8U
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: lunch glare tell hire demise arctic eternal identify seat decrease
-            file divide
-          gran: burden soon egg slide grass daughter ranch occur invest any neutral
-            dinosaur
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_5
-        node_key: null
-        port: 50087
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50088
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50089
-      vali_vali_0:
-        boot_nodes: /ip4/165.22.186.112/tcp/50059/p2p/12D3KooWFZWK8dm5Yenrn9Ju6nLZdPYZQPKUju2fxFF6pz4n2mZq
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: ball suit base dad pilot brick network spend dismiss slim oak often
-          gran: depart silly caught soda post debate skate all moral volcano hip excuse
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_vali_0
         node_key: null
         port: 50053
         pruning: 20000
@@ -199,34 +62,8 @@ chain_info:
         validator: true
         verbose: false
         ws_port: 50055
-      vali_vali_1:
-        boot_nodes: /ip4/165.22.186.112/tcp/50099/p2p/12D3KooWCc6N6YPdhhdnm4kaZGQKpqid4D99JEbJuc4wLN6RaMj8
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: annual notice start range market vague figure sauce immense comfort
-            pen decorate
-          gran: gym worry tuna fit rival shield hole repair wise legend lamp fossil
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_vali_1
-        node_key: null
-        port: 50062
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50063
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50065
-      vali_vali_2:
-        boot_nodes: /ip4/165.22.186.112/tcp/50105/p2p/12D3KooWFrpA5AdQdWi72M8Zc7Yn7s31nnZnB5UxmAYTyM7sysfL
+      vali_2:
+        boot_nodes: /ip4/165.22.186.112/tcp/50062/p2p/12D3KooWQyTUVpj9wc1xWjQFfS69HHEeCxS4F4ER2GreAZswac37
         chain: main
         daemon: true
         ip: 165.22.186.112
@@ -238,86 +75,7 @@ chain_info:
         local: false
         max_boot_nodes: 24
         mode: docker
-        node: vali_vali_2
-        node_key: null
-        port: 50070
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50071
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50072
-      vali_vali_3:
-        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWCVk7hWqsymsomzDT24DedeHYvSyVRtRGXqA4EWWJAdDw
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: gospel clock need model syrup weird oven jelly sight glare cherry
-            vacant
-          gran: history undo where inside charge kangaroo wing love bird another hybrid
-            drift
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_vali_3
-        node_key: null
-        port: 50076
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50077
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50078
-      vali_vali_4:
-        boot_nodes: /ip4/165.22.186.112/tcp/50090/p2p/12D3KooWPaTUYXCpj5Xxfhs5jqVaxByh2KNf3PocLRYf9NoD7qV3
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: quiz little near machine hat embark kingdom brush canal spatial slush
-            legal
-          gran: hour media search silk swap casino trumpet settle shift expand jealous
-            hover
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_vali_4
-        node_key: null
-        port: 50083
-        pruning: 20000
-        purge_chain: true
-        refresh: true
-        remote_address: null
-        rpc_cors: all
-        rpc_port: 50084
-        sync: warp
-        telemetry_url: false
-        validator: true
-        verbose: false
-        ws_port: 50085
-      vali_vali_vali_0:
-        boot_nodes: /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWGn9nFv6xVVXWx69A8xxNAZcyySJzVncTeP8ENEaqH4g5
-        chain: main
-        daemon: true
-        ip: 165.22.186.112
-        key_mems:
-          aura: ball suit base dad pilot brick network spend dismiss slim oak often
-          gran: depart silly caught soda post debate skate all moral volcano hip excuse
-        local: false
-        max_boot_nodes: 24
-        mode: docker
-        node: vali_vali_vali_0
+        node: vali_2
         node_key: null
         port: 50056
         pruning: 20000
@@ -331,6 +89,140 @@ chain_info:
         validator: true
         verbose: false
         ws_port: 50058
+      vali_3:
+        boot_nodes: /ip4/165.22.186.112/tcp/50050/p2p/12D3KooWGn9nFv6xVVXWx69A8xxNAZcyySJzVncTeP8ENEaqH4g5
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        key_mems:
+          aura: gospel clock need model syrup weird oven jelly sight glare cherry
+            vacant
+          gran: history undo where inside charge kangaroo wing love bird another hybrid
+            drift
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: vali_3
+        node_key: null
+        port: 50059
+        pruning: 20000
+        purge_chain: true
+        refresh: true
+        remote_address: null
+        rpc_cors: all
+        rpc_port: 50060
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50061
+      vali_4:
+        boot_nodes: /ip4/165.22.186.112/tcp/50070/p2p/12D3KooWCKTpoTSdB8WkQSHNkBHqHN7934oUdqXqW9Rhuf1qmTgL
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        key_mems:
+          aura: quiz little near machine hat embark kingdom brush canal spatial slush
+            legal
+          gran: hour media search silk swap casino trumpet settle shift expand jealous
+            hover
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: vali_4
+        node_key: null
+        port: 50062
+        pruning: 20000
+        purge_chain: true
+        refresh: true
+        remote_address: null
+        rpc_cors: all
+        rpc_port: 50063
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50065
+      vali_5:
+        boot_nodes: /ip4/165.22.186.112/tcp/50070/p2p/12D3KooWCKTpoTSdB8WkQSHNkBHqHN7934oUdqXqW9Rhuf1qmTgL
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        key_mems:
+          aura: lunch glare tell hire demise arctic eternal identify seat decrease
+            file divide
+          gran: burden soon egg slide grass daughter ranch occur invest any neutral
+            dinosaur
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: vali_5
+        node_key: null
+        port: 50066
+        pruning: 20000
+        purge_chain: true
+        refresh: true
+        remote_address: null
+        rpc_cors: all
+        rpc_port: 50067
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50069
+      vali_6:
+        boot_nodes: /ip4/165.22.186.112/tcp/50070/p2p/12D3KooWCKTpoTSdB8WkQSHNkBHqHN7934oUdqXqW9Rhuf1qmTgL
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        key_mems:
+          aura: wealth cave kingdom caution satisfy fatal antenna exercise twist grow
+            gadget jacket
+          gran: grid army such trumpet proof rebuild mesh exact toy fault advice panda
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: vali_6
+        node_key: null
+        port: 50070
+        pruning: 20000
+        purge_chain: true
+        refresh: true
+        remote_address: null
+        rpc_cors: all
+        rpc_port: 50071
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50072
+      vali_7:
+        boot_nodes: /ip4/165.22.186.112/tcp/50053/p2p/12D3KooWJsqiXw6QWRsTctRke8xMKF52FmB6eD3Fk9yQPTeLuG8U
+        chain: main
+        daemon: true
+        ip: 165.22.186.112
+        key_mems:
+          aura: sentence labor easy six envelope august weird ugly demand detect journey
+            fix
+          gran: brain butter cricket shrug announce develop tent item brisk anchor
+            call fan
+        local: false
+        max_boot_nodes: 24
+        mode: docker
+        node: vali_7
+        node_key: null
+        port: 50073
+        pruning: 20000
+        purge_chain: true
+        refresh: true
+        remote_address: null
+        rpc_cors: all
+        rpc_port: 50074
+        sync: warp
+        telemetry_url: false
+        validator: true
+        verbose: false
+        ws_port: 50075
 chain_release_path: f"{c.repo_path}/subspace/target/release/node-subspace"
 frontend:
   telemetry:
