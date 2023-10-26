@@ -234,11 +234,18 @@ class Remote(c.Module):
     @classmethod
     def add_servers(cls, *args, add_admins:bool=False, network='remote'):
     
+
         if add_admins:
             c.print('Adding admin')
             cls.add_admin()
         servers = list(cls.cmd('c addy', verbose=True).values())
+        for server in servers:
+            if server.endswith('\n'):
+                server = server[:-1]
         c.add_servers(*servers, network=network)
+        cls.check_servers()
+        servers = c.servers(network=network)
+        return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
 
     @classmethod
     def servers(self, network='remote'):
