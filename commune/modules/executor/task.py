@@ -59,7 +59,7 @@ class Task(c.Module):
         self.status = 'running'
         try:
             data = self.fn(*self.args, **self.kwargs)
-            c.print(data)
+            self.future.set_result(data)
             self.status = 'done'
         except Exception as e:
             # what does this do? A: it sets the exception of the future, and sets the status to failed
@@ -76,7 +76,7 @@ class Task(c.Module):
             self.save()
 
         # set the result of the future
-        self.future.set_result(data)
+        
 
     def result(self) -> object:
         return self.future.result()

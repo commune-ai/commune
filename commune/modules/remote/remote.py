@@ -41,11 +41,10 @@ class Remote(c.Module):
                        username=host['user'], 
                        password=host['pwd'])
         
+
+
         # Execute command
         stdin, stdout, stderr = client.exec_command(command)
-
-
-
         color = c.random_color()
         # Print the output of ls command
         outputs = {'error': '', 'output': ''}
@@ -57,20 +56,20 @@ class Remote(c.Module):
 
         for line in stderr.readlines():
             if verbose:
-                c.print(f'[bold]{host}[/bold]', line.strip('\n'))
+                c.print(f'[bold]{host_name}[/bold]', line.strip('\n'))
             outputs['error'] += line
-
+    
 
         if len(outputs['error']) == 0:
-            output = outputs['output']
-        
+            outputs = outputs['output']
+
+    
         stdin.close()
         stdout.close()
         stderr.close()
-        # Close the Remote connection
         client.close()
 
-        return output
+        return outputs
 
 
     @classmethod
@@ -171,32 +170,52 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False, verbose:bool = False, num_trials=100, **kwargs):
+    def cmd(cls, *commands,  search=None, hosts=None, cwd=None, timeout=100, verbose:bool = False, num_trials=5, **kwargs):
 
+        output = {}
+        host_map = cls.hosts(search=search)
+        if hosts != None:
+            if isinstance(hosts, str):
+                host_map = {k:v for k,v in host_map.items() if hosts in k}
+            elif isinstance(hosts, list):
+                host_map = {k:v for k,v in host_map.items() if k in hosts}
+            else:
+                raise Exception(f'hosts must be a list or a string')
+        hosts = host_map
         for i in range(num_trials):
             try:
-                hosts = cls.hosts(search=search)
                 results = {}
-                for host in hosts:
-                    result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True, timeout=timeout)
+                for host in host_map:
+                    result_future = c.submit(cls.ssh_cmd, args=commands, kwargs=dict(host=host, cwd=cwd, verbose=verbose,**kwargs), return_future=True)
                     results[host] = result_future
                 result_values = c.wait(list(results.values()), timeout=timeout)
                 results =  dict(zip(results.keys(), result_values))
                 results =  {k:v for k,v in results.items()}
-                for k,v in results.items():
-                    if isinstance(v, str):
-                        if  v.endswith('\n'):
-                            results[k] =  v[:-1]
-                if return_list:
-                    return list(results.values())
 
-                return results
+                if all([v == None for v in results.values()]):
+                    raise Exception(f'all results are None')
+                
+                unfinished_hosts  = []
+                for k, v in results.items():
+                    if v == None:
+                        unfinished_hosts += [k]
+                    else:
+                        output[k] = v
+
+                host_map = {k:v for k,v in host_map.items() if k in unfinished_hosts}
+                
+                if len(host_map) == 0:
+                    break
+
             except Exception as e:
-                c.print('Error', e)
                 c.print('Retrying')
+                c.print(c.detailed_error(e))
                 continue
-        
-        raise Exception(f'Command {commands} failed after {num_trials} trials')
+
+
+
+
+        return output 
 
     
     @classmethod
