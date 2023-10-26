@@ -239,9 +239,9 @@ class Remote(c.Module):
             c.print('Adding admin')
             cls.add_admin()
         servers = list(cls.cmd('c addy', verbose=True).values())
-        for server in servers:
+        for i, server in enumerate(servers):
             if server.endswith('\n'):
-                server = server[:-1]
+                servers[i] = server[:-1]
         c.add_servers(*servers, network=network)
         cls.check_servers()
         servers = c.servers(network=network)

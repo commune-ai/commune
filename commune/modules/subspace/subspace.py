@@ -2856,7 +2856,7 @@ class Subspace(c.Module):
 
         def get_node_number(node):
   
-            if '_' in node and node.split('_')[-1].is_digit():
+            if '_' in node and node.split('_')[-1].isdigit():
                 return int(node.split('_')[-1])
             else:
                 return 10e9
@@ -3348,10 +3348,10 @@ class Subspace(c.Module):
             kwargs['ws_port'] = free_ports[2]
 
             response = cls.start_node(node=node_name , chain=chain, mode=mode, validator=False, max_boot_nodes=max_boot_nodes, **kwargs)
-            
             if 'node_info' not in response:
                 c.print(response, 'response')
                 raise ValueError('No node info in response')
+
             node_info = response['node_info']
             c.print('started node', node_name, '--> ', response['logs'])
 
@@ -3636,6 +3636,7 @@ class Subspace(c.Module):
         chain_info = {'nodes':{}, 'boot_nodes':[]}
         
 
+        remote_address_cnt = 1
         avoid_ports = []
 
         if remote: 
@@ -3656,7 +3657,6 @@ class Subspace(c.Module):
 
                             }
             if remote:
-                node_kwargs['remote_address'] =   remote_addresses[i % len(remote_addresses)]
                 node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
             else:
@@ -3668,10 +3668,23 @@ class Subspace(c.Module):
                 node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
 
-            response = cls.start_node(**node_kwargs, refresh=refresh)
+
+            for i in range(10):
+                if remote:
+                    node_kwargs['remote_address'] =   remote_addresses[i % remote_address_cnt ]
+
+                response = cls.start_node(**node_kwargs, refresh=refresh)
+                if 'node_info' in response:
+                    break
+
+                remote_address_cnt += 1
+
+            assert 'node_info' in response, f'node_info must be in response, not {response}'
+            assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
+
+            remote_address_cnt += 1
             node_info = response['node_info']
 
-            assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
             boot_node = response['boot_node']
             chain_info['boot_nodes'].append(boot_node)
             chain_info['nodes'][node] = node_info
