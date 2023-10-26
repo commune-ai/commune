@@ -5231,21 +5231,25 @@ class c:
         return c.wait(futures)
 
     @classmethod
-    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , multithread:bool=False, **kwargs):
+    def regfleet(cls,module = None, tag:str=None, n:int=2, timeout=40 , stake=None, multithread:bool=False, **kwargs):
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
         server_names = []
+        if stake == None:
+            stake = subspace.min_stake()
+            c.print('No stake provided, using min stake, which is {}'.format(stake), color='yellow')
         if multithread:
             executor = c.module('executor')(max_workers=n)
             futures = []
             for i in range(n):
-                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), **kwargs}, timeout=timeout)
+                future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
                 futures = futures + [future]
             return c.wait(futures, timeout=timeout)
         else:
             for i in range(n):
-                r = cls.register(module=module, tag=tag+str(i),  **kwargs)
+                r = cls.register(module=module, tag=tag+str(i), stake=stake,  **kwargs)
+                assert r['success'] == True, r
                 server_names.append(r['server_name'])
             return {'servers':server_names}
 

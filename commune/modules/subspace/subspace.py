@@ -390,9 +390,8 @@ class Subspace(c.Module):
                 c.print(f":cross_mark: [red]Module {name} already registered[/red]")
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
 
-        c.print(stake, 'before')
         stake = self.to_nanos(stake)
-        c.print(stake, 'after')
+
         params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
@@ -406,6 +405,8 @@ class Subspace(c.Module):
 
         if response['success']:
             response['msg'] = f'Registered {name} with {stake} stake'
+        c.print(response)
+
         return response
 
     reg = register
@@ -599,15 +600,15 @@ class Subspace(c.Module):
             'name': name,
         }
 
+        # remove the params that are the same as the module info
         old_params = {}
         for k, v in params.items():
             old_params[k] = subnet_state[k]
             if v == None:
                 params[k] = old_params[k]
-        name = subnet_state['name']
+                
         params['netuid'] = netuid
 
-        c.print(params)
         response = self.compose_call(fn='update_network',params=params, key=key)
 
         return response
@@ -1765,17 +1766,20 @@ class Subspace(c.Module):
         return name2uid
             
         
-    def name2key(self, prefix:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
+    def name2key(self, search:str=None,  netuid: int = None, network=network) -> Dict[str, str]:
         # netuid = self.resolve_netuid(netuid)
         self.resolve_network(network)
         names = self.names(netuid=netuid)
         keys = self.keys(netuid=netuid)
 
         name2key =  { n: k for n, k in zip(names, keys)}
-        if prefix != None:
-            name2key = {k:v for k,v in name2key.items() if k.startswith(prefix)}
+        if search != None:
+            name2key = {k:v for k,v in name2key.items() if search in k}
             
         return name2key
+
+    def key2name(self,search=None, netuid: int = None, network=network) -> Dict[str, str]:
+        return {v:k for k,v in self.name2key(search=search, netuid=netuid, network=network).items()}
         
     def is_unique_name(self, name: str, netuid=None):
         return bool(name not in self.namespace(netuid=netuid))
@@ -2352,6 +2356,7 @@ class Subspace(c.Module):
             registration_blocks = [r for r in registration_blocks if r > 0]
         return registration_blocks
 
+    regblocks = registration_blocks
 
 
     def key2uid(self, network:str=  None,netuid: int = None, **kwargs):
