@@ -2794,10 +2794,15 @@ class Subspace(c.Module):
         for i in range(nonvalis):
             cls.add_node_key(node=f'nonvali_{i}' , chain=chain, refresh=refresh, mode=mode)
 
+        return {'success': True, 'msg': f'Added {valis} valis and {nonvalis} nonvalis to {chain}'}
+
     @classmethod
-    def add_vali_keys(cls, valis:int=24, chain:str=chain,  refresh:bool=False , mode=mode):
-        for i in range(valis):
-            cls.add_node_key(node=f'vali_{i}',  chain=chain, refresh=refresh, mode=mode)
+    def add_vali_keys(cls, n:int=24, chain:str=chain,  refresh:bool=False , timeout=10, mode=mode):
+        results = []
+        for i in range(n):
+            result = cls.add_node_key(node=f'vali_{i}',  chain=chain, refresh=refresh, mode=mode)
+            results += [results]
+        return results
 
     node_key_prefix = 'subspace.node'
     
@@ -2846,6 +2851,15 @@ class Subspace(c.Module):
                 node_keys[name] = {}
             c.print(k)
             node_keys[name][key_type] = key_module.get_key(k).ss58_address
+
+        # sort by node number
+
+        def get_node_number(node):
+            if '_' not in node:
+                return 10e9
+            return int(node.split('_')[-1])
+
+        node_keys = dict(sorted(node_keys.items(), key=lambda item: get_node_number(item[0])))
 
 
         return node_keys
@@ -3276,10 +3290,15 @@ class Subspace(c.Module):
         if push_image:
             cls.push_image()
         if rpull:
-            # pull from the remote server
-            c.rcmd('c s pull', verbose=True)
-            if push_image:
-                c.rcmd('c s pull_image', verbose=True)
+            cls.rpull()
+
+    @classmethod
+    def rpull(cls):
+        # pull from the remote server
+        c.rcmd('c s pull', verbose=True)
+        c.rcmd('c s pull_image', verbose=True)
+
+
 
     @classmethod
     def status(cls):
@@ -3643,6 +3662,9 @@ class Subspace(c.Module):
                     avoid_ports.append(port)
                     node_kwargs[k] = port
 
+                node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+
+
             response = cls.start_node(**node_kwargs, refresh=refresh)
             node_info = response['node_info']
 
@@ -3656,7 +3678,6 @@ class Subspace(c.Module):
             cls.start_public_nodes(n=nonvalis, chain=chain, refresh=True)
 
 
-    
                
     @classmethod
     def node2url(cls, network:str = network) -> str:

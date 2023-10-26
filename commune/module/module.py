@@ -7203,6 +7203,10 @@ class c:
     @classmethod
     def add_node(cls, *args, **kwargs):
         return c.module('subspace').add_node(*args, **kwargs)
+
+    @classmethod
+    def add_node_key(cls, *args, **kwargs):
+        return c.module('subspace').add_node_key(*args, **kwargs)
     
 
     @classmethod   
