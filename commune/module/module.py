@@ -6336,7 +6336,7 @@ class c:
 
     @classmethod
     def push(cls, cwd=None):
-        return c.module('git').push( cwd=cwd)
+        return c.module('git').push(cwd=cwd)
 
 
     @classmethod

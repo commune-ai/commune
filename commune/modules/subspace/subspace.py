@@ -3278,16 +3278,15 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def pull(cls, rpull:bool = True):
+    def pull(cls, rpull:bool = False):
         c.pull(cwd=cls.libpath)
         if rpull:
-            c.rcmd('c s pull', verbose=True)
-            c.rcmd('c s pull_image', verbose=True)
+            cls.rpull()
 
     @classmethod
-    def push(cls, rpull:bool=True, push_image:bool = True ):
+    def push(cls, rpull:bool=False, image:bool = False ):
         c.push(cwd=cls.libpath)
-        if push_image:
+        if image:
             cls.push_image()
         if rpull:
             cls.rpull()
