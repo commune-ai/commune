@@ -54,10 +54,11 @@ class Git(c.Module):
         c.cmd(f'git push', cwd=cwd)
 
     @classmethod
-    def gitstatus(cls, cwd=None):
+    def gstat(cls, cwd=None):
         if cwd is None:
             cwd = c.libpath
         return c.cmd(f'git status', cwd=cwd, verbose=False)
+
         
 
 

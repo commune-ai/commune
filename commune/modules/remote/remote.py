@@ -133,6 +133,16 @@ class Remote(c.Module):
         if search != None:
             hosts = {k:v for k,v in hosts.items() if search in k}
         return hosts
+
+    @classmethod
+    def names(cls, search=None):
+        return list(cls.hosts(search=search).keys())
+
+    
+
+    @classmethod
+    def n(cls, search=None):
+        return len(cls.hosts(search=search))
     
     @classmethod
     def host(self, name):
@@ -142,7 +152,9 @@ class Remote(c.Module):
             raise Exception(f'Host {name} not found')
         
         return hosts[name]
-    
+    @classmethod
+    def has(cls, name):
+        return name in cls.hosts()
 
     @classmethod
     def host_exists(self, name):

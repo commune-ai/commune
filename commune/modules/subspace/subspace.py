@@ -135,66 +135,9 @@ class Subspace(c.Module):
     def __str__(self) -> str:
         return f'<Subspace: network={self.network}>'
     
-    
-
-    def verify(self, 
-               auth,
-               max_staleness=100,
-               ensure_registered=True,):
-        key = c.module('key')(ss58_address=auth['address'])
-        verified =  key.verify(auth['data'], bytes.fromhex(auth['signature']), bytes.fromhex(auth['public_key']))
-        if not verified:
-            return {'verified': False, 'error': 'Signature is invalid.'}
-        if auth['address'] != key.ss58_address:
-            return {'verified': False, 'error': 'Signature address does not match.'}
-        
-        data = c.jload(auth['data'])
-        
-        if data['timestamp'] < c.time() - max_staleness:
-            return {'verified': False, 'error': 'Signature is stale.', 'timestamp': data['timestamp'], 'now': c.time()}
-        if not self.is_registered(key,netuid= data['netuid']) and ensure_registered:
-            return {'verified': False, 'error': 'Key is not registered.'}
-        return {'verified': True, 'error': None}
-    
-    @classmethod
-    def cj(cls, *args, remote = True, sleep_interval:str = 100, **kwargs):
-        if remote:
-            c.print('Remote voting...')
-            kwargs['remote'] = False
-            return cls.remote_fn('cj', args=args, kwargs=kwargs)
-        self = cls()
-        while True:
-            c.print(f'Sleeping for {sleep_interval} seconds...')
-            c.print('Voting...')
-            c.sleep(sleep_interval)
-            self.vote_pool(*args, **kwargs)
-
     def shortyaddy(self, address, first_chars=4):
         return address[:first_chars] + '...' 
 
-
-    def auto_unstake(self, search=None, netuid = 1, network = 'main',  controller=None):
-        my_staketo = self.my_staketo(netuid=netuid, network=network)
-        controller = c.get_key(controller)
-        address2key = c.address2key()
-        controller_key_name = address2key.get(controller.ss58_address)
-        for key, staketo_vec in my_staketo.items():
-            key_name = address2key.get(key)
-
-            if search != None and search not in key:
-                continue
-            c.print(f'Unstaking {key_name}', color='yellow')
-            for module_key, amount in staketo_vec:
-                module_key_name = address2key.get(module_key, module_key)
-                c.print(f'Unstaking {amount} from {module_key_name} to {controller_key_name}', color='white')
-                if amount > 0:
-                    self.unstake(key=key, amount=amount, module_key=module_key)
-
-            c.print(f'Transferring {key_name} balance to {module_key_name}', color='green')
-            controller_key = c.get_key(controller)
-            self.transfer(key=key, amount=amount, dest=controller.ss58_address)
-                
-    
 
     def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
         mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block)
@@ -315,7 +258,7 @@ class Subspace(c.Module):
     #### Set Weights ####
     #####################
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
-    def vote(
+    def set_weights(
         self,
         key: 'c.key' = None,
         uids: Union[torch.LongTensor, list] = None,
@@ -364,44 +307,15 @@ class Subspace(c.Module):
         uid2weight = {uid: int(weight) for uid, weight in zip(uids, weights)}
         uids = list(uid2weight.keys())
         weights = list(uid2weight.values())
-        
-        c.print(f'Weights: {weights} from {key}')
-        
-        c.print(f'Setting weights for {len(uids)} uids..., {len(weights)}')
-        # First convert types.
 
-        with self.substrate as substrate:
-            call = substrate.compose_call(
-                call_module='SubspaceModule',
-                call_function='set_weights',
-                call_params = {
-                    'uids': uids,
-                    'weights': weights,
-                    'netuid': netuid,
-                }
-            )
-        # Period dictates how long the extrinsic will stay as part of waiting pool
-        c.print(key)
-        extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key, era={'period':100})
+        params = {'uids': uids,'weights': weights, 'netuid': netuid}
+        response = self.compose_call('set_weights',params = params , key=key)
+            
+        if response['success']:
+            return {'success': True, 'weights': weights, 'uids': uids, 'message': 'Set weights'}
+        return response
 
-        c.print(f'Submitting extrinsic: {extrinsic}')
-        response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion,
-                                              wait_for_finalization = wait_for_finalization )
-        # We only wait here if we expect finalization.
-        if not wait_for_finalization and not wait_for_inclusion:
-            c.print(":white_heavy_check_mark: [green]Sent[/green]")
-            return True
-        response.process_events()
-        if response.is_success:
-            c.print(":white_heavy_check_mark: [green]Finalized[/green]")            
-            c.print(f"Set weights:\n[bold white]  weights: {weights}\n  uids: {uids}[/bold white ]")
-            return True
-        else:
-            c.print(":cross_mark: [red]Failed[/red]: error:{}".format(response.error_message))
-            c.print(  'Set weights <red>Failed: </red>' + str(response.error_message) )
-            return False
-
-    set_weights = vote
+    vote = set_weights
 
     def get_netuid_for_subnet(self, network: str = None) -> int:
         netuid = self.subnet_namespace.get(network, None)
@@ -451,6 +365,7 @@ class Subspace(c.Module):
         existential_balance: float = 0.1,
         replace_module: str = None, # if you want to replace a module
         sync: bool = False,
+        fmt = 'nano'
 
     ) -> bool:
         
@@ -459,7 +374,6 @@ class Subspace(c.Module):
         # resolve the subnet name
         if subnet == None:
             subnet = self.config.subnet
-
 
         network =self.resolve_network(network)
         address = c.namespace(network='local').get(name, c.default_ip)
@@ -470,18 +384,16 @@ class Subspace(c.Module):
         # Validate address.
         if self.subnet_exists(subnet, network=network):
             netuid = self.get_netuid_for_subnet(subnet)
+
+            
             if self.is_registered(module_key.ss58_address, netuid=netuid):
                 c.print(f":cross_mark: [red]Module {name} already registered[/red]")
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
-            else:
-                c.print(f":satellite: Registering {name} with address {address} replacing {replace_module}")
-                if replace_module != None:
-                    assert self.is_registered(replace_module, netuid=netuid), f"Module {replace_module} is not registered"
-                    return self.update_module(name=replace_module, address=address, netuid=netuid, network=network)
 
-                
-
-        call_params = { 
+        c.print(stake, 'before')
+        stake = self.to_nanos(stake)
+        c.print(stake, 'after')
+        params = { 
                     'network': subnet.encode('utf-8'),
                     'address': address.encode('utf-8'),
                     'name': name.encode('utf-8'),
@@ -489,31 +401,12 @@ class Subspace(c.Module):
                     'module_key': module_key.ss58_address,
                 } 
 
-        with self.substrate as substrate:
-            
-            # create extrinsic call
-            call = substrate.compose_call( 
-                call_module='SubspaceModule',  
-                call_function='register', 
-                call_params=call_params
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key  )
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion=wait_for_inclusion, wait_for_finalization=wait_for_finalization )
-            
-            # process if registration successful, try again if pow is still valid
-            response.process_events()
-            
-        if response.is_success:
-            msg = f'Registered {name} with address {address}'
-            c.print(f":white_heavy_check_mark: [green]{msg}[/green]")
-            return {'success': True, 'message': msg}
-            # if sync:
-            #     self.sync()
-        else:
-            msg = response.error_message
-            c.print(f":cross_mark: [red]Failed[/red]: error:{response.error_message}")
-            return {'success': False, 'message': response.error_message}    
-        
+        # create extrinsic call
+        response = self.compose_call('register', params=params, key=key)
+
+        if response['success']:
+            response['msg'] = f'Registered {name} with {stake} stake'
+        return response
 
     reg = register
 
@@ -540,40 +433,28 @@ class Subspace(c.Module):
         if isinstance( dest, bytes):
             # Convert bytes to hex string.
             dest = "0x" + dest.hex()
-
-
         # Check balance.
         account_balance = self.get_balance( key.ss58_address , fmt='j' )
 
         if amount > account_balance:
-            c.print(":cross_mark: [red]Insufficient balance[/red]:[bold white]\n  {}[/bold white]".format(account_balance))
-            return
-        amount = self.to_nanos(amount)
+            return {'success': False, 'message': f'Insufficient balance: {account_balance}'}
+
+
+        amount = self.to_nanos(amount) # convert to nano (10^9 nanos = 1 token)
         dest_balance = self.get_balance( dest , fmt='j')
 
-        with c.status(f"Transferring {amount} from {key.ss58_address[:5]}... to {dest[:5]}..."):
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                    call_module='Balances',
-                    call_function='transfer',
-                    call_params={
-                        'dest': dest, 
-                        'value': amount
-                    }
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    c.print(":white_heavy_check_mark: [green]Sent[/green]")
-                    return True
+        response = self.compose_call(
+            module='Balances',
+            fn='transfer',
+            params={
+                'dest': dest, 
+                'value': amount
+            },
+            key=key
+        )
 
-        # Otherwise continue with finalization.
-        response.process_events()
-            
-        if response.is_success:
-            c.print(":white_heavy_check_mark: [green]Finalized[/green]")
-            response = {
+        if response['success']:
+            return {
                 'success': True,
                 'from': {
                     'address': key.ss58_address,
@@ -590,10 +471,8 @@ class Subspace(c.Module):
             }
 
         else:
-            
-            response =  {'success': False, 'message': response.error_message}
+            return {'success': False, 'message': response.error_message}
 
-        return response
 
 
     send = transfer
@@ -625,10 +504,12 @@ class Subspace(c.Module):
         # params from here
         name: str = None,
         address: str = None,
+        delegation_fee: float = 20,
         netuid: int = None,
         wait_for_inclusion: bool = False,
         wait_for_finalization = True,
         network : str = network,
+
 
     ) -> bool:
         self.resolve_network(network)
@@ -647,51 +528,36 @@ class Subspace(c.Module):
         if name == module_info['name'] and address == module_info['address']:
             c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
             return {'success': False, 'message': f'{module} already registered and is up to date with your changes'}
-        call_params = {
-            'name': name,
-            'address': address,
-            'netuid': netuid,
+        assert delegation_fee != None, f"Delegate fee must be provided"
+
+        if delegate_fee < 1.0 and delegate_fee > 0:
+            delegate_fee = delegate_fee * 100
+        assert delegate_fee >= 0 and delegate_fee <= 100, f"Delegate fee must be between 0 and 100"
+
+        params = {
+            'netuid': netuid, # defaults to module.netuid
+             # PARAMS #
+            'name': name, # defaults to module.tage
+            'address': address, # defaults to module.tage
+            'delegation_fee': delegation_fee, # defaults to module.delegate_fee
         }
 
+        # remove the params that are the same as the module info
         for k in ['name', 'address']:
-            if call_params[k] == module_info[k]:
-                call_params[k] = ''
+            if params[k] == module_info[k]:
+                params[k] = ''
 
 
-        with self.substrate as substrate:
-            c.print(f':satellite: Updating Module: [bold white]{name}[/bold white] \n\n {call_params}')
-            
-            call = substrate.compose_call(
-                call_module='SubspaceModule',
-                call_function='update_module',
-                call_params =call_params
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-            
-            if wait_for_inclusion or wait_for_finalization:
-                response.process_events()
-                if response.is_success:
-                    msg = f':white_heavy_check_mark: [green]{msg}[/green]\n  [bold white]{call_params}[/bold white]'
-                    c.print(msg)
-                    if module != name:
-                        # we need to switch the keys to avoid confusion if you rename the module 
-                        # this is to ensure the key is always the same as the module name on the network
-                        c.switch_key(old_name,name)
-                    return {'success': True, 'msg': msg}
-                else:
-                    msg = response.error_message
-                    c.print( f':cross_mark: error: {msg}')
-                    return {'success': False, 'msg': msg}
+        reponse  = self.compose_call('update_module',params=params, key=key)
 
-
+        return reponse
 
 
 
     #################
     #### Serving ####
     #################
-    def update_network (
+    def update_network(
         self,
         netuid: int = None,
         immunity_period: int = None,
@@ -699,6 +565,7 @@ class Subspace(c.Module):
         max_allowed_weights: int = None,
         max_allowed_uids: int = None,
         max_immunity_ratio: int = None,
+        min_stake : int = None,
         tempo: int = None,
         name:str = None,
         founder: str = None,
@@ -720,6 +587,9 @@ class Subspace(c.Module):
             key = c.get_key(key2address.get(subnet_state['founder']))
             c.print(f'Using key: {key}')
 
+        # convert to nanos
+        if min_stake != None:
+            min_stake = self.to_nanos(min_stake)
         
         params = {
             'immunity_period': immunity_period,
@@ -729,37 +599,22 @@ class Subspace(c.Module):
             'max_immunity_ratio': max_immunity_ratio,
             'tempo': tempo,
             'founder': founder,
+            'min_stake': min_stake,
             'name': name,
         }
+
         old_params = {}
         for k, v in params.items():
             old_params[k] = subnet_state[k]
             if v == None:
                 params[k] = old_params[k]
         name = subnet_state['name']
-        call_params = {'netuid': netuid, **params}
+        params['netuid'] = netuid
 
-        with self.substrate as substrate:
-            c.print(f':satellite: Updating Subnet:({name}, id: {netuid})')
-            c.print(f'  [bold yellow]Old Params:[/bold yellow] \n', old_params)
-            c.print(f'  [bold green]New Params:[/bold green] \n',params)
-            call = substrate.compose_call(
-                call_module='SubspaceModule',
-                call_function='update_network',
-                call_params =call_params
-            )
-            extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key)
-            response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-            if wait_for_inclusion or wait_for_finalization:
-                response.process_events()
-                if response.is_success:
-                    c.print(f':white_heavy_check_mark: [green]Updated SubNetwork ({name}, id: {netuid}) [/green]')
-                    return True
-                else:
-                    c.print(f':cross_mark: [red]Failed to Change Subnetwork[/red] ({name}, id: {netuid}) error: {response.error_message}')
-                    return False
-            else:
-                return True
+        response = self.compose_call(fn='update_network',params=params, key=key)
+
+        return response
+
 
     def get_unique_tag(self, module:str, tag:str=None, netuid:int=None, **kwargs):
         if tag == None:
@@ -859,40 +714,23 @@ class Subspace(c.Module):
         amount = self.to_nanos(amount - existential_deposit)
         
         # Get current stake
-        call_params={
+        params={
                     'netuid': netuid,
                     'amount': int(amount),
                     'module_key': module_key
+
                     }
-    
-        c.print(call_params)
 
-        with c.status(":satellite: Staking to: [bold white]{}[/bold white] ...".format(self.network)):
+        response  = self.compose_call('transfer_stake',params=params, key=key)
 
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                call_module='SubspaceModule', 
-                call_function='add_stake',
-                call_params=call_params
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                response = substrate.submit_extrinsic( extrinsic, 
-                                                        wait_for_inclusion = wait_for_inclusion,
-                                                        wait_for_finalization = wait_for_finalization )
 
-        if response.is_success:
-            c.print(":white_heavy_check_mark: [green]Sent[/green]")
-            new_balance = self.get_balance(  key.ss58_address , fmt='j')
-            c.print(f"Balance ({key.ss58_address}):\n  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]")
+        if response['success']:
+            new_balance = self.get_balance(key.ss58_address , fmt='j')
             new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
-            c.print(f"Stake ({module_key}):\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
-                
+            msg = f"Staked {amount} from {key.ss58_address} to {module_key}"
+            return {'success': True, 'msg':msg}
         else:
-            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
-
-
-        if sync:
-            self.sync()
+            return  {'success': False, 'msg':response.error_message}
 
 
 
@@ -918,6 +756,8 @@ class Subspace(c.Module):
         old_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
+
+            
         amount = int(self.to_nanos(amount - existential_deposit))
         
         # Get current stake
@@ -927,34 +767,15 @@ class Subspace(c.Module):
                     'module_key': module_key
                     }
 
-        with c.status(f":satellite: Staking to: {module_key}  [bold white]{self.network}[/bold white] ..."):
 
-            with self.substrate as substrate:
+        response = self.compose_call('add_stake',params=params, key=key)
 
-                call = substrate.compose_call( call_module='SubspaceModule', 
-                                                call_function='add_stake',
-                                                call_params=call_params
-                                                )
-
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                response = substrate.submit_extrinsic( extrinsic, 
-                                                        wait_for_inclusion = wait_for_inclusion,
-                                                        wait_for_finalization = wait_for_finalization )
-
-        if response.is_success:
-            c.print(":white_heavy_check_mark: [green]Sent[/green]")
+        if response['succes']:
             new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
-            c.print(f"Stake ({module_key[:4]}..):\n  [blue]{old_stake}[/blue] :arrow_right: [green]{new_stake}[/green]")
-
             new_balance = self.get_balance(  key.ss58_address , fmt='j')
-            c.print(f"Balance ({key.ss58_address}...):\n  [blue]{old_balance}[/blue] :arrow_right: [green]{new_balance}[/green]")
-                
-        else:
-            c.print(":cross_mark: [red]Stake Error: {}[/red]".format(response.error_message))
+            response.update({"message": "Stake Sent", "from": key.ss58_address, "to": module_key, "amount": amount, "balance_before": old_balance, "balance_after": new_balance, "stake_before": old_stake, "stake_after": new_stake})
 
-
-        if sync:
-            self.sync()
+        return response
 
 
 
@@ -979,35 +800,18 @@ class Subspace(c.Module):
         old_stake = most_staketo_key['stake']
         amount = old_stake if amount == None else amount
         amount = self.to_nanos(amount)
-        call_params={
+        params={
             'amount': int(amount),
             'netuid': netuid,
             'module_key': module_key
             }
-
-        with c.status(":satellite: Unstaking from chain: [white]{}[/white] ...".format(self.network)):
-
-            with self.substrate as substrate:
-                call = substrate.compose_call(
-                call_module='SubspaceModule', 
-                call_function='remove_stake',
-                call_params=call_params
-                )
-                extrinsic = substrate.create_signed_extrinsic( call = call, keypair = key )
-                response = substrate.submit_extrinsic( extrinsic, wait_for_inclusion = wait_for_inclusion, wait_for_finalization = wait_for_finalization )
-                # We only wait here if we expect finalization.
-                if not wait_for_finalization and not wait_for_inclusion:
-                    return True
-
-                response.process_events()
-
-
-        if response.is_success: # If we successfully unstaked.
+        response = self.compose_call(fn='remove_stake',params=parmas)
+        
+        if response['success']: # If we successfully unstaked.
             new_balance = self.get_balance( key.ss58_address , fmt='j')
             new_stake = self.get_stakefrom(module_key, from_key=key.ss58_address , fmt='j') # Get stake on hotkey.
-
-            response = {
-                'success': response.is_success,
+            return {
+                'success': True,
                 'from': {
                     'key': key.ss58_address,
                     'balance_before': old_balance,
@@ -1019,13 +823,6 @@ class Subspace(c.Module):
                     'stake_after': new_stake
             }
             }
-
-
-        else:
-            response = { 'success': response.is_success , 'message': response.error_message}
-
-        c.print(":white_heavy_check_mark: [green]Finalized[/green]")
-
 
         return response
             
@@ -1213,8 +1010,12 @@ class Subspace(c.Module):
     to_token = from_nano
     @classmethod
     def to_nanos(cls,x):
+        """
+        Converts a token amount to nanos
+        """
         return x * (10**cls.token_decimals)
     from_token = to_nanos
+
     @classmethod
     def format_amount(cls, x, fmt='nano', decimals = None):
         if fmt in ['nano', 'n']:
@@ -1286,34 +1087,40 @@ class Subspace(c.Module):
             self.unstake( key=key, module_key=module_key, netuid=netuid, amount=stake_amount)
        
 
-    def stake_multiple( self, 
+    def multistake( self, 
                         key: str, 
-                        modules:list = None,
-                        amounts:Union[list, float, int] = None,
-                        netuid:int = None,
+                        modules:List[str],
+                        amounts:Union[List[str], float, int],
+                        netuid:int = 0,
                         network: str = None) -> Optional['Balance']:
-        self.resolve_network( network )
+        network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
-        if modules is None:
-            modules = [m['name'] for m in self.my_modules(netuid=netuid)]  
-        if amounts is None:
-            amounts = [balance/len(modules)] * len(modules)
+        name2key = self.name2key(netuid=netuid)
+
+        # resolve module keys
+        for i, module in enumerate(modules):
+            if module in name2key:
+                modules[i] = name2key[module]
+        
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(modules)
-        assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
-        
-        module2key = self.module2key(netuid=netuid)
-        
-        if balance < sum(amounts):
-            return {'error': f"Insufficient balance. {balance} < {sum(amounts)}"}
-        module2amount = {module:amount for module, amount in zip(modules, amounts)}
-        c.print(f"Staking {module2amount} for [bold white]{key.ss58_address}[/bold white] on network [bold white]{netuid}[/bold white].")
 
-        for module, amount in module2amount.items():
-            module_key = module2key[module]
-            self.stake( key=key, module_key=module_key, netuid=netuid, amount=amount)
-       
+        assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+
+        call_params = {
+            "netuid": netuid,
+            "module_keys": module_keys,
+            "amounts": amounts
+        }
+
+        response = cls.compose_call('add_stake_multiple', params=call_params, key=key)
+
+        return response
+                    
+
+        
+
     ###########################
     #### Global Parameters ####
     ###########################
@@ -1506,10 +1313,6 @@ class Subspace(c.Module):
         if path == None:
             return {}
         return cls.get(path, {})
-            
-        
-
-
     
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
         network = self.resolve_network(network)
@@ -1526,13 +1329,11 @@ class Subspace(c.Module):
         return bool(subnet in subnets)
 
     def subnet_states(self, *args, **kwargs):
-
         subnet_states = []
         for netuid in self.netuids():
             subnet_state = self.subnet(*args,  netuid=netuid, **kwargs)
             subnet_states.append(subnet_state)
         return subnet_states
-
 
     def total_stake(self, network=network, block: Optional[int] = None, netuid:int=None, fmt='j') -> 'Balance':
         self.resolve_network(network)
@@ -1547,14 +1348,12 @@ class Subspace(c.Module):
 
     mcap = market_cap = total_supply
             
-    
     def subnet_state(self, 
                     netuid=netuid,
                     network = network,
                     update: bool = False,
                     block : Optional[int] = None,
                     cache:bool = False) -> list:
-        
         
         if cache and not update:
             subnet_states =  self.state_dict(network=network, key='subnets', update=update )
@@ -1578,6 +1377,7 @@ class Subspace(c.Module):
                 'max_allowed_weights': self.max_allowed_weights( netuid = netuid , block=block),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid , block=block),
                 'max_immunity_ratio': self.max_immunity_ratio( netuid = netuid , block=block),
+                'min_stake': self.min_stake( netuid = netuid , block=block),
                 'ratio': subnet_stake / total_stake,
                 'founder': subnet_founder
             }
@@ -2325,6 +2125,10 @@ class Subspace(c.Module):
                 'nodes': cls.node_paths(chain=chain)
                 }
 
+    def min_stake(self, netuid: int = None, network: str = network, **kwargs) -> int:
+        netuid = self.resolve_netuid(netuid)
+        return self.query('MinStake', params=[netuid], network=network, **kwargs)
+
     
     def query(self, name,  params, block=None,  network: str = network,):
         if not isinstance(params, list):
@@ -2749,6 +2553,49 @@ class Subspace(c.Module):
 
     
     snapshot_path = f'{chain_path}/snapshots'
+
+    def compose_call(self,
+                     fn:str, 
+                    params:dict = None, 
+                    key:str = None,
+                    module:str = 'SubspaceModule', 
+                    wait_for_inclusion: bool = True,
+                    process_events : bool = True,
+                    color: str = 'yellow',
+                    verbose: bool = True,
+                     **kwargs):
+
+        """
+        Composes a call to a Substrate chain.
+
+        """
+        params = {} if params == None else params
+        key = self.resolve_key(key)
+        if verbose:
+            c.print('params', params, color=color)
+            kwargs = c.locals2kwargs(locals())
+            kwargs['verbose'] = False
+            with c.status(f":satellite: Calling {module}.{fn} on {self.network} with key {key}"):
+                return self.compose_call(**kwargs)
+
+
+        with self.substrate as substrate:
+            call = substrate.compose_call(
+                call_module=module,
+                call_function=fn,
+                call_params=params
+            )
+            extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key)
+
+            response = substrate.submit_extrinsic(extrinsic=extrinsic, wait_for_inclusion=wait_for_inclusion, )
+
+        if process_events:
+            response.process_events()
+
+        if response.is_success:
+            return {'success': True, 'tx_hash': response.extrinsic_hash, 'msg': f'Called {module}.{fn} on {self.network} with key {key}'}
+        else:
+            return {'success': False, 'error': response.error_message, 'msg': f'Failed to call {module}.{fn} on {self.network} with key {key}'}
 
     @classmethod
     def convert_snapshot(cls, from_version=1, to_version=2, network=network):
@@ -3366,18 +3213,25 @@ class Subspace(c.Module):
         c.cmd(f'docker push {image}', verbose=True)
         return {'success':True, 'msg': f'pushed image {image}'}
 
-    @classmethod
-    def push(cls):
-        return c.push(cwd=cls.libpath)
-    @classmethod
-    def pull(cls):
-        return c.pull(cwd=cls.libpath)
 
     @classmethod
-    def push(cls, rpull:bool=True):
-        c.push(cwd=cls.libpath)
+    def pull(cls, rpull:bool = True):
+        c.pull(cwd=cls.libpath)
         if rpull:
             c.rcmd('c s pull', verbose=True)
+            c.rcmd('c s pull_image', verbose=True)
+
+    @classmethod
+    def push(cls, rpull:bool=True, push_image:bool = True ):
+        c.push(cwd=cls.libpath)
+        if push_image:
+            cls.push_image()
+        if rpull:
+            # pull from the remote server
+            c.rcmd('c s pull', verbose=True)
+            if push_image:
+                c.rcmd('c s pull_image', verbose=True)
+
     @classmethod
     def status(cls):
         return c.status(cwd=cls.libpath)
@@ -3684,7 +3538,9 @@ class Subspace(c.Module):
                     trials:int = 3,
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     remote:bool = False,
-                    build_spec :bool = True
+                    build_spec :bool = True,
+                    push:bool = False,
+                    publish : bool = True,
                     ):
 
         # KILL THE CHAIN
