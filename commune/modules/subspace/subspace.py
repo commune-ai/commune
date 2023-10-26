@@ -1082,9 +1082,10 @@ class Subspace(c.Module):
        
 
     def multistake( self, 
-                        key: str, 
                         modules:List[str],
                         amounts:Union[List[str], float, int],
+                        key: str = None, 
+
                         netuid:int = 0,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
@@ -1096,9 +1097,12 @@ class Subspace(c.Module):
         for i, module in enumerate(modules):
             if module in name2key:
                 modules[i] = name2key[module]
-        
+        module_keys = modules
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(modules)
+
+        for i, amount in enumerate(amounts):
+            amounts[i] = self.to_nanos(amount)
 
         assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
@@ -1108,7 +1112,46 @@ class Subspace(c.Module):
             "amounts": amounts
         }
 
-        response = cls.compose_call('add_stake_multiple', params=call_params, key=key)
+        response = self.compose_call('add_stake_multiple', params=call_params, key=key)
+
+        return response
+                    
+
+    def multiunstake( self, 
+                        modules:List[str],
+                        amounts:Union[List[str], float, int],
+                        key: str = None, 
+
+                        netuid:int = 0,
+                        network: str = None) -> Optional['Balance']:
+        network = self.resolve_network( network )
+        key = self.resolve_key( key )
+        balance = self.get_balance(key=key, fmt='j')
+        name2key = self.name2key(netuid=netuid)
+
+        # resolve module keys
+        for i, module in enumerate(modules):
+            if module in name2key:
+                modules[i] = name2key[module]
+        module_keys = modules
+
+
+        if isinstance(amounts, (float, int)): 
+            amounts = [amounts] * len(modules)
+
+        for i, amount in enumerate(amounts):
+            amounts[i] = self.to_nanos(amount)
+
+
+        assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
+
+        call_params = {
+            "netuid": netuid,
+            "module_keys": module_keys,
+            "amounts": amounts
+        }
+
+        response = self.compose_call('remove_stake_multiple', params=call_params, key=key)
 
         return response
                     
