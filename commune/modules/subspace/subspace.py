@@ -439,7 +439,6 @@ class Subspace(c.Module):
         if amount > account_balance:
             return {'success': False, 'message': f'Insufficient balance: {account_balance}'}
 
-
         amount = self.to_nanos(amount) # convert to nano (10^9 nanos = 1 token)
         dest_balance = self.get_balance( dest , fmt='j')
 
@@ -454,24 +453,22 @@ class Subspace(c.Module):
         )
 
         if response['success']:
-            return {
-                'success': True,
+            response.update(
+                {
                 'from': {
                     'address': key.ss58_address,
-                    'balance': self.format_amount(account_balance, fmt='j'),
+                    'old_balance': account_balance,
                     'new_balance': self.get_balance( key.ss58_address , fmt='j')
                 } ,
                 'to': {
                     'address': dest,
-                    'balance': dest_balance,
+                    'old_balance': dest_balance,
                     'new_balance': self.get_balance( dest , fmt='j'),
                 }, 
-                'block_hash': response.block_hash,
-
-            }
-
-        else:
-            return {'success': False, 'message': response.error_message}
+                }
+            )
+        
+        return response
 
 
 
@@ -528,11 +525,12 @@ class Subspace(c.Module):
         if name == module_info['name'] and address == module_info['address']:
             c.print(f"{c.emoji('check_mark')} [green] [white]{module}[/white] Module already registered and is up to date[/green]:[bold white][/bold white]")
             return {'success': False, 'message': f'{module} already registered and is up to date with your changes'}
+        
+        # ENSURE DELEGATE FEE IS BETWEEN 0 AND 100
         assert delegation_fee != None, f"Delegate fee must be provided"
-
-        if delegate_fee < 1.0 and delegate_fee > 0:
-            delegate_fee = delegate_fee * 100
-        assert delegate_fee >= 0 and delegate_fee <= 100, f"Delegate fee must be between 0 and 100"
+        if delegation_fee < 1.0 and delegation_fee > 0:
+            delegation_fee = delegation_fee * 100
+        assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
 
         params = {
             'netuid': netuid, # defaults to module.netuid
@@ -564,7 +562,6 @@ class Subspace(c.Module):
         min_allowed_weights: int = None,
         max_allowed_weights: int = None,
         max_allowed_uids: int = None,
-        max_immunity_ratio: int = None,
         min_stake : int = None,
         tempo: int = None,
         name:str = None,
@@ -596,7 +593,6 @@ class Subspace(c.Module):
             'min_allowed_weights': min_allowed_weights,
             'max_allowed_uids': max_allowed_uids,
             'max_allowed_weights': max_allowed_weights,
-            'max_immunity_ratio': max_immunity_ratio,
             'tempo': tempo,
             'founder': founder,
             'min_stake': min_stake,
@@ -611,6 +607,7 @@ class Subspace(c.Module):
         name = subnet_state['name']
         params['netuid'] = netuid
 
+        c.print(params)
         response = self.compose_call(fn='update_network',params=params, key=key)
 
         return response
@@ -805,7 +802,7 @@ class Subspace(c.Module):
             'netuid': netuid,
             'module_key': module_key
             }
-        response = self.compose_call(fn='remove_stake',params=parmas)
+        response = self.compose_call(fn='remove_stake',params=params)
         
         if response['success']: # If we successfully unstaked.
             new_balance = self.get_balance( key.ss58_address , fmt='j')
@@ -935,11 +932,6 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid( netuid )
         return self.query("MaxAllowedWeights", params=[netuid], block=block).value
 
-
-    def max_immunity_ratio (self, netuid: int = None, block: Optional[int] = None ) -> Optional[int]:
-        netuid = self.resolve_netuid( netuid )
-        return self.query("MaxImmunityRatio", params=[netuid], block=block).value
-
     """ Returns network SubnetN hyper parameter """
     def n(self, network = network , netuid: int = None, block: Optional[int] = None ) -> int:
         self.resolve_network(network)
@@ -970,6 +962,8 @@ class Subspace(c.Module):
     
     
     def resolve_key_ss58(self, key:str, network='main', netuid:int=0):
+        if key == None:
+            key = c.get_key(key)
         if isinstance(key, str):
             if c.is_valid_ss58_address(key):
                 key_address = key
@@ -1270,12 +1264,14 @@ class Subspace(c.Module):
         return block2archive
 
     @classmethod
-    def datetime2archive(cls, network=network):
+    def datetime2archive(cls,search=None, network=network):
         time2archive = cls.time2archive(network=network)
         datetime2archive = {c.time2datetime(time):archive for time,archive in time2archive.items()}
         # sort by datetime
         # 
         datetime2archive = {k:v for k,v in sorted(datetime2archive.items(), key=lambda x: x[0])}
+        if search != None:
+            datetime2archive = {k:v for k,v in datetime2archive.items() if search in k}
         return datetime2archive
 
 
@@ -1376,7 +1372,6 @@ class Subspace(c.Module):
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid, block=block ),
                 'max_allowed_weights': self.max_allowed_weights( netuid = netuid , block=block),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid , block=block),
-                'max_immunity_ratio': self.max_immunity_ratio( netuid = netuid , block=block),
                 'min_stake': self.min_stake( netuid = netuid , block=block),
                 'ratio': subnet_stake / total_stake,
                 'founder': subnet_founder
@@ -1566,7 +1561,7 @@ class Subspace(c.Module):
 
 
 
-    def get_balance(self, key: str , block: int = None, fmt='j', network=None) -> Balance:
+    def get_balance(self, key: str = None , block: int = None, fmt='j', network=None) -> Balance:
         r""" Returns the token balance for the passed ss58_address address
         Args:
             address (Substrate address format, default = 42):
@@ -2127,7 +2122,7 @@ class Subspace(c.Module):
 
     def min_stake(self, netuid: int = None, network: str = network, **kwargs) -> int:
         netuid = self.resolve_netuid(netuid)
-        return self.query('MinStake', params=[netuid], network=network, **kwargs)
+        return self.query('MinStake', params=[netuid], network=network, **kwargs).value
 
     
     def query(self, name,  params, block=None,  network: str = network,):
@@ -2301,7 +2296,7 @@ class Subspace(c.Module):
     def dividends(self, netuid = netuid, network=None, **kwargs):
         return [v.value for v in self.query('Dividends', params=netuid, network=network,  **kwargs)]
 
-    def registration_blocks(self, netuid: int = None, network:str=  None, **kwargs):
+    def registration_blocks(self, netuid: int = None, network:str=  None, nonzeros_only:bool = True,  **kwargs):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         
@@ -2310,6 +2305,8 @@ class Subspace(c.Module):
         # filter based on key of registration_blocks
         registration_blocks = {uid:regblock for uid, regblock in sorted(list(registration_blocks.items()), key=lambda v: v[0])}
         registration_blocks =  list(registration_blocks.values())
+        if nonzeros_only:
+            registration_blocks = [r for r in registration_blocks if r > 0]
         return registration_blocks
 
 
@@ -2560,6 +2557,7 @@ class Subspace(c.Module):
                     key:str = None,
                     module:str = 'SubspaceModule', 
                     wait_for_inclusion: bool = True,
+                    wait_for_finalization: bool = True,
                     process_events : bool = True,
                     color: str = 'yellow',
                     verbose: bool = True,
@@ -2575,7 +2573,7 @@ class Subspace(c.Module):
             c.print('params', params, color=color)
             kwargs = c.locals2kwargs(locals())
             kwargs['verbose'] = False
-            with c.status(f":satellite: Calling {module}.{fn} on {self.network} with key {key}"):
+            with c.status(f":satellite: Calling [bold]{fn}[/bold] on [bold yellow]{self.network}[/bold yellow]"):
                 return self.compose_call(**kwargs)
 
 
@@ -2587,8 +2585,11 @@ class Subspace(c.Module):
             )
             extrinsic = substrate.create_signed_extrinsic(call=call,keypair=key)
 
-            response = substrate.submit_extrinsic(extrinsic=extrinsic, wait_for_inclusion=wait_for_inclusion, )
+            response = substrate.submit_extrinsic(extrinsic=extrinsic,
+                                                  wait_for_inclusion=wait_for_inclusion, 
+                                                  wait_for_finalization=wait_for_finalization)
 
+    
         if process_events:
             response.process_events()
 
@@ -2626,13 +2627,13 @@ class Subspace(c.Module):
     def build_snapshot(cls, 
               path : str  = None,
              network : str =network,
-             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'max_immunity_ratio', 'founder'],
+             subnet_params : List[str] =  ['name', 'tempo', 'immunity_period', 'min_allowed_weights', 'max_allowed_weights', 'max_allowed_uids', 'founder'],
             module_params : List[str] = ['key', 'name', 'address'],
             save: bool = True, 
             min_balance:int = 100000,
             verbose: bool = False,
             sync: bool = True,
-            version: str = 'v2',
+            version: str = 2,
              **kwargs):
         if sync:
             c.sync(network=network)
@@ -3874,9 +3875,6 @@ class Subspace(c.Module):
         c.wait(futures)
 
 
-
-
-
     def check_storage(self, storage_name:str, block_hash = None):
         self.resolve_network(network)
         return self.substrate.get_metadata_storage_functions( block_hash=block_hash)
@@ -3885,7 +3883,28 @@ class Subspace(c.Module):
     def sand(cls): 
         node_keys =  cls.node_keys()
         spec = cls.spec()
+        addy = c.root_key().ss58_address
+
+        for i, (k, v) in enumerate(cls.datetime2archive('2023-10-17').items()):
+            if i % 10 != 0:
+                c.print(i, '/', len(v))
+                continue
+            state = c.get(v)
+            c.print(state.keys())
+            c.print(k, state['balances'].get(addy, 0))
         
+
+
+
+    def test_network(self, network:str = network, n:int = 10, timeout:int = 10, verbose:bool = False, min_amount = 10):
+        key = 'module'
+        tag = list(c.timestamp())
+
+        balance = self.get_balance(network=network)
+
+
+        
+
 
         
 
