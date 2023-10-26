@@ -3020,8 +3020,11 @@ class c:
     def register(cls,  
                  module = None,
                  tag:str = None,
+                 key : str = None,
+                 stake : int = 0,
                  subnet:str = 'commune',
                  refresh:bool =False,
+                 fmt : str = 'j',
                  **kwargs ):
         subspace = c.module('subspace')()
 
@@ -3044,7 +3047,7 @@ class c:
                                 refresh=refresh, 
                                 tag=tag,
                                 **kwargs)
-        subspace.register(name=server_name, subnet=subnet)
+        subspace.register(name=server_name, subnet=subnet, key=key, stake=stake)
         return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 
     @classmethod
@@ -4727,6 +4730,7 @@ class c:
     @classmethod
     def key2address(cls,*args, **kwargs ):
         return c.module('key').key2address(*args, **kwargs )
+    k2a = key2address
 
     @classmethod
     def is_key(self, key:str) -> bool:
