@@ -2855,8 +2855,12 @@ class Subspace(c.Module):
         # sort by node number
 
         def get_node_number(node):
-            if '_' not in node:
+  
+            if '_' in node and node.split('_')[-1].is_digit():
+                return int(node.split('_')[-1])
+            else:
                 return 10e9
+
             return int(node.split('_')[-1])
 
         node_keys = dict(sorted(node_keys.items(), key=lambda item: get_node_number(item[0])))
