@@ -171,7 +171,7 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False, verbose:bool = False, num_trials=3, **kwargs):
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, return_list:bool = False, verbose:bool = False, num_trials=100, **kwargs):
 
         for i in range(num_trials):
             try:
@@ -195,6 +195,7 @@ class Remote(c.Module):
                 c.print('Error', e)
                 c.print('Retrying')
                 continue
+        
         raise Exception(f'Command {commands} failed after {num_trials} trials')
 
     
