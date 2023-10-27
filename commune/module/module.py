@@ -5215,6 +5215,7 @@ class c:
             module = module(*init_args, **init_kwargs)
 
         future = executor.submit(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+        
         if return_future:
             return future
         else:
@@ -7832,11 +7833,37 @@ class c:
             'error': '💥',
             'cross': '❌',
             'check': '✅',
+            'checkmark': '✅',
             'check_mark': '✅',
             'checkered_flag': '🏁',
             'warning': '⚠️',
             'warning_sign': f'⚠️',
             'question': '❓',
+            'happy': '😀',
+            'sad': '😢',
+            'angry': '😠',
+            'angry_face': '😠',
+            'angry_face_with_horns': '👿',
+            'devil': '😈',
+            'red_circle': '🔴',
+            'green_circle': '🟢',
+            'blue_circle': '🔵',
+            'yellow_circle': '🟡',
+            'orange_circle': '🟠',
+            'purple_circle': '🟣',
+            'black_circle': '⚫',
+            'white_circle': '⚪',
+            'brown_circle': '🟤',
+            'red_square': '🟥',
+            'green_square': '🟩',
+            'blue_square': '🟦',
+            'yellow_square': '🟨',
+            'orange_square': '🟧',
+            'purple_square': '🟪',
+            'black_square': '⬛',
+            'white_square': '⬜',
+            'brown_square': '🟫',
+
             
     }
     

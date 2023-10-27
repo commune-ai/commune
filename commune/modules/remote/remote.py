@@ -252,6 +252,15 @@ class Remote(c.Module):
         return c.servers(network=network)
     
     @classmethod
+    def namespace(self, network='remote'):
+        return c.namespace(network=network)
+
+    @classmethod
+    def get_address(self, name):
+        return c.get_address(name)
+
+    
+    @classmethod
     def addresses(self, network='remote'):
         return c.addresses(network=network)
     
@@ -261,13 +270,16 @@ class Remote(c.Module):
     @classmethod
     def push(cls,**kwargs):
         c.push()
-        return c.rcmd('c pull', **kwargs)
-
+        return cls.pull()
+    @classmethod
+    def pull(cls):
+        return c.rcmd('c pull')
     @classmethod
     def check_servers(cls):
-        for a in c.addresses(network='remote'):
+        for m,a in c.namespace(network='remote').items():
             try:
-                c.print(c.call(a))
+                result = c.call(a)
+                c.print(f'{c.emoji("checkmaark")} [bold green]{m} --> {a}[/bold green] {c.emoji("checkmark")}')
             except Exception as e:
                 c.rm_server(a, network='remote')
                 c.print('failed')
