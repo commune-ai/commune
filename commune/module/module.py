@@ -6336,6 +6336,10 @@ class c:
         return c.module('git').pull(stash=stash, cwd=cwd)
 
     @classmethod
+    def rpull(cls, stash:bool = False, cwd=None):
+        return c.module('remote').pull(stash=stash, cwd=cwd)
+
+    @classmethod
     def push(cls, cwd=None):
         return c.module('git').push(cwd=cwd)
 
