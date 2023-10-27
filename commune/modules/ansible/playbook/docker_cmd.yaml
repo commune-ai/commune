@@ -1,0 +1,13 @@
+
+
+
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+    - name: Copy and Execute the script 
+      script: "{{ lookup('env','HOME') }}/commune_ansible/src/docker_cmd.sh"
+      register: output
+
+    - debug: msg="{{ output.stdout }}"
+
+    - debug: msg="{{ output.stderr }}"

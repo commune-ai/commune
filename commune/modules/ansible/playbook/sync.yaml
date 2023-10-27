@@ -1,0 +1,12 @@
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+    - name: Copy and Execute the script 
+      script: "{{ lookup('env','HOME') }}/commune_ansible/src/setup_commune.sh"
+      register: hello
+    - debug: msg="{{ hello.stdout }}"
+
+    - debug: msg="{{ hello.stderr }}"
+
+    # - name: start docker in the background
+    #   shell: cd /commune; nohup sudo docker-compose up -d </dev/null >/dev/null 2>&1 &

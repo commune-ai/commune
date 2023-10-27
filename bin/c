@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import sys
+import commune
+
+if __name__ == '__main__':
+    commune.cli(sys.argv[1:])
+
+    

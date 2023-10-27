@@ -1,0 +1,65 @@
+
+all:
+  hosts:
+    luckee:
+      # ssh ubuntu@15.235.85.187
+      ansible_host: 15.235.85.187
+      ansible_user: ubuntu
+    amsyaoo:
+      #ssh root@87.197.111.68 -p 41133 -i ~/.ssh/id_ed25519
+      ansible_host: 87.197.111.68
+      ansible_user: root
+      ansible_port: 41133
+
+
+    a6000x8_p9000:
+      # ssh endless@0.0.0.0 -p 9000
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 9000
+    
+    a6000x8_p9201:
+      # ssh endless@0.0.0.0 -p 9201
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 9201
+
+      
+    a6000x8_p9401:
+      # ssh endless@0.0.0.0 -p 9401
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 9401
+
+    a4000x8_p9401:
+      # ssh endless@0.0.0.0 -p 9999
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 9999
+
+
+    a6000x8_p11000:
+      # ssh endless@0.0.0.0 -p 9999
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 11000
+    a6000x8_p12000:
+      # ssh endless@0.0.0.0 -p 9999
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 12000
+
+    a6000x8_p13000:
+      # ssh commune@0.0.0.0 -p2000
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 13000
+
+
+    storage:
+      # ssh endless@0.0.0.0 -p 9999
+      ansible_user: endless
+      ansible_host: 0.0.0.0
+      ansible_port: 17601
+
+

@@ -1,0 +1,12 @@
+
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+  - name: pm2 status
+    ansible.builtin.shell:  sudo docker exec -it commune bash -c "python3 commune/module/module.py --fn servers"
+    register: shell
+
+  - debug: msg="{{ shell.stdout }}"
+  - debug: msg="{{ shell.stderr }}"
+
+

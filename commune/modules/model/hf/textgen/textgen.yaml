@@ -1,0 +1,36 @@
+
+model: vicuna.13b
+device_map: auto
+trust_remote_code: true
+max_memory : null
+half: true
+shortcuts:
+  oa.pythia.12b: OpenAssistant/oasst-sft-1-pythia-12b
+  llama2.70b: meta-llama/Llama-2-70b-chat-hf
+  llama2.7b: meta-llama/Llama-2-7b
+  vicuna.33b : lmsys/vicuna-33b-v1.3
+  vicuna.13b: lmsys/vicuna-13b-v1.3
+  vicuna.7b: lmsys/vicuna-7b-v1.3
+
+  llama: openlm-research/open_llama_7b
+  llama13b: openlm-research/open_llama_13b
+  llama-trl: trl-lib/llama-7b-se-rl-peft
+
+  pygmalion-6b: PygmalionAI/pygmalion-6b
+  stablellm7b: StabilityAI/stablelm-tuned-alpha-7b
+  mosaic: mosaicml/mpt-30b
+  falcon_instruct: tiiuae/falcon-40b-instruct
+  falcon_uncensored: ehartford/WizardLM-Uncensored-Falcon-40b
+  falcon: tiiuae/falcon-40b
+
+  open_llama_13b: openlm-research/open_llama_13b
+  lazarus30b: CalderaAI/30B-Lazarus
+  # code
+  starcoder: bigcode/starcoder
+  wizardcoder: WizardLM/WizardCoder-15B-V1.0
+  replit_code: replit/replit-code-v1-3b
+
+block_prefix: model.layers
+model2block_prefix:
+  mosaic: transformer.blocks
+  

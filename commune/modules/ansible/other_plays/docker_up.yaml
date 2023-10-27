@@ -1,0 +1,11 @@
+- name: Transfer and execute a script.
+  hosts: all
+  tasks:
+
+    - name: making ansible scripts executable
+      ansible.builtin.shell: "sudo docker-compose up -d"
+      register: shell
+      args:
+        chdir: commune
+    - debug: msg="{{ shell.stdout }}"
+    - debug: msg="{{ shell.stderr }}"
