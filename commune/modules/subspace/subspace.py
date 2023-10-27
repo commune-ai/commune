@@ -254,7 +254,18 @@ class Subspace(c.Module):
     def my_total_balance(self, network = None, fmt=fmt, decimals=2):
         return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
 
+    def names2uids(self, names: List[str]) -> Union[torch.LongTensor, list]:
+        # queries updated network state
+        current_network_state = self.modules(update=True) 
+        uids = []
+        for name in names:
+            for node in current_network_state:
+                if node['name'] == name:
+                    uids.append(node['uid'])
+                    break
 
+        return torch.LongTensor(uids)
+    
     #####################
     #### Set Weights ####
     #####################
@@ -273,6 +284,10 @@ class Subspace(c.Module):
         key = self.resolve_key(key)
         netuid = self.resolve_netuid(netuid)
         
+        # checking if the "uids" are passed as names -> strings
+        if all(isinstance(item, str) for item in uids):
+            uids = self.names2uids(names=uids)
+
         subnet = self.subnet( netuid = netuid )
         min_allowed_weights = subnet['min_allowed_weights']
         max_allowed_weights = subnet['max_allowed_weights']
