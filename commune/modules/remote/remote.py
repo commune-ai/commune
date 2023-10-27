@@ -269,8 +269,8 @@ class Remote(c.Module):
         return c.servers_info(network=network)
     @classmethod
     def push(cls,**kwargs):
-        c.push()
-        return cls.pull()
+        return [c.push(), cls.pull()]
+        
     @classmethod
     def pull(cls):
         return c.rcmd('c pull')
