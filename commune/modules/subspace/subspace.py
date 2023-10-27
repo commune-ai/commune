@@ -4,7 +4,6 @@ import scalecodec
 from retry import retry
 from typing import List, Dict, Union, Optional, Tuple
 from substrateinterface import SubstrateInterface
-import commune as c
 from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
@@ -21,6 +20,8 @@ import streamlit as st
 import json
 from loguru import logger
 import os
+import commune as c
+
 logger = logger.opt(colors=True)
 
 
@@ -3438,24 +3439,26 @@ class Subspace(c.Module):
                  sync:str = 'warp',
                  validator:bool = False,
                  local:bool = False,
-                 ip = None,
                  max_boot_nodes:int = 24,
                  daemon : bool = True,
-                 remote_address : str = None ,
                  key_mems:dict = None, # pass the keys mems {aura: '...', gran: '...'}
-                 
+                 module : str = None , # remote module to call
                  ):
 
-        if remote_address != None:
+        if module != None:
             remote_kwargs = c.locals2kwargs(locals())
-            remote_kwargs.pop('remote_address')
-            c.print(f'calling remote node {remote_address} with kwargs {remote_kwargs}')
-            response =  c.call(remote_address, fn='submit', kwargs={'fn': 'subspace.start_node', 'kwargs': remote_kwargs})[0]
+            namespace = c.namespace(network='remote') # default to remote namespace
+            c.print(f'calling remote module {module}')
+            if module in namespace:
+                module = namespace[module]
+            remote_kwargs.pop('module')
+            c.print(f'calling remote node {module} with kwargs {remote_kwargs}')
+            response =  c.call(module,  fn='submit', kwargs={'fn': 'subspace.start_node', 'kwargs': remote_kwargs}, timeout=100)[0]
             c.print(response, 'repsonse')
             return response
 
 
-        ip = c.ip() if ip == None else ip
+        ip = c.ip()
 
         node_info = c.locals2kwargs(locals())
         chain_release_path = cls.chain_release_path()
@@ -3612,6 +3615,7 @@ class Subspace(c.Module):
                     build_spec :bool = True,
                     push:bool = False,
                     publish : bool = True,
+                    max_trials: int = 10,
                     ):
 
         # KILL THE CHAIN
@@ -3631,6 +3635,9 @@ class Subspace(c.Module):
         # BUILD THE CHAIN SPEC AFTER SELECTING THE VALIDATOR NODES'
         if build_spec:
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
+            if push:
+                cls.push()
+                cls.rpull()
 
 
         chain_info = {'nodes':{}, 'boot_nodes':[]}
@@ -3656,8 +3663,9 @@ class Subspace(c.Module):
                             'validator':  True,
 
                             }
-            if remote:
-                node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+            if remote:  
+                remote_address_cnt += 1
+                node_kwargs['module'] = remote_addresses[remote_address_cnt % len(remote_addresses)]
 
             else:
                 node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
@@ -3665,26 +3673,14 @@ class Subspace(c.Module):
                     avoid_ports.append(port)
                     node_kwargs[k] = port
 
-                node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+            node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 
-
-
-            for i in range(10):
-                if remote:
-                    node_kwargs['remote_address'] =   remote_addresses[i % remote_address_cnt ]
-
-                response = cls.start_node(**node_kwargs, refresh=refresh)
-                if 'node_info' in response:
-                    break
-
-                remote_address_cnt += 1
-
-            assert 'node_info' in response, f'node_info must be in response, not {response}'
+            response = {}
+            
+            response = cls.start_node(**node_kwargs, refresh=refresh)
             assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
 
-            remote_address_cnt += 1
             node_info = response['node_info']
-
             boot_node = response['boot_node']
             chain_info['boot_nodes'].append(boot_node)
             chain_info['nodes'][node] = node_info
