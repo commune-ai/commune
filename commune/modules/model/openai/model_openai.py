@@ -13,22 +13,49 @@ class OpenAILLM(c.Module):
 
     whitelist = ['generate']
     
-    def __init__(self, 
-                 config: Union[str, Dict[str, Any], None] = None,
-                 **kwargs
+    def __init__(self, api_key = None,
+                max_tokens : int= 250,
+                max_stats: int= 175,
+                tokenizer: str= 'gpt2',
+                models: List[str]= ['gpt-3.5-turbo-0613', 'gpt-3.5-turbo'],
+                save:bool = False,
+                prompt:bool = None,
+                max_input_tokens: int = 100_000,
+                max_output_tokens: int = 100_000,
                 ):
+        
+        self.output_tokens = 0
+        self.input_tokens = 0
+        
+        self.birth_time = c.time()
+        self.set_config(locals())
+        self.set_api_key(api_key)
+        self.set_prompt(prompt)
+        self.set_tokenizer(tokenizer)
+        # self.test()
+        
+    @property
+    def age(self):
+        return c.time() - self.birth_time
+        
+    @property
+    def too_many_tokens(self ):
+        too_many_output_tokens = self.output_tokens > self.config.max_output_tokens
+        too_many_input_tokens = self.input_tokens > self.config.max_input_tokens
+        return bool(too_many_output_tokens or too_many_input_tokens)
+    
+    @property
+    def input_tokens_per_hour(self):
+        if self.age % 3600 == 0:
+            self.input_tokens =  0
+        return  self.input_tokens / self.age * 3600
 
-        config = self.set_config(config, kwargs=kwargs)
-        self.set_api_key(config.api_key)
-        self.set_prompt(config.get('prompt', self.prompt))
-        self.set_tokenizer(config.tokenizer)
-        
-        
-    def resolve_api_key(self, api_key:str = None) -> str:
-        api_key = os.environ.get(api_key, api_key)
-        assert isinstance(api_key, str),f"API Key must be a string,{api_key}"
-        self.api_key = self.config.api_key =  api_key
-        return api_key
+    @property
+    def output_tokens_per_hour(self):
+        if self.age % 3600 == 0:
+            self.output_tokens =  0
+        return  self.output_tokens / self.age * 3600
+    
 
     hour_limit_count = {}
     def ensure_token_limit(self, input:str , output:str ):
@@ -41,13 +68,16 @@ class OpenAILLM(c.Module):
 
     @classmethod
     def random_api_key(cls):
-        valid_api_keys = cls.api_keys()
-        assert len(valid_api_keys) > 0, "No valid API keys found, please add one via ```c openai add_api_key <api_key>```"
-        return valid_api_keys[0]
+        api_keys = cls.api_keys()
+        assert len(api_keys) > 0, "No valid API keys found, please add one via ```c openai add_api_key <api_key>```"
+        api_key = c.choice(api_keys)
+
+        return api_key
   
     def set_api_key(self, api_key: str = None) -> str:
-        api_key = api_key or self.config.api_key
-        self.api_key = self.resolve_api_key(api_key)
+        if api_key==None and  len(self.keys()) > 0 :
+            api_key = self.random_api_key()
+        self.api_key = api_key
         openai.api_key = self.api_key
         return {'msg': f"API Key set to {openai.api_key}", 'success': True}
 
@@ -117,22 +147,18 @@ class OpenAILLM(c.Module):
         if history:
             messages = history + messages
 
-        try:
-            
-            response = openai.ChatCompletion.create(messages=messages, **params)
-        except Exception as e:
-            # if we get an error, try again with a new api key that is in the whitelist
-            if retry:
-                self.set_api_key(self.random_api_key())
-                response = openai.ChatCompletion.create(messages=messages, **params)
+        assert self.too_many_tokens == False, f"Too many tokens, {self.input_tokens} input tokens and {self.output_tokens} output tokens where generated and the limit is {self.config.max_input_tokens} input tokens and {self.config.max_output_tokens} output tokens"
 
-            else:
-                response = c.detailed_error(e)
-                return response
-                
+        response = openai.ChatCompletion.create(messages=messages, **params)
+            
         output_text = response = response['choices'][choice_idx]['message']['content']
         input_tokens = self.num_tokens(prompt)
         output_tokens = self.num_tokens(output_text)
+
+        self.input_tokens += input_tokens
+        self.output_tokens += output_tokens
+
+
         latency = c.time() - t
 
         stats = {
@@ -225,83 +251,7 @@ class OpenAILLM(c.Module):
         return variables
 
 
-    api_key_path = 'api_keys'
 
-    @classmethod
-    def add_api_key(cls, api_key, k=api_key_path):
-        api_keys = cls.get(k, [])
-        c.print(api_keys)
-        if api_key in api_keys:
-            return {'error': f'api_key {api_key} already added'}
-        verified = cls.verify_api_key(api_key)
-        if not verified:
-            return {'error': f'api_key {api_key} not verified'}
-        api_keys.append(api_key)
-        api_keys = list(set(api_keys))
-        cls.put(k, api_keys)
-        assert api_key in cls.api_keys(), f"API key {api_key} not added"
-        return {'msg': f'added api_key {api_key}'}
-
-
-    @classmethod
-    def add_api_keys(cls, *keys):
-        for k in keys:
-            cls.add_api_key(k)
-
-
-    @classmethod
-    def set_api_keys(cls, api_keys: List[str], k: str=api_key_path):
-        assert isinstance(api_keys, list)
-        cls.put(k, api_keys)
-        return {'msg': f'added api_key {api_keys}'}
-
-    @classmethod
-    def rm_api_key(cls, api_key, k=api_key_path):
-
-        api_keys = cls.get('api_keys', [])
-        if api_key not in api_keys:
-            return {'error': f'api_key {api_key} not found', 'api_keys': api_keys}
-
-        api_idx = None
-        for i, api_k in enumerate(api_keys):
-            if api_key != api_k:
-                api_idx = i
-        if api_idx == None:
-            return {'error': f'api_key {api_key} not found', 'api_keys': api_keys}
-
-        del api_keys[api_idx]
-        cls.set_api_keys(api_keys)
-
-        return {'msg': f'removed api_key {api_key}', 'api_keys': api_keys}
-
-    @classmethod
-    def update(cls):
-        cls.set_api_keys(cls.valid_api_keys())
-    
-    @classmethod
-    def valid_api_key(self):
-        return self.valid_api_keys()[0]
-    
-    @classmethod
-    def valid_api_keys(cls, verbose:bool = True):
-        api_keys = cls.api_keys()
-        valid_api_keys = []
-        for api_key in api_keys:
-            if verbose:
-                c.print(f'Verifying API key: {api_key}', color='blue')
-            if cls.verify_api_key(api_key):
-                valid_api_keys.append(api_key)
-        
-        valid_api_keys = c.shuffle(valid_api_keys)
-        return valid_api_keys
-    valid_keys = verify_api_keys = valid_api_keys
-
-    @classmethod
-    def api_keys(cls, update:bool = False):
-        if update:
-            cls.put('api_keys', cls.valid_api_keys())
-        return cls.get('api_keys', [])
-        
     def num_tokens(self, text:str) -> int:
         num_tokens = 0
         tokens = self.tokenizer.encode(text)
@@ -385,5 +335,34 @@ class OpenAILLM(c.Module):
             response[s] = result
 
         return response
+    
+    @classmethod
+    def add_key(cls, api_key:str):
+        assert isinstance(api_key, str), "API key must be a string"
+        api_keys = list(set(cls.get('api_keys', []) + [api_key]))
+        cls.put('api_keys', api_keys)
+        return {'msg': f"API Key set to {api_key}", 'success': True}
+    
 
+    @classmethod
+    def rm_key(cls, api_key:str):
+        new_keys = []
+        api_keys = cls.api_keys()
+        for k in api_keys: 
+            if api_key in k:
+                continue
+            else:
+                new_keys.append(k)
+        cls.put('api_keys', new_keys)
+        return {'msg': f"Removed API Key {api_key}", 'success': True}
+                
+    
+    @classmethod
+    def api_keys(cls):
+        return  cls.get('api_keys', [])
+    
+    @classmethod
+    def save_api_keys(cls, api_keys:List[str]):
+        cls.put('api_keys', api_keys)
+        return {'msg': f"Saved API Keys", 'success': True}
 
