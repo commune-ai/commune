@@ -192,6 +192,7 @@ class Remote(c.Module):
                 results =  dict(zip(results.keys(), result_values))
                 results =  {k:v for k,v in results.items()}
 
+
                 if all([v == None for v in results.values()]):
                     raise Exception(f'all results are None')
                 
@@ -203,6 +204,8 @@ class Remote(c.Module):
                         output[k] = v
 
                 host_map = {k:v for k,v in host_map.items() if k in unfinished_hosts}
+
+        
                 
                 if len(host_map) == 0:
                     break
@@ -214,6 +217,9 @@ class Remote(c.Module):
 
 
 
+        for k,v in output.items():
+            if isinstance(v, str):
+                output[k] = v.strip('\n')
 
         return output 
 
