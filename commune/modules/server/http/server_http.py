@@ -73,7 +73,7 @@ class ServerHTTP(c.Module):
                 args = data.get('args',[])
                 kwargs = data.get('kwargs', {})
                 
-                result = self.forward(fn=fn,args=args, kwargs=kwargs)
+                result = self.forward(fn=fn, args=args, kwargs=kwargs)
                 success = True
 
             except Exception as e:
@@ -153,18 +153,15 @@ class ServerHTTP(c.Module):
             item = self.serializer.serialize({'data': item})
             item = self.key.sign(item, return_json=True)
             item = json.dumps(item)
+            item_size = c.sizeof(item)
+            if item_size > self.chunk_size:
+                # if the item is too big, we need to chunk it
+                item_hash = c.hash(item)
+                chunks =[f'CHUNKSTART:{item_hash}'] + [item[i:i+self.chunk_size] for i in range(0, item_size, self.chunk_size)] + [f'CHUNKEND:{item_hash}']
+                # we need to yield the chunks in a format that the eventsource response can understand
+                for chunk in chunks:
+                    yield chunk
 
-
-            # # get size of chunk
-            # item_size = len(item)
-            # if item_size > chunk_size:
-            #     # if the item is too big, we need to chunk it
-            #     item_hash = c.hash(item)
-            #     chunks =[f'CHUNKSTART:{item_hash}'] + [item[i:i+chunk_size] for i in range(0, item_size, chunk_size)] + [f'CHUNKEND:{item_hash}']
-            #     # we need to yield the chunks in a format that the eventsource response can understand
-            #     for chunk in chunks:
-            #         yield chunk
-            # else:
             yield item
 
 

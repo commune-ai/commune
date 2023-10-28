@@ -92,7 +92,7 @@ class Access(c.Module):
     @classmethod
     def test(cls):
         server_name = 'access_subspace.demo' 
-        module = c.serve('module', server_name=server_name, wait_for_server=True)
+        module = c.serve('module', server_name=server_name, wait_for_server=True)['name']
 
         for key in [None, 'fam']:
             client = c.connect(server_name, key=key)

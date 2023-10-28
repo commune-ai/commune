@@ -7,10 +7,13 @@ class Server(c.Module):
         servers = c.servers()
         c.print(servers)
         tag = 'test'
-        module_name = c.serve(module='module', tag=tag)
+        module_name = c.serve(module='module', tag=tag)['name']
         c.wait_for_server(module_name)
         assert module_name in c.servers()
 
         c.kill(module_name)
         assert module_name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}
+    
+
+    

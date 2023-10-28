@@ -1,7 +1,11 @@
 import commune as c
 from typing import *
 
+# THIS IS WHAT THE INTERNET IS, A BUNCH OF NAMESPACES, AND A BUNCH OF SERVERS, AND A BUNCH OF MODULES.
+# THIS IS THE INTERNET OF INTERNETS.
 class Namespace(c.Module):
+
+    # the default
     network : str = 'local'
 
     @classmethod
@@ -9,7 +13,7 @@ class Namespace(c.Module):
         namespace = cls.get_namespace(network=network)
         namespace[name] = address
         cls.put_namespace(network, namespace)
-        return {'status': 'success', 'msg': f'Block {name} registered to {network}.'}
+        return {'success': True, 'msg': f'Block {name} registered to {network}.'}
 
     @classmethod
     def deregister_server(cls, name:str, network=network) -> Dict:
@@ -20,7 +24,7 @@ class Namespace(c.Module):
             cls.put_namespace(network, namespace)
             return {'status': 'success', 'msg': f'Block {name} deregistered.'}
         else:
-            return {'status': 'failure', 'msg': f'Block {name} not found.'}
+            return {'success': False, 'msg': f'Block {name} not found.'}
 
     @classmethod
     def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
@@ -51,7 +55,7 @@ class Namespace(c.Module):
     def put_namespace(cls, network:str, namespace:dict) -> None:
         assert isinstance(namespace, dict), 'Namespace must be a dict.'
         cls.put(network, namespace)
-        return {'status': 'success', 'msg': f'Namespace {network} updated.'}
+        return {'success': False, 'msg': f'Namespace {network} updated.'}
 
     
 
@@ -59,9 +63,9 @@ class Namespace(c.Module):
     def rm_namespace(cls,network:str) -> None:
         if cls.exists(network):
             cls.rm(network)
-            return {'status': 'success', 'msg': f'Namespace {network} removed.'}
+            return {'success': False, 'msg': f'Namespace {network} removed.'}
         else:
-            return {'status': 'failure', 'msg': f'Namespace {network} not found.'}
+            return {'success': False, 'msg': f'Namespace {network} not found.'}
     @classmethod
     def name2address(cls, name:str, network:str=network ):
         namespace = cls.get_namespace(network=network)
@@ -134,7 +138,7 @@ class Namespace(c.Module):
         to_namespace = c.get_namespace(network=to_network)
         to_namespace.update(from_namespace)
         c.put_namespace(to_network, to_namespace)
-        return {'status': 'success', 'msg': f'Namespace {from_network} merged into {to_network}.'}
+        return {'success': True, 'msg': f'Namespace {from_network} merged into {to_network}.'}
 
 
     remote_modules_path ='remote_modules'
@@ -270,7 +274,7 @@ class Namespace(c.Module):
         cls.rm_namespace(network2)
         assert cls.namespace_exists(network2) == False
         
-        return {'status': 'success', 'msg': 'Namespace tests passed.'}
+        return {'success': True, 'msg': 'Namespace tests passed.'}
     
 
     @classmethod

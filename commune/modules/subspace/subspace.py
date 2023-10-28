@@ -2956,9 +2956,9 @@ class Subspace(c.Module):
                      node:str,
                      mode = mode,
                      chain = chain,
-                     tag_seperator = '_', 
                      key_mems:dict = {'aura': None, 'gran': None}, # pass the keys mems
                      refresh: bool = False,
+                     insert_key:bool = False,
                      ):
         '''
         adds a node key
@@ -2992,19 +2992,21 @@ class Subspace(c.Module):
             # we need to resolve the key based on the key path
             key = c.get_key(key_path,crypto_type=schema, refresh=refresh)
 
-            # we need to resolve the base path based on the node and chain
-            base_path = cls.resolve_base_path(node=node, chain=chain)
-            cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
-            # c.print(cmd)
-            if mode == 'docker':
-                container_base_path = base_path.replace(cls.chain_path, '/subspace')
-                volumes = f'-v {container_base_path}:{base_path}'
-                cmd = f'docker run {volumes} {cls.image} {cmd}'
-                c.print(c.cmd(cmd, verbose=True))
-            elif mode == 'local':
-                c.cmd(cmd, verbose=True, cwd=cls.chain_path)
-            else:
-                raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
+            # do we want
+            if insert_key:
+                # we need to resolve the base path based on the node and chain
+                base_path = cls.resolve_base_path(node=node, chain=chain)
+                cmd  = f'''{chain_path} key insert --base-path {base_path} --chain {chain} --scheme {schema} --suri "{key.mnemonic}" --key-type {key_type}'''
+                # c.print(cmd)
+                if mode == 'docker':
+                    container_base_path = base_path.replace(cls.chain_path, '/subspace')
+                    volumes = f'-v {container_base_path}:{base_path}'
+                    cmd = f'docker run {volumes} {cls.image} {cmd}'
+                    c.print(c.cmd(cmd, verbose=True))
+                elif mode == 'local':
+                    c.cmd(cmd, verbose=True, cwd=cls.chain_path)
+                else:
+                    raise ValueError(f'Unknown mode {mode}, must be one of docker, local')
 
         return {'success':True, 'node':node, 'chain':chain, 'keys': cls.node_keys(chain=chain)}
 
@@ -3326,10 +3328,21 @@ class Subspace(c.Module):
 
 
     @classmethod
-    def start_public_nodes(cls, node:str='nonvali', n:int=4, i=0, mode=mode, chain=chain, max_boot_nodes=24, refresh:bool = False, **kwargs):
+    def start_public_nodes(cls, node:str='nonvali', 
+                           n:int=4,
+                            i=0,
+                            mode=mode, 
+                           chain=chain, 
+                           max_boot_nodes=24, 
+                           refresh:bool = False,
+                           remote:bool = False,
+                           **kwargs):
         avoid_ports = []
         node_infos = cls.node_infos(chain= chain)
         served_nodes = []
+        remote_addresses = []
+        if remote:
+            remote_addresses = c.module('remote').addresses()
 
         while len(served_nodes) <= n:
             i += 1
@@ -3340,22 +3353,27 @@ class Subspace(c.Module):
             else:
                 c.print(f'Deploying {node_name}')
 
-            served_nodes += [node_name]
 
-            free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
-            avoid_ports += free_ports
-            kwargs['port'] = free_ports[0]
-            kwargs['rpc_port'] = free_ports[1]
-            kwargs['ws_port'] = free_ports[2]
+            if remote:
+                kwargs['module'] = remote_addresses.pop()
+            else:
+                free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
+                avoid_ports += free_ports
+                kwargs['port'] = free_ports[0]
+                kwargs['rpc_port'] = free_ports[1]
+                kwargs['ws_port'] = free_ports[2]
+            kwargs['validator'] = False
+            kwargs['max_boot_nodes'] = max_boot_nodes
 
-            response = cls.start_node(node=node_name , chain=chain, mode=mode, validator=False, max_boot_nodes=max_boot_nodes, **kwargs)
+            response = cls.start_node(node=node_name , chain=chain, mode=mode, **kwargs)
             if 'node_info' not in response:
                 c.print(response, 'response')
                 raise ValueError('No node info in response')
 
             node_info = response['node_info']
             c.print('started node', node_name, '--> ', response['logs'])
-
+            served_nodes += [node_name]
+            
             cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
 
 
@@ -3609,13 +3627,10 @@ class Subspace(c.Module):
                     verbose:bool = False,
                     purge_chain:bool = True,
                     refresh: bool = True,
-                    trials:int = 3,
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     remote:bool = False,
                     build_spec :bool = True,
                     push:bool = False,
-                    publish : bool = True,
-                    max_trials: int = 10,
                     ):
 
         # KILL THE CHAIN
@@ -3636,9 +3651,7 @@ class Subspace(c.Module):
         if build_spec:
             cls.build_spec(chain=chain, vali_node_keys=vali_node_keys, valis=valis)
             if push:
-                cls.push()
-                cls.rpull()
-
+                cls.push(rpull=remote)
 
         chain_info = {'nodes':{}, 'boot_nodes':[]}
         
@@ -3666,12 +3679,14 @@ class Subspace(c.Module):
             if remote:  
                 remote_address_cnt += 1
                 node_kwargs['module'] = remote_addresses[remote_address_cnt % len(remote_addresses)]
+                node_kwargs['boot_nodes'] = chain_info['boot_nodes']
 
             else:
                 node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
                 for k, port in zip(port_keys, node_ports):
                     avoid_ports.append(port)
                     node_kwargs[k] = port
+
 
             node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
 

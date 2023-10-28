@@ -20,9 +20,7 @@ class Client(c.Module):
             port: int = 50053 ,
             network: bool = None,
             key : str = None,
-            stream:bool = False,
-            loop: 'asyncio.EventLoop' = None,
-            **kwargs
+            loop: 'asyncio.EventLoop' = None
         ):
         self.loop = c.get_event_loop() if loop == None else loop
         self.set_client(ip =ip,port = port)
@@ -60,10 +58,6 @@ class Client(c.Module):
         ip: str = None,
         port : int= None,
         timeout: int = 10,
-        stream: bool = True,
-        return_error: bool = False,
-        asyn: bool = True,
-        full : bool = False,
         headers : dict ={'Content-Type': 'application/json'},
          **extra_kwargs):
 
@@ -96,7 +90,7 @@ class Client(c.Module):
                     result = ''
                     async for line in response.content:
                         # remove the "data: " prefix
-                        event_data = line.decode('utf-8').strip()[len('data: '):]
+                        event_data = line.decode('utf-8').strip()[len('HEYFBI'):]
                         result += event_data
                     result = json.loads(result)
                 elif response.content_type == 'application/json':
