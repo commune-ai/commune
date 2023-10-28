@@ -302,5 +302,7 @@ class Remote(c.Module):
                 c.rm_server(a, network='remote')
                 c.print('failed')
 
-
+    # @classmethod
+    # def refresh_servers(cls):
+    #     cls.cmd('')
     
