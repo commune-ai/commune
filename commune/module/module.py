@@ -3063,7 +3063,7 @@ class c:
             module = cls.resolve_module(module)
             server_name = module.serve(
                                 server_name=server_name, 
-                                wait_for_server=False, 
+                                wait_for_server=True, 
                                 refresh=refresh, 
                                 tag=tag,
                                 **kwargs)
@@ -4787,14 +4787,13 @@ class c:
         return self.module('subspace')().auth(*args, key=key, **kwargs)
     
     @classmethod
-    def call(cls,  *args , n: int=1, return_future:bool=False,  **kwargs) -> None:
+    def call(cls,  *args , n: int=1, return_future:bool=False, remote:bool = False,  **kwargs) -> None:
         if n == 1:
             futures = c.async_call(*args,**kwargs)
         else:
             futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
         if return_future:
             return futures
-    
         return c.gather(futures)
     @classmethod
     async def async_call(cls,

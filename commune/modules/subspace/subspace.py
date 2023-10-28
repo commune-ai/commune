@@ -1499,24 +1499,17 @@ class Subspace(c.Module):
               netuid=0,  
               network = network,
               df:bool=True, 
-              update:bool = True, 
+              update:bool = True , 
               local: bool = True,
               cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from'],
               fmt : str = 'j',
               **kwargs
               ):
-        cache_path = f'stats/{network}_net{netuid}.json'
-
-        if update:
-            stats = []
-        else:
-            stats = self.get(cache_path, [])
-            
-    
 
         ip = c.ip()
+        modules = self.modules(netuid=netuid, update=update, fmt=fmt, network=network, **kwargs)
+        stats = []
 
-        modules = self.modules(netuid=netuid, fmt=fmt, update=update, network=network, **kwargs)
         for i, m in enumerate(modules):
 
             if local and ip not in m['address']:
@@ -1531,16 +1524,10 @@ class Subspace(c.Module):
 
             stats.append(c.copy(m))
 
-
-        if update:
-            self.put(cache_path, stats)
-
         servers = c.servers(network='local')
         for i in range(len(stats)):
             stats[i]['serving'] = bool(stats[i]['name'] in servers)
             
-
-        
         df_stats =  c.df(stats)
 
         if len(stats) == 0:
@@ -2908,8 +2895,8 @@ class Subspace(c.Module):
     @classmethod
     def nodes(cls, chain=chain):
         node_infos = cls.node_infos(chain=chain)
-        nodes = list(cls.node_infos(chain=chain).keys())
-        return nodes
+        nodes = list(node_infos.keys())
+        return sorted(nodes, key=lambda n: int(n.split('_')[-1]) if n.split('_')[-1].isdigit() else 10e9)
 
     @classmethod
     def vali_nodes(cls, chain=chain):
@@ -4016,11 +4003,26 @@ class Subspace(c.Module):
 
 
 
-    def test_network(self, network:str = network, n:int = 10, timeout:int = 10, verbose:bool = False, min_amount = 10):
-        key = 'module'
-        tag = list(c.timestamp())
+    def test_balance(self, network:str = network, n:int = 10, timeout:int = 10, verbose:bool = False, min_amount = 10, key=None):
+        key = c.get_key(key)
 
         balance = self.get_balance(network=network)
+        assert balance > 0, f'balance must be greater than 0, not {balance}'
+        balance = int(balance * 0.5)
+        c.print(f'testing network {network} with {n} transfers of {balance} each')
+
+
+    def test_commands(self, network:str = network, n:int = 10, timeout:int = 10, verbose:bool = False, min_amount = 10, key=None):
+        key = c.get_key(key)
+
+        key2 = c.get_key('test2')
+        
+        balance = self.get_balance(network=network)
+        assert balance > 0, f'balance must be greater than 0, not {balance}'
+        c.transfer(dest=key, amount=balance, timeout=timeout, verbose=verbose)
+        balance = int(balance * 0.5)
+        c.print(f'testing network {network} with {n} transfers of {balance} each')
+
 
 
         
