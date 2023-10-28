@@ -276,6 +276,18 @@ class Remote(c.Module):
     @classmethod
     def push(cls,**kwargs):
         return [c.push(), cls.pull()]
+    
+
+    @classmethod
+    def call(cls, fn:str='info' , *args,  network='remote',  **kwargs):
+        futures = {}
+        kwargs['network'] =  network
+        for name, address in c.namespace(network=network).items():
+            futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True)
+        results = c.wait(list(futures.values()))
+        return dict(zip(futures.keys(), results))
+
+        
         
     @classmethod
     def pull(cls, stash=True):
