@@ -4795,6 +4795,7 @@ class c:
         if return_future:
             return futures
         return c.gather(futures)
+    
     @classmethod
     async def async_call(cls,
                 module : str, 
