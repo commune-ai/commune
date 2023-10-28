@@ -1997,7 +1997,6 @@ class Subspace(c.Module):
         c.print(f"Got {key} for netuid {netuid} at block {block}")
         return results
               
-    # @c.timeit
     def modules(self,
                 network = 'main',
                 netuid: int = 0,
@@ -2008,9 +2007,9 @@ class Subspace(c.Module):
                 include_weights = False,
                 df = False,
                 multithread:bool = False ,
-                timeout=200 # for multi-threading
-                ) -> Dict[str, ModuleInfo]:
-        
+                timeout=200, # for multi-threading
+                include_balances = False) -> Dict[str, ModuleInfo]:
+        import inspect
 
         cache_path = f'modules/{network}.{netuid}'
 
@@ -2023,10 +2022,10 @@ class Subspace(c.Module):
             network = self.resolve_network(network)
             netuid = self.resolve_netuid(netuid)
             block = self.block if block == None else block
-
-
             
             keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
+            if include_balances:
+                keys += ['balances']
             if include_weights:
                 keys += ['weights']
             if multithread:
@@ -2039,10 +2038,18 @@ class Subspace(c.Module):
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
                 state = {}
-                num_keys = len(keys)
 
-                for  key in c.tqdm(keys):
-                    state[key] =  getattr(self, key)(netuid=netuid, block=block)
+                for key in c.tqdm(keys):
+                    func = getattr(self, key)
+                    args = inspect.getfullargspec(func).args
+
+                    kwargs = {}
+                    if 'netuid' in args:
+                        kwargs['netuid'] = netuid
+                    if 'block' in args:
+                        kwargs['block'] = block
+
+                    state[key] = func(**kwargs)
             for uid, key in state['uid2key'].items():
 
                 module= {
@@ -2068,11 +2075,11 @@ class Subspace(c.Module):
                     else: 
                         raise Exception(f"Invalid weight for module {uid}")
 
+                if include_balances:
+                    module['balance'] = state['balances'].get(key, 0)
                 modules.append(module)
 
             self.put(cache_path, modules)
-            
-
 
         if len(modules) > 0:
             keys = list(modules[0].keys())
@@ -2081,7 +2088,6 @@ class Subspace(c.Module):
             keys = list(set(keys))
             for i, module in enumerate(modules):
                 modules[i] ={k: module[k] for k in keys}
- 
 
                 for k in ['emission', 'stake']:
                     module[k] = self.format_amount(module[k], fmt=fmt)
@@ -2093,6 +2099,8 @@ class Subspace(c.Module):
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
                 modules[i] = module
 
+                if include_balances:
+                    module['balance'] = self.format_amount(module['balance'], fmt=fmt)
         if df:
             modules = c.df(modules)
 
