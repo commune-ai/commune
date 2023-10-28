@@ -272,8 +272,8 @@ class Remote(c.Module):
         return [c.push(), cls.pull()]
         
     @classmethod
-    def pull(cls):
-        return c.rcmd('c pull')
+    def pull(cls, stash=True):
+        return c.rcmd(f'c pull stash={stash}')
     @classmethod
     def check_servers(cls):
         for m,a in c.namespace(network='remote').items():

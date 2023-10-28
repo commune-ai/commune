@@ -207,7 +207,7 @@ class DataHF(c.Module):
         server_name = f'data.{path}'
         kwargs = dict(path=path, **kwargs)
         c.print(f'Serving {server_name} with kwargs: {kwargs}')
-        name = c.serve(module=cls.module_path(), server_name=server_name, tag=tag, kwargs=kwargs, remote=remote)
+        name = c.serve(module=cls.module_path(), server_name=server_name, tag=tag, kwargs=kwargs, remote=remote)['name']
         return name
 
 

@@ -23,7 +23,7 @@ class c:
     homepath = os.path.expanduser('~')
     root_module_class = 'c' # WE REPLACE THIS THIS Module at the end, kindof odd, i know, ill fix it fam, chill out dawg, i didnt sleep with your girl
     default_port_range = [50050, 50150] # the port range between 50050 and 50150
-    default_ip = '0.0.0.0'
+    default_ip = local_ip = loopback = '0.0.0.0'
     address = '0.0.0.0:8888' # the address of the server (default)
     root_path  = root  = os.path.dirname(os.path.dirname(__file__)) # the path to the root of the library
     libpath = os.path.dirname(root_path) # the path to the library
@@ -480,6 +480,26 @@ class c:
 
         return data
     
+
+
+    @classmethod
+    def get_many(cls,
+            *k, 
+            default: Any=None, 
+            mode:str = 'json',
+            max_age:str = None,
+            cache :bool = False,
+            full :bool = False,
+            **kwargs) -> Any:
+        
+        '''
+        Puts a value in sthe config, with the option to encrypt it
+
+        Return the value
+        '''
+        data_map = {k: cls.get(k, default=default, mode=mode, max_age=max_age, cache=cache, full=full, **kwargs) for k in k}
+        return data_map
+
 
 
     @staticmethod
@@ -1066,12 +1086,12 @@ class c:
         Resolves the port and finds one that is available
         '''
         if port == None or port == 0:
-            port = cls.free_port(port, **kwargs)
+            port = c.free_port(port, **kwargs)
             
-        if cls.port_used(port):
-            port = cls.free_port(port, **kwargs)
+        if c.port_used(port):
+            port = c.free_port(port, **kwargs)
             
-        return port
+        return int(port)
 
     @classmethod
     def has_free_ports(self, n:int = 1, **kwargs):
@@ -2266,6 +2286,7 @@ class c:
         while not c.server_exists(name, network=network):
             c.sleep(sleep_interval)
             time_waiting += sleep_interval
+            c.print(f'Waiting for server {name} to start')
             new_logs = list(set(c.logs(name, mode='local').split('\n')))
             print_logs = [l for l in new_logs if l not in logs]
 
@@ -2416,20 +2437,20 @@ class c:
     bl = blacklist = []
     
     @classmethod
-    def save_serve_kwargs(cls,server_name:str,  kwargs:dict):
-        serve_kwargs = c.get('serve_kwargs', {})
+    def save_serve_kwargs(cls,server_name:str,  kwargs:dict, network:str = 'local'):
+        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         serve_kwargs[server_name] = kwargs
-        c.put('serve_kwargs', serve_kwargs)
+        c.put(f'serve_kwargs/{network}', serve_kwargs)
         return serve_kwargs
     
     @classmethod
-    def load_serve_kwargs(cls, server_name:str):
-        serve_kwargs = c.get('serve_kwargs', {})
+    def load_serve_kwargs(cls, server_name:str, network:str = 'local'):
+        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         return serve_kwargs.get(server_name, {})
 
     @classmethod
-    def has_serve_kwargs(cls, server_name:str):
-        serve_kwargs = c.get('serve_kwargs', {})
+    def has_serve_kwargs(cls, server_name:str, network='local'):
+        serve_kwargs = c.get(f'serve_kwargs/{network}', {})
         return server_name in serve_kwargs
 
     @classmethod
@@ -2462,9 +2483,8 @@ class c:
         if tag_seperator in module:
             module, tag = module.split(tag_seperator)
 
-        module_class = cls.resolve_module(module)
-            
         server_name = cls.resolve_server_name(module=module, name=server_name, tag=tag, tag_seperator=tag_seperator)
+
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
 
@@ -2472,36 +2492,37 @@ class c:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
-            remote_kwargs.pop('module_class') # remove module_class from the kwargs
             c.save_serve_kwargs(server_name, remote_kwargs)
-            cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
+            c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
+            response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
-            return server_name
+            address = c.get_address(server_name, network=network)
+            return {'success':True, 'name': server_name, 'address':address}
         
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
         # this automatically adds 
-
         self = module_class(**kwargs)
         self.tag = tag
         self.server_name = server_name
 
-        if c.server_exists(server_name, network=network) and server_name in c.pm2_list(): 
+        if c.server_exists(server_name, network=network): 
             if refresh:
                 c.print(f'Stopping existing server {server_name}', color='yellow')
-                address = c.get_address(server_name, network=network)      
-                ip, port = address[0], int(address[1])        
-                c.kill(server_name)
-                c.deregister_server(server_name, network=network)
+                address = c.get_address(server_name, network=network)    
+                if ':' in address:
+                    port = address.split(':')[-1]        
+                    c.kill(server_name)
+                    c.deregister_server(server_name, network=network)
             else:  
-                return server_name
+                return {'success':True, 'message':f'Server {server_name} already exists'}
+    
+        c.module(f'server.{server_mode}')(module=self, name= server_name, port=port, network=network)
+        
+        response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 
-        if port == None:
-            port = c.free_port()
-            
-        server = c.module(f'server.{server_mode}')(module=self, name= server_name, port=int(port), network=network)
-        return server.name
+        return response
 
     serve_module = serve
     
@@ -3134,9 +3155,16 @@ class c:
         return refreshed_modules
 
     def restart_self(self):
+        """
+        Helper function to restart the server
+        """
         c.restart_server(self.server_name)
 
+
     def kill_self(self):
+        """
+        Helper function to kill the server
+        """
         c.kill(self.server_name)
 
     refresh = reset = restart
@@ -3178,7 +3206,6 @@ class c:
                 verbose: bool=True ,
                 mode: str ='cmd'):
 
-        
         if mode == 'local':
             text = ''
             for m in ['out','error']:
@@ -3311,44 +3338,6 @@ class c:
                             }
                       
                       }
-    
-    @classmethod
-    def ray_init(cls,init_kwargs={}):
-        import ray
-
-        init_kwargs =  {**cls.default_ray_env, **init_kwargs}
-        if cls.ray_initialized():
-            # shutdown if namespace is different
-            if cls.ray_namespace() == cls.default_ray_env['namespace']:
-                return cls.ray_runtime_context()
-            else:
-                ray.shutdown()
-  
-        ray_context = ray.init(**init_kwargs)
-        return ray_context
-
-    @classmethod
-    def ray_runtime_context(cls):
-        return ray.get_runtime_context()
-
-
-    @classmethod
-    def ray_stop(cls):
-        return cls.run_command('ray stop')
-
-    @classmethod
-    def ray_start(cls):
-        return cls.run_command('ray start --head')
-
-
-    @classmethod
-    def ray_status(cls, *args, **kwargs):
-        return cls.run_command('ray status',  *args, **kwargs)
-
-    @classmethod
-    def ray_initialized(cls):
-        import ray
-        return ray.is_initialized()
 
     # def resource_usage(self):
     #     resource_dict =  self.config.get('actor', {}).get('resources', None)
@@ -3395,59 +3384,14 @@ class c:
             ray_context =  cls.ray_init(init_kwargs=ray_config)
         
         return ray_context
-    @classmethod
-    def ray_env(cls):
-        import ray
-        if not cls.ray_initialized():
-            cls.ray_init()
-        return ray
-    
+
     @classmethod
     def get_server_name(cls, name:str=None, tag:str=None, seperator:str='.'):
         name = name if name else cls.__name__.lower()
         if tag != None:
             name = tag + seperator + name
         return name
-    @classmethod 
-    def ray_launch(cls, 
-                   module= None, 
-                   name:Optional[str]=None, 
-                   tag:str=None, 
-                   args:List = None, 
-                   refresh:bool = False,
-                   kwargs:Dict = None,
-                   serve: bool = False, 
-                   **actor_kwargs):
-        
-        launch_kwargs = dict(locals())
-        launch_kwargs.update(launch_kwargs.pop('actor_kwargs'))
-        launch_kwargs = deepcopy(launch_kwargs)
-        ray = cls.ray_env()
-        """
-        deploys process as an actor or as a class given the config (config)
-        """
-        args = args if args != None else []
-        kwargs = kwargs if kwargs != None else {}
-        module_class = None
-        if isinstance(module, str):
-            module_class = cls.get_module(module)
-        elif module == None :
-            module_class = cls
-
-        else:
-            module_class = c.module(module)
-            
-        assert isinstance(name, str)
-        
-        actor_kwargs['name'] = name
-        actor_kwargs['refresh'] = refresh
-
-        actor = cls.create_actor(module=module_class,  args=args, kwargs=kwargs, **actor_kwargs) 
-        if serve:
-            actor = actor.serve(ray_get=False)
-        
-        return actor
-            
+  
 
     default_ray_env = {'address':'auto', 
                      'namespace': 'default',
@@ -7040,6 +6984,39 @@ class c:
             return found_lines[0]['idx']
         return found_lines
     
+    @classmethod
+    def fn_info(cls, fn) -> dict:
+        r = {}
+        code = cls.fn_code(fn)
+        lines = code.split('\n')
+        start_line = cls.find_code_line(lines[0])
+        end_line = start_line + len(lines)
+        has_docs = bool('"""' in code or "'''" in code)
+        filepath = cls.filepath()
+
+        return {
+            'start_line': start_line,
+            'end_line': end_line,
+            'has_docs': has_docs,
+            'code': code,
+            'n_lines': len(lines),
+            'hash': c.hash(code),
+            'path': filepath
+        }
+
+
+
+        return r
+
+
+    @classmethod
+    def get_code_line(cls, idx:int = 0, code:str = None ):
+        if code == None:
+            code = cls.code() # get the code
+        lines = code.split('\n')
+        assert idx < len(lines), f'idx {idx} is out of range for {len(lines)}'
+        return lines[idx]
+
     
     
     def ensure_self_attr(self, attr, default=None):
@@ -7570,12 +7547,19 @@ class c:
         for i in range(10):
             yield i
 
+
     @classmethod
     def run_generator(cls):
+        """
+        
+        """
         for i in cls.generator():
             c.print(i)
     @classmethod
     def is_generator(cls, obj):
+        """
+        Is this shiz a generator dawg?
+        """
         import inspect
         return inspect.isgenerator(obj)
     

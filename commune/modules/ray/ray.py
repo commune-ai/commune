@@ -1,5 +1,6 @@
 
 import commune as c
+
 class Ray(c.Module):
     description = 'ray stuff'
     @classmethod
