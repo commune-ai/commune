@@ -2436,7 +2436,6 @@ class c:
     def serve(cls, 
               module:Any = None ,
               tag:str=None,
-              ip :str = None,
               network = 'local',
               port :int = None, # name of the server if None, it will be the module name
               server_name:str=None, # name of the server if None, it will be the module name
