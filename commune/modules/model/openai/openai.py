@@ -23,12 +23,11 @@ class OpenAILLM(c.Module):
                 max_input_tokens: int = 100_000,
                 max_output_tokens: int = 100_000,
                 ):
-        
+        self.set_config(kwargs=locals())
         self.output_tokens = 0
         self.input_tokens = 0
         
         self.birth_time = c.time()
-        self.set_config(locals())
         self.set_api_key(api_key)
         self.set_prompt(prompt)
         self.set_tokenizer(tokenizer)
