@@ -3149,7 +3149,10 @@ class Subspace(c.Module):
     def spec_exists(cls, chain):
         return c.exists(f'{cls.spec_path}/{chain}.json')
 
-
+    @classmethod
+    def save_spec(cls, spec, chain:str=chain):
+        chain = cls.chain_spec_path(chain)
+        return c.put_json(chain, spec)
 
     @classmethod
     def chain_spec_path(cls, chain = None):
@@ -3355,13 +3358,16 @@ class Subspace(c.Module):
 
 
             if remote:
-                kwargs['module'] = remote_addresses.pop()
+                kwargs['module'] = remote_addresses[i % len(remote_addresses)]
+                kwargs['boot_nodes'] = cls.boot_nodes(chain=chain)
+
             else:
                 free_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
                 avoid_ports += free_ports
                 kwargs['port'] = free_ports[0]
                 kwargs['rpc_port'] = free_ports[1]
                 kwargs['ws_port'] = free_ports[2]
+
             kwargs['validator'] = False
             kwargs['max_boot_nodes'] = max_boot_nodes
 
@@ -3376,7 +3382,9 @@ class Subspace(c.Module):
             
             cls.putc(f'chain_info.{chain}.nodes.{node_name}', node_info)
 
-
+    @classmethod
+    def boot_nodes(cls, chain=chain):
+        return cls.getc(f'chain_info.{chain}.boot_nodes', [])
 
      
     @classmethod
@@ -3496,7 +3504,7 @@ class Subspace(c.Module):
         # add the node key if it does not exist
         if key_mems != None:
             c.print(f'adding node key for {key_mems}')
-            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True)
+            cls.add_node_key(node=node,chain=chain, key_mems=key_mems, refresh=True, insert_key=True)
 
         base_path = cls.resolve_base_path(node=node, chain=chain)
         
@@ -3527,8 +3535,7 @@ class Subspace(c.Module):
 
         cmd_kwargs += f' --port {port} --rpc-port {rpc_port} --ws-port {ws_port}'
         if boot_nodes == None:
-            boot_nodes = cls.getc(f'chain_info.{chain}.boot_nodes', [])
-        
+            boot_nodes = cls.boot_nodes(chain=chain)
         # add the node to the boot nodes
         if len(boot_nodes) > 0:
             node_info['boot_nodes'] = c.choice(boot_nodes)  # choose a random boot node (at we chose one)
@@ -3630,7 +3637,8 @@ class Subspace(c.Module):
                     port_keys: list = ['port', 'rpc_port', 'ws_port'],
                     remote:bool = False,
                     build_spec :bool = True,
-                    push:bool = False,
+                    push:bool = True,
+                    trials:int = 4
                     ):
 
         # KILL THE CHAIN
@@ -3661,6 +3669,7 @@ class Subspace(c.Module):
 
         if remote: 
             remote_addresses = c.addresses('module', network='remote')
+
         # START THE VALIDATOR NODES
         for i, node in enumerate(vali_nodes):
             c.print(f'[bold]Starting node {node} for chain {chain}[/bold]')
@@ -3676,36 +3685,51 @@ class Subspace(c.Module):
                             'validator':  True,
 
                             }
-            if remote:  
-                remote_address_cnt += 1
-                node_kwargs['module'] = remote_addresses[remote_address_cnt % len(remote_addresses)]
-                node_kwargs['boot_nodes'] = chain_info['boot_nodes']
-
-            else:
-                node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
-                for k, port in zip(port_keys, node_ports):
-                    avoid_ports.append(port)
-                    node_kwargs[k] = port
 
 
-            node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+            success = False
 
-            response = {}
-            
-            response = cls.start_node(**node_kwargs, refresh=refresh)
-            assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
+            for t in range(trials):
+                try:
+                    if remote:  
+                        remote_address_cnt += 1
+                        node_kwargs['module'] = remote_addresses[remote_address_cnt % len(remote_addresses)]
+                        node_kwargs['boot_nodes'] = chain_info['boot_nodes']
 
-            node_info = response['node_info']
-            boot_node = response['boot_node']
-            chain_info['boot_nodes'].append(boot_node)
-            chain_info['nodes'][node] = node_info
-        
+                    else:
+                        node_ports = c.free_ports(n=3, avoid_ports=avoid_ports)
+                        for k, port in zip(port_keys, node_ports):
+                            avoid_ports.append(port)
+                            node_kwargs[k] = port
+
+
+                    node_kwargs['key_mems'] = cls.node_key_mems(node, chain=chain)
+
+                    response = {}
+                    response = cls.start_node(**node_kwargs, refresh=refresh)
+                    assert 'boot_node' in response, f'boot_node must be in response, not {response.keys()}'
+
+                    node_info = response['node_info']
+                    boot_node = response['boot_node']
+                    chain_info['boot_nodes'].append(boot_node)
+                    chain_info['nodes'][node] = node_info
+                    success = True 
+                    break
+                except Exception as e:
+                    c.print(c.detailed_error(e))
+                    c.print(f'failed to start node {node} for chain {chain}, trying again -> {t}/{trials} trials')
+
+            assert success, f'failed to start node {node} for chain {chain} after {trials} trials'
+
+                
         cls.putc(f'chain_info.{chain}', chain_info)
+
         if nonvalis > 0:
-            cls.start_public_nodes(n=nonvalis, chain=chain, refresh=True)
+            # START THE NON VALIDATOR NODES
+            cls.start_public_nodes(n=nonvalis, chain=chain, refresh=True, remote=remote)
 
-
-               
+        return {'success':True, 'msg': f'Started chain {chain}', 'valis':valis, 'nonvalis':nonvalis}
+   
     @classmethod
     def node2url(cls, network:str = network) -> str:
         assert isinstance(network, str), f'network must be a string, not {type(network)}'
