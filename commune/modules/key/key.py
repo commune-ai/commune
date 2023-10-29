@@ -189,7 +189,7 @@ class Keypair(c.Module):
         assert cls.key_exists(new_path), f'key does not exist at {new_path}'
         new_key = cls.get_key(new_path)
         return {'success': True, 'message': f'key moved from {path} to {new_path}', 'key': new_key}
-
+    rename_key = mv_key 
     
     @classmethod
     def switch_key(cls, path1:str, path2:str):
@@ -221,8 +221,7 @@ class Keypair(c.Module):
         
         return {'success': True, 'before': before, 'after': after, 'msg': f'switched {path1} and {path2}'}
     
-    rename_key = mv_key
-    
+    swap_key = switch_key
     @classmethod
     def add_keys(cls, name, n=100, verbose:bool = False, **kwargs):
         response = []
