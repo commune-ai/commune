@@ -41,7 +41,7 @@ class Namespace(c.Module):
             network = cls.network
 
         if network == 'subspace':
-            namespace =  c.module(network)().namespace()
+            namespace =  c.module(network)().namespace(update=update)
         else:
             if update:
                 cls.update_namespace(network=network, full_scan=bool(network=='local'))
