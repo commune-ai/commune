@@ -8,12 +8,7 @@ from typing import List, Dict, Union, Optional, Tuple
 from commune.utils.network import ip_to_int, int_to_ip
 from rich.prompt import Confirm
 from commune.modules.subspace.balance import Balance
-from commune.modules.subspace.utils import (U16_NORMALIZED_FLOAT,
-                                    U64_MAX,
-                                    NANOPERTOKEN, 
-                                    U16_MAX, 
-                                    is_valid_address_or_public_key, 
-                                    )
+from commune.modules.subspace.utils import (U16_MAX,  is_valid_address_or_public_key, )
 from commune.modules.subspace.chain_data import (ModuleInfo, custom_rpc_type_registry)
 
 import streamlit as st
@@ -385,12 +380,22 @@ class Subspace(c.Module):
         # Validate address.
         if self.subnet_exists(subnet, network=network):
             netuid = self.get_netuid_for_subnet(subnet)
-
-            
             if self.is_registered(module_key.ss58_address, netuid=netuid):
                 c.print(f":cross_mark: [red]Module {name} already registered[/red]")
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+            min_stake = self.min_stake(netuid=netuid, registration=True)
 
+        else: 
+            c.print(f"YOU ARE CREATING A NEW SUBNET: {subnet}")
+            min_stake = self.min_stake(netuid=0, registration=True)
+
+            
+        # convert to nanos
+        balance = self.get_balance(key.ss58_address, fmt=fmt)
+        if balance < min_stake:
+            return {'success': False, 'message': f'Insufficient balance: {balance} < {min_stake}'}
+        if stake < min_stake:
+            stake = min_stake
         stake = self.to_nanos(stake)
 
         params = { 
@@ -400,13 +405,11 @@ class Subspace(c.Module):
                     'stake': stake,
                     'module_key': module_key.ss58_address,
                 } 
-
         # create extrinsic call
         response = self.compose_call('register', params=params, key=key)
 
         if response['success']:
             response['msg'] = f'Registered {name} with {stake} stake'
-        c.print(response)
 
         return response
 
@@ -1389,7 +1392,7 @@ class Subspace(c.Module):
 
     mcap = market_cap = total_supply
             
-    def subnet_state(self, 
+    def subnet(self, 
                     netuid=netuid,
                     network = network,
                     update: bool = False,
@@ -1424,8 +1427,6 @@ class Subspace(c.Module):
 
         return subnet
             
-    subnet = subnet_state
-    
 
     def get_total_subnets( self, block: Optional[int] = None ) -> int:
         return self.query( 'TotalSubnets', block=block ).value      
@@ -1501,7 +1502,8 @@ class Subspace(c.Module):
               df:bool=True, 
               update:bool = True , 
               local: bool = True,
-              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from'],
+              cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from', 'regblock'],
+              sort_cols = ['registered', 'emission', 'stake'],
               fmt : str = 'j',
               **kwargs
               ):
@@ -1509,6 +1511,7 @@ class Subspace(c.Module):
         ip = c.ip()
         modules = self.modules(netuid=netuid, update=update, fmt=fmt, network=network, **kwargs)
         stats = []
+
 
         for i, m in enumerate(modules):
 
@@ -1533,7 +1536,8 @@ class Subspace(c.Module):
         if len(stats) == 0:
             return df_stats
         df_stats = df_stats[cols]
-        sort_cols = ['registered', 'emission', 'stake']
+
+
         sort_cols = [c for c in sort_cols if c in df_stats.columns]  
         df_stats.sort_values(by=sort_cols, ascending=False, inplace=True)
 
@@ -1763,6 +1767,8 @@ class Subspace(c.Module):
         name2key =  { n: k for n, k in zip(names, keys)}
         if search != None:
             name2key = {k:v for k,v in name2key.items() if search in k}
+            if len(name2key) == 1:
+                return list(name2key.keys())[0]
             
         return name2key
 
@@ -2155,9 +2161,31 @@ class Subspace(c.Module):
                 'nodes': cls.node_paths(chain=chain)
                 }
 
-    def min_stake(self, netuid: int = None, network: str = network, **kwargs) -> int:
+    def min_stake(self, netuid: int = None, network: str = network, fmt:str='j', registration=True, **kwargs) -> int:
         netuid = self.resolve_netuid(netuid)
-        return self.query('MinStake', params=[netuid], network=network, **kwargs).value
+        min_stake = self.query('MinStake', params=[netuid], network=network, **kwargs).value
+        min_stake = self.format_amount(min_stake, fmt=fmt)
+        if registration:
+            registrations_per_block = self.registrations_per_block(netuid=netuid)
+            max_registrations_per_block = self.max_registrations_per_block(netuid=netuid)
+            
+            # 2 to the power of the number of registrations per block over the max registrations per block
+            # this is the factor by which the min stake is multiplied, to avoid ddos attacks
+            min_stake_factor = 2 **(registrations_per_block // max_registrations_per_block)
+            return min_stake * min_stake_factor
+        return min_stake
+
+
+    def registrations_per_block(self, netuid: int = None, network: str = network, fmt:str='j', **kwargs) -> int:
+        netuid = self.resolve_netuid(netuid)
+        return self.query('RegistrationsPerBlock', params=[], network=network, **kwargs).value
+    regsperblock = registrations_per_block
+
+    
+    def max_registrations_per_block(self, netuid: int = None, network: str = network, fmt:str='j', **kwargs) -> int:
+        netuid = self.resolve_netuid(netuid)
+        return self.query('MaxRegistrationsPerBlock', params=[], network=network, **kwargs).value
+    max_regsperblock = max_registrations_per_block
 
     
     def query(self, name,  params, block=None,  network: str = network,):
@@ -2347,8 +2375,13 @@ class Subspace(c.Module):
     regblocks = registration_blocks
 
 
-    def key2uid(self, network:str=  None,netuid: int = None, **kwargs):
-        return {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
+    def key2uid(self, key = None, network:str=  None ,netuid: int = None, **kwargs):
+        key2uid =  {v:k for k,v in self.uid2key(network=network, netuid=netuid, **kwargs).items()}
+        if key != None:
+            key_ss58 = self.resolve_key_ss58(key)
+            return key2uid[key_ss58]
+        return key2uid
+        
 
 
     @classmethod
@@ -3982,7 +4015,7 @@ class Subspace(c.Module):
         c.wait(futures)
 
 
-    def check_storage(self, storage_name:str, block_hash = None):
+    def check_storage(self, block_hash = None, network=network):
         self.resolve_network(network)
         return self.substrate.get_metadata_storage_functions( block_hash=block_hash)
 

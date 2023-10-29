@@ -3066,7 +3066,7 @@ class c:
                                 wait_for_server=True, 
                                 refresh=refresh, 
                                 tag=tag,
-                                **kwargs)
+                                **kwargs)['name']
         subspace.register(name=server_name, subnet=subnet, key=key, stake=stake)
         return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 

@@ -177,6 +177,8 @@ def is_valid_address_or_public_key( address: Union[str, bytes] ) -> bool:
         # Invalid address type
         return False
 
+
+
 def strtobool_with_default( default: bool ) -> Callable[[str], bool]:
     """
     Creates a strtobool function with a default value.
