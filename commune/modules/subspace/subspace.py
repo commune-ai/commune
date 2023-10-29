@@ -659,33 +659,24 @@ class Subspace(c.Module):
 
     def resolve_module_key(self, module_key: str =None, key: str =None, netuid: int = None, name2key:dict = None):
         if module_key == None:
-            key = self.resolve_key(key)
-            assert key != None, "Please provide a key"
+            module_key = c.get_key(module_key)
             module_key = key.ss58_address
             return module_key
         
-
-        assert isinstance(module_key, str), "Please provide a module_key as a string"
-        # is it your key, or is it a key on the network? (it can be both)
-        if c.key_exists(module_key):
-            # your key exists locally
-            module_key = c.get_key(module_key).ss58_address
-        else:
-            # the name matches a key in the subspace namespace
-            if name2key == None:
-                name2key = self.name2key(netuid=netuid)
-            if module_key in name2key:
-                module_key = name2key[module_key]
-
+        # the name matches a key in the subspace namespace
+        if name2key == None:
+            name2key = self.name2key(netuid=netuid)
+        if module_key in name2key:
+            module_key = name2key[module_key]
         assert c.is_valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         return module_key
 
     def transfer_stake(
             self,
-            key: str ,
-            new_module_key: str = None,
-            module_key: str = None,
+            new_module_key: str ,
+            module_key: str ,
             amount: Union[Balance, float] = None, 
+            key: str = None,
             netuid:int = None,
             wait_for_inclusion: bool = False,
             wait_for_finalization: bool = True,
@@ -693,7 +684,6 @@ class Subspace(c.Module):
             existential_deposit: float = 0.1,
             sync: bool = False
         ) -> bool:
-        raise NotImplementedError
         # STILL UNDER DEVELOPMENT, DO NOT USE
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
@@ -701,19 +691,20 @@ class Subspace(c.Module):
 
         c.print(f':satellite: Staking to: [bold white]SubNetwork {netuid}[/bold white] {amount} ...')
         # Flag to indicate if we are using the wallet's own hotkey.
-        old_balance = self.get_balance( key.ss58_address , fmt='j')
+
         name2key = self.name2key(netuid=netuid)
-        module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid, name2key=name2key)
-        new_module_key = self.resolve_module_key(module_key=new_module_key, key=key, netuid=netuid, name2key=name2key)
+        module_key = self.resolve_module_key(module_key=module_key, netuid=netuid, name2key=name2key)
+        new_module_key = self.resolve_module_key(module_key=new_module_key, netuid=netuid, name2key=name2key)
 
-        if not self.is_registered( module_key, netuid=netuid):
-            return {'success': False, 'message': f"Module {module_key} not registered in SubNetwork {netuid}"}
+        assert module_key != new_module_key, f"Module key {module_key} is the same as new_module_key {new_module_key}"
+        assert module_key in name2key.values(), f"Module key {module_key} not found in SubNetwork {netuid}"
+        assert new_module_key in name2key.values(), f"Module key {new_module_key} not found in SubNetwork {netuid}"
+
+        stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+
+        if amount == None:
+            amount = stake
         
-
-        old_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
-
-        if amount is None:
-            amount = old_balance
         amount = self.to_nanos(amount - existential_deposit)
         
         # Get current stake
@@ -724,14 +715,15 @@ class Subspace(c.Module):
 
                     }
 
-        response  = self.compose_call('transfer_stake',params=params, key=key)
+        balance = self.get_balance( key.ss58_address , fmt='j')
 
+        response  = self.compose_call('transfer_stake',params=params, key=key)
 
         if response['success']:
             new_balance = self.get_balance(key.ss58_address , fmt='j')
             new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
             msg = f"Staked {amount} from {key.ss58_address} to {module_key}"
-            return {'success': True, 'msg':msg}
+            return {'success': True, 'msg':msg, 'balance': {'old': balance, 'new': new_balance}, 'stake': {'old': stake, 'new': new_stake}}
         else:
             return  {'success': False, 'msg':response.error_message}
 
@@ -739,12 +731,10 @@ class Subspace(c.Module):
 
     def stake(
             self,
-            key: str ,
-            amount: Union[Balance, float] = None, 
             module_key: Optional[str] = None, # defaults to key if not provided
+            amount: Union[Balance, float] = None, 
+            key: str = None,  # defaults to first key
             netuid:int = None,
-            wait_for_inclusion: bool = False,
-            wait_for_finalization: bool = True,
             network:str = None,
             existential_deposit: float = 0.01,
             sync: bool = False
@@ -755,7 +745,6 @@ class Subspace(c.Module):
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
-        module_key = self.resolve_module_key(module_key=module_key, key=key, netuid=netuid)
         old_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
@@ -784,10 +773,10 @@ class Subspace(c.Module):
 
     def unstake(
             self,
-            key : 'c.Key', 
-            amount: float = None, 
-            module_key : str = None,
-            netuid : Union[str, int] = None,
+            amount: float =None, 
+            module_key : str = None, # defaults to most staked module
+            key : 'c.Key' = None,  # defaults to first key
+            netuid : Union[str, int] = 0, # defaults to module.netuid
             wait_for_inclusion:bool = True, 
             wait_for_finalization:bool = False,
             prompt: bool = False,
@@ -798,10 +787,27 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         old_balance = self.get_balance( key.ss58_address , fmt='j')       
         # get most stake from the module
-        most_staketo_key = self.most_staketo_key(key=key, netuid=netuid)
-        module_key = most_staketo_key['key'] if module_key == None else module_key
-        old_stake = most_staketo_key['stake']
-        amount = old_stake if amount == None else amount
+        staketo = self.get_staketo(netuid=netuid, names = False)
+
+        if module_key == None:
+            # find the largest staked module
+            max_stake = 0
+            for k,v in staketo.items():
+                if v > max_stake:
+                    max_stake = v
+                    module_key = k
+            
+        else:
+            key2name = self.key2name(netuid=netuid)
+            name2key = {k:key2name[k] for k,v in staketo}
+            if module_key in name2key:
+                module_key = name2key[module_key]
+        
+
+        assert module_key in staketo, f"Module {module_key} not found in SubNetwork {netuid}"
+        stake = staketo[module_key]
+        amount = amount if amount != None else stake
+        
         amount = self.to_nanos(amount)
         params={
             'amount': int(amount),
@@ -822,7 +828,7 @@ class Subspace(c.Module):
                 },
                 'to': {
                     'key': module_key,
-                    'stake_before': old_stake,
+                    'stake_before': stake,
                     'stake_after': new_stake
             }
             }
@@ -1048,22 +1054,19 @@ class Subspace(c.Module):
         return staked_modules
         
 
-    def get_staketo( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , names = False, name2key=None) -> Optional['Balance']:
-        
+    def get_staketo( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , names:bool = True, network=None) -> Optional['Balance']:
+        network = self.resolve_network(network)
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
-        stake_to =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block )]
+        stake_to =  {k.value: self.format_amount(v.value, fmt=fmt) for k, v in self.query( 'StakeTo', params=[netuid, key_address], block=block )}
 
         if module_key != None:
             module_key = self.resolve_key_ss58( module_key )
             stake_to : int ={ k:v for k, v in stake_to}.get(module_key, 0)
 
         if names:
-            if name2key == None:
-                key2name = self.key2name(netuid=netuid)
-            else:
-                key2name = {v:k for k,v in name2key.items()}
-            stake_to = {key2name[k]:v for k,v in stake_to}
+            key2name = self.key2name(netuid=netuid)
+            stake_to = {key2name[k]:v for k,v in stake_to.items()}
         return stake_to
     
 
@@ -1073,7 +1076,6 @@ class Subspace(c.Module):
         return {key2module[k]['name'] : v for k,v in stake_from}
         
     def get_stakefrom( self, key: str, from_key=None, block: Optional[int] = None, netuid:int = None, fmt='j'  ) -> Optional['Balance']:
-        key2module = self.key2module(netuid=netuid)
         key = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
         state_from =  [(k.value, self.format_amount(v.value, fmt=fmt)) for k, v in self.query( 'StakeFrom', block=block, params=[netuid, key] )]
@@ -1084,15 +1086,6 @@ class Subspace(c.Module):
 
         return state_from
     get_stake_from = get_stakefrom
-    def unstake_all( self, key: str, netuid:int = None  ) -> Optional['Balance']:
-        
-        key = self.resolve_key( key )
-        netuid = self.resolve_netuid( netuid )
-        stake_to =  self.get_staketo( key, netuid=netuid )
-        c.print(f"Unstaking all for [bold white]{key}[/bold white] on network [bold white]{netuid}[/bold white]. -> {stake_to}")
-        for (module_key, stake_amount) in stake_to:
-            self.unstake( key=key, module_key=module_key, netuid=netuid, amount=stake_amount)
-       
 
     def multistake( self, 
                         modules:List[str],
@@ -1137,25 +1130,22 @@ class Subspace(c.Module):
 
     def multiunstake( self, 
                         modules:List[str],
-                        amounts:Union[List[str], float, int],
+                        amounts:Union[List[str], float, int] = None,
                         key: str = None, 
                         netuid:int = 0,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
-        balance = self.get_balance(key=key, fmt='j')
-        name2key = self.name2key(netuid=netuid)
-        stake_to = self.get_staketo(key=key, netuid=netuid, names=True) # name to amount
+        stake_to = self.get_staketo(key=key, netuid=netuid, names=False) # name to amount
 
         if isinstance(modules, str):
-            modules = [m for m in stake_to.keys() if modules in m]
-
-        # resolve module keys
-        for i, module in enumerate(modules):
-            if module in stake_to:
-                modules[i] = name2key[module]
+            key2name = self.key2name(netuid=netuid)
+            name2key = {key2name[k]:k for k in stake_to.keys()}
+            modules = [name2key[m] for m in name2key.keys() if modules in m]
 
         # RESOLVE AMOUNTS
+        if amounts == None:
+            amounts = [stake_to[m] for m in modules]
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(modules)
 
@@ -2330,10 +2320,10 @@ class Subspace(c.Module):
         return  dict(sorted(my_balance.items(), key=lambda item: item[1]))
 
     def most_staketo_key(self, key, netuid = 0,  **kwargs):
-        staketo = self.get_staketo(key, netuid=netuid, **kwargs)
+        staketo = self.get_staketo(key, netuid=netuid, names=False, **kwargs)
         most_stake = 0
         most_stake_key = None
-        for k, v in staketo:
+        for k, v in staketo.items():
             if v > most_stake:
                 most_stake = v
                 most_stake_key = k
@@ -4011,25 +4001,6 @@ class Subspace(c.Module):
 
     def telemetry_running(self):
         return c.module('docker').exists('telemetry')
-
-    @classmethod
-    def transfer_to_controller(cls, search: Optional[str]=None, controller_key:str = 'module' , min_amount=100, network='main', timeout=100):
-        self = cls(network=network)
-        my_balance = self.my_balance()
-        if search != None:
-            my_balance = {k:v for k,v in my_balance.items() if k.startswith(search) and v > min_amount}
-        c.print(f'transferring {my_balance} to {controller_key}')
-
-        executor = c.module('executor')()
-
-        for k,v in my_balance.items():
-            future = executor.submit(fn=c.transfer, kwargs={'key':k, 'dest':controller_key, 'amount':v}, timeout=timeout)
-            futures += [future]
-
-        c.print(f'waiting for {len(futures)} transfers to complete')
-        # return as soon as all the futures are done
-    
-        c.wait(futures)
 
 
     def check_storage(self, block_hash = None, network=network):
