@@ -1047,7 +1047,7 @@ class Subspace(c.Module):
         return staked_modules
         
 
-    def get_staketo( self, key: str, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , return_names = False) -> Optional['Balance']:
+    def get_staketo( self, key: str = None, module_key=None, block: Optional[int] = None, netuid:int = None , fmt='j' , names = False, name2key=None) -> Optional['Balance']:
         
         key_address = self.resolve_key_ss58( key )
         netuid = self.resolve_netuid( netuid )
@@ -1056,6 +1056,13 @@ class Subspace(c.Module):
         if module_key != None:
             module_key = self.resolve_key_ss58( module_key )
             stake_to : int ={ k:v for k, v in stake_to}.get(module_key, 0)
+
+        if names:
+            if name2key == None:
+                key2name = self.key2name(netuid=netuid)
+            else:
+                key2name = {v:k for k,v in name2key.items()}
+            stake_to = {key2name[k]:v for k,v in stake_to}
         return stake_to
     
 
@@ -1090,14 +1097,19 @@ class Subspace(c.Module):
                         modules:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
-
                         netuid:int = 0,
+                        n:str = 10,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
         name2key = self.name2key(netuid=netuid)
 
+        if isinstance(modules, str):
+            modules = [m for m in name2key.keys() if modules in m]
+
+        assert len(modules) > 0, f"No modules found with name {modules}"
+        modules = modules[:n] # only stake to the first n modules
         # resolve module keys
         for i, module in enumerate(modules):
             if module in name2key:
@@ -1126,21 +1138,23 @@ class Subspace(c.Module):
                         modules:List[str],
                         amounts:Union[List[str], float, int],
                         key: str = None, 
-
                         netuid:int = 0,
                         network: str = None) -> Optional['Balance']:
         network = self.resolve_network( network )
         key = self.resolve_key( key )
         balance = self.get_balance(key=key, fmt='j')
         name2key = self.name2key(netuid=netuid)
+        stake_to = self.get_staketo(key=key, netuid=netuid, names=True) # name to amount
+
+        if isinstance(modules, str):
+            modules = [m for m in stake_to.keys() if modules in m]
 
         # resolve module keys
         for i, module in enumerate(modules):
-            if module in name2key:
+            if module in stake_to:
                 modules[i] = name2key[module]
-        module_keys = modules
 
-
+        # RESOLVE AMOUNTS
         if isinstance(amounts, (float, int)): 
             amounts = [amounts] * len(modules)
 
@@ -1152,7 +1166,7 @@ class Subspace(c.Module):
 
         call_params = {
             "netuid": netuid,
-            "module_keys": module_keys,
+            "module_keys": modules,
             "amounts": amounts
         }
 
@@ -2188,7 +2202,9 @@ class Subspace(c.Module):
     max_regsperblock = max_registrations_per_block
 
     
-    def query(self, name,  params, block=None,  network: str = network,):
+    def query(self, name:str,  params = None, block=None,  network: str = network, module:str='SubspaceModule'):
+        if params == None:
+            params = []
         if not isinstance(params, list):
             params = [params]
         self.resolve_network(network)
@@ -3849,7 +3865,7 @@ class Subspace(c.Module):
         s = c.module('subspace')()
 
         for module_name, module_key in name2key.items():
-            s.stake(key=key, module_key=module_key, amount=stake_per_module)
+            s.multistake(key=key, module_key=module_key, amount=stake_per_module)
 
     
 
