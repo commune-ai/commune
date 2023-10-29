@@ -2242,8 +2242,8 @@ class c:
 
 
     @classmethod
-    def get_port(cls, port:int = None, **kwargs)->int:
-        port = port if port is not None and port != 0 else cls.free_port(**kwargs)
+    def get_port(cls, port:int = None)->int:
+        port = port if port is not None and port != 0 else cls.free_port()
         while cls.port_used(port):
             port += 1   
         return port 
@@ -2492,12 +2492,13 @@ class c:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs.pop('extra_kwargs')
             remote_kwargs['remote'] = False
+            remote_kwargs['port'] = c.resolve_port(remote_kwargs['port'])
             c.save_serve_kwargs(server_name, remote_kwargs)
             c.print(f'Serving {server_name} remotely {remote_kwargs}', color='yellow')
             response = cls.remote_fn('serve',name=server_name, kwargs=remote_kwargs)
             if wait_for_server:
                 cls.wait_for_server(server_name, network=network)
-            address = c.get_address(server_name, network=network)
+            address = c.ip() + ':' + str(remote_kwargs['port'])
             return {'success':True, 'name': server_name, 'address':address}
         
         module_class = cls.resolve_module(module)
@@ -3044,7 +3045,7 @@ class c:
                  stake : int = 0,
                  subnet:str = 'commune',
                  refresh:bool =False,
-                 fmt : str = 'j',
+                 wait_for_server:bool = False,
                  **kwargs ):
         subspace = c.module('subspace')()
 
@@ -3058,16 +3059,20 @@ class c:
             c.add_key(server_name)
         if c.server_exists(server_name, network='local') and refresh == False:
             c.print(f'Server already Exists ({server_name})')
+            address = c.get_address(server_name)
         
         else:
             module = cls.resolve_module(module)
-            server_name = module.serve(
+            serve_info =  module.serve(
                                 server_name=server_name, 
-                                wait_for_server=True, 
+                                wait_for_server=wait_for_server, 
                                 refresh=refresh, 
                                 tag=tag,
-                                **kwargs)['name']
-        subspace.register(name=server_name, subnet=subnet, key=key, stake=stake)
+                                **kwargs)
+            server_name = serve_info['name']
+            address = serve_info['address']
+
+        subspace.register(name=server_name, address=address, subnet=subnet, key=key, stake=stake)
         return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
 
     @classmethod

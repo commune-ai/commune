@@ -420,14 +420,15 @@ class Subspace(c.Module):
     ##################
     def transfer(
         self,
-        key: str,
         amount: float , 
         dest: str, 
+        key: str = None,
         wait_for_inclusion: bool = True,
         wait_for_finalization: bool = False,
         network : str = None,
         netuid : int = None,
     ) -> bool:
+        
         key = c.get_key(key)
         network = self.resolve_network(network)
         dest = self.resolve_key_ss58(dest)
