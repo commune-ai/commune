@@ -2252,7 +2252,7 @@ class Subspace(c.Module):
         names = list({k: names[k] for k in sorted(names)}.values())
         return names
 
-    def namespace(self, netuid: int = netuid, network=network, update:bool = False,**kwargs) -> Dict[str, str]:
+    def namespace(self, netuid: int = netuid, network=network, update:bool = True,**kwargs) -> Dict[str, str]:
         cache_path = f'namespace/{network}.{netuid}'
         if update:
             namespace = {}
