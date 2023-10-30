@@ -93,8 +93,8 @@ class Namespace(c.Module):
         return list(cls.get_namespace(network=network).keys())
     
     @classmethod
-    def addresses(cls, network:str=network) -> List[str]:
-        return list(cls.get_namespace(network=network).values())
+    def addresses(cls, network:str=network, **kwargs) -> List[str]:
+        return list(cls.get_namespace(network=network, **kwargs).values())
     
     @classmethod
     def module_exists(cls, module:str, network:str=network) -> bool:
@@ -137,8 +137,11 @@ class Namespace(c.Module):
         c.put_namespace(network, namespace)
 
     @classmethod
-    def merge_namespace(cls, from_network:str, to_network:str):
+    def merge_namespace(cls, from_network:str, to_network:str, module = None):
         from_namespace = c.get_namespace(network=from_network)
+        if module == None:
+            module = c.module(from_network)
+
         to_namespace = c.get_namespace(network=to_network)
         to_namespace.update(from_namespace)
         c.put_namespace(to_network, to_namespace)

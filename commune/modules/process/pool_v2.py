@@ -99,7 +99,7 @@ class PoolTaskExecutor(c.Module):
 
         num_processes = len(self.processes)
         if num_processes < self.max_workers:
-            p = mp.Process(target=self.worker, args=(self.work_queue))
+            p = mp.Process(target=self.worker, args=(self.work_queue,))
             p.daemon = True
             p.start()
             self.processes.append(p)
@@ -180,7 +180,6 @@ class PoolTaskExecutor(c.Module):
 
         return {'success': True, 'msg': 'process pool test passed'}
     
-    def __del__(self):
-        self.shutdown(wait=False)
+
 
         

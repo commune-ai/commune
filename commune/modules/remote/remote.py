@@ -258,8 +258,8 @@ class Remote(c.Module):
         return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
 
     @classmethod
-    def servers(self, network='remote'):
-        return c.servers(network=network)
+    def servers(self,search: str ='module', network='remote'):
+        return c.servers(search, network=network)
     
     @classmethod
     def serve(self, *args, n=1, **kwargs):
@@ -270,8 +270,24 @@ class Remote(c.Module):
         
     
     @classmethod
-    def namespace(self, network='remote'):
-        return c.namespace(network=network)
+    def namespace(cls, search='module', network='remote', update=True):
+
+        if update:
+            namespace = {}
+            host2namespace = cls.call('namespace', public=True)
+            for host, host_namespace in host2namespace.items():
+                for name, address in host_namespace.items():
+                    tag = ''
+                    while name + str(tag) in namespace:
+                        if tag == '':
+                            tag = 1
+                        else:
+                            tag += 1
+                    namespace[name + str(tag)] = address
+
+            c.put_namespace(namespace=namespace, network=network)
+        
+        return c.namespace(search, network=network)
 
     @classmethod
     def get_address(self, name):
@@ -291,7 +307,7 @@ class Remote(c.Module):
     
 
     @classmethod
-    def call(cls, fn:str='info' , *args,  network:str='remote', n=1,  **kwargs):
+    def call(cls, fn:str='info' , *args,   network:str='remote', n=1,  **kwargs):
         futures = {}
         kwargs['network'] =  network
         for name, address in c.namespace(network=network).items():
@@ -308,20 +324,17 @@ class Remote(c.Module):
     @classmethod
     def push(self):
         c.push()
-        c.rcmd('c pull')
-        c.rcmd('c serve')
+        c.rcmd('c pull', verbose=True)
+        c.rcmd('c serve', verbose=True)
         c.add_servers()
     
     @classmethod
-    def check_servers(cls):
+    def check_servers(cls, timeout=100):
+        futures = []
         for m,a in c.namespace(network='remote').items():
-            try:
-                result = c.call(a)
-                c.print(f'{c.emoji("checkmaark")} [bold green]{m} --> {a}[/bold green] {c.emoji("checkmark")}')
-            except Exception as e:
-                c.rm_server(a, network='remote')
-                c.print('failed')
-
+            futures += [c.call(a,  fn='info',return_future=True, timeout=timeout)]
+        results = c.wait(futures, timeout=timeout)
+        return results
 
 
     # @classmethod
