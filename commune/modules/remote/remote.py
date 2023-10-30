@@ -318,7 +318,7 @@ class Remote(c.Module):
     
 
     @classmethod
-    def call(cls, fn:str='info' , *args, search:str='module',  network:str='remote', n=2, return_future: bool = False,  **kwargs):
+    def call(cls, fn:str='info' , *args, search:str='module',  network:str='remote', n:int=None, return_future: bool = False,  **kwargs):
         futures = {}
         kwargs['network'] =  network
         namespace = c.namespace(search=search, network=network)
@@ -336,8 +336,8 @@ class Remote(c.Module):
         
         
     @classmethod
-    def pull(cls, stash=True):
-        return c.rcmd(f'c pull stash={stash}')
+    def pull(cls, stash=True, hosts=None):
+        return c.rcmd(f'c pull stash={stash}', hosts=hosts)
     
     @classmethod
     def push(self):
@@ -350,8 +350,8 @@ class Remote(c.Module):
     def check_servers(cls, timeout=100):
         futures = []
         for m,a in c.namespace(network='remote').items():
-            futures += [c.call(a,  fn='info',return_future=True, timeout=timeout)]
-        results = c.wait(futures, timeout=timeout)
+            futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
+        results = c.wait(futures)
         return results
 
 
