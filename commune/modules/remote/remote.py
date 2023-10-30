@@ -137,6 +137,12 @@ class Remote(c.Module):
     def names(cls, search=None):
         return list(cls.hosts(search=search).keys())
 
+    def host2name(self, host):
+        hosts = self.hosts()
+        for name, h in hosts.items():
+            if h == host:
+                return name
+        raise Exception(f'Host {host} not found')
     
 
     @classmethod
@@ -239,23 +245,29 @@ class Remote(c.Module):
     
     @classmethod
     def add_servers(cls, *args, add_admins:bool=False, network='remote'):
-    
-
         if add_admins:
             c.print('Adding admin')
             cls.add_admin()
+        cls.check_servers()
         servers = list(cls.cmd('c addy', verbose=True).values())
         for i, server in enumerate(servers):
             if server.endswith('\n'):
                 servers[i] = server[:-1]
         c.add_servers(*servers, network=network)
-        cls.check_servers()
         servers = c.servers(network=network)
         return {'status': 'success', 'msg': f'Servers added', 'servers': servers}
 
     @classmethod
     def servers(self, network='remote'):
         return c.servers(network=network)
+    
+    @classmethod
+    def serve(self, *args, n=1, **kwargs):
+        
+        for i in range(n):
+            c.serve(*args, **kwargs)
+            
+        
     
     @classmethod
     def namespace(self, network='remote'):
@@ -279,7 +291,7 @@ class Remote(c.Module):
     
 
     @classmethod
-    def call(cls, fn:str='info' , *args,  network='remote',  **kwargs):
+    def call(cls, fn:str='info' , *args,  network:str='remote', n=1,  **kwargs):
         futures = {}
         kwargs['network'] =  network
         for name, address in c.namespace(network=network).items():
@@ -292,6 +304,14 @@ class Remote(c.Module):
     @classmethod
     def pull(cls, stash=True):
         return c.rcmd(f'c pull stash={stash}')
+    
+    @classmethod
+    def push(self):
+        c.push()
+        c.rcmd('c pull')
+        c.rcmd('c serve')
+        c.add_servers()
+    
     @classmethod
     def check_servers(cls):
         for m,a in c.namespace(network='remote').items():
@@ -301,6 +321,8 @@ class Remote(c.Module):
             except Exception as e:
                 c.rm_server(a, network='remote')
                 c.print('failed')
+
+
 
     # @classmethod
     # def refresh_servers(cls):

@@ -355,12 +355,7 @@ class Subspace(c.Module):
         key : str  = None,
         module_key : str = None,
         address : str = None,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization: bool = True,
         network: str = network,
-        existential_balance: float = 0.1,
-        replace_module: str = None, # if you want to replace a module
-        sync: bool = False,
         fmt = 'nano'
 
     ) -> bool:
@@ -372,8 +367,11 @@ class Subspace(c.Module):
             subnet = self.config.subnet
 
         network =self.resolve_network(network)
-        address = c.namespace(network='local').get(name, c.default_ip)
-        address = address.replace(c.default_ip,c.ip())
+
+        if address == None:
+            address = c.namespace(network='local')[name]
+            address = address.replace(c.default_ip,c.ip())
+        
         module_key = self.resolve_key(name)
         key = self.resolve_key(key)
 
@@ -420,11 +418,9 @@ class Subspace(c.Module):
     ##################
     def transfer(
         self,
-        amount: float , 
         dest: str, 
+        amount: float , 
         key: str = None,
-        wait_for_inclusion: bool = True,
-        wait_for_finalization: bool = False,
         network : str = None,
         netuid : int = None,
     ) -> bool:
@@ -432,16 +428,7 @@ class Subspace(c.Module):
         key = c.get_key(key)
         network = self.resolve_network(network)
         dest = self.resolve_key_ss58(dest)
-        # Validate destination address.
-        if not is_valid_address_or_public_key( dest ):
-            msg = ":cross_mark: [red]Invalid destination address[/red]:[bold white]\n  {}[/bold white]".format(dest)
-            return {'success': False, 'message': msg}
-        if isinstance( dest, bytes):
-            # Convert bytes to hex string.
-            dest = "0x" + dest.hex()
-        # Check balance.
         account_balance = self.get_balance( key.ss58_address , fmt='j' )
-
         if amount > account_balance:
             return {'success': False, 'message': f'Insufficient balance: {account_balance}'}
 
@@ -509,8 +496,6 @@ class Subspace(c.Module):
         address: str = None,
         delegation_fee: float = 20,
         netuid: int = None,
-        wait_for_inclusion: bool = False,
-        wait_for_finalization = True,
         network : str = network,
 
 
@@ -860,6 +845,11 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid  = self.resolve_netuid(netuid)
         return {k.value: list(map(list,v.value)) for k,v in self.query_map('StakeFrom', netuid, block=block)}
+    
+    def delegation_fee(self, netuid = None, block=None, network=None):
+        network = self.resolve_network(network)
+        netuid  = self.resolve_netuid(netuid)
+        return {k.value:v.value for k,v in self.query_map('DelegationFee', netuid, block=block)}
     
     def stake_to(self, netuid = None, network=None, block=None):
         network = self.resolve_network(network)
@@ -1274,7 +1264,7 @@ class Subspace(c.Module):
         if len(self.state_dict_cache) == 0 :
             block = self.block
             netuids = self.netuids() if netuids == None else netuids
-            state_dict = {'subnets': [self.subnet(netuid=netuid, network=network, block=block, update=True) for netuid in netuids], 
+            state_dict = {'subnets': [self.subnet(netuid=netuid, network=network, block=block, update=True, fmt='nano') for netuid in netuids], 
                         'modules': [self.modules(netuid=netuid, network=network, include_weights=inlcude_weights, block=block, update=True) for netuid in netuids],
                         'stake_to': [self.stake_to(network=network, block=block) for netuid in netuids],
                         'balances': self.balances(network=network, block=block),
@@ -1402,7 +1392,8 @@ class Subspace(c.Module):
                     network = network,
                     update: bool = False,
                     block : Optional[int] = None,
-                    cache:bool = False) -> list:
+                    cache:bool = False,
+                    fmt:str='j') -> list:
         
         if cache and not update:
             subnet_states =  self.state_dict(network=network, key='subnets', update=update )
@@ -1412,7 +1403,7 @@ class Subspace(c.Module):
         subnet_emission = self.query( 'SubnetEmission', params=netuid, block=block ).value
         subnet_founder = self.query( 'Founder', params=netuid, block=block ).value
         n = self.query( 'N', params=netuid, block=block ).value
-        total_stake = self.total_stake(block=block)
+        total_stake = self.total_stake(block=block, fmt='nano')
 
         subnet = {
                 'name': self.netuid2subnet(netuid),
@@ -1425,10 +1416,13 @@ class Subspace(c.Module):
                 'min_allowed_weights': self.min_allowed_weights( netuid = netuid, block=block ),
                 'max_allowed_weights': self.max_allowed_weights( netuid = netuid , block=block),
                 'max_allowed_uids': self.max_allowed_uids( netuid = netuid , block=block),
-                'min_stake': self.min_stake( netuid = netuid , block=block),
-                'ratio': subnet_stake / total_stake,
+                'min_stake': self.min_stake( netuid = netuid , block=block, fmt='nano'),
+                'ratio': min(float(subnet_stake / total_stake), 1.00),
                 'founder': subnet_founder
             }
+        
+        for k in ['stake', 'emission', 'min_stake']:
+            subnet[k] = self.format_amount(subnet[k], fmt=fmt)
 
         return subnet
             
@@ -1574,7 +1568,10 @@ class Subspace(c.Module):
         for m in c.stats(search=search, netuid=netuid, cols=cols, df=False):
             if m['serving'] == False and m['registered'] == True:
                 ip = m['address'].split(':')[0]
-                port = int(m['address'].split(':')[-1])
+                if ':' in ip:
+                    port = int(m['address'].split(':')[-1])
+                else:
+                    port = 8888
                 c.serve(m['name'], port=port)
             if m['serving'] == True and m['registered'] == False:
                 self.register(m['name'])
@@ -2009,7 +2006,7 @@ class Subspace(c.Module):
 
 
             
-            keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from']
+            keys = ['uid2key', 'addresses', 'names', 'emission', 'incentive', 'dividends', 'regblock', 'last_update', 'stake_from', 'delegation_fee']
             if include_weights:
                 keys += ['weights']
             if multithread:
@@ -2022,7 +2019,6 @@ class Subspace(c.Module):
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
                 state = {}
-                num_keys = len(keys)
 
                 for  key in c.tqdm(keys):
                     state[key] =  getattr(self, key)(netuid=netuid, block=block)
@@ -2039,6 +2035,7 @@ class Subspace(c.Module):
                     'stake_from': state['stake_from'].get(key, []),
                     'regblock': state['regblock'].get(uid, 0),
                     'last_update': state['last_update'][uid],
+                    'delegation_fee': state['delegation_fee'].get(key, 20)
                 }
                 module['stake'] = sum([v for k,v in module['stake_from']])
                 
