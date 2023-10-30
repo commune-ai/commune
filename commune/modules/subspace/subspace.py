@@ -3839,7 +3839,8 @@ class Subspace(c.Module):
 
 
 
-    def stake_spread(self, key:str, modules:list=None, ratio = 1.0, n:int=20):
+    def stake_spread(self,  modules:list=None, key:str = None,ratio = 1.0, n:int=20):
+        key = self.resolve_key(key)
         name2key = self.name2key()
         if modules == None:
             modules = self.top_valis(n=n)
@@ -3871,8 +3872,7 @@ class Subspace(c.Module):
 
         s = c.module('subspace')()
 
-        for module_name, module_key in name2key.items():
-            s.multistake(key=key, module_key=module_key, amount=stake_per_module)
+        s.multistake(key=key, modules=module_keys, amounts=stake_per_module)
 
     
 
