@@ -36,7 +36,7 @@ class Namespace(c.Module):
         return address
 
     @classmethod
-    def get_namespace(cls, search=None, network:str = 'local', update:bool = False) -> dict:
+    def get_namespace(cls, search=None, network:str = 'local', update:bool = False, public:bool = False) -> dict:
         if network == None: 
             network = cls.network
 
@@ -48,6 +48,10 @@ class Namespace(c.Module):
             namespace = cls.get(network, {})
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
+
+        if public:
+            ip = c.ip()
+            namespace = {k:v.replace(c.default_ip, ip) for k,v in namespace.items()}
         return namespace
     
     
@@ -219,6 +223,7 @@ class Namespace(c.Module):
         namespace = cls.get_namespace(network=network, **kwargs)
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
+
         return namespace
 
     

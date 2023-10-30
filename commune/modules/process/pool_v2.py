@@ -96,12 +96,10 @@ class PoolTaskExecutor(c.Module):
         if self.idle_semaphore.acquire(timeout=0):
             return
 
-        def weakref_cb(_, q=self.work_queue):
-            q.put(NULL_ENTRY)
 
         num_processes = len(self.processes)
         if num_processes < self.max_workers:
-            p = mp.Process(target=self.worker, args=(weakref.ref(self, weakref_cb),self.work_queue))
+            p = mp.Process(target=self.worker, args=(self.work_queue))
             p.daemon = True
             p.start()
             self.processes.append(p)
@@ -109,17 +107,17 @@ class PoolTaskExecutor(c.Module):
 
     def shutdown(self, wait=True):
         with self.shutdown_lock:
-            self.shutdown = True
-            self.work_queue.put(NULL_ENTRY)
-        if wait:
-            for t in self.processes:
-                try:
-                    t.join(timeout=2)
-                except Exception:
-                    pass
+            for i in range(len(self.processes)):
+                p = self.processes.pop()
+                for _ in range(2):
+                    self.work_queue.put(NULL_ENTRY)
+                p.terminate()
+                p.join()
+            
+
 
     @staticmethod
-    def worker(executor_reference, work_queue):
+    def worker(work_queue):
         
         try:
             while True:
@@ -132,27 +130,9 @@ class PoolTaskExecutor(c.Module):
                     break
 
                 item = work_item[1]
+                item.run()
+                del item
 
-                if item is not None:
-                    item.run()
-                    # Delete references to object. See issue16284
-                    del item
-                    continue
-
-                executor = executor_reference()
-                # Exit if:
-                #   - The interpreter is shutting down OR
-                #   - The executor that owns the worker has been collected OR
-                #   - The executor that owns the worker has been shutdown.
-                if executor is None or executor.shutdown:
-                    # Flag the executor as shutting down as early as possible if it
-                    # is not gc-ed yet.
-                    if executor is not None:
-                        executor.shutdown = True
-                    # Notice other workers
-                    work_queue.put(NULL_ENTRY)
-                    return
-                del executor
         except Exception as e:
             c.print(e, color='red')
             c.print("work_item", work_item, color='red')
@@ -199,5 +179,8 @@ class PoolTaskExecutor(c.Module):
 
 
         return {'success': True, 'msg': 'process pool test passed'}
+    
+    def __del__(self):
+        self.shutdown(wait=False)
 
         

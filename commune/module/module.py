@@ -2378,8 +2378,8 @@ class c:
     def namespace(cls,
                   search:str = None,
                   network:str='local',
-                  update: bool = False):
-        return c.module("namespace").namespace(search=search, network=network, update=update)
+                  update: bool = False, **kwargs):
+        return c.module("namespace").namespace(search=search, network=network, update=update, **kwargs)
     @classmethod
     def rm_namespace(cls, *args, **kwargs):
         return c.module("namespace").rm_namespace(*args, **kwargs)
