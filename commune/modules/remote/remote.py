@@ -262,11 +262,20 @@ class Remote(c.Module):
         return c.servers(search, network=network)
     
     @classmethod
-    def serve(self, *args, n=1, **kwargs):
-        
-        for i in range(n):
-            c.serve(*args, **kwargs)
+    def serve(cls, *args, n=1, **kwargs):
+        return cls.call('serve', *args, search='module', n=n, **kwargs)
             
+
+    @classmethod
+    def logs(cls, module, n=3 , **kwargs):
+        namespace = cls.namespace(search=module)
+        c.print(namespace)
+        for name, address in list(namespace.items())[:n]:
+            if address == None:
+                raise Exception(f'Address for {name} not found')
+            logs = c.call(address, 'logs', name, mode='local')
+            c.print(f'[bold yellow]{name}[/bold yellow]')
+            c.print('\n'.join(logs.split('\n')[-10:]))
         
     
     @classmethod
@@ -284,10 +293,12 @@ class Remote(c.Module):
                         else:
                             tag += 1
                     namespace[name + str(tag)] = address
-
+            c.print(namespace)
             c.put_namespace(namespace=namespace, network=network)
-        
-        return c.namespace(search, network=network)
+        else:
+            namespace = c.get_namespace(search, network=network)
+
+        return namespace
 
     @classmethod
     def get_address(self, name):
@@ -307,13 +318,20 @@ class Remote(c.Module):
     
 
     @classmethod
-    def call(cls, fn:str='info' , *args,   network:str='remote', n=1,  **kwargs):
+    def call(cls, fn:str='info' , *args, search:str='module',  network:str='remote', n=2, return_future: bool = False,  **kwargs):
         futures = {}
         kwargs['network'] =  network
-        for name, address in c.namespace(network=network).items():
+        namespace = c.namespace(search=search, network=network)
+        if n == None:
+            n = len(namespace)
+        for name, address in c.shuffle(list(namespace.items()))[:n]:
             futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True)
-        results = c.wait(list(futures.values()))
-        return dict(zip(futures.keys(), results))
+        
+        if return_future:
+            return futures
+        else:
+            results = c.wait(list(futures.values()))
+            return dict(zip(futures.keys(), results))
 
         
         

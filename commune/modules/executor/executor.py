@@ -90,8 +90,8 @@ class TaskExecutor(c.Module):
             # adjust the thread count to match the new task
             self.adjust_thread_count()
             
-            # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
-            return task.future
+        # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+        return task.future
 
 
     def adjust_thread_count(self):

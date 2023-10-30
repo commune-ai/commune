@@ -348,11 +348,11 @@ class Subspace(c.Module):
     def register(
         self,
         name: str , # defaults to module.tage
+        address : str = None,
         stake : float = 0,
         subnet: str = None,
         key : str  = None,
         module_key : str = None,
-        address : str = None,
         network: str = network,
         fmt = 'nano'
 
@@ -1220,23 +1220,25 @@ class Subspace(c.Module):
             c.sleep(sleep)
             current_time = c.time()
             time_since_last = {k:int(current_time - time_start) for k in interval}
+            time_left = {k:int(interval[k] - time_since_last[k]) if interval[k] != None else None for k in interval }
+        
 
 
             subspace = cls(network=network, netuid=netuid)
 
-            if  interval['update_modules'] != None and time_since_last['update_modules'] > interval['update_modules']:
+            if  time_left['update_modules'] != None and time_left['update_modules'] > 0:
                 c.update(network='local')
 
-            if interval['sync'] != None and time_since_last['sync'] > interval['sync']:
+            if time_left['sync'] != None and time_left['sync']:
                 c.print(subspace.sync(), color='green')
 
-            if interval['register'] != None and time_since_last['register'] > interval['register']:
+            if time_left['register'] != None and time_left['register']:
                 for m in modules:
                     c.print(f"Registering servers with {m} in it on {network}", color='yellow')
                     subspace.register_servers(m ,network=network, netuid=netuid)
                 time_since_last['register'] = current_time
 
-            if interval['vali'] != None and time_since_last['vali'] > interval['vali']:
+            if time_left['vali'] != None and time_left['vali']:
                 c.check_valis(network=network)
                 time_since_last['vali'] = current_time
 
@@ -1528,7 +1530,7 @@ class Subspace(c.Module):
         servers = c.servers(network='local')
         for i in range(len(stats)):
             stats[i]['serving'] = bool(stats[i]['name'] in servers)
-            
+
         df_stats =  c.df(stats)
 
         if len(stats) == 0:
@@ -2066,7 +2068,7 @@ class Subspace(c.Module):
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
                 for k in ['incentive', 'dividends']:
-                    if module[k] > 1:
+                    if module[k] >= 1:
                         module[k] = module[k] / (U16_MAX)
                 
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
@@ -2248,7 +2250,7 @@ class Subspace(c.Module):
         names = list({k: names[k] for k in sorted(names)}.values())
         return names
 
-    def namespace(self, netuid: int = netuid, network=network, update:bool = True,**kwargs) -> Dict[str, str]:
+    def namespace(self, search=None, netuid: int = netuid, network=network, update:bool = True,**kwargs) -> Dict[str, str]:
         cache_path = f'namespace/{network}.{netuid}'
         if update:
             namespace = {}
@@ -2260,6 +2262,8 @@ class Subspace(c.Module):
             addresses = self.addresses(netuid=netuid, **kwargs)
             namespace = dict(zip(names, addresses))
             self.put(cache_path, namespace)
+        if search != None:
+            namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
     
 
@@ -2333,8 +2337,11 @@ class Subspace(c.Module):
         weights = {uid.value:list(map(list, w.value)) for uid, w in subnet_weights if w != None and uid != None}
         uids = self.uids(netuid=netuid, **kwargs)
         weights = {uid: weights[uid] if uid in weights else [] for uid in uids}
-
         return {uid: w for uid, w in weights.items()}
+    
+    def num_voters(self, netuid = None, **kwargs) -> list:
+        weights = self.weights(netuid=netuid, **kwargs)
+        return len({k:v for k,v in weights.items() if len(v) > 0})
             
         
     def regprefix(self, prefix, netuid = None, network=None, **kwargs):
@@ -2343,8 +2350,11 @@ class Subspace(c.Module):
         c.servers(network=network, prefix=prefix)
         
     
-    def emission(self, netuid = netuid, network=None, **kwargs):
-        return [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
+    def emission(self, netuid = netuid, network=None, nonzero=False, **kwargs):
+        emissions = [v.value for v in self.query('Emission', params=[netuid], network=network, **kwargs)]
+        if nonzero:
+            emissions = [e for e in emissions if e > 0]
+        return emissions
         
     def nonzero_emission(self, netuid = netuid, network=None, **kwargs):
         emission = self.emission(netuid=netuid, network=network, **kwargs)
@@ -2354,13 +2364,19 @@ class Subspace(c.Module):
     def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
         
-    def trust(self, netuid = netuid, network=None, **kwargs):
-        return [v.value for v in self.query('Trust', params=netuid, network=network, **kwargs)]
+    def trust(self, netuid = netuid, network=None, nonzero=False, **kwargs):
+        trust = [v.value for v in self.query('Trust', params=netuid, network=network, **kwargs)]
+        if nonzero:
+            trust = [t for t in trust if t > 0]
+        return trust
     def last_update(self, netuid = netuid, block=None,   network=network, **kwargs):
         return [v.value for v in self.query('LastUpdate', params=[netuid], network=network, block=block, **kwargs)]
         
-    def dividends(self, netuid = netuid, network=None, **kwargs):
-        return [v.value for v in self.query('Dividends', params=netuid, network=network,  **kwargs)]
+    def dividends(self, netuid = netuid, network=None, nonzero=False, **kwargs):
+        dividends =  [v.value for v in self.query('Dividends', params=netuid, network=network,  **kwargs)]
+        if nonzero:
+            dividends = {i:d for i,d in enumerate(dividends) if d > 0}
+        return dividends
 
     def registration_blocks(self, netuid: int = None, network:str=  None, nonzeros_only:bool = True,  **kwargs):
         network = self.resolve_network(network)
