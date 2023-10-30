@@ -725,6 +725,9 @@ class Subspace(c.Module):
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
+        name2key = self.name2key(netuid=netuid)
+        if module_key in name2key:
+            module_key = name2key[module_key]
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
@@ -743,9 +746,9 @@ class Subspace(c.Module):
                     }
 
 
-        response = self.compose_call('add_stake',params=params, key=key)
+        response = self.compose_call('add_stake',params=call_params, key=key)
 
-        if response['succes']:
+        if response['success']:
             new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
             new_balance = self.get_balance(  key.ss58_address , fmt='j')
             response.update({"message": "Stake Sent", "from": key.ss58_address, "to": module_key, "amount": amount, "balance_before": old_balance, "balance_after": new_balance, "stake_before": old_stake, "stake_after": new_stake})
@@ -782,7 +785,8 @@ class Subspace(c.Module):
             
         else:
             key2name = self.key2name(netuid=netuid)
-            name2key = {k:key2name[k] for k,v in staketo}
+            name2key = {key2name[k]:k for k,v in staketo.items()}
+
             if module_key in name2key:
                 module_key = name2key[module_key]
         
