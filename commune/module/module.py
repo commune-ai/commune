@@ -1379,7 +1379,7 @@ class c:
 
 
     @classmethod
-    def find_python_class(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
+    def find_python_class(cls, path:str , class_index:int=1, search:str = None, start_lines:int=2000):
         import re
         
         # read the contents of the Python script file
@@ -1390,8 +1390,6 @@ class c:
         for line in lines:
 
             key_elements = ['class ', '(', '):']
-            self_ref_condition = 'key_elements' not in line
-
             has_class_bool = all([key_element in line for key_element in key_elements])
 
             if has_class_bool:
