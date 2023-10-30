@@ -40,9 +40,7 @@ class Subspace(c.Module):
     
     def __init__( 
         self, 
-        url: str = None,
         network: str = network,
-        local:bool = False,
         **kwargs,
     ):
         config = self.set_config(kwargs=locals())
@@ -1356,6 +1354,7 @@ class Subspace(c.Module):
     def sync(self, network=None, remote:bool=True, local:bool=True, save:bool=True):
         network = self.resolve_network(network)
         self.state_dict(update=True, network=network)
+        self.namespace(update=True)
         return {'success': True, 'message': f'Successfully saved {network} locally at block {self.block}'}
 
     def sync_loop(self, interval=60, network=None, remote:bool=True, local:bool=True, save:bool=True):
@@ -1499,7 +1498,7 @@ class Subspace(c.Module):
               netuid=0,  
               network = network,
               df:bool=True, 
-              update:bool = True , 
+              update:bool = False , 
               local: bool = True,
               cols : list = ['name', 'registered', 'serving',  'emission', 'dividends', 'incentive', 'stake', 'stake_from', 'regblock'],
               sort_cols = ['registered', 'emission', 'stake'],
