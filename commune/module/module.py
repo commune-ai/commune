@@ -1379,7 +1379,7 @@ class c:
 
 
     @classmethod
-    def find_python_class(cls, path:str , class_index:int=1, search:str = None, start_lines:int=2000):
+    def find_python_class(cls, path:str , class_index:int=0, search:str = None, start_lines:int=2000):
         import re
         
         # read the contents of the Python script file
@@ -7100,6 +7100,19 @@ class c:
     @classmethod
     def stake(cls, *args, **kwargs):
         return c.module('subspace')().stake(*args, **kwargs)
+    
+
+    @classmethod
+    def multistake(cls, *args, **kwargs):
+        return c.module('subspace')().multistake(*args, **kwargs)
+
+    
+
+    @classmethod
+    def multiunstake(cls, *args, **kwargs):
+        return c.module('subspace')().multiunstake(*args, **kwargs)
+    
+
     @classmethod
     def get_stake(cls, *args, **kwargs):
         return c.module('subspace')().get_stake(*args, **kwargs)

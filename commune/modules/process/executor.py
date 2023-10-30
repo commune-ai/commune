@@ -52,7 +52,7 @@ class PoolTaskExecutor(c.Module):
             process_name_prefix: An optional name prefix to give our processs.
         """
 
-        max_workers = (os.cpu_count()) if max_workers is None else max_workers
+        max_workers = os.cpu_count() if max_workers is None else max_workers
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
             
@@ -88,8 +88,8 @@ class PoolTaskExecutor(c.Module):
             self.work_queue.put((priority, task), block=False)
             # adjust the process count to match the new task
             self.adjust_process_count()
-            # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
-            return task.future
+        # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+        return task.future
 
     def adjust_process_count(self):
         if self.idle_semaphore.acquire(timeout=0):

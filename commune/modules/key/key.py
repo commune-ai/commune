@@ -510,6 +510,8 @@ class Keypair(c.Module):
             return key.to_json()
         
         return key
+    
+    create = gen
 
     
     
