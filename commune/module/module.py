@@ -1367,6 +1367,22 @@ class c:
     @classmethod
     def object_path(cls):
         return cls.path2objectpath(cls.module_path(simple=False))
+
+    @classmethod
+    def find_classes(cls, module=None):
+        if module == None:
+            module = cls.module_path()
+        module = c.module(module)
+        filepath = module.filepath()
+        code = c.get_text(filepath)
+        classes = []
+        for line in code.split('\n'):
+            if all([s in line for s in ['class ', '(', '):']]):
+                classes.append(line.split('class ')[-1].split('(')[0].strip())
+        object_path = cls.path2objectpath(filepath)
+
+        return ['.'.join(object_path.split('.')[:-1]+[c]) for c in classes]
+
     
     @classmethod
     def object_module_path(cls):
@@ -3040,7 +3056,7 @@ class c:
                  module = None,
                  tag:str = None,
                  key : str = None,
-                 stake : int = 0,
+                 stake : int = None,
                  subnet:str = 'commune',
                  refresh:bool =False,
                  wait_for_server:bool = False,
@@ -3051,8 +3067,7 @@ class c:
         if isinstance(module, str) and  '::' in module:
             module, tag = module.split('::')
         server_name = cls.resolve_server_name(module=module, tag=tag)
-        # if not subspace.is_unique_name(server_name, netuid=subnet):
-        #     return {'success': False, 'msg': f'Server name {server_name} already exists in subnet {subnet}'}
+
         if not c.key_exists(server_name):
             c.add_key(server_name)
         if c.server_exists(server_name, network='local') and refresh == False:
@@ -3070,8 +3085,7 @@ class c:
             server_name = serve_info['name']
             address = serve_info['address']
 
-        subspace.register(name=server_name, address=address, subnet=subnet, key=key, stake=stake)
-        return {'success':True, 'message':f'Server {server_name} registered to {subnet}',  'server_name': server_name }
+        return subspace.register(name=server_name, address=address, subnet=subnet, key=key, stake=stake)
 
     @classmethod
     def key_stats(cls, *args, **kwargs):
@@ -5182,6 +5196,8 @@ class c:
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
+        if module == None:
+            module = cls.module_path()
         server_names = []
         if stake == None:
             stake = subspace.min_stake()
@@ -5190,14 +5206,28 @@ class c:
             executor = c.module('executor')(max_workers=n)
             futures = []
             for i in range(n):
+                server_name = module +"::" + tag + str(i)
+                if c.is_registered(server_name):
+                    c.print(f'Server {server_name} already exists, skipping', color='yellow')
+                    continue
                 future = executor.submit(fn=cls.register,  kwargs={'module':module, 'tag':tag+str(i), 'stake': stake,  **kwargs}, timeout=timeout)
                 futures = futures + [future]
             return c.wait(futures, timeout=timeout)
         else:
             for i in range(n):
-                r = cls.register(module=module, tag=tag+str(i), stake=stake,  **kwargs)
-                assert r['success'] == True, r
-                server_names.append(r['server_name'])
+                
+                try:
+                    server_name = module +"::" + tag + str(i)
+
+                    if c.is_registered(server_name):
+                        c.print(f'Server {server_name} already exists, skipping', color='yellow')
+                        continue
+                    r = cls.register(module=module, tag=tag+str(i), stake=stake,  **kwargs)
+                except Exception as e:
+                    c.print(e)
+                    r = {'success':False, 'error':c.detailed_error(e)}
+                c.print(r)
+                server_names.append(r)
             return {'servers':server_names}
 
     @classmethod
