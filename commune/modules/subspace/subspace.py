@@ -1443,13 +1443,11 @@ class Subspace(c.Module):
 
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
-        try:
-            name2key = self.name2key(netuid=netuid)
-            if key in name2key:
-                key = name2key[key]
-            is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]).value)
-        except Exception as e:
-            is_reged =  False
+        name2key = self.name2key(netuid=netuid)
+        if key in name2key:
+            key = name2key[key]
+        is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]).value)
+
 
         return is_reged
 

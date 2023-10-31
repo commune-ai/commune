@@ -1367,6 +1367,22 @@ class c:
     @classmethod
     def object_path(cls):
         return cls.path2objectpath(cls.module_path(simple=False))
+
+    @classmethod
+    def find_classes(cls, module=None):
+        if module == None:
+            module = cls.module_path()
+        module = c.module(module)
+        filepath = module.filepath()
+        code = c.get_text(filepath)
+        classes = []
+        for line in code.split('\n'):
+            if all([s in line for s in ['class ', '(', '):']]):
+                classes.append(line.split('class ')[-1].split('(')[0].strip())
+        object_path = cls.path2objectpath(filepath)
+
+        return ['.'.join(object_path.split('.')[:-1]+[c]) for c in classes]
+
     
     @classmethod
     def object_module_path(cls):
@@ -5180,6 +5196,8 @@ class c:
         subspace = c.module('subspace')()
         if tag == None:
             tag = ''
+        if module == None:
+            module = cls.module_path()
         server_names = []
         if stake == None:
             stake = subspace.min_stake()
@@ -5199,6 +5217,11 @@ class c:
             for i in range(n):
                 
                 try:
+                    server_name = module +"::" + tag + str(i)
+
+                    if c.is_registered(server_name):
+                        c.print(f'Server {server_name} already exists, skipping', color='yellow')
+                        continue
                     r = cls.register(module=module, tag=tag+str(i), stake=stake,  **kwargs)
                 except Exception as e:
                     c.print(e)
