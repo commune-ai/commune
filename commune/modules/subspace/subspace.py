@@ -714,7 +714,7 @@ class Subspace(c.Module):
 
     def stake(
             self,
-            module_key: Optional[str] = None, # defaults to key if not provided
+            module: Optional[str] = None, # defaults to key if not provided
             amount: Union[Balance, float] = None, 
             key: str = None,  # defaults to first key
             netuid:int = None,
@@ -726,12 +726,12 @@ class Subspace(c.Module):
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
         name2key = self.name2key(netuid=netuid)
-        if module_key in name2key:
-            module_key = name2key[module_key]
+        if module in name2key:
+            module_key = name2key[module]
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
-        old_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+        old_stake = self.get_stakefrom( module, from_key=key.ss58_address , fmt='j', netuid=netuid)
         if amount is None:
             amount = old_balance
 

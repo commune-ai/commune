@@ -1,9 +1,41 @@
 import commune as c
 
+class SshClient:
+    "A wrapper of paramiko.SSHClient"
+    TIMEOUT = 4
+
+    def __init__(self, host, port, username, password, key=None, passphrase=None):
+        self.username = username
+        self.password = password
+        self.client = paramiko.SSHClient()
+        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        if key is not None:
+            key = paramiko.RSAKey.from_private_key(StringIO(key), password=passphrase)
+        self.client.connect(host, port, username=username, password=password, pkey=key, timeout=self.TIMEOUT)
+
+    def close(self):
+        if self.client is not None:
+            self.client.close()
+            self.client = None
+
+    def execute(self, command, sudo=False):
+        feed_password = False
+        if sudo and self.username != "root":
+            command = "sudo -S -p '' %s" % command
+            feed_password = self.password is not None and len(self.password) > 0
+        stdin, stdout, stderr = self.client.exec_command(command)
+        if feed_password:
+            stdin.write(self.password + "\n")
+            stdin.flush()
+        return {'out': stdout.readlines(), 
+                'err': stderr.readlines(),
+                'retval': stdout.channel.recv_exit_status()}
+
+
 class Remote(c.Module):
     host_data_path = f'{c.datapath}/hosts.json'
     @classmethod
-    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False,  **kwargs ):
+    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=100, **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -31,6 +63,8 @@ class Remote(c.Module):
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
+
+
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -41,10 +75,13 @@ class Remote(c.Module):
                        username=host['user'], 
                        password=host['pwd'])
         
-
-
-        # Execute command
+        if sudo and host['user'] != "root":
+            command = "sudo -S -p '' %s" % command
         stdin, stdout, stderr = client.exec_command(command)
+
+        if sudo:
+            stdin.write(host['pwd'] + "\n")
+            stdin.flush()
         color = c.random_color()
         # Print the output of ls command
         outputs = {'error': '', 'output': ''}
@@ -244,11 +281,13 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, network='remote'):
+    def add_servers(cls, *args, add_admins:bool=False, refresh=False, network='remote'):
         if add_admins:
             c.print('Adding admin')
             cls.add_admin()
         cls.check_servers()
+        if refresh:
+            c.rm_namespace(network=network)
         servers = list(cls.cmd('c addy', verbose=True).values())
         for i, server in enumerate(servers):
             if server.endswith('\n'):
@@ -264,6 +303,16 @@ class Remote(c.Module):
     @classmethod
     def serve(cls, *args, n=1, **kwargs):
         return cls.call('serve', *args, search='module', n=n, **kwargs)
+    @classmethod
+    def fleet(cls, module, tag='', n=1, timeout=100, **kwargs):
+
+        futures = []
+
+        for i in range(n):
+            f = cls.call('serve', f'{module}::{tag}{i}', return_future=True, n=1, **kwargs)
+            c.print(f)
+            futures += [f]
+        return c.wait(futures, timeout=timeout)
             
 
     @classmethod
@@ -328,10 +377,15 @@ class Remote(c.Module):
             futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True)
         
         if return_future:
+            if len(futures) == 1:
+                return list(futures.values())[0]
             return futures
         else:
+
             results = c.wait(list(futures.values()))
-            return dict(zip(futures.keys(), results))
+            results = dict(zip(futures.keys(), results))
+            if len(results) == 1:
+                return list(results.values())[0]
 
         
         
@@ -353,6 +407,16 @@ class Remote(c.Module):
             futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
         results = c.wait(futures)
         return results
+    
+    @classmethod
+    def setup(cls,**kwargs):
+        repo_url = c.repo_url()
+        c.print(cls.cmd(f'git clone {repo_url}', **kwargs))
+        c.print(cls.cmd(f'apt ', **kwargs))
+        c.print(cls.cmd(f'cd commune && pip install -e .', **kwargs))
+        c.print(cls.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
+        c.print(cls.cmd(f'c serve', **kwargs))
+    
 
 
     # @classmethod
