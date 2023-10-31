@@ -289,6 +289,7 @@ class Remote(c.Module):
         if refresh:
             c.rm_namespace(network=network)
         servers = list(cls.cmd('c addy', verbose=True).values())
+        namespace = cls.namespace(network=network)
         for i, server in enumerate(servers):
             if server.endswith('\n'):
                 servers[i] = server[:-1]
