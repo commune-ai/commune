@@ -1444,9 +1444,14 @@ class Subspace(c.Module):
     def is_registered( self, key: str, netuid: int = None, block: Optional[int] = None) -> bool:
         netuid = self.resolve_netuid( netuid )
         try:
-            return bool(self.query('Uids', block=block, params=[ netuid, key ]).value)
+            name2key = self.name2key(netuid=netuid)
+            if key in name2key:
+                key = name2key[key]
+            is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]).value)
         except Exception as e:
-            return False
+            is_reged =  False
+
+        return is_reged
 
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:
         return self.query( 'Uids', block=block, params=[ netuid, key_ss58 ] ).value  
