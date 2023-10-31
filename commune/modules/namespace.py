@@ -184,11 +184,10 @@ class Namespace(c.Module):
         for server in servers:
             try:
                 response = cls.add_server(server, network=network)
-                c.print(response)
             except Exception as e:
                 response = {'success': False, 'msg': str(e)}
-                c.print(response)
             responses.append(response)
+
         return responses
 
 
