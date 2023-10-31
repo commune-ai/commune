@@ -907,7 +907,7 @@ class ProcessPoolExecutor(_base.Executor,c.Module):
         self = cls()
         futures = []
         for i in range(10):
-            futures += [self.submit('subspace.sync', return_future=True)]
+            futures += [self.submit('module.ls', return_future=True)]
         # for future in c.tqdm(futures):
         #     future.result()
         c.print(c.wait(futures))
