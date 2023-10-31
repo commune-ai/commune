@@ -295,7 +295,7 @@ class Huggingface(c.Module):
     def class_init(cls):
         global Huggingface
         import huggingface_hub
-        Huggingface = cls.merge(huggingface_hub)
+        Huggingface = c.merge(cls, huggingface_hub)
         return Huggingface
     
     
