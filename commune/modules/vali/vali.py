@@ -7,7 +7,7 @@ class Vali(c.Module):
     
     last_sync_time = 0
 
-    def __init__(self, config=None,  **kwargs):
+    def __init__(self, **kwargs):
         self.init_vali(config=config, **kwargs)
 
     def init_vali(self, config=None, **kwargs):
