@@ -9,8 +9,8 @@ class BitAPAI(c.Module):
     
     whitelist = ['forward', 'chat', 'ask', 'generate']
 
-    def __init__(self,  config=None,  **kwargs):
-        config = self.set_config(config=config, kwargs=kwargs)
+    def __init__(self, api_key:str = None, host='api.bitapai.io', cache_key:bool = True):
+        config = self.set_config(kwargs=locals())
         self.conn = http.client.HTTPSConnection(self.config.host)
         self.set_api_key(api_key=config.api_key, cache=config.cache_key)
         
@@ -122,7 +122,7 @@ class BitAPAI(c.Module):
 
     @classmethod
     def get_api_key(cls):
-        api_keys = cls.get('api_keys', [])
+        api_keys = cls.api_keys()
         if len(api_keys) == 0:
             return None
         else:
