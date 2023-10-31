@@ -7111,6 +7111,10 @@ class c:
     @classmethod
     def multiunstake(cls, *args, **kwargs):
         return c.module('subspace')().multiunstake(*args, **kwargs)
+
+    @classmethod
+    def repo_url(cls, *args, **kwargs):
+        return c.module('git').repo_url(*args, **kwargs)
     
 
     @classmethod
