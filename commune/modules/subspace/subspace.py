@@ -2365,8 +2365,12 @@ class Subspace(c.Module):
         nonzero_emission =[e for e in emission if e > 0]
         return len(nonzero_emission)
 
-    def incentive(self, netuid = netuid, block=None,   network=network, **kwargs):
-        return [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
+    def incentive(self, netuid = netuid, block=None,   network=network, nonzero:bool=True, **kwargs):
+        incentive = [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
+
+        if nonzero:
+            incentive = {uid:i for uid, i in enumerate(incentive) if i > 0}
+        return incentive
         
     def trust(self, netuid = netuid, network=None, nonzero=False, **kwargs):
         trust = [v.value for v in self.query('Trust', params=netuid, network=network, **kwargs)]
