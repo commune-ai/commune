@@ -2083,7 +2083,7 @@ class Subspace(c.Module):
                 modules[i] = module
 
         if search != None:
-            modules = [m for m in modules if search in m['name']]``
+            modules = [m for m in modules if search in m['name']]
 
         if df:
             modules = c.df(modules)
