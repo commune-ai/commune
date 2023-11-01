@@ -9,6 +9,7 @@ class Storage(c.Module):
                  max_replicas:int = 1, 
                 network='local',
                 validate:bool = True,
+                match_replica_prefix : bool = False,
                 **kwargs):
         self.replica_map = {}
         self.max_replicas = max_replicas
@@ -17,6 +18,7 @@ class Storage(c.Module):
         self.serializer = c.module('serializer')()
         self.executor = c.module('executor')()
         if validate:
+            self.match_replica_prefix = match_replica_prefix
             c.thread(self.validate)
 
     @property
@@ -29,6 +31,22 @@ class Storage(c.Module):
     def resolve_store_path(self, key: str) -> str:
         path =  f'{self.store_dirpath}/{key}'
         return path
+    
+
+    def num_files(self) -> int:
+        return len(self.files)
+    
+    def files(self) -> List:
+        return c.ls(self.store_dirpath)
+    
+    def file2size(self, fmt:str='b') -> int:
+        files = self.files()
+        file2size = {}
+        for file in files:
+            file2size[file] = c.format_data_size(c.filesize(file), fmt=fmt)
+        return file2size
+        
+
 
     def resolve_key(self, key=None) -> str:
         if key == None:
@@ -205,4 +223,5 @@ class Storage(c.Module):
     def validate(self):
         while True:
             c.sleep(1)
-            c.print('ls')
+            self.ls()
+            c.print(self.server_name)
