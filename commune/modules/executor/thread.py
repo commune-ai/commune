@@ -6,7 +6,8 @@ import queue
 import random
 import weakref
 import itertools
-import multiprocessing as mp
+import threading
+
 from loguru import logger
 from typing import Callable
 import concurrent
@@ -14,8 +15,8 @@ from concurrent.futures._base import Future
 import commune as c
 
 
-# Workers are created as daemon processs. This is done to allow the interpreter
-# to exit when there are still idle processs in a ThreadPoolExecutor's process
+# Workers are created as daemon threads. This is done to allow the interpreter
+# to exit when there are still idle threads in a ThreadPoolExecutor's thread
 # pool (i.e. shutdown() was not called). However, allowing workers to die with
 # the interpreter has two undesirable properties:
 #   - The workers would still be running during interpreter shutdown,
@@ -26,51 +27,52 @@ import commune as c
 #
 # To work around this problem, an exit handler is installed which tells the
 # workers to exit when their work queues are empty and then waits until the
-# processs finish.
+# threads finish.
 
 Task = c.module('executor.task')
 NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
-class PoolTaskExecutor(c.Module):
-    """Base processpool executor with a priority queue"""
+class ThreadPoolExecutor(c.Module):
+    """Base threadpool executor with a priority queue"""
 
-    # Used to assign unique process names when process_name_prefix is not supplied.
+    # Used to assign unique thread names when thread_name_prefix is not supplied.
     _counter = itertools.count().__next__
     # submit.__doc__ = _base.Executor.submit.__doc__
-    process_queues = weakref.WeakKeyDictionary()
+    threads_queues = weakref.WeakKeyDictionary()
 
     def __init__(
         self,
-        maxsize : int =-1,
         max_workers: int =None,
-        process_name_prefix : str ="",
+        maxsize : int =-1,
+        thread_name_prefix : str ="",
     ):
         """Initializes a new ThreadPoolExecutor instance.
         Args:
-            max_workers: The maximum number of processs that can be used to
+            max_workers: The maximum number of threads that can be used to
                 execute the given calls.
-            process_name_prefix: An optional name prefix to give our processs.
+            thread_name_prefix: An optional name prefix to give our threads.
         """
 
-        max_workers = (os.cpu_count()) if max_workers is None else max_workers
+        max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
+        c.print("max_workers", max_workers)
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
             
         self.max_workers = max_workers
-        self.work_queue = mp.Queue(maxsize=maxsize)
-        self.idle_semaphore = mp.Semaphore(0)
-        self.processes = []
+        self.work_queue = queue.PriorityQueue(maxsize=maxsize)
+        self.idle_semaphore = threading.Semaphore(0)
+        self.threads = []
         self.broken = False
         self.shutdown = False
-        self.shutdown_lock = mp.Lock()
-        self.process_name_prefix = process_name_prefix or ("ProcessPoolExecutor-%d" % self._counter() )
+        self.shutdown_lock = threading.Lock()
+        self.thread_name_prefix = thread_name_prefix or ("ThreadPoolExecutor-%d" % self._counter() )
 
     @property
     def is_empty(self):
         return self.work_queue.empty()
 
     
-    def submit(self, fn: Callable, args=None, kwargs=None, timeout=200) -> Future:
+    def submit(self, fn: Callable, args=None, kwargs=None, timeout=200, return_future:bool=True) -> Future:
         args = args or ()
         kwargs = kwargs or {}
         with self.shutdown_lock:
@@ -86,38 +88,55 @@ class PoolTaskExecutor(c.Module):
             task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
             # add the work item to the queue
             self.work_queue.put((priority, task), block=False)
-            # adjust the process count to match the new task
-            self.adjust_process_count()
+            # adjust the thread count to match the new task
+            self.adjust_thread_count()
             
-            # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+        # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+        if return_future:
             return task.future
+        else: 
+            return task.future.result()
 
-    def adjust_process_count(self):
+
+    def adjust_thread_count(self):
+        # if idle threads are available, don't spin new threads
         if self.idle_semaphore.acquire(timeout=0):
             return
 
+        # When the executor gets lost, the weakref callback will wake up
+        # the worker threads.
+        def weakref_cb(_, q=self.work_queue):
+            q.put(NULL_ENTRY)
 
-        num_processes = len(self.processes)
-        if num_processes < self.max_workers:
-            p = mp.Process(target=self.worker, args=(self.work_queue,))
-            p.daemon = True
-            p.start()
-            self.processes.append(p)
-            self.process_queues[p] = self.work_queue
+        num_threads = len(self.threads)
+        if num_threads < self.max_workers:
+            thread_name = "%s_%d" % (self.thread_name_prefix or self, num_threads)
+            t = threading.Thread(
+                name=thread_name,
+                target=self.worker,
+                args=(
+                    weakref.ref(self, weakref_cb),
+                    self.work_queue,
+                ),
+            )
+            t.daemon = True
+            t.start()
+            self.threads.append(t)
+            self.threads_queues[t] = self.work_queue
 
     def shutdown(self, wait=True):
         with self.shutdown_lock:
-            for i in range(len(self.processes)):
-                p = self.processes.pop()
-                for _ in range(2):
-                    self.work_queue.put(NULL_ENTRY)
-                p.terminate()
-                p.join()
-            
-
+            self.shutdown = True
+            self.work_queue.put(NULL_ENTRY)
+        if wait:
+            for t in self.threads:
+                try:
+                    t.join(timeout=2)
+                except Exception:
+                    pass
 
     @staticmethod
-    def worker(work_queue):
+    def worker(executor_reference, work_queue):
         
         try:
             while True:
@@ -125,17 +144,36 @@ class PoolTaskExecutor(c.Module):
                 priority = work_item[0]
 
                 if priority == sys.maxsize:
-                    # Wake up queue management process.
+                    # Wake up queue management thread.
                     work_queue.put(NULL_ENTRY)
                     break
 
                 item = work_item[1]
-                item.run()
-                del item
 
+                if item is not None:
+                    item.run()
+                    # Delete references to object. See issue16284
+                    del item
+                    continue
+
+                executor = executor_reference()
+                # Exit if:
+                #   - The interpreter is shutting down OR
+                #   - The executor that owns the worker has been collected OR
+                #   - The executor that owns the worker has been shutdown.
+                if shutdown or executor is None or executor.shutdown:
+                    # Flag the executor as shutting down as early as possible if it
+                    # is not gc-ed yet.
+                    if executor is not None:
+                        executor.shutdown = True
+                    # Notice other workers
+                    work_queue.put(NULL_ENTRY)
+                    return
+                del executor
         except Exception as e:
             c.print(e, color='red')
             c.print("work_item", work_item, color='red')
+
             e = c.detailed_error(e)
             c.print("Exception in worker", e, color='red')
 
@@ -178,8 +216,6 @@ class PoolTaskExecutor(c.Module):
             c.print(self.num_tasks, 'tasks remaining', color='red')
 
 
-        return {'success': True, 'msg': 'process pool test passed'}
-    
-
+        return {'success': True, 'msg': 'thread pool test passed'}
 
         

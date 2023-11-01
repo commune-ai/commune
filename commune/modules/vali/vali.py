@@ -59,8 +59,8 @@ class Vali(c.Module):
             self.modules = self.subspace.modules(update=False, netuid=netuid)
             self.n  = len(self.modules)
 
-            if self.config.module_prefix != None:
-                self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_prefix)]
+            if self.config.module_search != None:
+                self.modules = [m for m in self.modules if m['name'].startswith(self.config.module_search)]
                 
             self.subnet = self.subspace.subnet(netuid=netuid)
 
