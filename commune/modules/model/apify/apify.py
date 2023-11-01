@@ -13,7 +13,7 @@ class Apify(c.Module):
     def scrape(self, 
                blue_verified = False, has_engagement = False, images = False, media = False, nativeretewwtes = False, quote = False, replies = False, retweets = False,
                safe = False, twimg = False, verified = False, videos = False, max_tweets = 10, only_tweets = False,
-               keyword = "bitcoin", experimental_scraper = False, language = "any", user_info = "user info and replying info", max_attempts = 5):
+               keyword = "bitcoin", experimental_scraper = False, language = "any", user_info = "user info and replying info", max_attempts = 5, apify_id="wHMoznVs94gOcxcZl"):
         run_input = {
             "filter:blue_verified": blue_verified,
             "filter:has_engagement": has_engagement,
@@ -36,7 +36,7 @@ class Apify(c.Module):
             "max_attempts": max_attempts
         }
 
-        run = self.client.actor("wHMoznVs94gOcxcZl").call(run_input=run_input)
+        run = self.client.actor(apify_id).call(run_input=run_input)
 
         for item in self.client.dataset(run["defaultDatasetId"]).iterate_items():
             print(item)
@@ -44,5 +44,5 @@ class Apify(c.Module):
 
 if __name__ == '__main__':
     keyword = "bitcoin"
-    scraper = TweetScraper(os.getenv("apify_token"))
-    scraper.scrape_tweets(keyword)
+    scraper = Apify(os.getenv("apify_token"))
+    scraper.scrape(keyword)
