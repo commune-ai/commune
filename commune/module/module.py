@@ -5153,12 +5153,14 @@ class c:
                 init_args : list = [],
                 init_kwargs:dict= {},
                 executor = None,
-                module = None,
+                module: str = None,
+                mode:str='thread',
+                max_workers : int = None,
                 ):
 
 
         fn = c.get_fn(fn)
-        executor = c.executor() if executor == None else executor
+        executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)
