@@ -735,8 +735,22 @@ class Subspace(c.Module):
             netuid:int = None,
             network:str = None,
             existential_deposit: float = 0.01,
-            sync: bool = False
         ) -> bool:
+        """
+        description: 
+            Unstakes the specified amount from the module. 
+            If no amount is specified, it unstakes all of the amount.
+            If no module is specified, it unstakes from the most staked module.
+        params:
+            amount: float = None, # defaults to all
+            module : str = None, # defaults to most staked module
+            key : 'c.Key' = None,  # defaults to first key 
+            netuid : Union[str, int] = 0, # defaults to module.netuid
+            network: str= main, # defaults to main
+        return: 
+            response: dict
+        
+        """
         network = self.resolve_network(network)
         netuid = self.resolve_netuid(netuid)
         key = c.get_key(key)
@@ -750,8 +764,8 @@ class Subspace(c.Module):
         if amount is None:
             amount = old_balance
 
-            
         amount = int(self.to_nanos(amount - existential_deposit))
+        assert amount > 0, f"Amount must be greater than 0 and greater than existential deposit {existential_deposit}"
         
         # Get current stake
         params={
@@ -759,7 +773,6 @@ class Subspace(c.Module):
                     'amount': amount,
                     'module_key': module_key
                     }
-
 
         response = self.compose_call('add_stake',params=params, key=key)
 
@@ -774,12 +787,27 @@ class Subspace(c.Module):
 
     def unstake(
             self,
-            amount: float =None, 
-            module_key : str = None, # defaults to most staked module
+            amount: float =None, # defaults to all of the amount
+            module : str = None, # defaults to most staked module
             key : 'c.Key' = None,  # defaults to first key
             netuid : Union[str, int] = 0, # defaults to module.netuid
             network: str= None,
-        ) -> bool:
+        ) -> dict:
+        """
+        description: 
+            Unstakes the specified amount from the module. 
+            If no amount is specified, it unstakes all of the amount.
+            If no module is specified, it unstakes from the most staked module.
+        params:
+            amount: float = None, # defaults to all
+            module : str = None, # defaults to most staked module
+            key : 'c.Key' = None,  # defaults to first key 
+            netuid : Union[str, int] = 0, # defaults to module.netuid
+            network: str= main, # defaults to main
+        return: 
+            response: dict
+        
+        """
         network = self.resolve_network(network)
         key = c.get_key(key)
         netuid = self.resolve_netuid(netuid)
@@ -787,29 +815,30 @@ class Subspace(c.Module):
         # get most stake from the module
         staketo = self.get_staketo(netuid=netuid, names = False)
 
-        if module_key == None:
+        module_key = None
+        if module == None:
             # find the largest staked module
             max_stake = 0
             for k,v in staketo.items():
                 if v > max_stake:
                     max_stake = v
-                    module_key = k
-            
+                    module_key = k            
         else:
             key2name = self.key2name(netuid=netuid)
             name2key = {key2name[k]:k for k,v in staketo.items()}
-
-            if module_key in name2key:
-                module_key = name2key[module_key]
+            if module in name2key:
+                module_key = name2key[module]
+            else:
+                module_key = module
         
-
+        # we expected to switch the module to the module key
+        assert c.is_valid_ss58_address(module_key), f"Module key {module_key} is not a valid ss58 address"
         assert module_key in staketo, f"Module {module_key} not found in SubNetwork {netuid}"
         stake = staketo[module_key]
         amount = amount if amount != None else stake
-        
-        amount = self.to_nanos(amount)
+        # convert to nanos
         params={
-            'amount': int(amount),
+            'amount': int(self.to_nanos(amount)),
             'netuid': netuid,
             'module_key': module_key
             }
