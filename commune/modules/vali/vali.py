@@ -176,18 +176,16 @@ class Vali(c.Module):
 
         return stats
 
-
-
     @classmethod
     def votes(cls, network='main', tag=None, base_score=0.01):
-        stats = cls.load_stats( network=network, keys=['uid', 'w'], tag=tag)
+        stats = cls.load_stats(network=network, keys=['name','uid', 'w'], tag=tag)
         votes = {
-            'uids': [v['uid'] for v in stats],  # get all uids where w > 0
-            'weights': [v['w'] + base_score for v in stats],  # get all weights where w > 0
-            'timestamp': c.time()
+            'names'     : [v['name'] for v in stats],            # get all names where w > 0
+            'uids'      : [v['uid'] for v in stats],             # get all uids where w > 0
+            'weights'   : [v['w'] + base_score for v in stats],  # get all weights where w > 0
+            'timestamp' : c.time()
         }
         assert len(votes['uids']) == len(votes['weights']), f'Length of uids and weights must be the same, got {len(votes["uids"])} uids and {len(votes["weights"])} weights'
-
         return votes
 
     def vote(self):
@@ -201,7 +199,7 @@ class Vali(c.Module):
 
         votes = self.votes(network=self.config.network, tag=self.tag)
 
-        if len(votes['uids']) == 0:
+        if len(votes['names']) == 0:
             c.print(f'No modules to vote on', color='red')
             return {'success': False, 'message': 'No modules to vote on'}
 
@@ -209,31 +207,30 @@ class Vali(c.Module):
         if len(votes['weights']) == 0:
             return {'success': False, 'message': 'No modules to vote on'}
 
-        uids = c.copy(votes['uids'])
-        new_votes = {'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
-        for i in range(len(votes['uids'])):
+        c.copy(votes['uids']) # is line needed ?
+        new_votes = {'names': [], 'uids': [], 'weights': [], 'timestamp': c.time(), 'block': self.block}
+        for i in range(len(votes['names'])):
             if votes['uids'][i] < self.n :
+                new_votes['names'] += [votes['names'][i]]
                 new_votes['uids'] += [votes['uids'][i]]
                 new_votes['weights'] += [votes['weights'][i]]
         
         votes = new_votes
 
 
-
         topk = self.subnet['max_allowed_weights']
         topk_indices = torch.argsort( torch.tensor(votes['weights']), descending=True)[:topk].tolist()
         votes['weights'] = [votes['weights'][i] for i in topk_indices]
-        votes['uids'] = [votes['uids'][i] for i in topk_indices]
+        votes['names'] = [votes['names'][i] for i in topk_indices]
 
         # normalize vote
         votes['weights'] = torch.tensor(votes['weights'])
         votes['weights'] = (votes['weights'] / votes['weights'].sum())
         votes['weights'] = votes['weights'].tolist()
-        c.print(f'Voting on {len(votes["uids"])} modules', color='cyan')
-
+        c.print(f'Voting on {len(votes["names"])} modules', color='cyan')
 
         try:
-            self.subspace.vote(uids=votes['uids'],
+            self.subspace.vote(uids=votes['names'], # passing names as uids, to avoid slot conflicts
                             weights=votes['weights'], 
                             key=self.key, 
                             network=self.config.network, 
