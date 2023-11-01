@@ -2481,6 +2481,8 @@ class c:
               server_mode:str = server_mode,
               tag_seperator:str='::',
               update:bool = False,
+              max_workers:int = None,
+              mode:str = "thread",
               **extra_kwargs
               ):
 
@@ -2532,8 +2534,8 @@ class c:
                     c.deregister_server(server_name, network=network)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
-    
-        c.module(f'server.{server_mode}')(module=self, name= server_name, port=port, network=network)
+
+        c.module(f'server.{server_mode}')(module=self, name= server_name, port=port, network=network, max_workers=max_workers, mode=mode)
         
         response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 
@@ -2617,8 +2619,11 @@ class c:
         c.register_server(name, self.address, **kwargs)
         return {'success':True, 'message':f'Server name set to {name}'}
         
-        
-
+    @classmethod
+    def dummy_gen(cls):
+        for i in range(10):
+            c.print(i)
+            yield i
         
     def info(self , 
              schema: bool = False,
@@ -4474,7 +4479,7 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, modules=['server', 'key', 'executor', 'namespace'], verbose:bool=False):
+    def test(cls, modules=['server', 'key', 'namespace', 'executor'], verbose:bool=False):
         test_results = []
         for module_name in modules:
             c.print('#'*300)
@@ -5135,10 +5140,8 @@ class c:
         return c.wait(futures)
 
     @classmethod
-    def get_executor(cls, *args, **kwargs):
-        if not hasattr(cls, 'executor'):
-            cls.executor = c.module('executor')()
-        return c.module('executor')(*args, **kwargs)
+    def executor(cls, max_workers:int=None, mode:str="thread", **kwargs):
+        return c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
 
     @classmethod
     def submit(cls, 
@@ -5155,7 +5158,7 @@ class c:
 
 
         fn = c.get_fn(fn)
-        executor = c.get_executor() if executor == None else executor
+        executor = c.executor() if executor == None else executor
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)
@@ -5185,7 +5188,7 @@ class c:
     def submit_batch(cls,  fn:str, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, module = None,  *args, **kwargs):
         n = len(batch_kwargs)
         module = cls if module == None else module
-        executor = c.get_executor(max_workers=n)
+        executor = c.executor(max_workers=n)
         futures = [ executor.submit(fn=getattr(module, fn), kwargs=batch_kwargs[i], timeout=timeout) for i in range(n)]
         if return_future:
             return futures

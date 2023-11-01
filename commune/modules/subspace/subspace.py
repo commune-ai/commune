@@ -1996,6 +1996,7 @@ class Subspace(c.Module):
                 include_weights = False,
                 df = False,
                 multithread:bool = False ,
+                search = None,
                 timeout=200 # for multi-threading
                 ) -> Dict[str, ModuleInfo]:
         
@@ -2081,8 +2082,13 @@ class Subspace(c.Module):
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
                 modules[i] = module
 
+        if search != None:
+            modules = [m for m in modules if search in m['name']]``
+
         if df:
             modules = c.df(modules)
+
+
 
         return modules
     
