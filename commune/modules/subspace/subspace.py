@@ -763,9 +763,6 @@ class Subspace(c.Module):
             module_key : str = None, # defaults to most staked module
             key : 'c.Key' = None,  # defaults to first key
             netuid : Union[str, int] = 0, # defaults to module.netuid
-            wait_for_inclusion:bool = True, 
-            wait_for_finalization:bool = False,
-            prompt: bool = False,
             network: str= None,
         ) -> bool:
         network = self.resolve_network(network)
@@ -1987,6 +1984,7 @@ class Subspace(c.Module):
               
     # @c.timeit
     def modules(self,
+                search=None,
                 network = 'main',
                 netuid: int = 0,
                 block: Optional[int] = None,
@@ -1996,8 +1994,7 @@ class Subspace(c.Module):
                 include_weights = False,
                 df = False,
                 multithread:bool = False ,
-                search = None,
-                timeout=200 # for multi-threading
+                timeout:int=200 # for multi-threading
                 ) -> Dict[str, ModuleInfo]:
         
 
@@ -2076,8 +2073,7 @@ class Subspace(c.Module):
                     module[k] = self.format_amount(module[k], fmt=fmt)
 
                 for k in ['incentive', 'dividends']:
-                    if module[k] >= 1:
-                        module[k] = module[k] / (U16_MAX)
+                    module[k] = module[k] / (U16_MAX)
                 
                 module['stake_from']= [(k, self.format_amount(v, fmt=fmt))  for k, v in module['stake_from']]
                 modules[i] = module
