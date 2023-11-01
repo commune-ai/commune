@@ -4900,6 +4900,24 @@ class c:
             module = cls.connect(module)
         
         return  fn, module
+    
+    @classmethod
+    def resolve_method(cls,fn, init_kwargs=None ):
+        if isinstance(fn, str):
+            module = '.'.join(fn.split('.')[:-1])
+            module = c.module(module)
+            fn = fn.split('.')[-1]
+            fn_obj = getattr(module, fn)
+            method_type = c.classify_method(fn_obj)
+            if method_type == 'self':
+                if init_kwargs is None:
+                    init_kwargs = {}
+                module = module(**init_kwargs)
+            fn = getattr(module, fn)
+        assert callable(fn), f'{fn} is not callable'
+        return fn
+    
+    
 
     
     def resolve_key(self, key: str = None) -> str:
@@ -7616,7 +7634,7 @@ class c:
         Is this shiz a generator dawg?
         """
         import inspect
-        return inspect.isgenerator(obj)
+        return inspect.isgeneratorfunction(obj)
     
 
 
