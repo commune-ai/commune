@@ -125,13 +125,12 @@ class Subspace(c.Module):
 
         return response
     def __repr__(self) -> str:
-        return f'<Subspace: network={self.network}>'
+        return f'<Subspace: network={self.network}, url={self.url}>'
     def __str__(self) -> str:
-        return f'<Subspace: network={self.network}>'
+        return f'<Subspace: network={self.network} url={self.url}>'
     
     def shortyaddy(self, address, first_chars=4):
         return address[:first_chars] + '...' 
-
 
     def my_stake(self, search=None, netuid = None, network = None, fmt=fmt,  decimals=2, block=None):
         mystaketo = self.my_staketo(netuid=netuid, network=network, fmt=fmt, decimals=decimals, block=block)
@@ -269,8 +268,6 @@ class Subspace(c.Module):
         uids: Union[torch.LongTensor, list] = None,
         weights: Union[torch.FloatTensor, list] = None,
         netuid: int = None,
-        wait_for_inclusion:bool = True,
-        wait_for_finalization:bool = True,
         network = None,
     ) -> bool:
         network = self.resolve_network(network)
@@ -1771,7 +1768,7 @@ class Subspace(c.Module):
         return subnet2netuid
         
 
-    def resolve_netuid(self, netuid: int = None, namespace:dict=None) -> int:
+    def resolve_netuid(self, netuid: int = None) -> int:
         '''
         Resolves a netuid to a subnet name.
         '''
@@ -1781,10 +1778,7 @@ class Subspace(c.Module):
 
         if isinstance(netuid, str):
             # If the netuid is a subnet name, resolve it to a netuid.
-            if namespace == None:
-                namespace = self.subnet_namespace
-            assert netuid in namespace, f"Subnet {netuid} not found in {namespace} for chain {self.chain}"
-            netuid = namespacenetuid
+            netuid = int(self.subnet_namespace.get(netuid, 0))
         elif isinstance(netuid, int):
             # If the netuid is an integer, ensure it is valid.
             assert netuid in self.netuids(), f"Netuid {netuid} not found in {self.netuids()} for chain {self.chain}"
@@ -1814,13 +1808,11 @@ class Subspace(c.Module):
         self.resolve_network(network)
         names = self.names(netuid=netuid)
         keys = self.keys(netuid=netuid)
-
         name2key =  { n: k for n, k in zip(names, keys)}
         if search != None:
             name2key = {k:v for k,v in name2key.items() if search in k}
             if len(name2key) == 1:
                 return list(name2key.keys())[0]
-            
         return name2key
 
     def key2name(self,search=None, netuid: int = None, network=network) -> Dict[str, str]:
@@ -2036,9 +2028,10 @@ class Subspace(c.Module):
                 update: bool = False,
                 include_weights = False,
                 df = False,
-                multithread:bool = False ,
-                timeout:int=200, # for multi-threading
-                include_balances = False
+                parallel:bool = False ,
+                timeout:int=200, 
+                include_balances = False, 
+                mode = 'process'
                 ) -> Dict[str, ModuleInfo]:
         import inspect
 
@@ -2062,13 +2055,14 @@ class Subspace(c.Module):
                 keys += ['balances']
             if include_weights:
                 keys += ['weights']
-            if multithread:
-                executor = c.module('executor')(max_workers=len(keys))
+            if parallel:
+                executor = c.module('executor')(max_workers=len(keys), mode=mode)
                 futures = []
                 for key in keys:
-                    futures += [executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout)]
-
-                results  = c.wait(futures)
+                    futures += [executor.submit(self.get_chain_data, kwargs=dict(key=key, netuid=netuid, block=block, network=network), timeout=timeout, return_future=True) ]
+                
+                c.print(f"Waiting for {len(futures)} futures to complete")
+                results  = c.wait(futures, timeout=timeout)
                 state = {key: result  for key, result in zip(keys, results)}
             else: 
                 state = {}
@@ -2332,6 +2326,7 @@ class Subspace(c.Module):
         if search != None:
             namespace = {k:v for k,v in namespace.items() if search in k}
         return namespace
+
     
 
     
@@ -4122,6 +4117,9 @@ class Subspace(c.Module):
         c.transfer(dest=key, amount=balance, timeout=timeout, verbose=verbose)
         balance = int(balance * 0.5)
         c.print(f'testing network {network} with {n} transfers of {balance} each')
+
+
+    
 
 
 

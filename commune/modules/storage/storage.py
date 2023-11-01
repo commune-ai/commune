@@ -13,8 +13,6 @@ class Storage(c.Module):
         self.serializer = c.module('serializer')()
         self.executor = c.module('executor')()
 
-
-
     @property
     def store_dirpath(self) -> str:
         tag = self.tag
@@ -184,6 +182,7 @@ class Storage(c.Module):
             
     @classmethod
     def test_verify(cls):
+        import torch
         storage_modules = [cls() for i in range(10)]
         object_list = [0, {'fam': 1}, 'whadup', {'tensor': torch.rand(3,3)}, {'tensor': torch.rand(3,3), 'fam': 1}]
         for i, x in enumerate(object_list):
