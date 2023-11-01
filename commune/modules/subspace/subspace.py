@@ -507,7 +507,7 @@ class Subspace(c.Module):
         # params from here
         name: str = None,
         address: str = None,
-        delegation_fee: float = 20,
+        delegation_fee: float = None,
         netuid: int = None,
         network : str = network,
 
@@ -754,14 +754,14 @@ class Subspace(c.Module):
         amount = int(self.to_nanos(amount - existential_deposit))
         
         # Get current stake
-        call_params={
+        params={
                     'netuid': netuid,
                     'amount': amount,
                     'module_key': module_key
                     }
 
 
-        response = self.compose_call('add_stake',params=call_params, key=key)
+        response = self.compose_call('add_stake',params=params, key=key)
 
         if response['success']:
             new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
@@ -813,7 +813,7 @@ class Subspace(c.Module):
             'netuid': netuid,
             'module_key': module_key
             }
-        response = self.compose_call(fn='remove_stake',params=params)
+        response = self.compose_call(fn='remove_stake',params=params, key=key)
         
         if response['success']: # If we successfully unstaked.
             new_balance = self.get_balance( key.ss58_address , fmt='j')
@@ -1121,13 +1121,13 @@ class Subspace(c.Module):
 
         assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
-        call_params = {
+        params = {
             "netuid": netuid,
             "module_keys": module_keys,
             "amounts": amounts
         }
 
-        response = self.compose_call('add_stake_multiple', params=call_params, key=key)
+        response = self.compose_call('add_stake_multiple', params=params, key=key)
 
         return response
                     
@@ -1159,13 +1159,13 @@ class Subspace(c.Module):
 
         assert len(modules) == len(amounts), f"Length of modules and amounts must be the same. Got {len(modules)} and {len(amounts)}."
 
-        call_params = {
+        params = {
             "netuid": netuid,
             "module_keys": modules,
             "amounts": amounts
         }
 
-        response = self.compose_call('remove_stake_multiple', params=call_params, key=key)
+        response = self.compose_call('remove_stake_multiple', params=params, key=key)
 
         return response
                     
