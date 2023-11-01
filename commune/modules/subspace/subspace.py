@@ -327,8 +327,6 @@ class Subspace(c.Module):
         netuid = self.subnet_namespace.get(network, None)
         return netuid
 
-    def update(self):
-        self.sync()
 
 
     @classmethod
@@ -528,10 +526,6 @@ class Subspace(c.Module):
             return {'success': False, 'message': f'{module} already registered and is up to date with your changes'}
         
         # ENSURE DELEGATE FEE IS BETWEEN 0 AND 100
-        assert delegation_fee != None, f"Delegate fee must be provided"
-        if delegation_fee < 1.0 and delegation_fee > 0:
-            delegation_fee = delegation_fee * 100
-        assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
 
         params = {
             'netuid': netuid, # defaults to module.netuid
@@ -542,9 +536,17 @@ class Subspace(c.Module):
         }
 
         # remove the params that are the same as the module info
-        for k in ['name', 'address']:
+        for k in ['name', 'address', 'delegation_info']:
             if params[k] == module_info[k]:
                 params[k] = ''
+
+        # check delegation_bounds
+        assert delegation_fee != None, f"Delegate fee must be provided"
+        delegation_fee = params['delegation_fee']
+        if delegation_fee < 1.0 and delegation_fee > 0:
+            delegation_fee = delegation_fee * 100
+        assert delegation_fee >= 0 and delegation_fee <= 100, f"Delegate fee must be between 0 and 100"
+
 
 
         reponse  = self.compose_call('update_module',params=params, key=key)
@@ -1730,6 +1732,7 @@ class Subspace(c.Module):
             incentive = 0,
             dividends = 0,
             last_update = 0,
+            delegation_fee = 20,
             weights = [],
             bonds = [],
             is_null = True,

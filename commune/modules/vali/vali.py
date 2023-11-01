@@ -26,7 +26,7 @@ class Vali(c.Module):
             self.refresh_stats(network=self.config.network, tag=self.tag)
         if self.config.start == False:
             return
-        self.executor = c.module('thread.pool')(fn=self.eval_module, num_workers=self.config.num_workers, save_outputs=False)
+        self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
         c.thread(self.run)
         c.thread(self.vote_loop)
  

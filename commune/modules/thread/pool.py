@@ -1,122 +1,21 @@
-""" Factory method for creating priority threadpool
-"""
-# The MIT License (MIT)
-# Copyright © 2021 Yuma Rao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
-# documentation files (the “Software”), to deal in the Software without restriction, including without limitation 
-# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, 
-# and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all copies or substantial portions of 
-# the Software.
-
-# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-# THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION 
-# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER 
-# DEALINGS IN THE SOFTWARE.
-
-import os
-import argparse
-import copy
-import bittensor
-from . import priority_thread_pool_impl
-
-class ThreadRipper:
-    """ Factory method for creating priority threadpool
-    """
-    def __new__(
-            cls,
-            config: 'bittensor.config' = None,
-            max_workers: int = None,
-            maxsize: int = None,
-        ):
-        r""" Initializes a priority thread pool.
-            Args:
-                config (:obj:`bittensor.Config`, `optional`): 
-                    bittensor.subtensor.config()
-                max_workers (default=10, type=int)
-.                   The maximum number of threads in thread pool
-                maxsize (default=-1, type=int)
-                    The maximum number of tasks in the priority queue
-        """        
-        if config == None: 
-            config = prioritythreadpool.config()
-        config = copy.deepcopy( config )
-        config.axon.priority.max_workers = max_workers if max_workers != None else config.axon.priority.max_workers
-        config.axon.priority.maxsize = maxsize if maxsize != None else config.axon.priority.maxsize
-
-        prioritythreadpool.check_config( config )
-        return priority_thread_pool_impl.PriorityThreadPoolExecutor(maxsize = config.axon.priority.maxsize, max_workers = config.axon.priority.max_workers)
-
-    @classmethod
-    def add_args(cls, parser: argparse.ArgumentParser, prefix: str = None ):
-        """ Accept specific arguments from parser
-        """
-        prefix_str = '' if prefix == None else prefix + '.'
-        try:
-            parser.add_argument('--' + prefix_str + 'axon.priority.max_workers', type = int, help='''maximum number of threads in thread pool''', default = bittensor.defaults.axon.priority.max_workers)
-            parser.add_argument('--' + prefix_str + 'axon.priority.maxsize', type=int, help='''maximum size of tasks in priority queue''', default = bittensor.defaults.axon.priority.maxsize)  
-        except argparse.ArgumentError:
-            # re-parsing arguments.
-            pass
-
-    @classmethod   
-    def help(cls):
-        """ Print help to stdout
-        """
-        parser = argparse.ArgumentParser()
-        cls.add_args( parser )
-        print (cls.__new__.__doc__)
-        parser.print_help()
-
-    @classmethod   
-    def add_defaults(cls, defaults):
-        """ Adds parser defaults to object from enviroment variables.
-        """
-        defaults.axon = bittensor.Config()
-        defaults.axon.priority = bittensor.Config()
-        defaults.axon.priority.max_workers = os.getenv('BT_AXON_PRIORITY_MAX_WORKERS') if os.getenv('BT_AXON_PRIORITY_MAX_WORKERS') != None else 5
-        defaults.axon.priority.maxsize = os.getenv('BT_AXON_PRIORITY_MAXSIZE') if os.getenv('BT_AXON_PRIORITY_MAXSIZE') != None else 10
-    
-    @classmethod   
-    def config(cls) -> 'bittensor.Config':
-        """ Get config from the argument parser
-            Return: bittensor.config object 
-        """
-        parser = argparse.ArgumentParser()
-        prioritythreadpool.add_args( parser )
-        return bittensor.config( parser )
-    
-    @classmethod   
-    def check_config(cls, config: 'bittensor.Config' ):
-        """ Check config for threadpool worker number and size
-        """
-        assert isinstance(config.axon.priority.max_workers, int), 'axon.priority.max_workers must be a int'
-        assert isinstance(config.axon.priority.maxsize, int), 'axon.priority.maxsize must be a int'
-
-
-
-
-# Copyright 2009 Brian Quinlan. All Rights Reserved.
-# Licensed to PSF under a Contributor Agreement.
-
-"""Implements ThreadPoolExecutor."""
-
-__author__ = 'Brian Quinlan (brian@sweetapp.com)'
 
 import os
 import sys
-import bittensor
-from concurrent.futures import _base
-import itertools
+import time
 import queue
 import random
-import threading
 import weakref
-import time
+import itertools
+import threading
+
 from loguru import logger
+from typing import Callable
+import concurrent
+from concurrent.futures._base import Future
+import commune as c
+import gc
+
+
 
 # Workers are created as daemon threads. This is done to allow the interpreter
 # to exit when there are still idle threads in a ThreadPoolExecutor's thread
@@ -132,200 +31,302 @@ from loguru import logger
 # workers to exit when their work queues are empty and then waits until the
 # threads finish.
 
-_threads_queues = weakref.WeakKeyDictionary()
-_shutdown = False
 
-class _WorkItem(object):
-    def __init__(self, future, fn, start_time, args, kwargs):
-        self.future = future
-        self.fn = fn
-        self.start_time = start_time
-        self.args = args
-        self.kwargs = kwargs
+class Task:
+    def __init__(self, fn:str, args:list, kwargs:dict, timeout:int=10, priority:int=1, path=None, **extra_kwargs):
+        self.future = Future()
+        self.fn = fn # the function to run
+        self.start_time = time.time() # the time the task was created
+        self.args = args # the arguments of the task
+        self.kwargs = kwargs # the arguments of the task
+        self.timeout = timeout # the timeout of the task
+        self.priority = priority # the priority of the task
+        self.path = path # the path to store the state of the task
+        self.status = 'pending' # pending, running, done
+        self.data = None # the result of the task
+
+        # for the sake of simplicity, we'll just add all the extra kwargs to the task object
+        self.extra_kwargs = extra_kwargs
+        self.__dict__.update(extra_kwargs)
+
+        # store the state of the task if a path is given
+        if self.path:
+            self.save()
+    @property
+    def lifetime(self) -> float:
+        return time.time() - self.start_time
+
+    @property
+    def save(self):
+        self.put(self.path, self.state)
+
+    @property
+    def state(self) -> dict:
+        return {
+            'fn': self.fn.__name__,
+            'kwargs': self.kwargs,
+            'args': self.args,
+            'timeout': self.timeout,
+            'start_time': self.start_time, 
+            'priority': self.lifetime,
+            'status': self.status,
+            'data': self.data, 
+            **{k: self.__dict__[k] for k,v in self.extra_kwargs.items()}
+        }
+
+    
 
     def run(self):
-        """ Run the given work item
-        """
+        """Run the given work item"""
         # Checks if future is canceled or if work item is stale
-        if (not self.future.set_running_or_notify_cancel()) or (time.time()-self.start_time > bittensor.__blocktime__):
-            return
+        if (not self.future.set_running_or_notify_cancel()) or (
+            (time.time() - self.start_time) > self.timeout
+        ):
+            self.future.set_exception(TimeoutError('Task timed out'))
 
+        self.status = 'running'
         try:
-            result = self.fn(*self.args, **self.kwargs)
-        except BaseException as exc:
-            self.future.set_exception(exc)
-            # Break a reference cycle with the exception 'exc'
-            self = None
+            data = self.fn(*self.args, **self.kwargs)
+            self.future.set_result(data)
+            self.status = 'done'
+        except Exception as e:
+            # what does this do? A: it sets the exception of the future, and sets the status to failed
+            self.future.set_exception(e)
+            self.status = 'failed'
+            data = c.detailed_error(e)
+
+   
+        # store the result of the task
+        self.data = data       
+
+        # store the state of the task 
+        if self.path:
+            self.save()
+
+        # set the result of the future
+        
+
+    def result(self) -> object:
+        return self.future.result()
+
+    @property
+    def _condition(self) -> bool:
+        return self.future._condition
+    @property
+    def _state(self, *args, **kwargs) -> bool:
+        return self.future._state
+
+    @property
+    def _waiters(self) -> bool:
+        return self.future._waiters
+
+    def cancel(self) -> bool:
+        self.future.cancel()
+
+    def running(self) -> bool:
+        return self.future.running()
+    
+    def done(self) -> bool:
+        return self.future.done()
+
+    def __lt__(self, other):
+        if isinstance(other, Task):
+            return self.priority < other.priority
+        elif isinstance(other, int):
+            return self.priority < other
         else:
-            self.future.set_result(result)
+            raise TypeError(f"Cannot compare Task with {type(other)}")
+    
 
 
-NULL_ENTRY = (sys.maxsize, _WorkItem(None, None, time.time(), (), {}))
 
-def _worker(executor_reference, work_queue, initializer, initargs):
-    if initializer is not None:
-        try:
-            initializer(*initargs)
-        except BaseException:
-            _base.LOGGER.critical('Exception in initializer:', exc_info=True)
-            executor = executor_reference()
-            if executor is not None:
-                executor._initializer_failed()
-            return
-    try:
-        while True:
-            work_item = work_queue.get(block=True)
-            priority = work_item[0]
-            item = work_item[1]
-            if priority == sys.maxsize:
-                del item
-            elif item is not None:
-                item.run()
-                # Delete references to object. See issue16284
-                del item
-                continue
-                
-            executor = executor_reference()
-            # Exit if:
-            #   - The interpreter is shutting down OR
-            #   - The executor that owns the worker has been collected OR
-            #   - The executor that owns the worker has been shutdown.
-            if _shutdown or executor is None or executor._shutdown:
-                # Flag the executor as shutting down as early as possible if it
-                # is not gc-ed yet.
-                if executor is not None:
-                    executor._shutdown = True
-                # Notice other workers
-                work_queue.put(NULL_ENTRY)
-                return
-            del executor
-    except BaseException:
-        logger.error('work_item', work_item)
-        _base.LOGGER.critical('Exception in worker', exc_info=True)
+NULL_ENTRY = (sys.maxsize, Task(None, (), {}))
 
+class ThreadPoolExecutor(c.Module):
+    """Base threadpool executor with a priority queue"""
 
-class BrokenThreadPool(_base.BrokenExecutor):
-    """
-    Raised when a worker thread in a ThreadPoolExecutor failed initializing.
-    """
-
-
-class PriorityThreadPoolExecutor(_base.Executor):
-    """ Base threadpool executor with a priority queue 
-    """
     # Used to assign unique thread names when thread_name_prefix is not supplied.
     _counter = itertools.count().__next__
+    # submit.__doc__ = _base.Executor.submit.__doc__
+    threads_queues = weakref.WeakKeyDictionary()
 
-    def __init__(self, maxsize = -1, max_workers=None, thread_name_prefix='',
-                 initializer=None, initargs=()):
+    def __init__(
+        self,
+        max_workers: int =None,
+        maxsize : int =-1,
+        thread_name_prefix : str ="",
+        **kwargs
+    ):
         """Initializes a new ThreadPoolExecutor instance.
         Args:
             max_workers: The maximum number of threads that can be used to
                 execute the given calls.
             thread_name_prefix: An optional name prefix to give our threads.
-            initializer: An callable used to initialize worker threads.
-            initargs: A tuple of arguments to pass to the initializer.
         """
-        if max_workers is None:
-            # Use this number because ThreadPoolExecutor is often
-            # used to overlap I/O instead of CPU work.
-            max_workers = (os.cpu_count() or 1) * 5
+
+        max_workers = (os.cpu_count() or 1) * 5 if max_workers == None else max_workers
+        c.print("max_workers", max_workers)
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
-
-        if initializer is not None and not callable(initializer):
-            raise TypeError("initializer must be a callable")
-
-        self._max_workers = max_workers
-        self._work_queue = queue.PriorityQueue(maxsize = maxsize)
-        self._idle_semaphore = threading.Semaphore(0)
-        self._threads = set()
-        self._broken = False
-        self._shutdown = False
-        self._shutdown_lock = threading.Lock()
-        self._thread_name_prefix = (thread_name_prefix or
-                                    ("ThreadPoolExecutor-%d" % self._counter()))
-        self._initializer = initializer
-        self._initargs = initargs
+            
+        self.max_workers = max_workers
+        self.work_queue = queue.PriorityQueue(maxsize=maxsize)
+        self.idle_semaphore = threading.Semaphore(0)
+        self.threads = []
+        self.broken = False
+        self.shutdown = False
+        self.shutdown_lock = threading.Lock()
+        self.thread_name_prefix = thread_name_prefix or ("ThreadPoolExecutor-%d" % self._counter() )
 
     @property
     def is_empty(self):
-        return self._work_queue.empty()
+        return self.work_queue.empty()
 
-    def submit(self, fn, *args, **kwargs):
-        with self._shutdown_lock:
-            if self._broken:
-                raise BrokenThreadPool(self._broken)
+    
+    def submit(self, fn: Callable, args=None, kwargs=None, timeout=200, return_future:bool=True) -> Future:
+        args = args or ()
+        kwargs = kwargs or {}
+        with self.shutdown_lock:
+            if self.broken:
+                raise Exception("ThreadPoolExecutor is broken")
 
-            if self._shutdown:
-                raise RuntimeError('cannot schedule new futures after shutdown')
-            if _shutdown:
-                raise RuntimeError('cannot schedule new futures after '
-                                   'interpreter shutdown')
+            if self.shutdown:
+                raise RuntimeError("cannot schedule new futures after shutdown")
 
-            priority = kwargs.get('priority', random.randint(0, 1000000))
-            if priority == 0:
-                priority = random.randint(1, 100)
-            eplison = random.uniform(0,0.01) * priority
-            start_time = time.time()
-            if 'priority' in kwargs:
-                del kwargs['priority']
+            priority = kwargs.get("priority", 1)
+            if "priority" in kwargs:
+                del kwargs["priority"]
+            task = Task(fn=fn, args=args, kwargs=kwargs, timeout=timeout)
+            # add the work item to the queue
+            self.work_queue.put((priority, task), block=False)
+            # adjust the thread count to match the new task
+            self.adjust_thread_count()
             
-
-            f = _base.Future()
-            w = _WorkItem(f, fn, start_time, args, kwargs)
-            self._work_queue.put((-float(priority + eplison), w), block=False)
-            self._adjust_thread_count()
-            return f
-    submit.__doc__ = _base.Executor.submit.__doc__
+        # return the future (MAYBE WE CAN RETURN THE TASK ITSELF)
+        if return_future:
+            return task.future
+        else: 
+            return task.future.result()
 
 
-    def _adjust_thread_count(self):
+    def adjust_thread_count(self):
         # if idle threads are available, don't spin new threads
-        if self._idle_semaphore.acquire(timeout=0):
+        if self.idle_semaphore.acquire(timeout=0):
             return
 
         # When the executor gets lost, the weakref callback will wake up
         # the worker threads.
-        def weakref_cb(_, q=self._work_queue):
+        def weakref_cb(_, q=self.work_queue):
             q.put(NULL_ENTRY)
 
-        num_threads = len(self._threads)
-        if num_threads < self._max_workers:
-            thread_name = '%s_%d' % (self._thread_name_prefix or self,
-                                     num_threads)
-            t = threading.Thread(name=thread_name, target=_worker,
-                                 args=(weakref.ref(self, weakref_cb),
-                                       self._work_queue,
-                                       self._initializer,
-                                       self._initargs))
+        num_threads = len(self.threads)
+        if num_threads < self.max_workers:
+            thread_name = "%s_%d" % (self.thread_name_prefix or self, num_threads)
+            t = threading.Thread(
+                name=thread_name,
+                target=self.worker,
+                args=(
+                    weakref.ref(self, weakref_cb),
+                    self.work_queue,
+                ),
+            )
             t.daemon = True
             t.start()
-            self._threads.add(t)
-            _threads_queues[t] = self._work_queue
-
-    def _initializer_failed(self):
-        with self._shutdown_lock:
-            self._broken = ('A thread initializer failed, the thread pool '
-                            'is not usable anymore')
-            # Drain work queue and mark pending futures failed
-            while True:
-                try:
-                    work_item = self._work_queue.get_nowait()
-                except queue.Empty:
-                    break
-                if work_item is not None:
-                    work_item.future.set_exception(BrokenThreadPool(self._broken))
+            self.threads.append(t)
+            self.threads_queues[t] = self.work_queue
 
     def shutdown(self, wait=True):
-        with self._shutdown_lock:
-            self._shutdown = True
-            self._work_queue.put(NULL_ENTRY)
-        
+        with self.shutdown_lock:
+            self.shutdown = True
+            self.work_queue.put(NULL_ENTRY)
         if wait:
-            for t in self._threads:
+            for t in self.threads:
                 try:
                     t.join(timeout=2)
                 except Exception:
                     pass
-    shutdown.__doc__ = _base.Executor.shutdown.__doc__
+
+    @staticmethod
+    def worker(executor_reference, work_queue):
+        
+        try:
+            while True:
+                work_item = work_queue.get(block=True)
+                priority = work_item[0]
+
+                if priority == sys.maxsize:
+                    # Wake up queue management thread.
+                    work_queue.put(NULL_ENTRY)
+                    break
+
+                item = work_item[1]
+
+                if item is not None:
+                    item.run()
+                    # Delete references to object. See issue16284
+                    del item
+                    continue
+
+                executor = executor_reference()
+                # Exit if:
+                #   - The interpreter is shutting down OR
+                #   - The executor that owns the worker has been collected OR
+                #   - The executor that owns the worker has been shutdown.
+                if shutdown or executor is None or executor.shutdown:
+                    # Flag the executor as shutting down as early as possible if it
+                    # is not gc-ed yet.
+                    if executor is not None:
+                        executor.shutdown = True
+                    # Notice other workers
+                    work_queue.put(NULL_ENTRY)
+                    return
+                del executor
+        except Exception as e:
+            c.print(e, color='red')
+            c.print("work_item", work_item, color='red')
+
+            e = c.detailed_error(e)
+            c.print("Exception in worker", e, color='red')
+
+    @property
+    def num_tasks(self):
+        return self.work_queue.qsize()
+
+    @classmethod
+    def as_completed(futures: list):
+        assert isinstance(futures, list), "futures must be a list"
+        return [f for f in futures if not f.done()]
+
+    @staticmethod
+    def wait(futures:list) -> list:
+        futures = [futures] if not isinstance(futures, list) else futures
+        results = []
+        for future in c.as_completed(futures):
+            results += [future.result()]
+        return results
+
+    
+    @classmethod
+    def test(cls):
+        def fn(x):
+            result =  x*2
+            return result
+            
+        self = cls()
+        futures = []
+        for i in range(100):
+            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
+        for future in c.tqdm(futures):
+            future.result()
+        for i in range(100):
+            futures += [self.submit(fn=fn, kwargs=dict(x=i))]
+
+        results = c.wait(futures)
+        
+        while self.num_tasks > 0:
+            c.print(self.num_tasks, 'tasks remaining', color='red')
+
+
+        return {'success': True, 'msg': 'thread pool test passed'}
+
+        

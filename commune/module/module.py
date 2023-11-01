@@ -6726,8 +6726,11 @@ class c:
         '''
         is the function a property
         '''
-        fn = cls.get_fn(fn)
-        return isinstance(fn, property)
+        try:
+            fn = cls.get_fn(fn)
+            return isinstance(fn, property)
+        except:
+            return False
 
     @classmethod
     def property_fns(cls) -> bool:
@@ -6993,6 +6996,11 @@ class c:
             sizeof += sys.getsizeof(obj)
                 
         return sizeof
+
+    @classmethod
+    def filesize(cls, filepath:str):
+        filepath = cls.resolve_path(filepath)
+        return os.path.getsize(filepath)
     
     @classmethod
     def code(cls, module = None, *args, **kwargs):
