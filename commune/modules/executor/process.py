@@ -799,26 +799,10 @@ class ProcessPoolExecutor(_base.Executor,c.Module):
         p.start()
         self._processes[p.pid] = p
 
-    @classmethod
-    def resolve_method(cls,fn, init_kwargs=None ):
-        if isinstance(fn, str):
-            module = '.'.join(fn.split('.')[:-1])
-            module = c.module(module)
-            fn = fn.split('.')[-1]
-            fn_obj = getattr(module, fn)
-            method_type = c.classify_method(fn_obj)
-            if method_type == 'self':
-                if init_kwargs is None:
-                    init_kwargs = {}
-                module = module(**init_kwargs)
-            fn = getattr(module, fn)
-        assert callable(fn), f'{fn} is not callable'
-        return fn
+    
     def submit(self, fn, *args, return_future:bool = True, init_kwargs:dict=None,  **kwargs):
         with self._shutdown_lock:
-
-            fn = self.resolve_method(fn, init_kwargs=init_kwargs)
-
+            fn = c.resolve_fn(fn)
             if self._broken:
                 raise BrokenProcessPool(self._broken)
             if self._shutdown_thread:

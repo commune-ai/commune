@@ -5,13 +5,19 @@ import streamlit as st
 class Storage(c.Module):
     whitelist: List = ['put', 'get', 'get_hash']
 
-    def __init__(self, max_replicas:int = 1, network='local',**kwargs):
+    def __init__(self, 
+                 max_replicas:int = 1, 
+                network='local',
+                validate:bool = True,
+                **kwargs):
         self.replica_map = {}
         self.max_replicas = max_replicas
         self.network = network
         self.set_config(kwargs=locals()) 
         self.serializer = c.module('serializer')()
         self.executor = c.module('executor')()
+        if validate:
+            c.thread(self.validate)
 
     @property
     def store_dirpath(self) -> str:
@@ -194,3 +200,9 @@ class Storage(c.Module):
                     c.print(f'Verifying i={i} j={j}')
                     assert storage_i.get_hash('test', seed=seed) == storage_j.get_hash('test', seed=seed)
 
+
+    
+    def validate(self):
+        while True:
+            c.sleep(1)
+            c.print('ls')
