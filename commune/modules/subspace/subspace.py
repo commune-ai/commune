@@ -1609,15 +1609,15 @@ class Subspace(c.Module):
         c.print(f"Least useful module is {min_module} with {min_stake} emission.")
         return min_module
     
-    def check_servers(self, search=None,  netuid=None, wait_for_server=False):
+    def check_servers(self, search=None,  netuid=None, wait_for_server=False, update=True):
         cols = ['name', 'registered', 'serving', 'address']
-        for m in c.stats(search=search, netuid=netuid, cols=cols, df=False):
+        for m in c.stats(search=search, netuid=netuid, cols=cols, df=False, update=True):
             if m['serving'] == False and m['registered'] == True:
                 ip = m['address'].split(':')[0]
                 if ':' in ip:
                     port = int(m['address'].split(':')[-1])
                 else:
-                    port = 8888
+                    port = None
                 c.serve(m['name'], port=port, wait_for_server=wait_for_server)
             if m['serving'] == True and m['registered'] == False:
                 self.register(m['name'])

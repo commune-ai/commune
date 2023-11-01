@@ -4891,20 +4891,13 @@ class c:
             c.print(f'ERRORS {errors}', color='red')
         return dict(zip(modules, successes))
     
-
     @classmethod
-    def resolve_fn_module(cls, fn, module=None ) -> str:
-    
-        if module == None and len(fn.split('.')) > 1:
-            module = '.'.join(fn.split('.')[:-1])
-            module = cls.connect(module)
-        
-        return  fn, module
-    
-    @classmethod
-    def resolve_method(cls,fn, init_kwargs=None ):
+    def resolve_fn(cls,fn, init_kwargs=None ):
+        if '.' not in 'fn':
+            module = cls.module_path()
         if isinstance(fn, str):
-            module = '.'.join(fn.split('.')[:-1])
+            if '.' in fn:
+                module = '.'.join(fn.split('.')[:-1])
             module = c.module(module)
             fn = fn.split('.')[-1]
             fn_obj = getattr(module, fn)
@@ -4917,8 +4910,15 @@ class c:
         assert callable(fn), f'{fn} is not callable'
         return fn
     
+    @classmethod
+    def resolve_fn_module(cls, fn, module=None ) -> str:
     
-
+        if module == None and len(fn.split('.')) > 1:
+            module = '.'.join(fn.split('.')[:-1])
+            module = cls.connect(module)
+        
+        return  fn, module
+    
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
@@ -5883,9 +5883,7 @@ class c:
                 fn = getattr(module, fn)
             else:
                 return None
-        if not callable(fn):
-            return fn
-            
+        assert callable(fn), 'Is not callable'
         return fn
     
 
