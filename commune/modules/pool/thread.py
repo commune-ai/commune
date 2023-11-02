@@ -328,7 +328,4 @@ class ThreadPoolExecutor(c.Module):
         return {'success': True, 'msg': 'thread pool test passed'}
     
 
-    def vali(self):
-        c.print(self.server_name)
-
         
