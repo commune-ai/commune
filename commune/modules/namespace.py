@@ -30,7 +30,7 @@ class Namespace(c.Module):
     def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
         namespace = cls.get_namespace(network=network)
         address = namespace.get(name, None)
-        if external:
+        if external and address != None:
             address = address.replace(c.default_ip, c.ip())
             
         return address
@@ -67,7 +67,7 @@ class Namespace(c.Module):
     def rm_namespace(cls,network:str) -> None:
         if cls.exists(network):
             cls.rm(network)
-            return {'success': False, 'msg': f'Namespace {network} removed.'}
+            return {'success': True, 'msg': f'Namespace {network} removed.'}
         else:
             return {'success': False, 'msg': f'Namespace {network} not found.'}
     @classmethod
@@ -184,11 +184,10 @@ class Namespace(c.Module):
         for server in servers:
             try:
                 response = cls.add_server(server, network=network)
-                c.print(response)
             except Exception as e:
                 response = {'success': False, 'msg': str(e)}
-                c.print(response)
             responses.append(response)
+
         return responses
 
 
@@ -295,6 +294,22 @@ class Namespace(c.Module):
             server_exists =  bool(name in servers)
 
         return server_exists
+    
+
+    def clean(cls, network='local'):
+        namespace = cls.get_namespace(network=network)
+        address2name = {}
+        
+        for name, address in address2name.items():
+            if address in address2name.values():
+                if len(address2name[address]) < len(name):
+                    namespace[address] = name
+            else:
+                address2name[address] = name
+
+        namespace = {v:k for k,v in address2name.items()}
+        return namespace
+            
     
 
 

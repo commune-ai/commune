@@ -1,9 +1,10 @@
 import commune as c
 
 class Remote(c.Module):
-    host_data_path = f'{c.datapath}/hosts.json'
+    filetype = 'yaml'
+    host_data_path = f'{c.datapath}/hosts.{filetype}'
     @classmethod
-    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False,  **kwargs ):
+    def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=100, **kwargs ):
         """s
         Run a command on a remote server using Remote.
 
@@ -31,6 +32,8 @@ class Remote(c.Module):
 
         # Create an Remote client instance.
         client = paramiko.SSHClient()
+
+
         # Automatically add the server's host key (this is insecure and used for demonstration; 
         # in production, you should have the remote server's public key in known_hosts)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -41,10 +44,13 @@ class Remote(c.Module):
                        username=host['user'], 
                        password=host['pwd'])
         
-
-
-        # Execute command
+        if sudo and host['user'] != "root":
+            command = "sudo -S -p '' %s" % command
         stdin, stdout, stderr = client.exec_command(command)
+
+        if sudo:
+            stdin.write(host['pwd'] + "\n")
+            stdin.flush()
         color = c.random_color()
         # Print the output of ls command
         outputs = {'error': '', 'output': ''}
@@ -102,11 +108,26 @@ class Remote(c.Module):
         return {'status': 'success', '': f'Host added', }
     
     @classmethod
-    def save_hosts(cls, hosts):
-        cls.put_json(cls.host_data_path, hosts)
+    def save_hosts(cls, hosts=None, filetype=filetype, path = None):
+        if path == None:
+            path = cls.host_data_path
+        if hosts == None:
+            hosts = cls.hosts()
+        if filetype == 'json':
+
+            cls.put_json(path, hosts)
+        elif filetype == 'yaml':
+            cls.put_yaml(path, hosts)
+
+        return {'status': 'success', 'msg': f'Hosts saved', 'hosts': hosts, 'path': cls.host_data_path, 'filetype': filetype}
     @classmethod
-    def load_hosts(cls):
-        return cls.get_json(cls.host_data_path, {})
+    def load_hosts(cls, path = None, filetype=filetype):
+        if path == None:
+            path = cls.host_data_path
+        if filetype == 'json':
+            return cls.get_json(path, {})
+        elif filetype == 'yaml':
+            return cls.get_yaml(path, {})
     
     @classmethod
     def switch_hosts(cls, path):
@@ -119,14 +140,14 @@ class Remote(c.Module):
         hosts = cls.hosts()
         if name in hosts:
             del hosts[name]
-            cls.put_json(cls.host_data_path, hosts)
+            cls.save_hosts(cls.host_data_path, hosts)
             return {'status': 'success', 'msg': f'Host {name} removed'}
         else:
             return {'status': 'error', 'msg': f'Host {name} not found'}
 
     @classmethod
-    def hosts(cls, search=None):
-        hosts = cls.get_json(cls.host_data_path, {})
+    def hosts(cls, search=None, filetype=filetype):
+        hosts = cls.load_hosts(filetype=filetype)
         if len(hosts) == 0:
             assert False, f'No hosts found, please add your hosts to {cls.host_data_path}'
         if search != None:
@@ -176,18 +197,20 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, hosts=None, cwd=None, timeout=100, verbose:bool = False, num_trials=5, **kwargs):
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = False, num_trials=5, **kwargs):
 
         output = {}
         host_map = cls.hosts(search=search)
-        if hosts != None:
-            if isinstance(hosts, str):
+        if search != None:
+            if isinstance(search, str):
                 host_map = {k:v for k,v in host_map.items() if hosts in k}
-            elif isinstance(hosts, list):
+            elif isinstance(search, list):
                 host_map = {k:v for k,v in host_map.items() if k in hosts}
             else:
                 raise Exception(f'hosts must be a list or a string')
+            
         hosts = host_map
+
         for i in range(num_trials):
             try:
                 results = {}
@@ -211,8 +234,6 @@ class Remote(c.Module):
 
                 host_map = {k:v for k,v in host_map.items() if k in unfinished_hosts}
 
-        
-                
                 if len(host_map) == 0:
                     break
 
@@ -220,8 +241,6 @@ class Remote(c.Module):
                 c.print('Retrying')
                 c.print(c.detailed_error(e))
                 continue
-
-
 
         for k,v in output.items():
             if isinstance(v, str):
@@ -244,12 +263,15 @@ class Remote(c.Module):
         return results
     
     @classmethod
-    def add_servers(cls, *args, add_admins:bool=False, network='remote'):
+    def add_servers(cls, *args, add_admins:bool=False, refresh=False, network='remote'):
         if add_admins:
             c.print('Adding admin')
             cls.add_admin()
         cls.check_servers()
+        if refresh:
+            c.rm_namespace(network=network)
         servers = list(cls.cmd('c addy', verbose=True).values())
+        namespace = cls.namespace(network=network)
         for i, server in enumerate(servers):
             if server.endswith('\n'):
                 servers[i] = server[:-1]
@@ -264,6 +286,16 @@ class Remote(c.Module):
     @classmethod
     def serve(cls, *args, n=1, **kwargs):
         return cls.call('serve', *args, search='module', n=n, **kwargs)
+    @classmethod
+    def fleet(cls, module, tag='', n=1, timeout=100, **kwargs):
+
+        futures = []
+
+        for i in range(n):
+            f = cls.call('serve', f'{module}::{tag}{i}', return_future=True, n=1, **kwargs)
+            c.print(f)
+            futures += [f]
+        return c.wait(futures, timeout=timeout)
             
 
     @classmethod
@@ -328,10 +360,15 @@ class Remote(c.Module):
             futures[name] = c.submit(c.call, args=(address, fn, *args), kwargs=kwargs, return_future=True)
         
         if return_future:
+            if len(futures) == 1:
+                return list(futures.values())[0]
             return futures
         else:
+
             results = c.wait(list(futures.values()))
-            return dict(zip(futures.keys(), results))
+            results = dict(zip(futures.keys(), results))
+            if len(results) == 1:
+                return list(results.values())[0]
 
         
         
@@ -353,6 +390,16 @@ class Remote(c.Module):
             futures += [c.submit(c.call, args=(a,'info'),return_future=True)]
         results = c.wait(futures)
         return results
+    
+    @classmethod
+    def setup(cls,**kwargs):
+        repo_url = c.repo_url()
+        c.print(cls.cmd(f'git clone {repo_url}', **kwargs))
+        c.print(cls.cmd(f'apt ', **kwargs))
+        c.print(cls.cmd(f'cd commune && pip install -e .', **kwargs))
+        c.print(cls.cmd(f'c add_admin {c.root_key().ss58_address} ', **kwargs))
+        c.print(cls.cmd(f'c serve', **kwargs))
+    
 
 
     # @classmethod
