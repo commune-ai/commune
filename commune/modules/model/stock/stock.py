@@ -32,14 +32,12 @@ class Stock(c.Module):
              limit: int = 5000  # Limits the number of base aggregates queried to create the aggregate results. Max 50000 and Default 5000.
     ) -> str:
         api_key = api_key if api_key != None else self.api_key
-        print(api_key)
         payload = ''
         headers = {}
         self.conn.request("GET", f"/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{start}/{end}?adjusted={adjusted}&sort={sort}&limit={limit}&apiKey={api_key}", payload, headers)
         res = self.conn.getresponse()
         data = res.read()
-        print(data.decode("utf-8"))
-        return data
+        return data.decode("utf-8")
 
     forward = ask = generate = call
     
