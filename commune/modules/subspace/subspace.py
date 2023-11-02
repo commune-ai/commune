@@ -364,6 +364,7 @@ class Subspace(c.Module):
         key : str  = None,
         module_key : str = None,
         network: str = network,
+        update_if_registered = False,
         fmt = 'nano'
 
     ) -> bool:
@@ -386,7 +387,7 @@ class Subspace(c.Module):
         # Validate address.
         if self.subnet_exists(subnet, network=network):
             netuid = self.get_netuid_for_subnet(subnet)
-            if self.is_registered(module_key.ss58_address, netuid=netuid):
+            if self.is_registered(module_key.ss58_address, netuid=netuid) and not update_if_registered:
                 c.print(f":cross_mark: [red]Module {name} already registered[/red]")
                 return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
             min_stake = self.min_stake(netuid=netuid, registration=True)
@@ -400,6 +401,10 @@ class Subspace(c.Module):
         balance = self.get_balance(key.ss58_address, fmt=fmt)
         if balance < min_stake:
             return {'success': False, 'message': f'Insufficient balance: {balance} < {min_stake}'}
+        if stake == None:
+            stake = 0
+
+
         if stake < min_stake:
             stake = min_stake
         stake = self.to_nanos(stake)
@@ -756,6 +761,9 @@ class Subspace(c.Module):
         name2key = self.name2key(netuid=netuid)
         if module in name2key:
             module_key = name2key[module]
+        else:
+            module_key = module
+
 
         # Flag to indicate if we are using the wallet's own hotkey.
         old_balance = self.get_balance( key.ss58_address , fmt='j')
@@ -775,10 +783,9 @@ class Subspace(c.Module):
 
         response = self.compose_call('add_stake',params=params, key=key)
 
-        if response['success']:
-            new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
-            new_balance = self.get_balance(  key.ss58_address , fmt='j')
-            response.update({"message": "Stake Sent", "from": key.ss58_address, "to": module_key, "amount": amount, "balance_before": old_balance, "balance_after": new_balance, "stake_before": old_stake, "stake_after": new_stake})
+        new_stake = self.get_stakefrom( module_key, from_key=key.ss58_address , fmt='j', netuid=netuid)
+        new_balance = self.get_balance(  key.ss58_address , fmt='j')
+        response.update({"message": "Stake Sent", "from": key.ss58_address, "to": module_key, "amount": amount, "balance_before": old_balance, "balance_after": new_balance, "stake_before": old_stake, "stake_after": new_stake})
 
         return response
 
@@ -2003,6 +2010,7 @@ class Subspace(c.Module):
                     'dividends': 0,
                     'stake': 0,
                     'balance': 0,
+                    'delegation_fee': 20,
                     
                 }
 

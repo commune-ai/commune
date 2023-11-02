@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 # AGI BEGINS 
 class c:
-    description = """This is a module"""
+    descrition = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
     homepath = os.path.expanduser('~')
@@ -41,7 +41,6 @@ class c:
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
-
 
     def __init__(self, config:Dict=None, **kwargs):
         self.set_config(config=config,kwargs=kwargs)  
@@ -249,7 +248,8 @@ class c:
         from commune.utils.dict import load_yaml
         config = load_yaml(path)
         return config
-
+    
+    get_yaml = load_yaml
 
 
     @classmethod
@@ -1011,7 +1011,12 @@ class c:
     
 
     get_used_ports = used_ports
-   
+    
+    @classmethod
+    def makedirs(cls, *args, **kwargs):
+        import os
+        return os.makedirs(*args, **kwargs)
+
     @classmethod
     def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
         '''
@@ -1275,7 +1280,15 @@ class c:
             c.print(c.kill(module))
         
             
-        
+    @classmethod
+    def restart_peers(cls, timeout=20):
+        futures = []
+        for p in cls.peers():
+            futures += [c.submit(c.restart_server, args=[p], return_future=True, timeout=timeout)]
+
+        results = c.wait(futures,timeout=timeout)
+        return results
+
 
 
     @classmethod
@@ -2480,7 +2493,7 @@ class c:
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = True , # waits for the server to start before returning
+              wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
@@ -2523,6 +2536,8 @@ class c:
         
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
+
+        
         # this automatically adds 
         self = module_class(**kwargs)
         self.tag = tag
@@ -2539,7 +2554,13 @@ class c:
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
-        c.module(f'server.{server_mode}')(module=self, name= server_name, port=port, network=network, max_workers=max_workers, mode=mode)
+
+        c.module(f'server.{server_mode}')(module=self, 
+                                          name=server_name, 
+                                          port=port, 
+                                          network=network, 
+                                          max_workers=max_workers, 
+                                          mode=mode)
         
         response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 
@@ -5130,24 +5151,28 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=1,  **kwargs):
-        executor = c.module('executor')(max_workers=max_workers)
-        futures = []
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20,  **kwargs):
+
         if tag == None:
             tag = ''
 
-        if max_workers == 1:
+        if parallel:
+            executor = c.module('executor')(max_workers=max_workers, mode='process')
+            futures = []
+            for i in range(n):
+                server_kwargs={'tag':tag + str(i), **kwargs}
+                future = executor.submit(fn=cls.serve, kwargs=server_kwargs, timeout=timeout, return_future=True)
+                futures = futures + [future]
+            
+            results =  c.wait(futures, timeout=timeout)
+
+        else:
             results = []
             for i in range(n):
                 c.print(f'Launching {tag}')
                 server_kwargs={'tag':tag + str(i), **kwargs}
                 result = cls.serve(**server_kwargs)
                 results = results + [result]
-        else:
-            for i in range(n):
-                future = executor.submit(fn=cls.serve, kwargs=server_kwargs)
-                futures = futures + [future]
-                results =  c.wait(futures)
 
         return results
         
@@ -5891,7 +5916,7 @@ class c:
                 fn = getattr(module, fn)
             else:
                 return None
-        assert callable(fn), 'Is not callable'
+        # assert callable(fn), 'Is not callable'
         return fn
     
 
@@ -6734,11 +6759,10 @@ class c:
         '''
         is the function a property
         '''
-        try:
-            fn = cls.get_fn(fn)
-            return isinstance(fn, property)
-        except:
-            return False
+        fn = cls.get_fn(fn)
+
+        return isinstance(fn, property)
+
 
     @classmethod
     def property_fns(cls) -> bool:
