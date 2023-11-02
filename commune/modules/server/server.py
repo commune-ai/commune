@@ -11,6 +11,9 @@ class Server(c.Module):
         c.wait_for_server(module_name)
         assert module_name in c.servers()
 
+        response = c.call(module_name)
+        c.print(response)
+
         c.kill(module_name)
         assert module_name not in c.servers()
         return {'success': True, 'msg': 'server test passed'}

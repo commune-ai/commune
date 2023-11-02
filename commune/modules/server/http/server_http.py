@@ -17,16 +17,31 @@ class ServerHTTP(c.Module):
         port: Optional[int] = None,
         sse: bool = True,
         chunk_size: int = 42_000,
-        max_request_staleness: int = 60) -> 'Server':
+        max_request_staleness: int = 60, 
+        max_workers: int = None,
+        mode:str = 'thread',
+        verbose: bool = False,
+        timeout: int = 256,
+        public: bool = False
+        ) -> 'Server':
         
-        self.sse = sse
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'
-        self.port = c.resolve_port(port)
+        self.port = int(c.resolve_port(port))
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
         self.network = network
+        self.verbose = verbose
+
+        # executro 
+        self.sse = sse
+        if self.sse == False:
+            self.max_workers = max_workers
+            self.mode = mode
+            self.executor = c.executor(max_workers=max_workers, mode=mode)
+        self.timeout = timeout
+        self.public = public
 
         if name == None:
             if hasattr(module, 'server_name'):
@@ -44,6 +59,8 @@ class ServerHTTP(c.Module):
         module.port = self.port
         module.address  = self.address
         self.set_api(ip=self.ip, port=self.port)
+
+
 
     def set_api(self, ip = None, port = None):
         ip = self.ip if ip == None else ip
@@ -73,21 +90,30 @@ class ServerHTTP(c.Module):
                 args = data.get('args',[])
                 kwargs = data.get('kwargs', {})
                 
-                result = self.forward(fn=fn, args=args, kwargs=kwargs)
+                input_kwargs = dict(fn=fn, args=args, kwargs=kwargs)
+                fn_name = f"{self.name}::{fn}"
+                c.print(f'🚀 Forwarding {input["address"]} --> {fn_name} 🚀\033', color='yellow')
+                c.print(input_kwargs)
+                if self.sse:
+                    result = self.forward(**input_kwargs)
+                else: 
+                    result = self.executor.submit(self.forward, kwargs=input_kwargs, timeout=self.timeout)
+                    result = result.result()
+                # if the result is a future, we need to wait for it to finish
+                if isinstance(result, dict) and 'error' in result:
+                    success = False 
                 success = True
-
             except Exception as e:
-                result = c.detailed_error(e)
                 success = False
-
-            result = self.process_result(result)
+                result = c.detailed_error(e)
 
             if success:
-                c.print(f'✅ Success: {self.name}::{fn} --> {input["address"][:5]}... ✅\033 ')
+                c.print(f'✅ Success: {self.name}::{fn} --> {input["address"]}... ✅\033 ', color='green')
             else:
-                c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"][:5]}... 🚨\033')
-                c.print(result)
+                c.print(f'🚨 Error: {self.name}::{fn} --> {input["address"]}... 🚨\033', color='red')
+                
 
+            result = self.process_result(result)
             return result
         
         self.serve()
@@ -114,17 +140,14 @@ class ServerHTTP(c.Module):
         assert 'data' in input, f"Data not included"
         assert 'signature' in input, f"Data not signed"
         # you can verify the input with the server key class
-        assert self.key.verify(input), f"Data not signed with correct key"
-        # deserialize the data
+        if not self.public:
+            assert self.key.verify(input), f"Data not signed with correct key"
         input['data'] = self.serializer.deserialize(input['data'])
         # here we want to verify the data is signed with the correct key
         request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
-
         # verifty the request is not too old
         assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
-        # verify the input with the access module
-        input = self.module.access_module.verify(input)
 
         return input
 
@@ -190,6 +213,7 @@ class ServerHTTP(c.Module):
             response = obj(*args, **kwargs)
         else:
             response = obj
+
         return response
 
 

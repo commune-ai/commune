@@ -1,39 +1,8 @@
 import commune as c
 
-class SshClient:
-    "A wrapper of paramiko.SSHClient"
-    TIMEOUT = 4
-
-    def __init__(self, host, port, username, password, key=None, passphrase=None):
-        self.username = username
-        self.password = password
-        self.client = paramiko.SSHClient()
-        self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        if key is not None:
-            key = paramiko.RSAKey.from_private_key(StringIO(key), password=passphrase)
-        self.client.connect(host, port, username=username, password=password, pkey=key, timeout=self.TIMEOUT)
-
-    def close(self):
-        if self.client is not None:
-            self.client.close()
-            self.client = None
-
-    def execute(self, command, sudo=False):
-        feed_password = False
-        if sudo and self.username != "root":
-            command = "sudo -S -p '' %s" % command
-            feed_password = self.password is not None and len(self.password) > 0
-        stdin, stdout, stderr = self.client.exec_command(command)
-        if feed_password:
-            stdin.write(self.password + "\n")
-            stdin.flush()
-        return {'out': stdout.readlines(), 
-                'err': stderr.readlines(),
-                'retval': stdout.channel.recv_exit_status()}
-
-
 class Remote(c.Module):
-    host_data_path = f'{c.datapath}/hosts.json'
+    filetype = 'yaml'
+    host_data_path = f'{c.datapath}/hosts.{filetype}'
     @classmethod
     def ssh_cmd(cls, *cmd_args, host:str= None,  cwd:str=None, verbose=False, sudo=False, key=None, timeout=100, **kwargs ):
         """s
@@ -139,11 +108,26 @@ class Remote(c.Module):
         return {'status': 'success', '': f'Host added', }
     
     @classmethod
-    def save_hosts(cls, hosts):
-        cls.put_json(cls.host_data_path, hosts)
+    def save_hosts(cls, hosts=None, filetype=filetype, path = None):
+        if path == None:
+            path = cls.host_data_path
+        if hosts == None:
+            hosts = cls.hosts()
+        if filetype == 'json':
+
+            cls.put_json(path, hosts)
+        elif filetype == 'yaml':
+            cls.put_yaml(path, hosts)
+
+        return {'status': 'success', 'msg': f'Hosts saved', 'hosts': hosts, 'path': cls.host_data_path, 'filetype': filetype}
     @classmethod
-    def load_hosts(cls):
-        return cls.get_json(cls.host_data_path, {})
+    def load_hosts(cls, path = None, filetype=filetype):
+        if path == None:
+            path = cls.host_data_path
+        if filetype == 'json':
+            return cls.get_json(path, {})
+        elif filetype == 'yaml':
+            return cls.get_yaml(path, {})
     
     @classmethod
     def switch_hosts(cls, path):
@@ -156,14 +140,14 @@ class Remote(c.Module):
         hosts = cls.hosts()
         if name in hosts:
             del hosts[name]
-            cls.put_json(cls.host_data_path, hosts)
+            cls.save_hosts(cls.host_data_path, hosts)
             return {'status': 'success', 'msg': f'Host {name} removed'}
         else:
             return {'status': 'error', 'msg': f'Host {name} not found'}
 
     @classmethod
-    def hosts(cls, search=None):
-        hosts = cls.get_json(cls.host_data_path, {})
+    def hosts(cls, search=None, filetype=filetype):
+        hosts = cls.load_hosts(filetype=filetype)
         if len(hosts) == 0:
             assert False, f'No hosts found, please add your hosts to {cls.host_data_path}'
         if search != None:
@@ -213,18 +197,20 @@ class Remote(c.Module):
 
 
     @classmethod
-    def cmd(cls, *commands,  search=None, hosts=None, cwd=None, timeout=100, verbose:bool = False, num_trials=5, **kwargs):
+    def cmd(cls, *commands,  search=None, cwd=None, timeout=100, verbose:bool = False, num_trials=5, **kwargs):
 
         output = {}
         host_map = cls.hosts(search=search)
-        if hosts != None:
-            if isinstance(hosts, str):
+        if search != None:
+            if isinstance(search, str):
                 host_map = {k:v for k,v in host_map.items() if hosts in k}
-            elif isinstance(hosts, list):
+            elif isinstance(search, list):
                 host_map = {k:v for k,v in host_map.items() if k in hosts}
             else:
                 raise Exception(f'hosts must be a list or a string')
+            
         hosts = host_map
+
         for i in range(num_trials):
             try:
                 results = {}
@@ -248,8 +234,6 @@ class Remote(c.Module):
 
                 host_map = {k:v for k,v in host_map.items() if k in unfinished_hosts}
 
-        
-                
                 if len(host_map) == 0:
                     break
 
@@ -257,8 +241,6 @@ class Remote(c.Module):
                 c.print('Retrying')
                 c.print(c.detailed_error(e))
                 continue
-
-
 
         for k,v in output.items():
             if isinstance(v, str):

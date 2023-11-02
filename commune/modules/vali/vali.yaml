@@ -2,7 +2,7 @@
 
 key : null
 netuid: 0
-module_prefix: null
+module_search: null
 network: main 
 max_history: 10
 alpha: 0.5

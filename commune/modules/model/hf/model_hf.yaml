@@ -19,7 +19,7 @@ load: false
 quantize: null
 
 shortcuts:
-    # 0-1B models
+  # 0-1B models
   gpt125m: 'EleutherAI/gpt-neo-125m'
   gpt2.7b: 'EleutherAI/gpt-neo-2.7B'
   gpt3b: 'EleutherAI/gpt-neo-2.7B'
