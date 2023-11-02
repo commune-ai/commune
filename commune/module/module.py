@@ -17,7 +17,7 @@ import warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 # AGI BEGINS 
 class c:
-    description = """This is a module"""
+    descrition = """This is a module"""
     base_module = 'module'
     encrypted_prefix = 'ENCRYPTED'
     homepath = os.path.expanduser('~')
@@ -41,7 +41,6 @@ class c:
     cache = {} # cache for module objects
     home = os.path.expanduser('~') # the home directory
     __ss58_format__ = 42 # the ss58 format for the substrate address
-
 
     def __init__(self, config:Dict=None, **kwargs):
         self.set_config(config=config,kwargs=kwargs)  
@@ -249,7 +248,8 @@ class c:
         from commune.utils.dict import load_yaml
         config = load_yaml(path)
         return config
-
+    
+    get_yaml = load_yaml
 
 
     @classmethod
@@ -966,6 +966,7 @@ class c:
 
             # Try to connect to the specified IP and port
             try:
+                port=int(port)
                 sock.connect((ip, port))
                 return True
             except socket.error:
@@ -1011,7 +1012,12 @@ class c:
     
 
     get_used_ports = used_ports
-   
+    
+    @classmethod
+    def makedirs(cls, *args, **kwargs):
+        import os
+        return os.makedirs(*args, **kwargs)
+
     @classmethod
     def resolve_path(cls, path:str, extension:Optional[str]= None, root:bool = False):
         '''
@@ -1275,7 +1281,15 @@ class c:
             c.print(c.kill(module))
         
             
-        
+    @classmethod
+    def restart_peers(cls, timeout=20):
+        futures = []
+        for p in cls.peers():
+            futures += [c.submit(c.restart_server, args=[p], return_future=True, timeout=timeout)]
+
+        results = c.wait(futures,timeout=timeout)
+        return results
+
 
 
     @classmethod
@@ -2023,11 +2037,15 @@ class c:
         """
         Root module
         """
-        if not c.server_exists(name, network=network):
-            c.serve(name, network=network, wait_for_server=True, **kwargs)
-        address = c.call('module', 'address', network=network, timeout=timeout)
-        ip = c.ip()
-        address = ip+':'+address.split(':')[-1]
+        try:
+            if not c.server_exists(name, network=network):
+                c.serve(name, network=network, wait_for_server=True, **kwargs)
+            address = c.call('module', 'address', network=network, timeout=timeout)
+            ip = c.ip()
+            address = ip+':'+address.split(':')[-1]
+        except Exception as e:
+            c.print(f'Error: {e}', color='red')
+            address = None
         return address
     addy = root_address
 
@@ -2476,11 +2494,14 @@ class c:
               server_name:str=None, # name of the server if None, it will be the module name
               kwargs:dict = None,  # kwargs for the module
               refresh:bool = True, # refreshes the server's key
-              wait_for_server:bool = True , # waits for the server to start before returning
+              wait_for_server:bool = False , # waits for the server to start before returning
               remote:bool = True, # runs the server remotely (pm2, ray)
               server_mode:str = server_mode,
               tag_seperator:str='::',
               update:bool = False,
+              max_workers:int = None,
+              mode:str = "thread",
+              public: bool = False,
               **extra_kwargs
               ):
 
@@ -2517,6 +2538,8 @@ class c:
         
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
+
+        
         # this automatically adds 
         self = module_class(**kwargs)
         self.tag = tag
@@ -2532,8 +2555,16 @@ class c:
                     c.deregister_server(server_name, network=network)
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
-    
-        c.module(f'server.{server_mode}')(module=self, name= server_name, port=port, network=network)
+
+        
+
+        c.module(f'server.{server_mode}')(module=self, 
+                                          name=server_name, 
+                                          port=port, 
+                                          network=network, 
+                                          max_workers=max_workers, 
+                                          mode=mode, 
+                                          public=public)
         
         response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 
@@ -2617,8 +2648,11 @@ class c:
         c.register_server(name, self.address, **kwargs)
         return {'success':True, 'message':f'Server name set to {name}'}
         
-        
-
+    @classmethod
+    def dummy_gen(cls):
+        for i in range(10):
+            c.print(i)
+            yield i
         
     def info(self , 
              schema: bool = False,
@@ -2780,9 +2814,9 @@ class c:
         for m in delete_modules:
             if m in servers:
                 c.deregister_server(m)
-        
 
         return {'server_killed': delete_modules, 'update': update}
+
 
     @classmethod
     def kill_prefix(cls, prefix:str, **kwargs):
@@ -2793,7 +2827,24 @@ class c:
                 c.kill(s, **kwargs)
                 killed_servers.append(s)
         return {'success':True, 'message':f'Killed servers with prefix {prefix}'}
+        
     killpre = kill_prefix
+
+
+
+    @classmethod
+    def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
+        servers = c.servers(network=network)
+        killed_servers = []
+        servers = [s for s in servers if  search in s]
+
+        futures = []
+        for s in servers:
+            future = c.submit(c.kill, args=[s], kwargs=kwargs, mode='process')
+            futures.append(futures)
+            
+            
+        return {'success':True, 'message':f'Killed servers with prefix {search}'}
         
     delete = kill_server = kill
     def destroy(self):
@@ -4474,7 +4525,7 @@ class c:
         return cls.console.log(*args, **kwargs)
        
     @classmethod
-    def test(cls, modules=['server', 'key', 'executor', 'namespace'], verbose:bool=False):
+    def test(cls, modules=['server', 'key', 'namespace', 'executor'], verbose:bool=False):
         test_results = []
         for module_name in modules:
             c.print('#'*300)
@@ -4808,10 +4859,14 @@ class c:
         if n == 1:
             futures = c.async_call(*args,**kwargs)
         else:
-            futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
+            futures = [ c.async_call(*args,**kwargs) for i in range(n)]
         if return_future:
             return futures
-        return c.gather(futures)
+        
+        results =  c.gather(futures)
+        if n == 1:
+            return results[0]
+        return results
     
     @classmethod
     async def async_call(cls,
@@ -4886,7 +4941,25 @@ class c:
             c.print(f'ERRORS {errors}', color='red')
         return dict(zip(modules, successes))
     
-
+    @classmethod
+    def resolve_fn(cls,fn, init_kwargs=None ):
+        if '.' not in 'fn':
+            module = cls.module_path()
+        if isinstance(fn, str):
+            if '.' in fn:
+                module = '.'.join(fn.split('.')[:-1])
+            module = c.module(module)
+            fn = fn.split('.')[-1]
+            fn_obj = getattr(module, fn)
+            method_type = c.classify_method(fn_obj)
+            if method_type == 'self':
+                if init_kwargs is None:
+                    init_kwargs = {}
+                module = module(**init_kwargs)
+            fn = getattr(module, fn)
+        assert callable(fn), f'{fn} is not callable'
+        return fn
+    
     @classmethod
     def resolve_fn_module(cls, fn, module=None ) -> str:
     
@@ -4895,7 +4968,7 @@ class c:
             module = cls.connect(module)
         
         return  fn, module
-
+    
     
     def resolve_key(self, key: str = None) -> str:
         if key == None:
@@ -5099,24 +5172,30 @@ class c:
     
     unresports = unreserve_ports
     @classmethod
-    def fleet(cls,n=2, tag=None, max_workers=1,  **kwargs):
-        executor = c.module('executor')(max_workers=max_workers)
-        futures = []
+    def fleet(cls,n=2, tag=None, max_workers=10, parallel=True, timeout=20,  **kwargs):
+
         if tag == None:
             tag = ''
 
-        if max_workers == 1:
+        if parallel:
+            executor = c.module('executor')(max_workers=max_workers, mode='process')
+            futures = []
+            for i in range(n):
+                server_kwargs={'tag':tag + str(i), **kwargs}
+                future = executor.submit(fn=cls.serve, kwargs=server_kwargs, timeout=timeout, return_future=True)
+                futures = futures + [future]
+            
+            results =  c.wait(futures, timeout=timeout)
+            for result in results:
+                c.register_server(name=result['name'], address=result['address'])
+
+        else:
             results = []
             for i in range(n):
                 c.print(f'Launching {tag}')
                 server_kwargs={'tag':tag + str(i), **kwargs}
                 result = cls.serve(**server_kwargs)
                 results = results + [result]
-        else:
-            for i in range(n):
-                future = executor.submit(fn=cls.serve, kwargs=server_kwargs)
-                futures = futures + [future]
-                results =  c.wait(futures)
 
         return results
         
@@ -5128,17 +5207,15 @@ class c:
 
         path = cls.resolve_server_name(tag=tag)
         servers = c.servers(path, network=network)
-        executor = c.module('executor')()
+        executor = c.module('executor')(mode='process')
         for server in servers:
             futures += [executor.submit(fn=cls.kill_server, kwargs={'server_name':p, 'network':network})]
 
         return c.wait(futures)
 
     @classmethod
-    def get_executor(cls, *args, **kwargs):
-        if not hasattr(cls, 'executor'):
-            cls.executor = c.module('executor')()
-        return c.module('executor')(*args, **kwargs)
+    def executor(cls, max_workers:int=None, mode:str="thread", **kwargs):
+        return c.module(f'executor').executor(max_workers=max_workers, mode=mode,  **kwargs)
 
     @classmethod
     def submit(cls, 
@@ -5150,12 +5227,14 @@ class c:
                 init_args : list = [],
                 init_kwargs:dict= {},
                 executor = None,
-                module = None,
+                module: str = None,
+                mode:str='thread',
+                max_workers : int = None,
                 ):
 
 
         fn = c.get_fn(fn)
-        executor = c.get_executor() if executor == None else executor
+        executor = c.executor(max_workers=max_workers, mode=mode) if executor == None else executor
         args = c.copy(args)
         kwargs = c.copy(kwargs)
         init_kwargs = c.copy(init_kwargs)
@@ -5185,7 +5264,7 @@ class c:
     def submit_batch(cls,  fn:str, batch_kwargs: List[Dict[str, Any]], return_future:bool=False, timeout:int=10, module = None,  *args, **kwargs):
         n = len(batch_kwargs)
         module = cls if module == None else module
-        executor = c.get_executor(max_workers=n)
+        executor = c.executor(max_workers=n)
         futures = [ executor.submit(fn=getattr(module, fn), kwargs=batch_kwargs[i], timeout=timeout) for i in range(n)]
         if return_future:
             return futures
@@ -5860,9 +5939,7 @@ class c:
                 fn = getattr(module, fn)
             else:
                 return None
-        if not callable(fn):
-            return fn
-            
+        # assert callable(fn), 'Is not callable'
         return fn
     
 
@@ -6706,7 +6783,9 @@ class c:
         is the function a property
         '''
         fn = cls.get_fn(fn)
+
         return isinstance(fn, property)
+
 
     @classmethod
     def property_fns(cls) -> bool:
@@ -6972,6 +7051,11 @@ class c:
             sizeof += sys.getsizeof(obj)
                 
         return sizeof
+
+    @classmethod
+    def filesize(cls, filepath:str):
+        filepath = cls.resolve_path(filepath)
+        return os.path.getsize(filepath)
     
     @classmethod
     def code(cls, module = None, *args, **kwargs):
@@ -7611,7 +7695,7 @@ class c:
         Is this shiz a generator dawg?
         """
         import inspect
-        return inspect.isgenerator(obj)
+        return inspect.isgeneratorfunction(obj)
     
 
 

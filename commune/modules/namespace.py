@@ -30,7 +30,7 @@ class Namespace(c.Module):
     def get_address(cls, name:str, network:str=network, external:bool = True) -> dict:
         namespace = cls.get_namespace(network=network)
         address = namespace.get(name, None)
-        if external:
+        if external and address != None:
             address = address.replace(c.default_ip, c.ip())
             
         return address
