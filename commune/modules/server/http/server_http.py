@@ -22,7 +22,7 @@ class ServerHTTP(c.Module):
         mode:str = 'thread',
         verbose: bool = False,
         timeout: int = 256,
-        public: bool = True
+        public: bool = False
         ) -> 'Server':
         
         self.serializer = c.module('serializer')()
