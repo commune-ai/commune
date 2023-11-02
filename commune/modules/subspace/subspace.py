@@ -365,7 +365,8 @@ class Subspace(c.Module):
         module_key : str = None,
         network: str = network,
         update_if_registered = False,
-        fmt = 'nano'
+        fmt = 'nano',
+
 
     ) -> bool:
         
@@ -387,9 +388,11 @@ class Subspace(c.Module):
         # Validate address.
         if self.subnet_exists(subnet, network=network):
             netuid = self.get_netuid_for_subnet(subnet)
-            if self.is_registered(module_key.ss58_address, netuid=netuid) and not update_if_registered:
-                c.print(f":cross_mark: [red]Module {name} already registered[/red]")
-                return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+            if self.is_registered(module_key.ss58_address, netuid=netuid):
+                if update_if_registered: 
+                    return self.update_module(module=name, name=name, address=address , netuid=netuid, network=network)
+                else: 
+                    return {'success': False, f'msg': 'Module {name} already registered'}
             min_stake = self.min_stake(netuid=netuid, registration=True)
 
         else: 
@@ -2028,6 +2031,8 @@ class Subspace(c.Module):
         results =  getattr(self, key)(netuid=netuid, block=block)
         c.print(f"Got {key} for netuid {netuid} at block {block}")
         return results
+    
+    cached_modules = {}
               
     def modules(self,
                 search=None,
@@ -2042,13 +2047,22 @@ class Subspace(c.Module):
                 parallel:bool = False ,
                 timeout:int=200, 
                 include_balances = False, 
-                mode = 'process'
+                mode = 'process',
+                cache = True,
                 ) -> Dict[str, ModuleInfo]:
         import inspect
+
+
 
         cache_path = f'modules/{network}.{netuid}'
 
         modules = []
+        
+
+
+        if cache:
+            modules = self.cached_modules
+
         if not update :
             modules = self.get(cache_path, [])
 

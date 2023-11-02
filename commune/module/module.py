@@ -966,6 +966,7 @@ class c:
 
             # Try to connect to the specified IP and port
             try:
+                port=int(port)
                 sock.connect((ip, port))
                 return True
             except socket.error:
@@ -2554,6 +2555,7 @@ class c:
             else:  
                 return {'success':True, 'message':f'Server {server_name} already exists'}
 
+        
 
         c.module(f'server.{server_mode}')(module=self, 
                                           name=server_name, 
@@ -2810,9 +2812,9 @@ class c:
         for m in delete_modules:
             if m in servers:
                 c.deregister_server(m)
-        
 
         return {'server_killed': delete_modules, 'update': update}
+
 
     @classmethod
     def kill_prefix(cls, prefix:str, **kwargs):
@@ -2823,7 +2825,24 @@ class c:
                 c.kill(s, **kwargs)
                 killed_servers.append(s)
         return {'success':True, 'message':f'Killed servers with prefix {prefix}'}
+        
     killpre = kill_prefix
+
+
+
+    @classmethod
+    def kill_many(cls, search:str, network='local', parallel=False, **kwargs):
+        servers = c.servers(network=network)
+        killed_servers = []
+        servers = [s for s in servers if  search in s]
+
+        futures = []
+        for s in servers:
+            future = c.submit(c.kill, args=[s], kwargs=kwargs, mode='process')
+            futures.append(futures)
+            
+            
+        return {'success':True, 'message':f'Killed servers with prefix {search}'}
         
     delete = kill_server = kill
     def destroy(self):
@@ -5165,6 +5184,8 @@ class c:
                 futures = futures + [future]
             
             results =  c.wait(futures, timeout=timeout)
+            for result in results:
+                c.register_server(name=result['name'], address=result['address'])
 
         else:
             results = []
@@ -5184,7 +5205,7 @@ class c:
 
         path = cls.resolve_server_name(tag=tag)
         servers = c.servers(path, network=network)
-        executor = c.module('executor')()
+        executor = c.module('executor')(mode='process')
         for server in servers:
             futures += [executor.submit(fn=cls.kill_server, kwargs={'server_name':p, 'network':network})]
 
