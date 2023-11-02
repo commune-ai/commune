@@ -68,3 +68,9 @@ class Git(c.Module):
         if push:
             cls.push()
 
+    @classmethod
+    def repo_url(cls):
+        return c.cmd('git remote -v',cwd=c.libpath, verbose=False).split('\n')[0].split('\t')[1].split(' ')[0]
+    
+        
+

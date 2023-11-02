@@ -3,7 +3,7 @@ network: main # global or local network
 alpha: 0.9
 timeout: 2
 tag: null
-module_prefix: model
+module_search: model
 start: True
 dataset : data.text.truth
 verbose: False
