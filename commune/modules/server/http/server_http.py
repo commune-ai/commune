@@ -22,11 +22,12 @@ class ServerHTTP(c.Module):
         mode:str = 'thread',
         verbose: bool = False,
         timeout: int = 256,
+        public: bool = True
         ) -> 'Server':
         
         self.serializer = c.module('serializer')()
         self.ip = c.default_ip # default to '0.0.0.0'
-        self.port = c.resolve_port(port)
+        self.port = int(c.resolve_port(port))
         self.address = f"{self.ip}:{self.port}"
         self.max_request_staleness = max_request_staleness
         self.chunk_size = chunk_size
@@ -40,6 +41,7 @@ class ServerHTTP(c.Module):
             self.mode = mode
             self.executor = c.executor(max_workers=max_workers, mode=mode)
         self.timeout = timeout
+        self.public = public
 
         if name == None:
             if hasattr(module, 'server_name'):
@@ -138,17 +140,18 @@ class ServerHTTP(c.Module):
         assert 'data' in input, f"Data not included"
         assert 'signature' in input, f"Data not signed"
         # you can verify the input with the server key class
-        assert self.key.verify(input), f"Data not signed with correct key"
-        # deserialize the data
-        input['data'] = self.serializer.deserialize(input['data'])
-        # here we want to verify the data is signed with the correct key
-        request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
+        if self.public:
+            pass
+        else:
+            assert self.key.verify(input), f"Data not signed with correct key"
+            # deserialize the data
+            input['data'] = self.serializer.deserialize(input['data'])
+            # here we want to verify the data is signed with the correct key
+            request_staleness = c.timestamp() - input['data'].get('timestamp', 0)
 
-        # verifty the request is not too old
-        assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
+            # verifty the request is not too old
+            assert request_staleness < self.max_request_staleness, f"Request is too old, {request_staleness} > MAX_STALENESS ({self.max_request_staleness})  seconds old"
 
-        # verify the input with the access module
-        input = self.module.access_module.verify(input)
 
         return input
 
@@ -163,8 +166,9 @@ class ServerHTTP(c.Module):
             # if we are not
             if c.is_generator(result):
                 result = list(result)
-            result = self.serializer.serialize({'data': result})
-            result = self.key.sign(result, return_json=True)
+            result = self.serializer.serialize({'data': result, 'public': self.public})
+            if self.public:
+                result = self.key.sign(result, return_json=True)
             return result
         
     

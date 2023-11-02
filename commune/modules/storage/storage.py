@@ -219,7 +219,6 @@ class Storage(c.Module):
         replica_peers = replica_map.get(item_key, [])
         has_enough_replicas = bool(len(replica_peers) >= max_replicas)
         
-
         if has_enough_replicas: 
             # check if replicas match
             peer = c.choice(replica_peers)
