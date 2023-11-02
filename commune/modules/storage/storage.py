@@ -3,12 +3,12 @@ from typing import *
 import streamlit as st
 
 class Storage(c.Module):
-    whitelist: List = ['put', 'get', 'get_hash']
+    whitelist: List = ['put', 'get', 'item_hash']
 
     def __init__(self, 
                  max_replicas:int = 1, 
                 network='local',
-                validate:bool = True,
+                validate:bool = False,
                 match_replica_prefix : bool = False,
                 **kwargs):
         self.replica_map = {}
@@ -26,7 +26,7 @@ class Storage(c.Module):
         tag = self.tag
         if tag == None:
             tag = 'base'
-        return self.resolve_path(f'{tag}.store')
+        return self.resolve_path(f'store/{tag}')
 
     def resolve_store_path(self, key: str) -> str:
         path =  f'{self.store_dirpath}/{key}'
@@ -39,15 +39,32 @@ class Storage(c.Module):
     def files(self) -> List:
         return c.ls(self.store_dirpath)
     
+    def item2info(self, search=None):
+        files = self.files()
+        item2info = {}
+        for file in files:
+            name = file.split('/')[-1].split('.')[0]
+            file_info = {
+                'size': c.format_data_size(c.filesize(file), fmt='b'),
+                'path': file,
+            }
+            if search != None:
+                if search not in name:
+                    continue
+            item2info[name] = file_info
+        
+        return item2info
+    @property
+    def items(self, search=None) -> List:
+        items =  list(self.item2info(search=search).keys())
+        return items
     def file2size(self, fmt:str='b') -> int:
         files = self.files()
         file2size = {}
         for file in files:
             file2size[file] = c.format_data_size(c.filesize(file), fmt=fmt)
         return file2size
-        
-
-
+    
     def resolve_key(self, key=None) -> str:
         if key == None:
             key = self.key
@@ -55,7 +72,7 @@ class Storage(c.Module):
             key = c.get_key(key)
         return key
 
-    def put(self, k,  v: Dict, encrypt:bool=False, replicas = 1, key=None):
+    def put_item(self, k,  v: Dict, encrypt:bool=False, replicas = 1, key=None):
         timestamp = c.timestamp()
         obj = v
 
@@ -77,20 +94,10 @@ class Storage(c.Module):
     def replicate(self, k, v, replicas=2):
         replica_map = self.get('replica_map', default={})
         peer = self.random_peer()
-        peer.put(k, v)
+        peer.put_item(k, v)
         replica_map[k] = [peer]
 
-
-
-
-    def check_replicas(self):
-        
-        replicas = self.replicas
-        c.print(replicas)
-        c.print(replicas)
-    
-
-    def get(self,k, deserialize:bool= True, key=None) -> Any:
+    def get_item(self,k, deserialize:bool= True, key=None) -> Any:
         k = self.resolve_store_path(k)
         v = self.get_json(k, {})
 
@@ -110,9 +117,10 @@ class Storage(c.Module):
     def replicate(self, k, module) -> str:
         self.replicas
 
-    def get_hash(self, k: str, seed : int= None , seed_sep:str = '<SEED>') -> str:
-        obj = self.get(k, deserialize=False)
-        c.print(obj)
+    def item_hash(self, k: str = None, seed : int= None , seed_sep:str = '<SEED>', obj=None) -> str:
+        if obj == None:
+            assert k != None, 'Must provide k or obj'
+            obj = self.get_item(k, deserialize=False)
         if seed != None:
             obj = str(obj) + seed_sep + str(seed)
         return self.hash(obj, seed=seed)
@@ -120,15 +128,6 @@ class Storage(c.Module):
     def resolve_seed(self, seed: int = None) -> int:
         return c.timestamp() if seed == None else seed
 
-    def remote_has(self, k: str, module: str, seed=None, **kwargs) -> bool:
-        if isinstance(module, str):
-            module = c.connect(module, **kwargs)
-        seed = self.resolve_seed(seed)
-        obj = self.get(k)
-        obj['seed'] = seed
-        local_hash = c.hash(obj)
-        remote_hash =  module.get_hash(k, seed=seed)
-        return bool(local_hash == remote_hash)
         
     def exists(self, k) -> bool:
         path = self.resolve_store_path(k)
@@ -193,13 +192,13 @@ class Storage(c.Module):
         for encrypt in [True, False]:
             for obj in object_list:
                 c.print(f'putting {obj}')
-                self.put('test', obj,encrypt=encrypt)
+                self.put_item('test', obj,encrypt=encrypt)
                 get_obj = self.get('test', deserialize=False)
                 obj_str = self.serializer.serialize(obj)
 
                 # test hash
-                assert self.get_hash('test', seed=1) == self.get_hash('test', seed=1)
-                assert self.get_hash('test', seed=1) != self.get_hash('test', seed=2)
+                assert self.item_hash('test', seed=1) == self.item_hash('test', seed=1)
+                assert self.item_hash('test', seed=1) != self.item_hash('test', seed=2)
                 assert obj_str == obj_str, f'Failed to put {obj} and get {get_obj}'
 
                 self.rm('test')
@@ -211,17 +210,62 @@ class Storage(c.Module):
         object_list = [0, {'fam': 1}, 'whadup', {'tensor': torch.rand(3,3)}, {'tensor': torch.rand(3,3), 'fam': 1}]
         for i, x in enumerate(object_list):
             for i, storage in enumerate(storage_modules):
-                storage.put('test', x)
+                storage.put_item('test', x)
             seed = c.time()
             for i, storage_i in enumerate(storage_modules):
                 for j, storage_j in enumerate(storage_modules):
                     c.print(f'Verifying i={i} j={j}')
-                    assert storage_i.get_hash('test', seed=seed) == storage_j.get_hash('test', seed=seed)
+                    assert storage_i.item_hash('test', seed=seed) == storage_j.item_hash('test', seed=seed)
 
 
-    
-    def validate(self):
-        while True:
-            c.sleep(1)
-            self.ls()
-            c.print(self.server_name)
+    item2replicas = {}
+    def validate(self, refresh=False):
+
+        self.ls()
+        item2info = self.item2info()
+        item_keys = list(item2info.keys())
+        item_key = c.choice(item_keys)
+        item = self.get_item(item_key)
+        item_hash = c.hash(item)
+        remote_item_key = f'replica::{item_hash}'
+
+        # get the peers 
+        peers = self.peers()
+        max_replicas = min(self.max_replicas, len(peers)) 
+        # get the replica_map
+        replica_map = {} if refresh else self.get(f'replica_map/{self.tag}',{})
+        replica_peers = self.item2replicas.get(item_key, [])
+        has_enough_replicas = bool(len(replica_peers) >= max_replicas)
+        if has_enough_replicas: 
+            # check if replicas match
+            peer = c.choice(replica_peers)
+            seed = c.timestamp()
+            # get the local hash
+            local_hash = self.item_hash(obj=item, seed=seed)
+
+            # check if remote hash matches
+            remote_hash= c.connect(peer).item_hash(remote_item_key, seed=seed)
+            if local_hash != remote_hash:
+                # remove replica
+                replica_peers.remove(peer)
+                c.print(f'Hashes do not match for {item_key} on {peer}', color='red')
+            else:
+                c.print(f'Hashes match for {item_key} on {peer}', color='green')
+                
+        else:
+            # find peer to add replica
+            candidate_peers = [peer for peer in peers if peer not in replica_peers]
+            peer = c.choice(candidate_peers)
+            # add replica
+            response = c.call(peer, 'put', remote_item_key, item)
+
+            if response['success']:
+                replica_peers += [peer]
+                c.print(f'Added replica for {item_key} on {peer}', color='green')
+            else: 
+                c.print(f'Failed to add replica for {item_key} on {peer}', color='red')
+
+        replica_map[item_key] = replica_peers
+        self.put(f'replica_map/{self.tag}', replica_map)
+
+        return {'success': True, 'replica_map': replica_map}

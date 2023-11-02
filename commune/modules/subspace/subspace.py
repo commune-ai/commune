@@ -1486,9 +1486,9 @@ class Subspace(c.Module):
         name2key = self.name2key(netuid=netuid)
         if key in name2key:
             key = name2key[key]
+        if not c.is_valid_ss58_address(key):
+            return False
         is_reged =  bool(self.query('Uids', block=block, params=[ netuid, key ]).value)
-
-
         return is_reged
 
     def get_uid_for_key_on_subnet( self, key_ss58: str, netuid: int, block: Optional[int] = None) -> int:

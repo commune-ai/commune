@@ -2023,11 +2023,15 @@ class c:
         """
         Root module
         """
-        if not c.server_exists(name, network=network):
-            c.serve(name, network=network, wait_for_server=True, **kwargs)
-        address = c.call('module', 'address', network=network, timeout=timeout)
-        ip = c.ip()
-        address = ip+':'+address.split(':')[-1]
+        try:
+            if not c.server_exists(name, network=network):
+                c.serve(name, network=network, wait_for_server=True, **kwargs)
+            address = c.call('module', 'address', network=network, timeout=timeout)
+            ip = c.ip()
+            address = ip+':'+address.split(':')[-1]
+        except Exception as e:
+            c.print(f'Error: {e}', color='red')
+            address = None
         return address
     addy = root_address
 
@@ -4813,10 +4817,14 @@ class c:
         if n == 1:
             futures = c.async_call(*args,**kwargs)
         else:
-            futures = [ c.async_call(fn, *args,**kwargs) for i in range(n)]
+            futures = [ c.async_call(*args,**kwargs) for i in range(n)]
         if return_future:
             return futures
-        return c.gather(futures)
+        
+        results =  c.gather(futures)
+        if n == 1:
+            return results[0]
+        return results
     
     @classmethod
     async def async_call(cls,
