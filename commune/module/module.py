@@ -2501,6 +2501,7 @@ class c:
               update:bool = False,
               max_workers:int = None,
               mode:str = "thread",
+              public: bool = False,
               **extra_kwargs
               ):
 
@@ -2562,7 +2563,8 @@ class c:
                                           port=port, 
                                           network=network, 
                                           max_workers=max_workers, 
-                                          mode=mode)
+                                          mode=mode, 
+                                          public=public)
         
         response =  {'success':True, 'address':  f'{c.default_ip}:{port}' , 'name':server_name, 'module':module}
 

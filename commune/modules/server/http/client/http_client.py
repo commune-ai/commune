@@ -118,8 +118,9 @@ class Client(c.Module):
         ## handles 
         if isinstance(result, str):
             result = json.loads(result)
-        assert isinstance(result, dict) and 'data' in result and 'signature' in result, f"Invalid response: {result}"
-        result = self.serializer.deserialize(result['data'])['data']
+
+        result = self.serializer.deserialize(result['data'])
+
         return result 
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
