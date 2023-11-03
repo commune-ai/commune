@@ -436,7 +436,7 @@ class Vali(c.Module):
                     cache_path:str = 'vali_stats',
                     return_all:bool=False):
         if return_all:
-            return cls.all_vali_stats(network=network, df=df)
+            return cls.all_stats(network=network, df=df)
         vali_stats = []
         if update == False:
             vali_stats = cls.get(cache_path, default=[])
