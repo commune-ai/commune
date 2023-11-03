@@ -408,7 +408,7 @@ class Vali(c.Module):
             return {'success': True, 'message': 'Started check_vali_loop'}
         while True:
             c.print('Checking valis', color='cyan')
-            c.print(cls.all_vali_stats())
+            c.print(cls.all_stats())
             cls.check_valis(**kwargs)
             c.sleep(interval)
 
