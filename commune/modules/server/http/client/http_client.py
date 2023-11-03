@@ -67,7 +67,9 @@ class Client(c.Module):
         args = args if args else []
         kwargs = kwargs if kwargs else {}
 
+
         url = f"http://{self.address}/{fn}/"
+
 
         request_data =  { 
                         "args": args,
@@ -75,13 +77,12 @@ class Client(c.Module):
                         "ip": self.my_ip,
                         "timestamp": c.timestamp(),
                         }
-        
+
         # serialize this into a json string
         request_data = self.serializer.serialize( request_data)
 
         # sign the request
         request = self.key.sign(request_data, return_json=True)
-
 
         result = '{}'
         # start a client session and send the request

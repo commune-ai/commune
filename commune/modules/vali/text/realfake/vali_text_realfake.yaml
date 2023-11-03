@@ -2,4 +2,5 @@ dataset: data.text.realfake
 netuid: 0
 module_search: model
 tag: base
+target: real
 
