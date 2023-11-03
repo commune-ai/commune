@@ -7505,6 +7505,20 @@ class c:
     @classmethod
     def vstats(cls, *args, **kwargs):
         return c.module('vali').all_stats(*args, **kwargs)
+
+    @classmethod
+    def restart_valis(cls, search=None, network= 'local'):
+        namespace = c.namespace('vali', network=network)
+        for name, address in namespace.items():
+            if search != None:
+                if search not in name:
+                    continue
+                c.restart(name)
+
+        return namespace
+
+        
+
     @classmethod
     def check_valis(cls, *args, **kwargs):
         return c.module('vali').check_valis(*args, **kwargs)

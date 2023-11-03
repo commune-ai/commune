@@ -20,7 +20,8 @@ class Vali(c.Module):
         self.config = c.munch({**Vali.config(), **config})
         self.start_time = c.time()
         self.errors = 0
-        if config.start:
+        c.print(f'Vali config: {self.config}', color='cyan')
+        if self.config.start:
             self.sync()
             self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
             c.thread(self.run)
