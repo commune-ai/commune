@@ -23,12 +23,16 @@ class Vali(c.Module):
         self.ip = c.ip()
         if self.config.check_loop:
             self.ensure_check_loop()
+
         if self.config.refresh_stats:
             self.refresh_stats(network=self.config.network, tag=self.tag)
         if self.config.start == False:
             return
         self.executor = c.module('thread.pool')(num_workers=self.config.num_workers, save_outputs=False)
-        c.thread(self.run)
+        if self.config.run_mode == 'thread':
+            c.thread(self.run)
+        elif self.config.run_mode == 'process':
+            c.process(self.run)
         c.thread(self.vote_loop)
  
     @property
@@ -343,16 +347,16 @@ class Vali(c.Module):
         self.running = True
         futures = []
         while self.running:
-    
-            if self.sync_staleness > self.config.sync_interval:
-                self.sync()
+
             modules = c.shuffle(c.copy(self.modules))
             time_between_interval = c.time()
             for i, module in enumerate(modules):
                 c.sleep(self.config.sleep_time)
                 self.executor.submit(fn=self.eval_module, kwargs={'module':module})
-
                 num_tasks = self.executor.num_tasks
+
+                if self.sync_staleness > self.config.sync_interval:
+                    self.sync()
 
                 if self.count % 10 == 0 and self.count > 0:
                     stats =  {
@@ -381,11 +385,10 @@ class Vali(c.Module):
         self.running = False
         
     @classmethod
-    def check_valis(cls, network='main', max_staleness=300, return_all=True, remote=False):
+    def check_valis(cls, network='main', interval:int = 20, max_staleness:int=300, return_all=True, remote=False):
         # get the up to date vali stats
         vali_stats = cls.stats(network=network, df=False, return_all=return_all, update=True)
         for v in vali_stats:
-            c.print(v)
             if 'serving' not in v:
                 continue
             if v['staleness'] > max_staleness:
@@ -398,6 +401,11 @@ class Vali(c.Module):
                 if address != None:
                     port = int(address.split(':')[-1])
                 c.serve(v['name'], port=port)
+
+            c.print(f'{interval} ', color='green')
+            c.sleep(interval)
+
+            
 
     check_loop_name = 'vali::check_loop'
     @classmethod
