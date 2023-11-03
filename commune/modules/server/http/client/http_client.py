@@ -82,7 +82,6 @@ class Client(c.Module):
         # sign the request
         request = self.key.sign(request_data, return_json=True)
 
-        c.print(request)
 
         result = '{}'
         # start a client session and send the request
@@ -98,6 +97,8 @@ class Client(c.Module):
                             continue
                         result += [self.process_output(json.loads(event_data))]
                     
+                    if len(result) == 1: 
+                        result = result[0]
                 elif response.content_type == 'application/json':
                     result = await asyncio.wait_for(response.json(), timeout=timeout)
                     result = self.process_output(result)
@@ -121,7 +122,9 @@ class Client(c.Module):
 
         result = self.serializer.deserialize(result['data'])
 
-        return result 
+        
+
+        return result['data']
         
     def forward(self,*args,return_future:bool=False, timeout:str=4, **kwargs):
         forward_future = asyncio.wait_for(self.async_forward(*args, **kwargs), timeout=timeout)

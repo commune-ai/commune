@@ -35,7 +35,7 @@ class ValiTextTruthfulQA(Vali):
                 break
 
         w = 0.1
-        c.print(f'answer_idx: {answer_idx}, answers: {answers} output: {output}', color='purple')
+        c.print(f'answer_idx: {answer_idx}, answers: {answers} output: {output}', color='purple', verbose=self.config.verbose)
         if answer_idx in answers:
             w = 1.0
 
