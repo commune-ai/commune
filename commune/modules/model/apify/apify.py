@@ -10,39 +10,39 @@ class Apify(c.Module):
 
         self.client = ApifyClient(os.getenv("apify_token"))
 
-    def scrape(self, 
-               blue_verified = False, has_engagement = False, images = False, media = False, nativeretewwtes = False, quote = False, replies = False, retweets = False,
-               safe = False, twimg = False, verified = False, videos = False, max_tweets = 10, only_tweets = False,
-               keyword = "bitcoin", experimental_scraper = False, language = "any", user_info = "user info and replying info", max_attempts = 5):
-        run_input = {
-            "filter:blue_verified": blue_verified,
-            "filter:has_engagement": has_engagement,
-            "filter:images": images,
-            "filter:media": media,
-            "filter:nativeretweets": nativeretewwtes,
-            "filter:quote": quote,
-            "filter:replies": replies,
-            "filter:retweets": retweets,
-            "filter:safe": safe,
-            "filter:twimg": twimg,
-            "filter:verified": verified,
-            "filter:videos": videos,
-            "max_tweets": max_tweets,
-            "only_tweets": only_tweets,
-            "queries": [keyword],
-            "use_experimental_scraper": experimental_scraper,
-            "language": language,
-            "user_info": user_info,
-            "max_attempts": max_attempts
+    def scrape(self, twitterFilter):
+        twitter_actor_id = os.getenv("twitter_actor_id")
+        twitter_run_input = {
+            "filter:blue_verified": False,
+            "filter:has_engagement": False,
+            "filter:images": False,
+            "filter:media": False,
+            "filter:nativeretweets": False,
+            "filter:quote": False,
+            "filter:replies": False,
+            "filter:retweets": False,
+            "filter:safe": False,
+            "filter:twimg": False,
+            "filter:verified": False,
+            "filter:videos": False,
+            "max_tweets": 10,
+            "only_tweets": False,
+            "queries": ["bit"],
+            "use_experimental_scraper": False,
+            "language": "any",
+            "user_info": "user info and replying info",
+            "max_attempts": 5,
+            "actor_id": twitter_actor_id
         }
+        twitter_run_input.update(twitterFilter)
 
-        run = self.client.actor("wHMoznVs94gOcxcZl").call(run_input=run_input)
+        run = self.client.actor(twitter_run_input["actor_id"]).call(run_input=twitter_run_input)
 
         for item in self.client.dataset(run["defaultDatasetId"]).iterate_items():
             print(item)
 
 
-if __name__ == '__main__':
-    keyword = "bitcoin"
-    scraper = TweetScraper(os.getenv("apify_token"))
-    scraper.scrape_tweets(keyword)
+# if __name__ == '__main__':
+#     scraper = Apify(os.getenv("apify_token"))
+#     twitterFilter = {"queries":["bitcoin"]}
+#     scraper.scrape(twitterFilter)
