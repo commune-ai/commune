@@ -37,6 +37,8 @@ To check the stats of a module, you can use the following command
 c stats
 ```
 
+![Alt text](image.png)
+
 If you want to sync the stats with the network, you can use the following.
 
 ```
@@ -47,39 +49,51 @@ c stats update=True
 
 ## Transfer Tokens
 
-To tranfer tokens to a module, you can use the following command
+To tranfer 100 tokens to a module, you can use the following command
 
 ```
-c transfer model.openai 100 model.openai.2
+c transfer 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S 100 
 ```
-or you an specify the address, this is the safer way to do it, as you can accidentally send it to the wrong address if the name has changed on the network.
 
-```
-c transfer ADDRESS_FROM model.openai 100 ADDRESS_TO
-```
 
 ## Stake Tokens
 
-To stake on a module, you can use the following command
+To stake on a module, you can use the following commands:
 
 ```
 c stake model.openai amount=100
 ```
+or
+```
+c stake model.openai 100
+``` 
+or
+```
+c stake 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S amount=100
 
+
+## Unstake Tokens
+```
 To unstake on a module, you can use the following command
-
-```
-c unstake model.openai amount=100
 ```
 
-### Staking on another Module with your Tokens
-
-To stake on another module with your tokens, you can use the following command. 
+Unstake 100 tokens from the module with the name model.openai
 
 ```
-
-c stake key=model.openai amount=100 module_key=model.openai.2
+c unstake 100 # unstake 100 tokens from the most staked module
 ```
+
+Unstake 100 tokens from the module with the name model.openai
+```
+c unstake 100 model.openai 
+```
+
+```
+c unstake 100 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S # unstake 100 tokens from the module with the address 5HYnok8FmBEx9AekVUPzff9kW7ymyp9mrucQTeqTLfJoHu1S
+```
+```
+
+
 
 ### Unstaking on another Module with your Tokens
 
@@ -91,12 +105,25 @@ c unstake key=model.openai amount=100 module_key=model.openai.2
 
 ## Start Local Node
 
-To start a local node, you can use the following command
+To start a local node, you can use the following command, please ensure you have docker installed.
 
 ```
-c start_node alice chain=main
+c start_local_node
 ```
+
 This starts a node with the name alice on the main chain. You can also specify the chain to be main or dev.
+
+
+## Start a Chain
+
+To start a chain, you can use the following command
+
+
+This starts a chain with the name alice on the main chain. You can also specify the chain to be main or dev.
+
+```
+c start_chain dev valis=4 nonvalis=4
+```
 
 
 
