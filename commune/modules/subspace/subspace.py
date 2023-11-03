@@ -246,9 +246,9 @@ class Subspace(c.Module):
     def my_total_balance(self, network = None, fmt=fmt, decimals=2):
         return sum(self.my_balance(network=network, fmt=fmt, decimals=decimals).values())
 
-    def names2uids(self, names: List[str]) -> Union[torch.LongTensor, list]:
+    def names2uids(self, names: List[str] ) -> Union[torch.LongTensor, list]:
         # queries updated network state
-        current_network_state = self.modules(update=True) 
+        current_network_state = self.modules() 
         uids = []
         for name in names:
             for node in current_network_state:
@@ -262,7 +262,7 @@ class Subspace(c.Module):
     #### Set Weights ####
     #####################
     @retry(delay=0, tries=4, backoff=0, max_delay=0)
-    def set_weights(
+    def vote(
         self,
         key: 'c.key' = None,
         uids: Union[torch.LongTensor, list] = None,
@@ -321,7 +321,7 @@ class Subspace(c.Module):
             return {'success': True, 'weights': weights, 'uids': uids, 'message': 'Set weights'}
         return response
 
-    vote = set_weights
+    set_weights = vote
 
     def get_netuid_for_subnet(self, network: str = None) -> int:
         netuid = self.subnet_namespace.get(network, None)
@@ -2048,7 +2048,7 @@ class Subspace(c.Module):
                 timeout:int=200, 
                 include_balances = False, 
                 mode = 'process',
-                cache = True,
+                
                 ) -> Dict[str, ModuleInfo]:
         import inspect
 
@@ -2057,11 +2057,6 @@ class Subspace(c.Module):
         cache_path = f'modules/{network}.{netuid}'
 
         modules = []
-        
-
-
-        if cache:
-            modules = self.cached_modules
 
         if not update :
             modules = self.get(cache_path, [])
@@ -2131,6 +2126,7 @@ class Subspace(c.Module):
 
                 if include_balances:
                     module['balance'] = state['balances'].get(key, 0)
+                    
                 modules.append(module)
 
             self.put(cache_path, modules)
@@ -2448,7 +2444,7 @@ class Subspace(c.Module):
         nonzero_emission =[e for e in emission if e > 0]
         return len(nonzero_emission)
 
-    def incentive(self, netuid = netuid, block=None,   network=network, nonzero:bool=True, **kwargs):
+    def incentive(self, netuid = netuid, block=None,   network=network, nonzero:bool=False, **kwargs):
         incentive = [v.value for v in self.query('Incentive', params=netuid, network=network, block=block, **kwargs)]
 
         if nonzero:

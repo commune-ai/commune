@@ -19,6 +19,8 @@ load: false
 quantize: null
 
 shortcuts:
+  zephyr7bbeta: HuggingFaceH4/zephyr-7b-beta
+  mistral7b: 'mistralai/Mistral-7B-v0.1'
   # 0-1B models
   gpt125m: 'EleutherAI/gpt-neo-125m'
   gpt2.7b: 'EleutherAI/gpt-neo-2.7B'
