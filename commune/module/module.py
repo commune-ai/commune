@@ -7850,6 +7850,15 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.print(m)
             c.restart(m)
+
+    @classmethod
+    def restart_many(cls, search:str = None, network = None, **kwargs):
+        servers = c.servers(search, network=network)
+        for m in servers:
+            c.restart(m, **kwargs)
+        return servers
+
+        
     
     @classmethod
     def kill_replicas(self, network:str=None, **kwargs):
