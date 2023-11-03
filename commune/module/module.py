@@ -7496,17 +7496,15 @@ class c:
     mcap = market_cap
     @classmethod
     def n(cls, *args, **kwargs):
-        return c.module('subspace')().n(*args, **kwargs)
+        return c.module('subspace')().n(*args, **wkwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
         t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
 
     @classmethod
-    def vali_stats(cls, *args, **kwargs):
-        return c.module('vali').vali_stats(*args, **kwargs)
-    vstats = vali_stats
-
+    def vstats(cls, *args, **kwargs):
+        return c.module('vali').all_stats(*args, **kwargs)
     @classmethod
     def check_valis(cls, *args, **kwargs):
         return c.module('vali').check_valis(*args, **kwargs)

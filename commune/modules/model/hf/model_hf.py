@@ -108,8 +108,6 @@ class ModelTransformer(Model):
         config.model = config.shortcuts.get(config.model, config.model)
         from transformers import  AutoModelForCausalLM
 
-
-        
         config = self.resolve_quantize(config)
 
         config.device_map = c.infer_device_map(config.model, quantize=config.quantize)
@@ -317,14 +315,17 @@ class ModelTransformer(Model):
         
         
         return model
-                
+
+    @classmethod
+    def hf2commune(cls, path:str):
+        return path.split('/')[-1].lower()     
 
     @property
     def tag(self):
         if self.config.get('tag', None) == None:
             self.config['tag'] = 'base'
-            
-        return  self.config['tag']
+        commune_model_path = self.hf2commune(path)
+        return  commune_model_path + self.config['tag']
     
     @tag.setter
     def tag(self, tag):
@@ -346,7 +347,7 @@ class ModelTransformer(Model):
     @classmethod
     def resolve_server_name(cls, tag=None, **kwargs):
         config = cls.get_config(kwargs=kwargs)
-        server_name = 'model.'+config.model
+        server_name = 'model.'+ cls.hf2commune(config.model)
         if tag != None :
             server_name += '::' +  str(tag)
         return server_name
