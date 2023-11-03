@@ -1,19 +1,10 @@
 import commune as c
 Vali = c.module('vali')
-class ValiTextRealfake(Vali):
+class ValiTextMath(Vali):
     def __init__(self, config=None, **kwargs):
         config = self.set_config(config=config, kwargs=kwargs)   
         self.dataset =  c.module(config.dataset)()
 
-
-        self.operations = {
-            'add': '+',
-            'subtract': '-',
-            'multiply': '*',
-            'divide': '/'
-            'modulo': '%'
-            'exponent': '**'
-        } 
         self.init_vali(config)
 
 
