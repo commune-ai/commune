@@ -2,19 +2,29 @@ import commune as c
 from diffusers import DiffusionPipeline
 import torch
 class DiffisionPipeline(c.Module):
-    def __init__(self, config=None, **kwargs):
-        config =  self.set_config(config=config, kwargs=kwargs)
-        self.set_model(config.model)
 
-    def set_model(self, model:str):
+    def __init__(  self, 
+                    model: str =  'stabilityai/stable-diffusion-xl-base-1.0',
+                    variant : str = 'fp16',
+                    device: str=  None,
+                    test: bool = True
+                    ):
+        self.set_model(model=model, device=device , variant=variant)
+        self.test()
+
+    def set_model(self, model:str, device:str = None, variant: str = 'fp16'):
         c.ensure_lib("diffusers")
-        from diffusers import DiffusionPipeline
-        import torch
-
+        device = device if device != None else f'cuda:{c.most_free_gpu()}' 
         # load both base & refiner
-        self.base = DiffusionPipeline.from_pretrained(model, torch_dtype=torch.float16, variant=self.config.variant, use_safetensors=True
-        )
-        self.base.to(self.config.device)
+        self.model = DiffusionPipeline.from_pretrained(model, 
+                                                      torch_dtype=torch.float16, 
+                                                      variant=variant, 
+                                                      use_safetensors=True).to(device)
+
+
+        self.device = device
+        self.variant= variant 
+        self.path = model
 
     def generate(self, 
                 prompt: str = "A majestic lion jumping from a big stone at night",
@@ -27,7 +37,7 @@ class DiffisionPipeline(c.Module):
 
 
             # run both experts
-            images = self.base(
+            images = self.model(
                 prompt=prompt,
                 num_inference_steps=n_steps,
                 denoising_end=high_noise_frac,
@@ -42,3 +52,5 @@ class DiffisionPipeline(c.Module):
     def test(cls, **kwargs):
         self = cls(**kwargs)
         return self.generate()
+
+

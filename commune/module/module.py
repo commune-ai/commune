@@ -2522,7 +2522,7 @@ class c:
 
         if tag_seperator in server_name:
             tag = server_name.split(tag_seperator)[-1] 
-
+        
         if remote:
             remote_kwargs = cls.locals2kwargs(locals(), merge_kwargs=False)
             remote_kwargs.pop('extra_kwargs')
@@ -2539,11 +2539,14 @@ class c:
         module_class = cls.resolve_module(module)
         kwargs.update(extra_kwargs)
 
-        
+  
         # this automatically adds 
         self = module_class(**kwargs)
         self.tag = tag
         self.server_name = server_name
+        self.key = server_name
+
+
 
         if c.server_exists(server_name, network=network): 
             if refresh:
@@ -3325,10 +3328,6 @@ class c:
     
        
     
-    @classmethod
-    def api(cls, *args, **kwargs):
-        from commune.api import API
-        return API(*args, **kwargs)
     
     @classmethod
     def learn(cls, *args, **kwargs):
@@ -4864,8 +4863,6 @@ class c:
             return futures
         
         results =  c.gather(futures)
-        if n == 1:
-            return results[0]
         return results
     
     @classmethod
@@ -7299,6 +7296,7 @@ class c:
     @property
     def key(self):
         if not hasattr(self, '_key'):
+            c.print(self.server_name, 'FAM')
             self._key = c.get_key(self.server_name, create_if_not_exists=True)
         return self._key
 
@@ -7308,7 +7306,7 @@ class c:
 
     @key.setter
     def key(self, key):
-        self._key = c.get_key(key)
+        self._key = c.get_key(key, create_if_not_exists=True)
         return self._key
 
     @classmethod
@@ -7498,16 +7496,28 @@ class c:
     mcap = market_cap
     @classmethod
     def n(cls, *args, **kwargs):
-        return c.module('subspace')().n(*args, **kwargs)
+        return c.module('subspace')().n(*args, **wkwargs)
     @classmethod
     def stats(cls, *args, **kwargs):
         t = c.timer()
         return c.module('subspace')().stats(*args, **kwargs)
 
     @classmethod
-    def vali_stats(cls, *args, **kwargs):
-        return c.module('vali').vali_stats(*args, **kwargs)
-    vstats = vali_stats
+    def vstats(cls, *args, **kwargs):
+        return c.module('vali').all_stats(*args, **kwargs)
+
+    @classmethod
+    def restart_valis(cls, search=None, network= 'local'):
+        namespace = c.namespace('vali', network=network)
+        for name, address in namespace.items():
+            if search != None:
+                if search not in name:
+                    continue
+                c.restart(name)
+
+        return namespace
+
+        
 
     @classmethod
     def check_valis(cls, *args, **kwargs):
@@ -7854,6 +7864,15 @@ class c:
         for m in cls.replicas(network=network, **kwargs):
             c.print(m)
             c.restart(m)
+
+    @classmethod
+    def restart_many(cls, search:str = None, network = None, **kwargs):
+        servers = c.servers(search, network=network)
+        for m in servers:
+            c.restart(m, **kwargs)
+        return servers
+
+        
     
     @classmethod
     def kill_replicas(self, network:str=None, **kwargs):

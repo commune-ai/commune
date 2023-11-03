@@ -1,4 +1,4 @@
-dataset: data.text.realfake
+dataset: data.text.math
 netuid: 0
 module_search: model
 tag: base
